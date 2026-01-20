@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
+import { compare } from "https://esm.sh/bcryptjs@3.0.2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -203,7 +203,7 @@ serve(async (req) => {
         const normalizedHash = storedHash.replace(/^\$2y\$/, '$2a$');
         
         // Verify password using bcrypt
-        const isValid = await bcrypt.compare(password, normalizedHash);
+        const isValid = await compare(password, normalizedHash);
         
         if (!isValid) {
           result = [];
