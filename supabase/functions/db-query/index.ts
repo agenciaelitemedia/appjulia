@@ -15,15 +15,36 @@ serve(async (req) => {
   try {
     const { action, table, data, where, select, limit, offset, orderBy } = await req.json();
 
-    // Connect to external PostgreSQL (DigitalOcean with CA certificate)
-    const caCert = Deno.env.get('EXTERNAL_DB_CA_CERT');
+    // Connect to external PostgreSQL (DigitalOcean requires a trusted CA).
+    // Secrets that store PEMs sometimes escape newlines as "\\n" or are base64 encoded;
+    // normalize to a proper PEM string before passing to TLS.
+    const rawCaCert = Deno.env.get('EXTERNAL_DB_CA_CERT') ?? '';
+    const normalizeCaCert = (input: string) => {
+      const trimmed = input.trim();
+      const unescaped = trimmed.replace(/\\n/g, '\n');
+      if (unescaped.includes('BEGIN CERTIFICATE')) return unescaped;
+      // If the secret was pasted as base64, decode it.
+      try {
+        const decoded = atob(trimmed);
+        if (decoded.includes('BEGIN CERTIFICATE')) return decoded;
+      } catch {
+        // ignore
+      }
+      return unescaped;
+    };
+
+    const caCert = rawCaCert ? normalizeCaCert(rawCaCert) : '';
+    console.log('External DB CA provided:', Boolean(caCert), 'len:', caCert.length);
+
     const sql = postgres({
       host: Deno.env.get('EXTERNAL_DB_HOST'),
       port: parseInt(Deno.env.get('EXTERNAL_DB_PORT') || '25061'),
       database: Deno.env.get('EXTERNAL_DB_DATABASE'),
       username: Deno.env.get('EXTERNAL_DB_USERNAME'),
       password: Deno.env.get('EXTERNAL_DB_PASSWORD'),
-      ssl: caCert ? { ca: caCert } : { rejectUnauthorized: false },
+      ssl: caCert
+        ? { ca: caCert, rejectUnauthorized: true }
+        : { rejectUnauthorized: false },
     });
 
     let result;
