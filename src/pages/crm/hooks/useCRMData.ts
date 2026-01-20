@@ -32,7 +32,7 @@ export function useCRMCards() {
       const result = await externalDb.raw<CRMCard>({
         query: `
           SELECT 
-            c.id, c.cod_agent, c.contact_name, c.whatsapp, 
+            c.id, c.cod_agent, c.contact_name, c.whatsapp_number, 
             c.business_name, c.stage_id, c.notes,
             c.created_at, c.updated_at, c.stage_entered_at,
             s.name as stage_name, s.color as stage_color

@@ -55,7 +55,7 @@ export function CRMLeadDetailsDialog({
   };
 
   const handleWhatsApp = () => {
-    const cleanPhone = card.whatsapp.replace(/\D/g, '');
+    const cleanPhone = card.whatsapp_number.replace(/\D/g, '');
     const phone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
     window.open(`https://wa.me/${phone}`, '_blank');
   };
@@ -107,7 +107,7 @@ export function CRMLeadDetailsDialog({
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm">
               <Phone className="h-4 w-4 text-muted-foreground" />
-              <span>{formatPhone(card.whatsapp)}</span>
+              <span>{formatPhone(card.whatsapp_number)}</span>
               <Button
                 variant="outline"
                 size="sm"

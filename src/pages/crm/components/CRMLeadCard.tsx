@@ -12,7 +12,7 @@ interface CRMLeadCardProps {
 
 export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
   const formatPhone = (phone: string) => {
-    const cleaned = phone.replace(/\D/g, '');
+    const cleaned = card.whatsapp_number.replace(/\D/g, '');
     if (cleaned.length === 11) {
       return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`;
     }
@@ -29,7 +29,7 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
 
   const handleWhatsApp = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const cleanPhone = card.whatsapp.replace(/\D/g, '');
+    const cleanPhone = card.whatsapp_number.replace(/\D/g, '');
     const phone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
     window.open(`https://wa.me/${phone}`, '_blank');
   };
@@ -59,7 +59,7 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
           <div className="space-y-1 text-xs text-muted-foreground">
             <div className="flex items-center gap-1.5">
               <Phone className="h-3 w-3" />
-              <span>{formatPhone(card.whatsapp)}</span>
+              <span>{formatPhone(card.whatsapp_number)}</span>
             </div>
 
             {card.business_name && (

@@ -24,7 +24,7 @@ export default function CRMPage() {
     return cards.filter(
       (card) =>
         card.contact_name?.toLowerCase().includes(search) ||
-        card.whatsapp?.includes(searchTerm) ||
+        card.whatsapp_number?.includes(searchTerm) ||
         card.business_name?.toLowerCase().includes(search)
     );
   }, [cards, searchTerm]);

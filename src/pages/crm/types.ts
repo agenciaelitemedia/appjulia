@@ -10,7 +10,7 @@ export interface CRMCard {
   id: number;
   cod_agent: string;
   contact_name: string;
-  whatsapp: string;
+  whatsapp_number: string;
   business_name?: string;
   stage_id: number;
   stage_name?: string;
