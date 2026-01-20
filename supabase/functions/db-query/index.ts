@@ -36,16 +36,25 @@ serve(async (req) => {
     const caCert = rawCaCert ? normalizeCaCert(rawCaCert) : '';
     console.log('External DB CA provided:', Boolean(caCert), 'len:', caCert.length);
 
-    const sql = postgres({
-      host: Deno.env.get('EXTERNAL_DB_HOST'),
-      port: parseInt(Deno.env.get('EXTERNAL_DB_PORT') || '25061'),
-      database: Deno.env.get('EXTERNAL_DB_DATABASE'),
-      username: Deno.env.get('EXTERNAL_DB_USERNAME'),
-      password: Deno.env.get('EXTERNAL_DB_PASSWORD'),
-      ssl: caCert
-        ? { ca: caCert, rejectUnauthorized: true }
-        : { rejectUnauthorized: false },
-    });
+    // Prefer a single connection string when provided.
+    // Example: postgresql://user:pass@host:25061/db?sslmode=require
+    const externalDbUrl = (Deno.env.get('EXTERNAL_DB_URL') ?? '').trim();
+    console.log('External DB URL provided:', Boolean(externalDbUrl));
+
+    const ssl = caCert
+      ? { ca: caCert, rejectUnauthorized: true }
+      : { rejectUnauthorized: false };
+
+    const sql = externalDbUrl
+      ? postgres(externalDbUrl, { ssl })
+      : postgres({
+          host: Deno.env.get('EXTERNAL_DB_HOST'),
+          port: parseInt(Deno.env.get('EXTERNAL_DB_PORT') || '25061'),
+          database: Deno.env.get('EXTERNAL_DB_DATABASE'),
+          username: Deno.env.get('EXTERNAL_DB_USERNAME'),
+          password: Deno.env.get('EXTERNAL_DB_PASSWORD'),
+          ssl,
+        });
 
     let result;
 
