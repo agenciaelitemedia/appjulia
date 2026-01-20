@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
+import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -101,7 +102,7 @@ serve(async (req) => {
           ssl,
         });
 
-    let result;
+    let result: Record<string, unknown>[] = [];
 
     switch (action) {
       case 'select': {
@@ -171,9 +172,47 @@ serve(async (req) => {
       }
 
       case 'raw': {
-        // For complex queries like authentication
+        // For complex queries (NOT for authentication - use 'login' action instead)
         const { query, params } = data;
         result = await sql.unsafe(query, params || []);
+        break;
+      }
+
+      case 'login': {
+        // Secure authentication with bcrypt verification
+        const { email, password } = data;
+        
+        // Fetch user by email only
+        const users = await sql.unsafe(
+          `SELECT id, name, email, role, cod_agent, evo_url, evo_instance, evo_apikey, data_mask, hub, created_at, password 
+           FROM users 
+           WHERE email = $1 
+           LIMIT 1`,
+          [email]
+        );
+        
+        if (users.length === 0) {
+          result = [];
+          break;
+        }
+        
+        const user = users[0];
+        const storedHash = user.password;
+        
+        // Handle PHP-style $2y$ prefix (convert to $2a$ for bcrypt compatibility)
+        const normalizedHash = storedHash.replace(/^\$2y\$/, '$2a$');
+        
+        // Verify password using bcrypt
+        const isValid = await bcrypt.compare(password, normalizedHash);
+        
+        if (!isValid) {
+          result = [];
+          break;
+        }
+        
+        // Remove password from result before returning
+        delete user.password;
+        result = [user];
         break;
       }
 
