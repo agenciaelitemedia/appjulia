@@ -7,7 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import LeadsList from "./pages/leads/LeadsList";
+import CRMPage from "./pages/crm/CRMPage";
 import AgentsList from "./pages/agents/AgentsList";
 import NotFound from "./pages/NotFound";
 
@@ -25,7 +25,7 @@ const App = () => (
             <Route element={<MainLayout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/leads" element={<LeadsList />} />
+              <Route path="/leads" element={<CRMPage />} />
               <Route path="/admin/agentes" element={<AgentsList />} />
             </Route>
             <Route path="*" element={<NotFound />} />
