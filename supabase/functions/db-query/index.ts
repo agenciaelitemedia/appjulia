@@ -7,41 +7,58 @@ const corsHeaders = {
 };
 
 /**
- * Normalizes a CA certificate string:
- * - Handles escaped newlines (\\n -> \n)
- * - Handles Windows line endings (\r\n -> \n)
- * - Decodes base64 if needed
- * - Returns array of individual certificates for Deno TLS
+ * Normalizes a CA certificate string into STRICT PEM blocks that Deno can load.
+ *
+ * Problem we must handle:
+ * - Many secret managers store PEM as a single line, e.g.
+ *   "-----BEGIN CERTIFICATE----- MII... -----END CERTIFICATE-----"
+ *   (spaces instead of newlines), which causes:
+ *   "Unable to add pem file to certificate store".
  */
 function normalizeCaCert(input: string): string[] {
-  let cert = input.trim();
-  
-  // Handle escaped newlines
-  cert = cert.replace(/\\n/g, '\n');
-  cert = cert.replace(/\r\n/g, '\n');
-  
+  let text = input.trim();
+
+  // Handle escaped newlines + Windows line endings
+  text = text.replace(/\\n/g, "\n");
+  text = text.replace(/\r\n/g, "\n");
+
   // If it looks like base64 (no BEGIN marker), try to decode
-  if (!cert.includes('BEGIN CERTIFICATE')) {
+  if (!text.includes("BEGIN CERTIFICATE")) {
     try {
-      const decoded = atob(cert);
-      if (decoded.includes('BEGIN CERTIFICATE')) {
-        cert = decoded;
-      }
+      const decoded = atob(text);
+      if (decoded.includes("BEGIN CERTIFICATE")) text = decoded;
     } catch {
-      // Not base64, continue with original
+      // ignore
     }
   }
-  
-  // Extract all certificate blocks (handles certificate bundles)
-  const certMatches = cert.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g);
-  
-  if (!certMatches || certMatches.length === 0) {
-    console.warn('No valid certificate blocks found in CA cert');
+
+  // Fix the common "single-line PEM" case: ensure BEGIN/END markers are on their own lines.
+  text = text
+    .replace(/-----BEGIN CERTIFICATE-----\s+/g, "-----BEGIN CERTIFICATE-----\n")
+    .replace(/\s+-----END CERTIFICATE-----/g, "\n-----END CERTIFICATE-----")
+    .replace(/-----END CERTIFICATE-----\s+/g, "-----END CERTIFICATE-----\n");
+
+  const blocks = text.match(
+    /-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g
+  );
+
+  if (!blocks || blocks.length === 0) {
+    console.warn("No valid certificate blocks found in CA cert");
     return [];
   }
-  
-  // Ensure each cert ends with a newline (required by some TLS implementations)
-  return certMatches.map(c => c.trim() + '\n');
+
+  const wrap64 = (s: string) => s.match(/.{1,64}/g)?.join("\n") ?? s;
+
+  return blocks.map((block) => {
+    // Strip headers/footers and ALL whitespace, then re-wrap to strict PEM.
+    const b64 = block
+      .replace(/-----BEGIN CERTIFICATE-----/g, "")
+      .replace(/-----END CERTIFICATE-----/g, "")
+      .replace(/\s+/g, "")
+      .trim();
+
+    return `-----BEGIN CERTIFICATE-----\n${wrap64(b64)}\n-----END CERTIFICATE-----\n`;
+  });
 }
 
 serve(async (req) => {
@@ -57,9 +74,9 @@ serve(async (req) => {
     const rawCaCert = Deno.env.get('EXTERNAL_DB_CA_CERT') ?? '';
     const caCerts = rawCaCert ? normalizeCaCert(rawCaCert) : [];
     
-    console.log('CA certificates found:', caCerts.length);
+    console.log("CA certificates found:", caCerts.length);
     if (caCerts.length > 0) {
-      console.log('First cert preview:', caCerts[0].substring(0, 60) + '...');
+      console.log("First cert preview:", caCerts[0].substring(0, 60) + "...");
     }
 
     // Get connection string
@@ -69,9 +86,9 @@ serve(async (req) => {
     // Build SSL config for Deno runtime
     // In Deno, we use 'caCerts' (array of PEM strings) instead of 'ca'
     // If no custom CA, use 'require' to let Deno use its trust store
-    const ssl = caCerts.length > 0 
+    const ssl = caCerts.length > 0
       ? { caCerts, rejectUnauthorized: true }
-      : 'require'; // Uses Deno's default CA store (mozilla + system when DENO_TLS_CA_STORE is set)
+      : "require"; // Uses Deno's default CA store (mozilla + system when DENO_TLS_CA_STORE is set)
 
     const sql = externalDbUrl
       ? postgres(externalDbUrl, { ssl })
