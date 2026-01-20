@@ -72,6 +72,13 @@ class ExternalDatabase {
       data: options,
     });
   }
+
+  async login<T = any>(email: string, password: string): Promise<T[]> {
+    return this.invoke({
+      action: 'login',
+      data: { email, password },
+    });
+  }
 }
 
 export const externalDb = new ExternalDatabase();

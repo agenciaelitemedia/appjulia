@@ -47,17 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       
-      // Query users table for authentication using bcrypt password verification
-      // Columns based on actual external database schema
-      const users = await externalDb.raw<User>({
-        query: `
-          SELECT id, name, email, role, cod_agent, evo_url, evo_instance, evo_apikey, data_mask, hub, created_at 
-          FROM users 
-          WHERE email = $1 AND password = crypt($2, password)
-          LIMIT 1
-        `,
-        params: [email, password],
-      });
+      // Use dedicated login action with bcrypt verification in edge function
+      const users = await externalDb.login<User>(email, password);
 
       if (users.length === 0) {
         return { success: false, error: 'Credenciais inválidas' };
