@@ -6,10 +6,14 @@ interface User {
   name: string;
   email: string;
   role: string;
-  status: string;
-  payment_status?: string;
-  avatar?: string;
+  cod_agent?: number;
+  evo_url?: string;
+  evo_instance?: string;
+  evo_apikey?: string;
+  data_mask?: boolean;
+  hub?: string;
   created_at?: string;
+  avatar?: string; // Optional for UI compatibility
 }
 
 interface AuthContextType {
@@ -43,10 +47,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       
-      // Query users table for authentication
+      // Query users table for authentication using bcrypt password verification
+      // Columns based on actual external database schema
       const users = await externalDb.raw<User>({
         query: `
-          SELECT id, name, email, role, status, payment_status, avatar, created_at 
+          SELECT id, name, email, role, cod_agent, evo_url, evo_instance, evo_apikey, data_mask, hub, created_at 
           FROM users 
           WHERE email = $1 AND password = crypt($2, password)
           LIMIT 1
@@ -59,16 +64,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const authenticatedUser = users[0];
-
-      // Check payment status
-      if (authenticatedUser.payment_status === 'overdue') {
-        return { success: false, error: 'Pagamento pendente. Entre em contato com o suporte.' };
-      }
-
-      // Check if user is active
-      if (authenticatedUser.status !== 'active') {
-        return { success: false, error: 'Conta inativa. Entre em contato com o suporte.' };
-      }
 
       setUser(authenticatedUser);
       localStorage.setItem('julia_user', JSON.stringify(authenticatedUser));
