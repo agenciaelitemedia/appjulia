@@ -6,6 +6,44 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+/**
+ * Normalizes a CA certificate string:
+ * - Handles escaped newlines (\\n -> \n)
+ * - Handles Windows line endings (\r\n -> \n)
+ * - Decodes base64 if needed
+ * - Returns array of individual certificates for Deno TLS
+ */
+function normalizeCaCert(input: string): string[] {
+  let cert = input.trim();
+  
+  // Handle escaped newlines
+  cert = cert.replace(/\\n/g, '\n');
+  cert = cert.replace(/\r\n/g, '\n');
+  
+  // If it looks like base64 (no BEGIN marker), try to decode
+  if (!cert.includes('BEGIN CERTIFICATE')) {
+    try {
+      const decoded = atob(cert);
+      if (decoded.includes('BEGIN CERTIFICATE')) {
+        cert = decoded;
+      }
+    } catch {
+      // Not base64, continue with original
+    }
+  }
+  
+  // Extract all certificate blocks (handles certificate bundles)
+  const certMatches = cert.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g);
+  
+  if (!certMatches || certMatches.length === 0) {
+    console.warn('No valid certificate blocks found in CA cert');
+    return [];
+  }
+  
+  // Ensure each cert ends with a newline (required by some TLS implementations)
+  return certMatches.map(c => c.trim() + '\n');
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -15,35 +53,25 @@ serve(async (req) => {
   try {
     const { action, table, data, where, select, limit, offset, orderBy } = await req.json();
 
-    // Connect to external PostgreSQL (DigitalOcean requires a trusted CA).
-    // Secrets that store PEMs sometimes escape newlines as "\\n" or are base64 encoded;
-    // normalize to a proper PEM string before passing to TLS.
+    // Get and normalize CA certificate
     const rawCaCert = Deno.env.get('EXTERNAL_DB_CA_CERT') ?? '';
-    const normalizeCaCert = (input: string) => {
-      const trimmed = input.trim();
-      const unescaped = trimmed.replace(/\\n/g, '\n');
-      if (unescaped.includes('BEGIN CERTIFICATE')) return unescaped;
-      // If the secret was pasted as base64, decode it.
-      try {
-        const decoded = atob(trimmed);
-        if (decoded.includes('BEGIN CERTIFICATE')) return decoded;
-      } catch {
-        // ignore
-      }
-      return unescaped;
-    };
+    const caCerts = rawCaCert ? normalizeCaCert(rawCaCert) : [];
+    
+    console.log('CA certificates found:', caCerts.length);
+    if (caCerts.length > 0) {
+      console.log('First cert preview:', caCerts[0].substring(0, 60) + '...');
+    }
 
-    const caCert = rawCaCert ? normalizeCaCert(rawCaCert) : '';
-    console.log('External DB CA provided:', Boolean(caCert), 'len:', caCert.length);
-
-    // Prefer a single connection string when provided.
-    // Example: postgresql://user:pass@host:25061/db?sslmode=require
+    // Get connection string
     const externalDbUrl = (Deno.env.get('EXTERNAL_DB_URL') ?? '').trim();
     console.log('External DB URL provided:', Boolean(externalDbUrl));
 
-    const ssl = caCert
-      ? { ca: caCert, rejectUnauthorized: true }
-      : { rejectUnauthorized: false };
+    // Build SSL config for Deno runtime
+    // In Deno, we use 'caCerts' (array of PEM strings) instead of 'ca'
+    // If no custom CA, use 'require' to let Deno use its trust store
+    const ssl = caCerts.length > 0 
+      ? { caCerts, rejectUnauthorized: true }
+      : 'require'; // Uses Deno's default CA store (mozilla + system when DENO_TLS_CA_STORE is set)
 
     const sql = externalDbUrl
       ? postgres(externalDbUrl, { ssl })
@@ -129,6 +157,13 @@ serve(async (req) => {
         // For complex queries like authentication
         const { query, params } = data;
         result = await sql.unsafe(query, params || []);
+        break;
+      }
+
+      case 'ping': {
+        // Simple connectivity test
+        result = await sql`SELECT 1 as ok, now() as server_time`;
+        console.log('Ping successful:', result);
         break;
       }
 
