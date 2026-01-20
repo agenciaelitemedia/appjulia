@@ -15,14 +15,15 @@ serve(async (req) => {
   try {
     const { action, table, data, where, select, limit, offset, orderBy } = await req.json();
 
-    // Connect to external PostgreSQL (DigitalOcean requires sslmode=require)
+    // Connect to external PostgreSQL (DigitalOcean with CA certificate)
+    const caCert = Deno.env.get('EXTERNAL_DB_CA_CERT');
     const sql = postgres({
       host: Deno.env.get('EXTERNAL_DB_HOST'),
       port: parseInt(Deno.env.get('EXTERNAL_DB_PORT') || '25061'),
       database: Deno.env.get('EXTERNAL_DB_DATABASE'),
       username: Deno.env.get('EXTERNAL_DB_USERNAME'),
       password: Deno.env.get('EXTERNAL_DB_PASSWORD'),
-      ssl: 'require',
+      ssl: caCert ? { ca: caCert } : { rejectUnauthorized: false },
     });
 
     let result;
