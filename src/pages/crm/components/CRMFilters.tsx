@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { format } from 'date-fns';
+import { useMemo, useState } from 'react';
+import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { CalendarIcon, Filter, Search, X } from 'lucide-react';
@@ -28,6 +28,17 @@ interface CRMFiltersProps {
 export function CRMFilters({ agents, filters, onFiltersChange, isLoading }: CRMFiltersProps) {
   const [isOpen, setIsOpen] = useState(true);
 
+  const { selectedCount, allSelected, someSelected } = useMemo(() => {
+    const selected = new Set(filters.agentCodes);
+    const count = agents.reduce((acc, a) => acc + (selected.has(a.cod_agent) ? 1 : 0), 0);
+    const all = agents.length > 0 && count === agents.length;
+    return {
+      selectedCount: count,
+      allSelected: all,
+      someSelected: count > 0 && !all,
+    };
+  }, [agents, filters.agentCodes]);
+
   const handleAgentToggle = (codAgent: string) => {
     const newAgentCodes = filters.agentCodes.includes(codAgent)
       ? filters.agentCodes.filter((c) => c !== codAgent)
@@ -38,13 +49,14 @@ export function CRMFilters({ agents, filters, onFiltersChange, isLoading }: CRMF
 
   const handleSelectAllAgents = () => {
     const allCodes = agents.map((a) => a.cod_agent);
-    // Se todos estão selecionados, desseleciona todos
-    // Se nenhum ou alguns estão selecionados, seleciona todos
-    const shouldSelectAll = filters.agentCodes.length !== agents.length;
+    // Considera apenas os agentes atualmente exibidos no popover.
+    // Se todos os exibidos estão selecionados -> desseleciona todos.
+    // Caso contrário -> seleciona todos.
+    const allDisplayedSelected = agents.length > 0 && allCodes.every((c) => filters.agentCodes.includes(c));
     
     onFiltersChange({
       ...filters,
-      agentCodes: shouldSelectAll ? allCodes : [],
+      agentCodes: allDisplayedSelected ? [] : allCodes,
     });
   };
 
@@ -70,8 +82,8 @@ export function CRMFilters({ agents, filters, onFiltersChange, isLoading }: CRMF
     });
   };
 
-  const selectedCount = filters.agentCodes.length;
-  const allSelected = agents.length > 0 && selectedCount === agents.length;
+  const dateFromObj = filters.dateFrom ? parseISO(filters.dateFrom) : undefined;
+  const dateToObj = filters.dateTo ? parseISO(filters.dateTo) : undefined;
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
@@ -115,8 +127,9 @@ export function CRMFilters({ agents, filters, onFiltersChange, isLoading }: CRMF
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id="select-all"
-                      checked={allSelected ? true : selectedCount > 0 ? 'indeterminate' : false}
+                      checked={allSelected ? true : someSelected ? 'indeterminate' : false}
                       onCheckedChange={handleSelectAllAgents}
+                      onClick={(e) => e.stopPropagation()}
                     />
                     <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
                       Selecionar Todos
@@ -134,6 +147,7 @@ export function CRMFilters({ agents, filters, onFiltersChange, isLoading }: CRMF
                         <Checkbox
                           checked={filters.agentCodes.includes(agent.cod_agent)}
                           onCheckedChange={() => handleAgentToggle(agent.cod_agent)}
+                          onClick={(e) => e.stopPropagation()}
                         />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">
@@ -165,14 +179,14 @@ export function CRMFilters({ agents, filters, onFiltersChange, isLoading }: CRMF
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {filters.dateFrom
-                    ? format(new Date(filters.dateFrom), 'dd/MM/yyyy', { locale: ptBR })
+                    ? format(dateFromObj ?? new Date(), 'dd/MM/yyyy', { locale: ptBR })
                     : 'Selecionar'}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   mode="single"
-                  selected={filters.dateFrom ? new Date(filters.dateFrom) : undefined}
+                  selected={dateFromObj}
                   onSelect={handleDateFromChange}
                   locale={ptBR}
                   initialFocus
@@ -195,14 +209,14 @@ export function CRMFilters({ agents, filters, onFiltersChange, isLoading }: CRMF
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {filters.dateTo
-                    ? format(new Date(filters.dateTo), 'dd/MM/yyyy', { locale: ptBR })
+                    ? format(dateToObj ?? new Date(), 'dd/MM/yyyy', { locale: ptBR })
                     : 'Selecionar'}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   mode="single"
-                  selected={filters.dateTo ? new Date(filters.dateTo) : undefined}
+                  selected={dateToObj}
                   onSelect={handleDateToChange}
                   locale={ptBR}
                   initialFocus

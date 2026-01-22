@@ -66,8 +66,8 @@ export function useCRMCards(filters: CRMFiltersState) {
           FROM crm_atendimento_cards c
           LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
           WHERE c.cod_agent = ANY($1::varchar[])
-            AND c.stage_entered_at >= $2::timestamp
-            AND c.stage_entered_at < ($3::timestamp + interval '1 day')
+            AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+            AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           ORDER BY c.stage_entered_at DESC
         `,
         params: [agentCodes, dateFrom, dateTo],
