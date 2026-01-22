@@ -68,8 +68,9 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Badge variant="outline" className="text-xs font-mono truncate max-w-full cursor-default">
-                      {badgeText}
+                    <Badge variant="outline" className="text-[10px] font-normal truncate max-w-full cursor-default">
+                      <span className="font-semibold">[{card.cod_agent}]</span>
+                      {truncatedBusinessName && <span className="text-muted-foreground"> - {truncatedBusinessName}</span>}
                     </Badge>
                   </TooltipTrigger>
                   <TooltipContent>
