@@ -62,9 +62,11 @@ export function useCRMCards(filters: CRMFiltersState) {
             c.id, c.helena_count_id, c.cod_agent, c.contact_name, c.whatsapp_number, 
             c.business_name, c.stage_id, c.notes,
             c.created_at, c.updated_at, c.stage_entered_at,
-            s.name as stage_name, s.color as stage_color
+            s.name as stage_name, s.color as stage_color,
+            a.owner_business_name
           FROM crm_atendimento_cards c
           LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
+          LEFT JOIN "vw_list_client-agents-users" a ON c.cod_agent = a.cod_agent::text
           WHERE c.cod_agent = ANY($1::varchar[])
             AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
             AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
