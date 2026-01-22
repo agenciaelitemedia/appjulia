@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { externalDb } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
-import { CRMCard, CRMStage, CRMHistory } from '../types';
+import { CRMCard, CRMStage, CRMHistory, CRMAgent, CRMFiltersState } from '../types';
 
 export function useCRMStages() {
   return useQuery({
@@ -17,35 +17,64 @@ export function useCRMStages() {
       });
       return result;
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5,
   });
 }
 
-export function useCRMCards() {
+export function useCRMAgents() {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: ['crm-cards', user?.cod_agent],
+    queryKey: ['crm-agents', user?.role, user?.cod_agent],
     queryFn: async () => {
-      if (!user?.cod_agent) return [];
+      if (!user) return [];
+      
+      // If admin, get all agents; otherwise, get only user's agent
+      const query = user.role === 'admin'
+        ? `SELECT DISTINCT cod_agent::text, owner_name, owner_business_name 
+           FROM "vw_list_client-agents-users" 
+           WHERE cod_agent IS NOT NULL
+           ORDER BY owner_name`
+        : `SELECT DISTINCT cod_agent::text, owner_name, owner_business_name 
+           FROM "vw_list_client-agents-users" 
+           WHERE cod_agent = $1`;
+      
+      const params = user.role === 'admin' ? [] : [user.cod_agent];
+      const result = await externalDb.raw<CRMAgent>({ query, params });
+      return result;
+    },
+    enabled: !!user,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useCRMCards(filters: CRMFiltersState) {
+  return useQuery({
+    queryKey: ['crm-cards', filters],
+    queryFn: async () => {
+      const { agentCodes, dateFrom, dateTo } = filters;
+      
+      if (agentCodes.length === 0) return [];
       
       const result = await externalDb.raw<CRMCard>({
         query: `
           SELECT 
-            c.id, c.cod_agent, c.contact_name, c.whatsapp_number, 
+            c.id, c.helena_count_id, c.cod_agent, c.contact_name, c.whatsapp_number, 
             c.business_name, c.stage_id, c.notes,
             c.created_at, c.updated_at, c.stage_entered_at,
             s.name as stage_name, s.color as stage_color
           FROM crm_atendimento_cards c
           LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
-          WHERE c.cod_agent = $1
+          WHERE c.cod_agent = ANY($1::varchar[])
+            AND c.stage_entered_at >= $2::timestamp
+            AND c.stage_entered_at < ($3::timestamp + interval '1 day')
           ORDER BY c.stage_entered_at DESC
         `,
-        params: [user.cod_agent],
+        params: [agentCodes, dateFrom, dateTo],
       });
       return result;
     },
-    enabled: !!user?.cod_agent,
+    enabled: filters.agentCodes.length > 0,
   });
 }
 
@@ -55,13 +84,13 @@ export function useCRMCardHistory(cardId: number | null) {
     queryFn: async () => {
       if (!cardId) return [];
       
-      const result = await externalDb.raw<CRMHistory & { from_stage_name?: string; to_stage_name?: string }>({
+      const result = await externalDb.raw<CRMHistory>({
         query: `
           SELECT 
             h.id, h.card_id, h.from_stage_id, h.to_stage_id,
             h.changed_by, h.changed_at, h.notes,
-            fs.name as from_stage_name,
-            ts.name as to_stage_name
+            fs.name as from_stage_name, fs.color as from_stage_color,
+            ts.name as to_stage_name, ts.color as to_stage_color
           FROM crm_atendimento_history h
           LEFT JOIN crm_atendimento_stages fs ON h.from_stage_id = fs.id
           LEFT JOIN crm_atendimento_stages ts ON h.to_stage_id = ts.id
@@ -82,7 +111,6 @@ export function useMoveCard() {
 
   return useMutation({
     mutationFn: async ({ cardId, toStageId, notes }: { cardId: number; toStageId: number; notes?: string }) => {
-      // Get current stage
       const cards = await externalDb.raw<{ stage_id: number }>({
         query: 'SELECT stage_id FROM crm_atendimento_cards WHERE id = $1',
         params: [cardId],
@@ -90,7 +118,6 @@ export function useMoveCard() {
       
       const fromStageId = cards[0]?.stage_id;
       
-      // Update card stage
       await externalDb.update({
         table: 'crm_atendimento_cards',
         data: {
@@ -101,7 +128,6 @@ export function useMoveCard() {
         where: { id: cardId },
       });
       
-      // Insert history record
       await externalDb.insert({
         table: 'crm_atendimento_history',
         data: {
