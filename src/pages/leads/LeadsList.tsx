@@ -71,21 +71,33 @@ export default function LeadsList() {
 
   const loadLeads = async () => {
     try {
-      const result = await externalDb.select<Lead>({
-        table: 'leads',
-        where: { user_id: user?.id },
-        orderBy: 'created_at DESC',
-        limit: 100,
+      const query = user?.role === 'admin'
+        ? `SELECT 
+             c.id, c.contact_name as name, c.whatsapp_number as phone,
+             s.name as status, c.created_at, c.notes as source
+           FROM crm_atendimento_cards c
+           LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
+           ORDER BY c.created_at DESC
+           LIMIT 100`
+        : `SELECT 
+             c.id, c.contact_name as name, c.whatsapp_number as phone,
+             s.name as status, c.created_at, c.notes as source
+           FROM crm_atendimento_cards c
+           LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
+           WHERE c.cod_agent = $1
+           ORDER BY c.created_at DESC
+           LIMIT 100`;
+      
+      const params = user?.role === 'admin' ? [] : [user?.cod_agent];
+      
+      const result = await externalDb.raw<Lead>({
+        query,
+        params,
       });
       setLeads(result);
     } catch (error) {
       console.error('Error loading leads:', error);
-      // Use mock data if database fails
-      setLeads([
-        { id: 1, name: 'João Silva', phone: '11999998888', email: 'joao@email.com', status: 'new', source: 'WhatsApp', created_at: new Date().toISOString() },
-        { id: 2, name: 'Maria Santos', phone: '11988887777', email: 'maria@email.com', status: 'qualified', source: 'Instagram', created_at: new Date().toISOString() },
-        { id: 3, name: 'Pedro Oliveira', phone: '11977776666', status: 'contacted', source: 'Facebook', created_at: new Date().toISOString() },
-      ]);
+      setLeads([]);
     } finally {
       setIsLoading(false);
     }

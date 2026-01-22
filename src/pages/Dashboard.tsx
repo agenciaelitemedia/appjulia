@@ -34,32 +34,58 @@ export default function Dashboard() {
 
   const loadDashboardStats = async () => {
     try {
-      // Try to load real stats from the external database
-      const [leadsResult, agentsResult] = await Promise.all([
+      // Get agent codes based on user role
+      const agentCodes = user?.role === 'admin' 
+        ? null // Will fetch all agents
+        : [user?.cod_agent].filter(Boolean);
+
+      // Build the query based on user role
+      const leadsQuery = user?.role === 'admin'
+        ? 'SELECT COUNT(*) as count FROM crm_atendimento_cards'
+        : 'SELECT COUNT(*) as count FROM crm_atendimento_cards WHERE cod_agent = $1';
+      
+      const agentsQuery = user?.role === 'admin'
+        ? 'SELECT COUNT(DISTINCT cod_agent) as count FROM "vw_list_client-agents-users" WHERE cod_agent IS NOT NULL'
+        : 'SELECT COUNT(DISTINCT cod_agent) as count FROM "vw_list_client-agents-users" WHERE cod_agent = $1';
+      
+      const conversionsQuery = user?.role === 'admin'
+        ? `SELECT COUNT(*) as count FROM crm_atendimento_cards c 
+           JOIN crm_atendimento_stages s ON c.stage_id = s.id 
+           WHERE s.name = 'Contrato Assinado'`
+        : `SELECT COUNT(*) as count FROM crm_atendimento_cards c 
+           JOIN crm_atendimento_stages s ON c.stage_id = s.id 
+           WHERE s.name = 'Contrato Assinado' AND c.cod_agent = $1`;
+
+      const params = user?.role === 'admin' ? [] : [user?.cod_agent];
+
+      const [leadsResult, agentsResult, conversionsResult] = await Promise.all([
         externalDb.raw<{ count: number }>({
-          query: 'SELECT COUNT(*) as count FROM leads WHERE user_id = $1',
-          params: [user?.id],
+          query: leadsQuery,
+          params,
         }).catch(() => [{ count: 0 }]),
         externalDb.raw<{ count: number }>({
-          query: 'SELECT COUNT(*) as count FROM agents WHERE user_id = $1 AND status = $2',
-          params: [user?.id, 'active'],
+          query: agentsQuery,
+          params,
+        }).catch(() => [{ count: 0 }]),
+        externalDb.raw<{ count: number }>({
+          query: conversionsQuery,
+          params,
         }).catch(() => [{ count: 0 }]),
       ]);
 
       setStats({
-        totalLeads: leadsResult[0]?.count || 0,
+        totalLeads: Number(leadsResult[0]?.count) || 0,
         totalMessages: 0, // Will be loaded from messages table
-        conversions: 0, // Will be calculated
-        activeAgents: agentsResult[0]?.count || 0,
+        conversions: Number(conversionsResult[0]?.count) || 0,
+        activeAgents: Number(agentsResult[0]?.count) || 0,
       });
     } catch (error) {
       console.error('Error loading dashboard stats:', error);
-      // Use placeholder data if database connection fails
       setStats({
-        totalLeads: 127,
-        totalMessages: 1548,
-        conversions: 23,
-        activeAgents: 3,
+        totalLeads: 0,
+        totalMessages: 0,
+        conversions: 0,
+        activeAgents: 0,
       });
     } finally {
       setIsLoading(false);
