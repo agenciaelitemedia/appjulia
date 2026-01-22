@@ -1,6 +1,7 @@
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { useRef } from 'react';
 import { CRMCard, CRMStage } from '../types';
 import { CRMPipelineColumn } from './CRMPipelineColumn';
+import { CRMScrollNavigation } from './CRMScrollNavigation';
 
 interface CRMPipelineProps {
   stages: CRMStage[];
@@ -9,13 +10,19 @@ interface CRMPipelineProps {
 }
 
 export function CRMPipeline({ stages, cards, onCardClick }: CRMPipelineProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
   const getCardsForStage = (stageId: number) => {
     return cards.filter((card) => card.stage_id === stageId);
   };
 
   return (
-    <ScrollArea className="w-full">
-      <div className="flex gap-4 pb-4">
+    <div className="flex flex-col flex-1">
+      <div
+        ref={scrollRef}
+        className="flex gap-4 pb-2 overflow-x-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent"
+        style={{ scrollbarWidth: 'thin' }}
+      >
         {stages.map((stage) => (
           <CRMPipelineColumn
             key={stage.id}
@@ -25,7 +32,7 @@ export function CRMPipeline({ stages, cards, onCardClick }: CRMPipelineProps) {
           />
         ))}
       </div>
-      <ScrollBar orientation="horizontal" />
-    </ScrollArea>
+      <CRMScrollNavigation scrollRef={scrollRef} />
+    </div>
   );
 }

@@ -1,33 +1,56 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { format } from 'date-fns';
 import { CRMHeader } from './components/CRMHeader';
 import { CRMTotalizers } from './components/CRMTotalizers';
+import { CRMFilters } from './components/CRMFilters';
 import { CRMPipeline } from './components/CRMPipeline';
 import { CRMLeadDetailsDialog } from './components/CRMLeadDetailsDialog';
-import { useCRMStages, useCRMCards } from './hooks/useCRMData';
-import { CRMCard } from './types';
+import { useCRMStages, useCRMCards, useCRMAgents } from './hooks/useCRMData';
+import { CRMCard, CRMFiltersState } from './types';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function CRMPage() {
-  const [searchTerm, setSearchTerm] = useState('');
+  const today = format(new Date(), 'yyyy-MM-dd');
+  
+  const [filters, setFilters] = useState<CRMFiltersState>({
+    search: '',
+    agentCodes: [],
+    dateFrom: today,
+    dateTo: today,
+  });
+  
   const [selectedCard, setSelectedCard] = useState<CRMCard | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const { data: stages = [], isLoading: stagesLoading } = useCRMStages();
-  const { data: cards = [], isLoading: cardsLoading, refetch } = useCRMCards();
+  const { data: agents = [], isLoading: agentsLoading } = useCRMAgents();
+  const { data: cards = [], isLoading: cardsLoading, refetch } = useCRMCards(filters);
 
-  const isLoading = stagesLoading || cardsLoading;
+  // Initialize agentCodes when agents load
+  useEffect(() => {
+    if (agents.length > 0 && filters.agentCodes.length === 0) {
+      setFilters((prev) => ({
+        ...prev,
+        agentCodes: agents.map((a) => a.cod_agent),
+      }));
+    }
+  }, [agents, filters.agentCodes.length]);
 
+  const isLoading = stagesLoading || agentsLoading;
+
+  // Apply search filter on client side
   const filteredCards = useMemo(() => {
-    if (!searchTerm) return cards;
+    if (!filters.search) return cards;
 
-    const search = searchTerm.toLowerCase();
+    const search = filters.search.toLowerCase();
     return cards.filter(
       (card) =>
         card.contact_name?.toLowerCase().includes(search) ||
-        card.whatsapp_number?.includes(searchTerm) ||
-        card.business_name?.toLowerCase().includes(search)
+        card.whatsapp_number?.includes(filters.search) ||
+        card.business_name?.toLowerCase().includes(search) ||
+        card.helena_count_id?.toLowerCase().includes(search)
     );
-  }, [cards, searchTerm]);
+  }, [cards, filters.search]);
 
   const handleCardClick = (card: CRMCard) => {
     setSelectedCard(card);
@@ -46,14 +69,16 @@ export default function CRMPage() {
             <Skeleton className="h-9 w-48" />
             <Skeleton className="h-5 w-72" />
           </div>
-          <Skeleton className="h-10 w-64" />
+          <Skeleton className="h-10 w-32" />
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-20" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <Skeleton key={i} className="h-16" />
           ))}
         </div>
+
+        <Skeleton className="h-12 w-full" />
 
         <div className="flex gap-4 overflow-hidden">
           {[1, 2, 3, 4, 5].map((i) => (
@@ -65,15 +90,17 @@ export default function CRMPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <CRMHeader
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        onRefresh={handleRefresh}
-        isLoading={cardsLoading}
-      />
+    <div className="flex flex-col h-full space-y-4">
+      <CRMHeader onRefresh={handleRefresh} isLoading={cardsLoading} />
 
-      <CRMTotalizers cards={cards} stages={stages} />
+      <CRMTotalizers cards={filteredCards} stages={stages} />
+
+      <CRMFilters
+        agents={agents}
+        filters={filters}
+        onFiltersChange={setFilters}
+        isLoading={agentsLoading}
+      />
 
       <CRMPipeline
         stages={stages}
