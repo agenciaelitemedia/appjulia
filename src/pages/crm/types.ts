@@ -20,6 +20,7 @@ export interface CRMCard {
   created_at: string;
   updated_at: string;
   stage_entered_at: string;
+  owner_business_name?: string;
 }
 
 export interface CRMAgent {

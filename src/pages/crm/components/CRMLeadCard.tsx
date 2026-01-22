@@ -53,8 +53,8 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
           {card.cod_agent && (
             <div className="flex items-center gap-1.5">
               <Hash className="h-3 w-3 text-muted-foreground" />
-              <Badge variant="outline" className="text-xs font-mono">
-                {card.cod_agent}
+              <Badge variant="outline" className="text-xs font-mono truncate max-w-full">
+                [{card.cod_agent}]{card.owner_business_name ? ` - ${card.owner_business_name}` : ''}
               </Badge>
             </div>
           )}
