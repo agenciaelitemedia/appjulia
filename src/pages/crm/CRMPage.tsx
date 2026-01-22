@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { CRMHeader } from './components/CRMHeader';
 import { CRMTotalizers } from './components/CRMTotalizers';
@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export default function CRMPage() {
   const today = getTodayInSaoPaulo();
+  const didInitAgentsRef = useRef(false);
   
   const [filters, setFilters] = useState<CRMFiltersState>({
     search: '',
@@ -28,11 +29,14 @@ export default function CRMPage() {
 
   // Initialize agentCodes when agents load
   useEffect(() => {
-    if (agents.length > 0 && filters.agentCodes.length === 0) {
+    // Importante: inicializa só uma vez.
+    // Se o usuário desmarcar tudo, NÃO devemos repopular automaticamente.
+    if (!didInitAgentsRef.current && agents.length > 0 && filters.agentCodes.length === 0) {
       setFilters((prev) => ({
         ...prev,
         agentCodes: agents.map((a) => a.cod_agent),
       }));
+      didInitAgentsRef.current = true;
     }
   }, [agents, filters.agentCodes.length]);
 
