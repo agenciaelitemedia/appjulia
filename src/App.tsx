@@ -8,6 +8,8 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import CRMPage from "./pages/crm/CRMPage";
+import CRMStatisticsPage from "./pages/crm/statistics/CRMStatisticsPage";
+import CRMMonitoringPage from "./pages/crm/monitoring/CRMMonitoringPage";
 import AgentsList from "./pages/agents/AgentsList";
 import NotFound from "./pages/NotFound";
 
@@ -26,6 +28,8 @@ const App = () => (
               <Route path="/" element={<Dashboard />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/leads" element={<CRMPage />} />
+              <Route path="/leads/estatisticas" element={<CRMStatisticsPage />} />
+              <Route path="/leads/monitoramento" element={<CRMMonitoringPage />} />
               <Route path="/admin/agentes" element={<AgentsList />} />
             </Route>
             <Route path="*" element={<NotFound />} />

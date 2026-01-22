@@ -52,3 +52,69 @@ export interface CRMFiltersState {
   dateFrom: string;
   dateTo: string;
 }
+
+// Statistics types
+export interface CRMFunnelData {
+  id: number;
+  name: string;
+  color: string;
+  position: number;
+  count: number;
+  percentage: number;
+}
+
+export interface CRMAvgTimeData {
+  id: number;
+  name: string;
+  color: string;
+  avg_days: number;
+}
+
+export interface CRMAgentPerformance {
+  cod_agent: string;
+  owner_name: string;
+  total_leads: number;
+  converted_leads: number;
+  conversion_rate: number;
+  avg_time_days: number;
+}
+
+export interface CRMDailyTrend {
+  date: string;
+  count: number;
+}
+
+// Monitoring types
+export interface CRMStuckLead extends CRMCard {
+  days_stuck: number;
+}
+
+export interface CRMActivityLog {
+  id: number;
+  card_id: number;
+  contact_name: string;
+  whatsapp_number: string;
+  from_stage_name?: string;
+  to_stage_name?: string;
+  from_stage_color?: string;
+  to_stage_color?: string;
+  changed_by?: string;
+  changed_at: string;
+  notes?: string;
+}
+
+export interface CRMAgentWorkload {
+  cod_agent: string;
+  owner_name: string;
+  active_leads: number;
+  stuck_leads: number;
+}
+
+export interface CRMStageBottleneck {
+  id: number;
+  name: string;
+  color: string;
+  count: number;
+  avg_count: number;
+  is_bottleneck: boolean;
+}

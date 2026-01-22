@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { CRMHeader } from './components/CRMHeader';
+import { CRMDashboardSummary } from './components/CRMDashboardSummary';
 import { CRMTotalizers } from './components/CRMTotalizers';
 import { CRMFilters } from './components/CRMFilters';
 import { CRMPipeline } from './components/CRMPipeline';
@@ -96,6 +97,8 @@ export default function CRMPage() {
   return (
     <div className="flex flex-col h-full space-y-4">
       <CRMHeader onRefresh={handleRefresh} isLoading={cardsLoading} />
+
+      <CRMDashboardSummary cards={filteredCards} stages={stages} isLoading={cardsLoading} />
 
       <CRMTotalizers cards={filteredCards} stages={stages} />
 
