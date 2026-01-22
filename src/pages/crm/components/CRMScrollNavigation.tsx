@@ -1,6 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface CRMScrollNavigationProps {
   scrollRef: React.RefObject<HTMLDivElement>;
@@ -8,8 +6,8 @@ interface CRMScrollNavigationProps {
 
 export function CRMScrollNavigation({ scrollRef }: CRMScrollNavigationProps) {
   const [scrollProgress, setScrollProgress] = useState(0);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const trackRef = useRef<HTMLDivElement>(null);
 
   const updateScrollState = useCallback(() => {
     const container = scrollRef.current;
@@ -20,12 +18,8 @@ export function CRMScrollNavigation({ scrollRef }: CRMScrollNavigationProps) {
     
     if (maxScroll <= 0) {
       setScrollProgress(0);
-      setCanScrollLeft(false);
-      setCanScrollRight(false);
     } else {
       setScrollProgress((scrollLeft / maxScroll) * 100);
-      setCanScrollLeft(scrollLeft > 0);
-      setCanScrollRight(scrollLeft < maxScroll - 1);
     }
   }, [scrollRef]);
 
@@ -45,52 +39,71 @@ export function CRMScrollNavigation({ scrollRef }: CRMScrollNavigationProps) {
     };
   }, [scrollRef, updateScrollState]);
 
-  const scrollToStart = () => {
-    scrollRef.current?.scrollTo({ left: 0, behavior: 'smooth' });
+  const handleDrag = useCallback((clientX: number) => {
+    const track = trackRef.current;
+    const container = scrollRef.current;
+    if (!track || !container) return;
+
+    const rect = track.getBoundingClientRect();
+    const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const maxScroll = container.scrollWidth - container.clientWidth;
+    container.scrollLeft = percent * maxScroll;
+  }, [scrollRef]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    handleDrag(e.clientX);
   };
 
-  const scrollToEnd = () => {
-    const container = scrollRef.current;
-    if (container) {
-      container.scrollTo({ left: container.scrollWidth, behavior: 'smooth' });
-    }
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setIsDragging(true);
+    handleDrag(e.touches[0].clientX);
   };
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      handleDrag(e.clientX);
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      handleDrag(e.touches[0].clientX);
+    };
+
+    const handleEnd = () => {
+      setIsDragging(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleEnd);
+    document.addEventListener('touchmove', handleTouchMove);
+    document.addEventListener('touchend', handleEnd);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleEnd);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleEnd);
+    };
+  }, [isDragging, handleDrag]);
 
   return (
-    <div className="flex items-center justify-between py-2 px-1 border-t bg-background sticky bottom-0 mt-2">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={scrollToStart}
-        disabled={!canScrollLeft}
-        className="gap-1"
+    <div className="flex items-center justify-center py-3 px-4 border-t bg-background sticky bottom-0 mt-2">
+      <div 
+        ref={trackRef}
+        className="flex-1 max-w-md h-1 bg-border rounded-full cursor-pointer relative"
+        onMouseDown={handleMouseDown}
+        onTouchStart={handleTouchStart}
       >
-        <ChevronLeft className="h-4 w-4" />
-        Início
-      </Button>
-
-      <div className="flex-1 mx-4 max-w-md">
-        <div className="h-2 bg-muted rounded-full overflow-hidden">
-          <div
-            className="h-full bg-primary rounded-full transition-all duration-150"
-            style={{ 
-              width: '20%', 
-              marginLeft: `${Math.min(scrollProgress, 80)}%` 
-            }}
-          />
-        </div>
+        <div
+          className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-primary border-2 border-background rounded-full shadow-md transition-transform ${
+            isDragging ? 'cursor-grabbing scale-110' : 'cursor-grab hover:scale-110'
+          }`}
+          style={{ left: `calc(${scrollProgress}% - 8px)` }}
+        />
       </div>
-
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={scrollToEnd}
-        disabled={!canScrollRight}
-        className="gap-1"
-      >
-        Fim
-        <ChevronRight className="h-4 w-4" />
-      </Button>
     </div>
   );
 }
