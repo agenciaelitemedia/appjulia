@@ -1,27 +1,17 @@
-import { useState } from 'react';
-import { Phone, Building2, Clock, History, ArrowRight, MessageSquare, User, Hash, Calendar, ExternalLink } from 'lucide-react';
+import { Phone, Building2, Clock, History, ArrowRight, User, Hash, Calendar } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { CRMCard, CRMStage } from '../types';
-import { useCRMCardHistory, useMoveCard } from '../hooks/useCRMData';
+import { useCRMCardHistory } from '../hooks/useCRMData';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { useToast } from '@/hooks/use-toast';
 
 interface CRMLeadDetailsDialogProps {
   card: CRMCard | null;
@@ -36,10 +26,7 @@ export function CRMLeadDetailsDialog({
   open,
   onOpenChange,
 }: CRMLeadDetailsDialogProps) {
-  const [selectedStage, setSelectedStage] = useState<string>('');
   const { data: history = [], isLoading: historyLoading } = useCRMCardHistory(card?.id || null);
-  const moveCard = useMoveCard();
-  const { toast } = useToast();
 
   if (!card) return null;
 
@@ -54,40 +41,7 @@ export function CRMLeadDetailsDialog({
     return phone;
   };
 
-  const handleWhatsApp = () => {
-    const cleanPhone = card.whatsapp_number.replace(/\D/g, '');
-    const phone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-    window.open(`https://wa.me/${phone}`, '_blank');
-  };
-
-  const handleMoveStage = async () => {
-    if (!selectedStage) return;
-
-    try {
-      await moveCard.mutateAsync({
-        cardId: card.id,
-        toStageId: parseInt(selectedStage),
-      });
-      toast({
-        title: 'Lead movido',
-        description: 'O lead foi movido para o novo estágio com sucesso.',
-      });
-      setSelectedStage('');
-      onOpenChange(false);
-    } catch (error) {
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível mover o lead.',
-        variant: 'destructive',
-      });
-    }
-  };
-
   const currentStage = stages.find((s) => s.id === card.stage_id);
-  const timeInStage = formatDistanceToNow(new Date(card.stage_entered_at), {
-    addSuffix: false,
-    locale: ptBR,
-  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -162,29 +116,18 @@ export function CRMLeadDetailsDialog({
             <Separator />
             <div>
               <h4 className="text-sm font-medium mb-2">Fase Atual</h4>
-              <div className="flex items-center justify-between gap-2 p-3 bg-muted/30 rounded-lg">
-                <div className="flex items-center gap-2">
-                  {currentStage && (
-                    <Badge
-                      style={{ backgroundColor: `${currentStage.color}20`, color: currentStage.color }}
-                    >
-                      {currentStage.name}
-                    </Badge>
-                  )}
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    desde {format(new Date(card.stage_entered_at), "dd/MM/yy, HH:mm", { locale: ptBR })}
-                  </span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={handleWhatsApp}
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  Abrir atendimento
-                </Button>
+              <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg">
+                {currentStage && (
+                  <Badge
+                    style={{ backgroundColor: `${currentStage.color}20`, color: currentStage.color }}
+                  >
+                    {currentStage.name}
+                  </Badge>
+                )}
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  desde {format(new Date(card.stage_entered_at), "dd/MM/yy, HH:mm", { locale: ptBR })}
+                </span>
               </div>
             </div>
 
@@ -200,40 +143,6 @@ export function CRMLeadDetailsDialog({
                 </div>
               </>
             )}
-
-            {/* Move Stage */}
-            <Separator />
-            <div>
-              <h4 className="text-sm font-medium mb-2">Mover para Estágio</h4>
-              <div className="flex gap-2">
-                <Select value={selectedStage} onValueChange={setSelectedStage}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Selecione o estágio" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stages
-                      .filter((s) => s.id !== card.stage_id)
-                      .map((stage) => (
-                        <SelectItem key={stage.id} value={stage.id.toString()}>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="w-2 h-2 rounded-full"
-                              style={{ backgroundColor: stage.color }}
-                            />
-                            {stage.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  onClick={handleMoveStage}
-                  disabled={!selectedStage || moveCard.isPending}
-                >
-                  Mover
-                </Button>
-              </div>
-            </div>
 
             {/* History */}
             <Separator />
