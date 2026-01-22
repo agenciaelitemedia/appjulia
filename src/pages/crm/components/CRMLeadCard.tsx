@@ -49,12 +49,12 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
             </div>
           </div>
 
-          {/* Helena Count ID badge */}
-          {card.helena_count_id && (
+          {/* Cod Agent badge */}
+          {card.cod_agent && (
             <div className="flex items-center gap-1.5">
               <Hash className="h-3 w-3 text-muted-foreground" />
               <Badge variant="outline" className="text-xs font-mono">
-                {card.helena_count_id}
+                {card.cod_agent}
               </Badge>
             </div>
           )}
