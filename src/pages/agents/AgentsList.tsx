@@ -55,36 +55,41 @@ export default function AgentsList() {
 
   const loadAgents = async () => {
     try {
-      const result = await externalDb.select<Agent>({
-        table: 'agents',
-        where: { user_id: user?.id },
-        orderBy: 'created_at DESC',
+      const query = user?.role === 'admin'
+        ? `SELECT DISTINCT 
+             cod_agent::int as id, 
+             owner_name as name, 
+             owner_business_name as phone,
+             'active' as status,
+             cod_agent as instance_id,
+             0 as messages_sent,
+             0 as messages_received,
+             NOW() as created_at
+           FROM "vw_list_client-agents-users" 
+           WHERE cod_agent IS NOT NULL
+           ORDER BY owner_name`
+        : `SELECT DISTINCT 
+             cod_agent::int as id, 
+             owner_name as name, 
+             owner_business_name as phone,
+             'active' as status,
+             cod_agent as instance_id,
+             0 as messages_sent,
+             0 as messages_received,
+             NOW() as created_at
+           FROM "vw_list_client-agents-users" 
+           WHERE cod_agent = $1`;
+      
+      const params = user?.role === 'admin' ? [] : [user?.cod_agent];
+      
+      const result = await externalDb.raw<Agent>({
+        query,
+        params,
       });
       setAgents(result);
     } catch (error) {
       console.error('Error loading agents:', error);
-      // Mock data for demonstration
-      setAgents([
-        {
-          id: 1,
-          name: 'Julia Principal',
-          phone: '11999998888',
-          status: 'active',
-          instance_id: 'instance_123',
-          messages_sent: 1234,
-          messages_received: 987,
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 2,
-          name: 'Julia Suporte',
-          phone: '11988887777',
-          status: 'disconnected',
-          messages_sent: 456,
-          messages_received: 321,
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      setAgents([]);
     } finally {
       setIsLoading(false);
     }
