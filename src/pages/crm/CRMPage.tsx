@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { format } from 'date-fns';
+import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { CRMHeader } from './components/CRMHeader';
 import { CRMTotalizers } from './components/CRMTotalizers';
 import { CRMFilters } from './components/CRMFilters';
@@ -10,7 +10,7 @@ import { CRMCard, CRMFiltersState } from './types';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function CRMPage() {
-  const today = format(new Date(), 'yyyy-MM-dd');
+  const today = getTodayInSaoPaulo();
   
   const [filters, setFilters] = useState<CRMFiltersState>({
     search: '',

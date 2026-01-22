@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { CalendarIcon, Filter, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,11 +38,13 @@ export function CRMFilters({ agents, filters, onFiltersChange, isLoading }: CRMF
 
   const handleSelectAllAgents = () => {
     const allCodes = agents.map((a) => a.cod_agent);
-    const allSelected = allCodes.every((c) => filters.agentCodes.includes(c));
+    // Se todos estão selecionados, desseleciona todos
+    // Se nenhum ou alguns estão selecionados, seleciona todos
+    const shouldSelectAll = filters.agentCodes.length !== agents.length;
     
     onFiltersChange({
       ...filters,
-      agentCodes: allSelected ? [] : allCodes,
+      agentCodes: shouldSelectAll ? allCodes : [],
     });
   };
 
@@ -58,7 +61,7 @@ export function CRMFilters({ agents, filters, onFiltersChange, isLoading }: CRMF
   };
 
   const handleClearFilters = () => {
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = getTodayInSaoPaulo();
     onFiltersChange({
       search: '',
       agentCodes: agents.map((a) => a.cod_agent),
@@ -112,7 +115,7 @@ export function CRMFilters({ agents, filters, onFiltersChange, isLoading }: CRMF
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id="select-all"
-                      checked={allSelected}
+                      checked={allSelected ? true : selectedCount > 0 ? 'indeterminate' : false}
                       onCheckedChange={handleSelectAllAgents}
                     />
                     <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
