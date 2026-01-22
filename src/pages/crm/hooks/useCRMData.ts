@@ -63,7 +63,7 @@ export function useCRMCards(filters: CRMFiltersState) {
             c.business_name, c.stage_id, c.notes,
             c.created_at, c.updated_at, c.stage_entered_at,
             s.name as stage_name, s.color as stage_color,
-            a.owner_business_name
+            a.owner_name, a.owner_business_name
           FROM crm_atendimento_cards c
           LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
           LEFT JOIN "vw_list_client-agents-users" a ON c.cod_agent = a.cod_agent::text

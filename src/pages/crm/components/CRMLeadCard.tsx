@@ -2,6 +2,7 @@ import { Clock, Eye, Hash } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { CRMCard } from '../types';
 import { formatDistanceToNow, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -9,6 +10,11 @@ import { ptBR } from 'date-fns/locale';
 interface CRMLeadCardProps {
   card: CRMCard;
   onClick: () => void;
+}
+
+function truncateText(text: string | undefined, maxLength: number): string {
+  if (!text) return '';
+  return text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
 }
 
 export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
@@ -21,6 +27,12 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
     e.stopPropagation();
     onClick();
   };
+
+  const truncatedBusinessName = truncateText(card.owner_business_name, 20);
+  const badgeText = `[${card.cod_agent}]${truncatedBusinessName ? ` - ${truncatedBusinessName}` : ''}`;
+  const fullTooltip = card.owner_name || card.owner_business_name
+    ? `${card.owner_name || ''}${card.owner_name && card.owner_business_name ? ' • ' : ''}${card.owner_business_name || ''}`
+    : card.cod_agent;
 
   return (
     <Card
@@ -49,13 +61,22 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
             </div>
           </div>
 
-          {/* Cod Agent badge */}
+          {/* Cod Agent badge with tooltip */}
           {card.cod_agent && (
             <div className="flex items-center gap-1.5">
               <Hash className="h-3 w-3 text-muted-foreground" />
-              <Badge variant="outline" className="text-xs font-mono truncate max-w-full">
-                [{card.cod_agent}]{card.owner_business_name ? ` - ${card.owner_business_name}` : ''}
-              </Badge>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="text-xs font-mono truncate max-w-full cursor-default">
+                      {badgeText}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs">{fullTooltip}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           )}
 
