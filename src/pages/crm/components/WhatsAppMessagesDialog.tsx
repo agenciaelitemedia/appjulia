@@ -3,7 +3,7 @@ import {
   MessageCircle, Send, Loader2, 
   Mic, FileText, Download, MapPin, User, Image as ImageIcon, Video, Play
 } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -692,6 +692,9 @@ export function WhatsAppMessagesDialog({
               <DialogTitle className="text-base font-semibold truncate">
                 {leadName || whatsappNumber}
               </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground sr-only">
+                Conversa do WhatsApp com {leadName || whatsappNumber}
+              </DialogDescription>
               <p className="text-xs text-muted-foreground">
                 {whatsappNumber}
               </p>
