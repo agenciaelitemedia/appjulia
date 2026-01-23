@@ -524,41 +524,53 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
           );
         }
           
-        case 'audio':
+        case 'audio': {
+          const audioUrl = effectiveMediaUrl;
+          
           return (
-            <div className="flex items-center gap-2 min-w-[180px]">
-              {message.ptt ? (
+            <div className="flex items-center gap-2 min-w-[200px]">
+              {message.ptt && (
                 <Mic className="h-4 w-4 flex-shrink-0 text-green-500" />
-              ) : (
-                <Play className="h-4 w-4 flex-shrink-0" />
               )}
-              {effectiveMediaUrl ? (
+              
+              {audioUrl ? (
                 <audio 
                   controls 
-                  src={effectiveMediaUrl} 
-                  className="max-w-[180px] h-8"
+                  src={audioUrl} 
+                  className="flex-1 h-8 max-w-[200px]"
                   preload="metadata"
                 />
               ) : (
                 <div 
                   className={cn(
-                    "flex items-center gap-2",
-                    onDownload && "cursor-pointer"
+                    "flex items-center gap-2 flex-1 cursor-pointer hover:opacity-80",
+                    isDownloading && "pointer-events-none"
                   )}
                   onClick={() => onDownload?.(message.id)}
                 >
                   {isDownloading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      <span className="text-xs text-muted-foreground">Carregando...</span>
+                    </>
                   ) : (
-                    <div className="w-32 h-1 bg-muted-foreground/30 rounded" />
+                    <>
+                      <div className="w-8 h-8 rounded-full bg-primary/80 flex items-center justify-center flex-shrink-0">
+                        <Play className="h-4 w-4 text-primary-foreground fill-current ml-0.5" />
+                      </div>
+                      <div className="flex flex-col flex-1">
+                        <div className="w-full h-1 bg-muted-foreground/30 rounded" />
+                        <span className="text-[10px] text-muted-foreground mt-1">
+                          {formatDuration(message.seconds)}
+                        </span>
+                      </div>
+                    </>
                   )}
-                  <span className="text-xs text-muted-foreground">
-                    {isDownloading ? 'Baixando...' : formatDuration(message.seconds)}
-                  </span>
                 </div>
               )}
             </div>
           );
+        }
           
         case 'video': {
           const videoUrl = effectiveMediaUrl;
@@ -1060,13 +1072,22 @@ export function WhatsAppMessagesDialog({
   };
 
   const formatMessageTime = (timestamp: number) => {
-    const date = new Date(timestamp); // Já normalizado para ms
-    return format(date, 'HH:mm', { locale: ptBR });
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
   };
 
   const formatMessageDate = (timestamp: number) => {
-    const date = new Date(timestamp); // Já normalizado para ms
-    return format(date, "dd 'de' MMM", { locale: ptBR });
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit',
+      month: 'short',
+    });
   };
 
   // Group messages by date
