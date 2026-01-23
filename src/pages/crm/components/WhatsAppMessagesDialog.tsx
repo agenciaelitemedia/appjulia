@@ -60,6 +60,34 @@ interface WhatsAppMessagesDialogProps {
 // Helper Functions
 // ============================================
 
+/**
+ * Normaliza timestamps para milissegundos.
+ * Detecta automaticamente se o valor está em segundos ou milissegundos.
+ */
+function normalizeTimestamp(timestamp: number | string): number {
+  if (typeof timestamp === 'string') {
+    // Tentar parse de ISO string
+    const parsed = Date.parse(timestamp);
+    if (!isNaN(parsed)) return parsed;
+    // Tentar converter string numérica
+    timestamp = parseInt(timestamp, 10);
+  }
+  
+  if (!timestamp || isNaN(Number(timestamp))) return Date.now();
+  
+  const numTimestamp = Number(timestamp);
+  
+  // Timestamps em segundos têm ~10 dígitos (até 2033)
+  // Timestamps em milissegundos têm ~13 dígitos
+  // Se for maior que 10 bilhões, já está em milissegundos
+  if (numTimestamp > 10000000000) {
+    return numTimestamp;
+  } else {
+    // Está em segundos, converter para milissegundos
+    return numTimestamp * 1000;
+  }
+}
+
 function formatDuration(seconds?: number): string {
   if (!seconds) return '0:00';
   const mins = Math.floor(seconds / 60);
@@ -750,7 +778,7 @@ export function WhatsAppMessagesDialog({
             latitude: mediaData.latitude,
             longitude: mediaData.longitude,
             fromMe: msg.key?.fromMe ?? msg.fromMe ?? false,
-            timestamp: msg.messageTimestamp || msg.timestamp || Date.now() / 1000,
+            timestamp: normalizeTimestamp(msg.messageTimestamp || msg.timestamp || Date.now()),
             // Quoted message data
             quotedId: msg.quoted || contextInfo?.stanzaId,
             quotedText: quotedText,
@@ -804,7 +832,7 @@ export function WhatsAppMessagesDialog({
           id: Date.now().toString(),
           text: newMessage.trim(),
           fromMe: true,
-          timestamp: Date.now() / 1000,
+          timestamp: Date.now(),
           type: 'text',
         },
       ]);
@@ -835,12 +863,12 @@ export function WhatsAppMessagesDialog({
   };
 
   const formatMessageTime = (timestamp: number) => {
-    const date = new Date(timestamp * 1000);
+    const date = new Date(timestamp); // Já normalizado para ms
     return format(date, 'HH:mm', { locale: ptBR });
   };
 
   const formatMessageDate = (timestamp: number) => {
-    const date = new Date(timestamp * 1000);
+    const date = new Date(timestamp); // Já normalizado para ms
     return format(date, "dd 'de' MMM", { locale: ptBR });
   };
 
