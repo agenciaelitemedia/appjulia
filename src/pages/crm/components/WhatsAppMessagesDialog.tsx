@@ -191,20 +191,24 @@ function formatQuotedParticipant(participant?: string): string {
 }
 
 // Componente para exibir mensagem citada
-function QuotedMessage({ text, participant, isFromMe }: { 
-  text?: string; 
-  participant?: string;
-  isFromMe: boolean;
-}) {
+import React from 'react';
+
+const QuotedMessage = React.forwardRef<
+  HTMLDivElement,
+  { text?: string; participant?: string; isFromMe: boolean }
+>(({ text, participant, isFromMe }, ref) => {
   if (!text) return null;
   
   return (
-    <div className={cn(
-      "border-l-2 pl-2 mb-2 text-xs rounded-r",
-      isFromMe 
-        ? "border-primary/60 bg-primary-foreground/10" 
-        : "border-primary/80 bg-background/30"
-    )}>
+    <div 
+      ref={ref}
+      className={cn(
+        "border-l-2 pl-2 mb-2 text-xs rounded-r",
+        isFromMe 
+          ? "border-primary/60 bg-primary-foreground/10" 
+          : "border-primary/80 bg-background/30"
+      )}
+    >
       {participant && (
         <span className="font-medium text-primary block text-[11px]">
           {formatQuotedParticipant(participant)}
@@ -218,7 +222,8 @@ function QuotedMessage({ text, participant, isFromMe }: {
       </span>
     </div>
   );
-}
+});
+QuotedMessage.displayName = 'QuotedMessage';
 
 function detectMessageType(message: any): MessageType {
   if (!message || typeof message !== 'object') return 'unknown';
@@ -444,13 +449,13 @@ function MessageBubble({ message }: { message: Message }) {
       case 'image':
         return (
           <div className="space-y-1">
-            {message.mediaUrl ? (
+            {message.mediaUrl || message.thumbnail ? (
               <div className="relative max-w-[330px] overflow-hidden rounded-lg">
                 <img 
-                  src={message.mediaUrl} 
+                  src={message.mediaUrl || (message.thumbnail ? `data:image/jpeg;base64,${message.thumbnail}` : '')}
                   alt="Imagem" 
                   className="w-full h-auto max-h-[400px] object-contain cursor-pointer rounded-lg"
-                  onClick={() => window.open(message.mediaUrl, '_blank')}
+                  onClick={() => message.mediaUrl && window.open(message.mediaUrl, '_blank')}
                   onError={(e) => {
                     e.currentTarget.parentElement?.classList.add('hidden');
                     e.currentTarget.parentElement?.nextElementSibling?.classList.remove('hidden');
@@ -460,7 +465,7 @@ function MessageBubble({ message }: { message: Message }) {
             ) : null}
             <div className={cn(
               "flex items-center gap-2 p-3 rounded-lg bg-muted/50", 
-              message.mediaUrl ? "hidden" : ""
+              (message.mediaUrl || message.thumbnail) ? "hidden" : ""
             )}>
               <ImageIcon className="h-5 w-5 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Imagem não disponível</span>
@@ -511,6 +516,22 @@ function MessageBubble({ message }: { message: Message }) {
                   preload="metadata"
                   poster={message.thumbnail ? `data:image/jpeg;base64,${message.thumbnail}` : undefined}
                 />
+              </div>
+            ) : message.thumbnail ? (
+              <div className="relative max-w-[330px] overflow-hidden rounded-lg cursor-pointer">
+                <img 
+                  src={`data:image/jpeg;base64,${message.thumbnail}`}
+                  alt="Video thumbnail" 
+                  className="w-full h-auto max-h-[400px] object-contain rounded-lg opacity-80"
+                />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-14 h-14 rounded-full bg-black/60 flex items-center justify-center">
+                    <Play className="h-7 w-7 text-white fill-white ml-1" />
+                  </div>
+                </div>
+                <span className="absolute bottom-2 left-2 text-xs text-white bg-black/50 px-2 py-1 rounded">
+                  Vídeo - clique para baixar
+                </span>
               </div>
             ) : (
               <div className="flex items-center gap-2 p-4 bg-muted/50 rounded-lg max-w-[330px]">
@@ -929,7 +950,7 @@ export function WhatsAppMessagesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] h-[600px] flex flex-col p-0">
+      <DialogContent className="sm:max-w-[500px] h-[600px] flex flex-col p-0" aria-describedby={undefined}>
         {/* Header */}
         <DialogHeader className="px-4 py-3 border-b bg-primary/5">
           <div className="flex items-center gap-3">
