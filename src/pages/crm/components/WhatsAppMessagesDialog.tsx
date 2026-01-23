@@ -137,46 +137,41 @@ export function WhatsAppMessagesDialog({
     setLoading(true);
     try {
       const jid = formatToJid(whatsappNumber);
-      const instanceName = client.instance;
       
-      // Use findMessages endpoint with instance in path
-      const endpoint = instanceName 
-        ? `/chat/findMessages/${encodeURIComponent(instanceName)}`
-        : '/chat/findMessages';
-      
+      // Endpoint correto conforme documentação da UaZapi
+      const endpoint = '/message/find';
       const fullUrl = `${client.baseUrl}${endpoint}`;
       const requestBody = {
-        where: {
-          key: {
-            remoteJid: jid,
-          },
-        },
+        chatid: jid,
         limit: 50,
+        offset: 0,
       };
       
       console.log('🔍 [WhatsApp API] Loading messages:', {
         baseUrl: client.baseUrl,
-        instance: instanceName,
         endpoint,
         fullUrl,
-        jid,
         requestBody,
       });
         
-      const response = await client.post<{ messages?: Message[] }>(endpoint, requestBody);
+      const response = await client.post<Message[] | { messages?: Message[] }>(endpoint, requestBody);
 
-      if (response.messages && Array.isArray(response.messages)) {
-        const formattedMessages = response.messages.map((msg: any) => ({
+      // Processar resposta (pode vir como array direto ou dentro de objeto)
+      const messagesArray = Array.isArray(response) ? response : (response as any).messages || [];
+      
+      if (messagesArray.length > 0) {
+        const formattedMessages = messagesArray.map((msg: any) => ({
           id: msg.key?.id || msg.id || Math.random().toString(),
           text: msg.message?.conversation || 
                 msg.message?.extendedTextMessage?.text || 
                 msg.message?.imageMessage?.caption ||
                 msg.message?.videoMessage?.caption ||
                 msg.message?.documentMessage?.caption ||
+                msg.body ||
                 '[Mídia]',
-          fromMe: msg.key?.fromMe || false,
-          timestamp: msg.messageTimestamp || Date.now() / 1000,
-          type: Object.keys(msg.message || {})[0],
+          fromMe: msg.key?.fromMe ?? msg.fromMe ?? false,
+          timestamp: msg.messageTimestamp || msg.timestamp || Date.now() / 1000,
+          type: msg.message ? Object.keys(msg.message)[0] : msg.type,
         }));
         
         // Sort by timestamp ascending
