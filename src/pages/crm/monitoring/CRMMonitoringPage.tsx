@@ -34,13 +34,17 @@ export default function CRMMonitoringPage() {
   const { data: agentWorkload = [], isLoading: workloadLoading, refetch: refetchWorkload } = useCRMAgentWorkload(filters);
   const { data: bottlenecks = [], isLoading: bottlenecksLoading, refetch: refetchBottlenecks } = useCRMStageBottlenecks(filters);
 
-  const isAnyLoading = stuckLoading || activityLoading || workloadLoading || bottlenecksLoading;
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const handleRefresh = () => {
-    refetchStuck();
-    refetchActivity();
-    refetchWorkload();
-    refetchBottlenecks();
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await Promise.all([
+      refetchStuck(),
+      refetchActivity(),
+      refetchWorkload(),
+      refetchBottlenecks()
+    ]);
+    setIsRefreshing(false);
   };
 
   // Initialize agentCodes when agents load
@@ -83,8 +87,8 @@ export default function CRMMonitoringPage() {
             Alertas de leads parados, timeline de atividades e carga por agente
           </p>
         </div>
-        <Button onClick={handleRefresh} disabled={isAnyLoading} variant="outline">
-          <RefreshCw className={`h-4 w-4 mr-2 ${isAnyLoading ? 'animate-spin' : ''}`} />
+        <Button onClick={handleRefresh} disabled={isRefreshing} variant="outline">
+          <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
           Atualizar
         </Button>
       </div>

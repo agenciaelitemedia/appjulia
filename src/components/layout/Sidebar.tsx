@@ -63,9 +63,9 @@ const menuGroups: MenuGroup[] = [
   {
     label: 'CRM',
     items: [
-      { label: 'Leads', icon: Users, href: '/leads' },
-      { label: 'Monitoramento', icon: BarChart3, href: '/leads/monitoramento' },
-      { label: 'Estatísticas', icon: BarChart3, href: '/leads/estatisticas' },
+      { label: 'Leads', icon: Users, href: '/crm/leads' },
+      { label: 'Monitoramento', icon: BarChart3, href: '/crm/lead-monitoramento' },
+      { label: 'Estatísticas', icon: BarChart3, href: '/crm/lead-estatisticas' },
     ],
   },
   {

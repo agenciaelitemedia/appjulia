@@ -27,9 +27,9 @@ const App = () => (
             <Route element={<MainLayout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/leads" element={<CRMPage />} />
-              <Route path="/leads/estatisticas" element={<CRMStatisticsPage />} />
-              <Route path="/leads/monitoramento" element={<CRMMonitoringPage />} />
+              <Route path="/crm/leads" element={<CRMPage />} />
+              <Route path="/crm/lead-estatisticas" element={<CRMStatisticsPage />} />
+              <Route path="/crm/lead-monitoramento" element={<CRMMonitoringPage />} />
               <Route path="/admin/agentes" element={<AgentsList />} />
             </Route>
             <Route path="*" element={<NotFound />} />
