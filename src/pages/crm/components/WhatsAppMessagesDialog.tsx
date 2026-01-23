@@ -66,6 +66,7 @@ function formatDuration(seconds?: number): string {
 function detectMessageType(message: any): MessageType {
   if (!message || typeof message !== 'object') return 'unknown';
   
+  // Formato Baileys padrão
   if (message.conversation || message.extendedTextMessage) return 'text';
   if (message.imageMessage) return 'image';
   if (message.audioMessage) return 'audio';
@@ -74,6 +75,55 @@ function detectMessageType(message: any): MessageType {
   if (message.stickerMessage) return 'sticker';
   if (message.locationMessage) return 'location';
   if (message.contactMessage || message.contactsArrayMessage) return 'contact';
+  
+  // Formato alternativo UaZapi - verificar campo 'type' direto
+  if (message.type) {
+    const typeMap: Record<string, MessageType> = {
+      'text': 'text',
+      'chat': 'text',
+      'conversation': 'text',
+      'extendedTextMessage': 'text',
+      'image': 'image',
+      'imageMessage': 'image',
+      'audio': 'audio',
+      'ptt': 'audio',
+      'audioMessage': 'audio',
+      'video': 'video',
+      'videoMessage': 'video',
+      'document': 'document',
+      'documentMessage': 'document',
+      'sticker': 'sticker',
+      'stickerMessage': 'sticker',
+      'location': 'location',
+      'locationMessage': 'location',
+      'vcard': 'contact',
+      'contact': 'contact',
+      'contactMessage': 'contact',
+    };
+    return typeMap[message.type] || 'unknown';
+  }
+  
+  // Verificar se texto está em 'body' ou 'text' direto
+  if (message.body || message.text || message.content) return 'text';
+  
+  // Verificar messageType alternativo
+  if (message.messageType) {
+    const typeMap: Record<string, MessageType> = {
+      'text': 'text',
+      'chat': 'text',
+      'conversation': 'text',
+      'image': 'image',
+      'audio': 'audio',
+      'ptt': 'audio',
+      'video': 'video',
+      'document': 'document',
+      'sticker': 'sticker',
+      'location': 'location',
+      'vcard': 'contact',
+      'contact': 'contact',
+    };
+    return typeMap[message.messageType] || 'unknown';
+  }
   
   return 'unknown';
 }
@@ -84,7 +134,12 @@ function extractMediaData(message: any, type: MessageType): Partial<Message> {
   switch (type) {
     case 'text':
       return {
-        text: message.conversation || message.extendedTextMessage?.text || '',
+        text: message.conversation 
+          || message.extendedTextMessage?.text 
+          || message.body 
+          || message.text 
+          || message.content
+          || '',
       };
       
     case 'image':
@@ -448,11 +503,37 @@ export function WhatsAppMessagesDialog({
       
       console.log('📨 [WhatsApp API] Raw messages:', messagesArray.length, 'messages');
       
+      // Debug: Log da estrutura completa da primeira mensagem
+      if (messagesArray.length > 0) {
+        console.log('🔬 [WhatsApp API] First message structure:', 
+          JSON.stringify(messagesArray[0], null, 2)
+        );
+        console.log('🔬 [WhatsApp API] Message keys:', 
+          Object.keys(messagesArray[0])
+        );
+        if (messagesArray[0].message) {
+          console.log('🔬 [WhatsApp API] msg.message keys:', 
+            Object.keys(messagesArray[0].message)
+          );
+        }
+      }
+      
       if (messagesArray.length > 0) {
         const formattedMessages: Message[] = messagesArray.map((msg: any) => {
-          const messageContent = msg.message || {};
+          // Tentar pegar de msg.message (Baileys) ou direto de msg
+          const messageContent = msg.message || msg;
           const messageType = detectMessageType(messageContent);
           const mediaData = extractMediaData(messageContent, messageType);
+          
+          // Debug log para primeiras mensagens
+          if (messagesArray.indexOf(msg) < 3) {
+            console.log('🔬 [WhatsApp API] Parsed message:', {
+              originalKeys: Object.keys(msg),
+              contentKeys: Object.keys(messageContent),
+              detectedType: messageType,
+              extractedText: mediaData.text?.substring(0, 50),
+            });
+          }
           
           return {
             id: msg.key?.id || msg.id || Math.random().toString(),
@@ -476,7 +557,11 @@ export function WhatsAppMessagesDialog({
         formattedMessages.sort((a, b) => a.timestamp - b.timestamp);
         setMessages(formattedMessages);
         
-        console.log('✅ [WhatsApp API] Processed messages:', formattedMessages.length);
+        const typeCounts = formattedMessages.reduce((acc, m) => {
+          acc[m.type] = (acc[m.type] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        console.log('✅ [WhatsApp API] Processed messages:', formattedMessages.length, 'Type breakdown:', typeCounts);
       } else {
         setMessages([]);
       }
