@@ -1,134 +1,138 @@
 
-# Plano: Corrigir Menu Ativo Duplicado e Botão Atualizar do CRM
 
-## Problema 1: Menu Ativo Duplicado
+# Plano: Atualizar Rotas do CRM e Melhorar Feedback do Botao Atualizar
 
-### Diagnóstico
-Na função `isMenuActive` do Sidebar.tsx (linha 123-133), a lógica atual é:
-```typescript
-if (item.href) {
-  return location.pathname === item.href || location.pathname.startsWith(item.href + '/');
-}
-```
+## Objetivo
 
-Quando o usuário está em `/leads/monitoramento`:
-- "Leads" (`/leads`) → `startsWith('/leads/')` = true (INCORRETO)
-- "Monitoramento" (`/leads/monitoramento`) → match exato = true (CORRETO)
+1. Alterar as rotas do modulo CRM para novo padrao:
+   - `/leads` → `/crm/leads`
+   - `/leads/monitoramento` → `/crm/lead-monitoramento`
+   - `/leads/estatisticas` → `/crm/lead-estatisticas`
 
-### Solução
-Modificar a lógica para verificar se a rota é exata OU se é uma sub-rota que NÃO está definida como item separado no menu:
-
-```typescript
-const isMenuActive = (item: MenuItem): boolean => {
-  if (item.href) {
-    // Match exato
-    if (location.pathname === item.href) return true;
-    
-    // Para sub-rotas, verificar se não existe outro item de menu mais específico
-    // Só ativa se a rota atual começa com href E não há outro item que seja match mais específico
-    const allMenuHrefs = menuGroups.flatMap(g => 
-      g.items.flatMap(i => i.href ? [i.href] : i.children?.map(c => c.href) || [])
-    );
-    
-    const hasMoreSpecificMatch = allMenuHrefs.some(href => 
-      href !== item.href && 
-      location.pathname.startsWith(href) && 
-      href.startsWith(item.href!)
-    );
-    
-    return !hasMoreSpecificMatch && location.pathname.startsWith(item.href + '/');
-  }
-  // ... resto da lógica para children
-}
-```
-
-**Alternativa mais simples:** Usar apenas match exato para itens sem children:
-```typescript
-const isMenuActive = (item: MenuItem): boolean => {
-  if (item.href) {
-    return location.pathname === item.href;
-  }
-  // ... children logic
-}
-```
-
----
-
-## Problema 2: Botão Atualizar no CRM
-
-### Diagnóstico
-O CRMPage.tsx já tem o botão funcionando corretamente com `refetch()`. O problema pode ser:
-1. O usuário quer que funcione também nas páginas de Monitoramento/Estatísticas
-2. O refetch pode não estar invalidando o cache corretamente
-
-### Solução
-Garantir que o `refetch()` seja chamado corretamente e adicionar o mesmo padrão nas outras páginas CRM:
-
-**Para CRMMonitoringPage.tsx:**
-- Adicionar header com botão "Atualizar" similar ao CRMPage
-- Criar função que chama refetch de todos os hooks
+2. Garantir que o spinner do botao "Atualizar" seja visivel durante a atualizacao
 
 ---
 
 ## Arquivos a Modificar
 
-| Arquivo | Modificação |
+| Arquivo | Modificacao |
 |---------|-------------|
-| `src/components/layout/Sidebar.tsx` | Corrigir função `isMenuActive` para match exato |
-| `src/pages/crm/monitoring/CRMMonitoringPage.tsx` | Adicionar header com botão Atualizar |
-| `src/pages/crm/statistics/CRMStatisticsPage.tsx` | Adicionar header com botão Atualizar |
+| `src/App.tsx` | Atualizar paths das rotas CRM |
+| `src/components/layout/Sidebar.tsx` | Atualizar hrefs do menu CRM |
+| `src/pages/crm/CRMPage.tsx` | Adicionar estado de refreshing manual |
+| `src/pages/crm/components/CRMHeader.tsx` | Usar estado de refreshing para spinner |
+| `src/pages/crm/monitoring/CRMMonitoringPage.tsx` | Adicionar estado de refreshing manual |
+| `src/pages/crm/statistics/CRMStatisticsPage.tsx` | Adicionar estado de refreshing manual |
 
 ---
 
-## Implementação Detalhada
+## Detalhamento das Mudancas
 
-### 1. Sidebar.tsx - Corrigir isMenuActive
-
-```typescript
-const isMenuActive = (item: MenuItem): boolean => {
-  if (item.href) {
-    // Apenas match exato para evitar múltiplos itens ativos
-    return location.pathname === item.href;
-  }
-  if (item.children) {
-    return item.children.some(child => 
-      location.pathname === child.href
-    );
-  }
-  return false;
-};
-```
-
-### 2. CRMMonitoringPage.tsx - Adicionar Refresh
+### 1. App.tsx - Novas Rotas
 
 ```typescript
-// Importar CRMHeader ou criar header inline com botão
-const handleRefresh = () => {
-  // Refetch all queries
-  refetchStuck();
-  refetchActivity();
-  refetchWorkload();
-  refetchBottlenecks();
-};
+// Antes
+<Route path="/leads" element={<CRMPage />} />
+<Route path="/leads/estatisticas" element={<CRMStatisticsPage />} />
+<Route path="/leads/monitoramento" element={<CRMMonitoringPage />} />
 
-// No JSX, adicionar botão de refresh no header
-<div className="flex justify-between items-center">
-  <div>
-    <h1>Monitoramento do CRM</h1>
-    <p>...</p>
-  </div>
-  <Button onClick={handleRefresh} disabled={isAnyLoading}>
-    <RefreshCw className={isAnyLoading ? 'animate-spin' : ''} />
-    Atualizar
-  </Button>
-</div>
+// Depois
+<Route path="/crm/leads" element={<CRMPage />} />
+<Route path="/crm/lead-estatisticas" element={<CRMStatisticsPage />} />
+<Route path="/crm/lead-monitoramento" element={<CRMMonitoringPage />} />
 ```
 
-### 3. CRMStatisticsPage.tsx - Adicionar Refresh (mesmo padrão)
+### 2. Sidebar.tsx - Atualizar Menu
+
+```typescript
+// Antes
+{
+  label: 'CRM',
+  items: [
+    { label: 'Leads', icon: Users, href: '/leads' },
+    { label: 'Monitoramento', icon: BarChart3, href: '/leads/monitoramento' },
+    { label: 'Estatísticas', icon: BarChart3, href: '/leads/estatisticas' },
+  ],
+}
+
+// Depois
+{
+  label: 'CRM',
+  items: [
+    { label: 'Leads', icon: Users, href: '/crm/leads' },
+    { label: 'Monitoramento', icon: BarChart3, href: '/crm/lead-monitoramento' },
+    { label: 'Estatísticas', icon: BarChart3, href: '/crm/lead-estatisticas' },
+  ],
+}
+```
+
+### 3. Melhorar Feedback Visual do Botao Atualizar
+
+O problema atual: o `isLoading` dos hooks so fica `true` no carregamento inicial. Durante um `refetch()`, o TanStack Query usa `isFetching` ao inves de `isLoading`.
+
+**Solucao**: Criar um estado local `isRefreshing` que e ativado ao clicar e desativado quando o refetch termina.
+
+```typescript
+// Exemplo para CRMPage.tsx
+const [isRefreshing, setIsRefreshing] = useState(false);
+
+const handleRefresh = async () => {
+  setIsRefreshing(true);
+  await refetch();
+  setIsRefreshing(false);
+};
+
+// Passar isRefreshing para o header
+<CRMHeader onRefresh={handleRefresh} isLoading={isRefreshing} />
+```
+
+Aplicar o mesmo padrao para:
+- `CRMMonitoringPage.tsx`
+- `CRMStatisticsPage.tsx`
+
+---
+
+## Secao Tecnica
+
+### Mapeamento de Rotas
+
+| Rota Antiga | Rota Nova |
+|-------------|-----------|
+| `/leads` | `/crm/leads` |
+| `/leads/estatisticas` | `/crm/lead-estatisticas` |
+| `/leads/monitoramento` | `/crm/lead-monitoramento` |
+
+### Fluxo do Botao Atualizar
+
+```text
+1. Usuario clica em "Atualizar"
+2. setIsRefreshing(true) → spinner ativa imediatamente
+3. await refetch() ou Promise.all([refetchX(), refetchY()...])
+4. setIsRefreshing(false) → spinner para
+```
+
+### Garantia de Spinner Visivel
+
+O uso de `await` garante que o spinner permanece ativo durante todo o tempo da requisicao. Para multiplos refetches, usar `Promise.all()`:
+
+```typescript
+const handleRefresh = async () => {
+  setIsRefreshing(true);
+  await Promise.all([
+    refetchStuck(),
+    refetchActivity(),
+    refetchWorkload(),
+    refetchBottlenecks()
+  ]);
+  setIsRefreshing(false);
+};
+```
 
 ---
 
 ## Resultado Esperado
 
-1. **Menu:** Apenas o item exato ficará ativo (Monitoramento ativo, Leads não ativo quando em /leads/monitoramento)
-2. **Botão Atualizar:** Funcionará em todas as páginas do CRM, recarregando os dados de acordo com os filtros atuais
+1. **Rotas**: URLs do CRM seguem o novo padrao `/crm/*`
+2. **Menu**: Links atualizados e funcionando corretamente
+3. **Botao Atualizar**: Spinner visivel durante toda a duracao do refresh em todas as paginas CRM
+
