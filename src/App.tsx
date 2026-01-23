@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { UaZapiProvider } from "@/contexts/UaZapiContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -22,18 +23,20 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route element={<MainLayout />}>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/crm/leads" element={<CRMPage />} />
-              <Route path="/crm/lead-estatisticas" element={<CRMStatisticsPage />} />
-              <Route path="/crm/lead-monitoramento" element={<CRMMonitoringPage />} />
-              <Route path="/admin/agentes" element={<AgentsList />} />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <UaZapiProvider>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route element={<MainLayout />}>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/crm/leads" element={<CRMPage />} />
+                <Route path="/crm/lead-estatisticas" element={<CRMStatisticsPage />} />
+                <Route path="/crm/lead-monitoramento" element={<CRMMonitoringPage />} />
+                <Route path="/admin/agentes" element={<AgentsList />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </UaZapiProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
