@@ -137,9 +137,14 @@ export function WhatsAppMessagesDialog({
     setLoading(true);
     try {
       const jid = formatToJid(whatsappNumber);
+      const instanceName = client.instance;
       
-      // Use findMessages endpoint
-      const response = await client.post<{ messages?: Message[] }>('/chat/findMessages', {
+      // Use findMessages endpoint with instance in path
+      const endpoint = instanceName 
+        ? `/chat/findMessages/${encodeURIComponent(instanceName)}`
+        : '/chat/findMessages';
+        
+      const response = await client.post<{ messages?: Message[] }>(endpoint, {
         where: {
           key: {
             remoteJid: jid,
@@ -185,7 +190,12 @@ export function WhatsAppMessagesDialog({
 
     setSending(true);
     try {
-      await client.post('/message/text', {
+      const instanceName = client.instance;
+      const endpoint = instanceName 
+        ? `/message/sendText/${encodeURIComponent(instanceName)}`
+        : '/message/text';
+        
+      await client.post(endpoint, {
         number: whatsappNumber.replace(/\D/g, ''),
         text: newMessage.trim(),
       });
