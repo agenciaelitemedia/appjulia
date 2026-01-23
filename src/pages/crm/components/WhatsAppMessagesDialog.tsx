@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { MessageCircle, Send, Loader2 } from 'lucide-react';
+import { 
+  MessageCircle, Send, Loader2, 
+  Mic, FileText, Download, MapPin, User, Image as ImageIcon, Video, Play
+} from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,12 +15,27 @@ import { cn } from '@/lib/utils';
 import { externalDb } from '@/lib/externalDb';
 import { UaZapiClient } from '@/lib/uazapi';
 
+// ============================================
+// Types
+// ============================================
+
+type MessageType = 'text' | 'image' | 'audio' | 'video' | 'document' | 'sticker' | 'location' | 'contact' | 'unknown';
+
 interface Message {
   id: string;
   text: string;
   fromMe: boolean;
   timestamp: number;
-  type?: string;
+  type: MessageType;
+  mediaUrl?: string;
+  mimetype?: string;
+  caption?: string;
+  fileName?: string;
+  seconds?: number;
+  ptt?: boolean;
+  thumbnail?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 interface AgentCredentials {
@@ -33,6 +51,277 @@ interface WhatsAppMessagesDialogProps {
   leadName?: string;
   codAgent: string;
 }
+
+// ============================================
+// Helper Functions
+// ============================================
+
+function formatDuration(seconds?: number): string {
+  if (!seconds) return '0:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function detectMessageType(message: any): MessageType {
+  if (!message || typeof message !== 'object') return 'unknown';
+  
+  if (message.conversation || message.extendedTextMessage) return 'text';
+  if (message.imageMessage) return 'image';
+  if (message.audioMessage) return 'audio';
+  if (message.videoMessage) return 'video';
+  if (message.documentMessage || message.documentWithCaptionMessage) return 'document';
+  if (message.stickerMessage) return 'sticker';
+  if (message.locationMessage) return 'location';
+  if (message.contactMessage || message.contactsArrayMessage) return 'contact';
+  
+  return 'unknown';
+}
+
+function extractMediaData(message: any, type: MessageType): Partial<Message> {
+  if (!message) return { text: '[Mensagem vazia]' };
+  
+  switch (type) {
+    case 'text':
+      return {
+        text: message.conversation || message.extendedTextMessage?.text || '',
+      };
+      
+    case 'image':
+      return {
+        mediaUrl: message.imageMessage?.url,
+        caption: message.imageMessage?.caption,
+        mimetype: message.imageMessage?.mimetype,
+        thumbnail: message.imageMessage?.jpegThumbnail,
+        text: message.imageMessage?.caption || '[Imagem]',
+      };
+      
+    case 'audio':
+      return {
+        mediaUrl: message.audioMessage?.url,
+        seconds: message.audioMessage?.seconds,
+        ptt: message.audioMessage?.ptt,
+        mimetype: message.audioMessage?.mimetype,
+        text: `[Áudio ${formatDuration(message.audioMessage?.seconds)}]`,
+      };
+      
+    case 'video':
+      return {
+        mediaUrl: message.videoMessage?.url,
+        caption: message.videoMessage?.caption,
+        mimetype: message.videoMessage?.mimetype,
+        seconds: message.videoMessage?.seconds,
+        thumbnail: message.videoMessage?.jpegThumbnail,
+        text: message.videoMessage?.caption || '[Vídeo]',
+      };
+      
+    case 'document': {
+      const doc = message.documentMessage || message.documentWithCaptionMessage?.message?.documentMessage;
+      return {
+        mediaUrl: doc?.url,
+        fileName: doc?.fileName || doc?.title,
+        mimetype: doc?.mimetype,
+        caption: doc?.caption,
+        text: doc?.fileName || doc?.title || '[Documento]',
+      };
+    }
+      
+    case 'sticker':
+      return {
+        mediaUrl: message.stickerMessage?.url,
+        mimetype: message.stickerMessage?.mimetype,
+        text: '[Sticker]',
+      };
+      
+    case 'location':
+      return {
+        latitude: message.locationMessage?.degreesLatitude,
+        longitude: message.locationMessage?.degreesLongitude,
+        text: message.locationMessage?.name || '[Localização]',
+      };
+      
+    case 'contact': {
+      const contact = message.contactMessage || message.contactsArrayMessage?.contacts?.[0];
+      return {
+        text: contact?.displayName || '[Contato]',
+      };
+    }
+      
+    default:
+      return {
+        text: '[Mensagem não suportada]',
+      };
+  }
+}
+
+// ============================================
+// MessageBubble Component
+// ============================================
+
+function MessageBubble({ message }: { message: Message }) {
+  const isFromMe = message.fromMe;
+  
+  const renderContent = () => {
+    switch (message.type) {
+      case 'text':
+        return (
+          <p className="text-sm whitespace-pre-wrap break-words">
+            {message.text}
+          </p>
+        );
+        
+      case 'image':
+        return (
+          <div className="space-y-1">
+            {message.mediaUrl ? (
+              <img 
+                src={message.mediaUrl} 
+                alt="Imagem" 
+                className="max-w-full max-h-[200px] rounded-md cursor-pointer object-cover"
+                onClick={() => window.open(message.mediaUrl, '_blank')}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+            ) : null}
+            <div className={cn("flex items-center gap-2 p-2 rounded", message.mediaUrl ? "hidden" : "")}>
+              <ImageIcon className="h-5 w-5 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Imagem não disponível</span>
+            </div>
+            {message.caption && (
+              <p className="text-sm whitespace-pre-wrap break-words">{message.caption}</p>
+            )}
+          </div>
+        );
+        
+      case 'audio':
+        return (
+          <div className="flex items-center gap-2 min-w-[180px]">
+            {message.ptt ? (
+              <Mic className="h-4 w-4 flex-shrink-0 text-green-500" />
+            ) : (
+              <Play className="h-4 w-4 flex-shrink-0" />
+            )}
+            {message.mediaUrl ? (
+              <audio 
+                controls 
+                src={message.mediaUrl} 
+                className="max-w-[180px] h-8"
+                preload="metadata"
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="w-32 h-1 bg-muted-foreground/30 rounded" />
+                <span className="text-xs text-muted-foreground">
+                  {formatDuration(message.seconds)}
+                </span>
+              </div>
+            )}
+          </div>
+        );
+        
+      case 'video':
+        return (
+          <div className="space-y-1">
+            {message.mediaUrl ? (
+              <video 
+                controls 
+                src={message.mediaUrl} 
+                className="max-w-full max-h-[200px] rounded-md"
+                preload="metadata"
+              />
+            ) : (
+              <div className="flex items-center gap-2 p-3 bg-background/50 rounded">
+                <Video className="h-5 w-5 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Vídeo não disponível</span>
+              </div>
+            )}
+            {message.caption && (
+              <p className="text-sm whitespace-pre-wrap break-words">{message.caption}</p>
+            )}
+          </div>
+        );
+        
+      case 'document':
+        return (
+          <a 
+            href={message.mediaUrl || '#'} 
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(
+              "flex items-center gap-2 p-2 rounded transition-colors",
+              isFromMe ? "bg-primary-foreground/10 hover:bg-primary-foreground/20" : "bg-background/50 hover:bg-background/80"
+            )}
+            onClick={(e) => {
+              if (!message.mediaUrl) {
+                e.preventDefault();
+              }
+            }}
+          >
+            <FileText className="h-5 w-5 flex-shrink-0" />
+            <span className="text-sm truncate flex-1 max-w-[150px]">
+              {message.fileName || 'Documento'}
+            </span>
+            {message.mediaUrl && <Download className="h-4 w-4 flex-shrink-0" />}
+          </a>
+        );
+        
+      case 'sticker':
+        return (
+          <img 
+            src={message.mediaUrl} 
+            alt="Sticker" 
+            className="max-w-[120px] max-h-[120px]"
+            onError={(e) => {
+              e.currentTarget.src = '';
+              e.currentTarget.alt = '[Sticker]';
+            }}
+          />
+        );
+        
+      case 'location':
+        return (
+          <a
+            href={message.latitude && message.longitude 
+              ? `https://www.google.com/maps?q=${message.latitude},${message.longitude}` 
+              : '#'
+            }
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(
+              "flex items-center gap-2 p-2 rounded transition-colors",
+              isFromMe ? "bg-primary-foreground/10 hover:bg-primary-foreground/20" : "bg-background/50 hover:bg-background/80"
+            )}
+          >
+            <MapPin className="h-5 w-5 text-red-500" />
+            <span className="text-sm">{message.text}</span>
+          </a>
+        );
+        
+      case 'contact':
+        return (
+          <div className="flex items-center gap-2 p-2">
+            <User className="h-5 w-5 text-blue-500" />
+            <span className="text-sm">{message.text}</span>
+          </div>
+        );
+        
+      default:
+        return (
+          <p className="text-sm italic text-muted-foreground">
+            {message.text || '[Mensagem não suportada]'}
+          </p>
+        );
+    }
+  };
+  
+  return renderContent();
+}
+
+// ============================================
+// Main Component
+// ============================================
 
 export function WhatsAppMessagesDialog({
   open,
@@ -140,7 +429,6 @@ export function WhatsAppMessagesDialog({
       
       // Endpoint correto conforme documentação da UaZapi
       const endpoint = '/message/find';
-      const fullUrl = `${client.baseUrl}${endpoint}`;
       const requestBody = {
         chatid: jid,
         limit: 50,
@@ -150,33 +438,45 @@ export function WhatsAppMessagesDialog({
       console.log('🔍 [WhatsApp API] Loading messages:', {
         baseUrl: client.baseUrl,
         endpoint,
-        fullUrl,
         requestBody,
       });
         
-      const response = await client.post<Message[] | { messages?: Message[] }>(endpoint, requestBody);
+      const response = await client.post<any>(endpoint, requestBody);
 
       // Processar resposta (pode vir como array direto ou dentro de objeto)
-      const messagesArray = Array.isArray(response) ? response : (response as any).messages || [];
+      const messagesArray = Array.isArray(response) ? response : (response?.messages || []);
+      
+      console.log('📨 [WhatsApp API] Raw messages:', messagesArray.length, 'messages');
       
       if (messagesArray.length > 0) {
-        const formattedMessages = messagesArray.map((msg: any) => ({
-          id: msg.key?.id || msg.id || Math.random().toString(),
-          text: msg.message?.conversation || 
-                msg.message?.extendedTextMessage?.text || 
-                msg.message?.imageMessage?.caption ||
-                msg.message?.videoMessage?.caption ||
-                msg.message?.documentMessage?.caption ||
-                msg.body ||
-                '[Mídia]',
-          fromMe: msg.key?.fromMe ?? msg.fromMe ?? false,
-          timestamp: msg.messageTimestamp || msg.timestamp || Date.now() / 1000,
-          type: msg.message ? Object.keys(msg.message)[0] : msg.type,
-        }));
+        const formattedMessages: Message[] = messagesArray.map((msg: any) => {
+          const messageContent = msg.message || {};
+          const messageType = detectMessageType(messageContent);
+          const mediaData = extractMediaData(messageContent, messageType);
+          
+          return {
+            id: msg.key?.id || msg.id || Math.random().toString(),
+            type: messageType,
+            text: mediaData.text || '',
+            mediaUrl: mediaData.mediaUrl,
+            mimetype: mediaData.mimetype,
+            caption: mediaData.caption,
+            fileName: mediaData.fileName,
+            seconds: mediaData.seconds,
+            ptt: mediaData.ptt,
+            thumbnail: mediaData.thumbnail,
+            latitude: mediaData.latitude,
+            longitude: mediaData.longitude,
+            fromMe: msg.key?.fromMe ?? msg.fromMe ?? false,
+            timestamp: msg.messageTimestamp || msg.timestamp || Date.now() / 1000,
+          };
+        });
         
         // Sort by timestamp ascending
         formattedMessages.sort((a, b) => a.timestamp - b.timestamp);
         setMessages(formattedMessages);
+        
+        console.log('✅ [WhatsApp API] Processed messages:', formattedMessages.length);
       } else {
         setMessages([]);
       }
@@ -215,6 +515,7 @@ export function WhatsAppMessagesDialog({
           text: newMessage.trim(),
           fromMe: true,
           timestamp: Date.now() / 1000,
+          type: 'text',
         },
       ]);
       
@@ -269,11 +570,11 @@ export function WhatsAppMessagesDialog({
         {/* Header */}
         <DialogHeader className="px-4 py-3 border-b bg-primary/5">
           <div className="flex items-center gap-3">
-        <Avatar className="h-10 w-10 bg-green-600">
-          <AvatarFallback className="bg-green-600 text-white">
-            <MessageCircle className="h-5 w-5" />
-          </AvatarFallback>
-        </Avatar>
+            <Avatar className="h-10 w-10 bg-green-600">
+              <AvatarFallback className="bg-green-600 text-white">
+                <MessageCircle className="h-5 w-5" />
+              </AvatarFallback>
+            </Avatar>
             <div className="flex-1 min-w-0">
               <DialogTitle className="text-base font-semibold truncate">
                 {leadName || whatsappNumber}
@@ -338,9 +639,7 @@ export function WhatsAppMessagesDialog({
                             : "bg-muted rounded-bl-none"
                         )}
                       >
-                        <p className="text-sm whitespace-pre-wrap break-words">
-                          {message.text}
-                        </p>
+                        <MessageBubble message={message} />
                         <p
                           className={cn(
                             "text-[10px] mt-1 text-right",
