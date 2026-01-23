@@ -1102,9 +1102,9 @@ export function WhatsAppMessagesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] h-[600px] flex flex-col p-0" aria-describedby={undefined}>
+      <DialogContent className="sm:max-w-[500px] h-[600px] flex flex-col p-0 bg-card" aria-describedby={undefined}>
         {/* Header */}
-        <DialogHeader className="px-4 py-3 border-b bg-primary/5">
+        <DialogHeader className="px-4 py-3 border-b bg-muted/30">
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10 bg-green-600">
               <AvatarFallback className="bg-green-600 text-white">
@@ -1158,7 +1158,7 @@ export function WhatsAppMessagesDialog({
                 <div key={date} className="space-y-2">
                   {/* Date separator */}
                   <div className="flex items-center justify-center">
-                    <span className="text-[10px] bg-muted px-2 py-1 rounded text-muted-foreground">
+                    <span className="text-[10px] bg-secondary/50 px-2.5 py-1 rounded-full text-muted-foreground font-medium">
                       {date}
                     </span>
                   </div>
@@ -1176,8 +1176,8 @@ export function WhatsAppMessagesDialog({
                         className={cn(
                           "max-w-[80%] rounded-lg px-3 py-2 shadow-sm",
                           message.fromMe
-                            ? "bg-primary text-primary-foreground rounded-br-none"
-                            : "bg-muted rounded-bl-none"
+                            ? "bg-green-100 dark:bg-green-900/40 text-foreground rounded-br-none"
+                            : "bg-card border border-border/50 rounded-bl-none"
                         )}
                       >
                         <MessageBubble 
@@ -1188,10 +1188,7 @@ export function WhatsAppMessagesDialog({
                         />
                         <p
                           className={cn(
-                            "text-[10px] mt-1 text-right",
-                            message.fromMe
-                              ? "text-primary-foreground/70"
-                              : "text-muted-foreground"
+                            "text-[10px] mt-1 text-right text-muted-foreground"
                           )}
                         >
                           {formatMessageTime(message.timestamp)}
@@ -1206,7 +1203,7 @@ export function WhatsAppMessagesDialog({
         </ScrollArea>
 
         {/* Input Area */}
-        <div className="p-3 border-t bg-background">
+        <div className="p-3 border-t bg-muted/20">
           <div className="flex items-center gap-2">
             <Input
               value={newMessage}
