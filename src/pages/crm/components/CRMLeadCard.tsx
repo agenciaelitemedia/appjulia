@@ -5,9 +5,22 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { CRMCard } from '../types';
-import { formatDistanceToNow, format } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { WhatsAppMessagesDialog } from './WhatsAppMessagesDialog';
+
+function formatDateTimeSaoPaulo(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
 
 interface CRMLeadCardProps {
   card: CRMCard;
@@ -113,11 +126,11 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
             <div className="pt-2 border-t space-y-1 text-xs text-muted-foreground">
               <div className="flex items-center justify-between">
                 <span>Criado:</span>
-                <span>{format(new Date(card.created_at), "dd/MM/yy, HH:mm", { locale: ptBR })}</span>
+                <span>{formatDateTimeSaoPaulo(card.created_at)}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>Atualizado:</span>
-                <span>{format(new Date(card.updated_at), "dd/MM/yy, HH:mm", { locale: ptBR })}</span>
+                <span>{formatDateTimeSaoPaulo(card.updated_at)}</span>
               </div>
               <div className="flex items-center gap-1.5 text-muted-foreground/70 pt-1">
                 <Clock className="h-3 w-3" />
