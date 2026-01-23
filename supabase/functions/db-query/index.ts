@@ -89,10 +89,15 @@ serve(async (req) => {
     // If no custom CA, use 'require' to let Deno use its trust store
     const ssl = caCerts.length > 0
       ? { caCerts, rejectUnauthorized: true }
-      : "require"; // Uses Deno's default CA store (mozilla + system when DENO_TLS_CA_STORE is set)
+      : "require" as const; // Uses Deno's default CA store (mozilla + system when DENO_TLS_CA_STORE is set)
 
     const sql = externalDbUrl
-      ? postgres(externalDbUrl, { ssl })
+      ? postgres(externalDbUrl, { 
+          ssl,
+          connect_timeout: 10,
+          idle_timeout: 20,
+          max_lifetime: 60 * 30,
+        })
       : postgres({
           host: Deno.env.get('EXTERNAL_DB_HOST'),
           port: parseInt(Deno.env.get('EXTERNAL_DB_PORT') || '25061'),
@@ -100,6 +105,9 @@ serve(async (req) => {
           username: Deno.env.get('EXTERNAL_DB_USERNAME'),
           password: Deno.env.get('EXTERNAL_DB_PASSWORD'),
           ssl,
+          connect_timeout: 10,
+          idle_timeout: 20,
+          max_lifetime: 60 * 30,
         });
 
     let result: Record<string, unknown>[] = [];
