@@ -1,133 +1,194 @@
 
-# Plano: Corrigir Parsing de Mensagens WhatsApp
 
-## Problema Identificado
+# Plano: Adicionar Mensagens Citadas e Formatacao de Texto WhatsApp
 
-Todas as mensagens aparecem como "[Mensagem nao suportada]" porque a funcao `detectMessageType` esta retornando `'unknown'` para todas. Isso indica que a estrutura real retornada pela UaZapi e diferente do esperado.
+## Visao Geral
 
-O codigo atual espera o padrao Baileys:
-```
-msg.message.conversation       -> texto
-msg.message.imageMessage.url   -> imagem
-```
-
-Porem a UaZapi pode estar retornando outra estrutura. Precisamos adicionar logs detalhados para descobrir o formato real.
+Adicionar duas funcionalidades ao chat do WhatsApp:
+1. Exibicao de mensagens citadas (quoted messages) - quando uma mensagem e uma resposta a outra
+2. Formatacao de texto estilo WhatsApp (*negrito*, _italico_, ~tachado~, ```monoespaco```)
 
 ---
 
-## Correcoes Necessarias
+## 1. Formatacao de Texto WhatsApp
 
-### 1. Adicionar Logs de Debug Detalhados
+Criar uma funcao que detecta e aplica formatacao estilo WhatsApp:
 
-Na funcao `loadMessages`, logo apos receber as mensagens, logar a estrutura completa de pelo menos uma mensagem para identificar o formato:
+| Sintaxe | Resultado |
+|---------|-----------|
+| `*texto*` | **negrito** |
+| `_texto_` | _italico_ |
+| `~texto~` | ~~tachado~~ |
+| ``` `texto` ``` | `monoespaco` |
 
-```typescript
-if (messagesArray.length > 0) {
-  // Log da estrutura completa da primeira mensagem para debug
-  console.log('🔬 [WhatsApp API] First message structure:', 
-    JSON.stringify(messagesArray[0], null, 2)
-  );
-  console.log('🔬 [WhatsApp API] Message keys:', 
-    Object.keys(messagesArray[0])
-  );
-  if (messagesArray[0].message) {
-    console.log('🔬 [WhatsApp API] msg.message keys:', 
-      Object.keys(messagesArray[0].message)
-    );
-  }
-}
-```
-
-### 2. Expandir Deteccao de Tipos
-
-Adicionar verificacoes para formatos alternativos que a UaZapi pode usar:
+A funcao `renderFormattedText` vai processar o texto antes de renderizar links, aplicando as formatacoes na ordem correta.
 
 ```typescript
-function detectMessageType(message: any): MessageType {
-  if (!message || typeof message !== 'object') return 'unknown';
+function renderFormattedText(text: string): React.ReactNode {
+  if (!text) return null;
   
-  // Formato Baileys padrao
-  if (message.conversation || message.extendedTextMessage) return 'text';
-  if (message.imageMessage) return 'image';
-  if (message.audioMessage) return 'audio';
-  if (message.videoMessage) return 'video';
-  if (message.documentMessage || message.documentWithCaptionMessage) return 'document';
-  if (message.stickerMessage) return 'sticker';
-  if (message.locationMessage) return 'location';
-  if (message.contactMessage || message.contactsArrayMessage) return 'contact';
+  // Regex para cada tipo de formatacao
+  const formatPatterns = [
+    { pattern: /\*([^*]+)\*/g, render: (match: string) => <strong key={...}>{match}</strong> },
+    { pattern: /_([^_]+)_/g, render: (match: string) => <em key={...}>{match}</em> },
+    { pattern: /~([^~]+)~/g, render: (match: string) => <del key={...}>{match}</del> },
+    { pattern: /`([^`]+)`/g, render: (match: string) => <code key={...}>{match}</code> },
+  ];
   
-  // Formato alternativo UaZapi - verificar campo 'type' direto
-  if (message.type) {
-    const typeMap: Record<string, MessageType> = {
-      'text': 'text',
-      'chat': 'text',
-      'image': 'image',
-      'audio': 'audio',
-      'ptt': 'audio',
-      'video': 'video',
-      'document': 'document',
-      'sticker': 'sticker',
-      'location': 'location',
-      'vcard': 'contact',
-      'contact': 'contact',
-    };
-    return typeMap[message.type] || 'unknown';
-  }
-  
-  // Verificar se texto esta em 'body' ou 'text' direto
-  if (message.body || message.text) return 'text';
-  
-  return 'unknown';
-}
-```
-
-### 3. Expandir Extracao de Dados
-
-Adicionar suporte para formato alternativo na funcao `extractMediaData`:
-
-```typescript
-case 'text':
-  return {
-    text: message.conversation 
-       || message.extendedTextMessage?.text 
-       || message.body 
-       || message.text 
-       || '',
-  };
-```
-
-### 4. Verificar Estrutura Raiz
-
-Alguns endpoints retornam o conteudo na raiz do objeto, nao em `msg.message`. Ajustar para tentar ambos:
-
-```typescript
-const formattedMessages: Message[] = messagesArray.map((msg: any) => {
-  // Tentar pegar de msg.message (Baileys) ou direto de msg
-  const messageContent = msg.message || msg;
-  const messageType = detectMessageType(messageContent);
+  // Processar URLs primeiro, depois formatacao
   // ...
-});
+}
 ```
 
 ---
 
-## Arquivo a Modificar
+## 2. Mensagens Citadas (Quoted Messages)
+
+### 2.1 Atualizar Interface Message
+
+Adicionar campos para armazenar dados da mensagem citada:
+
+```typescript
+interface Message {
+  // ... campos existentes ...
+  quotedId?: string;           // ID da mensagem citada
+  quotedText?: string;         // Texto da mensagem citada
+  quotedParticipant?: string;  // Nome/numero de quem enviou
+}
+```
+
+### 2.2 Extrair Dados da Citacao
+
+Atualizar o parsing em `loadMessages` para extrair informacoes de `content.contextInfo`:
+
+```typescript
+// Extrair dados da mensagem citada
+const contextInfo = msg.content?.contextInfo || messageContent.contextInfo;
+const quotedMessage = contextInfo?.quotedMessage;
+
+return {
+  // ... outros campos ...
+  quotedId: msg.quoted || contextInfo?.stanzaID,
+  quotedText: quotedMessage?.conversation || quotedMessage?.extendedTextMessage?.text,
+  quotedParticipant: contextInfo?.participant,
+};
+```
+
+### 2.3 Componente QuotedMessage
+
+Criar componente para exibir a mensagem citada:
+
+```typescript
+function QuotedMessage({ text, participant }: { text?: string; participant?: string }) {
+  if (!text) return null;
+  
+  return (
+    <div className="border-l-2 border-green-500 pl-2 mb-1 text-xs">
+      {participant && (
+        <span className="font-medium text-green-500 block">
+          {formatParticipant(participant)}
+        </span>
+      )}
+      <span className="text-muted-foreground line-clamp-2">
+        {text}
+      </span>
+    </div>
+  );
+}
+```
+
+### 2.4 Integrar no MessageBubble
+
+Exibir a mensagem citada acima do conteudo principal:
+
+```typescript
+function MessageBubble({ message }: { message: Message }) {
+  return (
+    <div>
+      {message.quotedText && (
+        <QuotedMessage 
+          text={message.quotedText} 
+          participant={message.quotedParticipant} 
+        />
+      )}
+      {renderContent()}
+    </div>
+  );
+}
+```
+
+---
+
+## Arquivos a Modificar
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/pages/crm/components/WhatsAppMessagesDialog.tsx` | Adicionar logs detalhados e expandir parsing |
+| `src/pages/crm/components/WhatsAppMessagesDialog.tsx` | Adicionar formatacao de texto, suporte a quoted messages e componente QuotedMessage |
+
+---
+
+## Exemplo Visual do Resultado
+
+```text
++------------------------------------------+
+| ╔═══════════════════════════════════╗    |
+| ║ Maria disse:                      ║    |
+| ║ "Preciso do documento"            ║    |
+| ╚═══════════════════════════════════╝    |
+| Claro! Vou enviar o *documento*          |
+| agora mesmo.                              |
+|                                    14:30 |
++------------------------------------------+
+```
 
 ---
 
 ## Ordem de Implementacao
 
-1. Adicionar logs de debug para ver estrutura exata da resposta
-2. Atualizar `detectMessageType` para suportar formatos alternativos
-3. Atualizar `extractMediaData` para extrair dados de formatos alternativos  
-4. Ajustar mapeamento na funcao `loadMessages`
+1. Criar funcao `renderFormattedText` para formatacao de texto
+2. Atualizar `renderTextWithLinks` para usar a formatacao
+3. Adicionar campos de citacao na interface `Message`
+4. Extrair dados de citacao no `loadMessages`
+5. Criar componente `QuotedMessage`
+6. Integrar no `MessageBubble`
 
 ---
 
-## Resultado Esperado
+## Detalhes Tecnicos
 
-Apos a correcao, as mensagens serao corretamente identificadas e exibidas conforme seu tipo (texto, imagem, audio, etc.), independente de a UaZapi usar formato Baileys padrao ou um formato proprio.
+### Regex para Formatacao
+
+```typescript
+// Negrito: *texto* (nao pode ter espacos apos/antes dos asteriscos)
+const boldRegex = /\*([^\s*][^*]*[^\s*]|\S)\*/g;
+
+// Italico: _texto_
+const italicRegex = /_([^\s_][^_]*[^\s_]|\S)_/g;
+
+// Tachado: ~texto~
+const strikeRegex = /~([^\s~][^~]*[^\s~]|\S)~/g;
+
+// Monoespaco: `texto`
+const codeRegex = /`([^`]+)`/g;
+```
+
+### Estrutura da Resposta UaZapi
+
+Baseado nos logs do console, a estrutura de citacao e:
+
+```json
+{
+  "quoted": "3EB0303A228A35E5DC110B",
+  "content": {
+    "contextInfo": {
+      "participant": "167422740975656@lid",
+      "quotedMessage": {
+        "conversation": "Texto da mensagem original..."
+      },
+      "stanzaID": "3EB0303A228A35E5DC110B"
+    },
+    "text": "Resposta a mensagem"
+  }
+}
+```
+
