@@ -36,6 +36,10 @@ interface Message {
   thumbnail?: string;
   latitude?: number;
   longitude?: number;
+  // Quoted message fields
+  quotedId?: string;
+  quotedText?: string;
+  quotedParticipant?: string;
 }
 
 interface AgentCredentials {
@@ -63,7 +67,55 @@ function formatDuration(seconds?: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-// Transforma URLs em links clicáveis
+// Aplica formatação de texto estilo WhatsApp
+function applyWhatsAppFormatting(text: string, keyPrefix: string): React.ReactNode[] {
+  const result: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let keyCounter = 0;
+  
+  // Regex combinada para capturar todos os padrões de formatação
+  // Ordem: código primeiro (para evitar conflitos), depois negrito, itálico, tachado
+  const formatRegex = /`([^`]+)`|\*([^\s*][^*]*[^\s*]|\S)\*|_([^\s_][^_]*[^\s_]|\S)_|~([^\s~][^~]*[^\s~]|\S)~/g;
+  
+  let match;
+  while ((match = formatRegex.exec(text)) !== null) {
+    // Adicionar texto antes do match
+    if (match.index > lastIndex) {
+      result.push(text.substring(lastIndex, match.index));
+    }
+    
+    const key = `${keyPrefix}-fmt-${keyCounter++}`;
+    
+    if (match[1] !== undefined) {
+      // Código: `texto`
+      result.push(
+        <code key={key} className="bg-background/30 px-1 py-0.5 rounded text-xs font-mono">
+          {match[1]}
+        </code>
+      );
+    } else if (match[2] !== undefined) {
+      // Negrito: *texto*
+      result.push(<strong key={key}>{match[2]}</strong>);
+    } else if (match[3] !== undefined) {
+      // Itálico: _texto_
+      result.push(<em key={key}>{match[3]}</em>);
+    } else if (match[4] !== undefined) {
+      // Tachado: ~texto~
+      result.push(<del key={key} className="opacity-70">{match[4]}</del>);
+    }
+    
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // Adicionar texto restante
+  if (lastIndex < text.length) {
+    result.push(text.substring(lastIndex));
+  }
+  
+  return result.length > 0 ? result : [text];
+}
+
+// Transforma URLs em links clicáveis e aplica formatação WhatsApp
 function renderTextWithLinks(text: string): React.ReactNode {
   if (!text) return null;
   
@@ -76,7 +128,7 @@ function renderTextWithLinks(text: string): React.ReactNode {
       urlRegex.lastIndex = 0;
       return (
         <a
-          key={index}
+          key={`link-${index}`}
           href={part}
           target="_blank"
           rel="noopener noreferrer"
@@ -87,8 +139,51 @@ function renderTextWithLinks(text: string): React.ReactNode {
         </a>
       );
     }
-    return part;
+    // Aplicar formatação WhatsApp ao texto que não é URL
+    return <span key={`text-${index}`}>{applyWhatsAppFormatting(part, `p${index}`)}</span>;
   });
+}
+
+// Formata o participante da mensagem citada
+function formatQuotedParticipant(participant?: string): string {
+  if (!participant) return '';
+  // Remove sufixos como @s.whatsapp.net ou @lid
+  const cleaned = participant.replace(/@[^@]+$/, '');
+  // Se for número, formata como telefone
+  if (/^\d+$/.test(cleaned)) {
+    return cleaned.replace(/(\d{2})(\d{2})(\d{5})(\d{4})/, '+$1 ($2) $3-$4');
+  }
+  return cleaned;
+}
+
+// Componente para exibir mensagem citada
+function QuotedMessage({ text, participant, isFromMe }: { 
+  text?: string; 
+  participant?: string;
+  isFromMe: boolean;
+}) {
+  if (!text) return null;
+  
+  return (
+    <div className={cn(
+      "border-l-2 pl-2 mb-2 text-xs rounded-r",
+      isFromMe 
+        ? "border-primary/60 bg-primary-foreground/10" 
+        : "border-primary/80 bg-background/30"
+    )}>
+      {participant && (
+        <span className="font-medium text-primary block text-[11px]">
+          {formatQuotedParticipant(participant)}
+        </span>
+      )}
+      <span className={cn(
+        "line-clamp-2 break-words",
+        isFromMe ? "text-primary-foreground/70" : "text-muted-foreground"
+      )}>
+        {text}
+      </span>
+    </div>
+  );
 }
 
 function detectMessageType(message: any): MessageType {
@@ -248,9 +343,16 @@ function MessageBubble({ message }: { message: Message }) {
     switch (message.type) {
       case 'text':
         return (
-          <p className="text-sm whitespace-pre-wrap break-words">
-            {renderTextWithLinks(message.text)}
-          </p>
+          <div>
+            <QuotedMessage 
+              text={message.quotedText} 
+              participant={message.quotedParticipant}
+              isFromMe={isFromMe}
+            />
+            <p className="text-sm whitespace-pre-wrap break-words">
+              {renderTextWithLinks(message.text)}
+            </p>
+          </div>
         );
         
       case 'image':
@@ -563,6 +665,19 @@ export function WhatsAppMessagesDialog({
             });
           }
           
+          // Extrair dados da mensagem citada (quoted message)
+          const contextInfo = msg.content?.contextInfo || messageContent.contextInfo || messageContent.extendedTextMessage?.contextInfo;
+          const quotedMessage = contextInfo?.quotedMessage;
+          const quotedText = quotedMessage?.conversation 
+            || quotedMessage?.extendedTextMessage?.text
+            || quotedMessage?.imageMessage?.caption
+            || quotedMessage?.videoMessage?.caption
+            || (quotedMessage?.imageMessage ? '[Imagem]' : undefined)
+            || (quotedMessage?.audioMessage ? '[Áudio]' : undefined)
+            || (quotedMessage?.videoMessage ? '[Vídeo]' : undefined)
+            || (quotedMessage?.documentMessage ? '[Documento]' : undefined)
+            || (quotedMessage?.stickerMessage ? '[Sticker]' : undefined);
+          
           return {
             id: msg.key?.id || msg.id || Math.random().toString(),
             type: messageType,
@@ -578,6 +693,10 @@ export function WhatsAppMessagesDialog({
             longitude: mediaData.longitude,
             fromMe: msg.key?.fromMe ?? msg.fromMe ?? false,
             timestamp: msg.messageTimestamp || msg.timestamp || Date.now() / 1000,
+            // Quoted message data
+            quotedId: msg.quoted || contextInfo?.stanzaId,
+            quotedText: quotedText,
+            quotedParticipant: contextInfo?.participant,
           };
         });
         
