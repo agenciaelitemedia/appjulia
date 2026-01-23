@@ -116,7 +116,13 @@ function applyWhatsAppFormatting(text: string, keyPrefix: string): React.ReactNo
 }
 
 // Transforma URLs em links clicáveis e aplica formatação WhatsApp
-function renderTextWithLinks(text: string): React.ReactNode {
+function renderTextWithLinks(text: string | null | undefined): React.ReactNode {
+  // Garantir que text é uma string válida
+  if (text === null || text === undefined) return null;
+  if (typeof text !== 'string') {
+    // Se não for string, tenta converter
+    text = String(text);
+  }
   if (!text) return null;
   
   const urlRegex = /(https?:\/\/[^\s]+)/g;
