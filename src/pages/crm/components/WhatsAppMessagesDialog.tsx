@@ -604,11 +604,15 @@ export function WhatsAppMessagesDialog({
   const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [sending, setSending] = useState(false);
   const [newMessage, setNewMessage] = useState('');
   const [client, setClient] = useState<UaZapiClient | null>(null);
   const [isConfigured, setIsConfigured] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [currentOffset, setCurrentOffset] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isInitialLoad = useRef(true);
 
   // Format number to JID
   const formatToJid = (number: string): string => {
@@ -630,12 +634,29 @@ export function WhatsAppMessagesDialog({
     }
   }, [open, whatsappNumber, client, isConfigured]);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom only on initial load
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (scrollRef.current && isInitialLoad.current && messages.length > 0) {
+      setTimeout(() => {
+        if (scrollRef.current) {
+          const scrollContainer = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
+          if (scrollContainer) {
+            scrollContainer.scrollTop = scrollContainer.scrollHeight;
+          }
+        }
+      }, 100);
+      isInitialLoad.current = false;
     }
   }, [messages]);
+
+  // Handle scroll to load more messages
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLDivElement;
+    // If scrolled near top, load more messages
+    if (target.scrollTop < 100 && hasMoreMessages && !loadingMore && !loading) {
+      loadMoreMessages();
+    }
+  };
 
   const loadAgentCredentials = async () => {
     setLoading(true);
@@ -689,114 +710,75 @@ export function WhatsAppMessagesDialog({
     }
   };
 
+  const parseMessages = (messagesArray: any[]): Message[] => {
+    return messagesArray.map((msg: any) => {
+      const messageContent = msg.message || msg;
+      const messageType = detectMessageType(messageContent);
+      const mediaData = extractMediaData(messageContent, messageType);
+      
+      const contextInfo = msg.content?.contextInfo || messageContent.contextInfo || messageContent.extendedTextMessage?.contextInfo;
+      const quotedMessage = contextInfo?.quotedMessage;
+      const quotedText = quotedMessage?.conversation 
+        || quotedMessage?.extendedTextMessage?.text
+        || quotedMessage?.imageMessage?.caption
+        || quotedMessage?.videoMessage?.caption
+        || (quotedMessage?.imageMessage ? '[Imagem]' : undefined)
+        || (quotedMessage?.audioMessage ? '[Áudio]' : undefined)
+        || (quotedMessage?.videoMessage ? '[Vídeo]' : undefined)
+        || (quotedMessage?.documentMessage ? '[Documento]' : undefined)
+        || (quotedMessage?.stickerMessage ? '[Sticker]' : undefined);
+      
+      return {
+        id: msg.key?.id || msg.id || Math.random().toString(),
+        type: messageType,
+        text: mediaData.text || '',
+        mediaUrl: mediaData.mediaUrl,
+        mimetype: mediaData.mimetype,
+        caption: mediaData.caption,
+        fileName: mediaData.fileName,
+        seconds: mediaData.seconds,
+        ptt: mediaData.ptt,
+        thumbnail: mediaData.thumbnail,
+        latitude: mediaData.latitude,
+        longitude: mediaData.longitude,
+        fromMe: msg.key?.fromMe ?? msg.fromMe ?? false,
+        timestamp: normalizeTimestamp(msg.messageTimestamp || msg.timestamp || Date.now()),
+        quotedId: msg.quoted || contextInfo?.stanzaId,
+        quotedText: quotedText,
+        quotedParticipant: contextInfo?.participant,
+      };
+    });
+  };
+
   const loadMessages = async () => {
-    if (!client || !isConfigured) {
-      return;
-    }
+    if (!client || !isConfigured) return;
 
     setLoading(true);
+    isInitialLoad.current = true;
+    setCurrentOffset(0);
+    setHasMoreMessages(true);
+    
     try {
       const jid = formatToJid(whatsappNumber);
-      
-      // Endpoint correto conforme documentação da UaZapi
       const endpoint = '/message/find';
-      const requestBody = {
-        chatid: jid,
-        limit: 50,
-        offset: 0,
-      };
+      const requestBody = { chatid: jid, limit: 50, offset: 0 };
       
-      console.log('🔍 [WhatsApp API] Loading messages:', {
-        baseUrl: client.baseUrl,
-        endpoint,
-        requestBody,
-      });
-        
+      console.log('🔍 [WhatsApp API] Loading messages:', { endpoint, requestBody });
       const response = await client.post<any>(endpoint, requestBody);
-
-      // Processar resposta (pode vir como array direto ou dentro de objeto)
       const messagesArray = Array.isArray(response) ? response : (response?.messages || []);
       
-      console.log('📨 [WhatsApp API] Raw messages:', messagesArray.length, 'messages');
-      
-      // Debug: Log da estrutura completa da primeira mensagem
-      if (messagesArray.length > 0) {
-        console.log('🔬 [WhatsApp API] First message structure:', 
-          JSON.stringify(messagesArray[0], null, 2)
-        );
-        console.log('🔬 [WhatsApp API] Message keys:', 
-          Object.keys(messagesArray[0])
-        );
-        if (messagesArray[0].message) {
-          console.log('🔬 [WhatsApp API] msg.message keys:', 
-            Object.keys(messagesArray[0].message)
-          );
-        }
-      }
+      console.log('📨 [WhatsApp API] Raw messages:', messagesArray.length);
       
       if (messagesArray.length > 0) {
-        const formattedMessages: Message[] = messagesArray.map((msg: any) => {
-          // Tentar pegar de msg.message (Baileys) ou direto de msg
-          const messageContent = msg.message || msg;
-          const messageType = detectMessageType(messageContent);
-          const mediaData = extractMediaData(messageContent, messageType);
-          
-          // Debug log para primeiras mensagens
-          if (messagesArray.indexOf(msg) < 3) {
-            console.log('🔬 [WhatsApp API] Parsed message:', {
-              originalKeys: Object.keys(msg),
-              contentKeys: Object.keys(messageContent),
-              detectedType: messageType,
-              extractedText: mediaData.text?.substring(0, 50),
-            });
-          }
-          
-          // Extrair dados da mensagem citada (quoted message)
-          const contextInfo = msg.content?.contextInfo || messageContent.contextInfo || messageContent.extendedTextMessage?.contextInfo;
-          const quotedMessage = contextInfo?.quotedMessage;
-          const quotedText = quotedMessage?.conversation 
-            || quotedMessage?.extendedTextMessage?.text
-            || quotedMessage?.imageMessage?.caption
-            || quotedMessage?.videoMessage?.caption
-            || (quotedMessage?.imageMessage ? '[Imagem]' : undefined)
-            || (quotedMessage?.audioMessage ? '[Áudio]' : undefined)
-            || (quotedMessage?.videoMessage ? '[Vídeo]' : undefined)
-            || (quotedMessage?.documentMessage ? '[Documento]' : undefined)
-            || (quotedMessage?.stickerMessage ? '[Sticker]' : undefined);
-          
-          return {
-            id: msg.key?.id || msg.id || Math.random().toString(),
-            type: messageType,
-            text: mediaData.text || '',
-            mediaUrl: mediaData.mediaUrl,
-            mimetype: mediaData.mimetype,
-            caption: mediaData.caption,
-            fileName: mediaData.fileName,
-            seconds: mediaData.seconds,
-            ptt: mediaData.ptt,
-            thumbnail: mediaData.thumbnail,
-            latitude: mediaData.latitude,
-            longitude: mediaData.longitude,
-            fromMe: msg.key?.fromMe ?? msg.fromMe ?? false,
-            timestamp: normalizeTimestamp(msg.messageTimestamp || msg.timestamp || Date.now()),
-            // Quoted message data
-            quotedId: msg.quoted || contextInfo?.stanzaId,
-            quotedText: quotedText,
-            quotedParticipant: contextInfo?.participant,
-          };
-        });
-        
-        // Sort by timestamp ascending
+        const formattedMessages = parseMessages(messagesArray);
         formattedMessages.sort((a, b) => a.timestamp - b.timestamp);
         setMessages(formattedMessages);
-        
-        const typeCounts = formattedMessages.reduce((acc, m) => {
-          acc[m.type] = (acc[m.type] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>);
-        console.log('✅ [WhatsApp API] Processed messages:', formattedMessages.length, 'Type breakdown:', typeCounts);
+        setCurrentOffset(50);
+        setHasMoreMessages(messagesArray.length === 50);
+        console.log('✅ [WhatsApp API] Processed messages:', formattedMessages.length);
       } else {
         setMessages([]);
+        setHasMoreMessages(false);
       }
     } catch (error: any) {
       console.error('Error loading messages:', error);
@@ -807,6 +789,55 @@ export function WhatsAppMessagesDialog({
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMoreMessages = async () => {
+    if (!client || !isConfigured || loadingMore || !hasMoreMessages) return;
+
+    setLoadingMore(true);
+    try {
+      const jid = formatToJid(whatsappNumber);
+      const endpoint = '/message/find';
+      const requestBody = { chatid: jid, limit: 50, offset: currentOffset };
+      
+      console.log('🔍 [WhatsApp API] Loading more messages:', { offset: currentOffset });
+      const response = await client.post<any>(endpoint, requestBody);
+      const messagesArray = Array.isArray(response) ? response : (response?.messages || []);
+      
+      if (messagesArray.length > 0) {
+        const formattedMessages = parseMessages(messagesArray);
+        
+        // Get current scroll position to maintain it after adding messages
+        const scrollContainer = scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+        const previousScrollHeight = scrollContainer?.scrollHeight || 0;
+        
+        setMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const newMessages = formattedMessages.filter(m => !existingIds.has(m.id));
+          const combined = [...newMessages, ...prev];
+          combined.sort((a, b) => a.timestamp - b.timestamp);
+          return combined;
+        });
+        
+        // Restore scroll position after messages are added
+        setTimeout(() => {
+          if (scrollContainer) {
+            const newScrollHeight = scrollContainer.scrollHeight;
+            scrollContainer.scrollTop = newScrollHeight - previousScrollHeight;
+          }
+        }, 50);
+        
+        setCurrentOffset(prev => prev + 50);
+        setHasMoreMessages(messagesArray.length === 50);
+        console.log('✅ [WhatsApp API] Loaded more messages:', messagesArray.length);
+      } else {
+        setHasMoreMessages(false);
+      }
+    } catch (error: any) {
+      console.error('Error loading more messages:', error);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -904,20 +935,11 @@ export function WhatsAppMessagesDialog({
                 {whatsappNumber}
               </p>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => loadMessages()}
-              disabled={loading}
-            >
-              <Loader2 className={cn("h-4 w-4", loading && "animate-spin")} />
-            </Button>
           </div>
         </DialogHeader>
 
         {/* Messages Area */}
-        <ScrollArea className="flex-1 px-4" ref={scrollRef}>
+        <ScrollArea className="flex-1 px-4" ref={scrollRef} onScrollCapture={handleScroll}>
           {loading ? (
             <div className="flex items-center justify-center h-full py-20">
               <div className="text-center space-y-3">
@@ -934,6 +956,17 @@ export function WhatsAppMessagesDialog({
             </div>
           ) : (
             <div className="space-y-4 py-4">
+              {/* Loading more indicator */}
+              {loadingMore && (
+                <div className="flex items-center justify-center py-2">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              )}
+              {!hasMoreMessages && messages.length >= 50 && (
+                <div className="flex items-center justify-center py-2">
+                  <span className="text-xs text-muted-foreground">Início da conversa</span>
+                </div>
+              )}
               {Object.entries(groupedMessages).map(([date, dateMessages]) => (
                 <div key={date} className="space-y-2">
                   {/* Date separator */}
