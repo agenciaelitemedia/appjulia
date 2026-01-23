@@ -1,164 +1,98 @@
 
-# Plano: Corrigir Ausencia de Historico de Movimentacao
 
-## Diagnostico
+# Plano: Corrigir Timezone nos Cards do CRM
 
-Apos analise dos logs de rede, identifiquei que:
+## Problema Identificado
 
-1. **A query esta funcionando corretamente** - A requisicao a `crm_atendimento_history` retorna sem erro
-2. **A tabela esta vazia para os cards** - Response: `{"data":[], "error":null}`
-3. **Sistema externo nao registra historico** - O bot "JulIA" move os leads automaticamente (campo `notes: "Movido automaticamente pela JulIA"`), mas nao insere registros na tabela de historico
+Os timestamps nos cards de leads (`CRMLeadCard.tsx`) não estão respeitando o timezone `America/Sao_Paulo`:
 
-### Evidencia
-```
-Card 3783:
-- created_at: "2026-01-23T00:52:11" (Entrada)
-- stage_entered_at: "2026-01-23T00:53:51" (Analise de Caso)
-- stage_id: 3 (mudou de 1 para 3)
-- notes: "Movido automaticamente pela JulIA"
-- Historico: VAZIO
-```
-
-O card foi criado e depois movido de fase, mas o historico nao foi registrado porque o sistema JulIA atualiza diretamente o banco sem passar pela nossa funcao `useMoveCard`.
+| Campo | Linha | Função Atual | Problema |
+|-------|-------|--------------|----------|
+| Criado | 116 | `format(new Date(...))` | Usa timezone do navegador |
+| Atualizado | 120 | `format(new Date(...))` | Usa timezone do navegador |
+| Na fase | 25 | `formatDistanceToNow(...)` | Usa timezone do navegador |
 
 ---
 
-## Solucoes Possiveis
+## Solução
 
-### Opcao A: Correcao no Backend Externo (Recomendado)
-Modificar o sistema JulIA para inserir registros na tabela `crm_atendimento_history` sempre que mover um lead.
+Substituir as chamadas `format()` por `toLocaleString()` com timezone explícito, seguindo o padrão já implementado no `WhatsAppMessagesDialog.tsx`.
 
-**Pros:** Solucao definitiva, historico completo
-**Contras:** Requer acesso ao codigo do backend JulIA
-
-### Opcao B: Trigger no Banco de Dados
-Criar um trigger PostgreSQL que insere automaticamente no historico sempre que `stage_id` for alterado em `crm_atendimento_cards`.
-
-```sql
-CREATE OR REPLACE FUNCTION log_stage_change()
-RETURNS TRIGGER AS $$
-BEGIN
-  IF OLD.stage_id IS DISTINCT FROM NEW.stage_id THEN
-    INSERT INTO crm_atendimento_history (
-      card_id, from_stage_id, to_stage_id, changed_by, changed_at
-    ) VALUES (
-      NEW.id, OLD.stage_id, NEW.stage_id, 'Sistema JulIA', NOW()
-    );
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_log_stage_change
-AFTER UPDATE ON crm_atendimento_cards
-FOR EACH ROW
-EXECUTE FUNCTION log_stage_change();
+### Antes (incorreto):
+```typescript
+format(new Date(card.created_at), "dd/MM/yy, HH:mm", { locale: ptBR })
 ```
 
-**Pros:** Automatico, captura todas as mudancas
-**Contras:** Requer acesso ao banco externo para criar o trigger
-
-### Opcao C: Historico Simulado (Workaround)
-Exibir um historico "inferido" baseado nas informacoes do card (`created_at` e `stage_entered_at`).
-
-**Pros:** Funciona imediatamente sem alteracoes externas
-**Contras:** Historico incompleto (apenas ultimo movimento), nao mostra de/para
+### Depois (correto):
+```typescript
+new Date(card.created_at).toLocaleString('pt-BR', {
+  timeZone: 'America/Sao_Paulo',
+  day: '2-digit',
+  month: '2-digit',
+  year: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+})
+```
 
 ---
 
-## Plano de Implementacao - Opcao C (Workaround Imediato)
+## Alterações no Arquivo
 
-Enquanto a correcao no backend externo nao e feita, implementar um historico inferido:
+### `src/pages/crm/components/CRMLeadCard.tsx`
 
-### 1. Atualizar `CRMLeadDetailsDialog.tsx`
-
-Adicionar logica para exibir um historico sintetico quando a tabela estiver vazia:
+1. **Criar função helper para formatação consistente:**
 
 ```typescript
-// Se nao ha historico real, mostrar info sintetica baseada no card
-const syntheticHistory = useMemo(() => {
-  if (history.length > 0 || !card) return null;
-  
-  // Se stage_entered_at != created_at, houve pelo menos uma mudanca
-  const enteredAt = new Date(card.stage_entered_at).getTime();
-  const createdAt = new Date(card.created_at).getTime();
-  
-  if (enteredAt > createdAt + 60000) { // Diferenca > 1 minuto
-    return [{
-      id: 0,
-      card_id: card.id,
-      from_stage_id: null,
-      to_stage_id: card.stage_id,
-      from_stage_name: null,
-      to_stage_name: currentStage?.name,
-      to_stage_color: currentStage?.color,
-      changed_by: 'Sistema JulIA',
-      changed_at: card.stage_entered_at,
-      notes: card.notes || 'Movimentacao automatica',
-    }];
-  }
-  
-  return null;
-}, [history, card, currentStage]);
-
-const displayHistory = history.length > 0 ? history : syntheticHistory || [];
+function formatDateTimeSaoPaulo(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
 ```
 
-### 2. Adicionar Entrada Inicial
-
-Mostrar tambem quando o lead foi criado (entrada no sistema):
-
+2. **Atualizar linha 116 (Criado):**
 ```typescript
-// Adicionar entrada de criacao
-const creationEntry = {
-  id: -1,
-  card_id: card.id,
-  from_stage_id: null,
-  to_stage_id: 1, // Entrada
-  from_stage_name: null,
-  to_stage_name: 'Entrada',
-  to_stage_color: '#3B82F6',
-  changed_by: 'Sistema',
-  changed_at: card.created_at,
-  notes: 'Lead criado via WhatsApp',
-};
+<span>{formatDateTimeSaoPaulo(card.created_at)}</span>
 ```
 
-### 3. Indicar Historico Incompleto
+3. **Atualizar linha 120 (Atualizado):**
+```typescript
+<span>{formatDateTimeSaoPaulo(card.updated_at)}</span>
+```
 
-Mostrar aviso quando o historico e sintetico:
+4. **Para o "Na fase" (linha 25):** 
+O `formatDistanceToNow` calcula diferença relativa, então o timezone do input importa. Precisamos garantir que a comparação seja feita corretamente:
 
 ```typescript
-{syntheticHistory && (
-  <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded mb-2 flex items-center gap-1">
-    <AlertTriangle className="h-3 w-3" />
-    Historico parcial - apenas ultima movimentacao registrada
-  </div>
-)}
+// A função formatDistanceToNow usa Date.now() internamente
+// Como estamos comparando diferença, o importante é que ambas as datas
+// estejam no mesmo timezone (ambas UTC ou ambas locais)
+// O date-fns lida corretamente com isso, mas para consistência visual
+// podemos manter como está já que mostra "há X tempo"
 ```
 
 ---
 
 ## Arquivos a Modificar
 
-| Arquivo | Alteracao |
+| Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/crm/components/CRMLeadDetailsDialog.tsx` | Adicionar logica de historico sintetico e aviso |
+| `src/pages/crm/components/CRMLeadCard.tsx` | Adicionar função helper e usar timezone explícito nas datas |
 
 ---
 
 ## Resultado Esperado
 
-- Usuario vera pelo menos a entrada inicial e a ultima movimentacao
-- Aviso visual indicando que o historico esta incompleto
-- Sistema continua funcionando mesmo sem dados na tabela de historico
+- Datas "Criado" e "Atualizado" exibirão corretamente no fuso de São Paulo
+- Consistência com o timezone usado no popup de mensagens do WhatsApp
+- Mesmo usuário acessando de diferentes fusos verá sempre o horário de Brasília
 
----
-
-## Recomendacao a Longo Prazo
-
-Para ter historico completo, sera necessario:
-1. Criar o trigger no banco PostgreSQL externo, OU
-2. Modificar o sistema JulIA para registrar movimentacoes
-
-Isso esta fora do escopo deste projeto frontend, mas e a solucao definitiva.
