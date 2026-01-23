@@ -12,6 +12,8 @@ import type {
   SendButtonsRequest,
   SendListRequest,
   MessageResponse,
+  DownloadMediaRequest,
+  DownloadMediaResponse,
 } from '../types';
 
 export interface MessageEndpoints {
@@ -86,6 +88,12 @@ export interface MessageEndpoints {
    * POST /message/delete
    */
   delete: (messageId: string, everyone?: boolean) => Promise<MessageResponse>;
+  
+  /**
+   * Download media from a message
+   * POST /message/download
+   */
+  download: (data: DownloadMediaRequest) => Promise<DownloadMediaResponse>;
 }
 
 export function createMessageEndpoints(client: UaZapiClient | null): MessageEndpoints {
@@ -143,6 +151,10 @@ export function createMessageEndpoints(client: UaZapiClient | null): MessageEndp
 
     async delete(messageId: string, everyone = true): Promise<MessageResponse> {
       return assertClient().post<MessageResponse>('/message/delete', { messageId, everyone });
+    },
+
+    async download(data: DownloadMediaRequest): Promise<DownloadMediaResponse> {
+      return assertClient().post<DownloadMediaResponse>('/message/download', data);
     },
   };
 }
