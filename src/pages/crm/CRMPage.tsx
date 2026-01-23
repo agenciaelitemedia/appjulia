@@ -62,8 +62,12 @@ export default function CRMPage() {
     setDialogOpen(true);
   };
 
-  const handleRefresh = () => {
-    refetch();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refetch();
+    setIsRefreshing(false);
   };
 
   if (isLoading) {
@@ -96,7 +100,7 @@ export default function CRMPage() {
 
   return (
     <div className="flex flex-col h-full space-y-4">
-      <CRMHeader onRefresh={handleRefresh} isLoading={cardsLoading} />
+      <CRMHeader onRefresh={handleRefresh} isLoading={isRefreshing} />
 
       <CRMDashboardSummary cards={filteredCards} stages={stages} isLoading={cardsLoading} />
 

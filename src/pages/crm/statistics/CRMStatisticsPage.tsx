@@ -32,12 +32,16 @@ export default function CRMStatisticsPage() {
   const { data: avgTimeData = [], isLoading: avgTimeLoading, refetch: refetchAvgTime } = useCRMAvgTimeByStage(filters);
   const { data: agentPerformance = [], isLoading: performanceLoading, refetch: refetchPerformance } = useCRMAgentPerformance(filters);
 
-  const isAnyLoading = funnelLoading || avgTimeLoading || performanceLoading;
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const handleRefresh = () => {
-    refetchFunnel();
-    refetchAvgTime();
-    refetchPerformance();
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await Promise.all([
+      refetchFunnel(),
+      refetchAvgTime(),
+      refetchPerformance()
+    ]);
+    setIsRefreshing(false);
   };
 
   // Initialize agentCodes when agents load
@@ -77,8 +81,8 @@ export default function CRMStatisticsPage() {
             Análise de funil de conversão, tempo médio e performance por agente
           </p>
         </div>
-        <Button onClick={handleRefresh} disabled={isAnyLoading} variant="outline">
-          <RefreshCw className={`h-4 w-4 mr-2 ${isAnyLoading ? 'animate-spin' : ''}`} />
+        <Button onClick={handleRefresh} disabled={isRefreshing} variant="outline">
+          <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
           Atualizar
         </Button>
       </div>
