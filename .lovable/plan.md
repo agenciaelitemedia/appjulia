@@ -1,176 +1,121 @@
 
-# Plano: Corrigir Apresentacao de Videos e Imagens [object Object]
+
+# Plano: Corrigir Apresentacao de Datas nas Mensagens
 
 ## Problema Identificado
 
-A estrutura de resposta da UaZapi usa campos diferentes do formato Baileys padrao:
+A API UaZapi retorna `messageTimestamp` em **milissegundos** (13 digitos), mas o codigo trata como se fosse em **segundos** (10 digitos) e multiplica por 1000, resultando em datas no ano ~58000.
 
-| Campo UaZapi | Descricao |
-|--------------|-----------|
-| `messageType` | Tipo: "ImageMessage", "VideoMessage", "ExtendedTextMessage" |
-| `text` | Texto direto da mensagem |
-| `content` | **Objeto** contendo `contextInfo` e possivelmente `text` |
-| `fileURL` | URL do arquivo de midia |
-| `content.caption` | Legenda da imagem/video |
+**Exemplo do log:**
+```
+"messageTimestamp": 1769137809620
+```
 
-O problema ocorre porque:
-1. O codigo atual tenta usar `message.content` como string, mas e um objeto
-2. Para imagens/videos, o codigo busca `imageMessage.url` mas deveria usar `fileURL`
-3. A funcao `extractMediaData` nao reconhece o formato UaZapi
+**Calculo errado atual:**
+- `1769137809620 * 1000` = data no ano 58000
+
+**Calculo correto:**
+- `1769137809620` ja e milissegundos = 23 de Janeiro de 2026 (correto!)
 
 ---
 
-## Correcoes Necessarias
+## Solucao
 
-### 1. Corrigir `detectMessageType` para formato UaZapi
-
-Adicionar deteccao baseada em `messageType` da UaZapi:
+Criar funcao inteligente que detecta automaticamente se o timestamp esta em segundos ou milissegundos:
 
 ```typescript
-// Formato UaZapi - verificar messageType
-if (message.messageType) {
-  const typeMap: Record<string, MessageType> = {
-    'ExtendedTextMessage': 'text',
-    'ImageMessage': 'image',
-    'AudioMessage': 'audio',
-    'VideoMessage': 'video',
-    'DocumentMessage': 'document',
-    'StickerMessage': 'sticker',
-    'LocationMessage': 'location',
-    'ContactMessage': 'contact',
-    'conversation': 'text',
-  };
-  if (typeMap[message.messageType]) {
-    return typeMap[message.messageType];
+function normalizeTimestamp(timestamp: number | string): number {
+  if (typeof timestamp === 'string') {
+    // ISO string ou numerico
+    const parsed = Date.parse(timestamp);
+    if (!isNaN(parsed)) return parsed;
+    timestamp = parseInt(timestamp, 10);
+  }
+  
+  if (!timestamp || isNaN(timestamp)) return Date.now();
+  
+  // Detectar se esta em segundos ou milissegundos
+  // Timestamps em segundos tem ~10 digitos (ate 2033)
+  // Timestamps em milissegundos tem ~13 digitos
+  if (timestamp > 10000000000000) {
+    // Ja esta em milissegundos
+    return timestamp;
+  } else if (timestamp > 10000000000) {
+    // Ja esta em milissegundos (menor que 10^13 mas maior que segundos validos)
+    return timestamp;
+  } else {
+    // Esta em segundos, converter para milissegundos
+    return timestamp * 1000;
   }
 }
 ```
 
-### 2. Corrigir `extractMediaData` para formato UaZapi
+---
 
-Modificar cada case para suportar ambos os formatos:
+## Alteracoes Necessarias
 
-**Texto:**
+### 1. Adicionar funcao `normalizeTimestamp`
+
+Nova funcao helper para normalizar timestamps independente do formato recebido.
+
+### 2. Atualizar `loadMessages` (linha 753)
+
+Antes:
 ```typescript
-case 'text':
-  // Extrair texto de multiplas fontes possiveis
-  let textContent = message.conversation 
-    || message.extendedTextMessage?.text 
-    || message.text                    // UaZapi direto
-    || message.body;
-  
-  // Se content for objeto com campo text
-  if (!textContent && message.content && typeof message.content === 'object') {
-    textContent = message.content.text;
-  } else if (!textContent && typeof message.content === 'string') {
-    textContent = message.content;
-  }
-  
-  return { text: textContent || '' };
+timestamp: msg.messageTimestamp || msg.timestamp || Date.now() / 1000,
 ```
 
-**Imagem:**
+Depois:
 ```typescript
-case 'image':
-  // Suportar formato Baileys e UaZapi
-  const imageUrl = message.imageMessage?.url || message.fileURL;
-  const imageCaption = message.imageMessage?.caption 
-    || message.content?.caption 
-    || message.caption;
-  const imageMime = message.imageMessage?.mimetype || message.mimetype;
-  
-  return {
-    mediaUrl: imageUrl,
-    caption: imageCaption,
-    mimetype: imageMime,
-    thumbnail: message.imageMessage?.jpegThumbnail || message.thumbnail,
-    text: imageCaption || '[Imagem]',
-  };
+timestamp: normalizeTimestamp(msg.messageTimestamp || msg.timestamp || Date.now()),
 ```
 
-**Video:**
+### 3. Atualizar `formatMessageTime` (linhas 837-840)
+
+Antes:
 ```typescript
-case 'video':
-  const videoUrl = message.videoMessage?.url || message.fileURL;
-  const videoCaption = message.videoMessage?.caption 
-    || message.content?.caption 
-    || message.caption;
-  
-  return {
-    mediaUrl: videoUrl,
-    caption: videoCaption,
-    mimetype: message.videoMessage?.mimetype || message.mimetype,
-    seconds: message.videoMessage?.seconds || message.seconds,
-    thumbnail: message.videoMessage?.jpegThumbnail || message.thumbnail,
-    text: videoCaption || '[Video]',
-  };
+const formatMessageTime = (timestamp: number) => {
+  const date = new Date(timestamp * 1000);
+  return format(date, 'HH:mm', { locale: ptBR });
+};
 ```
 
-**Audio:**
+Depois:
 ```typescript
-case 'audio':
-  const audioUrl = message.audioMessage?.url || message.fileURL;
-  
-  return {
-    mediaUrl: audioUrl,
-    seconds: message.audioMessage?.seconds || message.seconds,
-    ptt: message.audioMessage?.ptt ?? message.ptt ?? false,
-    mimetype: message.audioMessage?.mimetype || message.mimetype,
-    text: `[Audio ${formatDuration(message.audioMessage?.seconds || message.seconds)}]`,
-  };
+const formatMessageTime = (timestamp: number) => {
+  const date = new Date(timestamp);  // Ja normalizado para ms
+  return format(date, 'HH:mm', { locale: ptBR });
+};
 ```
 
-**Documento:**
+### 4. Atualizar `formatMessageDate` (linhas 842-845)
+
+Antes:
 ```typescript
-case 'document':
-  const doc = message.documentMessage 
-    || message.documentWithCaptionMessage?.message?.documentMessage;
-  const docUrl = doc?.url || message.fileURL;
-  const docName = doc?.fileName || doc?.title || message.fileName || message.title;
-  
-  return {
-    mediaUrl: docUrl,
-    fileName: docName,
-    mimetype: doc?.mimetype || message.mimetype,
-    caption: doc?.caption || message.caption,
-    text: docName || '[Documento]',
-  };
+const formatMessageDate = (timestamp: number) => {
+  const date = new Date(timestamp * 1000);
+  return format(date, "dd 'de' MMM", { locale: ptBR });
+};
 ```
 
-**Sticker:**
+Depois:
 ```typescript
-case 'sticker':
-  return {
-    mediaUrl: message.stickerMessage?.url || message.fileURL,
-    mimetype: message.stickerMessage?.mimetype || message.mimetype,
-    text: '[Sticker]',
-  };
+const formatMessageDate = (timestamp: number) => {
+  const date = new Date(timestamp);  // Ja normalizado para ms
+  return format(date, "dd 'de' MMM", { locale: ptBR });
+};
 ```
 
-### 3. Garantir que content nao seja convertido para string incorretamente
+### 5. Atualizar `handleSendMessage` (linha 807)
 
-Na funcao `renderTextWithLinks`, ja foi corrigido, mas precisamos garantir que valores objetos nunca cheguem la:
-
+Antes:
 ```typescript
-function extractMediaData(message: any, type: MessageType): Partial<Message> {
-  // ...
-  case 'text':
-    let textContent = '';
-    
-    // Prioridade de extracao de texto
-    if (message.conversation) {
-      textContent = message.conversation;
-    } else if (message.extendedTextMessage?.text) {
-      textContent = message.extendedTextMessage.text;
-    } else if (typeof message.text === 'string') {
-      textContent = message.text;
-    } else if (message.content?.text && typeof message.content.text === 'string') {
-      textContent = message.content.text;
-    } else if (typeof message.body === 'string') {
-      textContent = message.body;
-    }
-    
-    return { text: textContent };
+timestamp: Date.now() / 1000,
+```
+
+Depois:
+```typescript
+timestamp: Date.now(),  // Milissegundos
 ```
 
 ---
@@ -179,24 +124,14 @@ function extractMediaData(message: any, type: MessageType): Partial<Message> {
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/pages/crm/components/WhatsAppMessagesDialog.tsx` | Atualizar `detectMessageType` e `extractMediaData` para suportar formato UaZapi |
-
----
-
-## Ordem de Implementacao
-
-1. Atualizar `detectMessageType` para reconhecer `messageType` da UaZapi (ImageMessage, VideoMessage, etc.)
-2. Atualizar `extractMediaData` para cada tipo de midia, usando `fileURL` como fallback
-3. Garantir que texto seja extraido corretamente de `content.text` quando content for objeto
-4. Adicionar validacao de tipo antes de usar valores
+| `src/pages/crm/components/WhatsAppMessagesDialog.tsx` | Adicionar `normalizeTimestamp`, atualizar funcoes de formatacao e parsing |
 
 ---
 
 ## Resultado Esperado
 
-Apos a correcao:
-- Imagens serao exibidas corretamente com a URL de `fileURL`
-- Videos serao reproduziveis com a URL de `fileURL`
-- Textos dentro de `content.text` serao extraidos corretamente
-- Legendas (captions) serao exibidas abaixo das midias
-- Nenhum `[object Object]` aparecera na interface
+- Mensagens de hoje mostrarao "23 de jan" (data atual correta)
+- Horarios mostrarao valores corretos como "14:30" em vez de horas absurdas
+- Compatibilidade com APIs que retornam segundos ou milissegundos
+- Agrupamento por data funcionara corretamente
+
