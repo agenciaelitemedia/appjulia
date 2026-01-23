@@ -21,9 +21,9 @@ interface Message {
 }
 
 interface AgentCredentials {
-  evo_url: string;
-  evo_apikey: string;
-  evo_instance?: string;
+  api_url: string;
+  api_key: string;
+  api_instance?: string;
 }
 
 interface WhatsAppMessagesDialogProps {
@@ -82,7 +82,7 @@ export function WhatsAppMessagesDialog({
     try {
       const result = await externalDb.raw<AgentCredentials>({
         query: `
-          SELECT evo_url, evo_apikey, evo_instance 
+          SELECT api_url, api_key, api_instance 
           FROM "vw_list_client-agents-users" 
           WHERE cod_agent = $1 
           LIMIT 1
@@ -92,11 +92,11 @@ export function WhatsAppMessagesDialog({
 
       if (result && result.length > 0) {
         const creds = result[0];
-        if (creds.evo_url && creds.evo_apikey) {
+        if (creds.api_url && creds.api_key) {
           const newClient = new UaZapiClient({
-            baseUrl: creds.evo_url,
-            token: creds.evo_apikey,
-            instance: creds.evo_instance,
+            baseUrl: creds.api_url,
+            token: creds.api_key,
+            instance: creds.api_instance,
           });
           setClient(newClient);
           setIsConfigured(true);
