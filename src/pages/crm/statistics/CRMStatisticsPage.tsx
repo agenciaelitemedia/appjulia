@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { CRMFiltersState } from '../types';
 import { useCRMAgents } from '../hooks/useCRMData';
@@ -12,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { BarChart3, Clock, Users, RefreshCw } from 'lucide-react';
 
 export default function CRMStatisticsPage() {
+  const queryClient = useQueryClient();
   const today = getTodayInSaoPaulo();
   const didInitAgentsRef = useRef(false);
   
@@ -37,9 +39,9 @@ export default function CRMStatisticsPage() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await Promise.all([
-      refetchFunnel(),
-      refetchAvgTime(),
-      refetchPerformance()
+      queryClient.invalidateQueries({ queryKey: ['crm-funnel'] }),
+      queryClient.invalidateQueries({ queryKey: ['crm-avg-time'] }),
+      queryClient.invalidateQueries({ queryKey: ['crm-agent-performance'] })
     ]);
     setIsRefreshing(false);
   };

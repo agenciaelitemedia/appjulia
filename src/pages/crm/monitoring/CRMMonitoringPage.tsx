@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { CRMFiltersState } from '../types';
 import { useCRMAgents } from '../hooks/useCRMData';
@@ -18,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { AlertTriangle, Activity, Users, Gauge, RefreshCw } from 'lucide-react';
 
 export default function CRMMonitoringPage() {
+  const queryClient = useQueryClient();
   const today = getTodayInSaoPaulo();
   const didInitAgentsRef = useRef(false);
   
@@ -39,10 +41,10 @@ export default function CRMMonitoringPage() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await Promise.all([
-      refetchStuck(),
-      refetchActivity(),
-      refetchWorkload(),
-      refetchBottlenecks()
+      queryClient.invalidateQueries({ queryKey: ['crm-stuck-leads'] }),
+      queryClient.invalidateQueries({ queryKey: ['crm-recent-activity'] }),
+      queryClient.invalidateQueries({ queryKey: ['crm-agent-workload'] }),
+      queryClient.invalidateQueries({ queryKey: ['crm-stage-bottlenecks'] })
     ]);
     setIsRefreshing(false);
   };

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { CRMHeader } from './components/CRMHeader';
 import { CRMDashboardSummary } from './components/CRMDashboardSummary';
@@ -11,6 +12,7 @@ import { CRMCard, CRMFiltersState } from './types';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function CRMPage() {
+  const queryClient = useQueryClient();
   const today = getTodayInSaoPaulo();
   const didInitAgentsRef = useRef(false);
   
@@ -66,7 +68,7 @@ export default function CRMPage() {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await refetch();
+    await queryClient.invalidateQueries({ queryKey: ['crm-cards'] });
     setIsRefreshing(false);
   };
 
