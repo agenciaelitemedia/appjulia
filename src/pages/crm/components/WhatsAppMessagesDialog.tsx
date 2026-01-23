@@ -195,6 +195,35 @@ function QuotedMessage({ text, participant, isFromMe }: {
 function detectMessageType(message: any): MessageType {
   if (!message || typeof message !== 'object') return 'unknown';
   
+  // Formato UaZapi - verificar messageType PRIMEIRO (mais específico)
+  if (message.messageType) {
+    const typeMap: Record<string, MessageType> = {
+      'ExtendedTextMessage': 'text',
+      'ImageMessage': 'image',
+      'AudioMessage': 'audio',
+      'VideoMessage': 'video',
+      'DocumentMessage': 'document',
+      'StickerMessage': 'sticker',
+      'LocationMessage': 'location',
+      'ContactMessage': 'contact',
+      'conversation': 'text',
+      'text': 'text',
+      'chat': 'text',
+      'image': 'image',
+      'audio': 'audio',
+      'ptt': 'audio',
+      'video': 'video',
+      'document': 'document',
+      'sticker': 'sticker',
+      'location': 'location',
+      'vcard': 'contact',
+      'contact': 'contact',
+    };
+    if (typeMap[message.messageType]) {
+      return typeMap[message.messageType];
+    }
+  }
+  
   // Formato Baileys padrão
   if (message.conversation || message.extendedTextMessage) return 'text';
   if (message.imageMessage) return 'image';
@@ -232,27 +261,16 @@ function detectMessageType(message: any): MessageType {
     return typeMap[message.type] || 'unknown';
   }
   
-  // Verificar se texto está em 'body' ou 'text' direto
-  if (message.body || message.text || message.content) return 'text';
-  
-  // Verificar messageType alternativo
-  if (message.messageType) {
-    const typeMap: Record<string, MessageType> = {
-      'text': 'text',
-      'chat': 'text',
-      'conversation': 'text',
-      'image': 'image',
-      'audio': 'audio',
-      'ptt': 'audio',
-      'video': 'video',
-      'document': 'document',
-      'sticker': 'sticker',
-      'location': 'location',
-      'vcard': 'contact',
-      'contact': 'contact',
-    };
-    return typeMap[message.messageType] || 'unknown';
+  // UaZapi: Verificar se tem fileURL (indica mídia)
+  if (message.fileURL) {
+    if (message.mimetype?.startsWith('image/')) return 'image';
+    if (message.mimetype?.startsWith('video/')) return 'video';
+    if (message.mimetype?.startsWith('audio/')) return 'audio';
+    return 'document';
   }
+  
+  // Verificar se texto está em 'body' ou 'text' direto
+  if (message.body || (typeof message.text === 'string') || (message.content && typeof message.content === 'object' && message.content.text)) return 'text';
   
   return 'unknown';
 }
@@ -261,73 +279,107 @@ function extractMediaData(message: any, type: MessageType): Partial<Message> {
   if (!message) return { text: '[Mensagem vazia]' };
   
   switch (type) {
-    case 'text':
-      return {
-        text: message.conversation 
-          || message.extendedTextMessage?.text 
-          || message.body 
-          || message.text 
-          || message.content
-          || '',
-      };
+    case 'text': {
+      // Prioridade de extração de texto - evitar [object Object]
+      let textContent = '';
       
-    case 'image':
-      return {
-        mediaUrl: message.imageMessage?.url,
-        caption: message.imageMessage?.caption,
-        mimetype: message.imageMessage?.mimetype,
-        thumbnail: message.imageMessage?.jpegThumbnail,
-        text: message.imageMessage?.caption || '[Imagem]',
-      };
+      if (message.conversation) {
+        textContent = message.conversation;
+      } else if (message.extendedTextMessage?.text) {
+        textContent = message.extendedTextMessage.text;
+      } else if (typeof message.text === 'string') {
+        textContent = message.text;
+      } else if (message.content && typeof message.content === 'object' && typeof message.content.text === 'string') {
+        // UaZapi: content é objeto com campo text
+        textContent = message.content.text;
+      } else if (typeof message.content === 'string') {
+        textContent = message.content;
+      } else if (typeof message.body === 'string') {
+        textContent = message.body;
+      }
       
-    case 'audio':
-      return {
-        mediaUrl: message.audioMessage?.url,
-        seconds: message.audioMessage?.seconds,
-        ptt: message.audioMessage?.ptt,
-        mimetype: message.audioMessage?.mimetype,
-        text: `[Áudio ${formatDuration(message.audioMessage?.seconds)}]`,
-      };
+      return { text: textContent || '' };
+    }
       
-    case 'video':
+    case 'image': {
+      // Suportar formato Baileys e UaZapi
+      const imageUrl = message.imageMessage?.url || message.fileURL;
+      const imageCaption = message.imageMessage?.caption 
+        || (message.content && typeof message.content === 'object' ? message.content.caption : undefined)
+        || message.caption;
+      const imageMime = message.imageMessage?.mimetype || message.mimetype;
+      
       return {
-        mediaUrl: message.videoMessage?.url,
-        caption: message.videoMessage?.caption,
-        mimetype: message.videoMessage?.mimetype,
-        seconds: message.videoMessage?.seconds,
-        thumbnail: message.videoMessage?.jpegThumbnail,
-        text: message.videoMessage?.caption || '[Vídeo]',
+        mediaUrl: imageUrl,
+        caption: imageCaption,
+        mimetype: imageMime,
+        thumbnail: message.imageMessage?.jpegThumbnail || message.thumbnail,
+        text: imageCaption || '[Imagem]',
       };
+    }
+      
+    case 'audio': {
+      const audioUrl = message.audioMessage?.url || message.fileURL;
+      const audioSeconds = message.audioMessage?.seconds || message.seconds;
+      
+      return {
+        mediaUrl: audioUrl,
+        seconds: audioSeconds,
+        ptt: message.audioMessage?.ptt ?? message.ptt ?? false,
+        mimetype: message.audioMessage?.mimetype || message.mimetype,
+        text: `[Áudio ${formatDuration(audioSeconds)}]`,
+      };
+    }
+      
+    case 'video': {
+      const videoUrl = message.videoMessage?.url || message.fileURL;
+      const videoCaption = message.videoMessage?.caption 
+        || (message.content && typeof message.content === 'object' ? message.content.caption : undefined)
+        || message.caption;
+      
+      return {
+        mediaUrl: videoUrl,
+        caption: videoCaption,
+        mimetype: message.videoMessage?.mimetype || message.mimetype,
+        seconds: message.videoMessage?.seconds || message.seconds,
+        thumbnail: message.videoMessage?.jpegThumbnail || message.thumbnail,
+        text: videoCaption || '[Vídeo]',
+      };
+    }
       
     case 'document': {
-      const doc = message.documentMessage || message.documentWithCaptionMessage?.message?.documentMessage;
+      const doc = message.documentMessage 
+        || message.documentWithCaptionMessage?.message?.documentMessage;
+      const docUrl = doc?.url || message.fileURL;
+      const docName = doc?.fileName || doc?.title || message.fileName || message.title;
+      
       return {
-        mediaUrl: doc?.url,
-        fileName: doc?.fileName || doc?.title,
-        mimetype: doc?.mimetype,
-        caption: doc?.caption,
-        text: doc?.fileName || doc?.title || '[Documento]',
+        mediaUrl: docUrl,
+        fileName: docName,
+        mimetype: doc?.mimetype || message.mimetype,
+        caption: doc?.caption || message.caption,
+        text: docName || '[Documento]',
       };
     }
       
     case 'sticker':
       return {
-        mediaUrl: message.stickerMessage?.url,
-        mimetype: message.stickerMessage?.mimetype,
+        mediaUrl: message.stickerMessage?.url || message.fileURL,
+        mimetype: message.stickerMessage?.mimetype || message.mimetype,
         text: '[Sticker]',
       };
       
     case 'location':
       return {
-        latitude: message.locationMessage?.degreesLatitude,
-        longitude: message.locationMessage?.degreesLongitude,
-        text: message.locationMessage?.name || '[Localização]',
+        latitude: message.locationMessage?.degreesLatitude || message.latitude,
+        longitude: message.locationMessage?.degreesLongitude || message.longitude,
+        text: message.locationMessage?.name || message.name || '[Localização]',
       };
       
     case 'contact': {
       const contact = message.contactMessage || message.contactsArrayMessage?.contacts?.[0];
       return {
-        text: contact?.displayName || '[Contato]',
+        text: contact?.displayName || message.displayName || '[Contato]',
       };
     }
       
