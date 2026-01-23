@@ -63,6 +63,34 @@ function formatDuration(seconds?: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+// Transforma URLs em links clicáveis
+function renderTextWithLinks(text: string): React.ReactNode {
+  if (!text) return null;
+  
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  
+  return parts.map((part, index) => {
+    if (urlRegex.test(part)) {
+      // Reset regex lastIndex
+      urlRegex.lastIndex = 0;
+      return (
+        <a
+          key={index}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-400 hover:text-blue-300 underline break-all"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+}
+
 function detectMessageType(message: any): MessageType {
   if (!message || typeof message !== 'object') return 'unknown';
   
@@ -221,7 +249,7 @@ function MessageBubble({ message }: { message: Message }) {
       case 'text':
         return (
           <p className="text-sm whitespace-pre-wrap break-words">
-            {message.text}
+            {renderTextWithLinks(message.text)}
           </p>
         );
         
@@ -245,7 +273,7 @@ function MessageBubble({ message }: { message: Message }) {
               <span className="text-sm text-muted-foreground">Imagem não disponível</span>
             </div>
             {message.caption && (
-              <p className="text-sm whitespace-pre-wrap break-words">{message.caption}</p>
+              <p className="text-sm whitespace-pre-wrap break-words">{renderTextWithLinks(message.caption)}</p>
             )}
           </div>
         );
@@ -293,7 +321,7 @@ function MessageBubble({ message }: { message: Message }) {
               </div>
             )}
             {message.caption && (
-              <p className="text-sm whitespace-pre-wrap break-words">{message.caption}</p>
+              <p className="text-sm whitespace-pre-wrap break-words">{renderTextWithLinks(message.caption)}</p>
             )}
           </div>
         );
