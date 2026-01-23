@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
-import { MessageCircle, X, Send, Loader2, User, Bot } from 'lucide-react';
+import { MessageCircle, Send, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useUaZapi } from '@/hooks/useUaZapi';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { externalDb } from '@/lib/externalDb';
+import { UaZapiClient } from '@/lib/uazapi';
 
 interface Message {
   id: string;
@@ -19,11 +20,18 @@ interface Message {
   type?: string;
 }
 
+interface AgentCredentials {
+  evo_url: string;
+  evo_apikey: string;
+  evo_instance?: string;
+}
+
 interface WhatsAppMessagesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   whatsappNumber: string;
   leadName?: string;
+  codAgent: string;
 }
 
 export function WhatsAppMessagesDialog({
@@ -31,13 +39,15 @@ export function WhatsAppMessagesDialog({
   onOpenChange,
   whatsappNumber,
   leadName,
+  codAgent,
 }: WhatsAppMessagesDialogProps) {
-  const { client, isConfigured } = useUaZapi();
   const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [newMessage, setNewMessage] = useState('');
+  const [client, setClient] = useState<UaZapiClient | null>(null);
+  const [isConfigured, setIsConfigured] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Format number to JID
@@ -46,12 +56,19 @@ export function WhatsAppMessagesDialog({
     return `${cleaned}@s.whatsapp.net`;
   };
 
-  // Load messages when dialog opens
+  // Load agent credentials from view
   useEffect(() => {
-    if (open && whatsappNumber) {
+    if (open && codAgent) {
+      loadAgentCredentials();
+    }
+  }, [open, codAgent]);
+
+  // Load messages after credentials are loaded
+  useEffect(() => {
+    if (open && whatsappNumber && client && isConfigured) {
       loadMessages();
     }
-  }, [open, whatsappNumber]);
+  }, [open, whatsappNumber, client, isConfigured]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -60,13 +77,60 @@ export function WhatsAppMessagesDialog({
     }
   }, [messages]);
 
-  const loadMessages = async () => {
-    if (!client || !isConfigured) {
+  const loadAgentCredentials = async () => {
+    setLoading(true);
+    try {
+      const result = await externalDb.raw<AgentCredentials>({
+        query: `
+          SELECT evo_url, evo_apikey, evo_instance 
+          FROM "vw_list_client-agents-users" 
+          WHERE cod_agent = $1 
+          LIMIT 1
+        `,
+        params: [codAgent],
+      });
+
+      if (result && result.length > 0) {
+        const creds = result[0];
+        if (creds.evo_url && creds.evo_apikey) {
+          const newClient = new UaZapiClient({
+            baseUrl: creds.evo_url,
+            token: creds.evo_apikey,
+            instance: creds.evo_instance,
+          });
+          setClient(newClient);
+          setIsConfigured(true);
+        } else {
+          setIsConfigured(false);
+          toast({
+            title: 'API não configurada',
+            description: 'Este agente não possui credenciais UaZapi configuradas.',
+            variant: 'destructive',
+          });
+        }
+      } else {
+        setIsConfigured(false);
+        toast({
+          title: 'Agente não encontrado',
+          description: 'Não foi possível encontrar as credenciais do agente.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error: any) {
+      console.error('Error loading agent credentials:', error);
+      setIsConfigured(false);
       toast({
-        title: 'API não configurada',
-        description: 'Configure as credenciais da UaZapi para ver as mensagens.',
+        title: 'Erro ao carregar credenciais',
+        description: error.message || 'Não foi possível carregar as credenciais do agente.',
         variant: 'destructive',
       });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadMessages = async () => {
+    if (!client || !isConfigured) {
       return;
     }
 

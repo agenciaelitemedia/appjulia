@@ -134,6 +134,7 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
         onOpenChange={setMessagesOpen}
         whatsappNumber={card.whatsapp_number}
         leadName={card.contact_name}
+        codAgent={card.cod_agent}
       />
     </>
   );
