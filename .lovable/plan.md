@@ -1,132 +1,141 @@
 
+# Plano: Corrigir Ausencia de Historico de Movimentacao
 
-# Plano: Corrigir Play de Audio e Timezone das Mensagens
+## Diagnostico
 
-## Problemas Identificados
+Apos analise dos logs de rede, identifiquei que:
 
-### 1. Audio nao Toca
-Na imagem enviada, o botao play do audio aparece mas nao funciona. Analisando o codigo:
+1. **A query esta funcionando corretamente** - A requisicao a `crm_atendimento_history` retorna sem erro
+2. **A tabela esta vazia para os cards** - Response: `{"data":[], "error":null}`
+3. **Sistema externo nao registra historico** - O bot "JulIA" move os leads automaticamente (campo `notes: "Movido automaticamente pela JulIA"`), mas nao insere registros na tabela de historico
 
-- **Linha 527-561**: O `case 'audio'` so renderiza o elemento `<audio>` se `effectiveMediaUrl` (downloadedUrl ou mediaUrl) existir
-- **Problema**: Quando a API retorna `fileURL: ""` (vazio), nao ha URL para tocar. O audio precisa ser baixado via `/message/download`
-- **UX atual**: Mostra barra cinza com duracao, mas clicar nao faz nada (ou nao indica claramente que precisa baixar)
+### Evidencia
+```
+Card 3783:
+- created_at: "2026-01-23T00:52:11" (Entrada)
+- stage_entered_at: "2026-01-23T00:53:51" (Analise de Caso)
+- stage_id: 3 (mudou de 1 para 3)
+- notes: "Movido automaticamente pela JulIA"
+- Historico: VAZIO
+```
 
-### 2. Timezone Incorreto
-Na segunda imagem, mensagens de 23:57-23:58 aparecem no separador "21 de jan" quando deveriam estar em "22 de jan".
-
-- **Linhas 1062-1070**: `formatMessageTime` e `formatMessageDate` usam `new Date(timestamp)` direto
-- **Problema**: O timestamp vem da API em segundos (epoch UTC). Ao converter com `new Date()`, o JavaScript usa o timezone local do navegador
-- **Impacto**: Se o servidor da API esta em UTC e o usuario esta em Sao Paulo (UTC-3), as datas podem estar sendo calculadas incorretamente
+O card foi criado e depois movido de fase, mas o historico nao foi registrado porque o sistema JulIA atualiza diretamente o banco sem passar pela nossa funcao `useMoveCard`.
 
 ---
 
-## Solucao 1: Corrigir Reproducao de Audio
+## Solucoes Possiveis
 
-Modificar o `case 'audio'` para:
-1. Quando nao tem URL, mostrar um botao de play clicavel que dispara o download
-2. Apos download, substituir o botao pelo player de audio nativo
-3. Adicionar indicador visual de loading enquanto baixa
+### Opcao A: Correcao no Backend Externo (Recomendado)
+Modificar o sistema JulIA para inserir registros na tabela `crm_atendimento_history` sempre que mover um lead.
+
+**Pros:** Solucao definitiva, historico completo
+**Contras:** Requer acesso ao codigo do backend JulIA
+
+### Opcao B: Trigger no Banco de Dados
+Criar um trigger PostgreSQL que insere automaticamente no historico sempre que `stage_id` for alterado em `crm_atendimento_cards`.
+
+```sql
+CREATE OR REPLACE FUNCTION log_stage_change()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.stage_id IS DISTINCT FROM NEW.stage_id THEN
+    INSERT INTO crm_atendimento_history (
+      card_id, from_stage_id, to_stage_id, changed_by, changed_at
+    ) VALUES (
+      NEW.id, OLD.stage_id, NEW.stage_id, 'Sistema JulIA', NOW()
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_log_stage_change
+AFTER UPDATE ON crm_atendimento_cards
+FOR EACH ROW
+EXECUTE FUNCTION log_stage_change();
+```
+
+**Pros:** Automatico, captura todas as mudancas
+**Contras:** Requer acesso ao banco externo para criar o trigger
+
+### Opcao C: Historico Simulado (Workaround)
+Exibir um historico "inferido" baseado nas informacoes do card (`created_at` e `stage_entered_at`).
+
+**Pros:** Funciona imediatamente sem alteracoes externas
+**Contras:** Historico incompleto (apenas ultimo movimento), nao mostra de/para
+
+---
+
+## Plano de Implementacao - Opcao C (Workaround Imediato)
+
+Enquanto a correcao no backend externo nao e feita, implementar um historico inferido:
+
+### 1. Atualizar `CRMLeadDetailsDialog.tsx`
+
+Adicionar logica para exibir um historico sintetico quando a tabela estiver vazia:
 
 ```typescript
-case 'audio': {
-  const audioUrl = effectiveMediaUrl;
+// Se nao ha historico real, mostrar info sintetica baseada no card
+const syntheticHistory = useMemo(() => {
+  if (history.length > 0 || !card) return null;
   
-  return (
-    <div className="flex items-center gap-2 min-w-[200px]">
-      {message.ptt ? (
-        <Mic className="h-4 w-4 flex-shrink-0 text-green-500" />
-      ) : null}
-      
-      {audioUrl ? (
-        // Player de audio quando URL disponivel
-        <audio 
-          controls 
-          src={audioUrl} 
-          className="flex-1 h-8"
-          preload="metadata"
-        />
-      ) : (
-        // Botao de download quando URL nao disponivel
-        <div 
-          className={cn(
-            "flex items-center gap-2 flex-1 cursor-pointer hover:opacity-80",
-            isDownloading && "pointer-events-none"
-          )}
-          onClick={() => onDownload?.(message.id)}
-        >
-          {isDownloading ? (
-            <>
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              <span className="text-xs text-muted-foreground">Carregando...</span>
-            </>
-          ) : (
-            <>
-              <div className="w-8 h-8 rounded-full bg-primary/80 flex items-center justify-center">
-                <Play className="h-4 w-4 text-primary-foreground fill-current ml-0.5" />
-              </div>
-              <div className="flex flex-col flex-1">
-                <div className="w-full h-1 bg-muted-foreground/30 rounded" />
-                <span className="text-[10px] text-muted-foreground mt-1">
-                  {formatDuration(message.seconds)}
-                </span>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+  // Se stage_entered_at != created_at, houve pelo menos uma mudanca
+  const enteredAt = new Date(card.stage_entered_at).getTime();
+  const createdAt = new Date(card.created_at).getTime();
+  
+  if (enteredAt > createdAt + 60000) { // Diferenca > 1 minuto
+    return [{
+      id: 0,
+      card_id: card.id,
+      from_stage_id: null,
+      to_stage_id: card.stage_id,
+      from_stage_name: null,
+      to_stage_name: currentStage?.name,
+      to_stage_color: currentStage?.color,
+      changed_by: 'Sistema JulIA',
+      changed_at: card.stage_entered_at,
+      notes: card.notes || 'Movimentacao automatica',
+    }];
+  }
+  
+  return null;
+}, [history, card, currentStage]);
+
+const displayHistory = history.length > 0 ? history : syntheticHistory || [];
 ```
 
----
+### 2. Adicionar Entrada Inicial
 
-## Solucao 2: Corrigir Timezone para America/Sao_Paulo
-
-### Opcao A: Usar Intl.DateTimeFormat (recomendado)
-
-Atualizar as funcoes de formatacao para usar timezone explicito:
+Mostrar tambem quando o lead foi criado (entrada no sistema):
 
 ```typescript
-const formatMessageTime = (timestamp: number) => {
-  const date = new Date(timestamp);
-  return date.toLocaleTimeString('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-};
-
-const formatMessageDate = (timestamp: number) => {
-  const date = new Date(timestamp);
-  return date.toLocaleDateString('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    day: '2-digit',
-    month: 'short',
-  });
+// Adicionar entrada de criacao
+const creationEntry = {
+  id: -1,
+  card_id: card.id,
+  from_stage_id: null,
+  to_stage_id: 1, // Entrada
+  from_stage_name: null,
+  to_stage_name: 'Entrada',
+  to_stage_color: '#3B82F6',
+  changed_by: 'Sistema',
+  changed_at: card.created_at,
+  notes: 'Lead criado via WhatsApp',
 };
 ```
 
-### Alternativa B: Converter timestamp para timezone correto
+### 3. Indicar Historico Incompleto
 
-Se a API retorna timestamp ja em UTC, garantir que a conversao respeita o fuso:
+Mostrar aviso quando o historico e sintetico:
 
 ```typescript
-import { format, toZonedTime } from 'date-fns-tz';
-
-const formatMessageTime = (timestamp: number) => {
-  const zonedDate = toZonedTime(new Date(timestamp), 'America/Sao_Paulo');
-  return format(zonedDate, 'HH:mm', { locale: ptBR });
-};
-
-const formatMessageDate = (timestamp: number) => {
-  const zonedDate = toZonedTime(new Date(timestamp), 'America/Sao_Paulo');
-  return format(zonedDate, "dd 'de' MMM", { locale: ptBR });
-};
+{syntheticHistory && (
+  <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded mb-2 flex items-center gap-1">
+    <AlertTriangle className="h-3 w-3" />
+    Historico parcial - apenas ultima movimentacao registrada
+  </div>
+)}
 ```
-
-**Nota**: A Opcao A nao requer dependencia adicional. A Opcao B requer `date-fns-tz`.
 
 ---
 
@@ -134,26 +143,22 @@ const formatMessageDate = (timestamp: number) => {
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/pages/crm/components/WhatsAppMessagesDialog.tsx` | Corrigir case 'audio' e funcoes de formatacao de data |
-
----
-
-## Resumo das Correcoes
-
-| Problema | Linha Atual | Correcao |
-|----------|-------------|----------|
-| Audio sem URL nao toca | 535-559 | Adicionar botao Play que dispara download |
-| Audio sem feedback visual | 550-558 | Melhorar UI com botao circular e loading |
-| Timezone incorreto (hora) | 1062-1065 | Usar `toLocaleTimeString` com timezone explicito |
-| Timezone incorreto (data) | 1067-1070 | Usar `toLocaleDateString` com timezone explicito |
+| `src/pages/crm/components/CRMLeadDetailsDialog.tsx` | Adicionar logica de historico sintetico e aviso |
 
 ---
 
 ## Resultado Esperado
 
-- Audios mostrarao botao de play clicavel mesmo sem URL
-- Ao clicar, o audio sera baixado e comecara a tocar automaticamente
-- Indicador de loading enquanto audio esta sendo baixado
-- Datas e horarios serao exibidos corretamente no fuso de Sao Paulo
-- Mensagens de 23:57 do dia 22/01 aparecerão no separador correto "22 de jan"
+- Usuario vera pelo menos a entrada inicial e a ultima movimentacao
+- Aviso visual indicando que o historico esta incompleto
+- Sistema continua funcionando mesmo sem dados na tabela de historico
 
+---
+
+## Recomendacao a Longo Prazo
+
+Para ter historico completo, sera necessario:
+1. Criar o trigger no banco PostgreSQL externo, OU
+2. Modificar o sistema JulIA para registrar movimentacoes
+
+Isso esta fora do escopo deste projeto frontend, mas e a solucao definitiva.
