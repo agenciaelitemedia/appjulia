@@ -1,4 +1,5 @@
-import { Phone, Building2, Clock, History, ArrowRight, User, Hash, Calendar } from 'lucide-react';
+import { Phone, Building2, Clock, History, ArrowRight, User, Hash, Calendar, AlertTriangle } from 'lucide-react';
+import { useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,68 @@ export function CRMLeadDetailsDialog({
 }: CRMLeadDetailsDialogProps) {
   const { data: history = [], isLoading: historyLoading } = useCRMCardHistory(card?.id || null);
 
+  const currentStage = card ? stages.find((s) => s.id === card.stage_id) : null;
+  const entryStage = stages.find((s) => s.position === 1) || { name: 'Entrada', color: '#3B82F6' };
+
+  // Histórico sintético quando a tabela está vazia
+  const syntheticHistory = useMemo(() => {
+    if (history.length > 0 || !card) return null;
+    
+    const entries: Array<{
+      id: number;
+      card_id: number;
+      from_stage_id: number | null;
+      to_stage_id: number;
+      from_stage_name: string | null;
+      to_stage_name: string;
+      from_stage_color: string | null;
+      to_stage_color: string;
+      changed_by: string;
+      changed_at: string;
+      notes: string | null;
+    }> = [];
+
+    // Entrada de criação
+    entries.push({
+      id: -1,
+      card_id: card.id,
+      from_stage_id: null,
+      to_stage_id: 1,
+      from_stage_name: null,
+      to_stage_name: entryStage.name,
+      from_stage_color: null,
+      to_stage_color: entryStage.color,
+      changed_by: 'Sistema',
+      changed_at: card.created_at,
+      notes: 'Lead criado via WhatsApp',
+    });
+
+    // Se stage_entered_at != created_at, houve pelo menos uma mudança
+    const enteredAt = new Date(card.stage_entered_at).getTime();
+    const createdAt = new Date(card.created_at).getTime();
+    
+    if (enteredAt > createdAt + 60000 && currentStage) {
+      entries.push({
+        id: 0,
+        card_id: card.id,
+        from_stage_id: null,
+        to_stage_id: card.stage_id,
+        from_stage_name: null,
+        to_stage_name: currentStage.name,
+        from_stage_color: null,
+        to_stage_color: currentStage.color,
+        changed_by: 'Sistema JulIA',
+        changed_at: card.stage_entered_at,
+        notes: card.notes || 'Movimentação automática',
+      });
+    }
+
+    return entries;
+  }, [history, card, currentStage, entryStage]);
+
+  const displayHistory = history.length > 0 ? history : syntheticHistory || [];
+  const isSyntheticHistory = history.length === 0 && syntheticHistory && syntheticHistory.length > 0;
+
   if (!card) return null;
 
   const formatPhone = (phone: string) => {
@@ -41,7 +104,7 @@ export function CRMLeadDetailsDialog({
     return phone;
   };
 
-  const currentStage = stages.find((s) => s.id === card.stage_id);
+  
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -151,6 +214,14 @@ export function CRMLeadDetailsDialog({
                 <History className="h-4 w-4" />
                 Histórico de Movimentações
               </h4>
+              
+              {isSyntheticHistory && (
+                <div className="text-xs text-amber-600 bg-amber-500/10 p-2 rounded mb-2 flex items-center gap-1.5">
+                  <AlertTriangle className="h-3 w-3" />
+                  Histórico parcial - baseado nos dados do card
+                </div>
+              )}
+              
               <div className="space-y-2">
                 {historyLoading ? (
                   <div className="space-y-2">
@@ -158,13 +229,13 @@ export function CRMLeadDetailsDialog({
                       <div key={i} className="h-12 bg-muted animate-pulse rounded" />
                     ))}
                   </div>
-                ) : history.length === 0 ? (
+                ) : displayHistory.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4 bg-muted/30 rounded-lg">
                     Nenhuma movimentação registrada
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {history.map((item) => (
+                    {displayHistory.map((item) => (
                       <div
                         key={item.id}
                         className="flex items-center gap-2 text-sm p-3 bg-muted/30 rounded-lg"
