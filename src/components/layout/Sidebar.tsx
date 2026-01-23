@@ -122,11 +122,12 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
   const isMenuActive = (item: MenuItem): boolean => {
     if (item.href) {
-      return location.pathname === item.href || location.pathname.startsWith(item.href + '/');
+      // Apenas match exato para evitar múltiplos itens ativos
+      return location.pathname === item.href;
     }
     if (item.children) {
       return item.children.some(child => 
-        location.pathname === child.href || location.pathname.startsWith(child.href + '/')
+        location.pathname === child.href
       );
     }
     return false;

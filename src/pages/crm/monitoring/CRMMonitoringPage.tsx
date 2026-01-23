@@ -14,7 +14,8 @@ import { ActivityTimeline } from './components/ActivityTimeline';
 import { AgentWorkloadChart } from './components/AgentWorkloadChart';
 import { StageBottlenecks } from './components/StageBottlenecks';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertTriangle, Activity, Users, Gauge } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { AlertTriangle, Activity, Users, Gauge, RefreshCw } from 'lucide-react';
 
 export default function CRMMonitoringPage() {
   const today = getTodayInSaoPaulo();
@@ -28,10 +29,19 @@ export default function CRMMonitoringPage() {
   });
 
   const { data: agents = [], isLoading: agentsLoading } = useCRMAgents();
-  const { data: stuckLeads = [], isLoading: stuckLoading } = useCRMStuckLeads(filters);
-  const { data: recentActivity = [], isLoading: activityLoading } = useCRMRecentActivity(filters);
-  const { data: agentWorkload = [], isLoading: workloadLoading } = useCRMAgentWorkload(filters);
-  const { data: bottlenecks = [], isLoading: bottlenecksLoading } = useCRMStageBottlenecks(filters);
+  const { data: stuckLeads = [], isLoading: stuckLoading, refetch: refetchStuck } = useCRMStuckLeads(filters);
+  const { data: recentActivity = [], isLoading: activityLoading, refetch: refetchActivity } = useCRMRecentActivity(filters);
+  const { data: agentWorkload = [], isLoading: workloadLoading, refetch: refetchWorkload } = useCRMAgentWorkload(filters);
+  const { data: bottlenecks = [], isLoading: bottlenecksLoading, refetch: refetchBottlenecks } = useCRMStageBottlenecks(filters);
+
+  const isAnyLoading = stuckLoading || activityLoading || workloadLoading || bottlenecksLoading;
+
+  const handleRefresh = () => {
+    refetchStuck();
+    refetchActivity();
+    refetchWorkload();
+    refetchBottlenecks();
+  };
 
   // Initialize agentCodes when agents load
   useEffect(() => {
@@ -66,11 +76,17 @@ export default function CRMMonitoringPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Monitoramento do CRM</h1>
-        <p className="text-muted-foreground">
-          Alertas de leads parados, timeline de atividades e carga por agente
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Monitoramento do CRM</h1>
+          <p className="text-muted-foreground">
+            Alertas de leads parados, timeline de atividades e carga por agente
+          </p>
+        </div>
+        <Button onClick={handleRefresh} disabled={isAnyLoading} variant="outline">
+          <RefreshCw className={`h-4 w-4 mr-2 ${isAnyLoading ? 'animate-spin' : ''}`} />
+          Atualizar
+        </Button>
       </div>
 
       {/* Filters */}
