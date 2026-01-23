@@ -143,15 +143,27 @@ export function WhatsAppMessagesDialog({
       const endpoint = instanceName 
         ? `/chat/findMessages/${encodeURIComponent(instanceName)}`
         : '/chat/findMessages';
-        
-      const response = await client.post<{ messages?: Message[] }>(endpoint, {
+      
+      const fullUrl = `${client.baseUrl}${endpoint}`;
+      const requestBody = {
         where: {
           key: {
             remoteJid: jid,
           },
         },
         limit: 50,
+      };
+      
+      console.log('🔍 [WhatsApp API] Loading messages:', {
+        baseUrl: client.baseUrl,
+        instance: instanceName,
+        endpoint,
+        fullUrl,
+        jid,
+        requestBody,
       });
+        
+      const response = await client.post<{ messages?: Message[] }>(endpoint, requestBody);
 
       if (response.messages && Array.isArray(response.messages)) {
         const formattedMessages = response.messages.map((msg: any) => ({
