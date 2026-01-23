@@ -445,23 +445,30 @@ function MessageBubble({ message }: { message: Message }) {
         return (
           <div className="space-y-1">
             {message.mediaUrl ? (
-              <img 
-                src={message.mediaUrl} 
-                alt="Imagem" 
-                className="max-w-full max-h-[200px] rounded-md cursor-pointer object-cover"
-                onClick={() => window.open(message.mediaUrl, '_blank')}
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                }}
-              />
+              <div className="relative max-w-[330px] overflow-hidden rounded-lg">
+                <img 
+                  src={message.mediaUrl} 
+                  alt="Imagem" 
+                  className="w-full h-auto max-h-[400px] object-contain cursor-pointer rounded-lg"
+                  onClick={() => window.open(message.mediaUrl, '_blank')}
+                  onError={(e) => {
+                    e.currentTarget.parentElement?.classList.add('hidden');
+                    e.currentTarget.parentElement?.nextElementSibling?.classList.remove('hidden');
+                  }}
+                />
+              </div>
             ) : null}
-            <div className={cn("flex items-center gap-2 p-2 rounded", message.mediaUrl ? "hidden" : "")}>
+            <div className={cn(
+              "flex items-center gap-2 p-3 rounded-lg bg-muted/50", 
+              message.mediaUrl ? "hidden" : ""
+            )}>
               <ImageIcon className="h-5 w-5 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Imagem não disponível</span>
             </div>
             {message.caption && (
-              <p className="text-sm whitespace-pre-wrap break-words">{renderTextWithLinks(message.caption)}</p>
+              <p className="text-sm whitespace-pre-wrap break-words mt-1">
+                {renderTextWithLinks(message.caption)}
+              </p>
             )}
           </div>
         );
@@ -496,20 +503,25 @@ function MessageBubble({ message }: { message: Message }) {
         return (
           <div className="space-y-1">
             {message.mediaUrl ? (
-              <video 
-                controls 
-                src={message.mediaUrl} 
-                className="max-w-full max-h-[200px] rounded-md"
-                preload="metadata"
-              />
+              <div className="relative max-w-[330px] overflow-hidden rounded-lg">
+                <video 
+                  controls 
+                  src={message.mediaUrl} 
+                  className="w-full h-auto max-h-[400px] object-contain rounded-lg"
+                  preload="metadata"
+                  poster={message.thumbnail ? `data:image/jpeg;base64,${message.thumbnail}` : undefined}
+                />
+              </div>
             ) : (
-              <div className="flex items-center gap-2 p-3 bg-background/50 rounded">
-                <Video className="h-5 w-5 text-muted-foreground" />
+              <div className="flex items-center gap-2 p-4 bg-muted/50 rounded-lg max-w-[330px]">
+                <Video className="h-6 w-6 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground">Vídeo não disponível</span>
               </div>
             )}
             {message.caption && (
-              <p className="text-sm whitespace-pre-wrap break-words">{renderTextWithLinks(message.caption)}</p>
+              <p className="text-sm whitespace-pre-wrap break-words mt-1">
+                {renderTextWithLinks(message.caption)}
+              </p>
             )}
           </div>
         );
@@ -543,10 +555,12 @@ function MessageBubble({ message }: { message: Message }) {
           <img 
             src={message.mediaUrl} 
             alt="Sticker" 
-            className="max-w-[120px] max-h-[120px]"
+            className="max-w-[150px] max-h-[150px] object-contain"
             onError={(e) => {
-              e.currentTarget.src = '';
-              e.currentTarget.alt = '[Sticker]';
+              const parent = e.currentTarget.parentElement;
+              if (parent) {
+                parent.innerHTML = '<span class="text-muted-foreground text-sm">[Sticker]</span>';
+              }
             }}
           />
         );
