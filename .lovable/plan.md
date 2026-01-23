@@ -1,287 +1,133 @@
 
-# Plano: Renderizar Mensagens WhatsApp com Suporte a Midia
+# Plano: Corrigir Parsing de Mensagens WhatsApp
 
-## Visao Geral
+## Problema Identificado
 
-Atualizar o componente `WhatsAppMessagesDialog` para identificar e renderizar corretamente diferentes tipos de mensagem do WhatsApp: texto, imagem, audio, video, documento e sticker.
+Todas as mensagens aparecem como "[Mensagem nao suportada]" porque a funcao `detectMessageType` esta retornando `'unknown'` para todas. Isso indica que a estrutura real retornada pela UaZapi e diferente do esperado.
 
----
-
-## Estrutura de Resposta da UaZapi
-
-Baseado na documentacao da Evolution API, cada mensagem retorna um objeto com estrutura Baileys:
-
-```text
-+------------------+----------------------------------------+
-| Tipo             | Propriedade no objeto `message`        |
-+------------------+----------------------------------------+
-| Texto simples    | conversation                           |
-| Texto estendido  | extendedTextMessage.text               |
-| Imagem           | imageMessage.url, .caption, .mimetype  |
-| Audio            | audioMessage.url, .seconds, .ptt       |
-| Video            | videoMessage.url, .caption, .mimetype  |
-| Documento        | documentMessage.url, .fileName, .title |
-| Sticker          | stickerMessage.url                     |
-| Localizacao      | locationMessage.degreesLatitude, etc   |
-| Contato          | contactMessage.displayName             |
-+------------------+----------------------------------------+
+O codigo atual espera o padrao Baileys:
+```
+msg.message.conversation       -> texto
+msg.message.imageMessage.url   -> imagem
 ```
 
+Porem a UaZapi pode estar retornando outra estrutura. Precisamos adicionar logs detalhados para descobrir o formato real.
+
 ---
 
-## Alteracoes Planejadas
+## Correcoes Necessarias
 
-### 1. Atualizar Interface Message
+### 1. Adicionar Logs de Debug Detalhados
 
-Expandir a interface para incluir campos de midia:
+Na funcao `loadMessages`, logo apos receber as mensagens, logar a estrutura completa de pelo menos uma mensagem para identificar o formato:
 
 ```typescript
-interface Message {
-  id: string;
-  text: string;
-  fromMe: boolean;
-  timestamp: number;
-  type: 'text' | 'image' | 'audio' | 'video' | 'document' | 'sticker' | 'location' | 'contact' | 'unknown';
-  mediaUrl?: string;
-  mimetype?: string;
-  caption?: string;
-  fileName?: string;
-  seconds?: number;      // duracao do audio
-  ptt?: boolean;         // audio de voz (push-to-talk)
-  thumbnail?: string;    // base64 thumbnail
+if (messagesArray.length > 0) {
+  // Log da estrutura completa da primeira mensagem para debug
+  console.log('🔬 [WhatsApp API] First message structure:', 
+    JSON.stringify(messagesArray[0], null, 2)
+  );
+  console.log('🔬 [WhatsApp API] Message keys:', 
+    Object.keys(messagesArray[0])
+  );
+  if (messagesArray[0].message) {
+    console.log('🔬 [WhatsApp API] msg.message keys:', 
+      Object.keys(messagesArray[0].message)
+    );
+  }
 }
 ```
 
-### 2. Refatorar Parsing das Mensagens
+### 2. Expandir Deteccao de Tipos
 
-Extrair dados de forma mais completa no `loadMessages`:
-
-```typescript
-const formattedMessages = messagesArray.map((msg: any) => {
-  const message = msg.message || {};
-  
-  // Detectar tipo de mensagem
-  const messageType = detectMessageType(message);
-  
-  // Extrair dados baseado no tipo
-  const mediaData = extractMediaData(message, messageType);
-  
-  return {
-    id: msg.key?.id || msg.id,
-    type: messageType,
-    text: mediaData.text,
-    mediaUrl: mediaData.url,
-    mimetype: mediaData.mimetype,
-    caption: mediaData.caption,
-    fileName: mediaData.fileName,
-    seconds: mediaData.seconds,
-    ptt: mediaData.ptt,
-    fromMe: msg.key?.fromMe ?? false,
-    timestamp: msg.messageTimestamp || Date.now() / 1000,
-  };
-});
-```
-
-### 3. Funcoes Auxiliares
-
-**detectMessageType**: Identifica o tipo baseado nas chaves do objeto:
+Adicionar verificacoes para formatos alternativos que a UaZapi pode usar:
 
 ```typescript
-function detectMessageType(message: any): Message['type'] {
+function detectMessageType(message: any): MessageType {
+  if (!message || typeof message !== 'object') return 'unknown';
+  
+  // Formato Baileys padrao
   if (message.conversation || message.extendedTextMessage) return 'text';
   if (message.imageMessage) return 'image';
   if (message.audioMessage) return 'audio';
   if (message.videoMessage) return 'video';
-  if (message.documentMessage) return 'document';
+  if (message.documentMessage || message.documentWithCaptionMessage) return 'document';
   if (message.stickerMessage) return 'sticker';
   if (message.locationMessage) return 'location';
   if (message.contactMessage || message.contactsArrayMessage) return 'contact';
+  
+  // Formato alternativo UaZapi - verificar campo 'type' direto
+  if (message.type) {
+    const typeMap: Record<string, MessageType> = {
+      'text': 'text',
+      'chat': 'text',
+      'image': 'image',
+      'audio': 'audio',
+      'ptt': 'audio',
+      'video': 'video',
+      'document': 'document',
+      'sticker': 'sticker',
+      'location': 'location',
+      'vcard': 'contact',
+      'contact': 'contact',
+    };
+    return typeMap[message.type] || 'unknown';
+  }
+  
+  // Verificar se texto esta em 'body' ou 'text' direto
+  if (message.body || message.text) return 'text';
+  
   return 'unknown';
 }
 ```
 
-**extractMediaData**: Extrai URL e metadados da midia:
+### 3. Expandir Extracao de Dados
+
+Adicionar suporte para formato alternativo na funcao `extractMediaData`:
 
 ```typescript
-function extractMediaData(message: any, type: string) {
-  switch (type) {
-    case 'text':
-      return { 
-        text: message.conversation || message.extendedTextMessage?.text 
-      };
-    case 'image':
-      return {
-        url: message.imageMessage?.url,
-        caption: message.imageMessage?.caption,
-        mimetype: message.imageMessage?.mimetype,
-        text: message.imageMessage?.caption || '[Imagem]',
-      };
-    case 'audio':
-      return {
-        url: message.audioMessage?.url,
-        seconds: message.audioMessage?.seconds,
-        ptt: message.audioMessage?.ptt,
-        mimetype: message.audioMessage?.mimetype,
-        text: `[Audio ${formatDuration(message.audioMessage?.seconds)}]`,
-      };
-    // ... outros tipos
-  }
-}
+case 'text':
+  return {
+    text: message.conversation 
+       || message.extendedTextMessage?.text 
+       || message.body 
+       || message.text 
+       || '',
+  };
 ```
 
-### 4. Componente MessageBubble
+### 4. Verificar Estrutura Raiz
 
-Criar componente dedicado para renderizar cada tipo de mensagem:
+Alguns endpoints retornam o conteudo na raiz do objeto, nao em `msg.message`. Ajustar para tentar ambos:
 
 ```typescript
-function MessageBubble({ message }: { message: Message }) {
-  switch (message.type) {
-    case 'text':
-      return <TextMessage text={message.text} />;
-      
-    case 'image':
-      return (
-        <div className="space-y-1">
-          <img 
-            src={message.mediaUrl} 
-            alt="Imagem" 
-            className="max-w-full rounded-md cursor-pointer"
-            onClick={() => window.open(message.mediaUrl)}
-          />
-          {message.caption && <p className="text-sm">{message.caption}</p>}
-        </div>
-      );
-      
-    case 'audio':
-      return (
-        <div className="flex items-center gap-2">
-          <Mic className="h-4 w-4" />
-          <audio controls src={message.mediaUrl} className="max-w-[200px]" />
-          {message.seconds && (
-            <span className="text-xs">{formatDuration(message.seconds)}</span>
-          )}
-        </div>
-      );
-      
-    case 'video':
-      return (
-        <div className="space-y-1">
-          <video 
-            controls 
-            src={message.mediaUrl} 
-            className="max-w-full rounded-md"
-          />
-          {message.caption && <p className="text-sm">{message.caption}</p>}
-        </div>
-      );
-      
-    case 'document':
-      return (
-        <a 
-          href={message.mediaUrl} 
-          target="_blank"
-          className="flex items-center gap-2 p-2 bg-background/50 rounded"
-        >
-          <FileText className="h-5 w-5" />
-          <span className="text-sm truncate">{message.fileName || 'Documento'}</span>
-          <Download className="h-4 w-4 ml-auto" />
-        </a>
-      );
-      
-    case 'sticker':
-      return (
-        <img 
-          src={message.mediaUrl} 
-          alt="Sticker" 
-          className="max-w-[150px] max-h-[150px]"
-        />
-      );
-      
-    case 'location':
-      return (
-        <div className="flex items-center gap-2">
-          <MapPin className="h-4 w-4" />
-          <span className="text-sm">Localizacao compartilhada</span>
-        </div>
-      );
-      
-    case 'contact':
-      return (
-        <div className="flex items-center gap-2">
-          <User className="h-4 w-4" />
-          <span className="text-sm">{message.text}</span>
-        </div>
-      );
-      
-    default:
-      return <p className="text-sm italic">[Mensagem nao suportada]</p>;
-  }
-}
+const formattedMessages: Message[] = messagesArray.map((msg: any) => {
+  // Tentar pegar de msg.message (Baileys) ou direto de msg
+  const messageContent = msg.message || msg;
+  const messageType = detectMessageType(messageContent);
+  // ...
+});
 ```
 
 ---
 
-## Arquivos a Modificar
+## Arquivo a Modificar
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/pages/crm/components/WhatsAppMessagesDialog.tsx` | Refatorar interface, parsing e renderizacao |
+| `src/pages/crm/components/WhatsAppMessagesDialog.tsx` | Adicionar logs detalhados e expandir parsing |
 
 ---
 
-## Icones Necessarios
+## Ordem de Implementacao
 
-Adicionar imports do Lucide:
-
-```typescript
-import { 
-  MessageCircle, Send, Loader2,
-  Mic, FileText, Download, MapPin, User, Play, Image as ImageIcon
-} from 'lucide-react';
-```
+1. Adicionar logs de debug para ver estrutura exata da resposta
+2. Atualizar `detectMessageType` para suportar formatos alternativos
+3. Atualizar `extractMediaData` para extrair dados de formatos alternativos  
+4. Ajustar mapeamento na funcao `loadMessages`
 
 ---
 
-## Consideracoes Tecnicas
+## Resultado Esperado
 
-1. **URLs de Midia**: As URLs retornadas pela Evolution API podem expirar. Se isso ocorrer, pode ser necessario implementar um proxy ou cache
-
-2. **Audio PTT**: Audios de voz (ptt=true) podem ter estilo diferente dos audios normais
-
-3. **Thumbnails**: Para imagens e videos, a API pode retornar `jpegThumbnail` em base64 que pode ser usado como placeholder
-
-4. **Fallback**: Sempre ter um fallback para tipos desconhecidos
-
-5. **Seguranca**: URLs de midia externas devem ser tratadas com cuidado
-
----
-
-## Resumo Visual do Fluxo
-
-```text
-API Response
-     |
-     v
-+------------------+
-| detectMessageType|  --> Identifica: text, image, audio, etc.
-+------------------+
-     |
-     v
-+------------------+
-| extractMediaData |  --> Extrai: url, caption, fileName, etc.
-+------------------+
-     |
-     v
-+------------------+
-| MessageBubble    |  --> Renderiza componente apropriado
-+------------------+
-     |
-     v
-   [UI]
-   - Texto: <p>
-   - Imagem: <img>
-   - Audio: <audio>
-   - Video: <video>
-   - Documento: <a> com icone
-   - Sticker: <img> pequeno
-```
+Apos a correcao, as mensagens serao corretamente identificadas e exibidas conforme seu tipo (texto, imagem, audio, etc.), independente de a UaZapi usar formato Baileys padrao ou um formato proprio.
