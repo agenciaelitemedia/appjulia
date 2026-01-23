@@ -427,203 +427,291 @@ function extractMediaData(message: any, type: MessageType): Partial<Message> {
 // MessageBubble Component
 // ============================================
 
-function MessageBubble({ message }: { message: Message }) {
-  const isFromMe = message.fromMe;
-  
-  const renderContent = () => {
-    switch (message.type) {
-      case 'text':
-        return (
-          <div>
-            <QuotedMessage 
-              text={message.quotedText} 
-              participant={message.quotedParticipant}
-              isFromMe={isFromMe}
-            />
-            <p className="text-sm whitespace-pre-wrap break-words">
-              {renderTextWithLinks(message.text)}
-            </p>
-          </div>
-        );
-        
-      case 'image':
-        return (
-          <div className="space-y-1">
-            {message.mediaUrl || message.thumbnail ? (
-              <div className="relative max-w-[330px] overflow-hidden rounded-lg">
-                <img 
-                  src={message.mediaUrl || (message.thumbnail ? `data:image/jpeg;base64,${message.thumbnail}` : '')}
-                  alt="Imagem" 
-                  className="w-full h-auto max-h-[400px] object-contain cursor-pointer rounded-lg"
-                  onClick={() => message.mediaUrl && window.open(message.mediaUrl, '_blank')}
-                  onError={(e) => {
-                    e.currentTarget.parentElement?.classList.add('hidden');
-                    e.currentTarget.parentElement?.nextElementSibling?.classList.remove('hidden');
-                  }}
-                />
-              </div>
-            ) : null}
-            <div className={cn(
-              "flex items-center gap-2 p-3 rounded-lg bg-muted/50", 
-              (message.mediaUrl || message.thumbnail) ? "hidden" : ""
-            )}>
-              <ImageIcon className="h-5 w-5 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Imagem não disponível</span>
-            </div>
-            {message.caption && (
-              <p className="text-sm whitespace-pre-wrap break-words mt-1">
-                {renderTextWithLinks(message.caption)}
-              </p>
-            )}
-          </div>
-        );
-        
-      case 'audio':
-        return (
-          <div className="flex items-center gap-2 min-w-[180px]">
-            {message.ptt ? (
-              <Mic className="h-4 w-4 flex-shrink-0 text-green-500" />
-            ) : (
-              <Play className="h-4 w-4 flex-shrink-0" />
-            )}
-            {message.mediaUrl ? (
-              <audio 
-                controls 
-                src={message.mediaUrl} 
-                className="max-w-[180px] h-8"
-                preload="metadata"
-              />
-            ) : (
-              <div className="flex items-center gap-2">
-                <div className="w-32 h-1 bg-muted-foreground/30 rounded" />
-                <span className="text-xs text-muted-foreground">
-                  {formatDuration(message.seconds)}
-                </span>
-              </div>
-            )}
-          </div>
-        );
-        
-      case 'video':
-        return (
-          <div className="space-y-1">
-            {message.mediaUrl ? (
-              <div className="relative max-w-[330px] overflow-hidden rounded-lg">
-                <video 
-                  controls 
-                  src={message.mediaUrl} 
-                  className="w-full h-auto max-h-[400px] object-contain rounded-lg"
-                  preload="metadata"
-                  poster={message.thumbnail ? `data:image/jpeg;base64,${message.thumbnail}` : undefined}
-                />
-              </div>
-            ) : message.thumbnail ? (
-              <div className="relative max-w-[330px] overflow-hidden rounded-lg cursor-pointer">
-                <img 
-                  src={`data:image/jpeg;base64,${message.thumbnail}`}
-                  alt="Video thumbnail" 
-                  className="w-full h-auto max-h-[400px] object-contain rounded-lg opacity-80"
-                />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-14 h-14 rounded-full bg-black/60 flex items-center justify-center">
-                    <Play className="h-7 w-7 text-white fill-white ml-1" />
-                  </div>
-                </div>
-                <span className="absolute bottom-2 left-2 text-xs text-white bg-black/50 px-2 py-1 rounded">
-                  Vídeo - clique para baixar
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 p-4 bg-muted/50 rounded-lg max-w-[330px]">
-                <Video className="h-6 w-6 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Vídeo não disponível</span>
-              </div>
-            )}
-            {message.caption && (
-              <p className="text-sm whitespace-pre-wrap break-words mt-1">
-                {renderTextWithLinks(message.caption)}
-              </p>
-            )}
-          </div>
-        );
-        
-      case 'document':
-        return (
-          <a 
-            href={message.mediaUrl || '#'} 
-            target="_blank"
-            rel="noopener noreferrer"
-            className={cn(
-              "flex items-center gap-2 p-2 rounded transition-colors",
-              isFromMe ? "bg-primary-foreground/10 hover:bg-primary-foreground/20" : "bg-background/50 hover:bg-background/80"
-            )}
-            onClick={(e) => {
-              if (!message.mediaUrl) {
-                e.preventDefault();
-              }
-            }}
-          >
-            <FileText className="h-5 w-5 flex-shrink-0" />
-            <span className="text-sm truncate flex-1 max-w-[150px]">
-              {message.fileName || 'Documento'}
-            </span>
-            {message.mediaUrl && <Download className="h-4 w-4 flex-shrink-0" />}
-          </a>
-        );
-        
-      case 'sticker':
-        return (
-          <img 
-            src={message.mediaUrl} 
-            alt="Sticker" 
-            className="max-w-[150px] max-h-[150px] object-contain"
-            onError={(e) => {
-              const parent = e.currentTarget.parentElement;
-              if (parent) {
-                parent.innerHTML = '<span class="text-muted-foreground text-sm">[Sticker]</span>';
-              }
-            }}
-          />
-        );
-        
-      case 'location':
-        return (
-          <a
-            href={message.latitude && message.longitude 
-              ? `https://www.google.com/maps?q=${message.latitude},${message.longitude}` 
-              : '#'
-            }
-            target="_blank"
-            rel="noopener noreferrer"
-            className={cn(
-              "flex items-center gap-2 p-2 rounded transition-colors",
-              isFromMe ? "bg-primary-foreground/10 hover:bg-primary-foreground/20" : "bg-background/50 hover:bg-background/80"
-            )}
-          >
-            <MapPin className="h-5 w-5 text-red-500" />
-            <span className="text-sm">{message.text}</span>
-          </a>
-        );
-        
-      case 'contact':
-        return (
-          <div className="flex items-center gap-2 p-2">
-            <User className="h-5 w-5 text-blue-500" />
-            <span className="text-sm">{message.text}</span>
-          </div>
-        );
-        
-      default:
-        return (
-          <p className="text-sm italic text-muted-foreground">
-            {message.text || '[Mensagem não suportada]'}
-          </p>
-        );
-    }
-  };
-  
-  return renderContent();
+interface MessageBubbleProps {
+  message: Message;
+  onDownload?: (messageId: string) => void;
+  isDownloading?: boolean;
+  downloadedUrl?: string;
 }
+
+const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
+  ({ message, onDownload, isDownloading, downloadedUrl }, ref) => {
+    const isFromMe = message.fromMe;
+    
+    // Para mídia: usar downloadedUrl > mediaUrl
+    const effectiveMediaUrl = downloadedUrl || message.mediaUrl;
+    
+    const renderContent = () => {
+      switch (message.type) {
+        case 'text':
+          return (
+            <div>
+              <QuotedMessage 
+                text={message.quotedText} 
+                participant={message.quotedParticipant}
+                isFromMe={isFromMe}
+              />
+              <p className="text-sm whitespace-pre-wrap break-words">
+                {renderTextWithLinks(message.text)}
+              </p>
+            </div>
+          );
+          
+        case 'image': {
+          const imageUrl = effectiveMediaUrl;
+          const showThumbnail = !imageUrl && message.thumbnail;
+          
+          return (
+            <div className="space-y-1">
+              {imageUrl ? (
+                <div className="relative max-w-[330px] overflow-hidden rounded-lg">
+                  <img 
+                    src={imageUrl}
+                    alt="Imagem" 
+                    className="w-full h-auto max-h-[400px] object-contain cursor-pointer rounded-lg"
+                    onClick={() => window.open(imageUrl, '_blank')}
+                  />
+                </div>
+              ) : showThumbnail ? (
+                <div className="relative max-w-[330px] overflow-hidden rounded-lg">
+                  <img 
+                    src={`data:image/jpeg;base64,${message.thumbnail}`}
+                    alt="Imagem (preview)" 
+                    className="w-full h-auto max-h-[400px] object-contain rounded-lg opacity-80"
+                  />
+                  {isDownloading ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <Loader2 className="h-8 w-8 text-white animate-spin" />
+                    </div>
+                  ) : (
+                    <div 
+                      className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer hover:bg-black/30 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDownload?.(message.id);
+                      }}
+                    >
+                      <div className="w-12 h-12 rounded-full bg-black/60 flex items-center justify-center">
+                        <Download className="h-6 w-6 text-white" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div 
+                  className={cn(
+                    "flex items-center gap-2 p-3 rounded-lg bg-muted/50",
+                    onDownload && "cursor-pointer hover:bg-muted/70"
+                  )}
+                  onClick={() => onDownload?.(message.id)}
+                >
+                  {isDownloading ? (
+                    <Loader2 className="h-5 w-5 text-muted-foreground animate-spin" />
+                  ) : (
+                    <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                  )}
+                  <span className="text-sm text-muted-foreground">
+                    {isDownloading ? 'Baixando imagem...' : 'Clique para carregar imagem'}
+                  </span>
+                </div>
+              )}
+              {message.caption && (
+                <p className="text-sm whitespace-pre-wrap break-words mt-1">
+                  {renderTextWithLinks(message.caption)}
+                </p>
+              )}
+            </div>
+          );
+        }
+          
+        case 'audio':
+          return (
+            <div className="flex items-center gap-2 min-w-[180px]">
+              {message.ptt ? (
+                <Mic className="h-4 w-4 flex-shrink-0 text-green-500" />
+              ) : (
+                <Play className="h-4 w-4 flex-shrink-0" />
+              )}
+              {effectiveMediaUrl ? (
+                <audio 
+                  controls 
+                  src={effectiveMediaUrl} 
+                  className="max-w-[180px] h-8"
+                  preload="metadata"
+                />
+              ) : (
+                <div 
+                  className={cn(
+                    "flex items-center gap-2",
+                    onDownload && "cursor-pointer"
+                  )}
+                  onClick={() => onDownload?.(message.id)}
+                >
+                  {isDownloading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <div className="w-32 h-1 bg-muted-foreground/30 rounded" />
+                  )}
+                  <span className="text-xs text-muted-foreground">
+                    {isDownloading ? 'Baixando...' : formatDuration(message.seconds)}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+          
+        case 'video': {
+          const videoUrl = effectiveMediaUrl;
+          const showThumbnail = !videoUrl && message.thumbnail;
+          
+          return (
+            <div className="space-y-1">
+              {videoUrl ? (
+                <div className="relative max-w-[330px] overflow-hidden rounded-lg">
+                  <video 
+                    controls 
+                    src={videoUrl} 
+                    className="w-full h-auto max-h-[400px] object-contain rounded-lg"
+                    preload="metadata"
+                    poster={message.thumbnail ? `data:image/jpeg;base64,${message.thumbnail}` : undefined}
+                  />
+                </div>
+              ) : showThumbnail ? (
+                <div 
+                  className="relative max-w-[330px] overflow-hidden rounded-lg cursor-pointer"
+                  onClick={() => !isDownloading && onDownload?.(message.id)}
+                >
+                  <img 
+                    src={`data:image/jpeg;base64,${message.thumbnail}`}
+                    alt="Video thumbnail" 
+                    className="w-full h-auto max-h-[400px] object-contain rounded-lg opacity-80"
+                  />
+                  {isDownloading ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <Loader2 className="h-8 w-8 text-white animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center hover:bg-black/10 transition-colors">
+                      <div className="w-14 h-14 rounded-full bg-black/60 flex items-center justify-center">
+                        <Play className="h-7 w-7 text-white fill-white ml-1" />
+                      </div>
+                    </div>
+                  )}
+                  <span className="absolute bottom-2 left-2 text-xs text-white bg-black/50 px-2 py-1 rounded">
+                    {isDownloading ? 'Baixando...' : 'Clique para baixar'}
+                  </span>
+                </div>
+              ) : (
+                <div 
+                  className={cn(
+                    "flex items-center gap-2 p-4 bg-muted/50 rounded-lg max-w-[330px]",
+                    onDownload && "cursor-pointer hover:bg-muted/70"
+                  )}
+                  onClick={() => onDownload?.(message.id)}
+                >
+                  {isDownloading ? (
+                    <Loader2 className="h-6 w-6 text-muted-foreground animate-spin" />
+                  ) : (
+                    <Video className="h-6 w-6 text-muted-foreground" />
+                  )}
+                  <span className="text-sm text-muted-foreground">
+                    {isDownloading ? 'Baixando vídeo...' : 'Clique para carregar vídeo'}
+                  </span>
+                </div>
+              )}
+              {message.caption && (
+                <p className="text-sm whitespace-pre-wrap break-words mt-1">
+                  {renderTextWithLinks(message.caption)}
+                </p>
+              )}
+            </div>
+          );
+        }
+          
+        case 'document':
+          return (
+            <a 
+              href={effectiveMediaUrl || '#'} 
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                "flex items-center gap-2 p-2 rounded transition-colors",
+                isFromMe ? "bg-primary-foreground/10 hover:bg-primary-foreground/20" : "bg-background/50 hover:bg-background/80"
+              )}
+              onClick={(e) => {
+                if (!effectiveMediaUrl) {
+                  e.preventDefault();
+                  onDownload?.(message.id);
+                }
+              }}
+            >
+              {isDownloading ? (
+                <Loader2 className="h-5 w-5 flex-shrink-0 animate-spin" />
+              ) : (
+                <FileText className="h-5 w-5 flex-shrink-0" />
+              )}
+              <span className="text-sm truncate flex-1 max-w-[150px]">
+                {message.fileName || 'Documento'}
+              </span>
+              {effectiveMediaUrl && <Download className="h-4 w-4 flex-shrink-0" />}
+            </a>
+          );
+          
+        case 'sticker':
+          return (
+            <img 
+              src={effectiveMediaUrl} 
+              alt="Sticker" 
+              className="max-w-[150px] max-h-[150px] object-contain"
+              onError={(e) => {
+                const parent = e.currentTarget.parentElement;
+                if (parent) {
+                  parent.innerHTML = '<span class="text-muted-foreground text-sm">[Sticker]</span>';
+                }
+              }}
+            />
+          );
+          
+        case 'location':
+          return (
+            <a
+              href={message.latitude && message.longitude 
+                ? `https://www.google.com/maps?q=${message.latitude},${message.longitude}` 
+                : '#'
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                "flex items-center gap-2 p-2 rounded transition-colors",
+                isFromMe ? "bg-primary-foreground/10 hover:bg-primary-foreground/20" : "bg-background/50 hover:bg-background/80"
+              )}
+            >
+              <MapPin className="h-5 w-5 text-red-500" />
+              <span className="text-sm">{message.text}</span>
+            </a>
+          );
+          
+        case 'contact':
+          return (
+            <div className="flex items-center gap-2 p-2">
+              <User className="h-5 w-5 text-blue-500" />
+              <span className="text-sm">{message.text}</span>
+            </div>
+          );
+          
+        default:
+          return (
+            <p className="text-sm italic text-muted-foreground">
+              {message.text || '[Mensagem não suportada]'}
+            </p>
+          );
+      }
+    };
+    
+    return <div ref={ref}>{renderContent()}</div>;
+  }
+);
+MessageBubble.displayName = 'MessageBubble';
 
 // ============================================
 // Main Component
@@ -648,6 +736,10 @@ export function WhatsAppMessagesDialog({
   const [currentOffset, setCurrentOffset] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
+  
+  // Media download state
+  const [downloadingMedia, setDownloadingMedia] = useState<Set<string>>(new Set());
+  const [mediaUrls, setMediaUrls] = useState<Record<string, string>>({});
 
   // Format number to JID
   const formatToJid = (number: string): string => {
@@ -690,6 +782,45 @@ export function WhatsAppMessagesDialog({
     // If scrolled near top, load more messages
     if (target.scrollTop < 100 && hasMoreMessages && !loadingMore && !loading) {
       loadMoreMessages();
+    }
+  };
+
+  // Download media from message
+  const downloadMedia = async (messageId: string) => {
+    if (!client || downloadingMedia.has(messageId)) return;
+    
+    setDownloadingMedia(prev => new Set(prev).add(messageId));
+    
+    try {
+      console.log('📥 [WhatsApp API] Downloading media for message:', messageId);
+      const response = await client.post<{ fileURL?: string; base64Data?: string; mimetype?: string }>('/message/download', {
+        id: messageId,
+        return_link: true,
+        return_base64: false,
+      });
+      
+      console.log('✅ [WhatsApp API] Media download response:', response);
+      
+      if (response.fileURL) {
+        setMediaUrls(prev => ({ ...prev, [messageId]: response.fileURL! }));
+      } else if (response.base64Data && response.mimetype) {
+        // Fallback to base64 if URL not available
+        const dataUrl = `data:${response.mimetype};base64,${response.base64Data}`;
+        setMediaUrls(prev => ({ ...prev, [messageId]: dataUrl }));
+      }
+    } catch (error) {
+      console.error('❌ [WhatsApp API] Error downloading media:', error);
+      toast({
+        title: 'Erro ao baixar mídia',
+        description: 'Não foi possível baixar o arquivo.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDownloadingMedia(prev => {
+        const next = new Set(prev);
+        next.delete(messageId);
+        return next;
+      });
     }
   };
 
@@ -1028,7 +1159,12 @@ export function WhatsAppMessagesDialog({
                             : "bg-muted rounded-bl-none"
                         )}
                       >
-                        <MessageBubble message={message} />
+                        <MessageBubble 
+                          message={message}
+                          onDownload={downloadMedia}
+                          isDownloading={downloadingMedia.has(message.id)}
+                          downloadedUrl={mediaUrls[message.id]}
+                        />
                         <p
                           className={cn(
                             "text-[10px] mt-1 text-right",

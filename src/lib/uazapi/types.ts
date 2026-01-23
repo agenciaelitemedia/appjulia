@@ -368,6 +368,27 @@ export interface MessageResponse {
 }
 
 // ============================================
+// Media Download Types
+// ============================================
+
+export interface DownloadMediaRequest {
+  id: string;
+  return_base64?: boolean;
+  generate_mp3?: boolean;
+  return_link?: boolean;
+  transcribe?: boolean;
+  openai_apikey?: string;
+  download_quoted?: boolean;
+}
+
+export interface DownloadMediaResponse {
+  fileURL?: string;
+  mimetype?: string;
+  base64Data?: string;
+  transcription?: string;
+}
+
+// ============================================
 // Group Types
 // ============================================
 
