@@ -1,60 +1,162 @@
 
-# Plano: Corrigir Visualizacao de Imagens e Videos
+
+# Plano: Implementar Download de Midia via API e Corrigir Warnings
 
 ## Problema Identificado
 
-Apos analise detalhada das respostas da API e dos logs de rede, identifiquei que:
+1. **API retorna `fileURL: ""`** - A API UaZapi retorna URLs vazias para midias, mas fornece o endpoint `/message/download` para baixar o arquivo real
 
-1. **A API UaZapi retorna `fileURL: ""` (string vazia)** para mensagens de midia - isso significa que a URL do arquivo nao esta sendo retornada diretamente na resposta de `/message/find`
+2. **Warning de forwardRef persiste** - O console ainda mostra warning porque `MessageBubble` nao usa forwardRef e esta sendo usado dentro do Dialog
 
-2. **O campo `thumbnail` contem dados base64** que podem ser usados para exibir uma previa da imagem/video
-
-3. **Alerta de acessibilidade do Dialog** - Warning sobre `Description` ausente
+3. **Thumbnails funcionam** - O thumbnail base64 esta sendo usado como fallback, mas nao mostra a imagem em resolucao completa
 
 ---
 
-## Causa Raiz
+## Solucao Completa
 
-A UaZapi/Evolution API armazena metadados das mensagens de midia, mas o arquivo real pode:
-- Precisar ser baixado separadamente via endpoint como `/media/download`
-- Ter URL temporaria que expira
-- Estar apenas armazenado como thumbnail base64
+### 1. Adicionar Endpoint de Download no Cliente UaZapi
 
-**Solucao:** Utilizar o `thumbnail` base64 quando `fileURL` estiver vazio, e adicionar endpoint para download de midia quando necessario.
-
----
-
-## Correcoes Necessarias
-
-### 1. Usar Thumbnail como Fallback para Imagens
-
-Quando `mediaUrl` estiver vazio mas `thumbnail` existir:
+Criar tipos e adicionar o endpoint `/message/download` ao arquivo de endpoints:
 
 ```typescript
-case 'image':
+// Em src/lib/uazapi/types.ts
+export interface DownloadMediaRequest {
+  id: string;
+  return_base64?: boolean;
+  generate_mp3?: boolean;
+  return_link?: boolean;
+  transcribe?: boolean;
+  openai_apikey?: string;
+  download_quoted?: boolean;
+}
+
+export interface DownloadMediaResponse {
+  fileURL?: string;
+  mimetype?: string;
+  base64Data?: string;
+  transcription?: string;
+}
+```
+
+```typescript
+// Em src/lib/uazapi/endpoints/message.ts
+download: (data: DownloadMediaRequest) => Promise<DownloadMediaResponse>;
+
+async download(data: DownloadMediaRequest): Promise<DownloadMediaResponse> {
+  return assertClient().post<DownloadMediaResponse>('/message/download', data);
+}
+```
+
+### 2. Adicionar Estado de Loading e Download por Mensagem
+
+No `WhatsAppMessagesDialog.tsx`, adicionar state para controlar quais midias estao sendo baixadas:
+
+```typescript
+const [downloadingMedia, setDownloadingMedia] = useState<Set<string>>(new Set());
+const [mediaUrls, setMediaUrls] = useState<Record<string, string>>({});
+
+const downloadMedia = async (messageId: string) => {
+  if (!client || downloadingMedia.has(messageId)) return;
+  
+  setDownloadingMedia(prev => new Set(prev).add(messageId));
+  
+  try {
+    const response = await client.post<DownloadMediaResponse>('/message/download', {
+      id: messageId,
+      return_link: true,
+      return_base64: false,
+    });
+    
+    if (response.fileURL) {
+      setMediaUrls(prev => ({ ...prev, [messageId]: response.fileURL! }));
+    }
+  } catch (error) {
+    console.error('Error downloading media:', error);
+  } finally {
+    setDownloadingMedia(prev => {
+      const next = new Set(prev);
+      next.delete(messageId);
+      return next;
+    });
+  }
+};
+```
+
+### 3. Atualizar MessageBubble com forwardRef e Download
+
+```typescript
+const MessageBubble = React.forwardRef<
+  HTMLDivElement,
+  { 
+    message: Message;
+    onDownload?: (messageId: string) => void;
+    isDownloading?: boolean;
+    downloadedUrl?: string;
+  }
+>(({ message, onDownload, isDownloading, downloadedUrl }, ref) => {
+  const isFromMe = message.fromMe;
+  
+  // Para imagens: usar downloadedUrl > mediaUrl > thumbnail
+  const effectiveMediaUrl = downloadedUrl || message.mediaUrl;
+  
+  // Auto-download quando montar se nao tem URL
+  useEffect(() => {
+    if (!effectiveMediaUrl && message.thumbnail && onDownload) {
+      onDownload(message.id);
+    }
+  }, []);
+  
+  // ... resto do componente
+});
+MessageBubble.displayName = 'MessageBubble';
+```
+
+### 4. Atualizar Renderizacao de Imagens
+
+```typescript
+case 'image': {
+  const imageUrl = downloadedUrl || message.mediaUrl;
+  const showThumbnail = !imageUrl && message.thumbnail;
+  
   return (
     <div className="space-y-1">
-      {message.mediaUrl || message.thumbnail ? (
+      {imageUrl ? (
         <div className="relative max-w-[330px] overflow-hidden rounded-lg">
           <img 
-            src={message.mediaUrl || (message.thumbnail ? `data:image/jpeg;base64,${message.thumbnail}` : '')}
+            src={imageUrl}
             alt="Imagem" 
             className="w-full h-auto max-h-[400px] object-contain cursor-pointer rounded-lg"
-            onClick={() => message.mediaUrl && window.open(message.mediaUrl, '_blank')}
-            onError={(e) => {
-              e.currentTarget.parentElement?.classList.add('hidden');
-              e.currentTarget.parentElement?.nextElementSibling?.classList.remove('hidden');
-            }}
+            onClick={() => window.open(imageUrl, '_blank')}
           />
         </div>
-      ) : null}
-      <div className={cn(
-        "flex items-center gap-2 p-3 rounded-lg bg-muted/50", 
-        (message.mediaUrl || message.thumbnail) ? "hidden" : ""
-      )}>
-        <ImageIcon className="h-5 w-5 text-muted-foreground" />
-        <span className="text-sm text-muted-foreground">Imagem nao disponivel</span>
-      </div>
+      ) : showThumbnail ? (
+        <div className="relative max-w-[330px] overflow-hidden rounded-lg">
+          <img 
+            src={`data:image/jpeg;base64,${message.thumbnail}`}
+            alt="Imagem (preview)" 
+            className="w-full h-auto max-h-[400px] object-contain rounded-lg opacity-80"
+          />
+          {isDownloading ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+              <Loader2 className="h-8 w-8 text-white animate-spin" />
+            </div>
+          ) : (
+            <div 
+              className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer"
+              onClick={() => onDownload?.(message.id)}
+            >
+              <div className="w-12 h-12 rounded-full bg-black/60 flex items-center justify-center">
+                <Download className="h-6 w-6 text-white" />
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
+          <ImageIcon className="h-5 w-5 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Imagem nao disponivel</span>
+        </div>
+      )}
       {message.caption && (
         <p className="text-sm whitespace-pre-wrap break-words mt-1">
           {renderTextWithLinks(message.caption)}
@@ -62,41 +164,51 @@ case 'image':
       )}
     </div>
   );
+}
 ```
 
-### 2. Usar Thumbnail como Poster e Fallback para Videos
-
-Quando video nao tiver `mediaUrl`, exibir thumbnail:
+### 5. Atualizar Renderizacao de Videos
 
 ```typescript
-case 'video':
+case 'video': {
+  const videoUrl = downloadedUrl || message.mediaUrl;
+  const showThumbnail = !videoUrl && message.thumbnail;
+  
   return (
     <div className="space-y-1">
-      {message.mediaUrl ? (
+      {videoUrl ? (
         <div className="relative max-w-[330px] overflow-hidden rounded-lg">
           <video 
             controls 
-            src={message.mediaUrl} 
+            src={videoUrl} 
             className="w-full h-auto max-h-[400px] object-contain rounded-lg"
             preload="metadata"
             poster={message.thumbnail ? `data:image/jpeg;base64,${message.thumbnail}` : undefined}
           />
         </div>
-      ) : message.thumbnail ? (
-        // Mostrar thumbnail com icone de play quando video nao disponivel
-        <div className="relative max-w-[330px] overflow-hidden rounded-lg cursor-pointer">
+      ) : showThumbnail ? (
+        <div 
+          className="relative max-w-[330px] overflow-hidden rounded-lg cursor-pointer"
+          onClick={() => !isDownloading && onDownload?.(message.id)}
+        >
           <img 
             src={`data:image/jpeg;base64,${message.thumbnail}`}
             alt="Video thumbnail" 
             className="w-full h-auto max-h-[400px] object-contain rounded-lg opacity-80"
           />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-14 h-14 rounded-full bg-black/60 flex items-center justify-center">
-              <Play className="h-7 w-7 text-white fill-white ml-1" />
+          {isDownloading ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+              <Loader2 className="h-8 w-8 text-white animate-spin" />
             </div>
-          </div>
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-14 h-14 rounded-full bg-black/60 flex items-center justify-center">
+                <Play className="h-7 w-7 text-white fill-white ml-1" />
+              </div>
+            </div>
+          )}
           <span className="absolute bottom-2 left-2 text-xs text-white bg-black/50 px-2 py-1 rounded">
-            Video - clique para baixar
+            {isDownloading ? 'Baixando...' : 'Clique para baixar'}
           </span>
         </div>
       ) : (
@@ -112,45 +224,24 @@ case 'video':
       )}
     </div>
   );
+}
 ```
 
-### 3. Corrigir Warning de Acessibilidade do Dialog
+### 6. Atualizar Lista de Mensagens
 
-A `DialogDescription` ja existe mas com `sr-only`. Alterar para resolver o warning:
-
-```typescript
-<DialogDescription className="text-xs text-muted-foreground">
-  Conversa do WhatsApp com {leadName || whatsappNumber}
-</DialogDescription>
-```
-
-Ou adicionar `aria-describedby={undefined}` no DialogContent:
+Passar as novas props para cada MessageBubble:
 
 ```typescript
-<DialogContent 
-  className="sm:max-w-[500px] h-[600px] flex flex-col p-0"
-  aria-describedby={undefined}
->
-```
-
-### 4. Corrigir QuotedMessage com forwardRef
-
-Adicionar forwardRef ao componente QuotedMessage:
-
-```typescript
-const QuotedMessage = React.forwardRef<
-  HTMLDivElement,
-  { text?: string; participant?: string; isFromMe: boolean }
->(({ text, participant, isFromMe }, ref) => {
-  if (!text) return null;
-  
-  return (
-    <div ref={ref} className={cn(...)}>
-      {/* ... conteudo existente ... */}
-    </div>
-  );
-});
-QuotedMessage.displayName = 'QuotedMessage';
+{messages.map((msg, index) => (
+  <MessageBubble 
+    key={msg.id} 
+    ref={null}
+    message={msg}
+    onDownload={downloadMedia}
+    isDownloading={downloadingMedia.has(msg.id)}
+    downloadedUrl={mediaUrls[msg.id]}
+  />
+))}
 ```
 
 ---
@@ -159,14 +250,38 @@ QuotedMessage.displayName = 'QuotedMessage';
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/pages/crm/components/WhatsAppMessagesDialog.tsx` | Usar thumbnail como fallback, corrigir acessibilidade e forwardRef |
+| `src/lib/uazapi/types.ts` | Adicionar tipos `DownloadMediaRequest` e `DownloadMediaResponse` |
+| `src/lib/uazapi/endpoints/message.ts` | Adicionar metodo `download` |
+| `src/pages/crm/components/WhatsAppMessagesDialog.tsx` | Implementar download de midia, forwardRef no MessageBubble, UI com loading |
+
+---
+
+## Fluxo de Funcionamento
+
+```text
+1. Mensagem carregada com fileURL vazio
+   |
+2. Exibe thumbnail base64 com botao de download
+   |
+3. Usuario clica ou auto-download inicia
+   |
+4. POST /message/download { id: msgId, return_link: true }
+   |
+5. API retorna { fileURL: "https://..." }
+   |
+6. Atualiza mediaUrls[msgId] = response.fileURL
+   |
+7. Imagem/video renderiza com URL completa
+```
 
 ---
 
 ## Resultado Esperado
 
-- Imagens mostrarao o thumbnail base64 quando `fileURL` estiver vazio
-- Videos mostrarao o thumbnail com icone de play quando URL nao disponivel
-- Sem warnings de acessibilidade no console
-- Sem warning de forwardRef no componente QuotedMessage
-- Melhor experiencia visual mesmo com midias nao totalmente disponiveis
+- Imagens e videos carregarao automaticamente via endpoint `/message/download`
+- Thumbnail exibido enquanto download esta em progresso
+- Indicador de loading durante download
+- Sem warnings de forwardRef no console
+- Clique para abrir midia em tela cheia quando disponivel
+- Fallback visual quando midia nao esta disponivel
+
