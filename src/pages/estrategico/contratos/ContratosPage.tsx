@@ -4,7 +4,7 @@ import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
-import { useJuliaAgents, useJuliaContratos } from '../hooks/useJuliaData';
+import { useJuliaAgents, useJuliaContratos, useJuliaContratosPrevious } from '../hooks/useJuliaData';
 import { JuliaFilters } from '../components/JuliaFilters';
 import { ContratosSummary } from './components/ContratosSummary';
 import { ContratosTable } from './components/ContratosTable';
@@ -28,6 +28,7 @@ export default function ContratosPage() {
 
   const { data: agents = [], isLoading: agentsLoading } = useJuliaAgents();
   const { data: contratos = [], isLoading: contratosLoading } = useJuliaContratos(filters);
+  const { data: previousContratos = [] } = useJuliaContratosPrevious(filters);
 
   // Initialize agent codes when agents load
   useEffect(() => {
@@ -42,7 +43,10 @@ export default function ContratosPage() {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await queryClient.invalidateQueries({ queryKey: ['julia-contratos'] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['julia-contratos-v2'] }),
+      queryClient.invalidateQueries({ queryKey: ['julia-contratos-previous'] }),
+    ]);
     setIsRefreshing(false);
   };
 
@@ -82,7 +86,11 @@ export default function ContratosPage() {
       </div>
 
       {/* Summary Cards */}
-      <ContratosSummary contratos={contratos} isLoading={contratosLoading} />
+      <ContratosSummary 
+        contratos={contratos} 
+        previousContratos={previousContratos}
+        isLoading={contratosLoading} 
+      />
 
       {/* Evolution Chart */}
       <ContratosEvolutionChart 

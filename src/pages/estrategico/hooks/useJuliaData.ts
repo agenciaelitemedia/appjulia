@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { externalDb } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
+import { getPreviousPeriod } from '@/lib/dateUtils';
 import { JuliaSessao, JuliaContrato, JuliaFiltersState, JuliaAgent } from '../types';
 
 export function useJuliaAgents() {
@@ -98,6 +99,40 @@ export function useJuliaContratos(filters: JuliaFiltersState) {
       query += ` ORDER BY data_contrato DESC`;
       
       const result = await externalDb.raw<JuliaContrato>({ query, params });
+      return result;
+    },
+    enabled: filters.agentCodes.length > 0,
+  });
+}
+
+// Hook para buscar contratos do período anterior (para comparação)
+export function useJuliaContratosPrevious(filters: JuliaFiltersState) {
+  const { previousDateFrom, previousDateTo } = getPreviousPeriod(filters.dateFrom, filters.dateTo);
+  
+  return useQuery({
+    queryKey: ['julia-contratos-previous', filters.agentCodes, previousDateFrom, previousDateTo, filters.statusDocument],
+    queryFn: async () => {
+      const { agentCodes, statusDocument } = filters;
+      
+      if (agentCodes.length === 0) return [];
+      
+      let query = `
+        SELECT 
+          cod_agent::text, status_document, situacao
+        FROM vw_desempenho_julia_contratos
+        WHERE cod_agent::text = ANY($1::varchar[])
+          AND (data_contrato AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+          AND (data_contrato AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+      `;
+      
+      const params: any[] = [agentCodes, previousDateFrom, previousDateTo];
+      
+      if (statusDocument) {
+        query += ` AND status_document = $4`;
+        params.push(statusDocument);
+      }
+      
+      const result = await externalDb.raw<Pick<JuliaContrato, 'cod_agent' | 'status_document' | 'situacao'>>({ query, params });
       return result;
     },
     enabled: filters.agentCodes.length > 0,
