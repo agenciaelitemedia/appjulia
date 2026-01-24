@@ -256,3 +256,41 @@ export function getDbDateGroupLabel(dateStr: string | Date): string {
     month: 'long',
   });
 }
+
+/**
+ * Calcula a diferença de tempo entre duas datas e retorna string amigável.
+ * Exemplos: "em 3 min", "há 50 min", "há 2 dias", "em 1h 23min"
+ * 
+ * @param startDate - Data de início (criação do contrato)
+ * @param endDate - Data de fim (assinatura). Se null/undefined, usa a data atual
+ * @returns String formatada com prefixo "em" (para passado/assinado) ou "há" (para em curso)
+ */
+export function formatTimeDifference(
+  startDate: string | Date, 
+  endDate?: string | Date | null
+): string {
+  const start = parseDbTimestamp(startDate);
+  const end = endDate ? parseDbTimestamp(endDate) : new Date();
+  
+  const diffMs = end.getTime() - start.getTime();
+  const diffMinutes = Math.floor(Math.abs(diffMs) / (1000 * 60));
+  const diffHours = Math.floor(diffMinutes / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  
+  // Determina prefixo: "em" para passado (assinado), "há" para em curso
+  const prefix = endDate ? 'em' : 'há';
+  
+  if (diffDays > 0) {
+    return `${prefix} ${diffDays} dia${diffDays > 1 ? 's' : ''}`;
+  }
+  
+  if (diffHours > 0) {
+    const remainingMinutes = diffMinutes % 60;
+    if (remainingMinutes > 0) {
+      return `${prefix} ${diffHours}h ${remainingMinutes}min`;
+    }
+    return `${prefix} ${diffHours}h`;
+  }
+  
+  return `${prefix} ${diffMinutes} min`;
+}

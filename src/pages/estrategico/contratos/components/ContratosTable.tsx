@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Table,
   TableBody,
@@ -10,9 +10,18 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FileText, Eye } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { FileText, Eye, MessageCircle, Download, Loader2 } from 'lucide-react';
 import { JuliaContrato } from '../../types';
-import { formatDbDateTime } from '@/lib/dateUtils';
+import { formatDbDateTime, formatTimeDifference } from '@/lib/dateUtils';
+import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface ContratosTableProps {
   contratos: JuliaContrato[];
@@ -21,12 +30,43 @@ interface ContratosTableProps {
   onViewDetails: (contrato: JuliaContrato) => void;
 }
 
+/**
+ * Formata número de WhatsApp para exibição
+ * Formato: +55 (34) 99999-9999
+ */
+function formatWhatsAppNumber(number: string): string {
+  if (!number) return '-';
+  
+  const cleaned = number.replace(/\D/g, '');
+  
+  if (cleaned.length === 13) {
+    // Com código do país (55) + DDD (2) + número (9)
+    return `+${cleaned.slice(0, 2)} (${cleaned.slice(2, 4)}) ${cleaned.slice(4, 9)}-${cleaned.slice(9)}`;
+  } else if (cleaned.length === 12) {
+    // Com código do país (55) + DDD (2) + número (8)
+    return `+${cleaned.slice(0, 2)} (${cleaned.slice(2, 4)}) ${cleaned.slice(4, 8)}-${cleaned.slice(8)}`;
+  } else if (cleaned.length === 11) {
+    // Apenas DDD (2) + número (9)
+    return `+55 (${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`;
+  } else if (cleaned.length === 10) {
+    // Apenas DDD (2) + número (8)
+    return `+55 (${cleaned.slice(0, 2)}) ${cleaned.slice(2, 6)}-${cleaned.slice(6)}`;
+  }
+  
+  return number;
+}
+
 export function ContratosTable({
   contratos,
   isLoading,
   searchTerm = '',
   onViewDetails,
 }: ContratosTableProps) {
+  const { toast } = useToast();
+  const [messagesOpen, setMessagesOpen] = useState(false);
+  const [selectedContrato, setSelectedContrato] = useState<JuliaContrato | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
   const filteredContratos = useMemo(() => {
     if (!searchTerm) return contratos;
     
@@ -39,6 +79,66 @@ export function ContratosTable({
       c.cod_agent?.includes(term)
     );
   }, [contratos, searchTerm]);
+
+  const handleOpenMessages = (contrato: JuliaContrato) => {
+    setSelectedContrato(contrato);
+    setMessagesOpen(true);
+  };
+
+  const handleDownloadContract = async (contrato: JuliaContrato) => {
+    if (!contrato.cod_document) {
+      toast({
+        title: 'Erro',
+        description: 'Documento não possui código identificador',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setDownloadingId(contrato.cod_document);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('zapsign-download', {
+        body: { doc_token: contrato.cod_document },
+      });
+
+      if (error) throw error;
+
+      if (!data.success) {
+        throw new Error(data.error || 'Erro ao obter documento');
+      }
+
+      // Prioriza documento assinado, senão usa original
+      const fileUrl = data.signed_file || data.original_file;
+      
+      if (!fileUrl) {
+        toast({
+          title: 'Documento indisponível',
+          description: 'O documento ainda não está disponível para download',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Abrir em nova aba (o link já é do S3 e faz download automático)
+      window.open(fileUrl, '_blank');
+      
+      toast({
+        title: 'Download iniciado',
+        description: 'O documento será baixado em instantes',
+      });
+
+    } catch (error) {
+      console.error('Erro ao baixar contrato:', error);
+      toast({
+        title: 'Erro ao baixar',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -69,92 +169,144 @@ export function ContratosTable({
     return variants[status] || { className: 'bg-gray-100 text-gray-800', label: status };
   };
 
-  const getSituacaoBadge = (situacao: string) => {
-    const variants: Record<string, { className: string }> = {
-      'EM CURSO': { className: 'bg-blue-100 text-blue-800 hover:bg-blue-100' },
-      'FINALIZADO': { className: 'bg-green-100 text-green-800 hover:bg-green-100' },
-      'CANCELADO': { className: 'bg-red-100 text-red-800 hover:bg-red-100' },
-    };
-    return variants[situacao] || { className: 'bg-gray-100 text-gray-800' };
-  };
-
   return (
-    <div className="border rounded-lg">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Agente</TableHead>
-            <TableHead>Cliente</TableHead>
-            <TableHead>WhatsApp</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Situação</TableHead>
-            <TableHead>Data Contrato</TableHead>
-            <TableHead>Assinatura</TableHead>
-            <TableHead className="w-[80px]">Ações</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filteredContratos.map((contrato) => {
-            const statusInfo = getStatusBadge(contrato.status_document);
-            const situacaoInfo = getSituacaoBadge(contrato.situacao);
-            
-            return (
-              <TableRow key={`${contrato.cod_document}-${contrato.session_id}`}>
-                <TableCell>
-                  <div>
-                    <p className="font-medium">[{contrato.cod_agent}]</p>
-                    <p className="text-sm text-muted-foreground truncate max-w-[150px]">
-                      {contrato.name}
+    <>
+      <div className="border rounded-lg">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Agente</TableHead>
+              <TableHead>Cliente</TableHead>
+              <TableHead>WhatsApp</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Data Contrato</TableHead>
+              <TableHead className="w-[120px]">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredContratos.map((contrato) => {
+              const statusInfo = getStatusBadge(contrato.status_document);
+              
+              return (
+                <TableRow key={`${contrato.cod_document}-${contrato.session_id}`}>
+                  <TableCell>
+                    <div>
+                      <p className="font-medium">[{contrato.cod_agent}]</p>
+                      <p className="text-sm text-muted-foreground truncate max-w-[150px]">
+                        {contrato.name}
+                      </p>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <p className="font-medium truncate max-w-[150px]">
+                      {contrato.signer_name || '-'}
                     </p>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <p className="font-medium truncate max-w-[150px]">
-                    {contrato.signer_name || '-'}
-                  </p>
-                </TableCell>
-                <TableCell>
-                  <a
-                    href={`https://wa.me/${contrato.whatsapp?.replace(/\D/g, '')}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    {contrato.whatsapp}
-                  </a>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="secondary" className={statusInfo.className}>
-                    {statusInfo.label}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="secondary" className={situacaoInfo.className}>
-                    {contrato.situacao}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-sm">
-                  {formatDbDateTime(contrato.data_contrato)}
-                </TableCell>
-                <TableCell className="text-sm">
-                  {contrato.data_assinatura
-                    ? formatDbDateTime(contrato.data_assinatura)
-                    : <span className="text-muted-foreground">Pendente</span>}
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onViewDetails(contrato)}
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </div>
+                  </TableCell>
+                  <TableCell>
+                    <a
+                      href={`https://wa.me/${contrato.whatsapp?.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-mono text-sm"
+                    >
+                      {formatWhatsAppNumber(contrato.whatsapp)}
+                    </a>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      <Badge variant="secondary" className={statusInfo.className}>
+                        {statusInfo.label}
+                      </Badge>
+                      <span className="text-[10px] text-muted-foreground">
+                        {contrato.status_document === 'SIGNED' 
+                          ? formatTimeDifference(contrato.data_contrato, contrato.data_assinatura)
+                          : formatTimeDifference(contrato.data_contrato)
+                        }
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {formatDbDateTime(contrato.data_contrato)}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100/50"
+                              onClick={() => handleOpenMessages(contrato)}
+                            >
+                              <MessageCircle className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Ver mensagens do WhatsApp</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+
+                      {contrato.status_document === 'SIGNED' && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-100/50"
+                                onClick={() => handleDownloadContract(contrato)}
+                                disabled={downloadingId === contrato.cod_document}
+                              >
+                                {downloadingId === contrato.cod_document ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Download className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Baixar contrato assinado</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                      
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onViewDetails(contrato)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Ver detalhes</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      {selectedContrato && (
+        <WhatsAppMessagesDialog
+          open={messagesOpen}
+          onOpenChange={setMessagesOpen}
+          whatsappNumber={selectedContrato.whatsapp}
+          leadName={selectedContrato.signer_name || ''}
+          codAgent={selectedContrato.cod_agent}
+        />
+      )}
+    </>
   );
 }
