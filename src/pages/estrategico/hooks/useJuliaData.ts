@@ -76,7 +76,7 @@ export function useJuliaContratos(filters: JuliaFiltersState) {
         SELECT 
           cod_agent::text, agent_id, name, business_name, client_id,
           perfil_agent, session_id, total_msg::int, whatsapp::text,
-          cod_document, status_document, situacao,
+          cod_document, zapsing_doctoken, status_document, situacao,
           data_contrato, data_assinatura,
           resumo_do_caso, signer_name, signer_cpf, signer_uf,
           signer_cidade, signer_bairro, signer_endereco, signer_cep,

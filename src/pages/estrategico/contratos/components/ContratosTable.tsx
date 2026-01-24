@@ -86,20 +86,22 @@ export function ContratosTable({
   };
 
   const handleDownloadContract = async (contrato: JuliaContrato) => {
-    if (!contrato.cod_document) {
+    const docToken = contrato.zapsing_doctoken || contrato.cod_document;
+
+    if (!docToken) {
       toast({
         title: 'Erro',
-        description: 'Documento não possui código identificador',
+        description: 'Documento não possui token do ZapSign para download',
         variant: 'destructive',
       });
       return;
     }
 
-    setDownloadingId(contrato.cod_document);
+    setDownloadingId(docToken);
 
     try {
       const { data, error } = await supabase.functions.invoke('zapsign-download', {
-        body: { doc_token: contrato.cod_document },
+        body: { doc_token: docToken },
       });
 
       if (error) throw error;
@@ -248,7 +250,7 @@ export function ContratosTable({
                         </Tooltip>
                       </TooltipProvider>
 
-                      {contrato.status_document === 'SIGNED' && (
+                       {contrato.status_document === 'SIGNED' && (
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -257,9 +259,9 @@ export function ContratosTable({
                                 size="icon"
                                 className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-100/50"
                                 onClick={() => handleDownloadContract(contrato)}
-                                disabled={downloadingId === contrato.cod_document}
+                                 disabled={downloadingId === (contrato.zapsing_doctoken || contrato.cod_document)}
                               >
-                                {downloadingId === contrato.cod_document ? (
+                                 {downloadingId === (contrato.zapsing_doctoken || contrato.cod_document) ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
                                   <Download className="h-4 w-4" />
