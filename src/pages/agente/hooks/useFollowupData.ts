@@ -586,69 +586,88 @@ export function useFollowupQueueTotals(filters: FollowupFiltersState) {
   });
 }
 
-// Fetch global response rate using followup_response table
-// Responses: COUNT(*) - each record = 1 response (a lead can respond multiple times)
-// Rate: (total responses / unique leads contacted) * 100
-export function useFollowupResponseRate(filters: FollowupFiltersState) {
+// Fetch return rate using followup_queue + followup_response
+// Return Rate: (unique leads who returned / total leads in queue) * 100
+// A lead "returned" if they have at least 1 record in followup_response
+export function useFollowupReturnRate(filters: FollowupFiltersState) {
   return useQuery({
-    queryKey: ['followup-response-rate', filters],
+    queryKey: ['followup-return-rate', filters],
     queryFn: async () => {
-      if (!filters.agentCodes.length) return { total: 0, responses: 0, rate: 0 };
+      if (!filters.agentCodes.length) return { totalLeads: 0, leadsReturned: 0, responses: 0, returnRate: 0 };
 
       const agentPlaceholders = filters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
       
-      // 1. Total unique leads that received at least 1 message
-      const historyParams: (string | number)[] = [...filters.agentCodes];
-      let historyDateFilter = '';
+      // 1. Total leads in queue (any status)
+      const queueParams: (string | number)[] = [...filters.agentCodes];
+      let queueDateFilter = '';
       if (filters.dateFrom) {
-        historyDateFilter += ` AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${historyParams.length + 1}`;
-        historyParams.push(filters.dateFrom);
+        queueDateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${queueParams.length + 1}`;
+        queueParams.push(filters.dateFrom);
       }
       if (filters.dateTo) {
-        historyDateFilter += ` AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${historyParams.length + 1}`;
-        historyParams.push(filters.dateTo);
+        queueDateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${queueParams.length + 1}`;
+        queueParams.push(filters.dateTo);
       }
 
-      const totalResult = await externalDb.raw<{ total: string }[]>({
+      const queueResult = await externalDb.raw<{ total: string }[]>({
         query: `
-          SELECT COUNT(DISTINCT fq.session_id)::text as total
-          FROM followup_history fh
-          JOIN followup_queue fq ON fq.id = fh.followup_queue_id
-          WHERE fq.cod_agent IN (${agentPlaceholders})
-            ${historyDateFilter}
+          SELECT COUNT(DISTINCT session_id)::text as total
+          FROM followup_queue
+          WHERE cod_agent IN (${agentPlaceholders})
+            ${queueDateFilter}
         `,
-        params: historyParams,
+        params: queueParams,
       });
 
-      // 2. Total RESPONSES (COUNT(*), not DISTINCT - each record = 1 response)
-      const responseParams: (string | number)[] = [...filters.agentCodes];
-      let responseDateFilter = '';
+      // 2. Unique leads who returned (JOIN with followup_response, grouped by cod_agent + session_id)
+      const returnParams: (string | number)[] = [...filters.agentCodes];
+      let returnDateFilter = '';
       if (filters.dateFrom) {
-        responseDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${responseParams.length + 1}`;
-        responseParams.push(filters.dateFrom);
+        returnDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${returnParams.length + 1}`;
+        returnParams.push(filters.dateFrom);
       }
       if (filters.dateTo) {
-        responseDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${responseParams.length + 1}`;
-        responseParams.push(filters.dateTo);
+        returnDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${returnParams.length + 1}`;
+        returnParams.push(filters.dateTo);
       }
 
+      const returnResult = await externalDb.raw<{ leads_returned: string }[]>({
+        query: `
+          WITH response_data AS (
+            SELECT DISTINCT ON (fq.cod_agent, fq.session_id)
+              fq.session_id
+            FROM followup_queue fq
+            INNER JOIN followup_response fr ON fr.followup_queue_id = fq.id
+            WHERE fq.cod_agent IN (${agentPlaceholders})
+              ${returnDateFilter}
+            ORDER BY fq.cod_agent, fq.session_id, fr.created_at DESC
+          )
+          SELECT COUNT(*)::text as leads_returned
+          FROM response_data
+        `,
+        params: returnParams,
+      });
+
+      // 3. Total responses (COUNT(*) - each record = 1 response)
       const responseResult = await externalDb.raw<{ responses: string }[]>({
         query: `
           SELECT COUNT(*)::text as responses
           FROM followup_response fr
           JOIN followup_queue fq ON fq.id = fr.followup_queue_id
           WHERE fq.cod_agent IN (${agentPlaceholders})
-            ${responseDateFilter}
+            ${returnDateFilter}
         `,
-        params: responseParams,
+        params: returnParams,
       });
 
-      const total = parseInt(totalResult.flat()[0]?.total || '0', 10);
+      const totalLeads = parseInt(queueResult.flat()[0]?.total || '0', 10);
+      const leadsReturned = parseInt(returnResult.flat()[0]?.leads_returned || '0', 10);
       const responses = parseInt(responseResult.flat()[0]?.responses || '0', 10);
-      // Rate = (responses / leads contacted) * 100
-      const rate = total > 0 ? (responses / total) * 100 : 0;
+      
+      // Return Rate = (leads who returned / total in queue) × 100
+      const returnRate = totalLeads > 0 ? (leadsReturned / totalLeads) * 100 : 0;
 
-      return { total, responses, rate };
+      return { totalLeads, leadsReturned, responses, returnRate };
     },
     enabled: filters.agentCodes.length > 0,
     staleTime: 1000 * 30,
@@ -708,67 +727,85 @@ export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
     staleTime: 1000 * 60,
   });
 
-  // Fetch response rate for previous period (using followup_response with COUNT(*))
-  const { data: responseData, isLoading: isLoadingResponse } = useQuery({
-    queryKey: ['followup-response-rate-previous', previousFilters],
+  // Fetch return rate for previous period (same logic as useFollowupReturnRate)
+  const { data: returnData, isLoading: isLoadingReturn } = useQuery({
+    queryKey: ['followup-return-rate-previous', previousFilters],
     queryFn: async () => {
       if (!previousFilters.agentCodes.length || !previousFilters.dateFrom) {
-        return { total: 0, responses: 0, rate: 0 };
+        return { totalLeads: 0, leadsReturned: 0, responses: 0, returnRate: 0 };
       }
 
       const agentPlaceholders = previousFilters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
       
-      // Total leads contacted in previous period
-      const historyParams: (string | number)[] = [...previousFilters.agentCodes];
-      let historyDateFilter = '';
+      // 1. Total leads in queue for previous period
+      const queueParams: (string | number)[] = [...previousFilters.agentCodes];
+      let queueDateFilter = '';
       if (previousFilters.dateFrom) {
-        historyDateFilter += ` AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${historyParams.length + 1}`;
-        historyParams.push(previousFilters.dateFrom);
+        queueDateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${queueParams.length + 1}`;
+        queueParams.push(previousFilters.dateFrom);
       }
       if (previousFilters.dateTo) {
-        historyDateFilter += ` AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${historyParams.length + 1}`;
-        historyParams.push(previousFilters.dateTo);
+        queueDateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${queueParams.length + 1}`;
+        queueParams.push(previousFilters.dateTo);
       }
 
-      const totalResult = await externalDb.raw<{ total: string }[]>({
+      const queueResult = await externalDb.raw<{ total: string }[]>({
         query: `
-          SELECT COUNT(DISTINCT fq.session_id)::text as total
-          FROM followup_history fh
-          JOIN followup_queue fq ON fq.id = fh.followup_queue_id
-          WHERE fq.cod_agent IN (${agentPlaceholders})
-            ${historyDateFilter}
+          SELECT COUNT(DISTINCT session_id)::text as total
+          FROM followup_queue
+          WHERE cod_agent IN (${agentPlaceholders})
+            ${queueDateFilter}
         `,
-        params: historyParams,
+        params: queueParams,
       });
 
-      // Responses from followup_response in previous period (COUNT(*), not DISTINCT)
-      const responseParams: (string | number)[] = [...previousFilters.agentCodes];
-      let responseDateFilter = '';
+      // 2. Unique leads who returned in previous period
+      const returnParams: (string | number)[] = [...previousFilters.agentCodes];
+      let returnDateFilter = '';
       if (previousFilters.dateFrom) {
-        responseDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${responseParams.length + 1}`;
-        responseParams.push(previousFilters.dateFrom);
+        returnDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${returnParams.length + 1}`;
+        returnParams.push(previousFilters.dateFrom);
       }
       if (previousFilters.dateTo) {
-        responseDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${responseParams.length + 1}`;
-        responseParams.push(previousFilters.dateTo);
+        returnDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${returnParams.length + 1}`;
+        returnParams.push(previousFilters.dateTo);
       }
 
+      const returnResult = await externalDb.raw<{ leads_returned: string }[]>({
+        query: `
+          WITH response_data AS (
+            SELECT DISTINCT ON (fq.cod_agent, fq.session_id)
+              fq.session_id
+            FROM followup_queue fq
+            INNER JOIN followup_response fr ON fr.followup_queue_id = fq.id
+            WHERE fq.cod_agent IN (${agentPlaceholders})
+              ${returnDateFilter}
+            ORDER BY fq.cod_agent, fq.session_id, fr.created_at DESC
+          )
+          SELECT COUNT(*)::text as leads_returned
+          FROM response_data
+        `,
+        params: returnParams,
+      });
+
+      // 3. Total responses in previous period
       const responseResult = await externalDb.raw<{ responses: string }[]>({
         query: `
           SELECT COUNT(*)::text as responses
           FROM followup_response fr
           JOIN followup_queue fq ON fq.id = fr.followup_queue_id
           WHERE fq.cod_agent IN (${agentPlaceholders})
-            ${responseDateFilter}
+            ${returnDateFilter}
         `,
-        params: responseParams,
+        params: returnParams,
       });
 
-      const total = parseInt(totalResult.flat()[0]?.total || '0', 10);
+      const totalLeads = parseInt(queueResult.flat()[0]?.total || '0', 10);
+      const leadsReturned = parseInt(returnResult.flat()[0]?.leads_returned || '0', 10);
       const responses = parseInt(responseResult.flat()[0]?.responses || '0', 10);
-      const rate = total > 0 ? (responses / total) * 100 : 0;
+      const returnRate = totalLeads > 0 ? (leadsReturned / totalLeads) * 100 : 0;
 
-      return { total, responses, rate };
+      return { totalLeads, leadsReturned, responses, returnRate };
     },
     enabled,
     staleTime: 1000 * 60,
@@ -826,11 +863,11 @@ export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
   return useMemo((): { previous: FollowupPreviousStats; isLoading: boolean } => ({
     previous: {
       totalSent: sentCount,
-      stopped: responseData?.responses || 0,
-      responseRate: responseData?.rate || 0,
+      stopped: returnData?.responses || 0,
+      responseRate: returnData?.returnRate || 0,
       total: queueTotals?.total || 0,
       waiting: queueTotals?.waiting || 0,
     },
-    isLoading: isLoadingSent || isLoadingResponse || isLoadingQueue,
-  }), [sentCount, responseData, queueTotals, isLoadingSent, isLoadingResponse, isLoadingQueue]);
+    isLoading: isLoadingSent || isLoadingReturn || isLoadingQueue,
+  }), [sentCount, returnData, queueTotals, isLoadingSent, isLoadingReturn, isLoadingQueue]);
 }
