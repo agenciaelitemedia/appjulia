@@ -33,6 +33,11 @@ export interface JuliaContrato {
   total_msg: number;
   whatsapp: string;
   cod_document: string;
+  /**
+   * Token do documento no ZapSign (doc_token). Esse é o identificador correto
+   * para chamar GET /api/v1/docs/{doc_token}/.
+   */
+  zapsing_doctoken?: string | null;
   status_document: string;
   situacao: string;
   data_contrato: string;
