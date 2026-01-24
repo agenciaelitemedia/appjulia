@@ -586,130 +586,119 @@ export function useFollowupQueueTotals(filters: FollowupFiltersState) {
   });
 }
 
-// Fetch return rate and loss rate using followup_queue + followup_response
-// Return Rate: (leads STOP + step<>0 with response / total leads in queue) * 100
-// Loss Rate: (leads STOP + step=0 / total leads in queue) * 100
+// Fetch unified metrics using a single CTE to ensure mutually exclusive rates
+// All rates are based on the CURRENT state (most recent record per lead)
+// This guarantees: followupRate + returnRate + lossRate = 100%
 export function useFollowupReturnRate(filters: FollowupFiltersState) {
   return useQuery({
     queryKey: ['followup-return-rate', filters],
     queryFn: async () => {
       if (!filters.agentCodes.length) return { 
-        totalLeads: 0, 
+        totalLeads: 0,
+        leadsInFollowup: 0, 
         leadsReturned: 0, 
         leadsLost: 0,
         responses: 0, 
+        followupRate: 0,
         returnRate: 0,
         lossRate: 0 
       };
 
       const agentPlaceholders = filters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
-      
-      // 1. Total leads in queue (any status)
-      const queueParams: (string | number)[] = [...filters.agentCodes];
-      let queueDateFilter = '';
+      const params: (string | number)[] = [...filters.agentCodes];
+
+      let dateFilter = '';
       if (filters.dateFrom) {
-        queueDateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${queueParams.length + 1}`;
-        queueParams.push(filters.dateFrom);
+        dateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
+        params.push(filters.dateFrom);
       }
       if (filters.dateTo) {
-        queueDateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${queueParams.length + 1}`;
-        queueParams.push(filters.dateTo);
+        dateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
+        params.push(filters.dateTo);
       }
 
-      const queueResult = await externalDb.raw<{ total: string }[]>({
-        query: `
-          SELECT COUNT(DISTINCT session_id)::text as total
-          FROM followup_queue
-          WHERE cod_agent IN (${agentPlaceholders})
-            ${queueDateFilter}
-        `,
-        params: queueParams,
-      });
-
-      // 2. Unique leads who returned (STOP + step_number <> 0 + has response)
-      const returnParams: (string | number)[] = [...filters.agentCodes];
-      let returnDateFilter = '';
+      // Response date filter uses same params as main filter
+      let responseDateFilter = '';
       if (filters.dateFrom) {
-        returnDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${returnParams.length + 1}`;
-        returnParams.push(filters.dateFrom);
+        responseDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.indexOf(filters.dateFrom) + 1}`;
       }
       if (filters.dateTo) {
-        returnDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${returnParams.length + 1}`;
-        returnParams.push(filters.dateTo);
+        responseDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.indexOf(filters.dateTo) + 1}`;
       }
 
-      const returnResult = await externalDb.raw<{ leads_returned: string }[]>({
+      // Unified query using CTE to get CURRENT state of each lead
+      const result = await externalDb.raw<{
+        total_leads: string;
+        in_followup: string;
+        returned: string;
+        lost: string;
+        total_responses: string;
+      }[]>({
         query: `
-          WITH response_data AS (
-            SELECT DISTINCT ON (fq.cod_agent, fq.session_id)
-              fq.session_id
-            FROM followup_queue fq
-            INNER JOIN followup_response fr ON fr.followup_queue_id = fq.id
-            WHERE fq.cod_agent IN (${agentPlaceholders})
-              AND fq.state = 'STOP'
-              AND fq.step_number <> 0
-              ${returnDateFilter}
-            ORDER BY fq.cod_agent, fq.session_id, fr.created_at DESC
-          )
-          SELECT COUNT(*)::text as leads_returned
-          FROM response_data
-        `,
-        params: returnParams,
-      });
-
-      // 3. Leads lost (STOP + step_number = 0 - finalized without return)
-      const lostParams: (string | number)[] = [...filters.agentCodes];
-      let lostDateFilter = '';
-      if (filters.dateFrom) {
-        lostDateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${lostParams.length + 1}`;
-        lostParams.push(filters.dateFrom);
-      }
-      if (filters.dateTo) {
-        lostDateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${lostParams.length + 1}`;
-        lostParams.push(filters.dateTo);
-      }
-
-      const lostResult = await externalDb.raw<{ leads_lost: string }[]>({
-        query: `
-          WITH lost_leads AS (
+          WITH current_state AS (
+            -- Get CURRENT state for each lead (most recent record by send_date)
             SELECT DISTINCT ON (cod_agent, session_id)
-              session_id
+              session_id,
+              id as queue_id,
+              state,
+              step_number
             FROM followup_queue
             WHERE cod_agent IN (${agentPlaceholders})
-              AND state = 'STOP'
-              AND step_number = 0
-              ${lostDateFilter}
+              ${dateFilter}
             ORDER BY cod_agent, session_id, send_date DESC
+          ),
+          leads_with_response AS (
+            -- Identify leads in STOP that have a response registered
+            SELECT DISTINCT cs.session_id
+            FROM current_state cs
+            INNER JOIN followup_response fr ON fr.followup_queue_id = cs.queue_id
+            WHERE cs.state = 'STOP'
           )
-          SELECT COUNT(*)::text as leads_lost
-          FROM lost_leads
+          SELECT 
+            COUNT(*)::text as total_leads,
+            
+            -- Taxa em FollowUp: leads currently in SEND state
+            COUNT(*) FILTER (WHERE state = 'SEND')::text as in_followup,
+            
+            -- Taxa de Retorno: leads in STOP + step<>0 + has response
+            COUNT(*) FILTER (
+              WHERE state = 'STOP' 
+                AND step_number <> 0 
+                AND session_id IN (SELECT session_id FROM leads_with_response)
+            )::text as returned,
+            
+            -- Taxa de Perda: leads in STOP + step=0
+            COUNT(*) FILTER (WHERE state = 'STOP' AND step_number = 0)::text as lost,
+            
+            -- Total responses (COUNT of all response records)
+            (SELECT COUNT(*)::text FROM followup_response fr
+             JOIN followup_queue fq ON fq.id = fr.followup_queue_id
+             WHERE fq.cod_agent IN (${agentPlaceholders})
+               ${responseDateFilter}
+            ) as total_responses
+            
+          FROM current_state
         `,
-        params: lostParams,
+        params,
       });
 
-      // 4. Total responses (COUNT(*) - each record = 1 response)
-      const responseResult = await externalDb.raw<{ responses: string }[]>({
-        query: `
-          SELECT COUNT(*)::text as responses
-          FROM followup_response fr
-          JOIN followup_queue fq ON fq.id = fr.followup_queue_id
-          WHERE fq.cod_agent IN (${agentPlaceholders})
-            ${returnDateFilter}
-        `,
-        params: returnParams,
-      });
+      const flatResult = Array.isArray(result) ? result.flat() : [];
+      const totalLeads = parseInt(flatResult[0]?.total_leads || '0', 10);
+      const inFollowup = parseInt(flatResult[0]?.in_followup || '0', 10);
+      const returned = parseInt(flatResult[0]?.returned || '0', 10);
+      const lost = parseInt(flatResult[0]?.lost || '0', 10);
+      const responses = parseInt(flatResult[0]?.total_responses || '0', 10);
 
-      const totalLeads = parseInt(queueResult.flat()[0]?.total || '0', 10);
-      const leadsReturned = parseInt(returnResult.flat()[0]?.leads_returned || '0', 10);
-      const leadsLost = parseInt(lostResult.flat()[0]?.leads_lost || '0', 10);
-      const responses = parseInt(responseResult.flat()[0]?.responses || '0', 10);
-      
-      // Return Rate = (leads STOP + step<>0 with response / total in queue) × 100
-      const returnRate = totalLeads > 0 ? (leadsReturned / totalLeads) * 100 : 0;
-      // Loss Rate = (leads STOP + step=0 / total in queue) × 100
-      const lossRate = totalLeads > 0 ? (leadsLost / totalLeads) * 100 : 0;
-
-      return { totalLeads, leadsReturned, leadsLost, responses, returnRate, lossRate };
+      return {
+        totalLeads,
+        leadsInFollowup: inFollowup,
+        leadsReturned: returned,
+        leadsLost: lost,
+        responses,
+        followupRate: totalLeads > 0 ? (inFollowup / totalLeads) * 100 : 0,
+        returnRate: totalLeads > 0 ? (returned / totalLeads) * 100 : 0,
+        lossRate: totalLeads > 0 ? (lost / totalLeads) * 100 : 0,
+      };
     },
     enabled: filters.agentCodes.length > 0,
     staleTime: 1000 * 30,
@@ -769,130 +758,21 @@ export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
     staleTime: 1000 * 60,
   });
 
-  // Fetch return rate and loss rate for previous period (same logic as useFollowupReturnRate)
+  // Fetch unified metrics for previous period using same CTE logic as useFollowupReturnRate
   const { data: returnData, isLoading: isLoadingReturn } = useQuery({
     queryKey: ['followup-return-rate-previous', previousFilters],
     queryFn: async () => {
       if (!previousFilters.agentCodes.length || !previousFilters.dateFrom) {
-        return { totalLeads: 0, leadsReturned: 0, leadsLost: 0, responses: 0, returnRate: 0, lossRate: 0 };
-      }
-
-      const agentPlaceholders = previousFilters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
-      
-      // 1. Total leads in queue for previous period
-      const queueParams: (string | number)[] = [...previousFilters.agentCodes];
-      let queueDateFilter = '';
-      if (previousFilters.dateFrom) {
-        queueDateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${queueParams.length + 1}`;
-        queueParams.push(previousFilters.dateFrom);
-      }
-      if (previousFilters.dateTo) {
-        queueDateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${queueParams.length + 1}`;
-        queueParams.push(previousFilters.dateTo);
-      }
-
-      const queueResult = await externalDb.raw<{ total: string }[]>({
-        query: `
-          SELECT COUNT(DISTINCT session_id)::text as total
-          FROM followup_queue
-          WHERE cod_agent IN (${agentPlaceholders})
-            ${queueDateFilter}
-        `,
-        params: queueParams,
-      });
-
-      // 2. Unique leads who returned in previous period (STOP + step_number <> 0 + has response)
-      const returnParams: (string | number)[] = [...previousFilters.agentCodes];
-      let returnDateFilter = '';
-      if (previousFilters.dateFrom) {
-        returnDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${returnParams.length + 1}`;
-        returnParams.push(previousFilters.dateFrom);
-      }
-      if (previousFilters.dateTo) {
-        returnDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${returnParams.length + 1}`;
-        returnParams.push(previousFilters.dateTo);
-      }
-
-      const returnResult = await externalDb.raw<{ leads_returned: string }[]>({
-        query: `
-          WITH response_data AS (
-            SELECT DISTINCT ON (fq.cod_agent, fq.session_id)
-              fq.session_id
-            FROM followup_queue fq
-            INNER JOIN followup_response fr ON fr.followup_queue_id = fq.id
-            WHERE fq.cod_agent IN (${agentPlaceholders})
-              AND fq.state = 'STOP'
-              AND fq.step_number <> 0
-              ${returnDateFilter}
-            ORDER BY fq.cod_agent, fq.session_id, fr.created_at DESC
-          )
-          SELECT COUNT(*)::text as leads_returned
-          FROM response_data
-        `,
-        params: returnParams,
-      });
-
-      // 3. Leads lost in previous period (STOP + step_number = 0)
-      const lostParams: (string | number)[] = [...previousFilters.agentCodes];
-      let lostDateFilter = '';
-      if (previousFilters.dateFrom) {
-        lostDateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${lostParams.length + 1}`;
-        lostParams.push(previousFilters.dateFrom);
-      }
-      if (previousFilters.dateTo) {
-        lostDateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${lostParams.length + 1}`;
-        lostParams.push(previousFilters.dateTo);
-      }
-
-      const lostResult = await externalDb.raw<{ leads_lost: string }[]>({
-        query: `
-          WITH lost_leads AS (
-            SELECT DISTINCT ON (cod_agent, session_id)
-              session_id
-            FROM followup_queue
-            WHERE cod_agent IN (${agentPlaceholders})
-              AND state = 'STOP'
-              AND step_number = 0
-              ${lostDateFilter}
-            ORDER BY cod_agent, session_id, send_date DESC
-          )
-          SELECT COUNT(*)::text as leads_lost
-          FROM lost_leads
-        `,
-        params: lostParams,
-      });
-
-      // 4. Total responses in previous period
-      const responseResult = await externalDb.raw<{ responses: string }[]>({
-        query: `
-          SELECT COUNT(*)::text as responses
-          FROM followup_response fr
-          JOIN followup_queue fq ON fq.id = fr.followup_queue_id
-          WHERE fq.cod_agent IN (${agentPlaceholders})
-            ${returnDateFilter}
-        `,
-        params: returnParams,
-      });
-
-      const totalLeads = parseInt(queueResult.flat()[0]?.total || '0', 10);
-      const leadsReturned = parseInt(returnResult.flat()[0]?.leads_returned || '0', 10);
-      const leadsLost = parseInt(lostResult.flat()[0]?.leads_lost || '0', 10);
-      const responses = parseInt(responseResult.flat()[0]?.responses || '0', 10);
-      const returnRate = totalLeads > 0 ? (leadsReturned / totalLeads) * 100 : 0;
-      const lossRate = totalLeads > 0 ? (leadsLost / totalLeads) * 100 : 0;
-
-      return { totalLeads, leadsReturned, leadsLost, responses, returnRate, lossRate };
-    },
-    enabled,
-    staleTime: 1000 * 60,
-  });
-
-  // Fetch queue totals for previous period (total leads and waiting leads)
-  const { data: queueTotals, isLoading: isLoadingQueue } = useQuery({
-    queryKey: ['followup-queue-totals-previous', previousFilters],
-    queryFn: async () => {
-      if (!previousFilters.agentCodes.length || !previousFilters.dateFrom) {
-        return { total: 0, waiting: 0 };
+        return { 
+          totalLeads: 0, 
+          leadsInFollowup: 0,
+          leadsReturned: 0, 
+          leadsLost: 0, 
+          responses: 0, 
+          followupRate: 0,
+          returnRate: 0, 
+          lossRate: 0 
+        };
       }
 
       const agentPlaceholders = previousFilters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
@@ -908,50 +788,97 @@ export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
         params.push(previousFilters.dateTo);
       }
 
-      const result = await externalDb.raw<{ total: string; waiting: string }[]>({
+      // Response date filter uses same params as main filter
+      let responseDateFilter = '';
+      if (previousFilters.dateFrom) {
+        responseDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.indexOf(previousFilters.dateFrom) + 1}`;
+      }
+      if (previousFilters.dateTo) {
+        responseDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.indexOf(previousFilters.dateTo) + 1}`;
+      }
+
+      // Unified query using CTE to get CURRENT state of each lead
+      const result = await externalDb.raw<{
+        total_leads: string;
+        in_followup: string;
+        returned: string;
+        lost: string;
+        total_responses: string;
+      }[]>({
         query: `
-          WITH unique_leads AS (
+          WITH current_state AS (
+            -- Get CURRENT state for each lead (most recent record by send_date)
             SELECT DISTINCT ON (cod_agent, session_id)
-              session_id, state
+              session_id,
+              id as queue_id,
+              state,
+              step_number
             FROM followup_queue
             WHERE cod_agent IN (${agentPlaceholders})
               ${dateFilter}
             ORDER BY cod_agent, session_id, send_date DESC
+          ),
+          leads_with_response AS (
+            -- Identify leads in STOP that have a response registered
+            SELECT DISTINCT cs.session_id
+            FROM current_state cs
+            INNER JOIN followup_response fr ON fr.followup_queue_id = cs.queue_id
+            WHERE cs.state = 'STOP'
           )
           SELECT 
-            COUNT(*)::text as total,
-            COUNT(*) FILTER (WHERE state = 'SEND')::text as waiting
-          FROM unique_leads
+            COUNT(*)::text as total_leads,
+            COUNT(*) FILTER (WHERE state = 'SEND')::text as in_followup,
+            COUNT(*) FILTER (
+              WHERE state = 'STOP' 
+                AND step_number <> 0 
+                AND session_id IN (SELECT session_id FROM leads_with_response)
+            )::text as returned,
+            COUNT(*) FILTER (WHERE state = 'STOP' AND step_number = 0)::text as lost,
+            (SELECT COUNT(*)::text FROM followup_response fr
+             JOIN followup_queue fq ON fq.id = fr.followup_queue_id
+             WHERE fq.cod_agent IN (${agentPlaceholders})
+               ${responseDateFilter}
+            ) as total_responses
+          FROM current_state
         `,
         params,
       });
 
       const flatResult = Array.isArray(result) ? result.flat() : [];
+      const totalLeads = parseInt(flatResult[0]?.total_leads || '0', 10);
+      const inFollowup = parseInt(flatResult[0]?.in_followup || '0', 10);
+      const returned = parseInt(flatResult[0]?.returned || '0', 10);
+      const lost = parseInt(flatResult[0]?.lost || '0', 10);
+      const responses = parseInt(flatResult[0]?.total_responses || '0', 10);
+
       return {
-        total: parseInt(flatResult[0]?.total || '0', 10),
-        waiting: parseInt(flatResult[0]?.waiting || '0', 10),
+        totalLeads,
+        leadsInFollowup: inFollowup,
+        leadsReturned: returned,
+        leadsLost: lost,
+        responses,
+        followupRate: totalLeads > 0 ? (inFollowup / totalLeads) * 100 : 0,
+        returnRate: totalLeads > 0 ? (returned / totalLeads) * 100 : 0,
+        lossRate: totalLeads > 0 ? (lost / totalLeads) * 100 : 0,
       };
     },
     enabled,
     staleTime: 1000 * 60,
   });
 
+  // Return unified metrics - no need for separate queueTotals query since returnData already has all metrics
   return useMemo((): { previous: FollowupPreviousStats; isLoading: boolean } => {
-    const total = queueTotals?.total || 0;
-    const waiting = queueTotals?.waiting || 0;
-    const followupRate = total > 0 ? (waiting / total) * 100 : 0;
-
     return {
       previous: {
         totalSent: sentCount,
         stopped: returnData?.responses || 0,
         responseRate: returnData?.returnRate || 0,
         lossRate: returnData?.lossRate || 0,
-        total,
-        waiting,
-        followupRate,
+        total: returnData?.totalLeads || 0,
+        waiting: returnData?.leadsInFollowup || 0,
+        followupRate: returnData?.followupRate || 0,
       },
-      isLoading: isLoadingSent || isLoadingReturn || isLoadingQueue,
+      isLoading: isLoadingSent || isLoadingReturn,
     };
-  }, [sentCount, returnData, queueTotals, isLoadingSent, isLoadingReturn, isLoadingQueue]);
+  }, [sentCount, returnData, isLoadingSent, isLoadingReturn]);
 }
