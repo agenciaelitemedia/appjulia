@@ -75,14 +75,18 @@ export default function LeadsList() {
       const query = user?.role === 'admin'
         ? `SELECT 
              c.id, c.contact_name as name, c.whatsapp_number as phone,
-             s.name as status, c.created_at, c.notes as source
+             s.name as status, 
+             (c.created_at AT TIME ZONE 'America/Sao_Paulo')::timestamptz as created_at, 
+             c.notes as source
            FROM crm_atendimento_cards c
            LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
            ORDER BY c.created_at DESC
            LIMIT 100`
         : `SELECT 
              c.id, c.contact_name as name, c.whatsapp_number as phone,
-             s.name as status, c.created_at, c.notes as source
+             s.name as status, 
+             (c.created_at AT TIME ZONE 'America/Sao_Paulo')::timestamptz as created_at, 
+             c.notes as source
            FROM crm_atendimento_cards c
            LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
            WHERE c.cod_agent = $1

@@ -110,6 +110,10 @@ serve(async (req) => {
           max_lifetime: 60 * 30,
         });
 
+    // Set timezone for this session to America/Sao_Paulo (UTC-3)
+    // This ensures consistent date/time handling across all queries
+    await sql`SET timezone = 'America/Sao_Paulo'`;
+
     let result: Record<string, unknown>[] = [];
 
     switch (action) {
