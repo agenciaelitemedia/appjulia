@@ -1,12 +1,19 @@
+import { useMemo } from 'react';
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Clock, Send, ListTodo, MessageCircle, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Minus, Users, Hand } from 'lucide-react';
 import { FollowupStats } from '../../types';
+import { getPreviousPeriod } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 
 interface FollowupSummaryProps {
   stats: FollowupStats;
   isLoading?: boolean;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 // Calculate percentage change between current and previous values
@@ -66,7 +73,21 @@ interface CardData {
   invertChange?: boolean; // For loss rate: decrease is positive
 }
 
-export function FollowupSummary({ stats, isLoading }: FollowupSummaryProps) {
+export function FollowupSummary({ stats, isLoading, dateFrom, dateTo }: FollowupSummaryProps) {
+  // Calculate comparison period tooltip text
+  const comparisonTooltip = useMemo(() => {
+    if (!dateFrom || !dateTo) return null;
+    
+    const { previousDateFrom, previousDateTo } = getPreviousPeriod(dateFrom, dateTo);
+    
+    const currentFromFormatted = format(parseISO(dateFrom), 'dd/MM', { locale: ptBR });
+    const currentToFormatted = format(parseISO(dateTo), 'dd/MM', { locale: ptBR });
+    const previousFromFormatted = format(parseISO(previousDateFrom), 'dd/MM', { locale: ptBR });
+    const previousToFormatted = format(parseISO(previousDateTo), 'dd/MM', { locale: ptBR });
+    
+    return `Comparando ${currentFromFormatted} - ${currentToFormatted} com ${previousFromFormatted} - ${previousToFormatted}`;
+  }, [dateFrom, dateTo]);
+
   // Cards da primeira linha (contadores absolutos)
   const absoluteCards: CardData[] = [
     {
@@ -187,7 +208,20 @@ export function FollowupSummary({ stats, isLoading }: FollowupSummaryProps) {
                   )}>
                     {card.change.label}
                   </span>
-                  <span className="text-muted-foreground hidden sm:inline">vs anterior</span>
+                  {comparisonTooltip ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-muted-foreground hidden sm:inline cursor-help underline decoration-dotted underline-offset-2">
+                          vs anterior
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{comparisonTooltip}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <span className="text-muted-foreground hidden sm:inline">vs anterior</span>
+                  )}
                 </div>
               )}
             </div>
@@ -231,16 +265,18 @@ export function FollowupSummary({ stats, isLoading }: FollowupSummaryProps) {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Linha 1: Contadores Absolutos */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {absoluteCards.map((card, index) => renderCard(card, index))}
+    <TooltipProvider>
+      <div className="space-y-4">
+        {/* Linha 1: Contadores Absolutos */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {absoluteCards.map((card, index) => renderCard(card, index))}
+        </div>
+        
+        {/* Linha 2: Taxas Percentuais */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {rateCards.map((card, index) => renderCard(card, index))}
+        </div>
       </div>
-      
-      {/* Linha 2: Taxas Percentuais */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {rateCards.map((card, index) => renderCard(card, index))}
-      </div>
-    </div>
+    </TooltipProvider>
   );
 }

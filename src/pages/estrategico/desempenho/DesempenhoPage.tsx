@@ -5,11 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { useJuliaAgents, useJuliaSessoes, useJuliaSessoesPrevious } from '../hooks/useJuliaData';
-import { JuliaFilters } from '../components/JuliaFilters';
+import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
+import { UnifiedFiltersState } from '@/components/filters/types';
 import { DesempenhoSummary } from './components/DesempenhoSummary';
 import { DesempenhoEvolutionChart } from './components/DesempenhoEvolutionChart';
 import { DesempenhoTable } from './components/DesempenhoTable';
-import { JuliaFiltersState } from '../types';
 
 export default function DesempenhoPage() {
   const queryClient = useQueryClient();
@@ -17,7 +17,7 @@ export default function DesempenhoPage() {
   const hasInitializedFilters = useRef(false);
 
   const today = getTodayInSaoPaulo();
-  const [filters, setFilters] = useState<JuliaFiltersState>({
+  const [filters, setFilters] = useState<UnifiedFiltersState>({
     search: '',
     agentCodes: [],
     dateFrom: today,
@@ -26,8 +26,14 @@ export default function DesempenhoPage() {
   });
 
   const { data: agents = [], isLoading: agentsLoading } = useJuliaAgents();
-  const { data: sessoes = [], isLoading: sessoesLoading } = useJuliaSessoes(filters);
-  const { data: previousSessoes = [] } = useJuliaSessoesPrevious(filters);
+  const { data: sessoes = [], isLoading: sessoesLoading } = useJuliaSessoes({
+    ...filters,
+    perfilAgent: filters.perfilAgent as 'SDR' | 'CLOSER' | 'ALL',
+  });
+  const { data: previousSessoes = [] } = useJuliaSessoesPrevious({
+    ...filters,
+    perfilAgent: filters.perfilAgent as 'SDR' | 'CLOSER' | 'ALL',
+  });
 
   // Initialize agent codes when agents load
   useEffect(() => {
@@ -85,7 +91,7 @@ export default function DesempenhoPage() {
       </div>
 
       {/* Filters - Now at the top after header */}
-      <JuliaFilters
+      <UnifiedFilters
         agents={agents}
         filters={filters}
         onFiltersChange={setFilters}
@@ -97,7 +103,9 @@ export default function DesempenhoPage() {
       <DesempenhoSummary 
         sessoes={sessoes} 
         previousSessoes={previousSessoes}
-        isLoading={sessoesLoading} 
+        isLoading={sessoesLoading}
+        dateFrom={filters.dateFrom}
+        dateTo={filters.dateTo}
       />
 
       {/* Evolution Chart */}

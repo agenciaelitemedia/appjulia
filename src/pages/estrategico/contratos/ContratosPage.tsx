@@ -5,12 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { useJuliaAgents, useJuliaContratos, useJuliaContratosPrevious } from '../hooks/useJuliaData';
-import { JuliaFilters } from '../components/JuliaFilters';
+import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
+import { UnifiedFiltersState } from '@/components/filters/types';
 import { ContratosSummary } from './components/ContratosSummary';
 import { ContratosTable } from './components/ContratosTable';
 import { ContratoDetailsDialog } from './components/ContratoDetailsDialog';
 import { ContratosEvolutionChart } from './components/ContratosEvolutionChart';
-import { JuliaFiltersState, JuliaContrato } from '../types';
+import { JuliaContrato } from '../types';
 
 export default function ContratosPage() {
   const queryClient = useQueryClient();
@@ -19,7 +20,7 @@ export default function ContratosPage() {
   const hasInitializedFilters = useRef(false);
 
   const today = getTodayInSaoPaulo();
-  const [filters, setFilters] = useState<JuliaFiltersState>({
+  const [filters, setFilters] = useState<UnifiedFiltersState>({
     search: '',
     agentCodes: [],
     dateFrom: today,
@@ -27,7 +28,10 @@ export default function ContratosPage() {
   });
 
   const { data: agents = [], isLoading: agentsLoading } = useJuliaAgents();
-  const { data: contratos = [], isLoading: contratosLoading } = useJuliaContratos(filters);
+  const { data: contratos = [], isLoading: contratosLoading } = useJuliaContratos({
+    ...filters,
+    statusDocument: filters.statusDocument,
+  });
   const { data: previousContratos = [] } = useJuliaContratosPrevious(filters);
 
   // Initialize agent codes when agents load
@@ -86,7 +90,7 @@ export default function ContratosPage() {
       </div>
 
       {/* Filters - Now at the top after header */}
-      <JuliaFilters
+      <UnifiedFilters
         agents={agents}
         filters={filters}
         onFiltersChange={setFilters}
@@ -99,7 +103,9 @@ export default function ContratosPage() {
       <ContratosSummary 
         contratos={contratos} 
         previousContratos={previousContratos}
-        isLoading={contratosLoading} 
+        isLoading={contratosLoading}
+        dateFrom={filters.dateFrom}
+        dateTo={filters.dateTo}
       />
 
       {/* Evolution Chart */}

@@ -30,8 +30,16 @@ import {
 import { FollowupDashboard } from './components/FollowupDashboard';
 import { FollowupConfig } from './components/FollowupConfig';
 import { FollowupQueue } from './components/FollowupQueue';
-import { FollowupFilters } from './components/FollowupFilters';
+import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
+import { UnifiedFiltersState } from '@/components/filters/types';
 import { getTodayInSaoPaulo, get7DaysAgoInSaoPaulo } from '@/lib/dateUtils';
+
+// Queue states for the filter
+const QUEUE_STATES = [
+  { value: 'all', label: 'Todos Estados' },
+  { value: 'SEND', label: 'Em FollowUp' },
+  { value: 'STOP', label: 'Parados' },
+];
 
 // Helper to parse JSON fields that might be strings or objects
 function parseJsonField<T>(field: string | T | null | undefined, defaultValue: T): T {
@@ -65,15 +73,23 @@ export default function FollowupPage() {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   
-  // Dashboard uses last 7 days by default
-  const [dashboardDateFrom, setDashboardDateFrom] = useState<string>(get7DaysAgoInSaoPaulo());
-  const [dashboardDateTo, setDashboardDateTo] = useState<string>(getTodayInSaoPaulo());
+  // Dashboard filters (using UnifiedFilters)
+  const [dashboardFilters, setDashboardFilters] = useState<UnifiedFiltersState>({
+    search: '',
+    agentCodes: [],
+    dateFrom: get7DaysAgoInSaoPaulo(),
+    dateTo: getTodayInSaoPaulo(),
+    stateFilter: 'all',
+  });
   
-  // Queue uses today by default
-  const [queueDateFrom, setQueueDateFrom] = useState<string>(getTodayInSaoPaulo());
-  const [queueDateTo, setQueueDateTo] = useState<string>(getTodayInSaoPaulo());
-  const [stateFilter, setStateFilter] = useState<string>('all');
-  const [searchTerm, setSearchTerm] = useState('');
+  // Queue filters (using UnifiedFilters)
+  const [queueFilters, setQueueFilters] = useState<UnifiedFiltersState>({
+    search: '',
+    agentCodes: [],
+    dateFrom: getTodayInSaoPaulo(),
+    dateTo: getTodayInSaoPaulo(),
+    stateFilter: 'all',
+  });
 
   // Fetch agents
   const { data: agents = [], isLoading: isLoadingAgents } = useJuliaAgents();
@@ -89,32 +105,39 @@ export default function FollowupPage() {
     }
   }, [agents, selectedAgent, user]);
 
-  // Filters for dashboard (daily metrics)
-  const dashboardFilters: FollowupFiltersState = useMemo(() => ({
-    agentCodes: selectedAgent ? [selectedAgent] : [],
-    dateFrom: dashboardDateFrom,
-    dateTo: dashboardDateTo,
-  }), [selectedAgent, dashboardDateFrom, dashboardDateTo]);
+  // Update agentCodes when selectedAgent changes
+  useEffect(() => {
+    if (selectedAgent) {
+      setDashboardFilters(prev => ({ ...prev, agentCodes: [selectedAgent] }));
+      setQueueFilters(prev => ({ ...prev, agentCodes: [selectedAgent] }));
+    }
+  }, [selectedAgent]);
 
-  // Filters for queue
-  const queueFilters: FollowupFiltersState = useMemo(() => ({
+  // Filters for data hooks
+  const dashboardHookFilters: FollowupFiltersState = useMemo(() => ({
     agentCodes: selectedAgent ? [selectedAgent] : [],
-    dateFrom: queueDateFrom,
-    dateTo: queueDateTo,
-    state: stateFilter,
-  }), [selectedAgent, queueDateFrom, queueDateTo, stateFilter]);
+    dateFrom: dashboardFilters.dateFrom,
+    dateTo: dashboardFilters.dateTo,
+  }), [selectedAgent, dashboardFilters.dateFrom, dashboardFilters.dateTo]);
+
+  const queueHookFilters: FollowupFiltersState = useMemo(() => ({
+    agentCodes: selectedAgent ? [selectedAgent] : [],
+    dateFrom: queueFilters.dateFrom,
+    dateTo: queueFilters.dateTo,
+    state: queueFilters.stateFilter,
+  }), [selectedAgent, queueFilters.dateFrom, queueFilters.dateTo, queueFilters.stateFilter]);
 
   // Fetch data
   const { data: configData, isLoading: isLoadingConfig, refetch: refetchConfig } = useFollowupConfig(selectedAgent);
-  const { data: queueData, isLoading: isLoadingQueue, refetch: refetchQueue } = useFollowupQueue(queueFilters);
-  const { data: totalSentCount = 0, refetch: refetchSentCount } = useFollowupSentCount(queueFilters);
+  const { data: queueData, isLoading: isLoadingQueue, refetch: refetchQueue } = useFollowupQueue(queueHookFilters);
+  const { data: totalSentCount = 0, refetch: refetchSentCount } = useFollowupSentCount(queueHookFilters);
   
-  // Dashboard-specific data - all metrics now come from unified returnData hook
-  const { data: dailyMetrics = [], isLoading: isLoadingDailyMetrics, refetch: refetchDailyMetrics } = useFollowupDailyMetrics(dashboardFilters);
-  const { data: returnData, refetch: refetchReturnRate } = useFollowupReturnRate(dashboardFilters);
+  // Dashboard-specific data
+  const { data: dailyMetrics = [], isLoading: isLoadingDailyMetrics, refetch: refetchDailyMetrics } = useFollowupDailyMetrics(dashboardHookFilters);
+  const { data: returnData, refetch: refetchReturnRate } = useFollowupReturnRate(dashboardHookFilters);
   
   // Previous period stats for comparison
-  const { previous: previousStats, isLoading: isLoadingPrevious } = useFollowupPreviousPeriodStats(dashboardFilters);
+  const { previous: previousStats, isLoading: isLoadingPrevious } = useFollowupPreviousPeriodStats(dashboardHookFilters);
 
   // Normalize config data
   const config: FollowupConfigType | null = useMemo(() => {
@@ -152,14 +175,14 @@ export default function FollowupPage() {
 
   // Filter items by search term (client-side)
   const filteredItems = useMemo(() => {
-    if (!searchTerm.trim()) return enrichedQueueItems;
+    if (!queueFilters.search.trim()) return enrichedQueueItems;
     
-    const search = searchTerm.toLowerCase();
+    const search = queueFilters.search.toLowerCase();
     return enrichedQueueItems.filter((item) =>
       item.name_client?.toLowerCase().includes(search) ||
       item.session_id?.toLowerCase().includes(search)
     );
-  }, [enrichedQueueItems, searchTerm]);
+  }, [enrichedQueueItems, queueFilters.search]);
 
   // Calculate queue stats from filtered items
   const queueStats = useMemo(() => {
@@ -176,23 +199,22 @@ export default function FollowupPage() {
     return result;
   }, [filteredItems]);
 
-  // Dashboard stats (using unified return data for mutually exclusive metrics)
-  // All metrics come from the same CTE ensuring: followupRate + returnRate + interventionRate + lossRate = 100%
+  // Dashboard stats
   const dashboardStats: FollowupStats = useMemo(() => {
     return {
-      total: returnData?.totalLeads || 0,         // Total unique leads
+      total: returnData?.totalLeads || 0,
       totalSent: dailyMetrics.reduce((sum, d) => sum + d.messagesSent, 0),
-      waiting: returnData?.leadsInFollowup || 0,  // Leads in SEND state
-      stopped: returnData?.responses || 0,        // COUNT(*) from followup_response
-      followupRate: returnData?.followupRate || 0, // (SEND / total) * 100
-      responseRate: returnData?.returnRate || 0,   // (STOP + step<>0 + response / total) * 100
-      interventionRate: returnData?.interventionRate || 0, // (STOP + step<>0 + no response / total) * 100
-      lossRate: returnData?.lossRate || 0,         // (STOP + step=0 / total) * 100
+      waiting: returnData?.leadsInFollowup || 0,
+      stopped: returnData?.responses || 0,
+      followupRate: returnData?.followupRate || 0,
+      responseRate: returnData?.returnRate || 0,
+      interventionRate: returnData?.interventionRate || 0,
+      lossRate: returnData?.lossRate || 0,
       previous: isLoadingPrevious ? undefined : previousStats,
     };
   }, [dailyMetrics, returnData, previousStats, isLoadingPrevious]);
 
-  // Queue page stats (local to queue tab)
+  // Queue page stats
   const queuePageStats: FollowupStats = useMemo(() => {
     const total = filteredItems.length;
     const waiting = queueStats.waiting;
@@ -206,8 +228,8 @@ export default function FollowupPage() {
       responseRate: total > 0 
         ? (queueStats.stopped / total) * 100 
         : 0,
-      interventionRate: 0, // Not calculated locally for queue page
-      lossRate: 0, // Not calculated locally for queue page
+      interventionRate: 0,
+      lossRate: 0,
       followupRate,
     };
   }, [filteredItems, totalSentCount, queueStats]);
@@ -246,6 +268,10 @@ export default function FollowupPage() {
     refetchDailyMetrics();
     refetchReturnRate();
   };
+
+  // Get current filters based on active tab
+  const currentFilters = activeTab === 'dashboard' ? dashboardFilters : queueFilters;
+  const setCurrentFilters = activeTab === 'dashboard' ? setDashboardFilters : setQueueFilters;
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -288,16 +314,16 @@ export default function FollowupPage() {
         </div>
       </div>
 
-      {/* Filters - positioned right after header */}
+      {/* Filters - positioned right after header, hidden on config tab */}
       {activeTab !== 'config' && (
-        <FollowupFilters
-          dateFrom={activeTab === 'dashboard' ? dashboardDateFrom : queueDateFrom}
-          dateTo={activeTab === 'dashboard' ? dashboardDateTo : queueDateTo}
-          stateFilter={stateFilter}
-          onDateFromChange={activeTab === 'dashboard' ? setDashboardDateFrom : setQueueDateFrom}
-          onDateToChange={activeTab === 'dashboard' ? setDashboardDateTo : setQueueDateTo}
-          onStateFilterChange={setStateFilter}
+        <UnifiedFilters
+          agents={[]} // Don't show agent selector - using dedicated selector above
+          filters={currentFilters}
+          onFiltersChange={setCurrentFilters}
+          showAgentSelector={false}
+          showQuickPeriods
           showStateFilter={activeTab === 'queue'}
+          stateOptions={QUEUE_STATES}
         />
       )}
 
@@ -323,8 +349,8 @@ export default function FollowupPage() {
             stats={dashboardStats}
             dailyMetrics={dailyMetrics}
             isLoading={isLoadingDailyMetrics}
-            dateFrom={dashboardDateFrom}
-            dateTo={dashboardDateTo}
+            dateFrom={dashboardFilters.dateFrom}
+            dateTo={dashboardFilters.dateTo}
           />
         </TabsContent>
 
@@ -337,8 +363,8 @@ export default function FollowupPage() {
             onRestart={handleRestart}
             onFinalize={handleFinalize}
             isUpdating={updateStateMutation.isPending || restartItemMutation.isPending || finalizeItemMutation.isPending}
-            searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
+            searchTerm={queueFilters.search}
+            onSearchChange={(search) => setQueueFilters(prev => ({ ...prev, search }))}
           />
         </TabsContent>
 
