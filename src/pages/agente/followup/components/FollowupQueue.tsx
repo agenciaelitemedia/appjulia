@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -37,15 +37,29 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { MessageCircle, MoreHorizontal, Pause, Play, Trash2, Search, ExternalLink } from 'lucide-react';
-import { FollowupQueueItem, QUEUE_STATES } from '../../types';
+import { 
+  MessageCircle, 
+  MoreHorizontal, 
+  Pause, 
+  Play, 
+  Trash2, 
+  Search, 
+  ExternalLink,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+} from 'lucide-react';
+import { FollowupQueueItemEnriched, DERIVED_STATUS_CONFIG } from '../../types';
 import { formatDbDateTime } from '@/lib/dateUtils';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
 
 const ITEMS_PER_PAGE = 20;
 
+type SortField = 'session_id' | 'name_client' | 'step_number' | 'derived_status' | 'send_date';
+type SortDirection = 'asc' | 'desc';
+
 interface FollowupQueueProps {
-  items: FollowupQueueItem[];
+  items: FollowupQueueItemEnriched[];
   isLoading?: boolean;
   onUpdateState: (id: number, state: string) => void;
   onDelete: (id: number) => void;
@@ -63,22 +77,67 @@ function formatWhatsAppNumber(number: string): string {
   return number;
 }
 
-function getStateBadge(state: string) {
-  const stateConfig = QUEUE_STATES[state as keyof typeof QUEUE_STATES];
-  if (!stateConfig) {
-    return <Badge variant="outline">{state}</Badge>;
-  }
-
-  const colorClasses = {
-    'bg-yellow-500': 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20',
-    'bg-green-500': 'bg-green-500/10 text-green-600 border-green-500/20',
-    'bg-muted': 'bg-muted text-muted-foreground',
-  };
-
+// Step badge component showing current/total
+function StepBadge({ current, total }: { current: number; total: number }) {
   return (
-    <Badge variant="outline" className={colorClasses[stateConfig.color as keyof typeof colorClasses]}>
-      {stateConfig.label}
+    <div className="flex items-center justify-center gap-1">
+      <Badge variant="default" className="text-xs px-2 min-w-[24px] justify-center">
+        {current}
+      </Badge>
+      <span className="text-muted-foreground text-xs">/</span>
+      <Badge variant="outline" className="text-xs px-2 min-w-[24px] justify-center">
+        {total}
+      </Badge>
+    </div>
+  );
+}
+
+// Derived status badge component
+function DerivedStatusBadge({ status }: { status: 'sent' | 'waiting' | 'stopped' }) {
+  const config = DERIVED_STATUS_CONFIG[status];
+  return (
+    <Badge variant="outline" className={config.className}>
+      {config.label}
     </Badge>
+  );
+}
+
+// Sortable header component
+function SortableHeader({ 
+  field, 
+  label, 
+  currentField, 
+  direction, 
+  onSort,
+  className = '',
+}: { 
+  field: SortField; 
+  label: string; 
+  currentField: SortField | null; 
+  direction: SortDirection; 
+  onSort: (field: SortField) => void;
+  className?: string;
+}) {
+  const isActive = currentField === field;
+  
+  return (
+    <TableHead 
+      className={`cursor-pointer select-none hover:bg-muted/50 ${className}`}
+      onClick={() => onSort(field)}
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        {isActive ? (
+          direction === 'asc' ? (
+            <ArrowUp className="h-3 w-3" />
+          ) : (
+            <ArrowDown className="h-3 w-3" />
+          )
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-50" />
+        )}
+      </div>
+    </TableHead>
   );
 }
 
@@ -94,30 +153,78 @@ export function FollowupQueue({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   const [messagesOpen, setMessagesOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<FollowupQueueItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<FollowupQueueItemEnriched | null>(null);
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  // Reset page when search or sort changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, sortField, sortDirection]);
 
   // Filter items
-  const filteredItems = items.filter((item) => {
-    const search = searchTerm.toLowerCase();
-    return (
-      item.name_client?.toLowerCase().includes(search) ||
-      item.session_id?.toLowerCase().includes(search)
-    );
-  });
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      const search = searchTerm.toLowerCase();
+      return (
+        item.name_client?.toLowerCase().includes(search) ||
+        item.session_id?.toLowerCase().includes(search)
+      );
+    });
+  }, [items, searchTerm]);
+
+  // Sort items
+  const sortedItems = useMemo(() => {
+    if (!sortField) return filteredItems;
+    
+    return [...filteredItems].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortField) {
+        case 'session_id':
+          comparison = (a.session_id || '').localeCompare(b.session_id || '');
+          break;
+        case 'name_client':
+          comparison = (a.name_client || '').localeCompare(b.name_client || '');
+          break;
+        case 'step_number':
+          comparison = a.step_number - b.step_number;
+          break;
+        case 'derived_status':
+          const statusOrder = { sent: 3, waiting: 2, stopped: 1 };
+          comparison = statusOrder[a.derived_status] - statusOrder[b.derived_status];
+          break;
+        case 'send_date':
+          comparison = new Date(a.send_date).getTime() - new Date(b.send_date).getTime();
+          break;
+      }
+      
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [filteredItems, sortField, sortDirection]);
 
   // Paginate
-  const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
-  const paginatedItems = filteredItems.slice(
+  const totalPages = Math.ceil(sortedItems.length / ITEMS_PER_PAGE);
+  const paginatedItems = sortedItems.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
 
-  const handleOpenMessages = (item: FollowupQueueItem) => {
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
+
+  const handleOpenMessages = (item: FollowupQueueItemEnriched) => {
     setSelectedItem(item);
     setMessagesOpen(true);
   };
 
-  const handleTogglePause = (item: FollowupQueueItem) => {
+  const handleTogglePause = (item: FollowupQueueItemEnriched) => {
     const newState = item.state === 'STOP' ? 'QUEUE' : 'STOP';
     onUpdateState(item.id, newState);
   };
@@ -142,9 +249,10 @@ export function FollowupQueue({
           <div className="space-y-4">
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="flex items-center gap-4">
+                <Skeleton className="h-10 w-16" />
+                <Skeleton className="h-10 w-20" />
                 <Skeleton className="h-10 w-32" />
                 <Skeleton className="h-10 w-48" />
-                <Skeleton className="h-10 w-20" />
                 <Skeleton className="h-10 w-24" />
               </div>
             ))}
@@ -165,16 +273,13 @@ export function FollowupQueue({
               <Input
                 placeholder="Buscar por nome ou WhatsApp..."
                 value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setCurrentPage(1);
-                }}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9"
               />
             </div>
           </div>
 
-          {filteredItems.length === 0 ? (
+          {sortedItems.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <MessageCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>Nenhum item na fila</p>
@@ -185,18 +290,54 @@ export function FollowupQueue({
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>WhatsApp</TableHead>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead className="text-center">Etapa</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Agendado para</TableHead>
-                      <TableHead>Contexto</TableHead>
+                      <SortableHeader 
+                        field="step_number" 
+                        label="Etapa" 
+                        currentField={sortField}
+                        direction={sortDirection}
+                        onSort={handleSort}
+                        className="text-center"
+                      />
+                      <SortableHeader 
+                        field="derived_status" 
+                        label="Status" 
+                        currentField={sortField}
+                        direction={sortDirection}
+                        onSort={handleSort}
+                      />
+                      <SortableHeader 
+                        field="session_id" 
+                        label="WhatsApp" 
+                        currentField={sortField}
+                        direction={sortDirection}
+                        onSort={handleSort}
+                      />
+                      <SortableHeader 
+                        field="name_client" 
+                        label="Cliente" 
+                        currentField={sortField}
+                        direction={sortDirection}
+                        onSort={handleSort}
+                      />
+                      <SortableHeader 
+                        field="send_date" 
+                        label="Agendado" 
+                        currentField={sortField}
+                        direction={sortDirection}
+                        onSort={handleSort}
+                      />
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedItems.map((item) => (
                       <TableRow key={item.id}>
+                        <TableCell className="text-center">
+                          <StepBadge current={item.step_number} total={item.total_steps} />
+                        </TableCell>
+                        <TableCell>
+                          <DerivedStatusBadge status={item.derived_status} />
+                        </TableCell>
                         <TableCell>
                           <a
                             href={`https://wa.me/${item.session_id.replace(/\D/g, '')}`}
@@ -211,17 +352,8 @@ export function FollowupQueue({
                         <TableCell className="font-medium">
                           {item.name_client || '-'}
                         </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="secondary">{item.step_number}</Badge>
-                        </TableCell>
-                        <TableCell>{getStateBadge(item.state)}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {formatDbDateTime(item.send_date)}
-                        </TableCell>
-                        <TableCell className="max-w-[200px]">
-                          <p className="text-sm text-muted-foreground truncate">
-                            {item.history || '-'}
-                          </p>
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>

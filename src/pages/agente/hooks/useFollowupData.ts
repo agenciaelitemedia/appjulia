@@ -105,7 +105,7 @@ export function useSaveFollowupConfig() {
   });
 }
 
-// Fetch followup queue with filters
+// Fetch followup queue with filters - grouped by agent + session_id (most recent only)
 export function useFollowupQueue(filters: FollowupFiltersState) {
   return useQuery({
     queryKey: ['followup-queue', filters],
@@ -113,10 +113,9 @@ export function useFollowupQueue(filters: FollowupFiltersState) {
       if (!filters.agentCodes.length) return [];
 
       const agentPlaceholders = filters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
-      const baseParamCount = filters.agentCodes.length;
+      const params: (string | number)[] = [...filters.agentCodes];
 
       let whereClause = `cod_agent IN (${agentPlaceholders})`;
-      const params: (string | number)[] = [...filters.agentCodes];
 
       // Date filters
       if (filters.dateFrom) {
@@ -134,15 +133,15 @@ export function useFollowupQueue(filters: FollowupFiltersState) {
         params.push(filters.state);
       }
 
+      // Use DISTINCT ON to get only the most recent record per agent + session_id
       const result = await externalDb.raw<FollowupQueueItem[]>({
         query: `
-          SELECT 
+          SELECT DISTINCT ON (cod_agent, session_id)
             id, cod_agent, session_id, step_number, send_date,
             state, history, name_client, created_at, hub, chat_memory
           FROM followup_queue
           WHERE ${whereClause}
-          ORDER BY send_date DESC
-          LIMIT 500
+          ORDER BY cod_agent, session_id, send_date DESC
         `,
         params,
       });
@@ -150,28 +149,56 @@ export function useFollowupQueue(filters: FollowupFiltersState) {
       return result;
     },
     enabled: filters.agentCodes.length > 0,
-    staleTime: 1000 * 30, // 30 seconds
+    staleTime: 1000 * 30,
   });
 }
 
-// Fetch queue statistics
-export function useFollowupQueueStats(agentCodes: string[]) {
+// Fetch queue statistics with full filters - grouped by agent + session_id (unique leads)
+export function useFollowupQueueStats(filters: FollowupFiltersState) {
   return useQuery({
-    queryKey: ['followup-queue-stats', agentCodes],
+    queryKey: ['followup-queue-stats', filters],
     queryFn: async () => {
-      if (!agentCodes.length) return { total: 0, queue: 0, send: 0, stop: 0 };
+      if (!filters.agentCodes.length) return { total: 0, queue: 0, send: 0, stop: 0 };
 
-      const agentPlaceholders = agentCodes.map((_, i) => `$${i + 1}`).join(', ');
+      const agentPlaceholders = filters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
+      const params: (string | number)[] = [...filters.agentCodes];
 
-      const result = await externalDb.raw<{ state: string; count: string }>({
+      let whereClause = `cod_agent IN (${agentPlaceholders})`;
+
+      // Date filters
+      if (filters.dateFrom) {
+        whereClause += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
+        params.push(filters.dateFrom);
+      }
+      if (filters.dateTo) {
+        whereClause += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
+        params.push(filters.dateTo);
+      }
+
+      // State filter
+      if (filters.state && filters.state !== 'all') {
+        whereClause += ` AND state = $${params.length + 1}`;
+        params.push(filters.state);
+      }
+
+      // Use CTE with DISTINCT ON to count unique leads only
+      const result = await externalDb.raw<{ state: string; count: string }[]>({
         query: `
+          WITH unique_queue AS (
+            SELECT DISTINCT ON (cod_agent, session_id)
+              cod_agent, session_id, state
+            FROM followup_queue
+            WHERE ${whereClause}
+            ORDER BY cod_agent, session_id, send_date DESC
+          )
           SELECT state, COUNT(*)::text as count
-          FROM followup_queue
-          WHERE cod_agent IN (${agentPlaceholders})
+          FROM unique_queue
           GROUP BY state
         `,
-        params: agentCodes,
+        params,
       });
+
+      const flatResult = Array.isArray(result) ? result.flat() : [];
 
       const stats = {
         total: 0,
@@ -180,19 +207,17 @@ export function useFollowupQueueStats(agentCodes: string[]) {
         stop: 0,
       };
 
-      if (Array.isArray(result)) {
-        result.forEach((row: { state: string; count: string }) => {
-          const count = parseInt(row.count, 10);
-          stats.total += count;
-          if (row.state === 'QUEUE') stats.queue = count;
-          else if (row.state === 'SEND') stats.send = count;
-          else if (row.state === 'STOP') stats.stop = count;
-        });
-      }
+      flatResult.forEach((row: { state: string; count: string }) => {
+        const count = parseInt(row.count, 10);
+        stats.total += count;
+        if (row.state === 'QUEUE') stats.queue = count;
+        else if (row.state === 'SEND') stats.send = count;
+        else if (row.state === 'STOP') stats.stop = count;
+      });
 
       return stats;
     },
-    enabled: agentCodes.length > 0,
+    enabled: filters.agentCodes.length > 0,
     staleTime: 1000 * 30,
   });
 }
