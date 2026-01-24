@@ -1,264 +1,118 @@
 
 
-# Novo Card "Taxa de Intervenção"
+# Correção: Taxa de Intervenção Sempre Vazia
 
-## Contexto
+## Problema Identificado
 
-A análise dos dados revelou que existe uma **quarta categoria** de leads não contabilizada:
+A query da CTE `leads_with_response` está fazendo o JOIN errado. Ela busca respostas apenas no registro **mais recente** de cada lead, mas a resposta pode estar vinculada a um **registro anterior** do mesmo `session_id`.
 
-| Estado | Condição | Categoria | % Atual |
-|--------|----------|-----------|---------|
-| `SEND` | - | Taxa em FollowUp | 46.2% |
-| `STOP` | `step_number <> 0` + **COM resposta** | Taxa de Retorno | 23.1% |
-| `STOP` | `step_number = 0` | Taxa de Perda | 0.0% |
-| `STOP` | `step_number <> 0` + **SEM resposta** | ❌ Não categorizado | **30.7%** |
+### Cenário do Bug
 
-Esses leads (30.7%) foram **parados por intervenção humana** antes de receberem uma resposta do cliente.
+```text
+Lead "João" (session_id: 5511999999999):
+┌────────┬───────┬─────────────┬────────────┐
+│   id   │ state │ step_number │ send_date  │
+├────────┼───────┼─────────────┼────────────┤
+│   100  │ SEND  │ 1           │ 2026-01-20 │  ← Resposta vinculada aqui (followup_response.followup_queue_id = 100)
+│   200  │ SEND  │ 2           │ 2026-01-22 │
+│   300  │ STOP  │ 2           │ 2026-01-24 │  ← current_state pega este (mais recente)
+└────────┴───────┴─────────────┴────────────┘
+
+CTE current_state retorna: queue_id = 300
+CTE leads_with_response busca: WHERE followup_queue_id = 300
+Resposta está em: followup_queue_id = 100
+Resultado: João NÃO é encontrado como "com resposta" ❌
+```
+
+### Consequência
+
+- A CTE `leads_with_response` retorna vazio ou quase vazio
+- Todos os leads em `STOP + step<>0` são classificados como `NOT IN leads_with_response`
+- Taxa de Retorno = 0% ou muito baixa
+- Taxa de Intervenção = 0% (porque todos vão para Retorno quando a lógica é invertida)
 
 ---
 
 ## Solução
 
-Criar um novo card **"Taxa de Intervenção"** que contabiliza leads parados manualmente:
+Modificar a CTE `leads_with_response` para buscar respostas em **qualquer registro** do `session_id` do lead, não apenas no registro mais recente.
 
-```text
-                    Total de Leads na Fila = 100%
-                             │
-     ┌───────────────┬───────┴───────┬───────────────┬───────────────┐
-     │               │               │               │               │
-     ▼               ▼               ▼               ▼               ▼
-  SEND          STOP+step<>0    STOP+step<>0     STOP+step=0
-               COM resposta     SEM resposta
-     │               │               │               │
-     ▼               ▼               ▼               ▼
- Em FollowUp     Retorno        Intervenção        Perda
-  (46.2%)       (23.1%)         (30.7%)           (0.0%)
-     │               │               │               │
-     └───────────────┴───────────────┴───────────────┘
-                             │
-                             ▼
-                    SOMA = 100% ✓
+### Query Corrigida
+
+```sql
+leads_with_response AS (
+  -- Identificar leads em STOP que têm pelo menos uma resposta em QUALQUER registro do session_id
+  SELECT DISTINCT fq.session_id
+  FROM followup_queue fq
+  INNER JOIN followup_response fr ON fr.followup_queue_id = fq.id
+  WHERE fq.cod_agent IN ($1, $2, ...)
+    AND fq.session_id IN (SELECT session_id FROM current_state WHERE state = 'STOP')
+    [AND date_filter]
+)
 ```
 
 ---
 
 ## Arquivos a Modificar
 
-### 1. src/pages/agente/types.ts
+### src/pages/agente/hooks/useFollowupData.ts
 
-Adicionar `interventionRate` às interfaces:
+#### 1. Corrigir `useFollowupReturnRate` (linhas 653-659)
 
-```typescript
-export interface FollowupPreviousStats {
-  total: number;
-  totalSent: number;
-  waiting: number;
-  stopped: number;
-  responseRate: number;
-  lossRate: number;
-  followupRate: number;
-  interventionRate: number;    // NOVO
-}
-
-export interface FollowupStats {
-  total: number;
-  totalSent: number;
-  waiting: number;
-  stopped: number;
-  responseRate: number;
-  lossRate: number;
-  followupRate: number;
-  interventionRate: number;    // NOVO
-  previous?: FollowupPreviousStats;
-}
-```
-
----
-
-### 2. src/pages/agente/hooks/useFollowupData.ts
-
-#### A) Modificar `useFollowupReturnRate` (linhas 630-700)
-
-Adicionar novo campo `intervention` na query SQL:
-
+**Antes:**
 ```sql
-WITH current_state AS (
-  SELECT DISTINCT ON (cod_agent, session_id)
-    session_id, id as queue_id, state, step_number
-  FROM followup_queue
-  WHERE cod_agent IN (...)
-  ORDER BY cod_agent, session_id, send_date DESC
-),
 leads_with_response AS (
   SELECT DISTINCT cs.session_id
   FROM current_state cs
   INNER JOIN followup_response fr ON fr.followup_queue_id = cs.queue_id
   WHERE cs.state = 'STOP'
 )
-SELECT 
-  COUNT(*)::text as total_leads,
-  COUNT(*) FILTER (WHERE state = 'SEND')::text as in_followup,
-  
-  -- Retorno: STOP + step<>0 + COM resposta
-  COUNT(*) FILTER (
-    WHERE state = 'STOP' 
-      AND step_number <> 0 
-      AND session_id IN (SELECT session_id FROM leads_with_response)
-  )::text as returned,
-  
-  -- NOVO: Intervenção: STOP + step<>0 + SEM resposta
-  COUNT(*) FILTER (
-    WHERE state = 'STOP' 
-      AND step_number <> 0 
-      AND session_id NOT IN (SELECT session_id FROM leads_with_response)
-  )::text as intervention,
-  
-  -- Perda: STOP + step=0
-  COUNT(*) FILTER (WHERE state = 'STOP' AND step_number = 0)::text as lost,
-  
-  ...
-FROM current_state;
 ```
 
-Adicionar ao retorno:
-
-```typescript
-const intervention = parseInt(flatResult[0]?.intervention || '0', 10);
-
-return {
-  totalLeads,
-  leadsInFollowup: inFollowup,
-  leadsReturned: returned,
-  leadsIntervention: intervention,   // NOVO
-  leadsLost: lost,
-  responses,
-  followupRate: totalLeads > 0 ? (inFollowup / totalLeads) * 100 : 0,
-  returnRate: totalLeads > 0 ? (returned / totalLeads) * 100 : 0,
-  interventionRate: totalLeads > 0 ? (intervention / totalLeads) * 100 : 0,  // NOVO
-  lossRate: totalLeads > 0 ? (lost / totalLeads) * 100 : 0,
-};
+**Depois:**
+```sql
+leads_with_response AS (
+  -- Identificar session_ids que têm resposta em QUALQUER registro da fila (não só o mais recente)
+  SELECT DISTINCT fq.session_id
+  FROM followup_queue fq
+  INNER JOIN followup_response fr ON fr.followup_queue_id = fq.id
+  WHERE fq.cod_agent IN (${agentPlaceholders})
+    AND fq.session_id IN (SELECT session_id FROM current_state WHERE state = 'STOP')
+    ${dateFilter}
+)
 ```
 
-#### B) Modificar `useFollowupPreviousPeriodStats` (linhas 800-867)
+#### 2. Corrigir `useFollowupPreviousPeriodStats` (mesma lógica, linhas 837-842)
 
-Aplicar mesma lógica para período anterior, incluindo `intervention` e `interventionRate`.
+Aplicar a mesma correção na query do período anterior.
 
 ---
 
-### 3. src/pages/agente/followup/FollowupPage.tsx
+## Regras das Métricas (Resumo)
 
-Atualizar `dashboardStats` para incluir `interventionRate`:
+| Métrica | Regra |
+|---------|-------|
+| **Taxa em FollowUp** | Lead com estado atual `SEND` |
+| **Taxa de Retorno** | Lead com estado atual `STOP` + `step_number <> 0` + TEM resposta em qualquer registro do session_id |
+| **Taxa de Intervenção** | Lead com estado atual `STOP` + `step_number <> 0` + NÃO tem resposta em nenhum registro do session_id |
+| **Taxa de Perda** | Lead com estado atual `STOP` + `step_number = 0` |
 
-```typescript
-const dashboardStats: FollowupStats = useMemo(() => ({
-  total: returnData?.totalLeads || 0,
-  waiting: returnData?.leadsInFollowup || 0,
-  totalSent: dailyMetrics.reduce((sum, d) => sum + d.messagesSent, 0),
-  stopped: returnData?.responses || 0,
-  followupRate: returnData?.followupRate || 0,
-  responseRate: returnData?.returnRate || 0,
-  interventionRate: returnData?.interventionRate || 0,   // NOVO
-  lossRate: returnData?.lossRate || 0,
-  previous: isLoadingPrevious ? undefined : previousStats,
-}), [dailyMetrics, returnData, previousStats, isLoadingPrevious]);
-```
-
----
-
-### 4. src/pages/agente/followup/components/FollowupSummary.tsx
-
-Adicionar card "Taxa de Intervenção" na segunda linha (taxas percentuais):
-
-```typescript
-import { HandStop } from 'lucide-react';  // Ícone de mão para intervenção
-
-// Cards da segunda linha (taxas percentuais) - agora com 4 cards
-const rateCards: CardData[] = [
-  {
-    title: 'Taxa em FollowUp',
-    value: `${stats.followupRate.toFixed(1)}%`,
-    icon: Users,
-    color: 'text-orange-600',
-    bgColor: 'bg-orange-500/10',
-    change: stats.previous 
-      ? calculatePpChange(stats.followupRate, stats.previous.followupRate) 
-      : null,
-  },
-  {
-    title: 'Taxa de Retorno',
-    value: `${stats.responseRate.toFixed(1)}%`,
-    icon: TrendingUp,
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-500/10',
-    change: stats.previous 
-      ? calculatePpChange(stats.responseRate, stats.previous.responseRate) 
-      : null,
-  },
-  {
-    title: 'Taxa de Intervenção',    // NOVO CARD
-    value: `${stats.interventionRate.toFixed(1)}%`,
-    icon: HandStop,
-    color: 'text-amber-600',
-    bgColor: 'bg-amber-500/10',
-    change: stats.previous 
-      ? calculatePpChange(stats.interventionRate, stats.previous.interventionRate) 
-      : null,
-  },
-  {
-    title: 'Taxa de Perda',
-    value: `${stats.lossRate.toFixed(1)}%`,
-    icon: TrendingDown,
-    color: 'text-red-600',
-    bgColor: 'bg-red-500/10',
-    change: stats.previous 
-      ? calculatePpChange(stats.lossRate, stats.previous.lossRate) 
-      : null,
-    invertChange: true,
-  },
-];
-```
-
-Atualizar grid para 4 colunas:
-
-```tsx
-{/* Linha 2: Taxas Percentuais */}
-<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-  {rateCards.map((card, index) => renderCard(card, index))}
-</div>
-```
-
----
-
-## Layout Final
-
-| Linha | Cards | Grid |
-|-------|-------|------|
-| **Linha 1** | Leads na Fila, Leads em FollowUp, Mensagens Enviadas, Respostas | 4 colunas |
-| **Linha 2** | Taxa em FollowUp, Taxa de Retorno, Taxa de Intervenção, Taxa de Perda | 4 colunas |
-
----
-
-## Resumo das Métricas
-
-| Card | Regra | Cor |
-|------|-------|-----|
-| **Taxa em FollowUp** | `state = 'SEND'` | Laranja |
-| **Taxa de Retorno** | `state = 'STOP'` + `step <> 0` + COM resposta | Roxo |
-| **Taxa de Intervenção** | `state = 'STOP'` + `step <> 0` + SEM resposta | Âmbar |
-| **Taxa de Perda** | `state = 'STOP'` + `step = 0` | Vermelho |
-
-**Soma: 100%** ✓
+**Garantia:** A soma das 4 taxas = 100%
 
 ---
 
 ## Seção Técnica
 
-### Query SQL Completa
+### Query SQL Completa Corrigida
 
 ```sql
 WITH current_state AS (
+  -- Pega o estado MAIS RECENTE de cada lead
   SELECT DISTINCT ON (cod_agent, session_id)
-    session_id, id as queue_id, state, step_number
+    session_id,
+    id as queue_id,
+    state,
+    step_number
   FROM followup_queue
   WHERE cod_agent IN ($1, $2, ...)
     AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $from
@@ -266,42 +120,47 @@ WITH current_state AS (
   ORDER BY cod_agent, session_id, send_date DESC
 ),
 leads_with_response AS (
-  SELECT DISTINCT cs.session_id
-  FROM current_state cs
-  INNER JOIN followup_response fr ON fr.followup_queue_id = cs.queue_id
-  WHERE cs.state = 'STOP'
+  -- CORREÇÃO: buscar resposta em QUALQUER registro do session_id, não só o mais recente
+  SELECT DISTINCT fq.session_id
+  FROM followup_queue fq
+  INNER JOIN followup_response fr ON fr.followup_queue_id = fq.id
+  WHERE fq.cod_agent IN ($1, $2, ...)
+    AND fq.session_id IN (SELECT session_id FROM current_state WHERE state = 'STOP')
+    AND (fq.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $from
+    AND (fq.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $to
 )
 SELECT 
   COUNT(*)::text as total_leads,
   COUNT(*) FILTER (WHERE state = 'SEND')::text as in_followup,
   COUNT(*) FILTER (
-    WHERE state = 'STOP' AND step_number <> 0 
+    WHERE state = 'STOP' 
+      AND step_number <> 0 
       AND session_id IN (SELECT session_id FROM leads_with_response)
   )::text as returned,
   COUNT(*) FILTER (
-    WHERE state = 'STOP' AND step_number <> 0 
+    WHERE state = 'STOP' 
+      AND step_number <> 0 
       AND session_id NOT IN (SELECT session_id FROM leads_with_response)
   )::text as intervention,
   COUNT(*) FILTER (WHERE state = 'STOP' AND step_number = 0)::text as lost,
   (SELECT COUNT(*)::text FROM followup_response fr
    JOIN followup_queue fq ON fq.id = fr.followup_queue_id
-   WHERE fq.cod_agent IN ($1, $2, ...) [response_date_filter]
+   WHERE fq.cod_agent IN ($1, $2, ...)
+     AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $from
+     AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $to
   ) as total_responses
 FROM current_state;
 ```
 
 ### Ordem de Implementação
 
-1. Atualizar interfaces em `types.ts` (adicionar `interventionRate`)
-2. Modificar `useFollowupReturnRate` com novo campo `intervention`
-3. Modificar `useFollowupPreviousPeriodStats` com mesma lógica
-4. Atualizar `FollowupPage.tsx` para usar `interventionRate`
-5. Adicionar card "Taxa de Intervenção" em `FollowupSummary.tsx`
-6. Ajustar grid de 3 para 4 colunas na segunda linha
+1. Modificar CTE `leads_with_response` em `useFollowupReturnRate`
+2. Modificar CTE `leads_with_response` em `useFollowupPreviousPeriodStats`
 
 ### Validação
 
-Após implementação, verificar que:
-- `Taxa em FollowUp + Taxa de Retorno + Taxa de Intervenção + Taxa de Perda = 100%`
-- Cada lead é contado em exatamente uma categoria
+Após correção, verificar que:
+- Taxa em FollowUp + Taxa de Retorno + Taxa de Intervenção + Taxa de Perda = 100%
+- Leads em STOP com step>0 são divididos corretamente entre Retorno e Intervenção
+- Taxa de Intervenção mostra valor > 0% quando há leads parados manualmente sem resposta
 
