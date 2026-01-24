@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { getTodayInSaoPaulo, get7DaysAgoInSaoPaulo, getFirstDayOfMonthInSaoPaulo, getLastDayOfMonthInSaoPaulo } from '@/lib/dateUtils';
+import { getTodayInSaoPaulo, get7DaysAgoInSaoPaulo, get30DaysAgoInSaoPaulo, get3MonthsAgoInSaoPaulo, getFirstDayOfMonthInSaoPaulo, getLastDayOfMonthInSaoPaulo } from '@/lib/dateUtils';
 import { CalendarIcon, Filter, Search, X, Calendar as CalendarIconFilled } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,7 +25,7 @@ import {
 import { JuliaAgent, JuliaFiltersState } from '../types';
 import { cn } from '@/lib/utils';
 
-type QuickPeriod = 'today' | 'last7days' | 'thisMonth' | 'custom';
+type QuickPeriod = 'today' | 'last7days' | 'last30days' | 'last3months' | 'thisMonth' | 'custom';
 
 interface JuliaFiltersProps {
   agents: JuliaAgent[];
@@ -52,6 +52,8 @@ export function JuliaFilters({
   const currentQuickPeriod = useMemo((): QuickPeriod => {
     const today = getTodayInSaoPaulo();
     const last7Days = get7DaysAgoInSaoPaulo();
+    const last30Days = get30DaysAgoInSaoPaulo();
+    const last3Months = get3MonthsAgoInSaoPaulo();
     const firstOfMonth = getFirstDayOfMonthInSaoPaulo();
     const lastOfMonth = getLastDayOfMonthInSaoPaulo();
 
@@ -60,6 +62,12 @@ export function JuliaFilters({
     }
     if (filters.dateFrom === last7Days && filters.dateTo === today) {
       return 'last7days';
+    }
+    if (filters.dateFrom === last30Days && filters.dateTo === today) {
+      return 'last30days';
+    }
+    if (filters.dateFrom === last3Months && filters.dateTo === today) {
+      return 'last3months';
     }
     if (filters.dateFrom === firstOfMonth && filters.dateTo === lastOfMonth) {
       return 'thisMonth';
@@ -105,6 +113,12 @@ export function JuliaFilters({
         break;
       case 'last7days':
         onFiltersChange({ ...filters, dateFrom: get7DaysAgoInSaoPaulo(), dateTo: today });
+        break;
+      case 'last30days':
+        onFiltersChange({ ...filters, dateFrom: get30DaysAgoInSaoPaulo(), dateTo: today });
+        break;
+      case 'last3months':
+        onFiltersChange({ ...filters, dateFrom: get3MonthsAgoInSaoPaulo(), dateTo: today });
         break;
       case 'thisMonth':
         onFiltersChange({ 
@@ -178,6 +192,22 @@ export function JuliaFilters({
             onClick={() => handleQuickPeriod('last7days')}
           >
             Últimos 7 dias
+          </Button>
+          <Button
+            variant={currentQuickPeriod === 'last30days' ? 'default' : 'outline'}
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => handleQuickPeriod('last30days')}
+          >
+            Últimos 30 dias
+          </Button>
+          <Button
+            variant={currentQuickPeriod === 'last3months' ? 'default' : 'outline'}
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => handleQuickPeriod('last3months')}
+          >
+            Últimos 3 meses
           </Button>
           <Button
             variant={currentQuickPeriod === 'thisMonth' ? 'default' : 'outline'}

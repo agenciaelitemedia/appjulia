@@ -296,11 +296,40 @@ export function formatTimeDifference(
 }
 
 /**
+ * Retorna a data de X dias atrás no timezone America/Sao_Paulo no formato 'yyyy-MM-dd'
+ */
+export function getDaysAgoInSaoPaulo(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(date);
+}
+
+/**
  * Retorna a data de 7 dias atrás no timezone America/Sao_Paulo no formato 'yyyy-MM-dd'
  */
 export function get7DaysAgoInSaoPaulo(): string {
+  return getDaysAgoInSaoPaulo(7);
+}
+
+/**
+ * Retorna a data de 30 dias atrás no timezone America/Sao_Paulo no formato 'yyyy-MM-dd'
+ */
+export function get30DaysAgoInSaoPaulo(): string {
+  return getDaysAgoInSaoPaulo(30);
+}
+
+/**
+ * Retorna a data de 3 meses atrás no timezone America/Sao_Paulo no formato 'yyyy-MM-dd'
+ */
+export function get3MonthsAgoInSaoPaulo(): string {
   const date = new Date();
-  date.setDate(date.getDate() - 7);
+  date.setMonth(date.getMonth() - 3);
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: TIMEZONE,
     year: 'numeric',
