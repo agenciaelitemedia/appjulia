@@ -100,41 +100,60 @@ export function ContratosTable({
     setDownloadingId(docToken);
 
     try {
-      const { data, error } = await supabase.functions.invoke('zapsign-download', {
-        body: { doc_token: docToken },
+      // Use proxy endpoint to avoid S3 blocks from extensions
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/zapsign-file`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey,
+        },
+        body: JSON.stringify({ doc_token: docToken, file: 'signed' }),
       });
 
-      if (error) throw error;
+      const contentType = response.headers.get('Content-Type') || '';
 
-      if (!data.success) {
+      // Check if response is JSON (error) or binary (PDF)
+      if (contentType.includes('application/json')) {
+        const data = await response.json();
         throw new Error(data.error || 'Erro ao obter documento');
       }
 
-      // Prioriza documento assinado, senão usa original
-      const fileUrl = data.signed_file || data.original_file;
+      // It's a PDF - download via blob
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
       
-      if (!fileUrl) {
-        toast({
-          title: 'Documento indisponível',
-          description: 'O documento ainda não está disponível para download',
-          variant: 'destructive',
-        });
-        return;
+      // Extract filename from Content-Disposition or use fallback
+      const disposition = response.headers.get('Content-Disposition');
+      let fileName = `${contrato.signer_name || 'contrato'}.pdf`;
+      if (disposition) {
+        const match = disposition.match(/filename="?([^";\n]+)"?/);
+        if (match?.[1]) {
+          fileName = match[1];
+        }
       }
-
-      // Abrir em nova aba (o link já é do S3 e faz download automático)
-      window.open(fileUrl, '_blank');
+      
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
       
       toast({
-        title: 'Download iniciado',
-        description: 'O documento será baixado em instantes',
+        title: 'Download concluído',
+        description: 'O contrato foi baixado com sucesso',
       });
 
     } catch (error) {
       console.error('Erro ao baixar contrato:', error);
       toast({
         title: 'Erro ao baixar',
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        description: error instanceof Error ? error.message : 'Erro desconhecido. Tente desativar extensões de bloqueio (adblock).',
         variant: 'destructive',
       });
     } finally {
