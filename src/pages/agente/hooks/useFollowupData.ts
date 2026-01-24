@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { externalDb } from '@/lib/externalDb';
-import { FollowupConfig, FollowupQueueItem, FollowupFiltersState } from '../types';
+import { FollowupConfig, FollowupQueueItem, FollowupFiltersState, FollowupDailyMetrics } from '../types';
 import { useToast } from '@/hooks/use-toast';
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 // Fetch total sent messages count based on step_number
 // SEND = step_number (current step was sent)
@@ -326,5 +328,131 @@ export function useDeleteQueueItem() {
         variant: 'destructive',
       });
     },
+  });
+}
+
+// Fetch daily metrics (ungrouped - all records)
+export function useFollowupDailyMetrics(filters: FollowupFiltersState) {
+  return useQuery({
+    queryKey: ['followup-daily-metrics', filters],
+    queryFn: async (): Promise<FollowupDailyMetrics[]> => {
+      if (!filters.agentCodes.length) return [];
+
+      const agentPlaceholders = filters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
+      const params: (string | number)[] = [...filters.agentCodes];
+
+      let whereClause = `cod_agent IN (${agentPlaceholders})`;
+
+      // Date filters
+      if (filters.dateFrom) {
+        whereClause += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
+        params.push(filters.dateFrom);
+      }
+      if (filters.dateTo) {
+        whereClause += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
+        params.push(filters.dateTo);
+      }
+
+      const result = await externalDb.raw<{
+        date: string;
+        total_records: string;
+        messages_sent: string;
+        stopped: string;
+        unique_leads: string;
+      }[]>({
+        query: `
+          SELECT 
+            (created_at AT TIME ZONE 'America/Sao_Paulo')::date as date,
+            COUNT(*)::text as total_records,
+            COALESCE(SUM(
+              CASE 
+                WHEN state = 'SEND' THEN step_number
+                ELSE GREATEST(step_number - 1, 0)
+              END
+            ), 0)::text as messages_sent,
+            COUNT(*) FILTER (WHERE state = 'STOP')::text as stopped,
+            COUNT(DISTINCT session_id)::text as unique_leads
+          FROM followup_queue
+          WHERE ${whereClause}
+          GROUP BY (created_at AT TIME ZONE 'America/Sao_Paulo')::date
+          ORDER BY date
+        `,
+        params,
+      });
+
+      const flatResult = Array.isArray(result) ? result.flat() : [];
+
+      return flatResult.map((row) => {
+        const totalRecords = parseInt(row.total_records || '0', 10);
+        const stopped = parseInt(row.stopped || '0', 10);
+        const responseRate = totalRecords > 0 ? (stopped / totalRecords) * 100 : 0;
+        
+        // Format date label
+        let label = row.date;
+        try {
+          const parsedDate = parseISO(row.date);
+          label = format(parsedDate, 'dd/MM', { locale: ptBR });
+        } catch {
+          // Keep original if parsing fails
+        }
+
+        return {
+          date: row.date,
+          label,
+          totalRecords,
+          messagesSent: parseInt(row.messages_sent || '0', 10),
+          stopped,
+          uniqueLeads: parseInt(row.unique_leads || '0', 10),
+          responseRate,
+        };
+      });
+    },
+    enabled: filters.agentCodes.length > 0,
+    staleTime: 1000 * 30,
+  });
+}
+
+// Fetch global response rate (ungrouped - all records)
+export function useFollowupResponseRate(filters: FollowupFiltersState) {
+  return useQuery({
+    queryKey: ['followup-response-rate', filters],
+    queryFn: async () => {
+      if (!filters.agentCodes.length) return { total: 0, stopped: 0, rate: 0 };
+
+      const agentPlaceholders = filters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
+      const params: (string | number)[] = [...filters.agentCodes];
+
+      let whereClause = `cod_agent IN (${agentPlaceholders})`;
+
+      // Date filters
+      if (filters.dateFrom) {
+        whereClause += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
+        params.push(filters.dateFrom);
+      }
+      if (filters.dateTo) {
+        whereClause += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
+        params.push(filters.dateTo);
+      }
+
+      const result = await externalDb.raw<{ total: string; stopped: string }[]>({
+        query: `
+          SELECT 
+            COUNT(*)::text as total,
+            COUNT(*) FILTER (WHERE state = 'STOP')::text as stopped
+          FROM followup_queue
+          WHERE ${whereClause}
+        `,
+        params,
+      });
+
+      const flatResult = Array.isArray(result) ? result.flat() : [];
+      const total = parseInt(flatResult[0]?.total || '0', 10);
+      const stopped = parseInt(flatResult[0]?.stopped || '0', 10);
+      const rate = total > 0 ? (stopped / total) * 100 : 0;
+
+      return { total, stopped, rate };
+    },
+    enabled: filters.agentCodes.length > 0,
+    staleTime: 1000 * 30,
   });
 }
