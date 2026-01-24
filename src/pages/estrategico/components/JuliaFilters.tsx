@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { getTodayInSaoPaulo } from '@/lib/dateUtils';
-import { CalendarIcon, Filter, Search, X } from 'lucide-react';
+import { getTodayInSaoPaulo, get7DaysAgoInSaoPaulo, getFirstDayOfMonthInSaoPaulo, getLastDayOfMonthInSaoPaulo } from '@/lib/dateUtils';
+import { CalendarIcon, Filter, Search, X, Calendar as CalendarIconFilled } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -25,6 +25,8 @@ import {
 import { JuliaAgent, JuliaFiltersState } from '../types';
 import { cn } from '@/lib/utils';
 
+type QuickPeriod = 'today' | 'last7days' | 'thisMonth' | 'custom';
+
 interface JuliaFiltersProps {
   agents: JuliaAgent[];
   filters: JuliaFiltersState;
@@ -45,6 +47,25 @@ export function JuliaFilters({
   statusOptions = [],
 }: JuliaFiltersProps) {
   const [isOpen, setIsOpen] = useState(true);
+
+  // Detect current quick period based on current filters
+  const currentQuickPeriod = useMemo((): QuickPeriod => {
+    const today = getTodayInSaoPaulo();
+    const last7Days = get7DaysAgoInSaoPaulo();
+    const firstOfMonth = getFirstDayOfMonthInSaoPaulo();
+    const lastOfMonth = getLastDayOfMonthInSaoPaulo();
+
+    if (filters.dateFrom === today && filters.dateTo === today) {
+      return 'today';
+    }
+    if (filters.dateFrom === last7Days && filters.dateTo === today) {
+      return 'last7days';
+    }
+    if (filters.dateFrom === firstOfMonth && filters.dateTo === lastOfMonth) {
+      return 'thisMonth';
+    }
+    return 'custom';
+  }, [filters.dateFrom, filters.dateTo]);
 
   const { selectedCount, allSelected, someSelected } = useMemo(() => {
     const selected = new Set(filters.agentCodes);
@@ -73,6 +94,26 @@ export function JuliaFilters({
       ...filters,
       agentCodes: allDisplayedSelected ? [] : allCodes,
     });
+  };
+
+  const handleQuickPeriod = (period: QuickPeriod) => {
+    const today = getTodayInSaoPaulo();
+    
+    switch (period) {
+      case 'today':
+        onFiltersChange({ ...filters, dateFrom: today, dateTo: today });
+        break;
+      case 'last7days':
+        onFiltersChange({ ...filters, dateFrom: get7DaysAgoInSaoPaulo(), dateTo: today });
+        break;
+      case 'thisMonth':
+        onFiltersChange({ 
+          ...filters, 
+          dateFrom: getFirstDayOfMonthInSaoPaulo(), 
+          dateTo: getLastDayOfMonthInSaoPaulo() 
+        });
+        break;
+    }
   };
 
   const handleDateFromChange = (date: Date | undefined) => {
@@ -119,6 +160,40 @@ export function JuliaFilters({
       </div>
 
       <CollapsibleContent className="space-y-4">
+        {/* Quick Period Buttons */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground mr-1">Período:</span>
+          <Button
+            variant={currentQuickPeriod === 'today' ? 'default' : 'outline'}
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => handleQuickPeriod('today')}
+          >
+            Hoje
+          </Button>
+          <Button
+            variant={currentQuickPeriod === 'last7days' ? 'default' : 'outline'}
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => handleQuickPeriod('last7days')}
+          >
+            Últimos 7 dias
+          </Button>
+          <Button
+            variant={currentQuickPeriod === 'thisMonth' ? 'default' : 'outline'}
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => handleQuickPeriod('thisMonth')}
+          >
+            Este mês
+          </Button>
+          {currentQuickPeriod === 'custom' && (
+            <Badge variant="secondary" className="text-xs">
+              Personalizado
+            </Badge>
+          )}
+        </div>
+
         <div className="flex flex-wrap items-end gap-3 p-4 bg-muted/30 rounded-lg border">
           {/* Agent Select */}
           <div className="flex flex-col gap-1.5 min-w-[200px]">
