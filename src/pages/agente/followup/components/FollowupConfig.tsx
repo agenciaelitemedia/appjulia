@@ -118,25 +118,27 @@ export function FollowupConfig({ config, isLoading, isSaving, onSave }: Followup
   };
 
   // Handle infinite toggle - reset values when disabled
+  // DB schema: followup_from = trigger step (e.g., 5), followup_to = return step (e.g., 4)
   const handleInfiniteToggle = (enabled: boolean) => {
     setIsInfiniteEnabled(enabled);
     if (!enabled) {
       setFollowupFrom(null);
       setFollowupTo(null);
     } else if (steps.length >= 2) {
-      // Default to loop from last step back to second-to-last step
-      setFollowupTo(steps.length);
-      setFollowupFrom(steps.length - 1);
+      // Default: when reaching last step (from=5), go back to second-to-last (to=4)
+      setFollowupFrom(steps.length);
+      setFollowupTo(steps.length - 1);
     }
   };
 
-  // Validate followupFrom when followupTo changes
-  const handleFollowupToChange = (value: string) => {
-    const toValue = parseInt(value, 10);
-    setFollowupTo(toValue);
-    // Ensure from is less than to
-    if (followupFrom && followupFrom >= toValue) {
-      setFollowupFrom(1);
+  // Validate followupTo when followupFrom changes
+  // followup_from = trigger step, followup_to = return step (must be < from)
+  const handleFollowupFromChange = (value: string) => {
+    const fromValue = parseInt(value, 10);
+    setFollowupFrom(fromValue);
+    // Ensure to is less than from
+    if (followupTo && followupTo >= fromValue) {
+      setFollowupTo(fromValue - 1);
     }
   };
 
@@ -258,6 +260,12 @@ export function FollowupConfig({ config, isLoading, isSaving, onSave }: Followup
                 <Label htmlFor="infinite-loop" className="text-base flex items-center gap-2">
                   <Infinity className="h-4 w-4" />
                   FollowUp Infinito (Loop)
+                  {/* Badge showing configured flow */}
+                  {isInfiniteEnabled && followupFrom && followupTo && (
+                    <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
+                      {followupFrom} → {followupTo}
+                    </span>
+                  )}
                 </Label>
                 <p className="text-sm text-muted-foreground">
                   Reengajar o lead continuamente até obter resposta
@@ -274,12 +282,12 @@ export function FollowupConfig({ config, isLoading, isSaving, onSave }: Followup
             {isInfiniteEnabled && steps.length >= 2 && (
               <div className="grid grid-cols-2 gap-4 pl-4 border-l-2 border-primary/20">
                 <div className="space-y-2">
-                  <Label htmlFor="followup-to">Quando chegar na etapa</Label>
+                  <Label htmlFor="followup-from">Quando chegar na etapa</Label>
                   <Select
-                    value={followupTo?.toString() || ''}
-                    onValueChange={handleFollowupToChange}
+                    value={followupFrom?.toString() || ''}
+                    onValueChange={handleFollowupFromChange}
                   >
-                    <SelectTrigger id="followup-to">
+                    <SelectTrigger id="followup-from">
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -297,19 +305,19 @@ export function FollowupConfig({ config, isLoading, isSaving, onSave }: Followup
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="followup-from">Voltar para a etapa</Label>
+                  <Label htmlFor="followup-to">Voltar para a etapa</Label>
                   <Select
-                    value={followupFrom?.toString() || ''}
-                    onValueChange={(v) => setFollowupFrom(parseInt(v, 10))}
+                    value={followupTo?.toString() || ''}
+                    onValueChange={(v) => setFollowupTo(parseInt(v, 10))}
                   >
-                    <SelectTrigger id="followup-from">
+                    <SelectTrigger id="followup-to">
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
                       {steps.map((step, index) => {
                         const stepNumber = index + 1;
-                        // Only show steps before the "to" step
-                        if (followupTo && stepNumber >= followupTo) return null;
+                        // Only show steps before the "from" step
+                        if (followupFrom && stepNumber >= followupFrom) return null;
                         return (
                           <SelectItem key={step.key} value={stepNumber.toString()}>
                             Etapa {stepNumber} - {step.title}
