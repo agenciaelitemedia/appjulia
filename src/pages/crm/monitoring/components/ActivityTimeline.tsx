@@ -5,8 +5,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowRight, MessageSquare } from 'lucide-react';
 import { CRMActivityLog } from '../../types';
 import { 
-  formatTimeSaoPaulo, 
-  getDateGroupLabel 
+  formatDbTime,
+  getDbDateGroupLabel 
 } from '@/lib/dateUtils';
 
 interface ActivityTimelineProps {
@@ -18,8 +18,7 @@ function groupActivitiesByDate(activities: CRMActivityLog[]) {
   const groups: { [key: string]: CRMActivityLog[] } = {};
   
   activities.forEach(activity => {
-    const date = new Date(activity.changed_at);
-    const key = getDateGroupLabel(date);
+    const key = getDbDateGroupLabel(activity.changed_at);
     
     if (!groups[key]) {
       groups[key] = [];
@@ -78,7 +77,7 @@ export function ActivityTimeline({ activities, isLoading }: ActivityTimelineProp
                       className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
                     >
                       <div className="flex-shrink-0 w-10 text-xs text-muted-foreground">
-                        {formatTimeSaoPaulo(activity.changed_at)}
+                        {formatDbTime(activity.changed_at)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm">
