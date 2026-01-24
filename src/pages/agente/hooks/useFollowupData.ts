@@ -5,9 +5,8 @@ import { useToast } from '@/hooks/use-toast';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-// Fetch total sent messages count based on step_number
-// SEND = step_number (current step was sent)
-// QUEUE/STOP = step_number - 1 (waiting or stopped before sending)
+// Fetch total sent messages count from followup_history
+// Each record in followup_history represents one sent message
 export function useFollowupSentCount(filters: FollowupFiltersState) {
   return useQuery({
     queryKey: ['followup-sent-count', filters],
@@ -17,28 +16,24 @@ export function useFollowupSentCount(filters: FollowupFiltersState) {
       const agentPlaceholders = filters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
       const params: (string | number)[] = [...filters.agentCodes];
 
-      let whereClause = `cod_agent IN (${agentPlaceholders})`;
+      let whereClause = `fq.cod_agent IN (${agentPlaceholders})`;
 
-      // Date filters
+      // Date filters based on followup_history.created_at (actual send time)
       if (filters.dateFrom) {
-        whereClause += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
+        whereClause += ` AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
         params.push(filters.dateFrom);
       }
       if (filters.dateTo) {
-        whereClause += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
+        whereClause += ` AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
         params.push(filters.dateTo);
       }
 
-      // Sum messages sent based on step_number for ALL records
+      // Count each followup_history record as 1 sent message
       const result = await externalDb.raw<{ total: string }[]>({
         query: `
-          SELECT COALESCE(SUM(
-            CASE 
-              WHEN state = 'SEND' THEN step_number
-              ELSE GREATEST(step_number - 1, 0)
-            END
-          ), 0)::text as total
-          FROM followup_queue
+          SELECT COUNT(*)::text as total
+          FROM followup_history fh
+          JOIN followup_queue fq ON fq.id = fh.followup_queue_id
           WHERE ${whereClause}
         `,
         params,
@@ -404,7 +399,7 @@ export function useFinalizeQueueItem() {
   });
 }
 
-// Fetch daily/hourly metrics (ungrouped - all records)
+// Fetch daily/hourly metrics from followup_history
 // Uses hourly granularity when dateFrom === dateTo (single day)
 export function useFollowupDailyMetrics(filters: FollowupFiltersState) {
   return useQuery({
@@ -418,52 +413,45 @@ export function useFollowupDailyMetrics(filters: FollowupFiltersState) {
       const agentPlaceholders = filters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
       const params: (string | number)[] = [...filters.agentCodes];
 
-      let whereClause = `cod_agent IN (${agentPlaceholders})`;
-
-      // Date filters
+      // Build date filter params for history query
+      let historyDateFilter = '';
       if (filters.dateFrom) {
-        whereClause += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
+        historyDateFilter += ` AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
         params.push(filters.dateFrom);
       }
       if (filters.dateTo) {
-        whereClause += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
+        historyDateFilter += ` AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
         params.push(filters.dateTo);
       }
 
-      // Dynamic GROUP BY based on period
-      const groupByClause = isSingleDay
-        ? `EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Sao_Paulo')`
-        : `(created_at AT TIME ZONE 'America/Sao_Paulo')::date`;
+      // Dynamic GROUP BY and SELECT based on period
+      const periodExpression = isSingleDay
+        ? `EXTRACT(HOUR FROM fh.created_at AT TIME ZONE 'America/Sao_Paulo')::int`
+        : `(fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date`;
 
       const selectClause = isSingleDay
-        ? `EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Sao_Paulo')::int as hour`
-        : `(created_at AT TIME ZONE 'America/Sao_Paulo')::date as date`;
+        ? `${periodExpression} as hour`
+        : `${periodExpression} as date`;
 
       const orderClause = isSingleDay ? 'hour' : 'date';
 
+      // Query followup_history directly, grouped by period
       const result = await externalDb.raw<{
         date?: string;
         hour?: number;
-        total_records: string;
         messages_sent: string;
-        stopped: string;
         unique_leads: string;
       }[]>({
         query: `
           SELECT 
             ${selectClause},
-            COUNT(*)::text as total_records,
-            COALESCE(SUM(
-              CASE 
-                WHEN state = 'SEND' THEN step_number
-                ELSE GREATEST(step_number - 1, 0)
-              END
-            ), 0)::text as messages_sent,
-            COUNT(*) FILTER (WHERE state = 'STOP')::text as stopped,
-            COUNT(DISTINCT session_id)::text as unique_leads
-          FROM followup_queue
-          WHERE ${whereClause}
-          GROUP BY ${groupByClause}
+            COUNT(*)::text as messages_sent,
+            COUNT(DISTINCT fq.session_id)::text as unique_leads
+          FROM followup_history fh
+          JOIN followup_queue fq ON fq.id = fh.followup_queue_id
+          WHERE fq.cod_agent IN (${agentPlaceholders})
+            ${historyDateFilter}
+          GROUP BY ${periodExpression}
           ORDER BY ${orderClause}
         `,
         params,
@@ -472,9 +460,8 @@ export function useFollowupDailyMetrics(filters: FollowupFiltersState) {
       const flatResult = Array.isArray(result) ? result.flat() : [];
 
       return flatResult.map((row) => {
-        const totalRecords = parseInt(row.total_records || '0', 10);
-        const stopped = parseInt(row.stopped || '0', 10);
-        const responseRate = totalRecords > 0 ? (stopped / totalRecords) * 100 : 0;
+        const messagesSent = parseInt(row.messages_sent || '0', 10);
+        const uniqueLeads = parseInt(row.unique_leads || '0', 10);
         
         // Format label based on granularity
         let label: string;
@@ -501,11 +488,11 @@ export function useFollowupDailyMetrics(filters: FollowupFiltersState) {
         return {
           date: dateValue,
           label,
-          totalRecords,
-          messagesSent: parseInt(row.messages_sent || '0', 10),
-          stopped,
-          uniqueLeads: parseInt(row.unique_leads || '0', 10),
-          responseRate,
+          totalRecords: messagesSent, // Now represents actual messages
+          messagesSent,
+          stopped: 0, // Not applicable from history table
+          uniqueLeads,
+          responseRate: 0, // Can be calculated separately if needed
         };
       });
     },
