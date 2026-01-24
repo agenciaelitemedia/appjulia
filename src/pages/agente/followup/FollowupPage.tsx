@@ -177,7 +177,7 @@ export default function FollowupPage() {
   }, [filteredItems]);
 
   // Dashboard stats (using unified return data for mutually exclusive metrics)
-  // All metrics come from the same CTE ensuring: followupRate + returnRate + lossRate = 100%
+  // All metrics come from the same CTE ensuring: followupRate + returnRate + interventionRate + lossRate = 100%
   const dashboardStats: FollowupStats = useMemo(() => {
     return {
       total: returnData?.totalLeads || 0,         // Total unique leads
@@ -186,6 +186,7 @@ export default function FollowupPage() {
       stopped: returnData?.responses || 0,        // COUNT(*) from followup_response
       followupRate: returnData?.followupRate || 0, // (SEND / total) * 100
       responseRate: returnData?.returnRate || 0,   // (STOP + step<>0 + response / total) * 100
+      interventionRate: returnData?.interventionRate || 0, // (STOP + step<>0 + no response / total) * 100
       lossRate: returnData?.lossRate || 0,         // (STOP + step=0 / total) * 100
       previous: isLoadingPrevious ? undefined : previousStats,
     };
@@ -205,6 +206,7 @@ export default function FollowupPage() {
       responseRate: total > 0 
         ? (queueStats.stopped / total) * 100 
         : 0,
+      interventionRate: 0, // Not calculated locally for queue page
       lossRate: 0, // Not calculated locally for queue page
       followupRate,
     };

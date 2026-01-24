@@ -1,6 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Clock, Send, ListTodo, MessageCircle, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Minus, Users } from 'lucide-react';
+import { Clock, Send, ListTodo, MessageCircle, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Minus, Users, Hand } from 'lucide-react';
 import { FollowupStats } from '../../types';
 import { cn } from '@/lib/utils';
 
@@ -111,7 +111,7 @@ export function FollowupSummary({ stats, isLoading }: FollowupSummaryProps) {
     },
   ];
 
-  // Cards da segunda linha (taxas percentuais)
+  // Cards da segunda linha (taxas percentuais) - 4 cards mutuamente exclusivos (soma = 100%)
   const rateCards: CardData[] = [
     {
       title: 'Taxa em FollowUp',
@@ -131,6 +131,16 @@ export function FollowupSummary({ stats, isLoading }: FollowupSummaryProps) {
       bgColor: 'bg-purple-500/10',
       change: stats.previous 
         ? calculatePpChange(stats.responseRate, stats.previous.responseRate) 
+        : null,
+    },
+    {
+      title: 'Taxa de Intervenção',
+      value: `${(stats.interventionRate ?? 0).toFixed(1)}%`,
+      icon: Hand,
+      color: 'text-amber-600',
+      bgColor: 'bg-amber-500/10',
+      change: stats.previous 
+        ? calculatePpChange(stats.interventionRate ?? 0, stats.previous.interventionRate ?? 0) 
         : null,
     },
     {
@@ -206,7 +216,7 @@ export function FollowupSummary({ stats, isLoading }: FollowupSummaryProps) {
         </div>
         
         {/* Linha 2: Taxas Percentuais */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {rateCards.map((_, index) => (
             <Card key={index}>
               <CardContent className="p-4">
@@ -228,7 +238,7 @@ export function FollowupSummary({ stats, isLoading }: FollowupSummaryProps) {
       </div>
       
       {/* Linha 2: Taxas Percentuais */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {rateCards.map((card, index) => renderCard(card, index))}
       </div>
     </div>
