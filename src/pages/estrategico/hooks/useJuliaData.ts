@@ -65,6 +65,40 @@ export function useJuliaSessoes(filters: JuliaFiltersState) {
   });
 }
 
+// Hook para buscar sessões do período anterior (para comparação)
+export function useJuliaSessoesPrevious(filters: JuliaFiltersState) {
+  const { previousDateFrom, previousDateTo } = getPreviousPeriod(filters.dateFrom, filters.dateTo);
+  
+  return useQuery({
+    queryKey: ['julia-sessoes-previous', filters.agentCodes, previousDateFrom, previousDateTo, filters.perfilAgent],
+    queryFn: async () => {
+      const { agentCodes, perfilAgent } = filters;
+      
+      if (agentCodes.length === 0) return [];
+      
+      let query = `
+        SELECT 
+          cod_agent::text, total_msg::int
+        FROM vw_desempenho_julia
+        WHERE cod_agent::text = ANY($1::varchar[])
+          AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+          AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+      `;
+      
+      const params: any[] = [agentCodes, previousDateFrom, previousDateTo];
+      
+      if (perfilAgent && perfilAgent !== 'ALL') {
+        query += ` AND perfil_agent = $4`;
+        params.push(perfilAgent);
+      }
+      
+      const result = await externalDb.raw<Pick<JuliaSessao, 'cod_agent' | 'total_msg'>>({ query, params });
+      return result;
+    },
+    enabled: filters.agentCodes.length > 0,
+  });
+}
+
 export function useJuliaContratos(filters: JuliaFiltersState) {
   return useQuery({
     // v2: inclui campo zapsing_doctoken (doc_token do ZapSign) e força refetch após update
