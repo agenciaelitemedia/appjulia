@@ -73,3 +73,16 @@ export interface FollowupFiltersState {
   state?: string;
   searchTerm?: string;
 }
+
+// Enriched queue item with derived status
+export interface FollowupQueueItemEnriched extends FollowupQueueItem {
+  total_steps: number;
+  derived_status: 'sent' | 'waiting' | 'stopped';
+}
+
+// Derived status configuration
+export const DERIVED_STATUS_CONFIG = {
+  sent: { label: 'Enviado', className: 'bg-green-500/10 text-green-600 border-green-500/20' },
+  waiting: { label: 'Aguardando', className: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20' },
+  stopped: { label: 'Parado', className: 'bg-muted text-muted-foreground' },
+} as const;

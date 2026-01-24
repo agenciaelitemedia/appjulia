@@ -15,13 +15,41 @@ import {
   useUpdateQueueState,
   useDeleteQueueItem,
 } from '../hooks/useFollowupData';
-import { FollowupFiltersState, FollowupConfig as FollowupConfigType } from '../types';
+import { 
+  FollowupFiltersState, 
+  FollowupConfig as FollowupConfigType, 
+  FollowupQueueItem,
+  FollowupQueueItemEnriched 
+} from '../types';
 
 import { FollowupSummary } from './components/FollowupSummary';
 import { FollowupConfig } from './components/FollowupConfig';
 import { FollowupQueue } from './components/FollowupQueue';
 import { FollowupFilters } from './components/FollowupFilters';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
+
+// Helper to parse JSON fields that might be strings or objects
+function parseJsonField<T>(field: string | T | null | undefined, defaultValue: T): T {
+  if (!field) return defaultValue;
+  if (typeof field === 'string') {
+    try {
+      return JSON.parse(field) as T;
+    } catch {
+      return defaultValue;
+    }
+  }
+  return field as T;
+}
+
+// Derive status based on current step, total steps, and original state
+function getDerivedStatus(
+  item: FollowupQueueItem, 
+  totalSteps: number
+): 'sent' | 'waiting' | 'stopped' {
+  if (item.state === 'STOP') return 'stopped';
+  if (item.state === 'SEND' && item.step_number >= totalSteps) return 'sent';
+  return 'waiting';
+}
 
 export default function FollowupPage() {
   const { user } = useAuth();
@@ -37,7 +65,6 @@ export default function FollowupPage() {
   // Set default agent
   useEffect(() => {
     if (agents.length > 0 && !selectedAgent) {
-      // If user is not admin, select their agent
       if (user?.role !== 'admin' && user?.cod_agent) {
         setSelectedAgent(String(user.cod_agent));
       } else {
@@ -57,21 +84,33 @@ export default function FollowupPage() {
   // Fetch data
   const { data: configData, isLoading: isLoadingConfig, refetch: refetchConfig } = useFollowupConfig(selectedAgent);
   const { data: queueData, isLoading: isLoadingQueue, refetch: refetchQueue } = useFollowupQueue(filters);
-  const { data: stats = { total: 0, queue: 0, send: 0, stop: 0 }, isLoading: isLoadingStats, refetch: refetchStats } = useFollowupQueueStats(selectedAgent ? [selectedAgent] : []);
+  const { data: stats = { total: 0, queue: 0, send: 0, stop: 0 }, isLoading: isLoadingStats, refetch: refetchStats } = useFollowupQueueStats(filters);
 
-  // Normalize data (handle array vs single object)
+  // Normalize config data
   const config: FollowupConfigType | null = useMemo(() => {
     if (!configData) return null;
     if (Array.isArray(configData)) return configData[0] || null;
     return configData;
   }, [configData]);
 
-  const queueItems = useMemo(() => {
+  // Calculate total steps from config
+  const totalSteps = useMemo(() => {
+    if (!config?.step_cadence) return 3;
+    const stepCadence = parseJsonField<Record<string, string>>(config.step_cadence, {});
+    return Object.keys(stepCadence).length || 3;
+  }, [config]);
+
+  // Normalize and enrich queue items with derived status
+  const enrichedQueueItems: FollowupQueueItemEnriched[] = useMemo(() => {
     if (!queueData) return [];
-    // Always flatten and ensure we have a proper array
     const flattened = Array.isArray(queueData) ? queueData.flat() : [];
-    return flattened as import('../types').FollowupQueueItem[];
-  }, [queueData]);
+    
+    return (flattened as FollowupQueueItem[]).map(item => ({
+      ...item,
+      total_steps: totalSteps,
+      derived_status: getDerivedStatus(item, totalSteps),
+    }));
+  }, [queueData, totalSteps]);
 
   // Mutations
   const saveConfigMutation = useSaveFollowupConfig();
@@ -100,8 +139,6 @@ export default function FollowupPage() {
     refetchQueue();
     refetchStats();
   };
-
-  const selectedAgentName = agents.find((a) => a.cod_agent === selectedAgent)?.owner_name || 'Agente';
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -170,7 +207,7 @@ export default function FollowupPage() {
             onStateFilterChange={setStateFilter}
           />
           <FollowupQueue
-            items={queueItems}
+            items={enrichedQueueItems}
             isLoading={isLoadingQueue}
             onUpdateState={handleUpdateState}
             onDelete={handleDeleteItem}
