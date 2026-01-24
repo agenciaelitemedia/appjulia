@@ -63,6 +63,35 @@ export function formatInterval(value: number, unit: string): string {
   return `${value} ${unit}`;
 }
 
+// Calcular próxima data de envio baseada no intervalo da etapa atual
+export function calculateNextSendDate(
+  sendDate: string,
+  stepNumber: number,
+  stepCadence: Record<string, string>
+): Date | null {
+  const cadenceKey = `cadence_${stepNumber}`;
+  const interval = stepCadence[cadenceKey];
+
+  if (!interval) return null;
+
+  const { value, unit } = parseInterval(interval);
+  const date = new Date(sendDate);
+
+  switch (unit) {
+    case 'minutes':
+      date.setMinutes(date.getMinutes() + value);
+      break;
+    case 'hours':
+      date.setHours(date.getHours() + value);
+      break;
+    case 'days':
+      date.setDate(date.getDate() + value);
+      break;
+  }
+
+  return date;
+}
+
 // Hour options for start/end hours
 export const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => ({
   value: i,
