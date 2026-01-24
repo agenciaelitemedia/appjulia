@@ -1,25 +1,176 @@
 
-# Plano: Evolução por Hora para Períodos Curtos nos Gráficos de FollowUp
+
+# Plano: Reformulação do Editor de Etapas de FollowUp
 
 ## Resumo
-Quando o usuário selecionar um período de apenas 1 dia (como "Hoje" ou "Ontem"), os gráficos de evolução do Dashboard de FollowUp devem exibir dados agrupados por **hora** em vez de por **dia**, oferecendo uma visualização mais granular das métricas.
+Modificar o CadenceStepEditor para usar inputs separados de quantidade e tipo de tempo (como na imagem de referência), adicionar validações de mensagem baseadas na flag de mensagem automática, e implementar limites de etapas.
 
 ---
 
-## Lógica de Detecção de Período Curto
+## Mudanças Visuais - Intervalo de Tempo
 
+### Estrutura Atual
 ```text
-┌────────────────────────────────────────────────────────────────┐
-│  Se dateFrom === dateTo (mesmo dia)                           │
-│    → Usar agrupamento por HORA                                │
-│    → Label: "08h", "09h", "10h", ...                          │
-│    → Título: "Evolução por Hora de FollowUps"                 │
-│                                                                │
-│  Se dateFrom !== dateTo (múltiplos dias)                      │
-│    → Usar agrupamento por DIA                                 │
-│    → Label: "22/01", "23/01", ...                             │
-│    → Título: "Evolução Diária de FollowUps"                   │
-└────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│  Etapa 1                                        │
+│  ┌───────────────────────────────────────────┐  │
+│  │  ▼ Selecione o intervalo                  │  │
+│  │    • 5 minutos                            │  │
+│  │    • 10 minutos                           │  │
+│  │    • 1 hora                               │  │
+│  │    • 1 dia                                │  │
+│  └───────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────┘
+```
+
+### Nova Estrutura (como na imagem)
+```text
+┌──────────────────────────────────────────────────────┐
+│  Etapa 1                                        [🗑] │
+│                                                      │
+│  Intervalo ⓘ                                         │
+│  ┌─────────────┐  ┌────────────────────────────┐    │
+│  │      5      │  │  ▼ Minutos                 │    │
+│  └─────────────┘  │    • Minutos               │    │
+│   (número 5-999)  │    • Horas                 │    │
+│                   │    • Dias                  │    │
+│                   └────────────────────────────┘    │
+└──────────────────────────────────────────────────────┘
+```
+
+---
+
+## Lógica de Armazenamento no Banco
+
+### Formato Atual
+```typescript
+// step_cadence no banco
+{
+  "cadence_1": "5 minutes",
+  "cadence_2": "1 hours", 
+  "cadence_3": "2 days"
+}
+```
+
+### Conversão UI → Banco
+| Quantidade | Tipo     | Valor no Banco |
+|------------|----------|----------------|
+| 5          | Minutos  | `"5 minutes"`  |
+| 1          | Horas    | `"1 hours"`    |
+| 2          | Dias     | `"2 days"`     |
+
+### Conversão Banco → UI
+```typescript
+// "5 minutes" → { value: 5, unit: "minutes" }
+// "1 hours"   → { value: 1, unit: "hours" }
+// "2 days"    → { value: 2, unit: "days" }
+
+function parseInterval(interval: string): { value: number; unit: string } {
+  const match = interval.match(/^(\d+)\s+(minutes|hours|days)$/);
+  if (match) {
+    return { value: parseInt(match[1], 10), unit: match[2] };
+  }
+  return { value: 5, unit: 'minutes' }; // Default
+}
+```
+
+---
+
+## Validações
+
+### 1. Tempo Mínimo de 5 Minutos
+```typescript
+// Validação no input de quantidade
+const validateInterval = (value: number, unit: string): number => {
+  if (unit === 'minutes' && value < 5) return 5;
+  if (value < 1) return 1;
+  return value;
+};
+```
+
+### 2. Máximo de 50 Etapas
+```typescript
+// Em FollowupConfig.tsx
+const handleAddStep = () => {
+  if (steps.length >= 50) {
+    toast.error('Máximo de 50 etapas atingido');
+    return;
+  }
+  // ... adicionar etapa
+};
+
+// Desabilitar botão quando limite atingido
+<Button 
+  disabled={steps.length >= 50}
+  onClick={handleAddStep}
+>
+  Adicionar Etapa
+</Button>
+```
+
+### 3. Mensagens Obrigatórias (quando auto_message = false)
+```typescript
+// Validação antes de salvar
+const validateMessages = (): boolean => {
+  if (autoMessage) return true; // IA gera mensagens
+  
+  for (const step of steps) {
+    if (!step.message || step.message.trim().split(/\s+/).length < 3) {
+      toast.error(`Etapa ${step.key}: mensagem deve ter no mínimo 3 palavras`);
+      return false;
+    }
+  }
+  return true;
+};
+```
+
+---
+
+## Nova Interface CadenceStep
+
+```typescript
+export interface CadenceStep {
+  key: string;           // cadence_1, cadence_2, etc.
+  interval: string;      // "5 minutes", "1 days", etc. (formato banco)
+  title: string;         
+  message: string | null;
+}
+
+// Constantes de tipo de intervalo
+export const INTERVAL_UNITS = [
+  { value: 'minutes', label: 'Minutos' },
+  { value: 'hours', label: 'Horas' },
+  { value: 'days', label: 'Dias' },
+] as const;
+```
+
+---
+
+## Comportamento do Campo de Mensagem
+
+### Quando `autoMessage = true` (Mensagem Automática)
+```text
+┌─────────────────────────────────────────────────────┐
+│  Mensagem                                           │
+│  ┌─────────────────────────────────────────────────┐│
+│  │ ✨ Mensagem gerada automaticamente pela IA      ││
+│  └─────────────────────────────────────────────────┘│
+│  (Campo apenas leitura, exibe indicador de IA)      │
+└─────────────────────────────────────────────────────┘
+```
+
+### Quando `autoMessage = false` (Mensagem Manual)
+```text
+┌─────────────────────────────────────────────────────┐
+│  Mensagem *                                         │
+│  ┌─────────────────────────────────────────────────┐│
+│  │ Digite a mensagem de follow-up...               ││
+│  │                                                  ││
+│  │                                                  ││
+│  └─────────────────────────────────────────────────┘│
+│  150/300 caracteres                                 │
+│  ⚠️ Mínimo de 3 palavras obrigatório               │
+└─────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -28,179 +179,234 @@ Quando o usuário selecionar um período de apenas 1 dia (como "Hoje" ou "Ontem"
 
 ### 1. src/pages/agente/types.ts
 
-**Renomear interface para suportar ambos granularidades:**
+Adicionar constantes de unidades de intervalo:
 
 ```typescript
-// Métricas para gráficos (por dia OU por hora)
-export interface FollowupMetrics {
-  date: string;           // Data ou timestamp
-  label: string;          // "22/01" ou "08h"
-  totalRecords: number;
-  messagesSent: number;
-  stopped: number;
-  uniqueLeads: number;
-  responseRate: number;
-}
+// Unidades de intervalo para o select
+export const INTERVAL_UNITS = [
+  { value: 'minutes', label: 'Minutos' },
+  { value: 'hours', label: 'Horas' },
+  { value: 'days', label: 'Dias' },
+] as const;
 
-// Alias para compatibilidade (pode manter FollowupDailyMetrics)
-export type FollowupDailyMetrics = FollowupMetrics;
+// Limites
+export const STEP_LIMITS = {
+  MAX_STEPS: 50,
+  MIN_INTERVAL_MINUTES: 5,
+  MIN_MESSAGE_WORDS: 3,
+  MAX_MESSAGE_CHARS: 300,
+} as const;
 ```
+
+Remover `INTERVAL_OPTIONS` (não será mais necessário).
 
 ---
 
-### 2. src/pages/agente/hooks/useFollowupData.ts
+### 2. src/pages/agente/followup/components/CadenceStepEditor.tsx
 
-**Modificar `useFollowupDailyMetrics` para detectar período e usar query apropriada:**
-
-```typescript
-export function useFollowupDailyMetrics(filters: FollowupFiltersState) {
-  return useQuery({
-    queryKey: ['followup-daily-metrics', filters],
-    queryFn: async (): Promise<FollowupDailyMetrics[]> => {
-      if (!filters.agentCodes.length) return [];
-
-      // Detectar se é período de 1 dia
-      const isSingleDay = filters.dateFrom === filters.dateTo;
-
-      const agentPlaceholders = filters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
-      const params: (string | number)[] = [...filters.agentCodes];
-
-      let whereClause = `cod_agent IN (${agentPlaceholders})`;
-
-      if (filters.dateFrom) {
-        whereClause += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
-        params.push(filters.dateFrom);
-      }
-      if (filters.dateTo) {
-        whereClause += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
-        params.push(filters.dateTo);
-      }
-
-      // Query diferente baseada no período
-      const groupByClause = isSingleDay
-        ? `EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Sao_Paulo')` // Por hora
-        : `(created_at AT TIME ZONE 'America/Sao_Paulo')::date`;           // Por dia
-
-      const selectClause = isSingleDay
-        ? `EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Sao_Paulo')::int as hour`
-        : `(created_at AT TIME ZONE 'America/Sao_Paulo')::date as date`;
-
-      const orderClause = isSingleDay ? 'hour' : 'date';
-
-      const result = await externalDb.raw<{
-        date?: string;
-        hour?: number;
-        total_records: string;
-        messages_sent: string;
-        stopped: string;
-        unique_leads: string;
-      }[]>({
-        query: `
-          SELECT 
-            ${selectClause},
-            COUNT(*)::text as total_records,
-            COALESCE(SUM(
-              CASE 
-                WHEN state = 'SEND' THEN step_number
-                ELSE GREATEST(step_number - 1, 0)
-              END
-            ), 0)::text as messages_sent,
-            COUNT(*) FILTER (WHERE state = 'STOP')::text as stopped,
-            COUNT(DISTINCT session_id)::text as unique_leads
-          FROM followup_queue
-          WHERE ${whereClause}
-          GROUP BY ${groupByClause}
-          ORDER BY ${orderClause}
-        `,
-        params,
-      });
-
-      const flatResult = Array.isArray(result) ? result.flat() : [];
-
-      return flatResult.map((row) => {
-        const totalRecords = parseInt(row.total_records || '0', 10);
-        const stopped = parseInt(row.stopped || '0', 10);
-        const responseRate = totalRecords > 0 ? (stopped / totalRecords) * 100 : 0;
-        
-        // Formatar label baseado no tipo
-        let label: string;
-        let dateValue: string;
-        
-        if (isSingleDay && row.hour !== undefined) {
-          label = `${row.hour.toString().padStart(2, '0')}h`;
-          dateValue = `${filters.dateFrom}T${row.hour.toString().padStart(2, '0')}:00:00`;
-        } else if (row.date) {
-          const parsedDate = parseISO(row.date);
-          label = format(parsedDate, 'dd/MM', { locale: ptBR });
-          dateValue = row.date;
-        } else {
-          label = 'N/A';
-          dateValue = '';
-        }
-
-        return {
-          date: dateValue,
-          label,
-          totalRecords,
-          messagesSent: parseInt(row.messages_sent || '0', 10),
-          stopped,
-          uniqueLeads: parseInt(row.unique_leads || '0', 10),
-          responseRate,
-        };
-      });
-    },
-    enabled: filters.agentCodes.length > 0,
-    staleTime: 1000 * 30,
-  });
-}
-```
-
----
-
-### 3. src/pages/agente/followup/components/FollowupDashboard.tsx
-
-**Passar informação de granularidade para os gráficos:**
+Reformular completamente:
 
 ```typescript
-interface FollowupDashboardProps {
-  stats: FollowupStats;
-  dailyMetrics: FollowupDailyMetrics[];
-  isLoading: boolean;
-  dateFrom: string;
-  dateTo: string;
-  onDateFromChange: (date: string) => void;
-  onDateToChange: (date: string) => void;
+interface CadenceStepEditorProps {
+  step: CadenceStep;
+  stepNumber: number;
+  autoMessage: boolean;
+  onChange: (step: CadenceStep) => void;
+  onRemove: () => void;
+  canRemove: boolean;
 }
 
-export function FollowupDashboard({
-  stats,
-  dailyMetrics,
-  isLoading,
-  dateFrom,
-  dateTo,
-  onDateFromChange,
-  onDateToChange,
-}: FollowupDashboardProps) {
-  // Detectar se é período de 1 dia
-  const isSingleDay = dateFrom === dateTo;
-  
+export function CadenceStepEditor({
+  step,
+  stepNumber,
+  autoMessage,
+  onChange,
+  onRemove,
+  canRemove,
+}: CadenceStepEditorProps) {
+  // Parse interval string to value and unit
+  const parseInterval = (interval: string) => {
+    const match = interval.match(/^(\d+)\s+(minutes|hours|days)$/);
+    return match 
+      ? { value: parseInt(match[1], 10), unit: match[2] }
+      : { value: 5, unit: 'minutes' };
+  };
+
+  const { value: intervalValue, unit: intervalUnit } = parseInterval(step.interval);
+
+  // Handle interval value change with validation
+  const handleIntervalValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = parseInt(e.target.value, 10) || 0;
+    
+    // Validate minimum for minutes
+    if (intervalUnit === 'minutes' && value < 5) {
+      value = 5;
+    } else if (value < 1) {
+      value = 1;
+    }
+    
+    onChange({ ...step, interval: `${value} ${intervalUnit}` });
+  };
+
+  // Handle unit change
+  const handleIntervalUnitChange = (unit: string) => {
+    let value = intervalValue;
+    
+    // If changing to minutes and current value < 5, adjust
+    if (unit === 'minutes' && value < 5) {
+      value = 5;
+    }
+    
+    onChange({ ...step, interval: `${value} ${unit}` });
+  };
+
+  // Message validation (count words)
+  const messageWordCount = step.message?.trim().split(/\s+/).filter(Boolean).length || 0;
+  const isMessageValid = autoMessage || messageWordCount >= 3;
+
   return (
-    <div className="space-y-6">
-      <FollowupFilters ... />
-      <FollowupSummary stats={stats} isLoading={isLoading} />
+    <Card>
+      <CardContent className="p-4">
+        {/* Interval: Value + Unit */}
+        <div className="space-y-2">
+          <Label className="flex items-center gap-1">
+            Intervalo
+            <Tooltip>
+              <TooltipTrigger>
+                <Info className="h-3 w-3" />
+              </TooltipTrigger>
+              <TooltipContent>
+                Tempo de espera antes de enviar esta mensagem
+              </TooltipContent>
+            </Tooltip>
+          </Label>
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              min={intervalUnit === 'minutes' ? 5 : 1}
+              value={intervalValue}
+              onChange={handleIntervalValueChange}
+              className="w-24"
+            />
+            <Select value={intervalUnit} onValueChange={handleIntervalUnitChange}>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {INTERVAL_UNITS.map((unit) => (
+                  <SelectItem key={unit.value} value={unit.value}>
+                    {unit.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Message Field */}
+        <div className="space-y-2 mt-4">
+          <Label>
+            Mensagem {!autoMessage && '*'}
+          </Label>
+          
+          {autoMessage ? (
+            // Read-only AI message indicator
+            <div className="flex items-center gap-2 text-sm bg-muted/50 rounded-md p-3">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <span>Mensagem gerada automaticamente pela IA Julia</span>
+            </div>
+          ) : (
+            // Editable message field
+            <>
+              <Textarea
+                value={step.message || ''}
+                onChange={(e) => onChange({ ...step, message: e.target.value })}
+                placeholder="Digite a mensagem de follow-up..."
+                maxLength={300}
+                rows={3}
+                className={!isMessageValid ? 'border-destructive' : ''}
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>
+                  {!isMessageValid && (
+                    <span className="text-destructive">
+                      Mínimo de 3 palavras obrigatório
+                    </span>
+                  )}
+                </span>
+                <span>{step.message?.length || 0}/300</span>
+              </div>
+            </>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+---
+
+### 3. src/pages/agente/followup/components/FollowupConfig.tsx
+
+Adicionar validações e limites:
+
+```typescript
+import { STEP_LIMITS } from '../../types';
+
+export function FollowupConfig({ config, isLoading, isSaving, onSave }) {
+  // ... existing state
+
+  const handleAddStep = () => {
+    if (steps.length >= STEP_LIMITS.MAX_STEPS) {
+      toast.error(`Máximo de ${STEP_LIMITS.MAX_STEPS} etapas atingido`);
+      return;
+    }
+    // ... add step logic
+  };
+
+  const validateBeforeSave = (): boolean => {
+    // Validate messages when auto_message is disabled
+    if (!autoMessage) {
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        const wordCount = step.message?.trim().split(/\s+/).filter(Boolean).length || 0;
+        
+        if (wordCount < STEP_LIMITS.MIN_MESSAGE_WORDS) {
+          toast.error(
+            `Etapa ${i + 1}: mensagem deve ter no mínimo ${STEP_LIMITS.MIN_MESSAGE_WORDS} palavras`
+          );
+          return false;
+        }
+        
+        if ((step.message?.length || 0) > STEP_LIMITS.MAX_MESSAGE_CHARS) {
+          toast.error(
+            `Etapa ${i + 1}: mensagem excede ${STEP_LIMITS.MAX_MESSAGE_CHARS} caracteres`
+          );
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  const handleSave = () => {
+    if (!validateBeforeSave()) return;
+    // ... existing save logic
+  };
+
+  return (
+    <div>
+      {/* Button with limit check */}
+      <Button 
+        onClick={handleAddStep}
+        disabled={steps.length >= STEP_LIMITS.MAX_STEPS}
+      >
+        <Plus className="h-4 w-4 mr-2" />
+        Adicionar Etapa ({steps.length}/{STEP_LIMITS.MAX_STEPS})
+      </Button>
       
-      {/* Passar granularidade para os gráficos */}
-      <FollowupEvolutionChart 
-        data={dailyMetrics} 
-        isLoading={isLoading} 
-        granularity={isSingleDay ? 'hourly' : 'daily'}
-      />
-      
-      <FollowupResponseRateChart 
-        data={dailyMetrics} 
-        isLoading={isLoading}
-        granularity={isSingleDay ? 'hourly' : 'daily'}
-      />
+      {/* ... rest of component */}
     </div>
   );
 }
@@ -208,244 +414,77 @@ export function FollowupDashboard({
 
 ---
 
-### 4. src/pages/agente/followup/components/FollowupEvolutionChart.tsx
-
-**Atualizar título baseado na granularidade:**
-
-```typescript
-interface FollowupEvolutionChartProps {
-  data: FollowupDailyMetrics[];
-  isLoading?: boolean;
-  granularity?: 'daily' | 'hourly';
-}
-
-export function FollowupEvolutionChart({ 
-  data, 
-  isLoading, 
-  granularity = 'daily' 
-}: FollowupEvolutionChartProps) {
-  // Título dinâmico
-  const title = granularity === 'hourly' 
-    ? 'Evolução por Hora de FollowUps' 
-    : 'Evolução Diária de FollowUps';
-  
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>{title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-[300px] w-full" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!data.length) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>{title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-            Nenhum dado disponível para o período selecionado
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {/* Gráfico AreaChart - sem mudanças no componente interno */}
-      </CardContent>
-    </Card>
-  );
-}
-```
-
----
-
-### 5. src/pages/agente/followup/components/FollowupResponseRateChart.tsx
-
-**Atualizar título baseado na granularidade:**
-
-```typescript
-interface FollowupResponseRateChartProps {
-  data: FollowupDailyMetrics[];
-  isLoading?: boolean;
-  granularity?: 'daily' | 'hourly';
-}
-
-export function FollowupResponseRateChart({ 
-  data, 
-  isLoading,
-  granularity = 'daily'
-}: FollowupResponseRateChartProps) {
-  // Título dinâmico
-  const title = granularity === 'hourly'
-    ? 'Evolução por Hora da Taxa de Resposta'
-    : 'Evolução da Taxa de Resposta';
-
-  if (isLoading) { /* ... com título dinâmico */ }
-  if (!data.length) { /* ... com título dinâmico */ }
-
-  // Calculate average
-  const averageRate = data.reduce((sum, d) => sum + d.responseRate, 0) / data.length;
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span>{title}</span>
-          <span className="text-sm font-normal text-muted-foreground">
-            Média: {averageRate.toFixed(1)}%
-          </span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {/* Gráfico LineChart - sem mudanças */}
-      </CardContent>
-    </Card>
-  );
-}
-```
-
----
-
-## Fluxo de Dados Atualizado
+## Fluxo de Dados
 
 ```text
-FollowupPage
+FollowupConfig
     │
-    ├── dashboardDateFrom / dashboardDateTo
+    ├── autoMessage: boolean
     │
-    └── useFollowupDailyMetrics(dashboardFilters)
+    └── CadenceStepEditor (para cada etapa)
             │
-            ├── if dateFrom === dateTo (1 dia)
-            │       → GROUP BY EXTRACT(HOUR)
-            │       → Labels: "00h", "01h", ..., "23h"
+            ├── Intervalo
+            │   ├── Input numérico (min: 5 para minutos, 1 para outros)
+            │   └── Select de unidade (Minutos/Horas/Dias)
             │
-            └── if dateFrom !== dateTo (múltiplos dias)
-                    → GROUP BY ::date
-                    → Labels: "22/01", "23/01", ...
-            │
-            └── FollowupDashboard
-                    │
-                    ├── granularity = isSingleDay ? 'hourly' : 'daily'
-                    │
-                    ├── FollowupEvolutionChart (granularity)
-                    │       → Título: "Evolução por Hora..." ou "Evolução Diária..."
-                    │
-                    └── FollowupResponseRateChart (granularity)
-                            → Título: "Evolução por Hora da Taxa..." ou "Evolução da Taxa..."
-```
-
----
-
-## Queries SQL
-
-### Query por HORA (período de 1 dia)
-```sql
-SELECT 
-  EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Sao_Paulo')::int as hour,
-  COUNT(*)::text as total_records,
-  COALESCE(SUM(
-    CASE WHEN state = 'SEND' THEN step_number ELSE GREATEST(step_number - 1, 0) END
-  ), 0)::text as messages_sent,
-  COUNT(*) FILTER (WHERE state = 'STOP')::text as stopped,
-  COUNT(DISTINCT session_id)::text as unique_leads
-FROM followup_queue
-WHERE cod_agent IN ($1)
-  AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2
-  AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3
-GROUP BY EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Sao_Paulo')
-ORDER BY hour
-```
-
-### Query por DIA (múltiplos dias)
-```sql
-SELECT 
-  (created_at AT TIME ZONE 'America/Sao_Paulo')::date as date,
-  COUNT(*)::text as total_records,
-  ...
-GROUP BY (created_at AT TIME ZONE 'America/Sao_Paulo')::date
-ORDER BY date
-```
-
----
-
-## Visualização do Resultado
-
-### Período: Hoje (1 dia)
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│  Evolução por Hora de FollowUps                                 │
-│                                                                  │
-│  📈 Gráfico de Área                                             │
-│                                                                  │
-│  |                    ___                                        │
-│  |              _____|   |___                                   │
-│  |        ____|               |___                              │
-│  |_____ |                          |___                         │
-│  +------+------+------+------+------+------+                    │
-│    08h    09h    10h    11h    12h    13h                       │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Período: Últimos 7 dias
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│  Evolução Diária de FollowUps                                   │
-│                                                                  │
-│  📈 Gráfico de Área                                             │
-│                                                                  │
-│  |                         ___                                   │
-│  |              ___       |   |                                  │
-│  |        ____|    |___  |     |___                             │
-│  |_____ |               |           |___                        │
-│  +------+------+------+------+------+------+------+             │
-│   17/01  18/01  19/01  20/01  21/01  22/01  23/01               │
-└─────────────────────────────────────────────────────────────────┘
+            └── Mensagem
+                ├── Se autoMessage=true → Exibe indicador IA (read-only)
+                └── Se autoMessage=false → Textarea editável
+                    ├── maxLength: 300
+                    └── Validação: mínimo 3 palavras
 ```
 
 ---
 
 ## Ordem de Implementação
 
-1. **useFollowupData.ts** - Modificar `useFollowupDailyMetrics` para detectar período e usar query por hora ou por dia
+1. **types.ts** - Adicionar `INTERVAL_UNITS` e `STEP_LIMITS`, remover `INTERVAL_OPTIONS`
 
-2. **FollowupDashboard.tsx** - Calcular `isSingleDay` e passar `granularity` para os gráficos
+2. **CadenceStepEditor.tsx** - Reformular com:
+   - Input numérico + Select de unidade para intervalo
+   - Lógica de parse/format do formato do banco
+   - Campo de mensagem condicional (IA vs manual)
+   - Contador de caracteres e validação de palavras
 
-3. **FollowupEvolutionChart.tsx** - Adicionar prop `granularity` e atualizar título dinamicamente
-
-4. **FollowupResponseRateChart.tsx** - Adicionar prop `granularity` e atualizar título dinamicamente
+3. **FollowupConfig.tsx** - Adicionar:
+   - Limite de 50 etapas com feedback visual
+   - Validação de mensagens antes de salvar
+   - Contador no botão "Adicionar Etapa"
 
 ---
 
-## Seção Tecnica
+## Seção Técnica
 
-### Detecção de Período
+### Parse e Format do Intervalo
 ```typescript
-const isSingleDay = filters.dateFrom === filters.dateTo;
+// Banco → UI
+function parseInterval(interval: string): { value: number; unit: string } {
+  const match = interval.match(/^(\d+)\s+(minutes|hours|days)$/);
+  return match 
+    ? { value: parseInt(match[1], 10), unit: match[2] }
+    : { value: 5, unit: 'minutes' };
+}
+
+// UI → Banco
+function formatInterval(value: number, unit: string): string {
+  return `${value} ${unit}`;
+}
 ```
 
-### Formatação de Labels por Hora
+### Validação de Mensagem
 ```typescript
-// Para hora = 8
-label = `${hour.toString().padStart(2, '0')}h`; // → "08h"
+function validateMessage(message: string | null): boolean {
+  if (!message) return false;
+  const words = message.trim().split(/\s+/).filter(Boolean);
+  return words.length >= 3 && message.length <= 300;
+}
 ```
 
-### Granularidade nos Props
-```typescript
-type Granularity = 'daily' | 'hourly';
-```
+### Regras de Negócio
+| Regra | Valor |
+|-------|-------|
+| Etapas máximas | 50 |
+| Tempo mínimo | 5 minutos |
+| Palavras mínimas (mensagem) | 3 |
+| Caracteres máximos (mensagem) | 300 |
 
-### Tratamento de Horas Vazias
-O gráfico só exibirá as horas que possuem dados. Se não houver registros às 15h, essa hora não aparecerá no gráfico (comportamento padrão do Recharts).
