@@ -8,7 +8,7 @@ import { CRMCard } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { WhatsAppMessagesDialog } from './WhatsAppMessagesDialog';
-import { formatDateTimeSaoPaulo } from '@/lib/dateUtils';
+import { formatDbDateTime } from '@/lib/dateUtils';
 
 interface CRMLeadCardProps {
   card: CRMCard;
@@ -113,11 +113,11 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
             <div className="pt-2 border-t space-y-1 text-xs text-muted-foreground">
               <div className="flex items-center justify-between">
                 <span>Criado:</span>
-                <span>{formatDateTimeSaoPaulo(card.created_at)}</span>
+                <span>{formatDbDateTime(card.created_at)}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>Atualizado:</span>
-                <span>{formatDateTimeSaoPaulo(card.updated_at)}</span>
+                <span>{formatDbDateTime(card.updated_at)}</span>
               </div>
               <div className="flex items-center gap-1.5 text-muted-foreground/70 pt-1">
                 <Clock className="h-3 w-3" />

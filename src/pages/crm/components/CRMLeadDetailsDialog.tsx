@@ -13,7 +13,7 @@ import { CRMCard, CRMStage } from '../types';
 import { useCRMCardHistory } from '../hooks/useCRMData';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { formatDateTimeSaoPaulo } from '@/lib/dateUtils';
+import { formatDbDateTime } from '@/lib/dateUtils';
 
 interface CRMLeadDetailsDialogProps {
   card: CRMCard | null;
@@ -161,7 +161,7 @@ export function CRMLeadDetailsDialog({
                   <span>Criado em</span>
                 </div>
                 <p className="text-sm font-medium">
-                  {formatDateTimeSaoPaulo(card.created_at)}
+                  {formatDbDateTime(card.created_at)}
                 </p>
               </div>
 
@@ -190,7 +190,7 @@ export function CRMLeadDetailsDialog({
                 )}
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Clock className="h-3 w-3" />
-                  desde {formatDateTimeSaoPaulo(card.stage_entered_at)}
+                  desde {formatDbDateTime(card.stage_entered_at)}
                 </span>
               </div>
             </div>
@@ -242,7 +242,7 @@ export function CRMLeadDetailsDialog({
                         className="flex items-center gap-2 text-sm p-3 bg-muted/30 rounded-lg"
                       >
                         <span className="text-xs text-muted-foreground shrink-0">
-                          {formatDateTimeSaoPaulo(item.changed_at)}
+                          {formatDbDateTime(item.changed_at)}
                         </span>
                         
                         {item.from_stage_name ? (

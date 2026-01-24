@@ -147,3 +147,112 @@ export function getDateGroupLabel(date: Date): string {
     month: 'long',
   });
 }
+
+// ============================================
+// FUNÇÕES PARA TIMESTAMPS DO BANCO EXTERNO
+// ============================================
+// O sistema externo (JulIA) salva horários de Brasília diretamente
+// no banco SEM offset, mas com sufixo 'Z' (interpretado como UTC).
+// Precisamos tratar esses timestamps como já estando em Brasília.
+
+/**
+ * Interpreta um timestamp do banco como se já estivesse em Brasília.
+ * 
+ * PROBLEMA: O sistema externo salva horários de Brasília como UTC.
+ * Exemplo: 20:38 Brasília é salvo como "2026-01-23T20:38:26Z"
+ *          Quando parseado, JavaScript interpreta como UTC e converte errado.
+ * 
+ * SOLUÇÃO: Remover o Z e tratar como timestamp local.
+ */
+export function parseDbTimestamp(dateStr: string | Date): Date {
+  if (dateStr instanceof Date) return dateStr;
+  
+  // Remove o Z final se existir (para não interpretar como UTC)
+  const cleanStr = dateStr.replace(/Z$/, '');
+  return new Date(cleanStr);
+}
+
+/**
+ * Formata um timestamp do banco para exibição completa.
+ * Use esta função para timestamps que vêm do banco externo.
+ * Formato: "23/01/26, 20:38"
+ */
+export function formatDbDateTime(dateStr: string | Date): string {
+  const date = parseDbTimestamp(dateStr);
+  
+  return date.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
+/**
+ * Formata apenas hora de um timestamp do banco.
+ * Formato: "20:38"
+ */
+export function formatDbTime(dateStr: string | Date): string {
+  const date = parseDbTimestamp(dateStr);
+  
+  return date.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
+/**
+ * Formata data curta de um timestamp do banco.
+ * Formato: "23 de jan."
+ */
+export function formatDbDateShort(dateStr: string | Date): string {
+  const date = parseDbTimestamp(dateStr);
+  
+  return date.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+  });
+}
+
+/**
+ * Verifica se o timestamp do banco é hoje
+ */
+export function isDbTimestampToday(dateStr: string | Date): boolean {
+  const date = parseDbTimestamp(dateStr);
+  const today = new Date();
+  
+  return date.getDate() === today.getDate() &&
+         date.getMonth() === today.getMonth() &&
+         date.getFullYear() === today.getFullYear();
+}
+
+/**
+ * Verifica se o timestamp do banco é ontem
+ */
+export function isDbTimestampYesterday(dateStr: string | Date): boolean {
+  const date = parseDbTimestamp(dateStr);
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  return date.getDate() === yesterday.getDate() &&
+         date.getMonth() === yesterday.getMonth() &&
+         date.getFullYear() === yesterday.getFullYear();
+}
+
+/**
+ * Retorna label de agrupamento para timeline de banco externo
+ * Formato: "Hoje", "Ontem" ou "23 de janeiro"
+ */
+export function getDbDateGroupLabel(dateStr: string | Date): string {
+  if (isDbTimestampToday(dateStr)) return 'Hoje';
+  if (isDbTimestampYesterday(dateStr)) return 'Ontem';
+  
+  const date = parseDbTimestamp(dateStr);
+  return date.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: 'long',
+  });
+}
