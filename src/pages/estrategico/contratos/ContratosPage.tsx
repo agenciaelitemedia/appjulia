@@ -85,6 +85,16 @@ export default function ContratosPage() {
         </Button>
       </div>
 
+      {/* Filters - Now at the top after header */}
+      <JuliaFilters
+        agents={agents}
+        filters={filters}
+        onFiltersChange={setFilters}
+        isLoading={agentsLoading}
+        showStatusFilter
+        statusOptions={['CREATED', 'SIGNED', 'PENDING', 'CANCELLED']}
+      />
+
       {/* Summary Cards */}
       <ContratosSummary 
         contratos={contratos} 
@@ -98,16 +108,6 @@ export default function ContratosPage() {
         isLoading={contratosLoading}
         dateFrom={filters.dateFrom}
         dateTo={filters.dateTo}
-      />
-
-      {/* Filters */}
-      <JuliaFilters
-        agents={agents}
-        filters={filters}
-        onFiltersChange={setFilters}
-        isLoading={agentsLoading}
-        showStatusFilter
-        statusOptions={['CREATED', 'SIGNED', 'PENDING', 'CANCELLED']}
       />
 
       {/* Table */}

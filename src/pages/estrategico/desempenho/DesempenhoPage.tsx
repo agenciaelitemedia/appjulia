@@ -4,7 +4,7 @@ import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
-import { useJuliaAgents, useJuliaSessoes } from '../hooks/useJuliaData';
+import { useJuliaAgents, useJuliaSessoes, useJuliaSessoesPrevious } from '../hooks/useJuliaData';
 import { JuliaFilters } from '../components/JuliaFilters';
 import { DesempenhoSummary } from './components/DesempenhoSummary';
 import { DesempenhoEvolutionChart } from './components/DesempenhoEvolutionChart';
@@ -27,6 +27,7 @@ export default function DesempenhoPage() {
 
   const { data: agents = [], isLoading: agentsLoading } = useJuliaAgents();
   const { data: sessoes = [], isLoading: sessoesLoading } = useJuliaSessoes(filters);
+  const { data: previousSessoes = [] } = useJuliaSessoesPrevious(filters);
 
   // Initialize agent codes when agents load
   useEffect(() => {
@@ -41,7 +42,10 @@ export default function DesempenhoPage() {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await queryClient.invalidateQueries({ queryKey: ['julia-sessoes'] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['julia-sessoes'] }),
+      queryClient.invalidateQueries({ queryKey: ['julia-sessoes-previous'] }),
+    ]);
     setIsRefreshing(false);
   };
 
@@ -80,8 +84,21 @@ export default function DesempenhoPage() {
         </Button>
       </div>
 
+      {/* Filters - Now at the top after header */}
+      <JuliaFilters
+        agents={agents}
+        filters={filters}
+        onFiltersChange={setFilters}
+        isLoading={agentsLoading}
+        showPerfilFilter
+      />
+
       {/* Summary Cards */}
-      <DesempenhoSummary sessoes={sessoes} isLoading={sessoesLoading} />
+      <DesempenhoSummary 
+        sessoes={sessoes} 
+        previousSessoes={previousSessoes}
+        isLoading={sessoesLoading} 
+      />
 
       {/* Evolution Chart */}
       <DesempenhoEvolutionChart 
@@ -89,15 +106,6 @@ export default function DesempenhoPage() {
         isLoading={sessoesLoading}
         dateFrom={filters.dateFrom}
         dateTo={filters.dateTo}
-      />
-
-      {/* Filters */}
-      <JuliaFilters
-        agents={agents}
-        filters={filters}
-        onFiltersChange={setFilters}
-        isLoading={agentsLoading}
-        showPerfilFilter
       />
 
       {/* Table */}
