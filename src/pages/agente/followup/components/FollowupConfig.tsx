@@ -124,9 +124,9 @@ export function FollowupConfig({ config, isLoading, isSaving, onSave }: Followup
       setFollowupFrom(null);
       setFollowupTo(null);
     } else if (steps.length >= 2) {
-      // Default to loop from last to first step
+      // Default to loop from last step back to second-to-last step
       setFollowupTo(steps.length);
-      setFollowupFrom(1);
+      setFollowupFrom(steps.length - 1);
     }
   };
 
