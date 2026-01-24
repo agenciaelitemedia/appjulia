@@ -1,366 +1,431 @@
 
-# Plano: Implementar Paginas Desempenho e Contratos Julia
+# Plano de Implementacao: Melhorias Contratos Julia
 
-## Resumo
+## Resumo das Alteracoes
 
-Criar duas novas paginas no modulo Estrategico clonando a estrutura existente do CRM:
-1. **Desempenho Julia** (`/estrategico/desempenho`) - Lista de sessoes com metricas de atendimento
-2. **Contratos Julia** (`/estrategico/contratos`) - Lista de contratos assinados/em curso
-
----
-
-## Dados Disponiveis
-
-### View: `vw_desempenho_julia` (Sessoes)
-| Campo | Tipo | Descricao |
-|-------|------|-----------|
-| cod_agent | bigint | Codigo do agente |
-| agent_id | bigint | ID do agente |
-| name | varchar | Nome do proprietario |
-| business_name | varchar | Nome do escritorio |
-| client_id | bigint | ID do cliente |
-| perfil_agent | text | Tipo: SDR ou CLOSER |
-| session_id | bigint | ID da sessao |
-| total_msg | bigint | Total de mensagens |
-| whatsapp | bigint | Numero do WhatsApp |
-| status_document | varchar | Status do documento |
-| max_created_at | timestamp | Ultima mensagem |
-| created_at | timestamp | Inicio da sessao |
-
-### View: `vw_desempenho_julia_contratos` (Contratos)
-| Campo | Tipo | Descricao |
-|-------|------|-----------|
-| cod_agent | bigint | Codigo do agente |
-| name | varchar | Nome do proprietario |
-| business_name | varchar | Nome do escritorio |
-| session_id | bigint | ID da sessao |
-| whatsapp | bigint | Numero do WhatsApp |
-| cod_document | varchar | UUID do documento |
-| status_document | varchar | CREATED, SIGNED, etc |
-| situacao | text | EM CURSO, etc |
-| data_contrato | timestamp | Data de criacao |
-| data_assinatura | timestamp | Data da assinatura |
-| resumo_do_caso | text | Resumo do caso |
-| signer_name | varchar | Nome do signatario |
-| signer_cpf | varchar | CPF do signatario |
-| signer_uf | varchar | UF |
-| signer_cidade | varchar | Cidade |
-| case_title | varchar | Titulo do caso |
-| case_category_name | varchar | Categoria |
-| case_category_color | varchar | Cor da categoria |
+| Item | Descricao | Arquivos Afetados |
+|------|-----------|-------------------|
+| 1 | Remover colunas e formatar WhatsApp | ContratosTable.tsx |
+| 2 | Adicionar tempo de assinatura/em curso | ContratosTable.tsx, dateUtils.ts |
+| 3 | Popup WhatsApp igual ao CRM | ContratosTable.tsx |
+| 4 | Download de contrato via ZapSign API | Nova Edge Function + ContratosTable.tsx |
 
 ---
 
-## Estrutura de Arquivos a Criar
+## 1. Remover Colunas e Formatar WhatsApp
 
-```text
-src/pages/estrategico/
-├── types.ts                          # Tipos TypeScript
-├── hooks/
-│   └── useJuliaData.ts               # Hooks de dados
-├── desempenho/
-│   ├── DesempenhoPage.tsx            # Pagina principal
-│   └── components/
-│       ├── DesempenhoFilters.tsx     # Filtros (clone de CRMFilters)
-│       ├── DesempenhoTable.tsx       # Tabela de sessoes
-│       └── DesempenhoSummary.tsx     # Cards de resumo
-└── contratos/
-    ├── ContratosPage.tsx             # Pagina principal
-    └── components/
-        ├── ContratosFilters.tsx      # Filtros
-        ├── ContratosTable.tsx        # Tabela de contratos
-        ├── ContratoDetailsDialog.tsx # Dialog de detalhes
-        └── ContratosSummary.tsx      # Cards de resumo
-```
+### Alteracoes em `ContratosTable.tsx`
 
----
+**Remover colunas:**
+- Linha 90: Remover `<TableHead>Situacao</TableHead>`
+- Linha 92: Remover `<TableHead>Assinatura</TableHead>`
+- Linhas 131-135: Remover celula de Situacao
+- Linhas 139-143: Remover celula de Assinatura
 
-## Implementacao Detalhada
+**Formatar numero WhatsApp:**
 
-### 1. Tipos TypeScript (`src/pages/estrategico/types.ts`)
-
+Adicionar funcao helper:
 ```typescript
-export interface JuliaFiltersState {
-  search: string;
-  agentCodes: string[];
-  dateFrom: string;
-  dateTo: string;
-  perfilAgent?: 'SDR' | 'CLOSER' | 'ALL';
-  statusDocument?: string;
-}
-
-export interface JuliaSessao {
-  cod_agent: string;
-  agent_id: number;
-  name: string;
-  business_name: string;
-  client_id: number;
-  perfil_agent: string;
-  session_id: number;
-  total_msg: number;
-  whatsapp: string;
-  status_document: string | null;
-  max_created_at: string;
-  created_at: string;
-}
-
-export interface JuliaContrato {
-  cod_agent: string;
-  agent_id: number;
-  name: string;
-  business_name: string;
-  client_id: number;
-  perfil_agent: string;
-  session_id: number;
-  total_msg: number;
-  whatsapp: string;
-  cod_document: string;
-  status_document: string;
-  situacao: string;
-  data_contrato: string;
-  data_assinatura: string | null;
-  resumo_do_caso: string | null;
-  signer_name: string | null;
-  signer_cpf: string | null;
-  signer_uf: string | null;
-  signer_cidade: string | null;
-  signer_bairro: string | null;
-  signer_endereco: string | null;
-  signer_cep: string | null;
-  case_title: string | null;
-  case_category_name: string | null;
-  case_category_color: string | null;
-  is_confirm: string;
-}
-
-export interface JuliaSummary {
-  totalSessoes: number;
-  totalMensagens: number;
-  mediaMsg: number;
-  sessoesHoje: number;
-}
-
-export interface JuliaContratoSummary {
-  totalContratos: number;
-  contratosAssinados: number;
-  contratosEmCurso: number;
-  taxaAssinatura: number;
-}
-```
-
----
-
-### 2. Hooks de Dados (`src/pages/estrategico/hooks/useJuliaData.ts`)
-
-```typescript
-import { useQuery } from '@tanstack/react-query';
-import { externalDb } from '@/lib/externalDb';
-import { useAuth } from '@/contexts/AuthContext';
-import { JuliaSessao, JuliaContrato, JuliaFiltersState } from '../types';
-
-export function useJuliaSessoes(filters: JuliaFiltersState) {
-  const { user } = useAuth();
+function formatWhatsAppNumber(number: string): string {
+  if (!number) return '-';
   
-  return useQuery({
-    queryKey: ['julia-sessoes', filters],
-    queryFn: async () => {
-      const { agentCodes, dateFrom, dateTo, perfilAgent } = filters;
-      
-      if (agentCodes.length === 0) return [];
-      
-      const result = await externalDb.raw<JuliaSessao>({
-        query: `
-          SELECT 
-            cod_agent::text, agent_id, name, business_name, client_id,
-            perfil_agent, session_id, total_msg::int, whatsapp::text,
-            status_document, max_created_at, created_at
-          FROM vw_desempenho_julia
-          WHERE cod_agent::text = ANY($1::varchar[])
-            AND created_at >= $2::timestamp
-            AND created_at <= ($3::timestamp + interval '1 day')
-            ${perfilAgent && perfilAgent !== 'ALL' ? "AND perfil_agent = $4" : ""}
-          ORDER BY created_at DESC
-        `,
-        params: perfilAgent && perfilAgent !== 'ALL' 
-          ? [agentCodes, dateFrom, dateTo, perfilAgent]
-          : [agentCodes, dateFrom, dateTo],
-      });
-      
-      return result;
-    },
-    enabled: filters.agentCodes.length > 0,
-  });
-}
-
-export function useJuliaContratos(filters: JuliaFiltersState) {
-  return useQuery({
-    queryKey: ['julia-contratos', filters],
-    queryFn: async () => {
-      const { agentCodes, dateFrom, dateTo, statusDocument } = filters;
-      
-      if (agentCodes.length === 0) return [];
-      
-      const result = await externalDb.raw<JuliaContrato>({
-        query: `
-          SELECT 
-            cod_agent::text, agent_id, name, business_name, client_id,
-            perfil_agent, session_id, total_msg::int, whatsapp::text,
-            cod_document, status_document, situacao,
-            data_contrato, data_assinatura,
-            resumo_do_caso, signer_name, signer_cpf, signer_uf,
-            signer_cidade, signer_bairro, signer_endereco, signer_cep,
-            case_title, case_category_name, case_category_color, is_confirm
-          FROM vw_desempenho_julia_contratos
-          WHERE cod_agent::text = ANY($1::varchar[])
-            AND data_contrato >= $2::timestamp
-            AND data_contrato <= ($3::timestamp + interval '1 day')
-            ${statusDocument ? "AND status_document = $4" : ""}
-          ORDER BY data_contrato DESC
-        `,
-        params: statusDocument 
-          ? [agentCodes, dateFrom, dateTo, statusDocument]
-          : [agentCodes, dateFrom, dateTo],
-      });
-      
-      return result;
-    },
-    enabled: filters.agentCodes.length > 0,
-  });
+  // Remove todos os caracteres nao numericos
+  const cleaned = number.replace(/\D/g, '');
+  
+  // Formato: +55 (34) 99999-9999
+  if (cleaned.length === 13) {
+    // Com codigo do pais (55) + DDD (2) + numero (9)
+    return `+${cleaned.slice(0, 2)} (${cleaned.slice(2, 4)}) ${cleaned.slice(4, 9)}-${cleaned.slice(9)}`;
+  } else if (cleaned.length === 12) {
+    // Com codigo do pais (55) + DDD (2) + numero (8)
+    return `+${cleaned.slice(0, 2)} (${cleaned.slice(2, 4)}) ${cleaned.slice(4, 8)}-${cleaned.slice(8)}`;
+  } else if (cleaned.length === 11) {
+    // Apenas DDD (2) + numero (9)
+    return `+55 (${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`;
+  } else if (cleaned.length === 10) {
+    // Apenas DDD (2) + numero (8)
+    return `+55 (${cleaned.slice(0, 2)}) ${cleaned.slice(2, 6)}-${cleaned.slice(6)}`;
+  }
+  
+  return number;
 }
 ```
 
----
-
-### 3. Pagina de Desempenho (`src/pages/estrategico/desempenho/DesempenhoPage.tsx`)
-
-A pagina tera:
-- Header com titulo e botao de atualizar
-- Cards de resumo (Total Sessoes, Total Mensagens, Media por Sessao, Sessoes Hoje)
-- Filtros (Agentes, Datas, Perfil, Busca)
-- Tabela com colunas: Agente, WhatsApp, Perfil, Mensagens, Inicio, Ultima Msg, Status
-
----
-
-### 4. Pagina de Contratos (`src/pages/estrategico/contratos/ContratosPage.tsx`)
-
-A pagina tera:
-- Header com titulo e botao de atualizar
-- Cards de resumo (Total Contratos, Assinados, Em Curso, Taxa de Assinatura)
-- Filtros (Agentes, Datas, Status do Documento, Busca)
-- Tabela com colunas: Agente, Cliente, WhatsApp, Status, Situacao, Data Contrato, Data Assinatura
-- Dialog de detalhes ao clicar no contrato
-
----
-
-### 5. Componente de Tabela de Sessoes (`DesempenhoTable.tsx`)
-
+**Atualizar celula WhatsApp (linha 116-124):**
 ```typescript
-// Colunas da tabela:
-// - Agente (cod_agent + name)
-// - WhatsApp (link clicavel)
-// - Perfil (badge SDR/CLOSER)
-// - Mensagens (total_msg)
-// - Inicio (created_at formatado)
-// - Ultima Msg (max_created_at formatado)
-// - Status (badge colorido)
+<TableCell>
+  <a
+    href={`https://wa.me/${contrato.whatsapp?.replace(/\D/g, '')}`}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="text-primary hover:underline font-mono text-sm"
+  >
+    {formatWhatsAppNumber(contrato.whatsapp)}
+  </a>
+</TableCell>
 ```
 
 ---
 
-### 6. Componente de Tabela de Contratos (`ContratosTable.tsx`)
+## 2. Adicionar Tempo de Assinatura/Em Curso
+
+### Adicionar helper em `dateUtils.ts`
 
 ```typescript
-// Colunas da tabela:
-// - Agente (cod_agent + name)
-// - Cliente (signer_name)
-// - WhatsApp (link clicavel)
-// - Status (badge: CREATED, SIGNED)
-// - Situacao (badge: EM CURSO, etc)
-// - Data Contrato (data_contrato formatado)
-// - Assinatura (data_assinatura formatado ou "Pendente")
-// - Acoes (botao ver detalhes)
+/**
+ * Calcula a diferenca de tempo entre duas datas e retorna string amigavel.
+ * Exemplos: "em 3 min", "ha 50 min", "ha 2 dias", "em 1h 23min"
+ */
+export function formatTimeDifference(
+  startDate: string | Date, 
+  endDate?: string | Date | null
+): string {
+  const start = parseDbTimestamp(startDate);
+  const end = endDate ? parseDbTimestamp(endDate) : new Date();
+  
+  const diffMs = end.getTime() - start.getTime();
+  const diffMinutes = Math.floor(Math.abs(diffMs) / (1000 * 60));
+  const diffHours = Math.floor(diffMinutes / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  
+  // Determina prefixo: "em" para passado (assinado), "ha" para em curso
+  const prefix = endDate ? 'em' : 'ha';
+  
+  if (diffDays > 0) {
+    return `${prefix} ${diffDays} dia${diffDays > 1 ? 's' : ''}`;
+  }
+  
+  if (diffHours > 0) {
+    const remainingMinutes = diffMinutes % 60;
+    if (remainingMinutes > 0) {
+      return `${prefix} ${diffHours}h ${remainingMinutes}min`;
+    }
+    return `${prefix} ${diffHours}h`;
+  }
+  
+  return `${prefix} ${diffMinutes} min`;
+}
+```
+
+### Atualizar celula de Status em `ContratosTable.tsx`
+
+Modificar linhas 126-130 para incluir tempo abaixo do badge:
+
+```typescript
+<TableCell>
+  <div className="flex flex-col gap-1">
+    <Badge variant="secondary" className={statusInfo.className}>
+      {statusInfo.label}
+    </Badge>
+    <span className="text-[10px] text-muted-foreground">
+      {contrato.status_document === 'SIGNED' 
+        ? formatTimeDifference(contrato.data_contrato, contrato.data_assinatura)
+        : formatTimeDifference(contrato.data_contrato)
+      }
+    </span>
+  </div>
+</TableCell>
+```
+
+**Exemplos de exibicao:**
+- Contrato SIGNED: Badge "Assinado" + "em 3 min" (tempo entre criacao e assinatura)
+- Contrato CREATED/PENDING: Badge "Criado" + "ha 50 min" (tempo desde criacao ate agora)
+
+---
+
+## 3. Adicionar Popup WhatsApp (igual ao CRM)
+
+### Modificar `ContratosTable.tsx`
+
+**Adicionar imports:**
+```typescript
+import { useState } from 'react'; // Adicionar useState
+import { MessageCircle } from 'lucide-react'; // Adicionar icone
+import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+```
+
+**Adicionar estado para controlar dialog:**
+```typescript
+const [messagesOpen, setMessagesOpen] = useState(false);
+const [selectedContrato, setSelectedContrato] = useState<JuliaContrato | null>(null);
+
+const handleOpenMessages = (contrato: JuliaContrato) => {
+  setSelectedContrato(contrato);
+  setMessagesOpen(true);
+};
+```
+
+**Atualizar coluna Acoes (linha 93):**
+```typescript
+<TableHead className="w-[120px]">Acoes</TableHead>
+```
+
+**Atualizar celula de Acoes (linhas 144-152):**
+```typescript
+<TableCell>
+  <div className="flex items-center gap-1">
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100/50"
+            onClick={() => handleOpenMessages(contrato)}
+          >
+            <MessageCircle className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Ver mensagens do WhatsApp</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+    
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => onViewDetails(contrato)}
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Ver detalhes</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  </div>
+</TableCell>
+```
+
+**Adicionar dialog no final do componente (antes do fechamento do div raiz):**
+```typescript
+{selectedContrato && (
+  <WhatsAppMessagesDialog
+    open={messagesOpen}
+    onOpenChange={setMessagesOpen}
+    whatsappNumber={selectedContrato.whatsapp}
+    leadName={selectedContrato.signer_name || ''}
+    codAgent={selectedContrato.cod_agent}
+  />
+)}
 ```
 
 ---
 
-### 7. Dialog de Detalhes do Contrato (`ContratoDetailsDialog.tsx`)
+## 4. Download de Contrato via ZapSign API
 
-Mostrara:
-- Informacoes do contrato (cod_document, status, situacao)
-- Dados do signatario (nome, CPF, endereco completo)
-- Resumo do caso (resumo_do_caso)
-- Vinculo com processo (case_title, case_category)
+### 4.1 Criar Secret para API Token do ZapSign
 
----
+Sera necessario adicionar o secret `ZAPSIGN_API_TOKEN` via Lovable.
 
-### 8. Rotas no App.tsx
+### 4.2 Criar Edge Function `zapsign-download`
+
+**Arquivo:** `supabase/functions/zapsign-download/index.ts`
 
 ```typescript
-import DesempenhoPage from './pages/estrategico/desempenho/DesempenhoPage';
-import ContratosPage from './pages/estrategico/contratos/ContratosPage';
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-// Dentro do MainLayout:
-<Route path="/estrategico/desempenho" element={<DesempenhoPage />} />
-<Route path="/estrategico/contratos" element={<ContratosPage />} />
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { doc_token } = await req.json();
+    
+    if (!doc_token) {
+      throw new Error('doc_token is required');
+    }
+
+    const apiToken = Deno.env.get('ZAPSIGN_API_TOKEN');
+    if (!apiToken) {
+      throw new Error('ZAPSIGN_API_TOKEN not configured');
+    }
+
+    // Chamar API ZapSign para obter detalhes do documento
+    // Endpoint: GET https://api.zapsign.com.br/api/v1/docs/{doc_token}/
+    const response = await fetch(
+      `https://api.zapsign.com.br/api/v1/docs/${doc_token}/`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiToken}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('ZapSign API error:', errorData);
+      throw new Error(`ZapSign API error: ${response.status}`);
+    }
+
+    const docData = await response.json();
+    
+    // Retornar URL do documento assinado (ou original se ainda nao assinado)
+    // IMPORTANTE: Este link expira em 60 minutos
+    const result = {
+      success: true,
+      signed_file: docData.signed_file || null,
+      original_file: docData.original_file || null,
+      status: docData.status,
+      name: docData.name,
+    };
+
+    return new Response(JSON.stringify(result), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
+  } catch (error: unknown) {
+    console.error('ZapSign download error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return new Response(
+      JSON.stringify({ success: false, error: errorMessage }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  }
+});
+```
+
+### 4.3 Adicionar Botao de Download em `ContratosTable.tsx`
+
+**Adicionar import:**
+```typescript
+import { Download, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+```
+
+**Adicionar estado para download:**
+```typescript
+const { toast } = useToast();
+const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+const handleDownloadContract = async (contrato: JuliaContrato) => {
+  if (!contrato.cod_document) {
+    toast({
+      title: 'Erro',
+      description: 'Documento nao possui codigo identificador',
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  setDownloadingId(contrato.cod_document);
+
+  try {
+    const { data, error } = await supabase.functions.invoke('zapsign-download', {
+      body: { doc_token: contrato.cod_document },
+    });
+
+    if (error) throw error;
+
+    if (!data.success) {
+      throw new Error(data.error || 'Erro ao obter documento');
+    }
+
+    // Prioriza documento assinado, senao usa original
+    const fileUrl = data.signed_file || data.original_file;
+    
+    if (!fileUrl) {
+      toast({
+        title: 'Documento indisponivel',
+        description: 'O documento ainda nao esta disponivel para download',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Abrir em nova aba (o link ja e do S3 e faz download automatico)
+    window.open(fileUrl, '_blank');
+    
+    toast({
+      title: 'Download iniciado',
+      description: 'O documento sera baixado em instantes',
+    });
+
+  } catch (error) {
+    console.error('Erro ao baixar contrato:', error);
+    toast({
+      title: 'Erro ao baixar',
+      description: error instanceof Error ? error.message : 'Erro desconhecido',
+      variant: 'destructive',
+    });
+  } finally {
+    setDownloadingId(null);
+  }
+};
+```
+
+**Adicionar botao na celula de Acoes:**
+```typescript
+{/* Botao Download - apenas para contratos assinados */}
+{contrato.status_document === 'SIGNED' && (
+  <TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-100/50"
+          onClick={() => handleDownloadContract(contrato)}
+          disabled={downloadingId === contrato.cod_document}
+        >
+          {downloadingId === contrato.cod_document ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>Baixar contrato assinado</p>
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+)}
 ```
 
 ---
 
-## Design Visual
-
-### Cards de Resumo (4 cards no topo)
+## Estrutura Final da Tabela
 
 ```text
-┌────────────────┐ ┌────────────────┐ ┌────────────────┐ ┌────────────────┐
-│ 📊 Total       │ │ 💬 Mensagens   │ │ 📈 Media/Sessao│ │ 📅 Hoje        │
-│    1.247       │ │    15.432      │ │    12,4        │ │    23          │
-│ sessoes        │ │ enviadas       │ │ mensagens      │ │ sessoes        │
-└────────────────┘ └────────────────┘ └────────────────┘ └────────────────┘
+┌──────────────┬─────────────────┬──────────────────────┬───────────────────┬──────────────────┬───────────────────┐
+│ Agente       │ Cliente         │ WhatsApp             │ Status            │ Data Contrato    │ Acoes             │
+├──────────────┼─────────────────┼──────────────────────┼───────────────────┼──────────────────┼───────────────────┤
+│ [1001]       │ Joao Silva      │ +55 (34) 99999-9999  │ ┌─────────────┐   │ 23/01/26, 14:30  │ [💬] [📥] [👁]   │
+│ Escritorio A │                 │                      │ │  Assinado   │   │                  │                   │
+│              │                 │                      │ └─────────────┘   │                  │                   │
+│              │                 │                      │   em 3 min        │                  │                   │
+├──────────────┼─────────────────┼──────────────────────┼───────────────────┼──────────────────┼───────────────────┤
+│ [1002]       │ Maria Santos    │ +55 (11) 98888-8888  │ ┌─────────────┐   │ 23/01/26, 10:00  │ [💬] [👁]        │
+│ Escritorio B │                 │                      │ │   Criado    │   │                  │                   │
+│              │                 │                      │ └─────────────┘   │                  │                   │
+│              │                 │                      │   ha 4h 30min     │                  │                   │
+└──────────────┴─────────────────┴──────────────────────┴───────────────────┴──────────────────┴───────────────────┘
 ```
 
-### Badges de Status
-
-| Status | Cor |
-|--------|-----|
-| CREATED | `bg-yellow-100 text-yellow-800` |
-| SIGNED | `bg-green-100 text-green-800` |
-| SDR | `bg-blue-100 text-blue-800` |
-| CLOSER | `bg-purple-100 text-purple-800` |
-| EM CURSO | `bg-orange-100 text-orange-800` |
-
----
-
-## Ordem de Implementacao
-
-1. Criar estrutura de pastas e types.ts
-2. Implementar hooks de dados (useJuliaData.ts)
-3. Criar pagina de Desempenho com tabela basica
-4. Criar pagina de Contratos com tabela basica
-5. Adicionar rotas no App.tsx
-6. Implementar componentes de resumo (Summary cards)
-7. Implementar filtros reutilizando CRMFilters
-8. Implementar dialog de detalhes do contrato
-9. Adicionar formatacao de datas com timezone correto
-
----
-
-## Reutilizacao de Componentes
-
-| Componente Existente | Uso na Nova Pagina |
-|---------------------|-------------------|
-| `CRMFilters.tsx` | Base para `DesempenhoFilters` e `ContratosFilters` |
-| `useCRMAgents` | Reutilizar para lista de agentes |
-| `formatDbDateTime` | Formatacao de timestamps |
-| `Badge`, `Table`, `Card` | Componentes UI |
-
----
-
-## Consideracoes de Timezone
-
-Todas as datas serao formatadas usando as funcoes de `dateUtils.ts`:
-- `formatDbDateTime()` para timestamps completos
-- `formatDbTime()` para apenas hora
-- `formatDateOnlySaoPaulo()` para apenas data
+**Legenda Acoes:**
+- 💬 = Ver mensagens WhatsApp (abre popup)
+- 📥 = Baixar contrato (apenas para SIGNED)
+- 👁 = Ver detalhes
 
 ---
 
@@ -368,30 +433,51 @@ Todas as datas serao formatadas usando as funcoes de `dateUtils.ts`:
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/App.tsx` | Adicionar rotas |
-| Novos arquivos | Criar estrutura completa |
+| `src/lib/dateUtils.ts` | Adicionar `formatTimeDifference()` |
+| `src/pages/estrategico/contratos/components/ContratosTable.tsx` | Todas as alteracoes de UI |
 
 ## Arquivos a Criar
 
 | Arquivo | Descricao |
 |---------|-----------|
-| `src/pages/estrategico/types.ts` | Tipos TypeScript |
-| `src/pages/estrategico/hooks/useJuliaData.ts` | Hooks de dados |
-| `src/pages/estrategico/desempenho/DesempenhoPage.tsx` | Pagina principal |
-| `src/pages/estrategico/desempenho/components/DesempenhoTable.tsx` | Tabela |
-| `src/pages/estrategico/desempenho/components/DesempenhoSummary.tsx` | Cards |
-| `src/pages/estrategico/contratos/ContratosPage.tsx` | Pagina principal |
-| `src/pages/estrategico/contratos/components/ContratosTable.tsx` | Tabela |
-| `src/pages/estrategico/contratos/components/ContratoDetailsDialog.tsx` | Dialog |
-| `src/pages/estrategico/contratos/components/ContratosSummary.tsx` | Cards |
+| `supabase/functions/zapsign-download/index.ts` | Edge Function para API ZapSign |
+
+## Secrets a Configurar
+
+| Secret | Descricao |
+|--------|-----------|
+| `ZAPSIGN_API_TOKEN` | Token da API ZapSign (Bearer) |
 
 ---
 
-## Resultado Esperado
+## Ordem de Implementacao
 
-1. Menu "Desempenho" funcional com lista de sessoes da Julia
-2. Menu "Contratos Julia" funcional com lista de contratos
-3. Filtros por agente, data e status
-4. Detalhes completos do contrato em dialog
-5. Timezone correto (Brasilia) em todas as datas
-6. Design consistente com o restante do sistema
+1. Adicionar secret `ZAPSIGN_API_TOKEN`
+2. Criar Edge Function `zapsign-download`
+3. Atualizar `dateUtils.ts` com `formatTimeDifference()`
+4. Atualizar `ContratosTable.tsx`:
+   - Remover colunas Situacao e Assinatura
+   - Adicionar formatacao WhatsApp
+   - Adicionar tempo abaixo do status
+   - Adicionar botao WhatsApp com popup
+   - Adicionar botao download
+5. Deploy da Edge Function
+6. Testar fluxo completo
+
+---
+
+## Notas Tecnicas
+
+### ZapSign API
+- **Endpoint:** `GET https://api.zapsign.com.br/api/v1/docs/{doc_token}/`
+- **Autenticacao:** Bearer Token
+- **Campos retornados:** `signed_file`, `original_file`, `status`, `name`
+- **IMPORTANTE:** URLs expiram em 60 minutos - por isso chamamos a API sob demanda
+
+### Mapeamento de Dados
+- `cod_document` do banco = `doc_token` na API ZapSign
+- O campo `cod_document` ja contem o UUID do documento ZapSign
+
+### Compatibilidade
+- O `WhatsAppMessagesDialog` ja funciona com `codAgent` para buscar credenciais dinamicamente
+- O campo `whatsapp` do contrato esta no mesmo formato usado pelo CRM
