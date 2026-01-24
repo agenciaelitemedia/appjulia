@@ -105,6 +105,10 @@ export function ContratosEvolutionChart({ contratos, isLoading }: ContratosEvolu
             <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
             <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
           </linearGradient>
+          <linearGradient id="colorPending" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+          </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
         <XAxis 
@@ -141,6 +145,14 @@ export function ContratosEvolutionChart({ contratos, isLoading }: ContratosEvolu
           stroke="#22c55e"
           fillOpacity={1}
           fill="url(#colorSigned)"
+        />
+        <Area
+          type="monotone"
+          dataKey="pending"
+          name="Em Curso"
+          stroke="#f97316"
+          fillOpacity={1}
+          fill="url(#colorPending)"
         />
       </AreaChart>
     </ResponsiveContainer>

@@ -7,6 +7,7 @@ import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { useJuliaAgents, useJuliaSessoes } from '../hooks/useJuliaData';
 import { JuliaFilters } from '../components/JuliaFilters';
 import { DesempenhoSummary } from './components/DesempenhoSummary';
+import { DesempenhoEvolutionChart } from './components/DesempenhoEvolutionChart';
 import { DesempenhoTable } from './components/DesempenhoTable';
 import { JuliaFiltersState } from '../types';
 
@@ -81,6 +82,9 @@ export default function DesempenhoPage() {
 
       {/* Summary Cards */}
       <DesempenhoSummary sessoes={sessoes} isLoading={sessoesLoading} />
+
+      {/* Evolution Chart */}
+      <DesempenhoEvolutionChart sessoes={sessoes} isLoading={sessoesLoading} />
 
       {/* Filters */}
       <JuliaFilters
