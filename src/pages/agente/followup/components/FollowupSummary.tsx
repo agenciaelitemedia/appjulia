@@ -5,9 +5,9 @@ import { Clock, Send, Pause, ListTodo } from 'lucide-react';
 interface FollowupSummaryProps {
   stats: {
     total: number;
-    queue: number;
-    send: number;
-    stop: number;
+    waiting: number;
+    sent: number;
+    stopped: number;
   };
   isLoading?: boolean;
 }
@@ -23,21 +23,21 @@ export function FollowupSummary({ stats, isLoading }: FollowupSummaryProps) {
     },
     {
       title: 'Aguardando',
-      value: stats.queue,
+      value: stats.waiting,
       icon: Clock,
       color: 'text-yellow-600',
       bgColor: 'bg-yellow-500/10',
     },
     {
       title: 'Enviados',
-      value: stats.send,
+      value: stats.sent,
       icon: Send,
       color: 'text-green-600',
       bgColor: 'bg-green-500/10',
     },
     {
       title: 'Pausados',
-      value: stats.stop,
+      value: stats.stopped,
       icon: Pause,
       color: 'text-muted-foreground',
       bgColor: 'bg-muted',
