@@ -283,11 +283,16 @@ export function FollowupConfig({ config, isLoading, isSaving, onSave }: Followup
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {steps.slice(1).map((step, index) => (
-                        <SelectItem key={step.key} value={(index + 2).toString()}>
-                          Etapa {index + 2} - {step.title}
-                        </SelectItem>
-                      ))}
+                      {steps.map((step, index) => {
+                        const stepNumber = index + 1;
+                        // Only show steps from 2 onwards (can't loop back from step 1)
+                        if (stepNumber < 2) return null;
+                        return (
+                          <SelectItem key={step.key} value={stepNumber.toString()}>
+                            Etapa {stepNumber} - {step.title}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>
@@ -301,11 +306,16 @@ export function FollowupConfig({ config, isLoading, isSaving, onSave }: Followup
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {steps.slice(0, (followupTo || 2) - 1).map((step, index) => (
-                        <SelectItem key={step.key} value={(index + 1).toString()}>
-                          Etapa {index + 1} - {step.title}
-                        </SelectItem>
-                      ))}
+                      {steps.map((step, index) => {
+                        const stepNumber = index + 1;
+                        // Only show steps before the "to" step
+                        if (followupTo && stepNumber >= followupTo) return null;
+                        return (
+                          <SelectItem key={step.key} value={stepNumber.toString()}>
+                            Etapa {stepNumber} - {step.title}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>
