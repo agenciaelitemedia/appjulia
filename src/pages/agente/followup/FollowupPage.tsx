@@ -50,7 +50,9 @@ function getDerivedStatus(
   item: FollowupQueueItem, 
   totalSteps: number,
   isInfinite: boolean
-): 'sent' | 'waiting' | 'stopped' {
+): 'sent' | 'waiting' | 'stopped' | 'finalized' {
+  // Finalized: step_number = 0 and state = STOP
+  if (item.state === 'STOP' && item.step_number === 0) return 'finalized';
   if (item.state === 'STOP') return 'stopped';
   // If infinite, never consider as "sent" (always loops back)
   if (!isInfinite && item.state === 'SEND' && item.step_number >= totalSteps) return 'sent';
