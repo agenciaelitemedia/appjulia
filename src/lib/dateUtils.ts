@@ -294,3 +294,60 @@ export function formatTimeDifference(
   
   return `${prefix} ${diffMinutes} min`;
 }
+
+/**
+ * Retorna a data de 7 dias atrás no timezone America/Sao_Paulo no formato 'yyyy-MM-dd'
+ */
+export function get7DaysAgoInSaoPaulo(): string {
+  const date = new Date();
+  date.setDate(date.getDate() - 7);
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(date);
+}
+
+/**
+ * Retorna o primeiro dia do mês atual no timezone America/Sao_Paulo no formato 'yyyy-MM-dd'
+ */
+export function getFirstDayOfMonthInSaoPaulo(): string {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  
+  // Get current month/year in São Paulo timezone
+  const parts = formatter.formatToParts(now);
+  const year = parts.find(p => p.type === 'year')?.value;
+  const month = parts.find(p => p.type === 'month')?.value;
+  
+  return `${year}-${month}-01`;
+}
+
+/**
+ * Retorna o último dia do mês atual no timezone America/Sao_Paulo no formato 'yyyy-MM-dd'
+ */
+export function getLastDayOfMonthInSaoPaulo(): string {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  
+  // Get current month/year in São Paulo timezone
+  const parts = formatter.formatToParts(now);
+  const year = parseInt(parts.find(p => p.type === 'year')?.value || '2026');
+  const month = parseInt(parts.find(p => p.type === 'month')?.value || '1');
+  
+  // Create date for last day of month
+  const lastDay = new Date(year, month, 0);
+  return formatter.format(lastDay);
+}
