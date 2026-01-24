@@ -651,11 +651,13 @@ export function useFollowupReturnRate(filters: FollowupFiltersState) {
             ORDER BY cod_agent, session_id, send_date DESC
           ),
           leads_with_response AS (
-            -- Identify leads in STOP that have a response registered
-            SELECT DISTINCT cs.session_id
-            FROM current_state cs
-            INNER JOIN followup_response fr ON fr.followup_queue_id = cs.queue_id
-            WHERE cs.state = 'STOP'
+            -- Identify session_ids that have a response in ANY queue record (not just the most recent)
+            SELECT DISTINCT fq.session_id
+            FROM followup_queue fq
+            INNER JOIN followup_response fr ON fr.followup_queue_id = fq.id
+            WHERE fq.cod_agent IN (${agentPlaceholders})
+              AND fq.session_id IN (SELECT session_id FROM current_state WHERE state = 'STOP')
+              ${dateFilter}
           )
           SELECT 
             COUNT(*)::text as total_leads,
@@ -835,11 +837,13 @@ export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
             ORDER BY cod_agent, session_id, send_date DESC
           ),
           leads_with_response AS (
-            -- Identify leads in STOP that have a response registered
-            SELECT DISTINCT cs.session_id
-            FROM current_state cs
-            INNER JOIN followup_response fr ON fr.followup_queue_id = cs.queue_id
-            WHERE cs.state = 'STOP'
+            -- Identify session_ids that have a response in ANY queue record (not just the most recent)
+            SELECT DISTINCT fq.session_id
+            FROM followup_queue fq
+            INNER JOIN followup_response fr ON fr.followup_queue_id = fq.id
+            WHERE fq.cod_agent IN (${agentPlaceholders})
+              AND fq.session_id IN (SELECT session_id FROM current_state WHERE state = 'STOP')
+              ${dateFilter}
           )
           SELECT 
             COUNT(*)::text as total_leads,
