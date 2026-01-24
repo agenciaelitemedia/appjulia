@@ -1,0 +1,104 @@
+import { useQuery } from '@tanstack/react-query';
+import { externalDb } from '@/lib/externalDb';
+import { useAuth } from '@/contexts/AuthContext';
+import { JuliaSessao, JuliaContrato, JuliaFiltersState, JuliaAgent } from '../types';
+
+export function useJuliaAgents() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ['julia-agents', user?.role, user?.cod_agent],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      const query = user.role === 'admin'
+        ? `SELECT DISTINCT cod_agent::text, owner_name, owner_business_name 
+           FROM "vw_list_client-agents-users" 
+           WHERE cod_agent IS NOT NULL
+           ORDER BY owner_name`
+        : `SELECT DISTINCT cod_agent::text, owner_name, owner_business_name 
+           FROM "vw_list_client-agents-users" 
+           WHERE cod_agent = $1`;
+      
+      const params = user.role === 'admin' ? [] : [user.cod_agent];
+      const result = await externalDb.raw<JuliaAgent>({ query, params });
+      return result;
+    },
+    enabled: !!user,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useJuliaSessoes(filters: JuliaFiltersState) {
+  return useQuery({
+    queryKey: ['julia-sessoes', filters],
+    queryFn: async () => {
+      const { agentCodes, dateFrom, dateTo, perfilAgent } = filters;
+      
+      if (agentCodes.length === 0) return [];
+      
+      let query = `
+        SELECT 
+          cod_agent::text, agent_id, name, business_name, client_id,
+          perfil_agent, session_id, total_msg::int, whatsapp::text,
+          status_document, max_created_at, created_at
+        FROM vw_desempenho_julia
+        WHERE cod_agent::text = ANY($1::varchar[])
+          AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+          AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+      `;
+      
+      const params: any[] = [agentCodes, dateFrom, dateTo];
+      
+      if (perfilAgent && perfilAgent !== 'ALL') {
+        query += ` AND perfil_agent = $4`;
+        params.push(perfilAgent);
+      }
+      
+      query += ` ORDER BY created_at DESC`;
+      
+      const result = await externalDb.raw<JuliaSessao>({ query, params });
+      return result;
+    },
+    enabled: filters.agentCodes.length > 0,
+  });
+}
+
+export function useJuliaContratos(filters: JuliaFiltersState) {
+  return useQuery({
+    queryKey: ['julia-contratos', filters],
+    queryFn: async () => {
+      const { agentCodes, dateFrom, dateTo, statusDocument } = filters;
+      
+      if (agentCodes.length === 0) return [];
+      
+      let query = `
+        SELECT 
+          cod_agent::text, agent_id, name, business_name, client_id,
+          perfil_agent, session_id, total_msg::int, whatsapp::text,
+          cod_document, status_document, situacao,
+          data_contrato, data_assinatura,
+          resumo_do_caso, signer_name, signer_cpf, signer_uf,
+          signer_cidade, signer_bairro, signer_endereco, signer_cep,
+          case_title, case_category_name, case_category_color, is_confirm
+        FROM vw_desempenho_julia_contratos
+        WHERE cod_agent::text = ANY($1::varchar[])
+          AND (data_contrato AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+          AND (data_contrato AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+      `;
+      
+      const params: any[] = [agentCodes, dateFrom, dateTo];
+      
+      if (statusDocument) {
+        query += ` AND status_document = $4`;
+        params.push(statusDocument);
+      }
+      
+      query += ` ORDER BY data_contrato DESC`;
+      
+      const result = await externalDb.raw<JuliaContrato>({ query, params });
+      return result;
+    },
+    enabled: filters.agentCodes.length > 0,
+  });
+}
