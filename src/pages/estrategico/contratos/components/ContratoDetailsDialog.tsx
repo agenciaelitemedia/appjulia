@@ -147,32 +147,31 @@ export function ContratoDetailsDialog({
                   <p className="text-xs text-muted-foreground">Situação</p>
                   <p className="font-medium">{contrato.situacao}</p>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Data do Contrato</p>
-                  <p className="font-medium">{formatDbDateTime(contrato.data_contrato)}</p>
+                <div className="flex items-center justify-between col-span-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Data do Contrato</p>
+                    <p className="font-medium">{formatDbDateTime(contrato.data_contrato)}</p>
+                  </div>
+                  {contrato.status_document === 'SIGNED' && contrato.zapsing_doctoken && (
+                    <Button
+                      size="sm"
+                      onClick={handleDownloadContract}
+                      disabled={downloading}
+                      className="gap-2"
+                    >
+                      {downloading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4" />
+                      )}
+                      Baixar Contrato
+                    </Button>
+                  )}
                 </div>
                 {contrato.data_assinatura && (
                   <div>
                     <p className="text-xs text-muted-foreground">Data da Assinatura</p>
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium">{formatDbDateTime(contrato.data_assinatura)}</p>
-                      {contrato.status_document === 'SIGNED' && contrato.zapsing_doctoken && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 px-2"
-                          onClick={handleDownloadContract}
-                          disabled={downloading}
-                        >
-                          {downloading ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Download className="h-3 w-3" />
-                          )}
-                          <span className="ml-1 text-xs">Baixar</span>
-                        </Button>
-                      )}
-                    </div>
+                    <p className="font-medium">{formatDbDateTime(contrato.data_assinatura)}</p>
                   </div>
                 )}
               </div>
