@@ -326,26 +326,28 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
                   </Badge>
                 </TableCell>
                 <TableCell className="text-center">
-                  <div className="flex items-center justify-center gap-1">
-                    <span className="font-medium">{sessao.total_msg?.toLocaleString('pt-BR')}</span>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-100/50"
-                            onClick={() => handleOpenMessages(sessao)}
-                          >
-                            <MessageCircle className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Ver mensagens do WhatsApp</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100/50 relative"
+                          onClick={() => handleOpenMessages(sessao)}
+                        >
+                          <MessageCircle className="h-5 w-5" />
+                          {sessao.total_msg && sessao.total_msg > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-green-600 text-white text-[10px] font-bold flex items-center justify-center">
+                              {sessao.total_msg > 99 ? '99+' : sessao.total_msg}
+                            </span>
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Ver {sessao.total_msg?.toLocaleString('pt-BR')} mensagens</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </TableCell>
                 <TableCell className="text-center text-sm">
                   {formatDbDateTime(sessao.created_at)}
