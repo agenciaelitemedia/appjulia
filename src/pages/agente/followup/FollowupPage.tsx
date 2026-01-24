@@ -17,7 +17,6 @@ import {
   useFinalizeQueueItem,
   useFollowupDailyMetrics,
   useFollowupReturnRate,
-  useFollowupQueueTotals,
   useFollowupPreviousPeriodStats,
 } from '../hooks/useFollowupData';
 import { 
@@ -110,10 +109,9 @@ export default function FollowupPage() {
   const { data: queueData, isLoading: isLoadingQueue, refetch: refetchQueue } = useFollowupQueue(queueFilters);
   const { data: totalSentCount = 0, refetch: refetchSentCount } = useFollowupSentCount(queueFilters);
   
-  // Dashboard-specific data
+  // Dashboard-specific data - all metrics now come from unified returnData hook
   const { data: dailyMetrics = [], isLoading: isLoadingDailyMetrics, refetch: refetchDailyMetrics } = useFollowupDailyMetrics(dashboardFilters);
   const { data: returnData, refetch: refetchReturnRate } = useFollowupReturnRate(dashboardFilters);
-  const { data: queueTotals, refetch: refetchQueueTotals } = useFollowupQueueTotals(dashboardFilters);
   
   // Previous period stats for comparison
   const { previous: previousStats, isLoading: isLoadingPrevious } = useFollowupPreviousPeriodStats(dashboardFilters);
@@ -178,23 +176,20 @@ export default function FollowupPage() {
     return result;
   }, [filteredItems]);
 
-  // Dashboard stats (using queue totals and return data) with previous period comparison
+  // Dashboard stats (using unified return data for mutually exclusive metrics)
+  // All metrics come from the same CTE ensuring: followupRate + returnRate + lossRate = 100%
   const dashboardStats: FollowupStats = useMemo(() => {
-    const total = queueTotals?.total || 0;
-    const waiting = queueTotals?.waiting || 0;
-    const followupRate = total > 0 ? (waiting / total) * 100 : 0;
-
     return {
-      total,           // From followup_queue (any status)
+      total: returnData?.totalLeads || 0,         // Total unique leads
       totalSent: dailyMetrics.reduce((sum, d) => sum + d.messagesSent, 0),
-      waiting,         // From followup_queue (state = 'SEND')
-      stopped: returnData?.responses || 0,      // COUNT(*) from followup_response
-      responseRate: returnData?.returnRate || 0, // Return Rate = (leads STOP + step<>0 with response / total) * 100
-      lossRate: returnData?.lossRate || 0,      // Loss Rate = (leads STOP + step=0 / total) * 100
-      followupRate,    // Followup Rate = (waiting / total) * 100
+      waiting: returnData?.leadsInFollowup || 0,  // Leads in SEND state
+      stopped: returnData?.responses || 0,        // COUNT(*) from followup_response
+      followupRate: returnData?.followupRate || 0, // (SEND / total) * 100
+      responseRate: returnData?.returnRate || 0,   // (STOP + step<>0 + response / total) * 100
+      lossRate: returnData?.lossRate || 0,         // (STOP + step=0 / total) * 100
       previous: isLoadingPrevious ? undefined : previousStats,
     };
-  }, [queueTotals, dailyMetrics, returnData, previousStats, isLoadingPrevious]);
+  }, [dailyMetrics, returnData, previousStats, isLoadingPrevious]);
 
   // Queue page stats (local to queue tab)
   const queuePageStats: FollowupStats = useMemo(() => {
@@ -248,7 +243,6 @@ export default function FollowupPage() {
     refetchSentCount();
     refetchDailyMetrics();
     refetchReturnRate();
-    refetchQueueTotals();
   };
 
   return (
