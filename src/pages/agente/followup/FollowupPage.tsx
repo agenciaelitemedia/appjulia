@@ -40,13 +40,15 @@ function parseJsonField<T>(field: string | T | null | undefined, defaultValue: T
   return field as T;
 }
 
-// Derive status based on current step, total steps, and original state
+// Derive status based on current step, total steps, original state, and infinite mode
 function getDerivedStatus(
   item: FollowupQueueItem, 
-  totalSteps: number
+  totalSteps: number,
+  isInfinite: boolean
 ): 'sent' | 'waiting' | 'stopped' {
   if (item.state === 'STOP') return 'stopped';
-  if (item.state === 'SEND' && item.step_number >= totalSteps) return 'sent';
+  // If infinite, never consider as "sent" (always loops back)
+  if (!isInfinite && item.state === 'SEND' && item.step_number >= totalSteps) return 'sent';
   return 'waiting';
 }
 
@@ -92,14 +94,16 @@ export default function FollowupPage() {
     return configData;
   }, [configData]);
 
-  // Calculate total steps from config
-  const totalSteps = useMemo(() => {
-    if (!config?.step_cadence) return 3;
+  // Calculate total steps and is_infinite from config
+  const { totalSteps, isInfinite } = useMemo(() => {
+    if (!config?.step_cadence) return { totalSteps: 3, isInfinite: false };
     const stepCadence = parseJsonField<Record<string, string>>(config.step_cadence, {});
-    return Object.keys(stepCadence).length || 3;
+    const steps = Object.keys(stepCadence).length || 3;
+    const infinite = config.followup_from !== null && config.followup_to !== null;
+    return { totalSteps: steps, isInfinite: infinite };
   }, [config]);
 
-  // Normalize and enrich queue items with derived status
+  // Normalize and enrich queue items with derived status and is_infinite
   const enrichedQueueItems: FollowupQueueItemEnriched[] = useMemo(() => {
     if (!queueData) return [];
     const flattened = Array.isArray(queueData) ? queueData.flat() : [];
@@ -107,9 +111,10 @@ export default function FollowupPage() {
     return (flattened as FollowupQueueItem[]).map(item => ({
       ...item,
       total_steps: totalSteps,
-      derived_status: getDerivedStatus(item, totalSteps),
+      derived_status: getDerivedStatus(item, totalSteps, isInfinite),
+      is_infinite: isInfinite,
     }));
-  }, [queueData, totalSteps]);
+  }, [queueData, totalSteps, isInfinite]);
 
   // Filter items by search term (client-side)
   const filteredItems = useMemo(() => {

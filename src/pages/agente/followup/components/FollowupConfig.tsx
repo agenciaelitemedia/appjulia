@@ -5,7 +5,8 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Save, Sparkles } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { Plus, Save, Sparkles, Infinity, Info } from 'lucide-react';
 import { FollowupConfig as FollowupConfigType, CadenceStep, HOUR_OPTIONS } from '../../types';
 import { CadenceStepEditor } from './CadenceStepEditor';
 
@@ -34,6 +35,9 @@ export function FollowupConfig({ config, isLoading, isSaving, onSave }: Followup
   const [startHours, setStartHours] = useState(9);
   const [endHours, setEndHours] = useState(19);
   const [steps, setSteps] = useState<CadenceStep[]>([]);
+  const [isInfiniteEnabled, setIsInfiniteEnabled] = useState(false);
+  const [followupFrom, setFollowupFrom] = useState<number | null>(null);
+  const [followupTo, setFollowupTo] = useState<number | null>(null);
 
   // Initialize state from config
   useEffect(() => {
@@ -75,6 +79,12 @@ export function FollowupConfig({ config, isLoading, isSaving, onSave }: Followup
       }
 
       setSteps(parsedSteps);
+
+      // Initialize infinite loop settings
+      const hasInfinite = config.followup_from !== null && config.followup_to !== null;
+      setIsInfiniteEnabled(hasInfinite);
+      setFollowupFrom(config.followup_from);
+      setFollowupTo(config.followup_to);
     }
   }, [config]);
 
@@ -107,6 +117,29 @@ export function FollowupConfig({ config, isLoading, isSaving, onSave }: Followup
     setSteps(newSteps);
   };
 
+  // Handle infinite toggle - reset values when disabled
+  const handleInfiniteToggle = (enabled: boolean) => {
+    setIsInfiniteEnabled(enabled);
+    if (!enabled) {
+      setFollowupFrom(null);
+      setFollowupTo(null);
+    } else if (steps.length >= 2) {
+      // Default to loop from last to first step
+      setFollowupTo(steps.length);
+      setFollowupFrom(1);
+    }
+  };
+
+  // Validate followupFrom when followupTo changes
+  const handleFollowupToChange = (value: string) => {
+    const toValue = parseInt(value, 10);
+    setFollowupTo(toValue);
+    // Ensure from is less than to
+    if (followupFrom && followupFrom >= toValue) {
+      setFollowupFrom(1);
+    }
+  };
+
   const handleSave = () => {
     // Convert steps array back to JSONB format
     const stepCadence: Record<string, string> = {};
@@ -126,8 +159,8 @@ export function FollowupConfig({ config, isLoading, isSaving, onSave }: Followup
       start_hours: startHours,
       end_hours: endHours,
       auto_message: autoMessage,
-      followup_from: 1,
-      followup_to: steps.length,
+      followup_from: isInfiniteEnabled ? followupFrom : null,
+      followup_to: isInfiniteEnabled ? followupTo : null,
     });
   };
 
@@ -214,6 +247,80 @@ export function FollowupConfig({ config, isLoading, isSaving, onSave }: Followup
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <Separator className="my-4" />
+
+          {/* Infinite Loop Configuration */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="infinite-loop" className="text-base flex items-center gap-2">
+                  <Infinity className="h-4 w-4" />
+                  FollowUp Infinito (Loop)
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Reengajar o lead continuamente até obter resposta
+                </p>
+              </div>
+              <Switch
+                id="infinite-loop"
+                checked={isInfiniteEnabled}
+                onCheckedChange={handleInfiniteToggle}
+                disabled={steps.length < 2}
+              />
+            </div>
+
+            {isInfiniteEnabled && steps.length >= 2 && (
+              <div className="grid grid-cols-2 gap-4 pl-4 border-l-2 border-primary/20">
+                <div className="space-y-2">
+                  <Label htmlFor="followup-to">Quando chegar na etapa</Label>
+                  <Select
+                    value={followupTo?.toString() || ''}
+                    onValueChange={handleFollowupToChange}
+                  >
+                    <SelectTrigger id="followup-to">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {steps.slice(1).map((step, index) => (
+                        <SelectItem key={step.key} value={(index + 2).toString()}>
+                          Etapa {index + 2} - {step.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="followup-from">Voltar para a etapa</Label>
+                  <Select
+                    value={followupFrom?.toString() || ''}
+                    onValueChange={(v) => setFollowupFrom(parseInt(v, 10))}
+                  >
+                    <SelectTrigger id="followup-from">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {steps.slice(0, (followupTo || 2) - 1).map((step, index) => (
+                        <SelectItem key={step.key} value={(index + 1).toString()}>
+                          Etapa {index + 1} - {step.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2 flex items-start gap-2 text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
+                  <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span>O lead será reengajado continuamente entre as etapas selecionadas até responder.</span>
+                </div>
+              </div>
+            )}
+
+            {steps.length < 2 && (
+              <p className="text-sm text-muted-foreground italic">
+                Adicione pelo menos 2 etapas para ativar o loop infinito.
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
