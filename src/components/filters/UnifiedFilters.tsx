@@ -7,7 +7,8 @@ import {
   ChevronUp, 
   Search, 
   X,
-  Users
+  Users,
+  Filter
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -185,88 +186,122 @@ export function UnifiedFilters({
   };
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className={cn('space-y-2', className)}>
-      <div className="flex items-center justify-between">
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="sm" className="gap-2 p-0 hover:bg-transparent">
-            {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            <span className="font-medium">Filtros</span>
-          </Button>
-        </CollapsibleTrigger>
-        {showAgentSelector && selectedCount > 0 && (
-          <Badge variant="secondary" className="gap-1">
-            <Users className="h-3 w-3" />
-            {selectedCount} {selectedCount === 1 ? 'agente' : 'agentes'}
-          </Badge>
-        )}
-      </div>
+    <Collapsible 
+      open={isOpen} 
+      onOpenChange={setIsOpen} 
+      className={cn('bg-card border border-border rounded-xl shadow-sm overflow-hidden transition-all duration-300', className)}
+    >
+      {/* Header */}
+      <CollapsibleTrigger asChild>
+        <button className="flex items-center justify-between w-full px-4 py-3 bg-muted/40 hover:bg-muted/60 transition-colors border-b border-border/50">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium text-sm">Filtros</span>
+            {isOpen ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
+          </div>
+          {showAgentSelector && selectedCount > 0 && (
+            <Badge variant="secondary" className="gap-1.5 px-2.5 py-0.5 text-xs font-medium bg-primary/10 text-primary border-0">
+              <Users className="h-3 w-3" />
+              {selectedCount} {selectedCount === 1 ? 'agente' : 'agentes'}
+            </Badge>
+          )}
+        </button>
+      </CollapsibleTrigger>
 
-      <CollapsibleContent className="space-y-4">
+      <CollapsibleContent className="transition-all duration-300 ease-in-out">
         {/* Quick Period Buttons */}
         {showQuickPeriods && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-muted-foreground">Período:</span>
-            {QUICK_PERIODS.map((period) => (
-              <Button
-                key={period.value}
-                variant={currentQuickPeriod === period.value ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => handleQuickPeriod(period.value)}
-                disabled={isLoading}
-              >
-                {period.label}
-              </Button>
-            ))}
-            {currentQuickPeriod === 'custom' && (
-              <Badge variant="outline">Personalizado</Badge>
-            )}
+          <div className="px-4 py-3 border-b border-border/50 bg-muted/20">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide mr-1">Período:</span>
+              <div className="flex flex-wrap gap-1.5">
+                {QUICK_PERIODS.map((period) => (
+                  <Button
+                    key={period.value}
+                    variant={currentQuickPeriod === period.value ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => handleQuickPeriod(period.value)}
+                    disabled={isLoading}
+                    className={cn(
+                      "h-7 px-3 text-xs font-medium rounded-full transition-all duration-200",
+                      currentQuickPeriod === period.value 
+                        ? "shadow-sm" 
+                        : "hover:bg-background hover:shadow-sm hover:border-primary/30 active:scale-95"
+                    )}
+                  >
+                    {period.label}
+                  </Button>
+                ))}
+              </div>
+              {currentQuickPeriod === 'custom' && (
+                <Badge variant="outline" className="text-xs px-2 py-0.5 bg-background border-dashed">
+                  Personalizado
+                </Badge>
+              )}
+            </div>
           </div>
         )}
 
         {/* Main Filters Row */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Agent Selector */}
-          {showAgentSelector && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2" disabled={isLoading}>
-                  <Users className="h-4 w-4" />
-                  Agentes
-                  <ChevronDown className="h-3 w-3" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-72 p-2" align="start">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 p-2 border-b">
-                    <Checkbox
-                      id="select-all"
-                      checked={allSelected}
-                      ref={(el) => {
-                        if (el) {
-                          (el as HTMLButtonElement & { indeterminate: boolean }).indeterminate = someSelected;
-                        }
-                      }}
-                      onCheckedChange={handleSelectAllAgents}
-                    />
-                    <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
-                      Selecionar Todos
-                    </label>
+        <div className="px-4 py-4">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Agent Selector */}
+            {showAgentSelector && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-9 gap-2 px-3 bg-background hover:bg-muted/50 hover:border-primary/30 transition-all duration-200 shadow-sm" 
+                    disabled={isLoading}
+                  >
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">Agentes</span>
+                    <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-0 shadow-lg border-border" align="start">
+                  <div className="p-3 border-b border-border bg-muted/30">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="select-all"
+                        checked={allSelected}
+                        ref={(el) => {
+                          if (el) {
+                            (el as HTMLButtonElement & { indeterminate: boolean }).indeterminate = someSelected;
+                          }
+                        }}
+                        onCheckedChange={handleSelectAllAgents}
+                        className="data-[state=checked]:bg-primary"
+                      />
+                      <label htmlFor="select-all" className="text-sm font-medium cursor-pointer flex-1">
+                        Selecionar Todos
+                      </label>
+                      <Badge variant="secondary" className="text-xs">
+                        {selectedCount}/{agents.length}
+                      </Badge>
+                    </div>
                   </div>
-                  <ScrollArea className="h-60">
-                    <div className="space-y-1">
+                  <ScrollArea className="h-64">
+                    <div className="p-2 space-y-0.5">
                       {agents.map((agent) => (
                         <div
                           key={agent.cod_agent}
-                          className="flex items-start gap-2 p-2 rounded hover:bg-muted cursor-pointer"
+                          className="flex items-start gap-2.5 p-2.5 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
                           onClick={() => handleAgentToggle(agent.cod_agent)}
                         >
                           <Checkbox
                             checked={filters.agentCodes.includes(agent.cod_agent)}
                             onCheckedChange={() => handleAgentToggle(agent.cod_agent)}
+                            className="mt-0.5 data-[state=checked]:bg-primary"
                           />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">
-                              [{agent.cod_agent}] - {agent.owner_name}
+                              [{agent.cod_agent}] {agent.owner_name}
                             </p>
                             {agent.owner_business_name && (
                               <p className="text-xs text-muted-foreground truncate">
@@ -278,140 +313,154 @@ export function UnifiedFilters({
                       ))}
                     </div>
                   </ScrollArea>
-                </div>
+                </PopoverContent>
+              </Popover>
+            )}
+
+            {/* Date From */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-9 gap-2 px-3 bg-background hover:bg-muted/50 hover:border-primary/30 transition-all duration-200 shadow-sm" 
+                  disabled={isLoading}
+                >
+                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                  <span className="hidden sm:inline text-muted-foreground">De:</span>
+                  <span className="font-medium">
+                    {filters.dateFrom
+                      ? format(parseISO(filters.dateFrom), 'dd/MM/yyyy', { locale: ptBR })
+                      : 'Início'}
+                  </span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0 shadow-lg border-border" align="start">
+                <Calendar
+                  mode="single"
+                  selected={filters.dateFrom ? parseISO(filters.dateFrom) : undefined}
+                  onSelect={handleDateFromChange}
+                  locale={ptBR}
+                  className="pointer-events-auto"
+                />
               </PopoverContent>
             </Popover>
-          )}
 
-          {/* Date From */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2" disabled={isLoading}>
-                <CalendarIcon className="h-4 w-4" />
-                <span className="hidden sm:inline">De:</span>
-                {filters.dateFrom
-                  ? format(parseISO(filters.dateFrom), 'dd/MM/yyyy', { locale: ptBR })
-                  : 'Início'}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={filters.dateFrom ? parseISO(filters.dateFrom) : undefined}
-                onSelect={handleDateFromChange}
-                locale={ptBR}
-                className="pointer-events-auto"
-              />
-            </PopoverContent>
-          </Popover>
+            {/* Date To */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-9 gap-2 px-3 bg-background hover:bg-muted/50 hover:border-primary/30 transition-all duration-200 shadow-sm" 
+                  disabled={isLoading}
+                >
+                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                  <span className="hidden sm:inline text-muted-foreground">Até:</span>
+                  <span className="font-medium">
+                    {filters.dateTo
+                      ? format(parseISO(filters.dateTo), 'dd/MM/yyyy', { locale: ptBR })
+                      : 'Fim'}
+                  </span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0 shadow-lg border-border" align="start">
+                <Calendar
+                  mode="single"
+                  selected={filters.dateTo ? parseISO(filters.dateTo) : undefined}
+                  onSelect={handleDateToChange}
+                  locale={ptBR}
+                  className="pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
 
-          {/* Date To */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2" disabled={isLoading}>
-                <CalendarIcon className="h-4 w-4" />
-                <span className="hidden sm:inline">Até:</span>
-                {filters.dateTo
-                  ? format(parseISO(filters.dateTo), 'dd/MM/yyyy', { locale: ptBR })
-                  : 'Fim'}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={filters.dateTo ? parseISO(filters.dateTo) : undefined}
-                onSelect={handleDateToChange}
-                locale={ptBR}
-                className="pointer-events-auto"
-              />
-            </PopoverContent>
-          </Popover>
+            {/* Perfil Filter */}
+            {showPerfilFilter && (
+              <Select
+                value={filters.perfilAgent || 'ALL'}
+                onValueChange={(value) =>
+                  onFiltersChange({ ...filters, perfilAgent: value as 'SDR' | 'CLOSER' | 'ALL' })
+                }
+              >
+                <SelectTrigger className="w-[130px] h-9 bg-background shadow-sm hover:border-primary/30 transition-colors">
+                  <SelectValue placeholder="Perfil" />
+                </SelectTrigger>
+                <SelectContent className="shadow-lg">
+                  <SelectItem value="ALL">Todos Perfis</SelectItem>
+                  <SelectItem value="SDR">SDR</SelectItem>
+                  <SelectItem value="CLOSER">Closer</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
 
-          {/* Perfil Filter */}
-          {showPerfilFilter && (
-            <Select
-              value={filters.perfilAgent || 'ALL'}
-              onValueChange={(value) =>
-                onFiltersChange({ ...filters, perfilAgent: value as 'SDR' | 'CLOSER' | 'ALL' })
-              }
+            {/* Status Filter */}
+            {showStatusFilter && statusOptions.length > 0 && (
+              <Select
+                value={filters.statusDocument || 'ALL'}
+                onValueChange={(value) =>
+                  onFiltersChange({ ...filters, statusDocument: value === 'ALL' ? undefined : value })
+                }
+              >
+                <SelectTrigger className="w-[130px] h-9 bg-background shadow-sm hover:border-primary/30 transition-colors">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent className="shadow-lg">
+                  <SelectItem value="ALL">Todos Status</SelectItem>
+                  {statusOptions.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {STATUS_LABELS[status] || status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* State Filter */}
+            {showStateFilter && stateOptions.length > 0 && (
+              <Select
+                value={filters.stateFilter || 'all'}
+                onValueChange={(value) => onFiltersChange({ ...filters, stateFilter: value })}
+              >
+                <SelectTrigger className="w-[150px] h-9 bg-background shadow-sm hover:border-primary/30 transition-colors">
+                  <SelectValue placeholder="Estado" />
+                </SelectTrigger>
+                <SelectContent className="shadow-lg">
+                  {stateOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Search Input */}
+            {showSearch && (
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={searchPlaceholder}
+                  value={filters.search}
+                  onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
+                  className="pl-9 h-9 bg-background shadow-sm hover:border-primary/30 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all"
+                  disabled={isLoading}
+                />
+              </div>
+            )}
+
+            {/* Clear Button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClearFilters}
+              disabled={isLoading}
+              className="h-9 gap-1.5 text-muted-foreground hover:text-foreground hover:bg-destructive/10 transition-colors"
             >
-              <SelectTrigger className="w-[140px] h-9">
-                <SelectValue placeholder="Perfil" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">Todos Perfis</SelectItem>
-                <SelectItem value="SDR">SDR</SelectItem>
-                <SelectItem value="CLOSER">Closer</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
-
-          {/* Status Filter */}
-          {showStatusFilter && statusOptions.length > 0 && (
-            <Select
-              value={filters.statusDocument || 'ALL'}
-              onValueChange={(value) =>
-                onFiltersChange({ ...filters, statusDocument: value === 'ALL' ? undefined : value })
-              }
-            >
-              <SelectTrigger className="w-[140px] h-9">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">Todos Status</SelectItem>
-                {statusOptions.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {STATUS_LABELS[status] || status}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-
-          {/* State Filter */}
-          {showStateFilter && stateOptions.length > 0 && (
-            <Select
-              value={filters.stateFilter || 'all'}
-              onValueChange={(value) => onFiltersChange({ ...filters, stateFilter: value })}
-            >
-              <SelectTrigger className="w-[160px] h-9">
-                <SelectValue placeholder="Estado" />
-              </SelectTrigger>
-              <SelectContent>
-                {stateOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-
-          {/* Search Input */}
-          {showSearch && (
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder={searchPlaceholder}
-                value={filters.search}
-                onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
-                className="pl-9 h-9"
-                disabled={isLoading}
-              />
-            </div>
-          )}
-
-          {/* Clear Button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleClearFilters}
-            disabled={isLoading}
-            className="gap-1"
-          >
-            <X className="h-4 w-4" />
-            Limpar
-          </Button>
+              <X className="h-4 w-4" />
+              <span className="hidden sm:inline">Limpar</span>
+            </Button>
+          </div>
         </div>
       </CollapsibleContent>
     </Collapsible>
