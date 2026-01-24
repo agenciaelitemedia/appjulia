@@ -16,6 +16,7 @@ import { FollowupDailyMetrics } from '../../types';
 interface FollowupResponseRateChartProps {
   data: FollowupDailyMetrics[];
   isLoading?: boolean;
+  granularity?: 'daily' | 'hourly';
 }
 
 const chartConfig = {
@@ -25,12 +26,17 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-export function FollowupResponseRateChart({ data, isLoading }: FollowupResponseRateChartProps) {
+export function FollowupResponseRateChart({ data, isLoading, granularity = 'daily' }: FollowupResponseRateChartProps) {
+  // Dynamic title based on granularity
+  const title = granularity === 'hourly'
+    ? 'Evolução por Hora da Taxa de Resposta'
+    : 'Evolução da Taxa de Resposta';
+
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Evolução da Taxa de Resposta</CardTitle>
+          <CardTitle>{title}</CardTitle>
         </CardHeader>
         <CardContent>
           <Skeleton className="h-[250px] w-full" />
@@ -43,7 +49,7 @@ export function FollowupResponseRateChart({ data, isLoading }: FollowupResponseR
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Evolução da Taxa de Resposta</CardTitle>
+          <CardTitle>{title}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-[250px] text-muted-foreground">
@@ -61,7 +67,7 @@ export function FollowupResponseRateChart({ data, isLoading }: FollowupResponseR
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          <span>Evolução da Taxa de Resposta</span>
+          <span>{title}</span>
           <span className="text-sm font-normal text-muted-foreground">
             Média: {averageRate.toFixed(1)}%
           </span>

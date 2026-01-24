@@ -16,6 +16,7 @@ import { FollowupDailyMetrics } from '../../types';
 interface FollowupEvolutionChartProps {
   data: FollowupDailyMetrics[];
   isLoading?: boolean;
+  granularity?: 'daily' | 'hourly';
 }
 
 const chartConfig = {
@@ -33,12 +34,17 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-export function FollowupEvolutionChart({ data, isLoading }: FollowupEvolutionChartProps) {
+export function FollowupEvolutionChart({ data, isLoading, granularity = 'daily' }: FollowupEvolutionChartProps) {
+  // Dynamic title based on granularity
+  const title = granularity === 'hourly' 
+    ? 'Evolução por Hora de FollowUps' 
+    : 'Evolução Diária de FollowUps';
+
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Evolução Diária de FollowUps</CardTitle>
+          <CardTitle>{title}</CardTitle>
         </CardHeader>
         <CardContent>
           <Skeleton className="h-[300px] w-full" />
@@ -51,7 +57,7 @@ export function FollowupEvolutionChart({ data, isLoading }: FollowupEvolutionCha
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Evolução Diária de FollowUps</CardTitle>
+          <CardTitle>{title}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-[300px] text-muted-foreground">
@@ -65,7 +71,7 @@ export function FollowupEvolutionChart({ data, isLoading }: FollowupEvolutionCha
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Evolução Diária de FollowUps</CardTitle>
+        <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[300px] w-full">

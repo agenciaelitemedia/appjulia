@@ -331,12 +331,16 @@ export function useDeleteQueueItem() {
   });
 }
 
-// Fetch daily metrics (ungrouped - all records)
+// Fetch daily/hourly metrics (ungrouped - all records)
+// Uses hourly granularity when dateFrom === dateTo (single day)
 export function useFollowupDailyMetrics(filters: FollowupFiltersState) {
   return useQuery({
     queryKey: ['followup-daily-metrics', filters],
     queryFn: async (): Promise<FollowupDailyMetrics[]> => {
       if (!filters.agentCodes.length) return [];
+
+      // Detect if it's a single day period
+      const isSingleDay = filters.dateFrom && filters.dateTo && filters.dateFrom === filters.dateTo;
 
       const agentPlaceholders = filters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
       const params: (string | number)[] = [...filters.agentCodes];
@@ -353,8 +357,20 @@ export function useFollowupDailyMetrics(filters: FollowupFiltersState) {
         params.push(filters.dateTo);
       }
 
+      // Dynamic GROUP BY based on period
+      const groupByClause = isSingleDay
+        ? `EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Sao_Paulo')`
+        : `(created_at AT TIME ZONE 'America/Sao_Paulo')::date`;
+
+      const selectClause = isSingleDay
+        ? `EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Sao_Paulo')::int as hour`
+        : `(created_at AT TIME ZONE 'America/Sao_Paulo')::date as date`;
+
+      const orderClause = isSingleDay ? 'hour' : 'date';
+
       const result = await externalDb.raw<{
-        date: string;
+        date?: string;
+        hour?: number;
         total_records: string;
         messages_sent: string;
         stopped: string;
@@ -362,7 +378,7 @@ export function useFollowupDailyMetrics(filters: FollowupFiltersState) {
       }[]>({
         query: `
           SELECT 
-            (created_at AT TIME ZONE 'America/Sao_Paulo')::date as date,
+            ${selectClause},
             COUNT(*)::text as total_records,
             COALESCE(SUM(
               CASE 
@@ -374,8 +390,8 @@ export function useFollowupDailyMetrics(filters: FollowupFiltersState) {
             COUNT(DISTINCT session_id)::text as unique_leads
           FROM followup_queue
           WHERE ${whereClause}
-          GROUP BY (created_at AT TIME ZONE 'America/Sao_Paulo')::date
-          ORDER BY date
+          GROUP BY ${groupByClause}
+          ORDER BY ${orderClause}
         `,
         params,
       });
@@ -387,17 +403,30 @@ export function useFollowupDailyMetrics(filters: FollowupFiltersState) {
         const stopped = parseInt(row.stopped || '0', 10);
         const responseRate = totalRecords > 0 ? (stopped / totalRecords) * 100 : 0;
         
-        // Format date label
-        let label = row.date;
-        try {
-          const parsedDate = parseISO(row.date);
-          label = format(parsedDate, 'dd/MM', { locale: ptBR });
-        } catch {
-          // Keep original if parsing fails
+        // Format label based on granularity
+        let label: string;
+        let dateValue: string;
+        
+        if (isSingleDay && row.hour !== undefined) {
+          // Hourly label: "08h", "09h", etc.
+          label = `${row.hour.toString().padStart(2, '0')}h`;
+          dateValue = `${filters.dateFrom}T${row.hour.toString().padStart(2, '0')}:00:00`;
+        } else if (row.date) {
+          // Daily label: "22/01", "23/01", etc.
+          try {
+            const parsedDate = parseISO(row.date);
+            label = format(parsedDate, 'dd/MM', { locale: ptBR });
+          } catch {
+            label = row.date;
+          }
+          dateValue = row.date;
+        } else {
+          label = 'N/A';
+          dateValue = '';
         }
 
         return {
-          date: row.date,
+          date: dateValue,
           label,
           totalRecords,
           messagesSent: parseInt(row.messages_sent || '0', 10),
