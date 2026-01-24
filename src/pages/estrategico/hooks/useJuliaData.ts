@@ -66,7 +66,8 @@ export function useJuliaSessoes(filters: JuliaFiltersState) {
 
 export function useJuliaContratos(filters: JuliaFiltersState) {
   return useQuery({
-    queryKey: ['julia-contratos', filters],
+    // v2: inclui campo zapsing_doctoken (doc_token do ZapSign) e força refetch após update
+    queryKey: ['julia-contratos-v2', filters],
     queryFn: async () => {
       const { agentCodes, dateFrom, dateTo, statusDocument } = filters;
       
