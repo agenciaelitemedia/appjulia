@@ -198,10 +198,10 @@ export function ContratosTable({
             <TableRow>
               <TableHead>Agente</TableHead>
               <TableHead>Cliente</TableHead>
-              <TableHead>WhatsApp</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Data Contrato</TableHead>
-              <TableHead className="w-[120px]">Ações</TableHead>
+              <TableHead className="text-center">WhatsApp</TableHead>
+              <TableHead className="text-center">Status</TableHead>
+              <TableHead className="text-center">Data Contrato</TableHead>
+              <TableHead className="w-[120px] text-center">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -223,7 +223,7 @@ export function ContratosTable({
                       {contrato.signer_name || '-'}
                     </p>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-center">
                     <a
                       href={`https://wa.me/${contrato.whatsapp?.replace(/\D/g, '')}`}
                       target="_blank"
@@ -233,8 +233,8 @@ export function ContratosTable({
                       {formatWhatsAppNumber(contrato.whatsapp)}
                     </a>
                   </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
+                  <TableCell className="text-center">
+                    <div className="flex flex-col items-center gap-1">
                       <Badge variant="secondary" className={statusInfo.className}>
                         {statusInfo.label}
                       </Badge>
@@ -246,11 +246,11 @@ export function ContratosTable({
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className="text-center text-sm">
                     {formatDbDateTime(contrato.data_contrato)}
                   </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
+                  <TableCell className="text-center">
+                    <div className="flex items-center justify-center gap-1">
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
