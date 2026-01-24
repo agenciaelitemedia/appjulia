@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
-import { CRMFiltersState } from '../types';
 import { useCRMAgents } from '../hooks/useCRMData';
 import { useCRMFunnelData, useCRMAvgTimeByStage, useCRMAgentPerformance } from '../hooks/useCRMStatistics';
-import { CRMFilters } from '../components/CRMFilters';
+import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
+import { UnifiedFiltersState } from '@/components/filters/types';
 import { ConversionFunnelChart } from './components/ConversionFunnelChart';
 import { AverageTimeChart } from './components/AverageTimeChart';
 import { AgentPerformanceTable } from './components/AgentPerformanceTable';
@@ -22,7 +22,7 @@ export default function CRMStatisticsPage() {
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const dateFrom = thirtyDaysAgo.toISOString().split('T')[0];
   
-  const [filters, setFilters] = useState<CRMFiltersState>({
+  const [filters, setFilters] = useState<UnifiedFiltersState>({
     search: '',
     agentCodes: [],
     dateFrom: dateFrom,
@@ -90,7 +90,7 @@ export default function CRMStatisticsPage() {
       </div>
 
       {/* Filters */}
-      <CRMFilters
+      <UnifiedFilters
         agents={agents}
         filters={filters}
         onFiltersChange={setFilters}

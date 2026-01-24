@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
-import { CRMFiltersState } from '../types';
 import { useCRMAgents } from '../hooks/useCRMData';
 import { 
   useCRMStuckLeads, 
@@ -9,7 +8,8 @@ import {
   useCRMAgentWorkload,
   useCRMStageBottlenecks 
 } from '../hooks/useCRMMonitoring';
-import { CRMFilters } from '../components/CRMFilters';
+import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
+import { UnifiedFiltersState } from '@/components/filters/types';
 import { StuckLeadsAlert } from './components/StuckLeadsAlert';
 import { ActivityTimeline } from './components/ActivityTimeline';
 import { AgentWorkloadChart } from './components/AgentWorkloadChart';
@@ -23,7 +23,7 @@ export default function CRMMonitoringPage() {
   const today = getTodayInSaoPaulo();
   const didInitAgentsRef = useRef(false);
   
-  const [filters, setFilters] = useState<CRMFiltersState>({
+  const [filters, setFilters] = useState<UnifiedFiltersState>({
     search: '',
     agentCodes: [],
     dateFrom: today,
@@ -96,7 +96,7 @@ export default function CRMMonitoringPage() {
       </div>
 
       {/* Filters */}
-      <CRMFilters
+      <UnifiedFilters
         agents={agents}
         filters={filters}
         onFiltersChange={setFilters}

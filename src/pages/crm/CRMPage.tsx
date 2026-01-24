@@ -4,11 +4,12 @@ import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { CRMHeader } from './components/CRMHeader';
 import { CRMDashboardSummary } from './components/CRMDashboardSummary';
 import { CRMTotalizers } from './components/CRMTotalizers';
-import { CRMFilters } from './components/CRMFilters';
 import { CRMPipeline } from './components/CRMPipeline';
 import { CRMLeadDetailsDialog } from './components/CRMLeadDetailsDialog';
 import { useCRMStages, useCRMCards, useCRMAgents } from './hooks/useCRMData';
-import { CRMCard, CRMFiltersState } from './types';
+import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
+import { UnifiedFiltersState } from '@/components/filters/types';
+import { CRMCard } from './types';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function CRMPage() {
@@ -16,7 +17,7 @@ export default function CRMPage() {
   const today = getTodayInSaoPaulo();
   const didInitAgentsRef = useRef(false);
   
-  const [filters, setFilters] = useState<CRMFiltersState>({
+  const [filters, setFilters] = useState<UnifiedFiltersState>({
     search: '',
     agentCodes: [],
     dateFrom: today,
@@ -104,7 +105,7 @@ export default function CRMPage() {
     <div className="flex flex-col h-full space-y-4">
       <CRMHeader onRefresh={handleRefresh} isLoading={isRefreshing} />
 
-      <CRMFilters
+      <UnifiedFilters
         agents={agents}
         filters={filters}
         onFiltersChange={setFilters}
