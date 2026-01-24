@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -5,11 +6,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { FileText, User, MapPin, Briefcase, MessageSquare } from 'lucide-react';
+import { FileText, User, MapPin, Briefcase, MessageSquare, Download, Loader2 } from 'lucide-react';
 import { JuliaContrato } from '../../types';
 import { formatDbDateTime } from '@/lib/dateUtils';
+import { useToast } from '@/hooks/use-toast';
 
 interface ContratoDetailsDialogProps {
   contrato: JuliaContrato | null;
@@ -22,6 +25,9 @@ export function ContratoDetailsDialog({
   open,
   onOpenChange,
 }: ContratoDetailsDialogProps) {
+  const { toast } = useToast();
+  const [downloading, setDownloading] = useState(false);
+
   if (!contrato) return null;
 
   const getStatusBadge = (status: string) => {
@@ -32,6 +38,78 @@ export function ContratoDetailsDialog({
       CANCELLED: { className: 'bg-red-100 text-red-800', label: 'Cancelado' },
     };
     return variants[status] || { className: 'bg-gray-100 text-gray-800', label: status };
+  };
+
+  const handleDownloadContract = async () => {
+    const docToken = contrato.zapsing_doctoken;
+
+    if (!docToken) {
+      toast({
+        title: 'Erro',
+        description: 'Contrato sem token do ZapSign para download',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setDownloading(true);
+
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/zapsign-file`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey,
+        },
+        body: JSON.stringify({ doc_token: docToken, file: 'signed' }),
+      });
+
+      const contentType = response.headers.get('Content-Type') || '';
+
+      if (contentType.includes('application/json')) {
+        const data = await response.json();
+        throw new Error(data.error || 'Erro ao obter documento');
+      }
+
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      
+      const disposition = response.headers.get('Content-Disposition');
+      let fileName = `${contrato.signer_name || 'contrato'}.pdf`;
+      if (disposition) {
+        const match = disposition.match(/filename="?([^";\n]+)"?/);
+        if (match?.[1]) {
+          fileName = match[1];
+        }
+      }
+      
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+      
+      toast({
+        title: 'Download concluído',
+        description: 'O contrato foi baixado com sucesso',
+      });
+
+    } catch (error) {
+      console.error('Erro ao baixar contrato:', error);
+      toast({
+        title: 'Erro ao baixar',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const statusInfo = getStatusBadge(contrato.status_document);
@@ -76,7 +154,25 @@ export function ContratoDetailsDialog({
                 {contrato.data_assinatura && (
                   <div>
                     <p className="text-xs text-muted-foreground">Data da Assinatura</p>
-                    <p className="font-medium">{formatDbDateTime(contrato.data_assinatura)}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{formatDbDateTime(contrato.data_assinatura)}</p>
+                      {contrato.status_document === 'SIGNED' && contrato.zapsing_doctoken && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2"
+                          onClick={handleDownloadContract}
+                          disabled={downloading}
+                        >
+                          {downloading ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Download className="h-3 w-3" />
+                          )}
+                          <span className="ml-1 text-xs">Baixar</span>
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
