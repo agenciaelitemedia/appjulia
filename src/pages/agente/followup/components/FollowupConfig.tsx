@@ -7,8 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { Plus, Save, Sparkles, Infinity, Info } from 'lucide-react';
-import { FollowupConfig as FollowupConfigType, CadenceStep, HOUR_OPTIONS } from '../../types';
+import { FollowupConfig as FollowupConfigType, CadenceStep, HOUR_OPTIONS, STEP_LIMITS } from '../../types';
 import { CadenceStepEditor } from './CadenceStepEditor';
+import { toast } from 'sonner';
 
 interface FollowupConfigProps {
   config: FollowupConfigType | null;
@@ -89,6 +90,11 @@ export function FollowupConfig({ config, isLoading, isSaving, onSave }: Followup
   }, [config]);
 
   const handleAddStep = () => {
+    if (steps.length >= STEP_LIMITS.MAX_STEPS) {
+      toast.error(`Máximo de ${STEP_LIMITS.MAX_STEPS} etapas atingido`);
+      return;
+    }
+    
     const nextNumber = steps.length + 1;
     setSteps([
       ...steps,
@@ -142,7 +148,34 @@ export function FollowupConfig({ config, isLoading, isSaving, onSave }: Followup
     }
   };
 
+  // Validate messages before save
+  const validateBeforeSave = (): boolean => {
+    if (autoMessage) return true;
+
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      const wordCount = step.message?.trim().split(/\s+/).filter(Boolean).length || 0;
+
+      if (wordCount < STEP_LIMITS.MIN_MESSAGE_WORDS) {
+        toast.error(
+          `Etapa ${i + 1}: mensagem deve ter no mínimo ${STEP_LIMITS.MIN_MESSAGE_WORDS} palavras`
+        );
+        return false;
+      }
+
+      if ((step.message?.length || 0) > STEP_LIMITS.MAX_MESSAGE_CHARS) {
+        toast.error(
+          `Etapa ${i + 1}: mensagem excede ${STEP_LIMITS.MAX_MESSAGE_CHARS} caracteres`
+        );
+        return false;
+      }
+    }
+    return true;
+  };
+
   const handleSave = () => {
+    if (!validateBeforeSave()) return;
+
     // Convert steps array back to JSONB format
     const stepCadence: Record<string, string> = {};
     const msgCadence: Record<string, string | null> = {};
@@ -346,8 +379,18 @@ export function FollowupConfig({ config, isLoading, isSaving, onSave }: Followup
       {/* Cadence Steps */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Etapas do FollowUp</h3>
-          <Button variant="outline" size="sm" onClick={handleAddStep}>
+          <h3 className="text-lg font-semibold">
+            Etapas do FollowUp
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              ({steps.length}/{STEP_LIMITS.MAX_STEPS})
+            </span>
+          </h3>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleAddStep}
+            disabled={steps.length >= STEP_LIMITS.MAX_STEPS}
+          >
             <Plus className="h-4 w-4 mr-2" />
             Adicionar Etapa
           </Button>
