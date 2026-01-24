@@ -86,12 +86,12 @@ export function ContratosTable({
   };
 
   const handleDownloadContract = async (contrato: JuliaContrato) => {
-    const docToken = contrato.zapsing_doctoken || contrato.cod_document;
+    const docToken = contrato.zapsing_doctoken;
 
     if (!docToken) {
       toast({
         title: 'Erro',
-        description: 'Documento não possui token do ZapSign para download',
+        description: 'Contrato sem token do ZapSign (zapsing_doctoken) para download',
         variant: 'destructive',
       });
       return;
@@ -259,9 +259,9 @@ export function ContratosTable({
                                 size="icon"
                                 className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-100/50"
                                 onClick={() => handleDownloadContract(contrato)}
-                                 disabled={downloadingId === (contrato.zapsing_doctoken || contrato.cod_document)}
+                                 disabled={!contrato.zapsing_doctoken || downloadingId === contrato.zapsing_doctoken}
                               >
-                                 {downloadingId === (contrato.zapsing_doctoken || contrato.cod_document) ? (
+                                 {downloadingId === contrato.zapsing_doctoken ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
                                   <Download className="h-4 w-4" />

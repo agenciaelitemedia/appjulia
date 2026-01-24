@@ -90,7 +90,18 @@ serve(async (req) => {
         }
       }
       
-      throw new Error(`ZapSign API error: ${response.status} - ${errorData}`);
+      // Não retorna 500 para o frontend: devolvemos um payload de erro para permitir UX (toast)
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `ZapSign API error: ${response.status} - ${errorData}`,
+        }),
+        {
+          // 200 evita que o client trate como erro de transporte
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     const docData = await response.json();
@@ -117,7 +128,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ success: false, error: errorMessage }),
       {
-        status: 500,
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
