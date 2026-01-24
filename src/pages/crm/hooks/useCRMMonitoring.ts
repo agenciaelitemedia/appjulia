@@ -25,12 +25,12 @@ export function useCRMStuckLeads(filters: CRMFiltersState, daysThreshold: number
             c.created_at, c.updated_at, c.stage_entered_at,
             s.name as stage_name, s.color as stage_color,
             a.owner_name, a.owner_business_name,
-            EXTRACT(DAY FROM NOW() - c.stage_entered_at)::int as days_stuck
+            EXTRACT(DAY FROM (NOW() AT TIME ZONE 'America/Sao_Paulo') - (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo'))::int as days_stuck
           FROM crm_atendimento_cards c
           LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
           LEFT JOIN "vw_list_client-agents-users" a ON c.cod_agent = a.cod_agent::text
           WHERE c.cod_agent = ANY($1::varchar[])
-            AND NOW() - c.stage_entered_at > ($2 || ' days')::interval
+            AND (NOW() AT TIME ZONE 'America/Sao_Paulo') - (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo') > ($2 || ' days')::interval
             AND s.name NOT IN ('Contrato Assinado', 'Desqualificado')
           ORDER BY days_stuck DESC
           LIMIT 50
@@ -93,7 +93,7 @@ export function useCRMAgentWorkload(filters: CRMFiltersState) {
             c.cod_agent,
             COALESCE(a.owner_name, c.cod_agent) as owner_name,
             COUNT(CASE WHEN s.name NOT IN ('Contrato Assinado', 'Desqualificado') THEN 1 END)::int as active_leads,
-            COUNT(CASE WHEN NOW() - c.stage_entered_at > INTERVAL '7 days' 
+            COUNT(CASE WHEN (NOW() AT TIME ZONE 'America/Sao_Paulo') - (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo') > INTERVAL '7 days' 
               AND s.name NOT IN ('Contrato Assinado', 'Desqualificado') THEN 1 END)::int as stuck_leads
           FROM crm_atendimento_cards c
           LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
