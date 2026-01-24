@@ -117,15 +117,16 @@ export interface FollowupFiltersState {
 // Enriched queue item with derived status
 export interface FollowupQueueItemEnriched extends FollowupQueueItem {
   total_steps: number;
-  derived_status: 'sent' | 'waiting' | 'stopped';
+  derived_status: 'sent' | 'waiting' | 'stopped' | 'finalized';
   is_infinite: boolean;
 }
 
 // Derived status configuration
 export const DERIVED_STATUS_CONFIG = {
-  sent: { label: 'Enviado', className: 'bg-green-500/10 text-green-600 border-green-500/20' },
-  waiting: { label: 'Aguardando', className: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20' },
+  sent: { label: 'Enviado', className: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' },
+  waiting: { label: 'Aguardando', className: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
   stopped: { label: 'Parado', className: 'bg-muted text-muted-foreground' },
+  finalized: { label: 'Finalizado', className: 'bg-destructive/10 text-destructive border-destructive/20' },
 } as const;
 
 // Métricas diárias para gráficos (registros desagrupados)

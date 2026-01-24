@@ -105,7 +105,7 @@ function StepBadge({ current, total, isInfinite }: { current: number; total: num
 }
 
 // Derived status badge component
-function DerivedStatusBadge({ status }: { status: 'sent' | 'waiting' | 'stopped' }) {
+function DerivedStatusBadge({ status }: { status: 'sent' | 'waiting' | 'stopped' | 'finalized' }) {
   const config = DERIVED_STATUS_CONFIG[status];
   return (
     <Badge variant="outline" className={config.className}>
