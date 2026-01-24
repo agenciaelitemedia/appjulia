@@ -588,7 +588,7 @@ export function useFollowupQueueTotals(filters: FollowupFiltersState) {
 
 // Fetch unified metrics using a single CTE to ensure mutually exclusive rates
 // All rates are based on the CURRENT state (most recent record per lead)
-// This guarantees: followupRate + returnRate + lossRate = 100%
+// This guarantees: followupRate + returnRate + interventionRate + lossRate = 100%
 export function useFollowupReturnRate(filters: FollowupFiltersState) {
   return useQuery({
     queryKey: ['followup-return-rate', filters],
@@ -596,11 +596,13 @@ export function useFollowupReturnRate(filters: FollowupFiltersState) {
       if (!filters.agentCodes.length) return { 
         totalLeads: 0,
         leadsInFollowup: 0, 
-        leadsReturned: 0, 
+        leadsReturned: 0,
+        leadsIntervention: 0,
         leadsLost: 0,
         responses: 0, 
         followupRate: 0,
         returnRate: 0,
+        interventionRate: 0,
         lossRate: 0 
       };
 
@@ -631,6 +633,7 @@ export function useFollowupReturnRate(filters: FollowupFiltersState) {
         total_leads: string;
         in_followup: string;
         returned: string;
+        intervention: string;
         lost: string;
         total_responses: string;
       }[]>({
@@ -667,6 +670,13 @@ export function useFollowupReturnRate(filters: FollowupFiltersState) {
                 AND session_id IN (SELECT session_id FROM leads_with_response)
             )::text as returned,
             
+            -- Taxa de Intervenção: leads in STOP + step<>0 + NO response (human intervention)
+            COUNT(*) FILTER (
+              WHERE state = 'STOP' 
+                AND step_number <> 0 
+                AND session_id NOT IN (SELECT session_id FROM leads_with_response)
+            )::text as intervention,
+            
             -- Taxa de Perda: leads in STOP + step=0
             COUNT(*) FILTER (WHERE state = 'STOP' AND step_number = 0)::text as lost,
             
@@ -686,6 +696,7 @@ export function useFollowupReturnRate(filters: FollowupFiltersState) {
       const totalLeads = parseInt(flatResult[0]?.total_leads || '0', 10);
       const inFollowup = parseInt(flatResult[0]?.in_followup || '0', 10);
       const returned = parseInt(flatResult[0]?.returned || '0', 10);
+      const intervention = parseInt(flatResult[0]?.intervention || '0', 10);
       const lost = parseInt(flatResult[0]?.lost || '0', 10);
       const responses = parseInt(flatResult[0]?.total_responses || '0', 10);
 
@@ -693,10 +704,12 @@ export function useFollowupReturnRate(filters: FollowupFiltersState) {
         totalLeads,
         leadsInFollowup: inFollowup,
         leadsReturned: returned,
+        leadsIntervention: intervention,
         leadsLost: lost,
         responses,
         followupRate: totalLeads > 0 ? (inFollowup / totalLeads) * 100 : 0,
         returnRate: totalLeads > 0 ? (returned / totalLeads) * 100 : 0,
+        interventionRate: totalLeads > 0 ? (intervention / totalLeads) * 100 : 0,
         lossRate: totalLeads > 0 ? (lost / totalLeads) * 100 : 0,
       };
     },
@@ -766,11 +779,13 @@ export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
         return { 
           totalLeads: 0, 
           leadsInFollowup: 0,
-          leadsReturned: 0, 
+          leadsReturned: 0,
+          leadsIntervention: 0,
           leadsLost: 0, 
           responses: 0, 
           followupRate: 0,
-          returnRate: 0, 
+          returnRate: 0,
+          interventionRate: 0,
           lossRate: 0 
         };
       }
@@ -802,6 +817,7 @@ export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
         total_leads: string;
         in_followup: string;
         returned: string;
+        intervention: string;
         lost: string;
         total_responses: string;
       }[]>({
@@ -833,6 +849,11 @@ export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
                 AND step_number <> 0 
                 AND session_id IN (SELECT session_id FROM leads_with_response)
             )::text as returned,
+            COUNT(*) FILTER (
+              WHERE state = 'STOP' 
+                AND step_number <> 0 
+                AND session_id NOT IN (SELECT session_id FROM leads_with_response)
+            )::text as intervention,
             COUNT(*) FILTER (WHERE state = 'STOP' AND step_number = 0)::text as lost,
             (SELECT COUNT(*)::text FROM followup_response fr
              JOIN followup_queue fq ON fq.id = fr.followup_queue_id
@@ -848,6 +869,7 @@ export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
       const totalLeads = parseInt(flatResult[0]?.total_leads || '0', 10);
       const inFollowup = parseInt(flatResult[0]?.in_followup || '0', 10);
       const returned = parseInt(flatResult[0]?.returned || '0', 10);
+      const intervention = parseInt(flatResult[0]?.intervention || '0', 10);
       const lost = parseInt(flatResult[0]?.lost || '0', 10);
       const responses = parseInt(flatResult[0]?.total_responses || '0', 10);
 
@@ -855,10 +877,12 @@ export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
         totalLeads,
         leadsInFollowup: inFollowup,
         leadsReturned: returned,
+        leadsIntervention: intervention,
         leadsLost: lost,
         responses,
         followupRate: totalLeads > 0 ? (inFollowup / totalLeads) * 100 : 0,
         returnRate: totalLeads > 0 ? (returned / totalLeads) * 100 : 0,
+        interventionRate: totalLeads > 0 ? (intervention / totalLeads) * 100 : 0,
         lossRate: totalLeads > 0 ? (lost / totalLeads) * 100 : 0,
       };
     },
@@ -877,6 +901,7 @@ export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
         total: returnData?.totalLeads || 0,
         waiting: returnData?.leadsInFollowup || 0,
         followupRate: returnData?.followupRate || 0,
+        interventionRate: returnData?.interventionRate || 0,
       },
       isLoading: isLoadingSent || isLoadingReturn,
     };
