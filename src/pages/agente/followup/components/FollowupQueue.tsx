@@ -79,17 +79,21 @@ function formatWhatsAppNumber(number: string): string {
   return number;
 }
 
-// Step badge component showing current/total
-function StepBadge({ current, total }: { current: number; total: number }) {
+// Unified step badge component with soft color + infinity symbol
+function StepBadge({ current, total, isInfinite }: { current: number; total: number; isInfinite: boolean }) {
   return (
-    <div className="flex items-center justify-center gap-1">
-      <Badge variant="default" className="text-xs px-2 min-w-[24px] justify-center">
-        {current}
+    <div className="flex items-center justify-center gap-1.5">
+      <Badge 
+        variant="secondary" 
+        className="text-xs px-2.5 py-0.5 bg-primary/10 text-primary border border-primary/20"
+      >
+        {current} / {total}
       </Badge>
-      <span className="text-muted-foreground text-xs">/</span>
-      <Badge variant="outline" className="text-xs px-2 min-w-[24px] justify-center">
-        {total}
-      </Badge>
+      {isInfinite && (
+        <span className="text-primary text-lg font-light" title="FollowUp Infinito">
+          ∞
+        </span>
+      )}
     </div>
   );
 }
@@ -325,7 +329,7 @@ export function FollowupQueue({
                     {paginatedItems.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="text-center">
-                          <StepBadge current={item.step_number} total={item.total_steps} />
+                          <StepBadge current={item.step_number} total={item.total_steps} isInfinite={item.is_infinite} />
                         </TableCell>
                         <TableCell>
                           <DerivedStatusBadge status={item.derived_status} />

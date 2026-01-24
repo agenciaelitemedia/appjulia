@@ -78,6 +78,7 @@ export interface FollowupFiltersState {
 export interface FollowupQueueItemEnriched extends FollowupQueueItem {
   total_steps: number;
   derived_status: 'sent' | 'waiting' | 'stopped';
+  is_infinite: boolean;
 }
 
 // Derived status configuration
