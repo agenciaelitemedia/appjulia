@@ -64,6 +64,8 @@ interface FollowupQueueProps {
   onUpdateState: (id: number, state: string) => void;
   onDelete: (id: number) => void;
   isUpdating?: boolean;
+  searchTerm: string;
+  onSearchChange: (term: string) => void;
 }
 
 function formatWhatsAppNumber(number: string): string {
@@ -147,9 +149,10 @@ export function FollowupQueue({
   onUpdateState,
   onDelete,
   isUpdating,
+  searchTerm,
+  onSearchChange,
 }: FollowupQueueProps) {
   const [currentPage, setCurrentPage] = useState(1);
-  const [searchTerm, setSearchTerm] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   const [messagesOpen, setMessagesOpen] = useState(false);
@@ -157,27 +160,16 @@ export function FollowupQueue({
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
-  // Reset page when search or sort changes
+  // Reset page when sort changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, sortField, sortDirection]);
+  }, [sortField, sortDirection]);
 
-  // Filter items
-  const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      const search = searchTerm.toLowerCase();
-      return (
-        item.name_client?.toLowerCase().includes(search) ||
-        item.session_id?.toLowerCase().includes(search)
-      );
-    });
-  }, [items, searchTerm]);
-
-  // Sort items
+  // Sort items (items are already filtered from parent)
   const sortedItems = useMemo(() => {
-    if (!sortField) return filteredItems;
+    if (!sortField) return items;
     
-    return [...filteredItems].sort((a, b) => {
+    return [...items].sort((a, b) => {
       let comparison = 0;
       
       switch (sortField) {
@@ -201,7 +193,7 @@ export function FollowupQueue({
       
       return sortDirection === 'asc' ? comparison : -comparison;
     });
-  }, [filteredItems, sortField, sortDirection]);
+  }, [items, sortField, sortDirection]);
 
   // Paginate
   const totalPages = Math.ceil(sortedItems.length / ITEMS_PER_PAGE);
@@ -273,7 +265,7 @@ export function FollowupQueue({
               <Input
                 placeholder="Buscar por nome ou WhatsApp..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => onSearchChange(e.target.value)}
                 className="pl-9"
               />
             </div>

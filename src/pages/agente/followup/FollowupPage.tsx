@@ -11,7 +11,6 @@ import {
   useFollowupConfig,
   useSaveFollowupConfig,
   useFollowupQueue,
-  useFollowupQueueStats,
   useUpdateQueueState,
   useDeleteQueueItem,
 } from '../hooks/useFollowupData';
@@ -58,6 +57,7 @@ export default function FollowupPage() {
   const [dateFrom, setDateFrom] = useState<string>(getTodayInSaoPaulo());
   const [dateTo, setDateTo] = useState<string>(getTodayInSaoPaulo());
   const [stateFilter, setStateFilter] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Fetch agents
   const { data: agents = [], isLoading: isLoadingAgents } = useJuliaAgents();
@@ -84,7 +84,6 @@ export default function FollowupPage() {
   // Fetch data
   const { data: configData, isLoading: isLoadingConfig, refetch: refetchConfig } = useFollowupConfig(selectedAgent);
   const { data: queueData, isLoading: isLoadingQueue, refetch: refetchQueue } = useFollowupQueue(filters);
-  const { data: stats = { total: 0, queue: 0, send: 0, stop: 0 }, isLoading: isLoadingStats, refetch: refetchStats } = useFollowupQueueStats(filters);
 
   // Normalize config data
   const config: FollowupConfigType | null = useMemo(() => {
@@ -112,6 +111,35 @@ export default function FollowupPage() {
     }));
   }, [queueData, totalSteps]);
 
+  // Filter items by search term (client-side)
+  const filteredItems = useMemo(() => {
+    if (!searchTerm.trim()) return enrichedQueueItems;
+    
+    const search = searchTerm.toLowerCase();
+    return enrichedQueueItems.filter((item) =>
+      item.name_client?.toLowerCase().includes(search) ||
+      item.session_id?.toLowerCase().includes(search)
+    );
+  }, [enrichedQueueItems, searchTerm]);
+
+  // Calculate stats from filtered items (synchronized with table display)
+  const stats = useMemo(() => {
+    const result = {
+      total: filteredItems.length,
+      waiting: 0,
+      sent: 0,
+      stopped: 0,
+    };
+
+    filteredItems.forEach(item => {
+      if (item.derived_status === 'waiting') result.waiting++;
+      else if (item.derived_status === 'sent') result.sent++;
+      else if (item.derived_status === 'stopped') result.stopped++;
+    });
+
+    return result;
+  }, [filteredItems]);
+
   // Mutations
   const saveConfigMutation = useSaveFollowupConfig();
   const updateStateMutation = useUpdateQueueState();
@@ -137,7 +165,6 @@ export default function FollowupPage() {
   const handleRefresh = () => {
     refetchConfig();
     refetchQueue();
-    refetchStats();
   };
 
   return (
@@ -181,8 +208,8 @@ export default function FollowupPage() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <FollowupSummary stats={stats} isLoading={isLoadingStats} />
+      {/* Summary Cards - synchronized with filtered items */}
+      <FollowupSummary stats={stats} isLoading={isLoadingQueue} />
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -207,11 +234,13 @@ export default function FollowupPage() {
             onStateFilterChange={setStateFilter}
           />
           <FollowupQueue
-            items={enrichedQueueItems}
+            items={filteredItems}
             isLoading={isLoadingQueue}
             onUpdateState={handleUpdateState}
             onDelete={handleDeleteItem}
             isUpdating={updateStateMutation.isPending || deleteItemMutation.isPending}
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
           />
         </TabsContent>
 
