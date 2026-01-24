@@ -84,7 +84,12 @@ export default function DesempenhoPage() {
       <DesempenhoSummary sessoes={sessoes} isLoading={sessoesLoading} />
 
       {/* Evolution Chart */}
-      <DesempenhoEvolutionChart sessoes={sessoes} isLoading={sessoesLoading} />
+      <DesempenhoEvolutionChart 
+        sessoes={sessoes} 
+        isLoading={sessoesLoading}
+        dateFrom={filters.dateFrom}
+        dateTo={filters.dateTo}
+      />
 
       {/* Filters */}
       <JuliaFilters
