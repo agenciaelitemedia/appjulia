@@ -1,93 +1,51 @@
 
 
-# Correção Taxa de Retorno + Novo Card Taxa de Perda
+# Novo Card "Taxa em FollowUp" + Reorganização do Layout
 
-## Problema Identificado
+## Objetivo
 
-A Taxa de Retorno atual considera qualquer lead que tenha registro em `followup_response`, mas a regra correta é:
+Adicionar um novo card que exibe o percentual de leads que continuam em follow ativo (status SEND) e reorganizar os cards em duas linhas temáticas.
 
-| Métrica | Regra Correta |
-|---------|---------------|
-| **Taxa de Retorno** | Leads que responderam **E** estão com `state = 'STOP'` **E** `step_number <> 0` |
-| **Taxa de Perda** | Leads com `state = 'STOP'` **E** `step_number = 0` (finalizados sem retorno) |
+## Nova Métrica
 
-### Lógica de Negócio
+| Card | Fórmula | Descrição |
+|------|---------|-----------|
+| **Taxa em FollowUp** | (leads com state='SEND' / total leads na fila) × 100 | Percentual de leads que ainda estão ativos no follow |
 
-- **Lead que retornou**: respondeu (tem registro em `followup_response`) e foi marcado como STOP com `step_number > 0` (conversa continuou)
-- **Lead perdido**: foi finalizado (`state = 'STOP'` e `step_number = 0`) sem retorno efetivo
+## Novo Layout
 
----
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ LINHA 1 - CONTADORES ABSOLUTOS                                              │
+├────────────────┬────────────────┬────────────────┬────────────────┬────────────────┤
+│ Leads na Fila  │ Leads em       │ Mensagens      │ Respostas      │
+│ (total)        │ FollowUp       │ Enviadas       │ (total)        │
+│                │ (state=SEND)   │                │                │
+└────────────────┴────────────────┴────────────────┴────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ LINHA 2 - TAXAS PERCENTUAIS                                                 │
+├────────────────────────┬────────────────────────┬────────────────────────┬──┤
+│ Taxa em FollowUp       │ Taxa de Retorno        │ Taxa de Perda          │
+│ (waiting/total)%       │ (returned/total)%      │ (lost/total)%          │
+└────────────────────────┴────────────────────────┴────────────────────────┘
+```
 
 ## Arquivos a Modificar
 
-### 1. src/pages/agente/hooks/useFollowupData.ts
+### 1. src/pages/agente/types.ts
 
-#### A) Modificar `useFollowupReturnRate` (linhas 589-675)
-
-Adicionar condições `state = 'STOP'` e `step_number <> 0` na CTE:
-
-```sql
-WITH response_data AS (
-  SELECT DISTINCT ON (fq.cod_agent, fq.session_id)
-    fq.session_id
-  FROM followup_queue fq
-  INNER JOIN followup_response fr ON fr.followup_queue_id = fq.id
-  WHERE fq.cod_agent IN (...)
-    AND fq.state = 'STOP'
-    AND fq.step_number <> 0
-    AND [date_filters on fr.created_at]
-  ORDER BY fq.cod_agent, fq.session_id, fr.created_at DESC
-)
-SELECT COUNT(*)::text as leads_returned FROM response_data
-```
-
-E adicionar query para **leads perdidos** (Taxa de Perda):
-
-```sql
--- Leads finalizados (STOP + step_number = 0)
-WITH lost_leads AS (
-  SELECT DISTINCT ON (fq.cod_agent, fq.session_id)
-    fq.session_id
-  FROM followup_queue fq
-  WHERE fq.cod_agent IN (...)
-    AND fq.state = 'STOP'
-    AND fq.step_number = 0
-    AND [date_filters on fq.created_at]
-  ORDER BY fq.cod_agent, fq.session_id, fq.send_date DESC
-)
-SELECT COUNT(*)::text as leads_lost FROM lost_leads
-```
-
-**Retorno atualizado do hook:**
-```typescript
-return { 
-  totalLeads,      // Total na fila
-  leadsReturned,   // Leads que retornaram (STOP + step <> 0 + resposta)
-  leadsLost,       // Leads perdidos (STOP + step = 0)
-  responses,       // Total de respostas COUNT(*)
-  returnRate,      // (leadsReturned / totalLeads) * 100
-  lossRate,        // (leadsLost / totalLeads) * 100
-};
-```
-
-#### B) Modificar `useFollowupPreviousPeriodStats` (linhas 730-812)
-
-Aplicar mesma lógica para período anterior, incluindo `leadsLost` e `lossRate`.
-
----
-
-### 2. src/pages/agente/types.ts
-
-Adicionar novos campos às interfaces:
+Adicionar novo campo `followupRate` às interfaces:
 
 ```typescript
 export interface FollowupStats {
   total: number;           // Total de leads na fila (qualquer status)
   totalSent: number;       // Total de mensagens enviadas
   waiting: number;         // Leads com state = 'SEND' (ativos)
-  stopped: number;         // Total de respostas COUNT(*) - followup_response
-  responseRate: number;    // Taxa de Retorno = (leads STOP + step<>0 com resposta / total) × 100
-  lossRate: number;        // Taxa de Perda = (leads STOP + step=0 / total) × 100
+  stopped: number;         // Total de respostas COUNT(*)
+  responseRate: number;    // Taxa de Retorno
+  lossRate: number;        // Taxa de Perda
+  followupRate: number;    // NOVO: Taxa em FollowUp = (waiting / total) × 100
   previous?: FollowupPreviousStats;
 }
 
@@ -97,19 +55,114 @@ export interface FollowupPreviousStats {
   waiting: number;
   stopped: number;
   responseRate: number;
-  lossRate: number;        // Novo campo
+  lossRate: number;
+  followupRate: number;    // NOVO
 }
 ```
 
----
+### 2. src/pages/agente/hooks/useFollowupData.ts
 
-### 3. src/pages/agente/followup/components/FollowupSummary.tsx
-
-Adicionar novo card "Taxa de Perda" ao array de cards:
+Calcular `followupRate` no retorno dos hooks:
 
 ```typescript
-const cards: CardData[] = [
-  // ... cards existentes ...
+// Em useFollowupReturnRate
+const followupRate = totalLeads > 0 ? (waiting / totalLeads) * 100 : 0;
+
+return { 
+  // ... campos existentes ...
+  followupRate,
+};
+
+// Em useFollowupPreviousPeriodStats
+const followupRate = total > 0 ? (waiting / total) * 100 : 0;
+```
+
+### 3. src/pages/agente/followup/FollowupPage.tsx
+
+Atualizar `dashboardStats` para incluir `followupRate`:
+
+```typescript
+const dashboardStats: FollowupStats = useMemo(() => {
+  const total = queueTotals?.total || 0;
+  const waiting = queueTotals?.waiting || 0;
+  const followupRate = total > 0 ? (waiting / total) * 100 : 0;
+  
+  return {
+    total,
+    waiting,
+    totalSent: dailyMetrics.reduce((sum, d) => sum + d.messagesSent, 0),
+    stopped: returnData?.responses || 0,
+    responseRate: returnData?.returnRate || 0,
+    lossRate: returnData?.lossRate || 0,
+    followupRate,  // NOVO
+    previous: isLoadingPrevious ? undefined : previousStats,
+  };
+}, [queueTotals, dailyMetrics, returnData, previousStats, isLoadingPrevious]);
+```
+
+### 4. src/pages/agente/followup/components/FollowupSummary.tsx
+
+Reorganizar cards em duas linhas e adicionar "Taxa em FollowUp":
+
+```typescript
+import { Users } from 'lucide-react';
+
+// Cards da primeira linha (contadores absolutos)
+const absoluteCards: CardData[] = [
+  {
+    title: 'Leads na Fila',
+    value: stats.total.toLocaleString('pt-BR'),
+    icon: ListTodo,
+    color: 'text-primary',
+    bgColor: 'bg-primary/10',
+    change: stats.previous 
+      ? calculateChange(stats.total, stats.previous.total) 
+      : null,
+  },
+  {
+    title: 'Leads em FollowUp',  // Renomeado de "Aguardando"
+    value: stats.waiting.toLocaleString('pt-BR'),
+    icon: Clock,
+    color: 'text-yellow-600',
+    bgColor: 'bg-yellow-500/10',
+    change: stats.previous 
+      ? calculateChange(stats.waiting, stats.previous.waiting) 
+      : null,
+  },
+  {
+    title: 'Mensagens Enviadas',
+    value: stats.totalSent.toLocaleString('pt-BR'),
+    icon: Send,
+    color: 'text-green-600',
+    bgColor: 'bg-green-500/10',
+    change: stats.previous 
+      ? calculateChange(stats.totalSent, stats.previous.totalSent) 
+      : null,
+  },
+  {
+    title: 'Respostas',
+    value: stats.stopped.toLocaleString('pt-BR'),
+    icon: MessageCircle,
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-500/10',
+    change: stats.previous 
+      ? calculateChange(stats.stopped, stats.previous.stopped) 
+      : null,
+  },
+];
+
+// Cards da segunda linha (taxas percentuais)
+const rateCards: CardData[] = [
+  {
+    title: 'Taxa em FollowUp',  // NOVO
+    value: `${stats.followupRate.toFixed(1)}%`,
+    icon: Users,
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-500/10',
+    change: stats.previous 
+      ? calculatePpChange(stats.followupRate, stats.previous.followupRate) 
+      : null,
+  },
   {
     title: 'Taxa de Retorno',
     value: `${stats.responseRate.toFixed(1)}%`,
@@ -123,141 +176,67 @@ const cards: CardData[] = [
   {
     title: 'Taxa de Perda',
     value: `${stats.lossRate.toFixed(1)}%`,
-    icon: TrendingDown,  // Novo ícone
+    icon: TrendingDown,
     color: 'text-red-600',
     bgColor: 'bg-red-500/10',
     change: stats.previous 
       ? calculatePpChange(stats.lossRate, stats.previous.lossRate) 
       : null,
-    invertChange: true,  // Queda é positiva para perda
+    invertChange: true,
   },
 ];
+
+// Renderizar em duas linhas
+return (
+  <div className="space-y-4">
+    {/* Linha 1: Contadores Absolutos */}
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {absoluteCards.map((card, index) => (
+        <Card key={index}>
+          {/* ... conteúdo do card ... */}
+        </Card>
+      ))}
+    </div>
+    
+    {/* Linha 2: Taxas Percentuais */}
+    <div className="grid grid-cols-3 gap-4">
+      {rateCards.map((card, index) => (
+        <Card key={index}>
+          {/* ... conteúdo do card ... */}
+        </Card>
+      ))}
+    </div>
+  </div>
+);
 ```
 
-Atualizar grid para 6 colunas:
-```tsx
-<div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-```
+## Resumo Visual Final
 
----
-
-### 4. src/pages/agente/followup/FollowupPage.tsx
-
-Atualizar `dashboardStats` para incluir `lossRate`:
-
-```typescript
-const dashboardStats: FollowupStats = useMemo(() => ({
-  total: queueTotals?.total || 0,
-  totalSent: dailyMetrics.reduce((sum, d) => sum + d.messagesSent, 0),
-  waiting: queueTotals?.waiting || 0,
-  stopped: returnData?.responses || 0,
-  responseRate: returnData?.returnRate || 0,
-  lossRate: returnData?.lossRate || 0,           // Novo campo
-  previous: isLoadingPrevious ? undefined : previousStats,
-}), [queueTotals, dailyMetrics, returnData, previousStats, isLoadingPrevious]);
-```
-
----
-
-## Fluxo de Dados Corrigido
-
-```text
-                    followup_queue
-                         │
-         ┌───────────────┼───────────────┐
-         │               │               │
-         ▼               ▼               ▼
-   Total na Fila    Aguardando      Finalizados
-   (DISTINCT)       (state=SEND)    (state=STOP)
-                                         │
-                         ┌───────────────┴───────────────┐
-                         │                               │
-                         ▼                               ▼
-                   step_number <> 0               step_number = 0
-                   (com resposta?)                 (sem retorno)
-                         │                               │
-                         │                               │
-           JOIN followup_response                        │
-                         │                               │
-                         ▼                               ▼
-                 Leads Retornaram                  Leads Perdidos
-                 (STOP + step<>0 + resp)           (STOP + step=0)
-                         │                               │
-                         ▼                               ▼
-                   Taxa de Retorno               Taxa de Perda
-                   (returned/total)%             (lost/total)%
-```
-
----
-
-## Queries SQL Principais
-
-### Query: Leads que Retornaram
-
-```sql
-WITH response_data AS (
-  SELECT DISTINCT ON (fq.cod_agent, fq.session_id)
-    fq.session_id
-  FROM followup_queue fq
-  INNER JOIN followup_response fr ON fr.followup_queue_id = fq.id
-  WHERE fq.cod_agent IN ($1, $2, ...)
-    AND fq.state = 'STOP'
-    AND fq.step_number <> 0
-    AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $from
-    AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $to
-  ORDER BY fq.cod_agent, fq.session_id, fr.created_at DESC
-)
-SELECT COUNT(*)::text as leads_returned FROM response_data
-```
-
-### Query: Leads Perdidos
-
-```sql
-WITH lost_leads AS (
-  SELECT DISTINCT ON (fq.cod_agent, fq.session_id)
-    fq.session_id
-  FROM followup_queue fq
-  WHERE fq.cod_agent IN ($1, $2, ...)
-    AND fq.state = 'STOP'
-    AND fq.step_number = 0
-    AND (fq.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $from
-    AND (fq.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $to
-  ORDER BY fq.cod_agent, fq.session_id, fq.send_date DESC
-)
-SELECT COUNT(*)::text as leads_lost FROM lost_leads
-```
-
----
-
-## Resumo das Métricas
-
-| Card | Fórmula | Cor |
-|------|---------|-----|
-| **Taxa de Retorno** | (leads STOP + step<>0 com resposta / total fila) × 100 | Roxo |
-| **Taxa de Perda** | (leads STOP + step=0 / total fila) × 100 | Vermelho |
-
----
+| Linha | Cards | Grid |
+|-------|-------|------|
+| **Linha 1** | Leads na Fila, Leads em FollowUp, Mensagens Enviadas, Respostas | 4 colunas |
+| **Linha 2** | Taxa em FollowUp, Taxa de Retorno, Taxa de Perda | 3 colunas |
 
 ## Seção Técnica
 
 ### Ordem de Implementação
 
-1. Atualizar interfaces em `types.ts` (adicionar `lossRate`)
-2. Modificar `useFollowupReturnRate` em `useFollowupData.ts`:
-   - Adicionar condições `state = 'STOP'` e `step_number <> 0` na query de retorno
-   - Adicionar nova query para leads perdidos
-   - Retornar `lossRate` calculado
-3. Modificar `useFollowupPreviousPeriodStats` com mesma lógica
-4. Atualizar `FollowupPage.tsx` para usar `lossRate`
-5. Adicionar card "Taxa de Perda" em `FollowupSummary.tsx`
-6. Ajustar grid de 5 para 6 colunas
+1. Atualizar interfaces em `types.ts` (adicionar `followupRate`)
+2. Modificar `useFollowupPreviousPeriodStats` para calcular e retornar `followupRate`
+3. Atualizar `FollowupPage.tsx` para calcular `followupRate` no `dashboardStats`
+4. Reorganizar `FollowupSummary.tsx`:
+   - Separar cards em dois arrays (absolutos e taxas)
+   - Adicionar card "Taxa em FollowUp"
+   - Renomear "Aguardando" para "Leads em FollowUp"
+   - Criar layout de duas linhas
 
-### Considerações de Performance
+### Cálculo da Taxa
 
-As queries adicionam filtros `state = 'STOP'` que podem utilizar índice existente na coluna `state`. Recomenda-se índice composto:
+A Taxa em FollowUp é calculada localmente no frontend, não precisa de nova query:
 
-```sql
-CREATE INDEX idx_followup_queue_agent_state_step 
-ON followup_queue(cod_agent, state, step_number);
+```typescript
+followupRate = (waiting / total) * 100
+// waiting = queueTotals.waiting (já existe)
+// total = queueTotals.total (já existe)
 ```
 
