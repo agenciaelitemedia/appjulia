@@ -16,12 +16,23 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from '@/components/ui/pagination';
 import { FileText, Eye, MessageCircle, Download, Loader2 } from 'lucide-react';
 import { JuliaContrato } from '../../types';
 import { formatDbDateTime, formatTimeDifference } from '@/lib/dateUtils';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+
+const ITEMS_PER_PAGE = 20;
 
 interface ContratosTableProps {
   contratos: JuliaContrato[];
@@ -66,6 +77,7 @@ export function ContratosTable({
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [selectedContrato, setSelectedContrato] = useState<JuliaContrato | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const filteredContratos = useMemo(() => {
     if (!searchTerm) return contratos;
@@ -79,6 +91,15 @@ export function ContratosTable({
       c.cod_agent?.includes(term)
     );
   }, [contratos, searchTerm]);
+
+  // Reset page when search term changes
+  useMemo(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  const totalPages = Math.ceil(filteredContratos.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedContratos = filteredContratos.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   const handleOpenMessages = (contrato: JuliaContrato) => {
     setSelectedContrato(contrato);
@@ -205,7 +226,7 @@ export function ContratosTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredContratos.map((contrato) => {
+            {paginatedContratos.map((contrato) => {
               const statusInfo = getStatusBadge(contrato.status_document);
               
               return (
@@ -318,6 +339,61 @@ export function ContratosTable({
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-sm text-muted-foreground">
+            Exibindo {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, filteredContratos.length)} de {filteredContratos.length} contratos
+          </p>
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                />
+              </PaginationItem>
+              
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((page) => {
+                  if (totalPages <= 7) return true;
+                  if (page === 1 || page === totalPages) return true;
+                  if (Math.abs(page - currentPage) <= 1) return true;
+                  return false;
+                })
+                .map((page, index, arr) => {
+                  const showEllipsisBefore = index > 0 && page - arr[index - 1] > 1;
+                  return (
+                    <span key={page} className="flex items-center">
+                      {showEllipsisBefore && (
+                        <PaginationItem>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      )}
+                      <PaginationItem>
+                        <PaginationLink
+                          onClick={() => setCurrentPage(page)}
+                          isActive={currentPage === page}
+                          className="cursor-pointer"
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    </span>
+                  );
+                })}
+              
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
 
       {selectedContrato && (
         <WhatsAppMessagesDialog

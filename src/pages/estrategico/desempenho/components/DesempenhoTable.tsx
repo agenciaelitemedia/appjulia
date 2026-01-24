@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Table,
   TableBody,
@@ -9,9 +9,20 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from '@/components/ui/pagination';
 import { MessageSquare } from 'lucide-react';
 import { JuliaSessao } from '../../types';
 import { formatDbDateTime } from '@/lib/dateUtils';
+
+const ITEMS_PER_PAGE = 20;
 
 interface DesempenhoTableProps {
   sessoes: JuliaSessao[];
@@ -20,6 +31,8 @@ interface DesempenhoTableProps {
 }
 
 export function DesempenhoTable({ sessoes, isLoading, searchTerm = '' }: DesempenhoTableProps) {
+  const [currentPage, setCurrentPage] = useState(1);
+
   const filteredSessoes = useMemo(() => {
     if (!searchTerm) return sessoes;
     
@@ -31,6 +44,15 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '' }: Desempe
       s.cod_agent?.includes(term)
     );
   }, [sessoes, searchTerm]);
+
+  // Reset page when search term changes
+  useMemo(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  const totalPages = Math.ceil(filteredSessoes.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedSessoes = filteredSessoes.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   if (isLoading) {
     return (
@@ -71,67 +93,124 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '' }: Desempe
   };
 
   return (
-    <div className="border rounded-lg">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Agente</TableHead>
-            <TableHead>WhatsApp</TableHead>
-            <TableHead>Perfil</TableHead>
-            <TableHead className="text-right">Mensagens</TableHead>
-            <TableHead>Início</TableHead>
-            <TableHead>Última Msg</TableHead>
-            <TableHead>Status</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filteredSessoes.map((sessao) => (
-            <TableRow key={`${sessao.session_id}-${sessao.created_at}`}>
-              <TableCell>
-                <div>
-                  <p className="font-medium">[{sessao.cod_agent}]</p>
-                  <p className="text-sm text-muted-foreground truncate max-w-[200px]">
-                    {sessao.name}
-                  </p>
-                </div>
-              </TableCell>
-              <TableCell>
-                <a
-                  href={`https://wa.me/${sessao.whatsapp?.replace(/\D/g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  {sessao.whatsapp}
-                </a>
-              </TableCell>
-              <TableCell>
-                <Badge variant="secondary" className={getPerfilBadge(sessao.perfil_agent).className}>
-                  {sessao.perfil_agent}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-right font-medium">
-                {sessao.total_msg?.toLocaleString('pt-BR')}
-              </TableCell>
-              <TableCell className="text-sm">
-                {formatDbDateTime(sessao.created_at)}
-              </TableCell>
-              <TableCell className="text-sm">
-                {sessao.max_created_at ? formatDbDateTime(sessao.max_created_at) : '-'}
-              </TableCell>
-              <TableCell>
-                {sessao.status_document ? (
-                  <Badge variant="secondary" className={getStatusBadge(sessao.status_document).className}>
-                    {sessao.status_document}
-                  </Badge>
-                ) : (
-                  <span className="text-muted-foreground">-</span>
-                )}
-              </TableCell>
+    <div className="space-y-4">
+      <div className="border rounded-lg">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Agente</TableHead>
+              <TableHead>WhatsApp</TableHead>
+              <TableHead>Perfil</TableHead>
+              <TableHead className="text-right">Mensagens</TableHead>
+              <TableHead>Início</TableHead>
+              <TableHead>Última Msg</TableHead>
+              <TableHead>Status</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {paginatedSessoes.map((sessao) => (
+              <TableRow key={`${sessao.session_id}-${sessao.created_at}`}>
+                <TableCell>
+                  <div>
+                    <p className="font-medium">[{sessao.cod_agent}]</p>
+                    <p className="text-sm text-muted-foreground truncate max-w-[200px]">
+                      {sessao.name}
+                    </p>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <a
+                    href={`https://wa.me/${sessao.whatsapp?.replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    {sessao.whatsapp}
+                  </a>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="secondary" className={getPerfilBadge(sessao.perfil_agent).className}>
+                    {sessao.perfil_agent}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right font-medium">
+                  {sessao.total_msg?.toLocaleString('pt-BR')}
+                </TableCell>
+                <TableCell className="text-sm">
+                  {formatDbDateTime(sessao.created_at)}
+                </TableCell>
+                <TableCell className="text-sm">
+                  {sessao.max_created_at ? formatDbDateTime(sessao.max_created_at) : '-'}
+                </TableCell>
+                <TableCell>
+                  {sessao.status_document ? (
+                    <Badge variant="secondary" className={getStatusBadge(sessao.status_document).className}>
+                      {sessao.status_document}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Exibindo {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, filteredSessoes.length)} de {filteredSessoes.length} sessões
+          </p>
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                />
+              </PaginationItem>
+              
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((page) => {
+                  if (totalPages <= 7) return true;
+                  if (page === 1 || page === totalPages) return true;
+                  if (Math.abs(page - currentPage) <= 1) return true;
+                  return false;
+                })
+                .map((page, index, arr) => {
+                  const showEllipsisBefore = index > 0 && page - arr[index - 1] > 1;
+                  return (
+                    <span key={page} className="flex items-center">
+                      {showEllipsisBefore && (
+                        <PaginationItem>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      )}
+                      <PaginationItem>
+                        <PaginationLink
+                          onClick={() => setCurrentPage(page)}
+                          isActive={currentPage === page}
+                          className="cursor-pointer"
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    </span>
+                  );
+                })}
+              
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
     </div>
   );
 }
