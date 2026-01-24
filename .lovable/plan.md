@@ -1,166 +1,254 @@
 
+# Plano de Implementação: Tooltips Explicativos e Componente de Filtros Unificado
 
-# Correção: Taxa de Intervenção Sempre Vazia
+## Visão Geral
 
-## Problema Identificado
+Este plano aborda duas melhorias solicitadas:
+1. **Tooltips explicativos** nos cards de resumo mostrando qual período anterior está sendo comparado
+2. **Componente de filtros unificado e reutilizável** para padronizar a interface de filtragem em todas as páginas do sistema
 
-A query da CTE `leads_with_response` está fazendo o JOIN errado. Ela busca respostas apenas no registro **mais recente** de cada lead, mas a resposta pode estar vinculada a um **registro anterior** do mesmo `session_id`.
+---
 
-### Cenário do Bug
+## Parte 1: Tooltips Explicativos nos Cards de Resumo
+
+### Objetivo
+Ao passar o mouse sobre o indicador "vs anterior" nos cards de resumo, exibir um tooltip explicando exatamente qual período está sendo comparado (ex: "Comparando 17/01 - 24/01 com 10/01 - 16/01").
+
+### Arquivos a serem modificados
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/pages/estrategico/desempenho/components/DesempenhoSummary.tsx` | Adicionar tooltip com período anterior |
+| `src/pages/estrategico/contratos/components/ContratosSummary.tsx` | Adicionar tooltip com período anterior |
+| `src/pages/agente/followup/components/FollowupSummary.tsx` | Adicionar tooltip com período anterior |
+| `src/pages/estrategico/desempenho/DesempenhoPage.tsx` | Passar datas de filtro para DesempenhoSummary |
+| `src/pages/estrategico/contratos/ContratosPage.tsx` | Passar datas de filtro para ContratosSummary |
+| `src/pages/agente/followup/FollowupPage.tsx` | Passar datas de filtro para FollowupSummary |
+
+### Implementação Técnica
+
+1. **Atualizar props dos componentes Summary** para receber `dateFrom` e `dateTo`
+
+2. **Calcular período anterior** usando `getPreviousPeriod` do `dateUtils.ts`
+
+3. **Adicionar Tooltip** ao indicador "vs anterior":
+```tsx
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { getPreviousPeriod } from '@/lib/dateUtils';
+import { format, parseISO } from 'date-fns';
+
+// Dentro do componente:
+const { previousDateFrom, previousDateTo } = getPreviousPeriod(dateFrom, dateTo);
+
+const tooltipText = `Comparando ${format(parseISO(dateFrom), 'dd/MM')} - ${format(parseISO(dateTo), 'dd/MM')} com ${format(parseISO(previousDateFrom), 'dd/MM')} - ${format(parseISO(previousDateTo), 'dd/MM')}`;
+
+// No JSX:
+<TooltipProvider>
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <span className="text-muted-foreground hidden sm:inline cursor-help">
+        vs anterior
+      </span>
+    </TooltipTrigger>
+    <TooltipContent>
+      <p>{tooltipText}</p>
+    </TooltipContent>
+  </Tooltip>
+</TooltipProvider>
+```
+
+---
+
+## Parte 2: Componente de Filtros Unificado
+
+### Objetivo
+Criar um único componente `UnifiedFilters` que padronize a interface de filtros em todas as páginas, seguindo o padrão visual da página de Desempenho (com Collapsible, filtros rápidos de período, seleção de agentes, datas, busca e filtros opcionais).
+
+### Novo arquivo a criar
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/components/filters/UnifiedFilters.tsx` | Componente de filtros unificado |
+| `src/components/filters/types.ts` | Tipos compartilhados para filtros |
+
+### Arquivos a serem modificados
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/pages/Dashboard.tsx` | Adicionar filtros unificados |
+| `src/pages/crm/CRMPage.tsx` | Substituir CRMFilters por UnifiedFilters |
+| `src/pages/crm/statistics/CRMStatisticsPage.tsx` | Substituir CRMFilters por UnifiedFilters |
+| `src/pages/crm/monitoring/CRMMonitoringPage.tsx` | Substituir CRMFilters por UnifiedFilters |
+| `src/pages/estrategico/desempenho/DesempenhoPage.tsx` | Substituir JuliaFilters por UnifiedFilters |
+| `src/pages/estrategico/contratos/ContratosPage.tsx` | Substituir JuliaFilters por UnifiedFilters |
+| `src/pages/agente/followup/FollowupPage.tsx` | Substituir FollowupFilters por UnifiedFilters |
+
+### Design do Componente UnifiedFilters
 
 ```text
-Lead "João" (session_id: 5511999999999):
-┌────────┬───────┬─────────────┬────────────┐
-│   id   │ state │ step_number │ send_date  │
-├────────┼───────┼─────────────┼────────────┤
-│   100  │ SEND  │ 1           │ 2026-01-20 │  ← Resposta vinculada aqui (followup_response.followup_queue_id = 100)
-│   200  │ SEND  │ 2           │ 2026-01-22 │
-│   300  │ STOP  │ 2           │ 2026-01-24 │  ← current_state pega este (mais recente)
-└────────┴───────┴─────────────┴────────────┘
-
-CTE current_state retorna: queue_id = 300
-CTE leads_with_response busca: WHERE followup_queue_id = 300
-Resposta está em: followup_queue_id = 100
-Resultado: João NÃO é encontrado como "com resposta" ❌
++-------------------------------------------------------------------------+
+| [▼ Filtros]                                           [3 agentes]       |
++-------------------------------------------------------------------------+
+| Período: [Hoje] [Ontem] [7d] [Semana] [30d] [3m] [Mês]    [Personalizado]|
++-------------------------------------------------------------------------+
+| [Agentes ▼]  [Data Início 📅]  [Data Fim 📅]  [Filtros Extras]  [🔍 Busca...] [Limpar] |
++-------------------------------------------------------------------------+
 ```
 
-### Consequência
+### Interface de Props
 
-- A CTE `leads_with_response` retorna vazio ou quase vazio
-- Todos os leads em `STOP + step<>0` são classificados como `NOT IN leads_with_response`
-- Taxa de Retorno = 0% ou muito baixa
-- Taxa de Intervenção = 0% (porque todos vão para Retorno quando a lógica é invertida)
+```typescript
+// src/components/filters/types.ts
+export interface Agent {
+  cod_agent: string;
+  owner_name: string;
+  owner_business_name?: string;
+}
+
+export interface UnifiedFiltersState {
+  search: string;
+  agentCodes: string[];
+  dateFrom: string;
+  dateTo: string;
+  // Campos opcionais para filtros específicos
+  perfilAgent?: 'SDR' | 'CLOSER' | 'ALL';
+  statusDocument?: string;
+  stateFilter?: string;
+}
+
+export interface UnifiedFiltersProps {
+  // Dados
+  agents: Agent[];
+  filters: UnifiedFiltersState;
+  onFiltersChange: (filters: UnifiedFiltersState) => void;
+  
+  // Estado
+  isLoading?: boolean;
+  
+  // Configurações de visibilidade
+  showAgentSelector?: boolean;      // default: true
+  showSearch?: boolean;             // default: true
+  showQuickPeriods?: boolean;       // default: true
+  
+  // Filtros extras opcionais
+  showPerfilFilter?: boolean;       // Para página de Desempenho
+  showStatusFilter?: boolean;       // Para página de Contratos
+  statusOptions?: string[];
+  showStateFilter?: boolean;        // Para página de FollowUp
+  stateOptions?: { value: string; label: string }[];
+  
+  // Personalização
+  searchPlaceholder?: string;
+  className?: string;
+}
+```
+
+### Funcionalidades do Componente
+
+1. **Collapsible** - Filtros podem ser recolhidos/expandidos
+2. **Quick Periods** - Botões rápidos: Hoje, Ontem, 7 dias, Semana passada, 30 dias, 3 meses, Este mês
+3. **Badge de período** - Mostra "Personalizado" quando datas não correspondem aos presets
+4. **Seletor de Agentes** - Popover com checkbox para seleção múltipla
+5. **Date Pickers** - Calendários para Data Início e Data Fim
+6. **Busca** - Campo de busca com ícone
+7. **Filtros Extras** - Slots configuráveis para filtros específicos (perfil, status, state)
+8. **Botão Limpar** - Reseta todos os filtros para valores padrão
+9. **Badge de contagem** - Mostra quantos agentes estão selecionados
+
+### Dashboard Principal
+
+Para a página Dashboard (`src/pages/Dashboard.tsx`), será necessário:
+
+1. Adicionar estado de filtros
+2. Criar hook `useDashboardAgents` para buscar agentes
+3. Integrar `UnifiedFilters` no topo da página
+4. Atualizar queries de estatísticas para usar os filtros
+
+```typescript
+// Estrutura básica do Dashboard atualizado
+export default function Dashboard() {
+  const [filters, setFilters] = useState<UnifiedFiltersState>({
+    search: '',
+    agentCodes: [],
+    dateFrom: getTodayInSaoPaulo(),
+    dateTo: getTodayInSaoPaulo(),
+  });
+
+  const { data: agents = [], isLoading: agentsLoading } = useDashboardAgents();
+
+  // ... inicialização de agentCodes
+
+  return (
+    <div className="space-y-6">
+      {/* Header existente */}
+      
+      <UnifiedFilters
+        agents={agents}
+        filters={filters}
+        onFiltersChange={setFilters}
+        isLoading={agentsLoading}
+        showAgentSelector={user?.role === 'admin'}
+      />
+      
+      {/* Cards de estatísticas - atualizados para usar filtros */}
+      {/* ... */}
+    </div>
+  );
+}
+```
 
 ---
 
-## Solução
+## Sequência de Implementação
 
-Modificar a CTE `leads_with_response` para buscar respostas em **qualquer registro** do `session_id` do lead, não apenas no registro mais recente.
+### Fase 1: Criar Componente Unificado
+1. Criar `src/components/filters/types.ts`
+2. Criar `src/components/filters/UnifiedFilters.tsx`
 
-### Query Corrigida
+### Fase 2: Adicionar Tooltips
+3. Atualizar `DesempenhoSummary.tsx` com tooltip
+4. Atualizar `ContratosSummary.tsx` com tooltip
+5. Atualizar `FollowupSummary.tsx` com tooltip
+6. Passar props de datas nas páginas correspondentes
 
-```sql
-leads_with_response AS (
-  -- Identificar leads em STOP que têm pelo menos uma resposta em QUALQUER registro do session_id
-  SELECT DISTINCT fq.session_id
-  FROM followup_queue fq
-  INNER JOIN followup_response fr ON fr.followup_queue_id = fq.id
-  WHERE fq.cod_agent IN ($1, $2, ...)
-    AND fq.session_id IN (SELECT session_id FROM current_state WHERE state = 'STOP')
-    [AND date_filter]
-)
-```
+### Fase 3: Migrar Páginas para Componente Unificado
+7. Migrar `CRMPage.tsx`
+8. Migrar `CRMStatisticsPage.tsx`
+9. Migrar `CRMMonitoringPage.tsx`
+10. Migrar `DesempenhoPage.tsx`
+11. Migrar `ContratosPage.tsx`
+12. Migrar `FollowupPage.tsx`
+13. Adicionar filtros ao `Dashboard.tsx`
 
----
-
-## Arquivos a Modificar
-
-### src/pages/agente/hooks/useFollowupData.ts
-
-#### 1. Corrigir `useFollowupReturnRate` (linhas 653-659)
-
-**Antes:**
-```sql
-leads_with_response AS (
-  SELECT DISTINCT cs.session_id
-  FROM current_state cs
-  INNER JOIN followup_response fr ON fr.followup_queue_id = cs.queue_id
-  WHERE cs.state = 'STOP'
-)
-```
-
-**Depois:**
-```sql
-leads_with_response AS (
-  -- Identificar session_ids que têm resposta em QUALQUER registro da fila (não só o mais recente)
-  SELECT DISTINCT fq.session_id
-  FROM followup_queue fq
-  INNER JOIN followup_response fr ON fr.followup_queue_id = fq.id
-  WHERE fq.cod_agent IN (${agentPlaceholders})
-    AND fq.session_id IN (SELECT session_id FROM current_state WHERE state = 'STOP')
-    ${dateFilter}
-)
-```
-
-#### 2. Corrigir `useFollowupPreviousPeriodStats` (mesma lógica, linhas 837-842)
-
-Aplicar a mesma correção na query do período anterior.
+### Fase 4: Limpeza
+14. Remover componentes de filtro antigos (opcional - manter para retrocompatibilidade)
+    - `CRMFilters.tsx`
+    - `JuliaFilters.tsx`
+    - `FollowupFilters.tsx`
 
 ---
 
-## Regras das Métricas (Resumo)
+## Detalhes Técnicos
 
-| Métrica | Regra |
-|---------|-------|
-| **Taxa em FollowUp** | Lead com estado atual `SEND` |
-| **Taxa de Retorno** | Lead com estado atual `STOP` + `step_number <> 0` + TEM resposta em qualquer registro do session_id |
-| **Taxa de Intervenção** | Lead com estado atual `STOP` + `step_number <> 0` + NÃO tem resposta em nenhum registro do session_id |
-| **Taxa de Perda** | Lead com estado atual `STOP` + `step_number = 0` |
-
-**Garantia:** A soma das 4 taxas = 100%
-
----
-
-## Seção Técnica
-
-### Query SQL Completa Corrigida
-
-```sql
-WITH current_state AS (
-  -- Pega o estado MAIS RECENTE de cada lead
-  SELECT DISTINCT ON (cod_agent, session_id)
-    session_id,
-    id as queue_id,
-    state,
-    step_number
-  FROM followup_queue
-  WHERE cod_agent IN ($1, $2, ...)
-    AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $from
-    AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $to
-  ORDER BY cod_agent, session_id, send_date DESC
-),
-leads_with_response AS (
-  -- CORREÇÃO: buscar resposta em QUALQUER registro do session_id, não só o mais recente
-  SELECT DISTINCT fq.session_id
-  FROM followup_queue fq
-  INNER JOIN followup_response fr ON fr.followup_queue_id = fq.id
-  WHERE fq.cod_agent IN ($1, $2, ...)
-    AND fq.session_id IN (SELECT session_id FROM current_state WHERE state = 'STOP')
-    AND (fq.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $from
-    AND (fq.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $to
-)
-SELECT 
-  COUNT(*)::text as total_leads,
-  COUNT(*) FILTER (WHERE state = 'SEND')::text as in_followup,
-  COUNT(*) FILTER (
-    WHERE state = 'STOP' 
-      AND step_number <> 0 
-      AND session_id IN (SELECT session_id FROM leads_with_response)
-  )::text as returned,
-  COUNT(*) FILTER (
-    WHERE state = 'STOP' 
-      AND step_number <> 0 
-      AND session_id NOT IN (SELECT session_id FROM leads_with_response)
-  )::text as intervention,
-  COUNT(*) FILTER (WHERE state = 'STOP' AND step_number = 0)::text as lost,
-  (SELECT COUNT(*)::text FROM followup_response fr
-   JOIN followup_queue fq ON fq.id = fr.followup_queue_id
-   WHERE fq.cod_agent IN ($1, $2, ...)
-     AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $from
-     AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $to
-  ) as total_responses
-FROM current_state;
+### Estrutura de Diretórios Final
+```text
+src/
+  components/
+    filters/
+      UnifiedFilters.tsx    # Componente principal
+      types.ts              # Tipos compartilhados
+    ui/
+      ... (componentes existentes)
 ```
 
-### Ordem de Implementação
+### Dependências Utilizadas
+- `@radix-ui/react-tooltip` (já instalado)
+- `@radix-ui/react-collapsible` (já instalado)
+- `@radix-ui/react-popover` (já instalado)
+- `date-fns` (já instalado)
+- Utilitários de `src/lib/dateUtils.ts`
 
-1. Modificar CTE `leads_with_response` em `useFollowupReturnRate`
-2. Modificar CTE `leads_with_response` em `useFollowupPreviousPeriodStats`
-
-### Validação
-
-Após correção, verificar que:
-- Taxa em FollowUp + Taxa de Retorno + Taxa de Intervenção + Taxa de Perda = 100%
-- Leads em STOP com step>0 são divididos corretamente entre Retorno e Intervenção
-- Taxa de Intervenção mostra valor > 0% quando há leads parados manualmente sem resposta
-
+### Compatibilidade
+- O componente é compatível com todos os tipos de filtro existentes
+- Props opcionais garantem flexibilidade para diferentes páginas
+- Mantém consistência visual com o padrão atual da página de Desempenho
