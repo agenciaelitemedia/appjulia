@@ -610,12 +610,15 @@ export function useFollowupReturnRate(filters: FollowupFiltersState) {
       const params: (string | number)[] = [...filters.agentCodes];
 
       let dateFilter = '';
+      let fqDateFilter = ''; // With fq. prefix for leads_with_response CTE
       if (filters.dateFrom) {
         dateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
+        fqDateFilter += ` AND (fq.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
         params.push(filters.dateFrom);
       }
       if (filters.dateTo) {
         dateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
+        fqDateFilter += ` AND (fq.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
         params.push(filters.dateTo);
       }
 
@@ -657,7 +660,7 @@ export function useFollowupReturnRate(filters: FollowupFiltersState) {
             INNER JOIN followup_response fr ON fr.followup_queue_id = fq.id
             WHERE fq.cod_agent IN (${agentPlaceholders})
               AND fq.session_id IN (SELECT session_id FROM current_state WHERE state = 'STOP')
-              ${dateFilter}
+              ${fqDateFilter}
           )
           SELECT 
             COUNT(*)::text as total_leads,
@@ -796,12 +799,15 @@ export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
       const params: (string | number)[] = [...previousFilters.agentCodes];
 
       let dateFilter = '';
+      let fqDateFilter = ''; // With fq. prefix for leads_with_response CTE
       if (previousFilters.dateFrom) {
         dateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
+        fqDateFilter += ` AND (fq.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
         params.push(previousFilters.dateFrom);
       }
       if (previousFilters.dateTo) {
         dateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
+        fqDateFilter += ` AND (fq.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
         params.push(previousFilters.dateTo);
       }
 
@@ -843,7 +849,7 @@ export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
             INNER JOIN followup_response fr ON fr.followup_queue_id = fq.id
             WHERE fq.cod_agent IN (${agentPlaceholders})
               AND fq.session_id IN (SELECT session_id FROM current_state WHERE state = 'STOP')
-              ${dateFilter}
+              ${fqDateFilter}
           )
           SELECT 
             COUNT(*)::text as total_leads,
