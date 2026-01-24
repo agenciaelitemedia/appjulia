@@ -23,6 +23,9 @@ export function FollowupDashboard({
   onDateFromChange,
   onDateToChange,
 }: FollowupDashboardProps) {
+  // Detect if it's a single day period for hourly granularity
+  const granularity: 'daily' | 'hourly' = dateFrom === dateTo ? 'hourly' : 'daily';
+
   return (
     <div className="space-y-6">
       {/* Date filters only (no state filter on dashboard) */}
@@ -40,10 +43,10 @@ export function FollowupDashboard({
       <FollowupSummary stats={stats} isLoading={isLoading} />
       
       {/* Evolution Chart */}
-      <FollowupEvolutionChart data={dailyMetrics} isLoading={isLoading} />
+      <FollowupEvolutionChart data={dailyMetrics} isLoading={isLoading} granularity={granularity} />
       
       {/* Response Rate Chart */}
-      <FollowupResponseRateChart data={dailyMetrics} isLoading={isLoading} />
+      <FollowupResponseRateChart data={dailyMetrics} isLoading={isLoading} granularity={granularity} />
     </div>
   );
 }
