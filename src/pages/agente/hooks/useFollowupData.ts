@@ -331,6 +331,79 @@ export function useDeleteQueueItem() {
   });
 }
 
+// Restart queue item: SEND + NOW() + step_number = 1
+export function useRestartQueueItem() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      return externalDb.raw({
+        query: `
+          UPDATE followup_queue 
+          SET state = 'SEND', 
+              send_date = NOW(), 
+              step_number = 1 
+          WHERE id = $1 
+          RETURNING *
+        `,
+        params: [id],
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['followup-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['followup-queue-stats'] });
+      toast({
+        title: 'FollowUp retomado',
+        description: 'O lead voltou para a etapa 1 e será processado.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Erro ao retomar',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+// Finalize queue item: STOP + step_number = 0
+export function useFinalizeQueueItem() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      return externalDb.raw({
+        query: `
+          UPDATE followup_queue 
+          SET state = 'STOP', 
+              step_number = 0 
+          WHERE id = $1 
+          RETURNING *
+        `,
+        params: [id],
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['followup-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['followup-queue-stats'] });
+      toast({
+        title: 'FollowUp finalizado',
+        description: 'O lead foi removido permanentemente da fila.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Erro ao finalizar',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
 // Fetch daily/hourly metrics (ungrouped - all records)
 // Uses hourly granularity when dateFrom === dateTo (single day)
 export function useFollowupDailyMetrics(filters: FollowupFiltersState) {

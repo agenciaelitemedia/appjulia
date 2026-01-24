@@ -22,11 +22,11 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,19 +39,23 @@ import {
 } from '@/components/ui/alert-dialog';
 import { 
   MessageCircle, 
-  MoreHorizontal, 
   Pause, 
   Play, 
-  Trash2, 
+  Square, 
   Search, 
   ExternalLink,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
 } from 'lucide-react';
-import { FollowupQueueItemEnriched, DERIVED_STATUS_CONFIG } from '../../types';
-import { formatDbDateTime } from '@/lib/dateUtils';
+import { 
+  FollowupQueueItemEnriched, 
+  DERIVED_STATUS_CONFIG,
+  calculateNextSendDate,
+} from '../../types';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
+import { format, formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -60,9 +64,11 @@ type SortDirection = 'asc' | 'desc';
 
 interface FollowupQueueProps {
   items: FollowupQueueItemEnriched[];
+  stepCadence: Record<string, string>;
   isLoading?: boolean;
   onUpdateState: (id: number, state: string) => void;
-  onDelete: (id: number) => void;
+  onRestart: (id: number) => void;
+  onFinalize: (id: number) => void;
   isUpdating?: boolean;
   searchTerm: string;
   onSearchChange: (term: string) => void;
@@ -147,17 +153,143 @@ function SortableHeader({
   );
 }
 
+// Next send date cell component
+function NextSendCell({ 
+  sendDate, 
+  stepNumber, 
+  stepCadence,
+  state 
+}: { 
+  sendDate: string; 
+  stepNumber: number; 
+  stepCadence: Record<string, string>;
+  state: string;
+}) {
+  // If finalized (step_number = 0) or stopped, don't show next send
+  if (stepNumber === 0 || state === 'STOP') {
+    return <span className="text-muted-foreground">-</span>;
+  }
+  
+  const nextDate = calculateNextSendDate(sendDate, stepNumber, stepCadence);
+  
+  if (!nextDate) {
+    return <span className="text-muted-foreground">-</span>;
+  }
+  
+  const now = new Date();
+  const isPast = nextDate < now;
+  
+  return (
+    <div className="flex flex-col">
+      <span className={isPast ? 'text-orange-500' : ''}>
+        {format(nextDate, 'dd/MM', { locale: ptBR })} às {format(nextDate, 'HH:mm')}
+      </span>
+      <span className="text-xs text-muted-foreground">
+        {isPast 
+          ? 'Aguardando processamento' 
+          : formatDistanceToNow(nextDate, { addSuffix: true, locale: ptBR })
+        }
+      </span>
+    </div>
+  );
+}
+
+// Action buttons component with icons and tooltips
+function ActionButtons({
+  item,
+  onOpenMessages,
+  onStop,
+  onRestart,
+  onFinalize,
+  isUpdating,
+}: {
+  item: FollowupQueueItemEnriched;
+  onOpenMessages: () => void;
+  onStop: () => void;
+  onRestart: () => void;
+  onFinalize: () => void;
+  isUpdating?: boolean;
+}) {
+  const isStopped = item.state === 'STOP';
+  const isFinalized = item.step_number === 0;
+  
+  return (
+    <TooltipProvider delayDuration={0}>
+      <div className="flex items-center justify-end gap-1">
+        {/* Ver Conversa */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8"
+              onClick={onOpenMessages}
+            >
+              <MessageCircle className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Ver Conversa</TooltipContent>
+        </Tooltip>
+        
+        {/* Parar / Retomar */}
+        {!isFinalized && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8"
+                onClick={isStopped ? onRestart : onStop}
+                disabled={isUpdating}
+              >
+                {isStopped ? (
+                  <Play className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                ) : (
+                  <Pause className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {isStopped ? 'Retomar (volta para etapa 1)' : 'Parar'}
+            </TooltipContent>
+          </Tooltip>
+        )}
+        
+        {/* Finalizar */}
+        {!isFinalized && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8"
+                onClick={onFinalize}
+                disabled={isUpdating}
+              >
+                <Square className="h-4 w-4 text-destructive" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Finalizar FollowUp</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+    </TooltipProvider>
+  );
+}
+
 export function FollowupQueue({
   items,
+  stepCadence,
   isLoading,
   onUpdateState,
-  onDelete,
+  onRestart,
+  onFinalize,
   isUpdating,
   searchTerm,
   onSearchChange,
 }: FollowupQueueProps) {
   const [currentPage, setCurrentPage] = useState(1);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [finalizeDialogOpen, setFinalizeDialogOpen] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<FollowupQueueItemEnriched | null>(null);
@@ -220,21 +352,24 @@ export function FollowupQueue({
     setMessagesOpen(true);
   };
 
-  const handleTogglePause = (item: FollowupQueueItemEnriched) => {
-    const newState = item.state === 'STOP' ? 'QUEUE' : 'STOP';
-    onUpdateState(item.id, newState);
+  const handleStop = (item: FollowupQueueItemEnriched) => {
+    onUpdateState(item.id, 'STOP');
   };
 
-  const handleDeleteClick = (id: number) => {
+  const handleRestart = (item: FollowupQueueItemEnriched) => {
+    onRestart(item.id);
+  };
+
+  const handleFinalizeClick = (id: number) => {
     setSelectedItemId(id);
-    setDeleteDialogOpen(true);
+    setFinalizeDialogOpen(true);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmFinalize = () => {
     if (selectedItemId) {
-      onDelete(selectedItemId);
+      onFinalize(selectedItemId);
     }
-    setDeleteDialogOpen(false);
+    setFinalizeDialogOpen(false);
     setSelectedItemId(null);
   };
 
@@ -317,7 +452,7 @@ export function FollowupQueue({
                       />
                       <SortableHeader 
                         field="send_date" 
-                        label="Agendado" 
+                        label="Próximo Envio" 
                         currentField={sortField}
                         direction={sortDirection}
                         onSort={handleSort}
@@ -348,43 +483,23 @@ export function FollowupQueue({
                         <TableCell className="font-medium">
                           {item.name_client || '-'}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {formatDbDateTime(item.send_date)}
+                        <TableCell>
+                          <NextSendCell
+                            sendDate={item.send_date}
+                            stepNumber={item.step_number}
+                            stepCadence={stepCadence}
+                            state={item.state}
+                          />
                         </TableCell>
                         <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" disabled={isUpdating}>
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleOpenMessages(item)}>
-                                <MessageCircle className="h-4 w-4 mr-2" />
-                                Ver conversa
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleTogglePause(item)}>
-                                {item.state === 'STOP' ? (
-                                  <>
-                                    <Play className="h-4 w-4 mr-2" />
-                                    Reativar
-                                  </>
-                                ) : (
-                                  <>
-                                    <Pause className="h-4 w-4 mr-2" />
-                                    Pausar
-                                  </>
-                                )}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleDeleteClick(item.id)}
-                                className="text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Remover
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <ActionButtons
+                            item={item}
+                            onOpenMessages={() => handleOpenMessages(item)}
+                            onStop={() => handleStop(item)}
+                            onRestart={() => handleRestart(item)}
+                            onFinalize={() => handleFinalizeClick(item.id)}
+                            isUpdating={isUpdating}
+                          />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -461,20 +576,19 @@ export function FollowupQueue({
         />
       )}
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      {/* Finalize Confirmation Dialog */}
+      <AlertDialog open={finalizeDialogOpen} onOpenChange={setFinalizeDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogTitle>Confirmar finalização</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja remover este item da fila de FollowUp?
-              Esta ação não pode ser desfeita.
+              Tem certeza que deseja finalizar este FollowUp? O lead será removido permanentemente da fila de envios.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDelete}>
-              Remover
+            <AlertDialogAction onClick={handleConfirmFinalize}>
+              Finalizar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

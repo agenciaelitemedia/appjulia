@@ -13,7 +13,8 @@ import {
   useFollowupQueue,
   useFollowupSentCount,
   useUpdateQueueState,
-  useDeleteQueueItem,
+  useRestartQueueItem,
+  useFinalizeQueueItem,
   useFollowupDailyMetrics,
   useFollowupResponseRate,
 } from '../hooks/useFollowupData';
@@ -116,14 +117,19 @@ export default function FollowupPage() {
     return configData;
   }, [configData]);
 
+  // Extract step_cadence from config
+  const stepCadence = useMemo(() => {
+    if (!config?.step_cadence) return {};
+    return parseJsonField<Record<string, string>>(config.step_cadence, {});
+  }, [config]);
+
   // Calculate total steps and is_infinite from config
   const { totalSteps, isInfinite } = useMemo(() => {
     if (!config?.step_cadence) return { totalSteps: 3, isInfinite: false };
-    const stepCadence = parseJsonField<Record<string, string>>(config.step_cadence, {});
     const steps = Object.keys(stepCadence).length || 3;
     const infinite = config.followup_from !== null && config.followup_to !== null;
     return { totalSteps: steps, isInfinite: infinite };
-  }, [config]);
+  }, [config, stepCadence]);
 
   // Normalize and enrich queue items with derived status and is_infinite
   const enrichedQueueItems: FollowupQueueItemEnriched[] = useMemo(() => {
@@ -187,7 +193,8 @@ export default function FollowupPage() {
   // Mutations
   const saveConfigMutation = useSaveFollowupConfig();
   const updateStateMutation = useUpdateQueueState();
-  const deleteItemMutation = useDeleteQueueItem();
+  const restartItemMutation = useRestartQueueItem();
+  const finalizeItemMutation = useFinalizeQueueItem();
 
   const handleSaveConfig = (configDataToSave: Partial<FollowupConfigType>) => {
     if (selectedAgent) {
@@ -202,8 +209,12 @@ export default function FollowupPage() {
     updateStateMutation.mutate({ id, state });
   };
 
-  const handleDeleteItem = (id: number) => {
-    deleteItemMutation.mutate(id);
+  const handleRestart = (id: number) => {
+    restartItemMutation.mutate(id);
+  };
+
+  const handleFinalize = (id: number) => {
+    finalizeItemMutation.mutate(id);
   };
 
   const handleRefresh = () => {
@@ -295,10 +306,12 @@ export default function FollowupPage() {
           />
           <FollowupQueue
             items={filteredItems}
+            stepCadence={stepCadence}
             isLoading={isLoadingQueue}
             onUpdateState={handleUpdateState}
-            onDelete={handleDeleteItem}
-            isUpdating={updateStateMutation.isPending || deleteItemMutation.isPending}
+            onRestart={handleRestart}
+            onFinalize={handleFinalize}
+            isUpdating={updateStateMutation.isPending || restartItemMutation.isPending || finalizeItemMutation.isPending}
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}
           />
