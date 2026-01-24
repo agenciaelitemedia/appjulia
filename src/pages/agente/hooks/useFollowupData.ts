@@ -3,7 +3,9 @@ import { externalDb } from '@/lib/externalDb';
 import { FollowupConfig, FollowupQueueItem, FollowupFiltersState } from '../types';
 import { useToast } from '@/hooks/use-toast';
 
-// Fetch total sent messages count (all SEND records, not grouped)
+// Fetch total sent messages count based on step_number
+// SEND = step_number (current step was sent)
+// QUEUE/STOP = step_number - 1 (waiting or stopped before sending)
 export function useFollowupSentCount(filters: FollowupFiltersState) {
   return useQuery({
     queryKey: ['followup-sent-count', filters],
@@ -25,19 +27,23 @@ export function useFollowupSentCount(filters: FollowupFiltersState) {
         params.push(filters.dateTo);
       }
 
-      // Count ALL records with state='SEND' (not grouped by lead)
-      const result = await externalDb.raw<{ count: string }[]>({
+      // Sum messages sent based on step_number for ALL records
+      const result = await externalDb.raw<{ total: string }[]>({
         query: `
-          SELECT COUNT(*)::text as count
+          SELECT COALESCE(SUM(
+            CASE 
+              WHEN state = 'SEND' THEN step_number
+              ELSE GREATEST(step_number - 1, 0)
+            END
+          ), 0)::text as total
           FROM followup_queue
           WHERE ${whereClause}
-            AND state = 'SEND'
         `,
         params,
       });
 
       const flatResult = Array.isArray(result) ? result.flat() : [];
-      return parseInt(flatResult[0]?.count || '0', 10);
+      return parseInt(flatResult[0]?.total || '0', 10);
     },
     enabled: filters.agentCodes.length > 0,
     staleTime: 1000 * 30,
