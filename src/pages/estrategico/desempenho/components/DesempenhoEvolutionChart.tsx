@@ -3,38 +3,82 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { JuliaSessao } from '../../types';
 import { parseDbTimestamp } from '@/lib/dateUtils';
-import { format } from 'date-fns';
+import { format, isSameDay, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface DesempenhoEvolutionChartProps {
   sessoes: JuliaSessao[];
   isLoading?: boolean;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
-export function DesempenhoEvolutionChart({ sessoes, isLoading }: DesempenhoEvolutionChartProps) {
-  const dailyData = useMemo(() => {
-    const grouped: Record<string, { sessoes: number; mensagens: number }> = {};
-    
-    sessoes.forEach((s) => {
-      const date = parseDbTimestamp(s.created_at);
-      const key = format(date, 'yyyy-MM-dd');
+export function DesempenhoEvolutionChart({ sessoes, isLoading, dateFrom, dateTo }: DesempenhoEvolutionChartProps) {
+  // Check if filter is for a single day
+  const isSingleDay = useMemo(() => {
+    if (!dateFrom || !dateTo) return false;
+    try {
+      return isSameDay(parseISO(dateFrom), parseISO(dateTo));
+    } catch {
+      return false;
+    }
+  }, [dateFrom, dateTo]);
+
+  const chartData = useMemo(() => {
+    if (isSingleDay) {
+      // Group by hour when single day filter
+      const grouped: Record<string, { sessoes: number; mensagens: number }> = {};
       
-      if (!grouped[key]) {
-        grouped[key] = { sessoes: 0, mensagens: 0 };
+      // Initialize all 24 hours
+      for (let h = 0; h < 24; h++) {
+        const hourKey = h.toString().padStart(2, '0');
+        grouped[hourKey] = { sessoes: 0, mensagens: 0 };
       }
       
-      grouped[key].sessoes += 1;
-      grouped[key].mensagens += s.total_msg || 0;
-    });
-    
-    return Object.entries(grouped)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, data]) => ({
-        date,
-        label: format(new Date(date), 'dd/MM', { locale: ptBR }),
-        ...data,
-      }));
-  }, [sessoes]);
+      sessoes.forEach((s) => {
+        const date = parseDbTimestamp(s.created_at);
+        const hourKey = format(date, 'HH');
+        
+        if (grouped[hourKey]) {
+          grouped[hourKey].sessoes += 1;
+          grouped[hourKey].mensagens += s.total_msg || 0;
+        }
+      });
+      
+      return Object.entries(grouped)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([hour, data]) => ({
+          date: hour,
+          label: `${hour}h`,
+          ...data,
+        }));
+    } else {
+      // Group by day for multiple days
+      const grouped: Record<string, { sessoes: number; mensagens: number }> = {};
+      
+      sessoes.forEach((s) => {
+        const date = parseDbTimestamp(s.created_at);
+        const key = format(date, 'yyyy-MM-dd');
+        
+        if (!grouped[key]) {
+          grouped[key] = { sessoes: 0, mensagens: 0 };
+        }
+        
+        grouped[key].sessoes += 1;
+        grouped[key].mensagens += s.total_msg || 0;
+      });
+      
+      return Object.entries(grouped)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, data]) => ({
+          date,
+          label: format(new Date(date), 'dd/MM', { locale: ptBR }),
+          ...data,
+        }));
+    }
+  }, [sessoes, isSingleDay]);
+
+  const chartTitle = isSingleDay ? 'Evolução de Sessões por Hora' : 'Evolução de Sessões por Dia';
 
   if (isLoading) {
     return (
@@ -56,11 +100,11 @@ export function DesempenhoEvolutionChart({ sessoes, isLoading }: DesempenhoEvolu
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg">Evolução de Sessões por Dia</CardTitle>
+        <CardTitle className="text-lg">{chartTitle}</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={280}>
-          <AreaChart data={dailyData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+          <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="colorSessoes" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
