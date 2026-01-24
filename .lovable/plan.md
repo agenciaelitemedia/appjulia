@@ -1,427 +1,154 @@
 
-
-# Plano: Melhorias na Lista de FollowUp - Agendamento e Ações
+# Plano: Contagem de Mensagens via followup_history
 
 ## Resumo
-Modificar a lista de FollowUp para:
-1. Calcular e exibir a **próxima data de envio** baseada no intervalo da etapa atual
-2. Substituir o dropdown de ações por **ícones diretos com tooltips** (Conversa, Parar/Retomar, Finalizar)
-3. Implementar **ações específicas** com comportamentos distintos para cada operação
+Alterar a lógica de contagem de "Mensagens Enviadas" para buscar o total de registros na tabela `followup_history`, onde cada registro representa uma execução real de envio de mensagem.
 
 ---
 
-## Mudanças Visuais - Coluna "Agendado"
+## Mudança Conceitual
 
-### Estrutura Atual
-```text
-┌────────────────────────────────────────────────────────────────────────────┐
-│ Etapa │ Status  │ WhatsApp     │ Cliente    │ Agendado      │ Ações       │
-├───────┼─────────┼──────────────┼────────────┼───────────────┼─────────────┤
-│ 2/4   │ Aguard. │ +55 (11)...  │ João Silva │ 24/01 14:30   │ [...]       │
-└────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Nova Estrutura
-```text
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│ Etapa │ Status  │ WhatsApp     │ Cliente    │ Próximo Envio    │ Ações          │
-├───────┼─────────┼──────────────┼────────────┼──────────────────┼────────────────┤
-│ 2/4   │ Aguard. │ +55 (11)...  │ João Silva │ 24/01 às 14:30   │ 💬  ⏸  ⏹      │
-│       │         │              │            │ (em 2h 15min)    │ (com tooltip)  │
-└──────────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Cálculo da Próxima Data de Envio
-
-Para calcular quando será o próximo envio, precisamos:
-
-1. **Obter o intervalo da etapa atual** a partir da config (`step_cadence`)
-2. **Somar o intervalo à `send_date`** existente no item
-
-### Fórmula
-```text
-próximo_envio = send_date + intervalo_etapa_atual
-```
-
-### Exemplo
-```text
-send_date = "2025-01-24 10:00:00"
-step_number = 2
-step_cadence = { "cadence_1": "5 minutes", "cadence_2": "2 hours", "cadence_3": "1 days" }
-
-intervalo_etapa_2 = "2 hours"
-próximo_envio = 2025-01-24 12:00:00
-```
-
----
-
-## Novas Ações com Ícones
-
-Remover o DropdownMenu e exibir ícones diretos com tooltips:
-
-| Ícone | Tooltip | Ação | Comportamento no Banco |
-|-------|---------|------|------------------------|
-| MessageCircle | "Ver Conversa" | Abre diálogo de mensagens | (nenhum) |
-| Pause/Play | "Parar" / "Retomar" | Alterna status | `state = 'STOP'` ou `state = 'SEND', send_date = NOW(), step_number = 1` |
-| Square | "Finalizar" | Encerra definitivamente | `state = 'STOP', step_number = 0` |
-
-### Visual das Ações
-```text
-┌─────────────────────────────────────────────────┐
-│  💬        ⏸        ⏹                          │
-│  Ver      Parar    Finalizar                   │
-│  Conversa                                       │
-│                                                 │
-│  (ao hover, mostra tooltip)                    │
-└─────────────────────────────────────────────────┘
-```
-
-### Comportamentos Detalhados
-
-**1. Parar (quando `state !== 'STOP'`)**
-```sql
-UPDATE followup_queue 
-SET state = 'STOP' 
-WHERE id = $1
-```
-
-**2. Retomar (quando `state === 'STOP' AND step_number > 0`)**
-```sql
-UPDATE followup_queue 
-SET state = 'SEND', 
-    send_date = NOW(), 
-    step_number = 1 
-WHERE id = $1
-```
-
-**3. Finalizar**
-```sql
-UPDATE followup_queue 
-SET state = 'STOP', 
-    step_number = 0 
-WHERE id = $1
-```
+| Antes (followup_queue) | Depois (followup_history) |
+|------------------------|---------------------------|
+| Calculado via step_number | Contagem direta de registros |
+| `SUM(CASE WHEN state='SEND' THEN step_number ELSE step_number-1)` | `COUNT(*) FROM followup_history` |
 
 ---
 
 ## Arquivos a Modificar
 
-### 1. src/pages/agente/types.ts
+### 1. src/pages/agente/hooks/useFollowupData.ts
 
-Adicionar interface para config parseada no FollowupQueue:
+#### A) Modificar `useFollowupSentCount` (linhas 8-52)
 
-```typescript
-// Tipo para intervalo parseado
-export interface ParsedStepCadence {
-  [key: string]: {
-    value: number;
-    unit: 'minutes' | 'hours' | 'days';
-  };
-}
-
-// Função para calcular próxima data baseada no intervalo
-export function calculateNextSendDate(
-  sendDate: string, 
-  stepNumber: number, 
-  stepCadence: Record<string, string>
-): Date | null {
-  const cadenceKey = `cadence_${stepNumber}`;
-  const interval = stepCadence[cadenceKey];
-  
-  if (!interval) return null;
-  
-  const { value, unit } = parseInterval(interval);
-  const date = new Date(sendDate);
-  
-  switch (unit) {
-    case 'minutes':
-      date.setMinutes(date.getMinutes() + value);
-      break;
-    case 'hours':
-      date.setHours(date.getHours() + value);
-      break;
-    case 'days':
-      date.setDate(date.getDate() + value);
-      break;
-  }
-  
-  return date;
-}
-```
-
----
-
-### 2. src/pages/agente/followup/FollowupPage.tsx
-
-Passar `step_cadence` parseado para o `FollowupQueue`:
+Alterar a query para contar registros de `followup_history` em vez de calcular via `followup_queue`:
 
 ```typescript
-// Extrair step_cadence da config
-const stepCadence = useMemo(() => {
-  if (!config?.step_cadence) return {};
-  return parseJsonField<Record<string, string>>(config.step_cadence, {});
-}, [config]);
+// Antes: Query em followup_queue com cálculo de step_number
+// Depois: COUNT(*) em followup_history
 
-// No componente FollowupQueue, adicionar prop:
-<FollowupQueue
-  items={filteredItems}
-  stepCadence={stepCadence}  // <-- NOVO
-  isLoading={isLoadingQueue}
-  onUpdateState={handleUpdateState}
-  onRestart={handleRestart}  // <-- NOVO
-  onFinalize={handleFinalize}  // <-- NOVO
-  onDelete={handleDeleteItem}
-  isUpdating={...}
-  searchTerm={searchTerm}
-  onSearchChange={setSearchTerm}
-/>
-```
+export function useFollowupSentCount(filters: FollowupFiltersState) {
+  return useQuery({
+    queryKey: ['followup-sent-count', filters],
+    queryFn: async () => {
+      if (!filters.agentCodes.length) return 0;
 
----
+      const agentPlaceholders = filters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
+      const params: (string | number)[] = [...filters.agentCodes];
 
-### 3. src/pages/agente/hooks/useFollowupData.ts
+      let whereClause = `fq.cod_agent IN (${agentPlaceholders})`;
 
-Adicionar novas mutations para ações específicas:
+      // Date filters (baseado em followup_history.created_at)
+      if (filters.dateFrom) {
+        whereClause += ` AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
+        params.push(filters.dateFrom);
+      }
+      if (filters.dateTo) {
+        whereClause += ` AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
+        params.push(filters.dateTo);
+      }
 
-```typescript
-// Restart: SEND + NOW() + step_number = 1
-export function useRestartQueueItem() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  return useMutation({
-    mutationFn: async (id: number) => {
-      return externalDb.raw({
+      // Conta cada registro de followup_history como 1 mensagem enviada
+      const result = await externalDb.raw<{ total: string }[]>({
         query: `
-          UPDATE followup_queue 
-          SET state = 'SEND', 
-              send_date = NOW(), 
-              step_number = 1 
-          WHERE id = $1 
-          RETURNING *
+          SELECT COUNT(*)::text as total
+          FROM followup_history fh
+          JOIN followup_queue fq ON fq.id = fh.followup_queue_id
+          WHERE ${whereClause}
         `,
-        params: [id],
+        params,
       });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['followup-queue'] });
-      toast({
-        title: 'FollowUp retomado',
-        description: 'O lead voltou para a etapa 1 e será processado.',
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: 'Erro ao retomar',
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
-        variant: 'destructive',
-      });
-    },
-  });
-}
 
-// Finalize: STOP + step_number = 0
-export function useFinalizeQueueItem() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  return useMutation({
-    mutationFn: async (id: number) => {
-      return externalDb.raw({
-        query: `
-          UPDATE followup_queue 
-          SET state = 'STOP', 
-              step_number = 0 
-          WHERE id = $1 
-          RETURNING *
-        `,
-        params: [id],
-      });
+      const flatResult = Array.isArray(result) ? result.flat() : [];
+      return parseInt(flatResult[0]?.total || '0', 10);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['followup-queue'] });
-      toast({
-        title: 'FollowUp finalizado',
-        description: 'O lead foi removido permanentemente da fila.',
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: 'Erro ao finalizar',
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
-        variant: 'destructive',
-      });
-    },
+    enabled: filters.agentCodes.length > 0,
+    staleTime: 1000 * 30,
   });
 }
 ```
 
 ---
 
-### 4. src/pages/agente/followup/components/FollowupQueue.tsx
+#### B) Modificar `useFollowupDailyMetrics` (linhas 407-514)
 
-Reformular completamente as ações e adicionar cálculo de próximo envio:
+Alterar o cálculo de `messages_sent` para contar registros de `followup_history` por período:
 
 ```typescript
-import { 
-  MessageCircle, 
-  Pause, 
-  Play, 
-  Square, // Finalizar
-  Search, 
-  ExternalLink,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-} from 'lucide-react';
-import { 
-  Tooltip, 
-  TooltipContent, 
-  TooltipProvider, 
-  TooltipTrigger 
-} from '@/components/ui/tooltip';
-import { calculateNextSendDate } from '../../types';
-import { formatDistanceToNow } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+// Dentro da query, substituir:
 
-interface FollowupQueueProps {
-  items: FollowupQueueItemEnriched[];
-  stepCadence: Record<string, string>;  // NOVO
-  isLoading?: boolean;
-  onUpdateState: (id: number, state: string) => void;
-  onRestart: (id: number) => void;  // NOVO
-  onFinalize: (id: number) => void;  // NOVO
-  onDelete: (id: number) => void;
-  isUpdating?: boolean;
-  searchTerm: string;
-  onSearchChange: (term: string) => void;
-}
+// Antes:
+COALESCE(SUM(
+  CASE 
+    WHEN state = 'SEND' THEN step_number
+    ELSE GREATEST(step_number - 1, 0)
+  END
+), 0)::text as messages_sent
 
-// Componente para exibir próximo envio
-function NextSendCell({ 
-  sendDate, 
-  stepNumber, 
-  stepCadence,
-  state 
-}: { 
-  sendDate: string; 
-  stepNumber: number; 
-  stepCadence: Record<string, string>;
-  state: string;
-}) {
-  // Se finalizado (step_number = 0) ou parado, não mostrar próximo envio
-  if (stepNumber === 0 || state === 'STOP') {
-    return <span className="text-muted-foreground">-</span>;
-  }
-  
-  const nextDate = calculateNextSendDate(sendDate, stepNumber, stepCadence);
-  
-  if (!nextDate) {
-    return <span className="text-muted-foreground">-</span>;
-  }
-  
-  const now = new Date();
-  const isPast = nextDate < now;
-  
-  return (
-    <div className="flex flex-col">
-      <span className={isPast ? 'text-orange-500' : ''}>
-        {format(nextDate, 'dd/MM', { locale: ptBR })} às {format(nextDate, 'HH:mm')}
-      </span>
-      <span className="text-xs text-muted-foreground">
-        {isPast 
-          ? 'Aguardando processamento' 
-          : formatDistanceToNow(nextDate, { addSuffix: true, locale: ptBR })
-        }
-      </span>
-    </div>
-  );
-}
+// Depois: Subquery para contar de followup_history
+(
+  SELECT COUNT(*)
+  FROM followup_history fh
+  WHERE fh.followup_queue_id = fq.id
+    AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date = ...
+)::text as messages_sent
+```
 
-// Componente de ações com ícones e tooltips
-function ActionButtons({
-  item,
-  onOpenMessages,
-  onStop,
-  onRestart,
-  onFinalize,
-  isUpdating,
-}: {
-  item: FollowupQueueItemEnriched;
-  onOpenMessages: () => void;
-  onStop: () => void;
-  onRestart: () => void;
-  onFinalize: () => void;
-  isUpdating?: boolean;
-}) {
-  const isStopped = item.state === 'STOP';
-  const isFinalized = item.step_number === 0;
-  
-  return (
-    <TooltipProvider delayDuration={0}>
-      <div className="flex items-center justify-end gap-1">
-        {/* Ver Conversa */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8"
-              onClick={onOpenMessages}
-            >
-              <MessageCircle className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Ver Conversa</TooltipContent>
-        </Tooltip>
-        
-        {/* Parar / Retomar */}
-        {!isFinalized && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8"
-                onClick={isStopped ? onRestart : onStop}
-                disabled={isUpdating}
-              >
-                {isStopped ? (
-                  <Play className="h-4 w-4 text-green-500" />
-                ) : (
-                  <Pause className="h-4 w-4 text-yellow-500" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {isStopped ? 'Retomar (volta para etapa 1)' : 'Parar'}
-            </TooltipContent>
-          </Tooltip>
-        )}
-        
-        {/* Finalizar */}
-        {!isFinalized && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8"
-                onClick={onFinalize}
-                disabled={isUpdating}
-              >
-                <Square className="h-4 w-4 text-destructive" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Finalizar FollowUp</TooltipContent>
-          </Tooltip>
-        )}
-      </div>
-    </TooltipProvider>
-  );
-}
+A abordagem mais eficiente é fazer um JOIN com agregação:
+
+```typescript
+const result = await externalDb.raw<{
+  date?: string;
+  hour?: number;
+  total_records: string;
+  messages_sent: string;
+  stopped: string;
+  unique_leads: string;
+}[]>({
+  query: `
+    WITH history_counts AS (
+      SELECT 
+        fh.followup_queue_id,
+        ${isSingleDay 
+          ? `EXTRACT(HOUR FROM fh.created_at AT TIME ZONE 'America/Sao_Paulo')::int as period`
+          : `(fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date as period`
+        },
+        COUNT(*) as msg_count
+      FROM followup_history fh
+      JOIN followup_queue fq ON fq.id = fh.followup_queue_id
+      WHERE fq.cod_agent IN (${agentPlaceholders})
+        AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $date_from
+        AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $date_to
+      GROUP BY fh.followup_queue_id, period
+    )
+    SELECT 
+      ${selectClause},
+      COUNT(*)::text as total_records,
+      COALESCE(SUM(hc.msg_count), 0)::text as messages_sent,
+      COUNT(*) FILTER (WHERE state = 'STOP')::text as stopped,
+      COUNT(DISTINCT session_id)::text as unique_leads
+    FROM followup_queue fq
+    LEFT JOIN history_counts hc ON hc.followup_queue_id = fq.id 
+      AND hc.period = ${groupByClause}
+    WHERE ${whereClause}
+    GROUP BY ${groupByClause}
+    ORDER BY ${orderClause}
+  `,
+  params,
+});
+```
+
+---
+
+## Estrutura da Tabela followup_history
+
+```sql
+CREATE TABLE followup_history (
+    id bigint NOT NULL,
+    followup_queue_id bigint,        -- FK para followup_queue.id
+    step_number smallint,            -- Qual etapa foi executada
+    created_at timestamp DEFAULT now() -- Quando a mensagem foi enviada
+);
 ```
 
 ---
@@ -429,87 +156,84 @@ function ActionButtons({
 ## Fluxo de Dados Atualizado
 
 ```text
-FollowupPage
+Dashboard Summary
     │
-    ├── config.step_cadence (parseado)
+    ├── "Mensagens Enviadas" ─────────────────────────────────────┐
+    │                                                              │
+    │   ANTES:                                                     │
+    │   followup_queue.step_number (calculado)                     │
+    │                                                              │
+    │   DEPOIS:                                                    │
+    │   COUNT(*) FROM followup_history                             │
+    │   WHERE created_at BETWEEN dateFrom AND dateTo               │
+    └──────────────────────────────────────────────────────────────┘
+
+Evolution Chart
     │
-    └── FollowupQueue
-            │
-            ├── Coluna "Próximo Envio"
-            │   └── calculateNextSendDate(send_date, step_number, step_cadence)
-            │
-            └── ActionButtons
-                ├── Ver Conversa → WhatsAppMessagesDialog
-                ├── Parar → onUpdateState(id, 'STOP')
-                ├── Retomar → onRestart(id) → SEND + NOW() + step=1
-                └── Finalizar → onFinalize(id) → STOP + step=0
+    ├── "Mensagens Enviadas" por dia/hora ────────────────────────┐
+    │                                                              │
+    │   DEPOIS:                                                    │
+    │   COUNT(*) FROM followup_history                             │
+    │   GROUP BY (created_at)::date ou EXTRACT(HOUR)               │
+    └──────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Ordem de Implementação
 
-1. **types.ts** - Adicionar função `calculateNextSendDate`
+1. **useFollowupSentCount** - Alterar query para contar de followup_history com JOIN em followup_queue (para filtro de cod_agent)
 
-2. **useFollowupData.ts** - Adicionar `useRestartQueueItem` e `useFinalizeQueueItem`
-
-3. **FollowupPage.tsx** - Extrair `stepCadence`, adicionar handlers e passar props
-
-4. **FollowupQueue.tsx** - Reformular com:
-   - Componente `NextSendCell` para calcular e exibir próximo envio
-   - Componente `ActionButtons` com ícones e tooltips
-   - Remover DropdownMenu
-   - Remover botão de delete (substitui por Finalizar)
+2. **useFollowupDailyMetrics** - Alterar cálculo de messages_sent para usar followup_history com agregação temporal
 
 ---
 
 ## Seção Técnica
 
-### Cálculo de Próximo Envio
-```typescript
-function calculateNextSendDate(
-  sendDate: string, 
-  stepNumber: number, 
-  stepCadence: Record<string, string>
-): Date | null {
-  const cadenceKey = `cadence_${stepNumber}`;
-  const interval = stepCadence[cadenceKey];
-  
-  if (!interval) return null;
-  
-  const { value, unit } = parseInterval(interval);
-  const date = new Date(sendDate);
-  
-  switch (unit) {
-    case 'minutes': date.setMinutes(date.getMinutes() + value); break;
-    case 'hours': date.setHours(date.getHours() + value); break;
-    case 'days': date.setDate(date.getDate() + value); break;
-  }
-  
-  return date;
-}
-```
+### Query para useFollowupSentCount
 
-### Queries SQL
 ```sql
--- Parar
-UPDATE followup_queue SET state = 'STOP' WHERE id = $1
-
--- Retomar (volta para etapa 1)
-UPDATE followup_queue 
-SET state = 'SEND', send_date = NOW(), step_number = 1 
-WHERE id = $1
-
--- Finalizar (remove da fila)
-UPDATE followup_queue 
-SET state = 'STOP', step_number = 0 
-WHERE id = $1
+SELECT COUNT(*)::text as total
+FROM followup_history fh
+JOIN followup_queue fq ON fq.id = fh.followup_queue_id
+WHERE fq.cod_agent IN ($1, $2, ...)
+  AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $date_from
+  AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $date_to
 ```
 
-### Status Visual Baseado em step_number
-| step_number | state | Visual |
-|-------------|-------|--------|
-| > 0 | SEND/QUEUE | Aguardando / Enviado |
-| > 0 | STOP | Parado (pode retomar) |
-| = 0 | STOP | Finalizado (sem ações) |
+### Query para useFollowupDailyMetrics (granularidade diária)
 
+```sql
+SELECT 
+  (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date as date,
+  COUNT(*)::text as messages_sent
+FROM followup_history fh
+JOIN followup_queue fq ON fq.id = fh.followup_queue_id
+WHERE fq.cod_agent IN ($1, $2, ...)
+  AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $date_from
+  AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $date_to
+GROUP BY (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date
+ORDER BY date
+```
+
+### Query para useFollowupDailyMetrics (granularidade horária)
+
+```sql
+SELECT 
+  EXTRACT(HOUR FROM fh.created_at AT TIME ZONE 'America/Sao_Paulo')::int as hour,
+  COUNT(*)::text as messages_sent
+FROM followup_history fh
+JOIN followup_queue fq ON fq.id = fh.followup_queue_id
+WHERE fq.cod_agent IN ($1, $2, ...)
+  AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date = $date
+GROUP BY EXTRACT(HOUR FROM fh.created_at AT TIME ZONE 'America/Sao_Paulo')
+ORDER BY hour
+```
+
+---
+
+## Considerações
+
+- O filtro de data agora é aplicado em `followup_history.created_at` (quando a mensagem foi efetivamente enviada)
+- O filtro de `cod_agent` continua via JOIN com `followup_queue`
+- Registros em `followup_history` sem correspondência em `followup_queue` serão ignorados (JOIN)
