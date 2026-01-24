@@ -9,6 +9,7 @@ import { JuliaFilters } from '../components/JuliaFilters';
 import { ContratosSummary } from './components/ContratosSummary';
 import { ContratosTable } from './components/ContratosTable';
 import { ContratoDetailsDialog } from './components/ContratoDetailsDialog';
+import { ContratosEvolutionChart } from './components/ContratosEvolutionChart';
 import { JuliaFiltersState, JuliaContrato } from '../types';
 
 export default function ContratosPage() {
@@ -82,6 +83,9 @@ export default function ContratosPage() {
 
       {/* Summary Cards */}
       <ContratosSummary contratos={contratos} isLoading={contratosLoading} />
+
+      {/* Evolution Chart */}
+      <ContratosEvolutionChart contratos={contratos} isLoading={contratosLoading} />
 
       {/* Filters */}
       <JuliaFilters

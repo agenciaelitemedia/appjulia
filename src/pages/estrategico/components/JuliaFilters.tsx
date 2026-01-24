@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { getTodayInSaoPaulo, get7DaysAgoInSaoPaulo, get30DaysAgoInSaoPaulo, get3MonthsAgoInSaoPaulo, getFirstDayOfMonthInSaoPaulo, getLastDayOfMonthInSaoPaulo } from '@/lib/dateUtils';
+import { getTodayInSaoPaulo, getYesterdayInSaoPaulo, get7DaysAgoInSaoPaulo, get30DaysAgoInSaoPaulo, get3MonthsAgoInSaoPaulo, getFirstDayOfMonthInSaoPaulo, getLastDayOfMonthInSaoPaulo, getLastWeekStartInSaoPaulo, getLastWeekEndInSaoPaulo } from '@/lib/dateUtils';
 import { CalendarIcon, Filter, Search, X, Calendar as CalendarIconFilled } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,7 +25,7 @@ import {
 import { JuliaAgent, JuliaFiltersState } from '../types';
 import { cn } from '@/lib/utils';
 
-type QuickPeriod = 'today' | 'last7days' | 'last30days' | 'last3months' | 'thisMonth' | 'custom';
+type QuickPeriod = 'today' | 'yesterday' | 'last7days' | 'lastWeek' | 'last30days' | 'last3months' | 'thisMonth' | 'custom';
 
 interface JuliaFiltersProps {
   agents: JuliaAgent[];
@@ -51,17 +51,26 @@ export function JuliaFilters({
   // Detect current quick period based on current filters
   const currentQuickPeriod = useMemo((): QuickPeriod => {
     const today = getTodayInSaoPaulo();
+    const yesterday = getYesterdayInSaoPaulo();
     const last7Days = get7DaysAgoInSaoPaulo();
     const last30Days = get30DaysAgoInSaoPaulo();
     const last3Months = get3MonthsAgoInSaoPaulo();
     const firstOfMonth = getFirstDayOfMonthInSaoPaulo();
     const lastOfMonth = getLastDayOfMonthInSaoPaulo();
+    const lastWeekStart = getLastWeekStartInSaoPaulo();
+    const lastWeekEnd = getLastWeekEndInSaoPaulo();
 
     if (filters.dateFrom === today && filters.dateTo === today) {
       return 'today';
     }
+    if (filters.dateFrom === yesterday && filters.dateTo === yesterday) {
+      return 'yesterday';
+    }
     if (filters.dateFrom === last7Days && filters.dateTo === today) {
       return 'last7days';
+    }
+    if (filters.dateFrom === lastWeekStart && filters.dateTo === lastWeekEnd) {
+      return 'lastWeek';
     }
     if (filters.dateFrom === last30Days && filters.dateTo === today) {
       return 'last30days';
@@ -111,8 +120,19 @@ export function JuliaFilters({
       case 'today':
         onFiltersChange({ ...filters, dateFrom: today, dateTo: today });
         break;
+      case 'yesterday':
+        const yesterday = getYesterdayInSaoPaulo();
+        onFiltersChange({ ...filters, dateFrom: yesterday, dateTo: yesterday });
+        break;
       case 'last7days':
         onFiltersChange({ ...filters, dateFrom: get7DaysAgoInSaoPaulo(), dateTo: today });
+        break;
+      case 'lastWeek':
+        onFiltersChange({ 
+          ...filters, 
+          dateFrom: getLastWeekStartInSaoPaulo(), 
+          dateTo: getLastWeekEndInSaoPaulo() 
+        });
         break;
       case 'last30days':
         onFiltersChange({ ...filters, dateFrom: get30DaysAgoInSaoPaulo(), dateTo: today });
@@ -175,7 +195,7 @@ export function JuliaFilters({
 
       <CollapsibleContent className="space-y-4">
         {/* Quick Period Buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground mr-1">Período:</span>
           <Button
             variant={currentQuickPeriod === 'today' ? 'default' : 'outline'}
@@ -186,12 +206,28 @@ export function JuliaFilters({
             Hoje
           </Button>
           <Button
+            variant={currentQuickPeriod === 'yesterday' ? 'default' : 'outline'}
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => handleQuickPeriod('yesterday')}
+          >
+            Ontem
+          </Button>
+          <Button
             variant={currentQuickPeriod === 'last7days' ? 'default' : 'outline'}
             size="sm"
             className="h-7 text-xs"
             onClick={() => handleQuickPeriod('last7days')}
           >
             Últimos 7 dias
+          </Button>
+          <Button
+            variant={currentQuickPeriod === 'lastWeek' ? 'default' : 'outline'}
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => handleQuickPeriod('lastWeek')}
+          >
+            Semana passada
           </Button>
           <Button
             variant={currentQuickPeriod === 'last30days' ? 'default' : 'outline'}

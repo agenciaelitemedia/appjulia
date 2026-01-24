@@ -11,6 +11,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   Pagination,
   PaginationContent,
   PaginationItem,
@@ -19,9 +25,10 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from '@/components/ui/pagination';
-import { MessageSquare, ArrowUpDown, ArrowUp, ArrowDown, Download } from 'lucide-react';
+import { MessageSquare, ArrowUpDown, ArrowUp, ArrowDown, Download, MessageCircle } from 'lucide-react';
 import { JuliaSessao } from '../../types';
 import { formatDbDateTime } from '@/lib/dateUtils';
+import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -39,6 +46,13 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
   const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [messagesOpen, setMessagesOpen] = useState(false);
+  const [selectedSessao, setSelectedSessao] = useState<JuliaSessao | null>(null);
+
+  const handleOpenMessages = (sessao: JuliaSessao) => {
+    setSelectedSessao(sessao);
+    setMessagesOpen(true);
+  };
 
   const filteredSessoes = useMemo(() => {
     if (!searchTerm) return sessoes;
@@ -311,8 +325,27 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
                     {sessao.perfil_agent}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-center font-medium">
-                  {sessao.total_msg?.toLocaleString('pt-BR')}
+                <TableCell className="text-center">
+                  <div className="flex items-center justify-center gap-1">
+                    <span className="font-medium">{sessao.total_msg?.toLocaleString('pt-BR')}</span>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-100/50"
+                            onClick={() => handleOpenMessages(sessao)}
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Ver mensagens do WhatsApp</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                 </TableCell>
                 <TableCell className="text-center text-sm">
                   {formatDbDateTime(sessao.created_at)}
@@ -388,6 +421,17 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
             </PaginationContent>
           </Pagination>
         </div>
+      )}
+
+      {/* WhatsApp Messages Dialog */}
+      {selectedSessao && (
+        <WhatsAppMessagesDialog
+          open={messagesOpen}
+          onOpenChange={setMessagesOpen}
+          whatsappNumber={selectedSessao.whatsapp}
+          leadName={selectedSessao.name || ''}
+          codAgent={selectedSessao.cod_agent}
+        />
       )}
     </div>
   );
