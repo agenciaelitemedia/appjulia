@@ -135,9 +135,9 @@ export interface FollowupDailyMetrics {
   label: string;
   totalRecords: number;      // Total de registros no dia
   messagesSent: number;      // SUM das mensagens enviadas
-  stopped: number;           // Registros com state='STOP'
+  stopped: number;           // Respostas (de followup_response)
   uniqueLeads: number;       // Leads únicos (DISTINCT session_id)
-  responseRate: number;      // (stopped / totalRecords) * 100
+  responseRate: number;      // (respostas / uniqueLeads) * 100
 }
 
 // Stats do período anterior (para comparação)
@@ -145,7 +145,7 @@ export interface FollowupPreviousStats {
   total: number;
   totalSent: number;
   waiting: number;
-  stopped: number;
+  stopped: number;           // Respostas (de followup_response)
   responseRate: number;
 }
 
@@ -154,7 +154,7 @@ export interface FollowupStats {
   total: number;           // Leads únicos na fila
   totalSent: number;       // Total de mensagens enviadas
   waiting: number;         // Leads aguardando
-  stopped: number;         // Leads que responderam (STOP)
+  stopped: number;         // Respostas (de followup_response)
   responseRate: number;    // Taxa de resposta %
   previous?: FollowupPreviousStats; // Dados do período anterior para comparação
 }

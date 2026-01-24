@@ -180,8 +180,8 @@ export default function FollowupPage() {
   const dashboardStats: FollowupStats = useMemo(() => ({
     total: dailyMetrics.reduce((sum, d) => sum + d.uniqueLeads, 0),
     totalSent: dailyMetrics.reduce((sum, d) => sum + d.messagesSent, 0),
-    waiting: dailyMetrics.reduce((sum, d) => sum + d.totalRecords - d.stopped, 0),
-    stopped: responseData?.stopped || 0,
+    waiting: dailyMetrics.reduce((sum, d) => sum + d.uniqueLeads - d.stopped, 0),
+    stopped: responseData?.responses || dailyMetrics.reduce((sum, d) => sum + d.stopped, 0),
     responseRate: responseData?.rate || 0,
     previous: isLoadingPrevious ? undefined : previousStats,
   }), [dailyMetrics, responseData, previousStats, isLoadingPrevious]);
