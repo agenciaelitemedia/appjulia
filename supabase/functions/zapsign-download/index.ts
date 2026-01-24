@@ -24,6 +24,7 @@ serve(async (req) => {
     }
 
     console.log('Fetching document:', doc_token);
+    console.log('API Token (first 10 chars):', apiToken.substring(0, 10) + '...');
 
     // Chamar API ZapSign para obter detalhes do documento
     // Endpoint: GET https://api.zapsign.com.br/api/v1/docs/{doc_token}/
@@ -33,7 +34,6 @@ serve(async (req) => {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${apiToken}`,
-          'Content-Type': 'application/json',
         },
       }
     );
@@ -41,7 +41,56 @@ serve(async (req) => {
     if (!response.ok) {
       const errorData = await response.text();
       console.error('ZapSign API error:', response.status, errorData);
-      throw new Error(`ZapSign API error: ${response.status}`);
+      
+      // Se for 404, pode ser que o cod_document não seja o doc_token correto
+      // Tentar buscar como signer_token
+      if (response.status === 404) {
+        console.log('Document not found, trying as signer_token...');
+        
+        // Tentar endpoint de signatário
+        const signerResponse = await fetch(
+          `https://api.zapsign.com.br/api/v1/signers/${doc_token}/`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${apiToken}`,
+            },
+          }
+        );
+        
+        if (signerResponse.ok) {
+          const signerData = await signerResponse.json();
+          console.log('Found as signer! Doc token:', signerData.document?.token);
+          
+          // Se encontrou o signatário, buscar o documento pai
+          if (signerData.document?.token) {
+            const docResponse = await fetch(
+              `https://api.zapsign.com.br/api/v1/docs/${signerData.document.token}/`,
+              {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${apiToken}`,
+                },
+              }
+            );
+            
+            if (docResponse.ok) {
+              const docData = await docResponse.json();
+              return new Response(JSON.stringify({
+                success: true,
+                signed_file: docData.signed_file || null,
+                original_file: docData.original_file || null,
+                status: docData.status,
+                name: docData.name,
+              }), {
+                headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
+              });
+            }
+          }
+        }
+      }
+      
+      throw new Error(`ZapSign API error: ${response.status} - ${errorData}`);
     }
 
     const docData = await response.json();
