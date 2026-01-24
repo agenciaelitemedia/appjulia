@@ -11,6 +11,7 @@ import {
   useFollowupConfig,
   useSaveFollowupConfig,
   useFollowupQueue,
+  useFollowupSentCount,
   useUpdateQueueState,
   useDeleteQueueItem,
 } from '../hooks/useFollowupData';
@@ -86,6 +87,7 @@ export default function FollowupPage() {
   // Fetch data
   const { data: configData, isLoading: isLoadingConfig, refetch: refetchConfig } = useFollowupConfig(selectedAgent);
   const { data: queueData, isLoading: isLoadingQueue, refetch: refetchQueue } = useFollowupQueue(filters);
+  const { data: totalSentCount = 0, refetch: refetchSentCount } = useFollowupSentCount(filters);
 
   // Normalize config data
   const config: FollowupConfigType | null = useMemo(() => {
@@ -131,19 +133,18 @@ export default function FollowupPage() {
   const stats = useMemo(() => {
     const result = {
       total: filteredItems.length,
+      totalSent: totalSentCount,  // Total messages sent from DB
       waiting: 0,
-      sent: 0,
       stopped: 0,
     };
 
     filteredItems.forEach(item => {
       if (item.derived_status === 'waiting') result.waiting++;
-      else if (item.derived_status === 'sent') result.sent++;
       else if (item.derived_status === 'stopped') result.stopped++;
     });
 
     return result;
-  }, [filteredItems]);
+  }, [filteredItems, totalSentCount]);
 
   // Mutations
   const saveConfigMutation = useSaveFollowupConfig();
@@ -170,6 +171,7 @@ export default function FollowupPage() {
   const handleRefresh = () => {
     refetchConfig();
     refetchQueue();
+    refetchSentCount();
   };
 
   return (

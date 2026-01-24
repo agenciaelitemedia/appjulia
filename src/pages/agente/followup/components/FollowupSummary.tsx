@@ -4,10 +4,10 @@ import { Clock, Send, Pause, ListTodo } from 'lucide-react';
 
 interface FollowupSummaryProps {
   stats: {
-    total: number;
-    waiting: number;
-    sent: number;
-    stopped: number;
+    total: number;        // Leads únicos na fila
+    totalSent: number;    // Total de mensagens enviadas (soma das etapas)
+    waiting: number;      // Leads aguardando
+    stopped: number;      // Leads pausados
   };
   isLoading?: boolean;
 }
@@ -15,7 +15,7 @@ interface FollowupSummaryProps {
 export function FollowupSummary({ stats, isLoading }: FollowupSummaryProps) {
   const cards = [
     {
-      title: 'Total na Fila',
+      title: 'Leads na Fila',
       value: stats.total,
       icon: ListTodo,
       color: 'text-primary',
@@ -29,8 +29,8 @@ export function FollowupSummary({ stats, isLoading }: FollowupSummaryProps) {
       bgColor: 'bg-yellow-500/10',
     },
     {
-      title: 'Enviados',
-      value: stats.sent,
+      title: 'Mensagens Enviadas',
+      value: stats.totalSent,
       icon: Send,
       color: 'text-green-600',
       bgColor: 'bg-green-500/10',
