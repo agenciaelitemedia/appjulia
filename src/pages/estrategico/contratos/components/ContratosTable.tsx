@@ -25,7 +25,7 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from '@/components/ui/pagination';
-import { FileText, Eye, MessageCircle, Download, Loader2 } from 'lucide-react';
+import { FileText, Eye, MessageCircle, Download, Loader2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { JuliaContrato } from '../../types';
 import { formatDbDateTime, formatTimeDifference } from '@/lib/dateUtils';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
@@ -33,6 +33,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 const ITEMS_PER_PAGE = 20;
+
+type SortField = 'cod_agent' | 'signer_name' | 'whatsapp' | 'status_document' | 'data_contrato';
+type SortDirection = 'asc' | 'desc';
 
 interface ContratosTableProps {
   contratos: JuliaContrato[];
@@ -51,16 +54,12 @@ function formatWhatsAppNumber(number: string): string {
   const cleaned = number.replace(/\D/g, '');
   
   if (cleaned.length === 13) {
-    // Com código do país (55) + DDD (2) + número (9)
     return `+${cleaned.slice(0, 2)} (${cleaned.slice(2, 4)}) ${cleaned.slice(4, 9)}-${cleaned.slice(9)}`;
   } else if (cleaned.length === 12) {
-    // Com código do país (55) + DDD (2) + número (8)
     return `+${cleaned.slice(0, 2)} (${cleaned.slice(2, 4)}) ${cleaned.slice(4, 8)}-${cleaned.slice(8)}`;
   } else if (cleaned.length === 11) {
-    // Apenas DDD (2) + número (9)
     return `+55 (${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`;
   } else if (cleaned.length === 10) {
-    // Apenas DDD (2) + número (8)
     return `+55 (${cleaned.slice(0, 2)}) ${cleaned.slice(2, 6)}-${cleaned.slice(6)}`;
   }
   
@@ -78,6 +77,8 @@ export function ContratosTable({
   const [selectedContrato, setSelectedContrato] = useState<JuliaContrato | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   const filteredContratos = useMemo(() => {
     if (!searchTerm) return contratos;
@@ -92,14 +93,66 @@ export function ContratosTable({
     );
   }, [contratos, searchTerm]);
 
+  // Sort data
+  const sortedContratos = useMemo(() => {
+    if (!sortField) return filteredContratos;
+
+    return [...filteredContratos].sort((a, b) => {
+      let aValue: string | null = null;
+      let bValue: string | null = null;
+
+      switch (sortField) {
+        case 'cod_agent':
+          aValue = a.cod_agent || '';
+          bValue = b.cod_agent || '';
+          break;
+        case 'signer_name':
+          aValue = a.signer_name || '';
+          bValue = b.signer_name || '';
+          break;
+        case 'whatsapp':
+          aValue = a.whatsapp || '';
+          bValue = b.whatsapp || '';
+          break;
+        case 'status_document':
+          aValue = a.status_document || '';
+          bValue = b.status_document || '';
+          break;
+        case 'data_contrato':
+          aValue = a.data_contrato || '';
+          bValue = b.data_contrato || '';
+          break;
+      }
+
+      const comparison = String(aValue).localeCompare(String(bValue));
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [filteredContratos, sortField, sortDirection]);
+
   // Reset page when search term changes
   useMemo(() => {
     setCurrentPage(1);
   }, [searchTerm]);
 
-  const totalPages = Math.ceil(filteredContratos.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(sortedContratos.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedContratos = filteredContratos.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const paginatedContratos = sortedContratos.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />;
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="h-4 w-4 ml-1" /> 
+      : <ArrowDown className="h-4 w-4 ml-1" />;
+  };
 
   const handleOpenMessages = (contrato: JuliaContrato) => {
     setSelectedContrato(contrato);
@@ -121,7 +174,6 @@ export function ContratosTable({
     setDownloadingId(docToken);
 
     try {
-      // Use proxy endpoint to avoid S3 blocks from extensions
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
       
@@ -137,17 +189,14 @@ export function ContratosTable({
 
       const contentType = response.headers.get('Content-Type') || '';
 
-      // Check if response is JSON (error) or binary (PDF)
       if (contentType.includes('application/json')) {
         const data = await response.json();
         throw new Error(data.error || 'Erro ao obter documento');
       }
 
-      // It's a PDF - download via blob
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
       
-      // Extract filename from Content-Disposition or use fallback
       const disposition = response.headers.get('Content-Disposition');
       let fileName = `${contrato.signer_name || 'contrato'}.pdf`;
       if (disposition) {
@@ -182,6 +231,35 @@ export function ContratosTable({
     }
   };
 
+  const handleExportCSV = () => {
+    const headers = ['Agente', 'Nome Agente', 'Cliente', 'WhatsApp', 'Status', 'Data Contrato', 'Data Assinatura', 'Categoria'];
+    const rows = sortedContratos.map((c) => [
+      c.cod_agent,
+      c.name,
+      c.signer_name || '-',
+      c.whatsapp,
+      c.status_document,
+      formatDbDateTime(c.data_contrato),
+      c.data_assinatura ? formatDbDateTime(c.data_assinatura) : '-',
+      c.case_category_name || '-',
+    ]);
+
+    const csvContent = [
+      headers.join(';'),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(';')),
+    ].join('\n');
+
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `contratos-julia-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-2">
@@ -213,15 +291,73 @@ export function ContratosTable({
 
   return (
     <>
+      {/* Export Button */}
+      <div className="flex justify-end mb-4">
+        <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-2">
+          <Download className="h-4 w-4" />
+          Exportar CSV
+        </Button>
+      </div>
+
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Agente</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead className="text-center">WhatsApp</TableHead>
-              <TableHead className="text-center">Status</TableHead>
-              <TableHead className="text-center">Data Contrato</TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="-ml-3 h-8"
+                  onClick={() => handleSort('cod_agent')}
+                >
+                  Agente
+                  {getSortIcon('cod_agent')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="-ml-3 h-8"
+                  onClick={() => handleSort('signer_name')}
+                >
+                  Cliente
+                  {getSortIcon('signer_name')}
+                </Button>
+              </TableHead>
+              <TableHead className="text-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => handleSort('whatsapp')}
+                >
+                  WhatsApp
+                  {getSortIcon('whatsapp')}
+                </Button>
+              </TableHead>
+              <TableHead className="text-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => handleSort('status_document')}
+                >
+                  Status
+                  {getSortIcon('status_document')}
+                </Button>
+              </TableHead>
+              <TableHead className="text-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => handleSort('data_contrato')}
+                >
+                  Data Contrato
+                  {getSortIcon('data_contrato')}
+                </Button>
+              </TableHead>
               <TableHead className="w-[120px] text-center">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -344,7 +480,7 @@ export function ContratosTable({
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-4">
           <p className="text-sm text-muted-foreground">
-            Exibindo {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, filteredContratos.length)} de {filteredContratos.length} contratos
+            Exibindo {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, sortedContratos.length)} de {sortedContratos.length} contratos
           </p>
           <Pagination>
             <PaginationContent>

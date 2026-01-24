@@ -279,11 +279,10 @@ export function JuliaFilters({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">Todos</SelectItem>
-                  {statusOptions.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="CREATED">Criado</SelectItem>
+                  <SelectItem value="SIGNED">Assinado</SelectItem>
+                  <SelectItem value="PENDING">Pendente</SelectItem>
+                  <SelectItem value="CANCELLED">Cancelado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
