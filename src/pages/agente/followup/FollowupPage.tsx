@@ -288,6 +288,19 @@ export default function FollowupPage() {
         </div>
       </div>
 
+      {/* Filters - positioned right after header */}
+      {activeTab !== 'config' && (
+        <FollowupFilters
+          dateFrom={activeTab === 'dashboard' ? dashboardDateFrom : queueDateFrom}
+          dateTo={activeTab === 'dashboard' ? dashboardDateTo : queueDateTo}
+          stateFilter={stateFilter}
+          onDateFromChange={activeTab === 'dashboard' ? setDashboardDateFrom : setQueueDateFrom}
+          onDateToChange={activeTab === 'dashboard' ? setDashboardDateTo : setQueueDateTo}
+          onStateFilterChange={setStateFilter}
+          showStateFilter={activeTab === 'queue'}
+        />
+      )}
+
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
@@ -312,20 +325,10 @@ export default function FollowupPage() {
             isLoading={isLoadingDailyMetrics}
             dateFrom={dashboardDateFrom}
             dateTo={dashboardDateTo}
-            onDateFromChange={setDashboardDateFrom}
-            onDateToChange={setDashboardDateTo}
           />
         </TabsContent>
 
         <TabsContent value="queue" className="mt-6 space-y-4">
-          <FollowupFilters
-            dateFrom={queueDateFrom}
-            dateTo={queueDateTo}
-            stateFilter={stateFilter}
-            onDateFromChange={setQueueDateFrom}
-            onDateToChange={setQueueDateTo}
-            onStateFilterChange={setStateFilter}
-          />
           <FollowupQueue
             items={filteredItems}
             stepCadence={stepCadence}
