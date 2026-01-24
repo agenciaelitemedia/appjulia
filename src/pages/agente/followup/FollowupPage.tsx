@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { LayoutDashboard, List, Settings, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { AgentSearchSelect } from '@/components/AgentSearchSelect';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useJuliaAgents } from '@/pages/estrategico/hooks/useJuliaData';
@@ -285,27 +285,18 @@ export default function FollowupPage() {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Agent Selector */}
+          {/* Agent Selector with Search */}
           <div className="flex items-center gap-2">
-            <Label htmlFor="agent-select" className="text-sm whitespace-nowrap">
+            <Label className="text-sm whitespace-nowrap">
               Agente:
             </Label>
-            <Select
-              value={selectedAgent || ''}
+            <AgentSearchSelect
+              agents={agents}
+              value={selectedAgent}
               onValueChange={setSelectedAgent}
               disabled={isLoadingAgents}
-            >
-              <SelectTrigger id="agent-select" className="w-[200px]">
-                <SelectValue placeholder="Selecione um agente" />
-              </SelectTrigger>
-              <SelectContent>
-              {agents.map((agent) => (
-                  <SelectItem key={agent.cod_agent} value={agent.cod_agent}>
-                    [{agent.cod_agent}] - {agent.owner_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder="Selecione um agente"
+            />
           </div>
 
           <Button variant="outline" size="icon" onClick={handleRefresh}>
