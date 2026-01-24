@@ -936,15 +936,22 @@ export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
     staleTime: 1000 * 60,
   });
 
-  return useMemo((): { previous: FollowupPreviousStats; isLoading: boolean } => ({
-    previous: {
-      totalSent: sentCount,
-      stopped: returnData?.responses || 0,
-      responseRate: returnData?.returnRate || 0,
-      lossRate: returnData?.lossRate || 0,
-      total: queueTotals?.total || 0,
-      waiting: queueTotals?.waiting || 0,
-    },
-    isLoading: isLoadingSent || isLoadingReturn || isLoadingQueue,
-  }), [sentCount, returnData, queueTotals, isLoadingSent, isLoadingReturn, isLoadingQueue]);
+  return useMemo((): { previous: FollowupPreviousStats; isLoading: boolean } => {
+    const total = queueTotals?.total || 0;
+    const waiting = queueTotals?.waiting || 0;
+    const followupRate = total > 0 ? (waiting / total) * 100 : 0;
+
+    return {
+      previous: {
+        totalSent: sentCount,
+        stopped: returnData?.responses || 0,
+        responseRate: returnData?.returnRate || 0,
+        lossRate: returnData?.lossRate || 0,
+        total,
+        waiting,
+        followupRate,
+      },
+      isLoading: isLoadingSent || isLoadingReturn || isLoadingQueue,
+    };
+  }, [sentCount, returnData, queueTotals, isLoadingSent, isLoadingReturn, isLoadingQueue]);
 }

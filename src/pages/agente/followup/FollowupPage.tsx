@@ -179,27 +179,41 @@ export default function FollowupPage() {
   }, [filteredItems]);
 
   // Dashboard stats (using queue totals and return data) with previous period comparison
-  const dashboardStats: FollowupStats = useMemo(() => ({
-    total: queueTotals?.total || 0,           // From followup_queue (any status)
-    totalSent: dailyMetrics.reduce((sum, d) => sum + d.messagesSent, 0),
-    waiting: queueTotals?.waiting || 0,       // From followup_queue (state = 'SEND')
-    stopped: returnData?.responses || 0,      // COUNT(*) from followup_response
-    responseRate: returnData?.returnRate || 0, // Return Rate = (leads STOP + step<>0 with response / total) * 100
-    lossRate: returnData?.lossRate || 0,      // Loss Rate = (leads STOP + step=0 / total) * 100
-    previous: isLoadingPrevious ? undefined : previousStats,
-  }), [queueTotals, dailyMetrics, returnData, previousStats, isLoadingPrevious]);
+  const dashboardStats: FollowupStats = useMemo(() => {
+    const total = queueTotals?.total || 0;
+    const waiting = queueTotals?.waiting || 0;
+    const followupRate = total > 0 ? (waiting / total) * 100 : 0;
+
+    return {
+      total,           // From followup_queue (any status)
+      totalSent: dailyMetrics.reduce((sum, d) => sum + d.messagesSent, 0),
+      waiting,         // From followup_queue (state = 'SEND')
+      stopped: returnData?.responses || 0,      // COUNT(*) from followup_response
+      responseRate: returnData?.returnRate || 0, // Return Rate = (leads STOP + step<>0 with response / total) * 100
+      lossRate: returnData?.lossRate || 0,      // Loss Rate = (leads STOP + step=0 / total) * 100
+      followupRate,    // Followup Rate = (waiting / total) * 100
+      previous: isLoadingPrevious ? undefined : previousStats,
+    };
+  }, [queueTotals, dailyMetrics, returnData, previousStats, isLoadingPrevious]);
 
   // Queue page stats (local to queue tab)
-  const queuePageStats: FollowupStats = useMemo(() => ({
-    total: filteredItems.length,
-    totalSent: totalSentCount,
-    waiting: queueStats.waiting,
-    stopped: queueStats.stopped,
-    responseRate: filteredItems.length > 0 
-      ? (queueStats.stopped / filteredItems.length) * 100 
-      : 0,
-    lossRate: 0, // Not calculated locally for queue page
-  }), [filteredItems, totalSentCount, queueStats]);
+  const queuePageStats: FollowupStats = useMemo(() => {
+    const total = filteredItems.length;
+    const waiting = queueStats.waiting;
+    const followupRate = total > 0 ? (waiting / total) * 100 : 0;
+
+    return {
+      total,
+      totalSent: totalSentCount,
+      waiting,
+      stopped: queueStats.stopped,
+      responseRate: total > 0 
+        ? (queueStats.stopped / total) * 100 
+        : 0,
+      lossRate: 0, // Not calculated locally for queue page
+      followupRate,
+    };
+  }, [filteredItems, totalSentCount, queueStats]);
 
   // Mutations
   const saveConfigMutation = useSaveFollowupConfig();
