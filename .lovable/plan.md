@@ -1,271 +1,225 @@
 
-
-# Plano: Implementação da Página de FollowUP do Agente
+# Plano: Melhorias na Listagem de FollowUp
 
 ## Resumo
-Criar a página de configuração e monitoramento de FollowUP do agente Julia, replicando a funcionalidade do sistema PHP original. A página permitirá configurar as cadências de reengajamento automático e visualizar a fila de mensagens agendadas.
+Refatorar a fila de FollowUp para agrupar registros por agente e WhatsApp (trazendo apenas o mais recente), adicionar ordenação por colunas, atualizar os totalizadores para respeitar todos os filtros, e exibir etapa atual/total com status derivado inteligente.
 
 ---
 
-## Estrutura de Dados Identificada
+## Alterações por Arquivo
 
-### Tabela `followup_config` (Configuração por agente)
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| cod_agent | bigint | Código do agente |
-| step_cadence | jsonb | Intervalos de cada etapa (ex: "5 minutes", "1 days") |
-| msg_cadence | jsonb | Mensagens personalizadas por etapa (opcional) |
-| title_cadence | jsonb | Títulos amigáveis das etapas |
-| start_hours | smallint | Hora de início do envio (ex: 9) |
-| end_hours | smallint | Hora de fim do envio (ex: 19) |
-| auto_message | boolean | Gerar mensagem automática via IA |
-| followup_from | smallint | Etapa inicial do fluxo |
-| followup_to | smallint | Etapa final do fluxo |
+### 1. src/pages/agente/hooks/useFollowupData.ts
 
-### Tabela `followup_queue` (Fila de envios)
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| session_id | varchar | Número do WhatsApp do lead |
-| step_number | smallint | Etapa atual do followup |
-| send_date | timestamp | Data/hora agendada para envio |
-| state | varchar | SEND, QUEUE, STOP |
-| history | text | Contexto da conversa |
-| name_client | varchar | Nome do cliente |
+**Mudanças na query `useFollowupQueue`:**
+- Usar `DISTINCT ON (cod_agent, session_id)` para agrupar e trazer apenas o registro mais recente
+- Ordenar por `cod_agent, session_id, send_date DESC` para garantir o mais recente primeiro
+
+**Mudanças na query `useFollowupQueueStats`:**
+- Receber `FollowupFiltersState` completo em vez de apenas `agentCodes`
+- Aplicar filtros de data e estado na contagem
+- Usar mesma lógica de agrupamento `DISTINCT ON` para evitar contagem duplicada
+
+**Nova Query SQL para fila:**
+```sql
+SELECT DISTINCT ON (cod_agent, session_id)
+  id, cod_agent, session_id, step_number, send_date,
+  state, history, name_client, created_at, hub, chat_memory
+FROM followup_queue
+WHERE cod_agent IN ($agentCodes)
+  AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $dateFrom
+  AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $dateTo
+  [AND state = $state]
+ORDER BY cod_agent, session_id, send_date DESC
+```
+
+**Nova Query SQL para estatisticas:**
+```sql
+WITH unique_queue AS (
+  SELECT DISTINCT ON (cod_agent, session_id)
+    cod_agent, session_id, state
+  FROM followup_queue
+  WHERE cod_agent IN ($agentCodes)
+    AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $dateFrom
+    AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $dateTo
+    [AND state = $state]
+  ORDER BY cod_agent, session_id, send_date DESC
+)
+SELECT state, COUNT(*)::text as count
+FROM unique_queue
+GROUP BY state
+```
 
 ---
 
-## Arquivos a Criar
+### 2. src/pages/agente/types.ts
+
+**Adicionar novo tipo para item enriquecido:**
+```typescript
+export interface FollowupQueueItemEnriched extends FollowupQueueItem {
+  total_steps: number;      // Total de etapas configuradas
+  derived_status: 'sent' | 'waiting' | 'stopped';  // Status derivado
+}
+```
+
+---
+
+### 3. src/pages/agente/followup/FollowupPage.tsx
+
+**Mudanças:**
+- Passar `filters` completo para `useFollowupQueueStats` em vez de apenas `agentCodes`
+- Calcular `total_steps` a partir da configuração do agente (`config.step_cadence`)
+- Enriquecer cada item da fila com `total_steps` e `derived_status`
+- Passar configuração para o componente `FollowupQueue`
+
+**Lógica de status derivado:**
+```typescript
+function getDerivedStatus(item: FollowupQueueItem, totalSteps: number): 'sent' | 'waiting' | 'stopped' {
+  if (item.state === 'STOP') return 'stopped';
+  if (item.state === 'SEND' && item.step_number >= totalSteps) return 'sent';
+  return 'waiting'; // QUEUE ou SEND no meio do processo
+}
+```
+
+---
+
+### 4. src/pages/agente/followup/components/FollowupQueue.tsx
+
+**Adicionar Sistema de Ordenação:**
+- Novo estado: `sortField` e `sortDirection`
+- Campos ordenáveis: `session_id`, `name_client`, `step_number`, `derived_status`, `send_date`
+- Cabeçalhos clicáveis com ícones de ordenação (ArrowUpDown, ArrowUp, ArrowDown)
+
+**Atualizar Coluna de Etapa:**
+- Exibir badges estilizados: etapa atual (primário) e total (secundário)
+- Formato visual: `[2] / [4]` usando componentes Badge
+
+**Atualizar Coluna de Status:**
+- Novo status derivado com cores:
+  - `sent` (Enviado): Verde - chegou na última etapa e foi enviado
+  - `waiting` (Aguardando): Amarelo - ainda no meio do processo
+  - `stopped` (Parado): Cinza - pausado manualmente
+
+**Nova Props:**
+```typescript
+interface FollowupQueueProps {
+  items: FollowupQueueItemEnriched[];  // Atualizado
+  // ... resto igual
+}
+```
+
+**Componente de Badge de Etapa:**
+```tsx
+function StepBadge({ current, total }: { current: number; total: number }) {
+  return (
+    <div className="flex items-center justify-center gap-1">
+      <Badge variant="default" className="text-xs px-2">
+        {current}
+      </Badge>
+      <span className="text-muted-foreground">/</span>
+      <Badge variant="outline" className="text-xs px-2">
+        {total}
+      </Badge>
+    </div>
+  );
+}
+```
+
+**Componente de Status Derivado:**
+```tsx
+const DERIVED_STATUS_CONFIG = {
+  sent: { label: 'Enviado', className: 'bg-green-500/10 text-green-600 border-green-500/20' },
+  waiting: { label: 'Aguardando', className: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20' },
+  stopped: { label: 'Parado', className: 'bg-muted text-muted-foreground' },
+};
+```
+
+---
+
+## Fluxo de Dados
 
 ```text
-src/pages/agente/
-    |-- followup/
-    |       |-- FollowupPage.tsx           # Página principal
-    |       |-- components/
-    |       |       |-- FollowupConfig.tsx       # Configuração das cadências
-    |       |       |-- FollowupQueue.tsx        # Tabela da fila
-    |       |       |-- FollowupSummary.tsx      # Cards de resumo
-    |       |       |-- CadenceStepEditor.tsx    # Editor de etapas
-    |-- types.ts                            # Tipos TypeScript
-    |-- hooks/
-            |-- useFollowupData.ts          # Hooks de dados
+FollowupPage
+    |
+    |-- useFollowupConfig(selectedAgent) -> config
+    |-- useFollowupQueue(filters) -> items (agrupados)
+    |-- useFollowupQueueStats(filters) -> stats (agrupados + filtrados)
+    |
+    |-- Calcula total_steps = Object.keys(config.step_cadence).length
+    |-- Enriquece items com total_steps e derived_status
+    |
+    +-- FollowupQueue
+    |       |-- items (enriquecidos)
+    |       |-- Ordenação client-side
+    |       |-- Paginação (20/página)
+    |
+    +-- FollowupSummary
+            |-- stats (reflete filtros)
 ```
 
 ---
 
-## Componentes Principais
-
-### 1. FollowupPage.tsx
-Página principal com duas abas:
-- **Configuração**: Formulário para editar cadências do agente
-- **Fila de Envios**: Tabela com mensagens pendentes/enviadas
-
-### 2. FollowupConfig.tsx
-Formulário de configuração contendo:
-- Toggle "Mensagem Automática" (auto_message)
-- Seletor de horário de funcionamento (start_hours/end_hours)
-- Editor de etapas (cadence_1, cadence_2, etc.)
-  - Título da etapa
-  - Intervalo (5 min, 15 min, 1 dia, etc.)
-  - Mensagem personalizada (opcional)
-- Botões Adicionar/Remover etapa
-- Botão Salvar
-
-### 3. FollowupQueue.tsx
-Tabela com colunas:
-- WhatsApp (session_id)
-- Nome do Cliente
-- Etapa Atual
-- Status (SEND/QUEUE/STOP)
-- Data Agendada
-- Última Mensagem (history truncado)
-- Ações (Ver chat, Pausar, Remover)
-
-### 4. FollowupSummary.tsx
-Cards de métricas:
-- Total na Fila
-- Aguardando Envio (QUEUE)
-- Enviados (SEND)
-- Pausados (STOP)
-
----
-
-## Interface de Configuração
+## Interface Visual Atualizada
 
 ```text
-+----------------------------------------------------------+
-|  FollowUP - Configuração do Agente                       |
-+----------------------------------------------------------+
-|                                                          |
-|  [x] Mensagem Automática (gerada pela IA Julia)          |
-|                                                          |
-|  Horário de Envio: [09:00] às [19:00]                   |
-|                                                          |
-|  +----------------------------------------------------+  |
-|  | Etapa 1: 5 minutos                                 |  |
-|  | Título: "Primeiro contato"                         |  |
-|  | Mensagem: (automática)                     [Editar]|  |
-|  +----------------------------------------------------+  |
-|  | Etapa 2: 15 minutos                                |  |
-|  | Título: "Reforço"                                  |  |
-|  | Mensagem: (automática)                     [Editar]|  |
-|  +----------------------------------------------------+  |
-|  | Etapa 3: 1 dia                                     |  |
-|  | Título: "Dia seguinte"                             |  |
-|  | Mensagem: (automática)                     [Editar]|  |
-|  +----------------------------------------------------+  |
-|                                                          |
-|  [+ Adicionar Etapa]                                     |
-|                                                          |
-|  [Salvar Configurações]                                  |
-+----------------------------------------------------------+
++------------------------------------------------------------------+
+| Etapa  | Status     | WhatsApp          | Cliente    | Agendado  |
++--------+------------+-------------------+------------+-----------+
+| [2]/[4]| Aguardando | +55 (34) 9999-... | João Silva | 24/01 ... |
+| [4]/[4]| Enviado    | +55 (11) 8888-... | Maria ...  | 23/01 ... |
+| [1]/[3]| Parado     | +55 (21) 7777-... | Pedro ...  | 22/01 ... |
++------------------------------------------------------------------+
+         ^             ^                                  ^
+         |             |                                  |
+    Clicável      Clicável                           Clicável
+    (ordena)      (ordena)                           (ordena)
 ```
 
 ---
 
-## Hooks de Dados
+## Detalhes Técnicos
 
-### useFollowupConfig(codAgent)
+### Agrupamento por DISTINCT ON
+PostgreSQL permite `DISTINCT ON` que retorna a primeira linha de cada grupo:
+```sql
+SELECT DISTINCT ON (cod_agent, session_id) *
+FROM followup_queue
+ORDER BY cod_agent, session_id, send_date DESC
+```
+Isso garante apenas 1 registro por combinação agente+WhatsApp (o mais recente).
+
+### Ordenação Client-Side
+Seguir padrão de `ContratosTable.tsx`:
+- Estado `sortField` e `sortDirection`
+- `useMemo` para ordenar dados filtrados
+- Ícones dinâmicos nos cabeçalhos
+
+### Paginação
+- Manter `ITEMS_PER_PAGE = 20`
+- Reset para página 1 quando mudar ordenação ou filtros
+
+### Cálculo do Total de Etapas
 ```typescript
-// Busca configuração atual do agente
-SELECT * FROM followup_config WHERE cod_agent = $1
-
-// Salva configuração
-UPDATE followup_config SET 
-  step_cadence = $2,
-  msg_cadence = $3,
-  title_cadence = $4,
-  start_hours = $5,
-  end_hours = $6,
-  auto_message = $7
-WHERE cod_agent = $1
-```
-
-### useFollowupQueue(filters)
-```typescript
-// Busca fila de followups com filtros
-SELECT 
-  fq.id, fq.session_id, fq.step_number, fq.send_date,
-  fq.state, fq.history, fq.name_client, fq.created_at
-FROM followup_queue fq
-WHERE fq.cod_agent = $1
-  AND fq.created_at >= $2
-  AND fq.created_at <= $3
-ORDER BY fq.send_date DESC
+const totalSteps = config?.step_cadence 
+  ? Object.keys(parseJsonField(config.step_cadence, {})).length 
+  : 3; // fallback
 ```
 
 ---
 
-## Tipos TypeScript
+## Ordem de Implementação
 
-```typescript
-interface FollowupConfig {
-  id: number;
-  cod_agent: string;
-  step_cadence: Record<string, string>;   // { cadence_1: "5 minutes", ... }
-  msg_cadence: Record<string, string | null>;
-  title_cadence: Record<string, string>;
-  start_hours: number;
-  end_hours: number;
-  auto_message: boolean;
-  followup_from: number | null;
-  followup_to: number | null;
-  created_at: string;
-  updated_at: string;
-}
+1. **useFollowupData.ts**
+   - Atualizar `useFollowupQueue` com `DISTINCT ON`
+   - Atualizar `useFollowupQueueStats` para receber filters completos
 
-interface FollowupQueueItem {
-  id: number;
-  cod_agent: string;
-  session_id: string;
-  step_number: number;
-  send_date: string;
-  state: 'SEND' | 'QUEUE' | 'STOP';
-  history: string | null;
-  name_client: string;
-  created_at: string;
-  hub: string;
-  chat_memory: string;
-}
-```
+2. **types.ts**
+   - Adicionar `FollowupQueueItemEnriched`
 
----
+3. **FollowupPage.tsx**
+   - Passar filters para stats
+   - Calcular e enriquecer items
 
-## Alterações em Arquivos Existentes
-
-### src/App.tsx
-Adicionar rota:
-```typescript
-import FollowupPage from './pages/agente/followup/FollowupPage';
-
-<Route path="/agente/followup" element={<FollowupPage />} />
-```
-
----
-
-## Funcionalidades da Fila
-
-### Estados da Fila
-| Estado | Descrição | Cor |
-|--------|-----------|-----|
-| QUEUE | Aguardando horário de envio | Amarelo |
-| SEND | Mensagem já enviada | Verde |
-| STOP | Pausado (lead respondeu) | Cinza |
-
-### Ações na Fila
-- **Ver Chat**: Abre WhatsAppMessagesDialog
-- **Pausar**: Altera state para STOP
-- **Remover**: Remove da fila
-
----
-
-## Implementação Passo a Passo
-
-1. **Criar estrutura de pastas e tipos**
-   - src/pages/agente/types.ts
-   - src/pages/agente/hooks/useFollowupData.ts
-
-2. **Criar componentes de UI**
-   - FollowupSummary.tsx (cards de resumo)
-   - FollowupQueue.tsx (tabela da fila)
-   - FollowupConfig.tsx (formulário de configuração)
-   - CadenceStepEditor.tsx (editor de etapas)
-
-3. **Criar página principal**
-   - FollowupPage.tsx com abas Configuração/Fila
-
-4. **Registrar rota**
-   - Adicionar em App.tsx
-
-5. **Testar e ajustar**
-   - Verificar queries SQL
-   - Testar salvamento de configuração
-   - Validar filtros e paginação
-
----
-
-## Seção Técnica
-
-### Padrões a Seguir
-- Usar `externalDb.raw()` para consultas SQL (mesmo padrão das outras páginas)
-- Timezone: `(created_at AT TIME ZONE 'America/Sao_Paulo')::date`
-- Filtros: Reutilizar componente JuliaFilters com adaptações
-- Paginação: 20 itens por página (ITEMS_PER_PAGE)
-- Toast notifications via `useToast()`
-
-### Estrutura JSONB das Cadências
-O banco armazena as cadências como objetos JSONB com chaves dinâmicas:
-```json
-{
-  "cadence_1": "5 minutes",
-  "cadence_2": "15 minutes", 
-  "cadence_3": "1 days"
-}
-```
-
-A interface deve permitir adicionar/remover etapas dinamicamente, atualizando as chaves sequencialmente.
-
-### Opções de Intervalo
-- 5 minutes, 10 minutes, 15 minutes, 30 minutes
-- 1 hours, 2 hours, 4 hours, 8 hours
-- 1 days, 2 days, 3 days, 7 days
-
+4. **FollowupQueue.tsx**
+   - Adicionar ordenação
+   - Atualizar coluna Etapa com badges
+   - Atualizar coluna Status com derivado
