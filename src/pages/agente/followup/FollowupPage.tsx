@@ -20,12 +20,16 @@ import { FollowupFiltersState, FollowupConfig as FollowupConfigType } from '../t
 import { FollowupSummary } from './components/FollowupSummary';
 import { FollowupConfig } from './components/FollowupConfig';
 import { FollowupQueue } from './components/FollowupQueue';
+import { FollowupFilters } from './components/FollowupFilters';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 
 export default function FollowupPage() {
   const { user } = useAuth();
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('queue');
+  const [dateFrom, setDateFrom] = useState<string>(getTodayInSaoPaulo());
+  const [dateTo, setDateTo] = useState<string>(getTodayInSaoPaulo());
+  const [stateFilter, setStateFilter] = useState<string>('all');
 
   // Fetch agents
   const { data: agents = [], isLoading: isLoadingAgents } = useJuliaAgents();
@@ -45,9 +49,10 @@ export default function FollowupPage() {
   // Filters for queue
   const filters: FollowupFiltersState = useMemo(() => ({
     agentCodes: selectedAgent ? [selectedAgent] : [],
-    dateFrom: getTodayInSaoPaulo(),
-    dateTo: getTodayInSaoPaulo(),
-  }), [selectedAgent]);
+    dateFrom,
+    dateTo,
+    state: stateFilter,
+  }), [selectedAgent, dateFrom, dateTo, stateFilter]);
 
   // Fetch data
   const { data: configData, isLoading: isLoadingConfig, refetch: refetchConfig } = useFollowupConfig(selectedAgent);
@@ -155,7 +160,15 @@ export default function FollowupPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="queue" className="mt-6">
+        <TabsContent value="queue" className="mt-6 space-y-4">
+          <FollowupFilters
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            stateFilter={stateFilter}
+            onDateFromChange={setDateFrom}
+            onDateToChange={setDateTo}
+            onStateFilterChange={setStateFilter}
+          />
           <FollowupQueue
             items={queueItems}
             isLoading={isLoadingQueue}
