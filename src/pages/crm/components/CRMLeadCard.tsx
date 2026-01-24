@@ -8,19 +8,7 @@ import { CRMCard } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { WhatsAppMessagesDialog } from './WhatsAppMessagesDialog';
-
-function formatDateTimeSaoPaulo(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleString('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    day: '2-digit',
-    month: '2-digit',
-    year: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-}
+import { formatDateTimeSaoPaulo } from '@/lib/dateUtils';
 
 interface CRMLeadCardProps {
   card: CRMCard;
@@ -51,7 +39,6 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
   };
 
   const truncatedBusinessName = truncateText(card.owner_business_name, 20);
-  const badgeText = `[${card.cod_agent}]${truncatedBusinessName ? ` - ${truncatedBusinessName}` : ''}`;
   const fullTooltip = card.owner_name || card.owner_business_name
     ? `${card.owner_name || ''}${card.owner_name && card.owner_business_name ? ' • ' : ''}${card.owner_business_name || ''}`
     : card.cod_agent;
@@ -135,6 +122,10 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
               <div className="flex items-center gap-1.5 text-muted-foreground/70 pt-1">
                 <Clock className="h-3 w-3" />
                 <span>Na fase: {timeInStage}</span>
+              </div>
+              {/* Indicador de timezone */}
+              <div className="text-[10px] text-muted-foreground/50 text-right pt-0.5">
+                🇧🇷 Horário de Brasília
               </div>
             </div>
           </div>
