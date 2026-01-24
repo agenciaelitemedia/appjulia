@@ -299,9 +299,9 @@ export default function FollowupPage() {
                 <SelectValue placeholder="Selecione um agente" />
               </SelectTrigger>
               <SelectContent>
-                {agents.map((agent) => (
+              {agents.map((agent) => (
                   <SelectItem key={agent.cod_agent} value={agent.cod_agent}>
-                    {agent.owner_name}
+                    [{agent.cod_agent}] - {agent.owner_name}
                   </SelectItem>
                 ))}
               </SelectContent>
