@@ -8,6 +8,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Pagination,
@@ -18,20 +19,26 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from '@/components/ui/pagination';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, ArrowUpDown, ArrowUp, ArrowDown, Download } from 'lucide-react';
 import { JuliaSessao } from '../../types';
 import { formatDbDateTime } from '@/lib/dateUtils';
 
 const ITEMS_PER_PAGE = 20;
 
+type SortField = 'cod_agent' | 'whatsapp' | 'perfil_agent' | 'total_msg' | 'created_at' | 'max_created_at' | 'status_document';
+type SortDirection = 'asc' | 'desc';
+
 interface DesempenhoTableProps {
   sessoes: JuliaSessao[];
   isLoading?: boolean;
   searchTerm?: string;
+  onExport?: (data: JuliaSessao[]) => void;
 }
 
-export function DesempenhoTable({ sessoes, isLoading, searchTerm = '' }: DesempenhoTableProps) {
+export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport }: DesempenhoTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   const filteredSessoes = useMemo(() => {
     if (!searchTerm) return sessoes;
@@ -45,14 +52,107 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '' }: Desempe
     );
   }, [sessoes, searchTerm]);
 
+  // Sort data
+  const sortedSessoes = useMemo(() => {
+    if (!sortField) return filteredSessoes;
+
+    return [...filteredSessoes].sort((a, b) => {
+      let aValue: string | number | null = null;
+      let bValue: string | number | null = null;
+
+      switch (sortField) {
+        case 'cod_agent':
+          aValue = a.cod_agent || '';
+          bValue = b.cod_agent || '';
+          break;
+        case 'whatsapp':
+          aValue = a.whatsapp || '';
+          bValue = b.whatsapp || '';
+          break;
+        case 'perfil_agent':
+          aValue = a.perfil_agent || '';
+          bValue = b.perfil_agent || '';
+          break;
+        case 'total_msg':
+          aValue = a.total_msg || 0;
+          bValue = b.total_msg || 0;
+          break;
+        case 'created_at':
+          aValue = a.created_at || '';
+          bValue = b.created_at || '';
+          break;
+        case 'max_created_at':
+          aValue = a.max_created_at || '';
+          bValue = b.max_created_at || '';
+          break;
+        case 'status_document':
+          aValue = a.status_document || '';
+          bValue = b.status_document || '';
+          break;
+      }
+
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+
+      const comparison = String(aValue).localeCompare(String(bValue));
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [filteredSessoes, sortField, sortDirection]);
+
   // Reset page when search term changes
   useMemo(() => {
     setCurrentPage(1);
   }, [searchTerm]);
 
-  const totalPages = Math.ceil(filteredSessoes.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(sortedSessoes.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedSessoes = filteredSessoes.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const paginatedSessoes = sortedSessoes.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />;
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="h-4 w-4 ml-1" /> 
+      : <ArrowDown className="h-4 w-4 ml-1" />;
+  };
+
+  const handleExportCSV = () => {
+    const headers = ['Agente', 'Nome', 'WhatsApp', 'Perfil', 'Mensagens', 'Início', 'Última Msg', 'Status'];
+    const rows = sortedSessoes.map((s) => [
+      s.cod_agent,
+      s.name,
+      s.whatsapp,
+      s.perfil_agent,
+      s.total_msg,
+      formatDbDateTime(s.created_at),
+      s.max_created_at ? formatDbDateTime(s.max_created_at) : '-',
+      s.status_document || '-',
+    ]);
+
+    const csvContent = [
+      headers.join(';'),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(';')),
+    ].join('\n');
+
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `desempenho-julia-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   if (isLoading) {
     return (
@@ -94,17 +194,95 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '' }: Desempe
 
   return (
     <div className="space-y-4">
+      {/* Export Button */}
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-2">
+          <Download className="h-4 w-4" />
+          Exportar CSV
+        </Button>
+      </div>
+
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Agente</TableHead>
-              <TableHead>WhatsApp</TableHead>
-              <TableHead>Perfil</TableHead>
-              <TableHead className="text-right">Mensagens</TableHead>
-              <TableHead>Início</TableHead>
-              <TableHead>Última Msg</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="-ml-3 h-8"
+                  onClick={() => handleSort('cod_agent')}
+                >
+                  Agente
+                  {getSortIcon('cod_agent')}
+                </Button>
+              </TableHead>
+              <TableHead className="text-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => handleSort('whatsapp')}
+                >
+                  WhatsApp
+                  {getSortIcon('whatsapp')}
+                </Button>
+              </TableHead>
+              <TableHead className="text-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => handleSort('perfil_agent')}
+                >
+                  Perfil
+                  {getSortIcon('perfil_agent')}
+                </Button>
+              </TableHead>
+              <TableHead className="text-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => handleSort('total_msg')}
+                >
+                  Mensagens
+                  {getSortIcon('total_msg')}
+                </Button>
+              </TableHead>
+              <TableHead className="text-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => handleSort('created_at')}
+                >
+                  Início
+                  {getSortIcon('created_at')}
+                </Button>
+              </TableHead>
+              <TableHead className="text-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => handleSort('max_created_at')}
+                >
+                  Última Msg
+                  {getSortIcon('max_created_at')}
+                </Button>
+              </TableHead>
+              <TableHead className="text-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => handleSort('status_document')}
+                >
+                  Status
+                  {getSortIcon('status_document')}
+                </Button>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -118,7 +296,7 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '' }: Desempe
                     </p>
                   </div>
                 </TableCell>
-                <TableCell>
+                <TableCell className="text-center">
                   <a
                     href={`https://wa.me/${sessao.whatsapp?.replace(/\D/g, '')}`}
                     target="_blank"
@@ -128,21 +306,21 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '' }: Desempe
                     {sessao.whatsapp}
                   </a>
                 </TableCell>
-                <TableCell>
+                <TableCell className="text-center">
                   <Badge variant="secondary" className={getPerfilBadge(sessao.perfil_agent).className}>
                     {sessao.perfil_agent}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-right font-medium">
+                <TableCell className="text-center font-medium">
                   {sessao.total_msg?.toLocaleString('pt-BR')}
                 </TableCell>
-                <TableCell className="text-sm">
+                <TableCell className="text-center text-sm">
                   {formatDbDateTime(sessao.created_at)}
                 </TableCell>
-                <TableCell className="text-sm">
+                <TableCell className="text-center text-sm">
                   {sessao.max_created_at ? formatDbDateTime(sessao.max_created_at) : '-'}
                 </TableCell>
-                <TableCell>
+                <TableCell className="text-center">
                   {sessao.status_document ? (
                     <Badge variant="secondary" className={getStatusBadge(sessao.status_document).className}>
                       {sessao.status_document}
@@ -161,7 +339,7 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '' }: Desempe
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Exibindo {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, filteredSessoes.length)} de {filteredSessoes.length} sessões
+            Exibindo {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, sortedSessoes.length)} de {sortedSessoes.length} sessões
           </p>
           <Pagination>
             <PaginationContent>
