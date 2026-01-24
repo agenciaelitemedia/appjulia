@@ -36,21 +36,32 @@ export interface CadenceStep {
   message: string | null; // Custom message or null for auto
 }
 
-// Interval options for cadence configuration
-export const INTERVAL_OPTIONS = [
-  { value: '5 minutes', label: '5 minutos' },
-  { value: '10 minutes', label: '10 minutos' },
-  { value: '15 minutes', label: '15 minutos' },
-  { value: '30 minutes', label: '30 minutos' },
-  { value: '1 hours', label: '1 hora' },
-  { value: '2 hours', label: '2 horas' },
-  { value: '4 hours', label: '4 horas' },
-  { value: '8 hours', label: '8 horas' },
-  { value: '1 days', label: '1 dia' },
-  { value: '2 days', label: '2 dias' },
-  { value: '3 days', label: '3 dias' },
-  { value: '7 days', label: '7 dias' },
+// Unidades de intervalo para o select
+export const INTERVAL_UNITS = [
+  { value: 'minutes', label: 'Minutos' },
+  { value: 'hours', label: 'Horas' },
+  { value: 'days', label: 'Dias' },
 ] as const;
+
+// Limites de etapas e mensagens
+export const STEP_LIMITS = {
+  MAX_STEPS: 50,
+  MIN_INTERVAL_MINUTES: 5,
+  MIN_MESSAGE_WORDS: 3,
+  MAX_MESSAGE_CHARS: 300,
+} as const;
+
+// Funções utilitárias para intervalo
+export function parseInterval(interval: string): { value: number; unit: string } {
+  const match = interval.match(/^(\d+)\s+(minutes|hours|days)$/);
+  return match
+    ? { value: parseInt(match[1], 10), unit: match[2] }
+    : { value: 5, unit: 'minutes' };
+}
+
+export function formatInterval(value: number, unit: string): string {
+  return `${value} ${unit}`;
+}
 
 // Hour options for start/end hours
 export const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => ({
