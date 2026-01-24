@@ -12,6 +12,8 @@ import CRMPage from "./pages/crm/CRMPage";
 import CRMStatisticsPage from "./pages/crm/statistics/CRMStatisticsPage";
 import CRMMonitoringPage from "./pages/crm/monitoring/CRMMonitoringPage";
 import AgentsList from "./pages/agents/AgentsList";
+import DesempenhoPage from "./pages/estrategico/desempenho/DesempenhoPage";
+import ContratosPage from "./pages/estrategico/contratos/ContratosPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +35,8 @@ const App = () => (
                 <Route path="/crm/lead-estatisticas" element={<CRMStatisticsPage />} />
                 <Route path="/crm/lead-monitoramento" element={<CRMMonitoringPage />} />
                 <Route path="/admin/agentes" element={<AgentsList />} />
+                <Route path="/estrategico/desempenho" element={<DesempenhoPage />} />
+                <Route path="/estrategico/contratos" element={<ContratosPage />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
