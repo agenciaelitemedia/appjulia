@@ -3,6 +3,47 @@ import { externalDb } from '@/lib/externalDb';
 import { FollowupConfig, FollowupQueueItem, FollowupFiltersState } from '../types';
 import { useToast } from '@/hooks/use-toast';
 
+// Fetch total sent messages count (all SEND records, not grouped)
+export function useFollowupSentCount(filters: FollowupFiltersState) {
+  return useQuery({
+    queryKey: ['followup-sent-count', filters],
+    queryFn: async () => {
+      if (!filters.agentCodes.length) return 0;
+
+      const agentPlaceholders = filters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
+      const params: (string | number)[] = [...filters.agentCodes];
+
+      let whereClause = `cod_agent IN (${agentPlaceholders})`;
+
+      // Date filters
+      if (filters.dateFrom) {
+        whereClause += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
+        params.push(filters.dateFrom);
+      }
+      if (filters.dateTo) {
+        whereClause += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
+        params.push(filters.dateTo);
+      }
+
+      // Count ALL records with state='SEND' (not grouped by lead)
+      const result = await externalDb.raw<{ count: string }[]>({
+        query: `
+          SELECT COUNT(*)::text as count
+          FROM followup_queue
+          WHERE ${whereClause}
+            AND state = 'SEND'
+        `,
+        params,
+      });
+
+      const flatResult = Array.isArray(result) ? result.flat() : [];
+      return parseInt(flatResult[0]?.count || '0', 10);
+    },
+    enabled: filters.agentCodes.length > 0,
+    staleTime: 1000 * 30,
+  });
+}
+
 // Fetch followup configuration for an agent
 export function useFollowupConfig(codAgent: string | null) {
   return useQuery({
