@@ -1,416 +1,403 @@
 
-
-# Comparativo com Período Anterior nos Cards do Dashboard
+# Ajustar Contadores e Gráficos para Usar Tabela followup_response
 
 ## Resumo
-Adicionar indicadores de evolução (positivo/negativo) em todos os 5 cards do Dashboard de FollowUp, comparando as métricas atuais com o período equivalente anterior.
+
+Modificar a contagem de respostas e os gráficos do Dashboard de FollowUp para usar a nova tabela `followup_response` ao invés de contar registros com `state = 'STOP'` na `followup_queue`. Cada registro na `followup_response` representa uma resposta/retorno real do lead à conversa.
 
 ---
 
-## Lógica de Cálculo do Período Anterior
+## Mudança de Lógica
 
-O período anterior será calculado automaticamente com base no intervalo selecionado:
+| Antes (Atual) | Depois (Novo) |
+|---------------|---------------|
+| `COUNT(*) FILTER (WHERE state = 'STOP')` em `followup_queue` | `COUNT(*)` em `followup_response` |
+| Taxa baseada em paradas | Taxa baseada em respostas reais |
 
-| Período Atual | Período Anterior |
-|---------------|------------------|
-| 17/01 a 24/01 (7 dias) | 10/01 a 17/01 |
-| 24/01 (hoje, 1 dia) | 23/01 (ontem) |
-| 01/01 a 31/01 (30 dias) | 02/12 a 01/01 |
+### Estrutura da Tabela followup_response
 
-**Fórmula:**
-- `previousDateFrom` = `dateFrom` - (duração do período)
-- `previousDateTo` = `dateFrom` - 1 dia
-
----
-
-## Visual dos Cards com Comparativo
-
-```text
-+--------------------------------+
-|  Mensagens Enviadas            |
-|  1.234                         |
-|  ▲ +15.3% vs anterior   [icon] |
-+--------------------------------+
-
-+--------------------------------+
-|  Taxa de Resposta              |
-|  23.5%                         |
-|  ▼ -2.1pp vs anterior   [icon] |
-+--------------------------------+
+```sql
+CREATE TABLE followup_response (
+    id bigserial NOT NULL,
+    followup_queue_id bigint,
+    step_number smallint,
+    created_at timestamp DEFAULT now()
+)
 ```
 
-- **Seta verde (▲)**: valor atual maior que anterior (positivo)
-- **Seta vermelha (▼)**: valor atual menor que anterior (negativo)
-- **Cinza**: sem variação ou dados insuficientes
-- **pp**: pontos percentuais (para Taxa de Resposta)
+- Cada registro = 1 resposta do lead
+- `followup_queue_id` liga ao lead na fila
+- `created_at` indica quando respondeu
 
 ---
 
 ## Arquivos a Modificar
 
-### 1. src/lib/dateUtils.ts
-Adicionar função para calcular período anterior:
+### 1. src/pages/agente/hooks/useFollowupData.ts
+
+#### A) Novo hook: `useFollowupResponseCount`
+
+Contar respostas da tabela `followup_response`:
 
 ```typescript
-export function getPreviousPeriod(dateFrom: string, dateTo: string): { 
-  previousDateFrom: string; 
-  previousDateTo: string;
-} {
-  const from = parseISO(dateFrom);
-  const to = parseISO(dateTo);
-  const durationDays = differenceInDays(to, from) + 1;
-  
-  const previousTo = subDays(from, 1);
-  const previousFrom = subDays(previousTo, durationDays - 1);
-  
-  return {
-    previousDateFrom: format(previousFrom, 'yyyy-MM-dd'),
-    previousDateTo: format(previousTo, 'yyyy-MM-dd'),
-  };
-}
-```
+export function useFollowupResponseCount(filters: FollowupFiltersState) {
+  return useQuery({
+    queryKey: ['followup-response-count', filters],
+    queryFn: async () => {
+      if (!filters.agentCodes.length) return 0;
 
----
+      const agentPlaceholders = filters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
+      const params: (string | number)[] = [...filters.agentCodes];
 
-### 2. src/pages/agente/types.ts
-Estender interface `FollowupStats` para incluir dados do período anterior:
+      let whereClause = `fq.cod_agent IN (${agentPlaceholders})`;
 
-```typescript
-export interface FollowupStats {
-  total: number;
-  totalSent: number;
-  waiting: number;
-  stopped: number;
-  responseRate: number;
-  // Dados do período anterior
-  previous?: {
-    total: number;
-    totalSent: number;
-    waiting: number;
-    stopped: number;
-    responseRate: number;
-  };
-}
-```
+      if (filters.dateFrom) {
+        whereClause += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
+        params.push(filters.dateFrom);
+      }
+      if (filters.dateTo) {
+        whereClause += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
+        params.push(filters.dateTo);
+      }
 
----
+      const result = await externalDb.raw<{ total: string }[]>({
+        query: `
+          SELECT COUNT(*)::text as total
+          FROM followup_response fr
+          JOIN followup_queue fq ON fq.id = fr.followup_queue_id
+          WHERE ${whereClause}
+        `,
+        params,
+      });
 
-### 3. src/pages/agente/hooks/useFollowupData.ts
-Criar novo hook `useFollowupPreviousPeriodStats` para buscar dados do período anterior:
-
-```typescript
-export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
-  // Calcular período anterior
-  const previousPeriod = useMemo(() => {
-    if (!filters.dateFrom || !filters.dateTo) return null;
-    return getPreviousPeriod(filters.dateFrom, filters.dateTo);
-  }, [filters.dateFrom, filters.dateTo]);
-
-  // Buscar dados do período anterior (mesmo formato que o atual)
-  const previousFilters = useMemo(() => ({
-    ...filters,
-    dateFrom: previousPeriod?.previousDateFrom || '',
-    dateTo: previousPeriod?.previousDateTo || '',
-  }), [filters, previousPeriod]);
-
-  // Reutilizar hooks existentes com filtros do período anterior
-  const sentCount = useFollowupSentCount(previousFilters);
-  const responseRate = useFollowupResponseRate(previousFilters);
-  const dailyMetrics = useFollowupDailyMetrics(previousFilters);
-
-  return {
-    previous: {
-      totalSent: sentCount.data || 0,
-      stopped: responseRate.data?.stopped || 0,
-      responseRate: responseRate.data?.rate || 0,
-      total: dailyMetrics.data?.reduce((sum, d) => sum + d.uniqueLeads, 0) || 0,
-      waiting: dailyMetrics.data?.reduce((sum, d) => sum + d.totalRecords - d.stopped, 0) || 0,
+      const flatResult = Array.isArray(result) ? result.flat() : [];
+      return parseInt(flatResult[0]?.total || '0', 10);
     },
-    isLoading: sentCount.isLoading || responseRate.isLoading || dailyMetrics.isLoading,
-  };
+    enabled: filters.agentCodes.length > 0,
+    staleTime: 1000 * 30,
+  });
 }
+```
+
+#### B) Modificar `useFollowupResponseRate` (linhas 506-549)
+
+Alterar para buscar de `followup_response`:
+
+```typescript
+export function useFollowupResponseRate(filters: FollowupFiltersState) {
+  return useQuery({
+    queryKey: ['followup-response-rate', filters],
+    queryFn: async () => {
+      if (!filters.agentCodes.length) return { total: 0, responses: 0, rate: 0 };
+
+      const agentPlaceholders = filters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
+      const params: (string | number)[] = [...filters.agentCodes];
+
+      let whereClause = `fq.cod_agent IN (${agentPlaceholders})`;
+
+      // Date filter for total leads (from followup_history)
+      let historyDateFilter = '';
+      if (filters.dateFrom) {
+        historyDateFilter += ` AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
+        params.push(filters.dateFrom);
+      }
+      if (filters.dateTo) {
+        historyDateFilter += ` AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
+        params.push(filters.dateTo);
+      }
+
+      // Total leads that received at least 1 message
+      const totalResult = await externalDb.raw<{ total: string }[]>({
+        query: `
+          SELECT COUNT(DISTINCT fq.session_id)::text as total
+          FROM followup_history fh
+          JOIN followup_queue fq ON fq.id = fh.followup_queue_id
+          WHERE ${whereClause}
+            ${historyDateFilter}
+        `,
+        params,
+      });
+
+      // Count responses from followup_response
+      const responseParams: (string | number)[] = [...filters.agentCodes];
+      let responseWhereClause = `fq.cod_agent IN (${agentPlaceholders})`;
+      
+      if (filters.dateFrom) {
+        responseWhereClause += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${responseParams.length + 1}`;
+        responseParams.push(filters.dateFrom);
+      }
+      if (filters.dateTo) {
+        responseWhereClause += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${responseParams.length + 1}`;
+        responseParams.push(filters.dateTo);
+      }
+
+      const responseResult = await externalDb.raw<{ responses: string }[]>({
+        query: `
+          SELECT COUNT(DISTINCT fq.session_id)::text as responses
+          FROM followup_response fr
+          JOIN followup_queue fq ON fq.id = fr.followup_queue_id
+          WHERE ${responseWhereClause}
+        `,
+        params: responseParams,
+      });
+
+      const total = parseInt(totalResult.flat()[0]?.total || '0', 10);
+      const responses = parseInt(responseResult.flat()[0]?.responses || '0', 10);
+      const rate = total > 0 ? (responses / total) * 100 : 0;
+
+      return { total, responses, stopped: responses, rate };
+    },
+    enabled: filters.agentCodes.length > 0,
+    staleTime: 1000 * 30,
+  });
+}
+```
+
+#### C) Modificar `useFollowupDailyMetrics` (linhas 404-504)
+
+Adicionar JOIN com `followup_response` para obter respostas por período:
+
+```typescript
+// Nova query com CTE para incluir respostas
+const result = await externalDb.raw<{
+  date?: string;
+  hour?: number;
+  messages_sent: string;
+  unique_leads: string;
+  responses: string;
+}[]>({
+  query: `
+    WITH history_metrics AS (
+      SELECT 
+        ${periodExpression} as period,
+        COUNT(*)::text as messages_sent,
+        COUNT(DISTINCT fq.session_id)::text as unique_leads
+      FROM followup_history fh
+      JOIN followup_queue fq ON fq.id = fh.followup_queue_id
+      WHERE fq.cod_agent IN (${agentPlaceholders})
+        ${historyDateFilter}
+      GROUP BY ${periodExpression}
+    ),
+    response_metrics AS (
+      SELECT 
+        ${responsePeriodExpression} as period,
+        COUNT(*)::text as responses
+      FROM followup_response fr
+      JOIN followup_queue fq ON fq.id = fr.followup_queue_id
+      WHERE fq.cod_agent IN (${agentPlaceholders})
+        ${responseDateFilter}
+      GROUP BY ${responsePeriodExpression}
+    )
+    SELECT 
+      COALESCE(h.period, r.period) as ${isSingleDay ? 'hour' : 'date'},
+      COALESCE(h.messages_sent, '0') as messages_sent,
+      COALESCE(h.unique_leads, '0') as unique_leads,
+      COALESCE(r.responses, '0') as responses
+    FROM history_metrics h
+    FULL OUTER JOIN response_metrics r ON h.period = r.period
+    ORDER BY COALESCE(h.period, r.period)
+  `,
+  params,
+});
+
+// Mapeamento atualizado
+return flatResult.map((row) => {
+  const messagesSent = parseInt(row.messages_sent || '0', 10);
+  const uniqueLeads = parseInt(row.unique_leads || '0', 10);
+  const responses = parseInt(row.responses || '0', 10);
+  
+  // Taxa de resposta por período
+  const responseRate = uniqueLeads > 0 ? (responses / uniqueLeads) * 100 : 0;
+
+  return {
+    date: dateValue,
+    label,
+    totalRecords: messagesSent,
+    messagesSent,
+    stopped: responses, // Agora usa respostas reais
+    uniqueLeads,
+    responseRate,
+  };
+});
+```
+
+#### D) Modificar `useFollowupPreviousPeriodStats` (linhas 604-646)
+
+Alterar query de response rate do período anterior:
+
+```typescript
+// Ao invés de contar state='STOP', buscar de followup_response
+const result = await externalDb.raw<{ responses: string }[]>({
+  query: `
+    SELECT COUNT(DISTINCT fq.session_id)::text as responses
+    FROM followup_response fr
+    JOIN followup_queue fq ON fq.id = fr.followup_queue_id
+    WHERE fq.cod_agent IN (${agentPlaceholders})
+      AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $date_from
+      AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $date_to
+  `,
+  params: responseParams,
+});
 ```
 
 ---
 
-### 4. src/pages/agente/followup/FollowupPage.tsx
-Integrar o novo hook e passar dados para o Dashboard:
+### 2. src/pages/agente/followup/FollowupPage.tsx
+
+Atualizar o cálculo de `dashboardStats` para usar dados de resposta:
 
 ```typescript
-// Buscar dados do período anterior
-const { 
-  previous: previousStats, 
-  isLoading: isLoadingPrevious 
-} = useFollowupPreviousPeriodStats(dashboardFilters);
-
-// Dashboard stats incluindo período anterior
+// dashboardStats agora usa 'responses' (não mais 'stopped')
 const dashboardStats: FollowupStats = useMemo(() => ({
   total: dailyMetrics.reduce((sum, d) => sum + d.uniqueLeads, 0),
   totalSent: dailyMetrics.reduce((sum, d) => sum + d.messagesSent, 0),
-  waiting: dailyMetrics.reduce((sum, d) => sum + d.totalRecords - d.stopped, 0),
-  stopped: responseData?.stopped || 0,
+  waiting: dailyMetrics.reduce((sum, d) => sum + d.uniqueLeads - d.stopped, 0),
+  stopped: responseData?.responses || dailyMetrics.reduce((sum, d) => sum + d.stopped, 0),
   responseRate: responseData?.rate || 0,
-  previous: previousStats, // <-- Adicionar
-}), [dailyMetrics, responseData, previousStats]);
+  previous: isLoadingPrevious ? undefined : previousStats,
+}), [dailyMetrics, responseData, previousStats, isLoadingPrevious]);
 ```
 
 ---
 
-### 5. src/pages/agente/followup/components/FollowupSummary.tsx
-Atualizar componente para exibir comparativo visual:
+### 3. src/pages/agente/types.ts
+
+Atualizar comentários e documentação:
 
 ```typescript
-import { ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
-
-// Função para calcular variação percentual
-function calculateChange(current: number, previous: number): {
-  value: number;
-  isPositive: boolean;
-  isNeutral: boolean;
-  label: string;
-} {
-  if (previous === 0) {
-    return { value: 0, isPositive: true, isNeutral: current === 0, label: 'N/A' };
-  }
-  const change = ((current - previous) / previous) * 100;
-  return {
-    value: Math.abs(change),
-    isPositive: change >= 0,
-    isNeutral: Math.abs(change) < 0.1,
-    label: `${change >= 0 ? '+' : '-'}${Math.abs(change).toFixed(1)}%`,
-  };
+export interface FollowupStats {
+  total: number;           // Leads únicos na fila
+  totalSent: number;       // Total de mensagens enviadas
+  waiting: number;         // Leads aguardando
+  stopped: number;         // Respostas (de followup_response)
+  responseRate: number;    // Taxa de resposta %
+  previous?: FollowupPreviousStats;
 }
-
-// Para Taxa de Resposta (pontos percentuais)
-function calculatePpChange(current: number, previous: number): {
-  value: number;
-  isPositive: boolean;
-  label: string;
-} {
-  const diff = current - previous;
-  return {
-    value: Math.abs(diff),
-    isPositive: diff >= 0,
-    label: `${diff >= 0 ? '+' : ''}${diff.toFixed(1)}pp`,
-  };
-}
-
-// No array de cards, adicionar campo de comparativo:
-const cards = [
-  {
-    title: 'Mensagens Enviadas',
-    value: stats.totalSent.toLocaleString('pt-BR'),
-    change: stats.previous 
-      ? calculateChange(stats.totalSent, stats.previous.totalSent) 
-      : null,
-    // ...
-  },
-  {
-    title: 'Taxa de Resposta',
-    value: `${stats.responseRate.toFixed(1)}%`,
-    change: stats.previous 
-      ? calculatePpChange(stats.responseRate, stats.previous.responseRate) 
-      : null,
-    // Usa pontos percentuais para taxa
-  },
-  // ... outros cards
-];
-
-// No render, adicionar indicador:
-<div className="flex items-center gap-1 text-xs mt-1">
-  {card.change && !card.change.isNeutral && (
-    <>
-      {card.change.isPositive ? (
-        <ArrowUpRight className="h-3 w-3 text-emerald-500" />
-      ) : (
-        <ArrowDownRight className="h-3 w-3 text-red-500" />
-      )}
-      <span className={card.change.isPositive ? 'text-emerald-600' : 'text-red-600'}>
-        {card.change.label}
-      </span>
-      <span className="text-muted-foreground">vs anterior</span>
-    </>
-  )}
-</div>
 ```
 
 ---
 
-## Fluxo de Dados
+## Fluxo de Dados Atualizado
 
 ```text
-Filtros Dashboard (dateFrom, dateTo)
-        │
-        ├─────────────────────────────────────┐
-        │                                     │
-        ▼                                     ▼
-  Período Atual                    Período Anterior (calculado)
-  17/01 - 24/01                    10/01 - 16/01
-        │                                     │
-        ▼                                     ▼
-  useFollowupDailyMetrics          useFollowupPreviousPeriodStats
-  useFollowupResponseRate          (reutiliza mesmos hooks)
-  useFollowupSentCount
-        │                                     │
-        └──────────────┬──────────────────────┘
-                       │
-                       ▼
-              FollowupStats {
-                total, totalSent, waiting, stopped, responseRate,
-                previous: { total, totalSent, waiting, stopped, responseRate }
-              }
-                       │
-                       ▼
-              FollowupSummary
-              (exibe cards com comparativo visual)
+followup_response              followup_history
+       │                              │
+       │ (cada registro =             │ (cada registro =
+       │  1 resposta)                 │  1 mensagem enviada)
+       │                              │
+       └──────────────┬───────────────┘
+                      │
+              ┌───────┴───────┐
+              │               │
+              ▼               ▼
+        Respostas        Mensagens
+        (COUNT)          (COUNT)
+              │               │
+              └───────┬───────┘
+                      │
+                      ▼
+              Taxa de Resposta
+              = (Respostas / Leads) * 100
 ```
 
 ---
 
-## Tratamento de Casos Especiais
+## Resumo das Mudanças por Query
 
-| Cenário | Comportamento |
-|---------|---------------|
-| Período anterior sem dados | Exibe "N/A" em cinza |
-| Variação < 0.1% | Considera neutro (sem seta) |
-| Primeiro acesso (sem histórico) | Cards sem indicador |
-| Taxa de Resposta | Usa pontos percentuais (pp) |
+| Métrica | Antes | Depois |
+|---------|-------|--------|
+| Card "Respostas" | `followup_queue WHERE state='STOP'` | `COUNT(*) FROM followup_response` |
+| Taxa de Resposta | `stopped / total` (queue) | `responses / uniqueLeads` (response) |
+| Gráfico Evolução - Respostas | `stopped: 0` fixo | `responses` de `followup_response` por período |
+| Gráfico Taxa | Não calculava | `responseRate` real por período |
 
 ---
 
-## Seção Tecnica
+## Secao Tecnica
 
-### Cálculo do Período Anterior
+### Query para Card de Respostas
 
-```typescript
-// src/lib/dateUtils.ts
-import { parseISO, differenceInDays, subDays, format } from 'date-fns';
-
-export function getPreviousPeriod(dateFrom: string, dateTo: string): { 
-  previousDateFrom: string; 
-  previousDateTo: string;
-  durationDays: number;
-} {
-  const from = parseISO(dateFrom);
-  const to = parseISO(dateTo);
-  const durationDays = differenceInDays(to, from) + 1; // +1 pois inclui ambos os dias
-  
-  const previousTo = subDays(from, 1); // Um dia antes do início atual
-  const previousFrom = subDays(previousTo, durationDays - 1);
-  
-  return {
-    previousDateFrom: format(previousFrom, 'yyyy-MM-dd'),
-    previousDateTo: format(previousTo, 'yyyy-MM-dd'),
-    durationDays,
-  };
-}
+```sql
+SELECT COUNT(*)::text as total
+FROM followup_response fr
+JOIN followup_queue fq ON fq.id = fr.followup_queue_id
+WHERE fq.cod_agent IN ($1, $2, ...)
+  AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $date_from
+  AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $date_to
 ```
 
-### Hook para Buscar Período Anterior
+### Query para Taxa de Resposta
 
-```typescript
-// src/pages/agente/hooks/useFollowupData.ts
-export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
-  const previousPeriod = useMemo(() => {
-    if (!filters.dateFrom || !filters.dateTo) return null;
-    return getPreviousPeriod(filters.dateFrom, filters.dateTo);
-  }, [filters.dateFrom, filters.dateTo]);
-
-  const previousFilters: FollowupFiltersState = useMemo(() => ({
-    ...filters,
-    dateFrom: previousPeriod?.previousDateFrom || '',
-    dateTo: previousPeriod?.previousDateTo || '',
-  }), [filters, previousPeriod]);
-
-  // Habilitar apenas se temos período válido
-  const enabled = !!previousPeriod && filters.agentCodes.length > 0;
-
-  const { data: sentCount = 0, isLoading: isLoadingSent } = useQuery({
-    queryKey: ['followup-sent-count-previous', previousFilters],
-    queryFn: async () => {
-      if (!previousFilters.agentCodes.length || !previousFilters.dateFrom) return 0;
-      // ... mesma lógica de useFollowupSentCount
-    },
-    enabled,
-    staleTime: 1000 * 60, // Cache por 1 minuto
-  });
-
-  const { data: responseData, isLoading: isLoadingResponse } = useQuery({
-    queryKey: ['followup-response-rate-previous', previousFilters],
-    queryFn: async () => {
-      // ... mesma lógica de useFollowupResponseRate
-    },
-    enabled,
-    staleTime: 1000 * 60,
-  });
-
-  const { data: dailyMetrics = [], isLoading: isLoadingMetrics } = useQuery({
-    queryKey: ['followup-daily-metrics-previous', previousFilters],
-    queryFn: async () => {
-      // ... mesma lógica de useFollowupDailyMetrics
-    },
-    enabled,
-    staleTime: 1000 * 60,
-  });
-
-  return useMemo(() => ({
-    previous: {
-      totalSent: sentCount,
-      stopped: responseData?.stopped || 0,
-      responseRate: responseData?.rate || 0,
-      total: dailyMetrics.reduce((sum, d) => sum + d.uniqueLeads, 0),
-      waiting: dailyMetrics.reduce((sum, d) => sum + d.totalRecords - d.stopped, 0),
-    },
-    isLoading: isLoadingSent || isLoadingResponse || isLoadingMetrics,
-  }), [sentCount, responseData, dailyMetrics, isLoadingSent, isLoadingResponse, isLoadingMetrics]);
-}
+```sql
+-- Total de leads que receberam mensagem
+WITH leads_contacted AS (
+  SELECT COUNT(DISTINCT fq.session_id) as total
+  FROM followup_history fh
+  JOIN followup_queue fq ON fq.id = fh.followup_queue_id
+  WHERE fq.cod_agent IN (...) AND ...
+),
+-- Leads que responderam
+leads_responded AS (
+  SELECT COUNT(DISTINCT fq.session_id) as responses
+  FROM followup_response fr
+  JOIN followup_queue fq ON fq.id = fr.followup_queue_id
+  WHERE fq.cod_agent IN (...) AND ...
+)
+SELECT 
+  l.total,
+  r.responses,
+  (r.responses::float / NULLIF(l.total, 0) * 100) as rate
+FROM leads_contacted l, leads_responded r
 ```
 
-### Componente de Card com Comparativo
+### Query para Gráfico Evolucao (diário)
 
-```typescript
-// Dentro de cada card no FollowupSummary.tsx
-<CardContent className="p-4">
-  <div className="flex items-center justify-between">
-    <div>
-      <p className="text-sm text-muted-foreground">{card.title}</p>
-      <p className="text-2xl font-bold">{card.value}</p>
-      
-      {/* Indicador de variação */}
-      {card.change && (
-        <div className="flex items-center gap-1 text-xs mt-1">
-          {card.change.isNeutral ? (
-            <Minus className="h-3 w-3 text-muted-foreground" />
-          ) : card.change.isPositive ? (
-            <ArrowUpRight className="h-3 w-3 text-emerald-500" />
-          ) : (
-            <ArrowDownRight className="h-3 w-3 text-red-500" />
-          )}
-          <span className={cn(
-            "font-medium",
-            card.change.isNeutral ? "text-muted-foreground" :
-            card.change.isPositive ? "text-emerald-600" : "text-red-600"
-          )}>
-            {card.change.label}
-          </span>
-          <span className="text-muted-foreground">vs anterior</span>
-        </div>
-      )}
-    </div>
-    <div className={`p-2 rounded-lg ${card.bgColor}`}>
-      <card.icon className={`h-5 w-5 ${card.color}`} />
-    </div>
-  </div>
-</CardContent>
+```sql
+WITH history_metrics AS (
+  SELECT 
+    (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date as period,
+    COUNT(*) as messages_sent,
+    COUNT(DISTINCT fq.session_id) as unique_leads
+  FROM followup_history fh
+  JOIN followup_queue fq ON fq.id = fh.followup_queue_id
+  WHERE fq.cod_agent IN (...)
+    AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $from AND $to
+  GROUP BY 1
+),
+response_metrics AS (
+  SELECT 
+    (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date as period,
+    COUNT(*) as responses
+  FROM followup_response fr
+  JOIN followup_queue fq ON fq.id = fr.followup_queue_id
+  WHERE fq.cod_agent IN (...)
+    AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $from AND $to
+  GROUP BY 1
+)
+SELECT 
+  COALESCE(h.period, r.period) as date,
+  COALESCE(h.messages_sent, 0) as messages_sent,
+  COALESCE(h.unique_leads, 0) as unique_leads,
+  COALESCE(r.responses, 0) as responses
+FROM history_metrics h
+FULL OUTER JOIN response_metrics r ON h.period = r.period
+ORDER BY 1
+```
+
+### Indice Recomendado para Performance
+
+```sql
+CREATE INDEX idx_followup_response_queue_created 
+ON followup_response(followup_queue_id, created_at);
 ```
 
 ---
 
 ## Ordem de Implementacao
 
-1. Adicionar `getPreviousPeriod` em `dateUtils.ts`
-2. Estender interface `FollowupStats` em `types.ts`
-3. Criar hook `useFollowupPreviousPeriodStats` em `useFollowupData.ts`
-4. Integrar hook no `FollowupPage.tsx`
-5. Atualizar `FollowupSummary.tsx` com visual de comparativo
-
+1. Adicionar novo hook `useFollowupResponseCount` em `useFollowupData.ts`
+2. Modificar `useFollowupResponseRate` para usar `followup_response`
+3. Modificar `useFollowupDailyMetrics` para incluir respostas por período
+4. Atualizar `useFollowupPreviousPeriodStats` para buscar respostas do período anterior
+5. Ajustar `FollowupPage.tsx` para usar os novos dados de resposta
+6. Atualizar comentários em `types.ts`
