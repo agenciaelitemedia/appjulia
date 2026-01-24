@@ -104,16 +104,16 @@ export default function CRMPage() {
     <div className="flex flex-col h-full space-y-4">
       <CRMHeader onRefresh={handleRefresh} isLoading={isRefreshing} />
 
-      <CRMDashboardSummary cards={filteredCards} stages={stages} isLoading={cardsLoading} />
-
-      <CRMTotalizers cards={filteredCards} stages={stages} />
-
       <CRMFilters
         agents={agents}
         filters={filters}
         onFiltersChange={setFilters}
         isLoading={agentsLoading}
       />
+
+      <CRMDashboardSummary cards={filteredCards} stages={stages} isLoading={cardsLoading} />
+
+      <CRMTotalizers cards={filteredCards} stages={stages} />
 
       <CRMPipeline
         stages={stages}

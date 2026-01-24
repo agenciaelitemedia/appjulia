@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { getTodayInSaoPaulo } from '@/lib/dateUtils';
+import { getTodayInSaoPaulo, getYesterdayInSaoPaulo, get7DaysAgoInSaoPaulo } from '@/lib/dateUtils';
 import { CalendarIcon, Filter, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,11 +10,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+import { Label } from '@/components/ui/label';
 import { CRMAgent, CRMFiltersState } from '../types';
 import { cn } from '@/lib/utils';
 
@@ -25,8 +21,18 @@ interface CRMFiltersProps {
   isLoading?: boolean;
 }
 
+type QuickPeriod = 'today' | 'yesterday' | 'last7days' | 'custom';
+
+const QUICK_PERIODS: { value: QuickPeriod; label: string }[] = [
+  { value: 'today', label: 'Hoje' },
+  { value: 'yesterday', label: 'Ontem' },
+  { value: 'last7days', label: 'Últimos 7 dias' },
+];
+
 export function CRMFilters({ agents, filters, onFiltersChange, isLoading }: CRMFiltersProps) {
-  const [isOpen, setIsOpen] = useState(true);
+  const today = getTodayInSaoPaulo();
+  const yesterday = getYesterdayInSaoPaulo();
+  const last7Days = get7DaysAgoInSaoPaulo();
 
   const { selectedCount, allSelected, someSelected } = useMemo(() => {
     const selected = new Set(filters.agentCodes);
@@ -39,6 +45,27 @@ export function CRMFilters({ agents, filters, onFiltersChange, isLoading }: CRMF
     };
   }, [agents, filters.agentCodes]);
 
+  const currentQuickPeriod: QuickPeriod = useMemo(() => {
+    if (filters.dateFrom === today && filters.dateTo === today) return 'today';
+    if (filters.dateFrom === yesterday && filters.dateTo === yesterday) return 'yesterday';
+    if (filters.dateFrom === last7Days && filters.dateTo === today) return 'last7days';
+    return 'custom';
+  }, [filters.dateFrom, filters.dateTo, today, yesterday, last7Days]);
+
+  const handleQuickPeriod = (period: QuickPeriod) => {
+    switch (period) {
+      case 'today':
+        onFiltersChange({ ...filters, dateFrom: today, dateTo: today });
+        break;
+      case 'yesterday':
+        onFiltersChange({ ...filters, dateFrom: yesterday, dateTo: yesterday });
+        break;
+      case 'last7days':
+        onFiltersChange({ ...filters, dateFrom: last7Days, dateTo: today });
+        break;
+    }
+  };
+
   const handleAgentToggle = (codAgent: string) => {
     const newAgentCodes = filters.agentCodes.includes(codAgent)
       ? filters.agentCodes.filter((c) => c !== codAgent)
@@ -49,9 +76,6 @@ export function CRMFilters({ agents, filters, onFiltersChange, isLoading }: CRMF
 
   const handleSelectAllAgents = () => {
     const allCodes = agents.map((a) => a.cod_agent);
-    // Considera apenas os agentes atualmente exibidos no popover.
-    // Se todos os exibidos estão selecionados -> desseleciona todos.
-    // Caso contrário -> seleciona todos.
     const allDisplayedSelected = agents.length > 0 && allCodes.every((c) => filters.agentCodes.includes(c));
     
     onFiltersChange({
@@ -73,7 +97,6 @@ export function CRMFilters({ agents, filters, onFiltersChange, isLoading }: CRMF
   };
 
   const handleClearFilters = () => {
-    const today = getTodayInSaoPaulo();
     onFiltersChange({
       search: '',
       agentCodes: agents.map((a) => a.cod_agent),
@@ -86,171 +109,177 @@ export function CRMFilters({ agents, filters, onFiltersChange, isLoading }: CRMF
   const dateToObj = filters.dateTo ? parseISO(filters.dateTo) : undefined;
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
-      <div className="flex items-center justify-between">
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="sm" className="gap-2">
-            <Filter className="h-4 w-4" />
-            Filtros
-            {selectedCount > 0 && (
-              <Badge variant="secondary" className="ml-1">
-                {selectedCount} agente{selectedCount > 1 ? 's' : ''}
-              </Badge>
-            )}
-          </Button>
-        </CollapsibleTrigger>
+    <div className="flex flex-wrap items-end gap-4 p-4 bg-muted/30 rounded-lg border">
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <Filter className="h-4 w-4" />
+        <span className="text-sm font-medium">Filtros:</span>
       </div>
 
-      <CollapsibleContent className="space-y-4">
-        <div className="flex flex-wrap items-end gap-3 p-4 bg-muted/30 rounded-lg border">
-          {/* Agent Select */}
-          <div className="flex flex-col gap-1.5 min-w-[200px]">
-            <label className="text-xs font-medium text-muted-foreground">Cod. Agentes</label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="justify-start text-left font-normal h-9"
-                  disabled={isLoading}
-                >
-                  {allSelected ? (
-                    'Todos os agentes'
-                  ) : selectedCount > 0 ? (
-                    `${selectedCount} selecionado${selectedCount > 1 ? 's' : ''}`
-                  ) : (
-                    'Selecionar agentes'
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[280px] p-0" align="start">
-                <div className="p-2 border-b">
-                  <div className="flex items-center gap-2">
+      {/* Quick Period Buttons */}
+      <div className="flex gap-1">
+        {QUICK_PERIODS.map((period) => (
+          <Button
+            key={period.value}
+            variant={currentQuickPeriod === period.value ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleQuickPeriod(period.value)}
+          >
+            {period.label}
+          </Button>
+        ))}
+        {currentQuickPeriod === 'custom' && (
+          <Badge variant="secondary" className="h-8 px-3 flex items-center">
+            Personalizado
+          </Badge>
+        )}
+      </div>
+
+      {/* Date From */}
+      <div className="flex flex-col gap-1">
+        <Label className="text-xs text-muted-foreground">De</Label>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                'w-[130px] justify-start text-left font-normal',
+                !filters.dateFrom && 'text-muted-foreground'
+              )}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {filters.dateFrom
+                ? format(dateFromObj ?? new Date(), 'dd/MM/yyyy', { locale: ptBR })
+                : 'Selecione'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={dateFromObj}
+              onSelect={handleDateFromChange}
+              locale={ptBR}
+              initialFocus
+              className={cn("p-3 pointer-events-auto")}
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      {/* Date To */}
+      <div className="flex flex-col gap-1">
+        <Label className="text-xs text-muted-foreground">Até</Label>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                'w-[130px] justify-start text-left font-normal',
+                !filters.dateTo && 'text-muted-foreground'
+              )}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {filters.dateTo
+                ? format(dateToObj ?? new Date(), 'dd/MM/yyyy', { locale: ptBR })
+                : 'Selecione'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={dateToObj}
+              onSelect={handleDateToChange}
+              locale={ptBR}
+              initialFocus
+              className={cn("p-3 pointer-events-auto")}
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      {/* Agent Select */}
+      <div className="flex flex-col gap-1">
+        <Label className="text-xs text-muted-foreground">Agentes</Label>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-[180px] justify-start text-left font-normal"
+              disabled={isLoading}
+            >
+              {allSelected ? (
+                'Todos os agentes'
+              ) : selectedCount > 0 ? (
+                `${selectedCount} selecionado${selectedCount > 1 ? 's' : ''}`
+              ) : (
+                'Selecionar agentes'
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[280px] p-0" align="start">
+            <div className="p-2 border-b">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="select-all"
+                  checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                  onCheckedChange={handleSelectAllAgents}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
+                  Selecionar Todos
+                </label>
+              </div>
+            </div>
+            <ScrollArea className="h-[200px]">
+              <div className="p-2 space-y-1">
+                {agents.map((agent) => (
+                  <div
+                    key={agent.cod_agent}
+                    className="flex items-center gap-2 p-1.5 rounded hover:bg-muted cursor-pointer"
+                    onClick={() => handleAgentToggle(agent.cod_agent)}
+                  >
                     <Checkbox
-                      id="select-all"
-                      checked={allSelected ? true : someSelected ? 'indeterminate' : false}
-                      onCheckedChange={handleSelectAllAgents}
+                      checked={filters.agentCodes.includes(agent.cod_agent)}
+                      onCheckedChange={() => handleAgentToggle(agent.cod_agent)}
                       onClick={(e) => e.stopPropagation()}
                     />
-                    <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
-                      Selecionar Todos
-                    </label>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        [{agent.cod_agent}] - {agent.owner_name}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {agent.owner_business_name}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <ScrollArea className="h-[200px]">
-                  <div className="p-2 space-y-1">
-                    {agents.map((agent) => (
-                      <div
-                        key={agent.cod_agent}
-                        className="flex items-center gap-2 p-1.5 rounded hover:bg-muted cursor-pointer"
-                        onClick={() => handleAgentToggle(agent.cod_agent)}
-                      >
-                        <Checkbox
-                          checked={filters.agentCodes.includes(agent.cod_agent)}
-                          onCheckedChange={() => handleAgentToggle(agent.cod_agent)}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            [{agent.cod_agent}] - {agent.owner_name}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {agent.owner_business_name}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </PopoverContent>
-            </Popover>
-          </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </PopoverContent>
+        </Popover>
+      </div>
 
-          {/* Date From */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Data Início</label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    'w-[140px] justify-start text-left font-normal h-9',
-                    !filters.dateFrom && 'text-muted-foreground'
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {filters.dateFrom
-                    ? format(dateFromObj ?? new Date(), 'dd/MM/yyyy', { locale: ptBR })
-                    : 'Selecionar'}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={dateFromObj}
-                  onSelect={handleDateFromChange}
-                  locale={ptBR}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          {/* Date To */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Data Fim</label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    'w-[140px] justify-start text-left font-normal h-9',
-                    !filters.dateTo && 'text-muted-foreground'
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {filters.dateTo
-                    ? format(dateToObj ?? new Date(), 'dd/MM/yyyy', { locale: ptBR })
-                    : 'Selecionar'}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={dateToObj}
-                  onSelect={handleDateToChange}
-                  locale={ptBR}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          {/* Search */}
-          <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-            <label className="text-xs font-medium text-muted-foreground">Busca</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Nome, WhatsApp, ID..."
-                value={filters.search}
-                onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
-                className="pl-9 h-9"
-              />
-            </div>
-          </div>
-
-          {/* Clear Button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleClearFilters}
-            className="h-9 gap-1.5"
-          >
-            <X className="h-4 w-4" />
-            Limpar
-          </Button>
+      {/* Search */}
+      <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
+        <Label className="text-xs text-muted-foreground">Busca</Label>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Nome, WhatsApp, ID..."
+            value={filters.search}
+            onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
+            className="pl-9 h-9"
+          />
         </div>
-      </CollapsibleContent>
-    </Collapsible>
+      </div>
+
+      {/* Clear Button */}
+      <Button variant="ghost" size="sm" onClick={handleClearFilters}>
+        <X className="h-4 w-4 mr-1" />
+        Limpar
+      </Button>
+    </div>
   );
 }
