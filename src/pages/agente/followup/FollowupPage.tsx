@@ -16,7 +16,7 @@ import {
   useRestartQueueItem,
   useFinalizeQueueItem,
   useFollowupDailyMetrics,
-  useFollowupResponseRate,
+  useFollowupReturnRate,
   useFollowupQueueTotals,
   useFollowupPreviousPeriodStats,
 } from '../hooks/useFollowupData';
@@ -112,7 +112,7 @@ export default function FollowupPage() {
   
   // Dashboard-specific data
   const { data: dailyMetrics = [], isLoading: isLoadingDailyMetrics, refetch: refetchDailyMetrics } = useFollowupDailyMetrics(dashboardFilters);
-  const { data: responseData, refetch: refetchResponseRate } = useFollowupResponseRate(dashboardFilters);
+  const { data: returnData, refetch: refetchReturnRate } = useFollowupReturnRate(dashboardFilters);
   const { data: queueTotals, refetch: refetchQueueTotals } = useFollowupQueueTotals(dashboardFilters);
   
   // Previous period stats for comparison
@@ -178,15 +178,15 @@ export default function FollowupPage() {
     return result;
   }, [filteredItems]);
 
-  // Dashboard stats (using queue totals and response data) with previous period comparison
+  // Dashboard stats (using queue totals and return data) with previous period comparison
   const dashboardStats: FollowupStats = useMemo(() => ({
     total: queueTotals?.total || 0,           // From followup_queue (any status)
     totalSent: dailyMetrics.reduce((sum, d) => sum + d.messagesSent, 0),
     waiting: queueTotals?.waiting || 0,       // From followup_queue (state = 'SEND')
-    stopped: responseData?.responses || 0,    // COUNT(*) from followup_response
-    responseRate: responseData?.rate || 0,
+    stopped: returnData?.responses || 0,      // COUNT(*) from followup_response
+    responseRate: returnData?.returnRate || 0, // Return Rate = (leads returned / total) * 100
     previous: isLoadingPrevious ? undefined : previousStats,
-  }), [queueTotals, dailyMetrics, responseData, previousStats, isLoadingPrevious]);
+  }), [queueTotals, dailyMetrics, returnData, previousStats, isLoadingPrevious]);
 
   // Queue page stats (local to queue tab)
   const queuePageStats: FollowupStats = useMemo(() => ({
@@ -231,7 +231,7 @@ export default function FollowupPage() {
     refetchQueue();
     refetchSentCount();
     refetchDailyMetrics();
-    refetchResponseRate();
+    refetchReturnRate();
     refetchQueueTotals();
   };
 

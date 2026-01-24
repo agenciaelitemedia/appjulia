@@ -108,7 +108,7 @@ export function FollowupSummary({ stats, isLoading }: FollowupSummaryProps) {
         : null,
     },
     {
-      title: 'Taxa de Resposta',
+      title: 'Taxa de Retorno',
       value: `${stats.responseRate.toFixed(1)}%`,
       icon: TrendingUp,
       color: 'text-purple-600',
