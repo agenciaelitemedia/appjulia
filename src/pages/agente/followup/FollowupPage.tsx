@@ -184,7 +184,8 @@ export default function FollowupPage() {
     totalSent: dailyMetrics.reduce((sum, d) => sum + d.messagesSent, 0),
     waiting: queueTotals?.waiting || 0,       // From followup_queue (state = 'SEND')
     stopped: returnData?.responses || 0,      // COUNT(*) from followup_response
-    responseRate: returnData?.returnRate || 0, // Return Rate = (leads returned / total) * 100
+    responseRate: returnData?.returnRate || 0, // Return Rate = (leads STOP + step<>0 with response / total) * 100
+    lossRate: returnData?.lossRate || 0,      // Loss Rate = (leads STOP + step=0 / total) * 100
     previous: isLoadingPrevious ? undefined : previousStats,
   }), [queueTotals, dailyMetrics, returnData, previousStats, isLoadingPrevious]);
 
@@ -197,6 +198,7 @@ export default function FollowupPage() {
     responseRate: filteredItems.length > 0 
       ? (queueStats.stopped / filteredItems.length) * 100 
       : 0,
+    lossRate: 0, // Not calculated locally for queue page
   }), [filteredItems, totalSentCount, queueStats]);
 
   // Mutations

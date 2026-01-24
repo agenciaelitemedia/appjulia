@@ -146,15 +146,17 @@ export interface FollowupPreviousStats {
   totalSent: number;         // Total de mensagens enviadas - followup_history
   waiting: number;           // Leads com state = 'SEND' (ativos) - followup_queue
   stopped: number;           // Total de respostas COUNT(*) - followup_response
-  responseRate: number;      // Taxa de Retorno = (leads que retornaram / total na fila) × 100
+  responseRate: number;      // Taxa de Retorno = (leads STOP + step<>0 com resposta / total) × 100
+  lossRate: number;          // Taxa de Perda = (leads STOP + step=0 / total) × 100
 }
 
-// Stats atualizadas com taxa de retorno
+// Stats atualizadas com taxa de retorno e perda
 export interface FollowupStats {
   total: number;           // Total de leads na fila (qualquer status) - followup_queue
   totalSent: number;       // Total de mensagens enviadas - followup_history
   waiting: number;         // Leads com state = 'SEND' (ativos) - followup_queue
   stopped: number;         // Total de respostas COUNT(*) - followup_response
-  responseRate: number;    // Taxa de Retorno = (leads que retornaram / total na fila) × 100
+  responseRate: number;    // Taxa de Retorno = (leads STOP + step<>0 com resposta / total) × 100
+  lossRate: number;        // Taxa de Perda = (leads STOP + step=0 / total) × 100
   previous?: FollowupPreviousStats; // Dados do período anterior para comparação
 }
