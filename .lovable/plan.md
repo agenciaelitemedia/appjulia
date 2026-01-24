@@ -1,483 +1,103 @@
 
-# Plano de Implementacao: Melhorias Contratos Julia
-
-## Resumo das Alteracoes
-
-| Item | Descricao | Arquivos Afetados |
-|------|-----------|-------------------|
-| 1 | Remover colunas e formatar WhatsApp | ContratosTable.tsx |
-| 2 | Adicionar tempo de assinatura/em curso | ContratosTable.tsx, dateUtils.ts |
-| 3 | Popup WhatsApp igual ao CRM | ContratosTable.tsx |
-| 4 | Download de contrato via ZapSign API | Nova Edge Function + ContratosTable.tsx |
-
----
-
-## 1. Remover Colunas e Formatar WhatsApp
-
-### Alteracoes em `ContratosTable.tsx`
-
-**Remover colunas:**
-- Linha 90: Remover `<TableHead>Situacao</TableHead>`
-- Linha 92: Remover `<TableHead>Assinatura</TableHead>`
-- Linhas 131-135: Remover celula de Situacao
-- Linhas 139-143: Remover celula de Assinatura
-
-**Formatar numero WhatsApp:**
-
-Adicionar funcao helper:
-```typescript
-function formatWhatsAppNumber(number: string): string {
-  if (!number) return '-';
-  
-  // Remove todos os caracteres nao numericos
-  const cleaned = number.replace(/\D/g, '');
-  
-  // Formato: +55 (34) 99999-9999
-  if (cleaned.length === 13) {
-    // Com codigo do pais (55) + DDD (2) + numero (9)
-    return `+${cleaned.slice(0, 2)} (${cleaned.slice(2, 4)}) ${cleaned.slice(4, 9)}-${cleaned.slice(9)}`;
-  } else if (cleaned.length === 12) {
-    // Com codigo do pais (55) + DDD (2) + numero (8)
-    return `+${cleaned.slice(0, 2)} (${cleaned.slice(2, 4)}) ${cleaned.slice(4, 8)}-${cleaned.slice(8)}`;
-  } else if (cleaned.length === 11) {
-    // Apenas DDD (2) + numero (9)
-    return `+55 (${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`;
-  } else if (cleaned.length === 10) {
-    // Apenas DDD (2) + numero (8)
-    return `+55 (${cleaned.slice(0, 2)}) ${cleaned.slice(2, 6)}-${cleaned.slice(6)}`;
-  }
-  
-  return number;
-}
-```
-
-**Atualizar celula WhatsApp (linha 116-124):**
-```typescript
-<TableCell>
-  <a
-    href={`https://wa.me/${contrato.whatsapp?.replace(/\D/g, '')}`}
-    target="_blank"
-    rel="noopener noreferrer"
-    className="text-primary hover:underline font-mono text-sm"
-  >
-    {formatWhatsAppNumber(contrato.whatsapp)}
-  </a>
-</TableCell>
-```
-
----
-
-## 2. Adicionar Tempo de Assinatura/Em Curso
-
-### Adicionar helper em `dateUtils.ts`
-
-```typescript
-/**
- * Calcula a diferenca de tempo entre duas datas e retorna string amigavel.
- * Exemplos: "em 3 min", "ha 50 min", "ha 2 dias", "em 1h 23min"
- */
-export function formatTimeDifference(
-  startDate: string | Date, 
-  endDate?: string | Date | null
-): string {
-  const start = parseDbTimestamp(startDate);
-  const end = endDate ? parseDbTimestamp(endDate) : new Date();
-  
-  const diffMs = end.getTime() - start.getTime();
-  const diffMinutes = Math.floor(Math.abs(diffMs) / (1000 * 60));
-  const diffHours = Math.floor(diffMinutes / 60);
-  const diffDays = Math.floor(diffHours / 24);
-  
-  // Determina prefixo: "em" para passado (assinado), "ha" para em curso
-  const prefix = endDate ? 'em' : 'ha';
-  
-  if (diffDays > 0) {
-    return `${prefix} ${diffDays} dia${diffDays > 1 ? 's' : ''}`;
-  }
-  
-  if (diffHours > 0) {
-    const remainingMinutes = diffMinutes % 60;
-    if (remainingMinutes > 0) {
-      return `${prefix} ${diffHours}h ${remainingMinutes}min`;
-    }
-    return `${prefix} ${diffHours}h`;
-  }
-  
-  return `${prefix} ${diffMinutes} min`;
-}
-```
-
-### Atualizar celula de Status em `ContratosTable.tsx`
-
-Modificar linhas 126-130 para incluir tempo abaixo do badge:
-
-```typescript
-<TableCell>
-  <div className="flex flex-col gap-1">
-    <Badge variant="secondary" className={statusInfo.className}>
-      {statusInfo.label}
-    </Badge>
-    <span className="text-[10px] text-muted-foreground">
-      {contrato.status_document === 'SIGNED' 
-        ? formatTimeDifference(contrato.data_contrato, contrato.data_assinatura)
-        : formatTimeDifference(contrato.data_contrato)
-      }
-    </span>
-  </div>
-</TableCell>
-```
-
-**Exemplos de exibicao:**
-- Contrato SIGNED: Badge "Assinado" + "em 3 min" (tempo entre criacao e assinatura)
-- Contrato CREATED/PENDING: Badge "Criado" + "ha 50 min" (tempo desde criacao ate agora)
-
----
-
-## 3. Adicionar Popup WhatsApp (igual ao CRM)
-
-### Modificar `ContratosTable.tsx`
-
-**Adicionar imports:**
-```typescript
-import { useState } from 'react'; // Adicionar useState
-import { MessageCircle } from 'lucide-react'; // Adicionar icone
-import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-```
-
-**Adicionar estado para controlar dialog:**
-```typescript
-const [messagesOpen, setMessagesOpen] = useState(false);
-const [selectedContrato, setSelectedContrato] = useState<JuliaContrato | null>(null);
-
-const handleOpenMessages = (contrato: JuliaContrato) => {
-  setSelectedContrato(contrato);
-  setMessagesOpen(true);
-};
-```
-
-**Atualizar coluna Acoes (linha 93):**
-```typescript
-<TableHead className="w-[120px]">Acoes</TableHead>
-```
-
-**Atualizar celula de Acoes (linhas 144-152):**
-```typescript
-<TableCell>
-  <div className="flex items-center gap-1">
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100/50"
-            onClick={() => handleOpenMessages(contrato)}
-          >
-            <MessageCircle className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>Ver mensagens do WhatsApp</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-    
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => onViewDetails(contrato)}
-          >
-            <Eye className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>Ver detalhes</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  </div>
-</TableCell>
-```
-
-**Adicionar dialog no final do componente (antes do fechamento do div raiz):**
-```typescript
-{selectedContrato && (
-  <WhatsAppMessagesDialog
-    open={messagesOpen}
-    onOpenChange={setMessagesOpen}
-    whatsappNumber={selectedContrato.whatsapp}
-    leadName={selectedContrato.signer_name || ''}
-    codAgent={selectedContrato.cod_agent}
-  />
-)}
-```
-
----
-
-## 4. Download de Contrato via ZapSign API
-
-### 4.1 Criar Secret para API Token do ZapSign
-
-Sera necessario adicionar o secret `ZAPSIGN_API_TOKEN` via Lovable.
-
-### 4.2 Criar Edge Function `zapsign-download`
-
-**Arquivo:** `supabase/functions/zapsign-download/index.ts`
-
-```typescript
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-serve(async (req) => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  try {
-    const { doc_token } = await req.json();
-    
-    if (!doc_token) {
-      throw new Error('doc_token is required');
-    }
-
-    const apiToken = Deno.env.get('ZAPSIGN_API_TOKEN');
-    if (!apiToken) {
-      throw new Error('ZAPSIGN_API_TOKEN not configured');
-    }
-
-    // Chamar API ZapSign para obter detalhes do documento
-    // Endpoint: GET https://api.zapsign.com.br/api/v1/docs/{doc_token}/
-    const response = await fetch(
-      `https://api.zapsign.com.br/api/v1/docs/${doc_token}/`,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${apiToken}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('ZapSign API error:', errorData);
-      throw new Error(`ZapSign API error: ${response.status}`);
-    }
-
-    const docData = await response.json();
-    
-    // Retornar URL do documento assinado (ou original se ainda nao assinado)
-    // IMPORTANTE: Este link expira em 60 minutos
-    const result = {
-      success: true,
-      signed_file: docData.signed_file || null,
-      original_file: docData.original_file || null,
-      status: docData.status,
-      name: docData.name,
-    };
-
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-
-  } catch (error: unknown) {
-    console.error('ZapSign download error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
-  }
-});
-```
-
-### 4.3 Adicionar Botao de Download em `ContratosTable.tsx`
-
-**Adicionar import:**
-```typescript
-import { Download, Loader2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-```
-
-**Adicionar estado para download:**
-```typescript
-const { toast } = useToast();
-const [downloadingId, setDownloadingId] = useState<string | null>(null);
-
-const handleDownloadContract = async (contrato: JuliaContrato) => {
-  if (!contrato.cod_document) {
-    toast({
-      title: 'Erro',
-      description: 'Documento nao possui codigo identificador',
-      variant: 'destructive',
-    });
-    return;
-  }
-
-  setDownloadingId(contrato.cod_document);
-
-  try {
-    const { data, error } = await supabase.functions.invoke('zapsign-download', {
-      body: { doc_token: contrato.cod_document },
-    });
-
-    if (error) throw error;
-
-    if (!data.success) {
-      throw new Error(data.error || 'Erro ao obter documento');
-    }
-
-    // Prioriza documento assinado, senao usa original
-    const fileUrl = data.signed_file || data.original_file;
-    
-    if (!fileUrl) {
-      toast({
-        title: 'Documento indisponivel',
-        description: 'O documento ainda nao esta disponivel para download',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    // Abrir em nova aba (o link ja e do S3 e faz download automatico)
-    window.open(fileUrl, '_blank');
-    
-    toast({
-      title: 'Download iniciado',
-      description: 'O documento sera baixado em instantes',
-    });
-
-  } catch (error) {
-    console.error('Erro ao baixar contrato:', error);
-    toast({
-      title: 'Erro ao baixar',
-      description: error instanceof Error ? error.message : 'Erro desconhecido',
-      variant: 'destructive',
-    });
-  } finally {
-    setDownloadingId(null);
-  }
-};
-```
-
-**Adicionar botao na celula de Acoes:**
-```typescript
-{/* Botao Download - apenas para contratos assinados */}
-{contrato.status_document === 'SIGNED' && (
-  <TooltipProvider>
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-100/50"
-          onClick={() => handleDownloadContract(contrato)}
-          disabled={downloadingId === contrato.cod_document}
-        >
-          {downloadingId === contrato.cod_document ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Download className="h-4 w-4" />
-          )}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        <p>Baixar contrato assinado</p>
-      </TooltipContent>
-    </Tooltip>
-  </TooltipProvider>
-)}
-```
-
----
-
-## Estrutura Final da Tabela
-
-```text
-┌──────────────┬─────────────────┬──────────────────────┬───────────────────┬──────────────────┬───────────────────┐
-│ Agente       │ Cliente         │ WhatsApp             │ Status            │ Data Contrato    │ Acoes             │
-├──────────────┼─────────────────┼──────────────────────┼───────────────────┼──────────────────┼───────────────────┤
-│ [1001]       │ Joao Silva      │ +55 (34) 99999-9999  │ ┌─────────────┐   │ 23/01/26, 14:30  │ [💬] [📥] [👁]   │
-│ Escritorio A │                 │                      │ │  Assinado   │   │                  │                   │
-│              │                 │                      │ └─────────────┘   │                  │                   │
-│              │                 │                      │   em 3 min        │                  │                   │
-├──────────────┼─────────────────┼──────────────────────┼───────────────────┼──────────────────┼───────────────────┤
-│ [1002]       │ Maria Santos    │ +55 (11) 98888-8888  │ ┌─────────────┐   │ 23/01/26, 10:00  │ [💬] [👁]        │
-│ Escritorio B │                 │                      │ │   Criado    │   │                  │                   │
-│              │                 │                      │ └─────────────┘   │                  │                   │
-│              │                 │                      │   ha 4h 30min     │                  │                   │
-└──────────────┴─────────────────┴──────────────────────┴───────────────────┴──────────────────┴───────────────────┘
-```
-
-**Legenda Acoes:**
-- 💬 = Ver mensagens WhatsApp (abre popup)
-- 📥 = Baixar contrato (apenas para SIGNED)
-- 👁 = Ver detalhes
-
----
-
-## Arquivos a Modificar
-
-| Arquivo | Alteracao |
-|---------|-----------|
-| `src/lib/dateUtils.ts` | Adicionar `formatTimeDifference()` |
-| `src/pages/estrategico/contratos/components/ContratosTable.tsx` | Todas as alteracoes de UI |
-
-## Arquivos a Criar
-
-| Arquivo | Descricao |
-|---------|-----------|
-| `supabase/functions/zapsign-download/index.ts` | Edge Function para API ZapSign |
-
-## Secrets a Configurar
-
-| Secret | Descricao |
-|--------|-----------|
-| `ZAPSIGN_API_TOKEN` | Token da API ZapSign (Bearer) |
-
----
-
-## Ordem de Implementacao
-
-1. Adicionar secret `ZAPSIGN_API_TOKEN`
-2. Criar Edge Function `zapsign-download`
-3. Atualizar `dateUtils.ts` com `formatTimeDifference()`
-4. Atualizar `ContratosTable.tsx`:
-   - Remover colunas Situacao e Assinatura
-   - Adicionar formatacao WhatsApp
-   - Adicionar tempo abaixo do status
-   - Adicionar botao WhatsApp com popup
-   - Adicionar botao download
-5. Deploy da Edge Function
-6. Testar fluxo completo
-
----
-
-## Notas Tecnicas
-
-### ZapSign API
-- **Endpoint:** `GET https://api.zapsign.com.br/api/v1/docs/{doc_token}/`
-- **Autenticacao:** Bearer Token
-- **Campos retornados:** `signed_file`, `original_file`, `status`, `name`
-- **IMPORTANTE:** URLs expiram em 60 minutos - por isso chamamos a API sob demanda
-
-### Mapeamento de Dados
-- `cod_document` do banco = `doc_token` na API ZapSign
-- O campo `cod_document` ja contem o UUID do documento ZapSign
-
-### Compatibilidade
-- O `WhatsAppMessagesDialog` ja funciona com `codAgent` para buscar credenciais dinamicamente
-- O campo `whatsapp` do contrato esta no mesmo formato usado pelo CRM
+Objetivo: corrigir o bloqueio “ERR_BLOCKED_BY_CLIENT” ao abrir o link do PDF do ZapSign (zapsign.s3.amazonaws.com). Esse erro normalmente não é “link errado”; é bloqueio do navegador/extensão (adblock/antitracking/antivirus) para o domínio do S3. A solução mais robusta é não abrir o link direto do S3 no browser e sim baixar o arquivo por um endpoint do nosso backend (proxy), para que o navegador só converse com o nosso domínio.
+
+## Diagnóstico (por que está acontecendo)
+1) Hoje o frontend faz:
+   - chama `zapsign-download` → recebe `signed_file/original_file` (URL do S3)
+   - executa `window.open(fileUrl, '_blank')`
+2) Em muitos ambientes, extensões de bloqueio classificam domínios do S3 (ou URLs com query string de assinatura) como “trackers” e bloqueiam a navegação, gerando:
+   - “zapsign.s3.amazonaws.com está bloqueado”
+   - `ERR_BLOCKED_BY_CLIENT`
+
+Conclusão: o link pode estar correto, mas o Chrome/extensão bloqueia o destino.
+
+## Abordagem de correção (proxy/stream do arquivo)
+Criar um novo backend function que:
+1) Recebe `doc_token` (e opcionalmente qual arquivo: `signed` vs `original`)
+2) Consulta a API do ZapSign para obter a URL temporária do arquivo (igual já fazemos)
+3) Em vez de retornar a URL para o frontend, o backend faz `fetch()` dessa URL e devolve o conteúdo do PDF diretamente (stream) com headers de download.
+
+Isso evita que o browser navegue até o S3 (logo, não aciona o bloqueio da extensão).
+
+## Mudanças planejadas (arquivos)
+### A) Backend: nova function `zapsign-file`
+Criar: `supabase/functions/zapsign-file/index.ts`
+
+Comportamento:
+- CORS preflight (OPTIONS) obrigatório
+- Entrada JSON:
+  ```json
+  { "doc_token": "…", "file": "signed" | "original" }
+  ```
+- Passos:
+  1) Validar `doc_token` (string não vazia; opcional: formato UUID)
+  2) Buscar detalhes do doc em:
+     - `GET https://api.zapsign.com.br/api/v1/docs/{doc_token}/`
+     - manter fallback atual para signer_token em `GET /api/v1/signers/{token}/` se retornar 404
+  3) Selecionar URL:
+     - se `file === "signed"` usar `signed_file` (se existir)
+     - senão usar `original_file`
+  4) Fazer `fetch(fileUrl)` e retornar `new Response(fileResponse.body, { headers… })` para stream sem carregar tudo na memória.
+  5) Definir headers para forçar download e permitir o frontend ler headers:
+     - `Content-Type: application/pdf` (ou repassar do S3 se vier)
+     - `Content-Disposition: attachment; filename="contrato-{doc_token}.pdf"` (ou usar `docData.name` se vier)
+     - `Access-Control-Allow-Origin: *`
+     - `Access-Control-Expose-Headers: Content-Disposition, Content-Type`
+
+Tratamento de erro:
+- Se ZapSign retornar 404: devolver JSON com `success:false` + mensagem orientando “token não encontrado”.
+- Se `signed_file` vazio e usuário pediu signed: devolver `success:false` “documento ainda não assinado”.
+- Se o fetch do arquivo falhar: devolver `success:false` com status 200 (para UX/toast) + detalhes.
+
+Observação importante:
+- Resposta binária e resposta JSON convivem: quando sucesso, retorna PDF; quando erro, retorna JSON.
+- No frontend, vamos detectar isso pelo status/Content-Type.
+
+### B) Frontend: ajustar download no `ContratosTable.tsx`
+Arquivo: `src/pages/estrategico/contratos/components/ContratosTable.tsx`
+
+Trocar a lógica de download:
+- Em vez de `window.open(fileUrl, '_blank')`, fazer download “de verdade” via backend function.
+
+Implementação proposta:
+1) Chamar a function `zapsign-file` com `fetch` (recomendado para lidar com blob/binary de forma explícita), por exemplo:
+   - usar a URL base do backend functions já configurada no projeto (sem hardcode em texto; usar as variáveis já existentes do app).
+2) Ler a resposta:
+   - Se `Content-Type` indicar `application/json`, parsear e mostrar toast do erro.
+   - Se for PDF (ou octet-stream), usar `await res.blob()` e disparar download:
+     ```ts
+     const blobUrl = URL.createObjectURL(blob);
+     const a = document.createElement('a');
+     a.href = blobUrl;
+     a.download = fileName; // ex: `${contrato.signer_name ?? 'contrato'}.pdf`
+     a.click();
+     URL.revokeObjectURL(blobUrl);
+     ```
+3) Manter spinner/disable do botão durante o download.
+4) UX de fallback:
+   - Se ocorrer erro típico de bloqueio (ou falha de rede), exibir toast sugerindo:
+     - “Pode ser extensão bloqueando downloads/URLs. Tente desativar adblock para este site.”
+   - (Opcional) Adicionar ação “Copiar link” (se quisermos manter a URL), mas a solução principal passa a ser o proxy.
+
+### C) Manter `zapsign-download` como está (opcional)
+- Podemos manter `zapsign-download` retornando URLs (útil para debug/admin).
+- O botão “Baixar” passa a usar `zapsign-file`.
+
+## Sequência de execução
+1) Implementar `supabase/functions/zapsign-file/index.ts` (novo).
+2) Fazer deploy da function.
+3) Atualizar `ContratosTable.tsx` para usar `zapsign-file` e baixar via blob.
+4) Testar:
+   - ambiente com adblock (onde hoje falha) deve passar
+   - ambiente normal continua funcionando
+5) Validar arquivos grandes:
+   - se PDFs forem muito grandes e houver limite de tempo/tamanho do runtime, aplicar fallback (manter abertura por URL com aviso). Isso será decidido após teste real com um contrato grande.
+
+## Critérios de aceite
+- Clicar em “Baixar contrato assinado” não abre aba no S3.
+- Download inicia dentro do navegador sem a tela “bloqueado”.
+- Em caso de token inválido, a mensagem de erro fica clara e não quebra a página.
+- Continua respeitando “links expiram em 60 minutos” porque a URL é gerada sob demanda no backend.
+
+## Nota rápida ao usuário (para alinhar expectativa)
+- “ERR_BLOCKED_BY_CLIENT” quase sempre é extensão/antivírus, não problema de link. A mudança para proxy resolve porque o download passa a vir do nosso próprio domínio, que normalmente não é bloqueado.
