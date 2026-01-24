@@ -142,19 +142,19 @@ export interface FollowupDailyMetrics {
 
 // Stats do período anterior (para comparação)
 export interface FollowupPreviousStats {
-  total: number;
-  totalSent: number;
-  waiting: number;
-  stopped: number;           // Respostas (de followup_response)
-  responseRate: number;
+  total: number;             // Total de leads na fila (qualquer status) - followup_queue
+  totalSent: number;         // Total de mensagens enviadas - followup_history
+  waiting: number;           // Leads com state = 'SEND' (ativos) - followup_queue
+  stopped: number;           // Total de respostas COUNT(*) - followup_response
+  responseRate: number;      // (respostas / leads contatados) * 100
 }
 
 // Stats atualizadas com taxa de resposta
 export interface FollowupStats {
-  total: number;           // Leads únicos na fila
-  totalSent: number;       // Total de mensagens enviadas
-  waiting: number;         // Leads aguardando
-  stopped: number;         // Respostas (de followup_response)
-  responseRate: number;    // Taxa de resposta %
+  total: number;           // Total de leads na fila (qualquer status) - followup_queue
+  totalSent: number;       // Total de mensagens enviadas - followup_history
+  waiting: number;         // Leads com state = 'SEND' (ativos) - followup_queue
+  stopped: number;         // Total de respostas COUNT(*) - followup_response
+  responseRate: number;    // (respostas / leads contatados) * 100
   previous?: FollowupPreviousStats; // Dados do período anterior para comparação
 }

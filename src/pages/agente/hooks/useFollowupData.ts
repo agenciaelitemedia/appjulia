@@ -536,17 +536,69 @@ export function useFollowupDailyMetrics(filters: FollowupFiltersState) {
   });
 }
 
+// Fetch queue totals from followup_queue (total leads and waiting leads)
+export function useFollowupQueueTotals(filters: FollowupFiltersState) {
+  return useQuery({
+    queryKey: ['followup-queue-totals', filters],
+    queryFn: async () => {
+      if (!filters.agentCodes.length) return { total: 0, waiting: 0 };
+
+      const agentPlaceholders = filters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
+      const params: (string | number)[] = [...filters.agentCodes];
+
+      let dateFilter = '';
+      if (filters.dateFrom) {
+        dateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
+        params.push(filters.dateFrom);
+      }
+      if (filters.dateTo) {
+        dateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
+        params.push(filters.dateTo);
+      }
+
+      // Count unique leads by status using DISTINCT ON (most recent record per session)
+      const result = await externalDb.raw<{ total: string; waiting: string }[]>({
+        query: `
+          WITH unique_leads AS (
+            SELECT DISTINCT ON (cod_agent, session_id)
+              session_id, state
+            FROM followup_queue
+            WHERE cod_agent IN (${agentPlaceholders})
+              ${dateFilter}
+            ORDER BY cod_agent, session_id, send_date DESC
+          )
+          SELECT 
+            COUNT(*)::text as total,
+            COUNT(*) FILTER (WHERE state = 'SEND')::text as waiting
+          FROM unique_leads
+        `,
+        params,
+      });
+
+      const flatResult = Array.isArray(result) ? result.flat() : [];
+      return {
+        total: parseInt(flatResult[0]?.total || '0', 10),
+        waiting: parseInt(flatResult[0]?.waiting || '0', 10),
+      };
+    },
+    enabled: filters.agentCodes.length > 0,
+    staleTime: 1000 * 30,
+  });
+}
+
 // Fetch global response rate using followup_response table
+// Responses: COUNT(*) - each record = 1 response (a lead can respond multiple times)
+// Rate: (total responses / unique leads contacted) * 100
 export function useFollowupResponseRate(filters: FollowupFiltersState) {
   return useQuery({
     queryKey: ['followup-response-rate', filters],
     queryFn: async () => {
-      if (!filters.agentCodes.length) return { total: 0, responses: 0, stopped: 0, rate: 0 };
+      if (!filters.agentCodes.length) return { total: 0, responses: 0, rate: 0 };
 
       const agentPlaceholders = filters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
+      
+      // 1. Total unique leads that received at least 1 message
       const historyParams: (string | number)[] = [...filters.agentCodes];
-
-      // Build history date filter for total leads contacted
       let historyDateFilter = '';
       if (filters.dateFrom) {
         historyDateFilter += ` AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${historyParams.length + 1}`;
@@ -557,7 +609,6 @@ export function useFollowupResponseRate(filters: FollowupFiltersState) {
         historyParams.push(filters.dateTo);
       }
 
-      // Total unique leads that received at least 1 message
       const totalResult = await externalDb.raw<{ total: string }[]>({
         query: `
           SELECT COUNT(DISTINCT fq.session_id)::text as total
@@ -569,34 +620,35 @@ export function useFollowupResponseRate(filters: FollowupFiltersState) {
         params: historyParams,
       });
 
-      // Count unique leads that responded (from followup_response)
+      // 2. Total RESPONSES (COUNT(*), not DISTINCT - each record = 1 response)
       const responseParams: (string | number)[] = [...filters.agentCodes];
-      let responseWhereClause = `fq.cod_agent IN (${agentPlaceholders})`;
-      
+      let responseDateFilter = '';
       if (filters.dateFrom) {
-        responseWhereClause += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${responseParams.length + 1}`;
+        responseDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${responseParams.length + 1}`;
         responseParams.push(filters.dateFrom);
       }
       if (filters.dateTo) {
-        responseWhereClause += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${responseParams.length + 1}`;
+        responseDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${responseParams.length + 1}`;
         responseParams.push(filters.dateTo);
       }
 
       const responseResult = await externalDb.raw<{ responses: string }[]>({
         query: `
-          SELECT COUNT(DISTINCT fq.session_id)::text as responses
+          SELECT COUNT(*)::text as responses
           FROM followup_response fr
           JOIN followup_queue fq ON fq.id = fr.followup_queue_id
-          WHERE ${responseWhereClause}
+          WHERE fq.cod_agent IN (${agentPlaceholders})
+            ${responseDateFilter}
         `,
         params: responseParams,
       });
 
       const total = parseInt(totalResult.flat()[0]?.total || '0', 10);
       const responses = parseInt(responseResult.flat()[0]?.responses || '0', 10);
+      // Rate = (responses / leads contacted) * 100
       const rate = total > 0 ? (responses / total) * 100 : 0;
 
-      return { total, responses, stopped: responses, rate };
+      return { total, responses, rate };
     },
     enabled: filters.agentCodes.length > 0,
     staleTime: 1000 * 30,
@@ -656,7 +708,7 @@ export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
     staleTime: 1000 * 60,
   });
 
-  // Fetch response rate for previous period (using followup_response)
+  // Fetch response rate for previous period (using followup_response with COUNT(*))
   const { data: responseData, isLoading: isLoadingResponse } = useQuery({
     queryKey: ['followup-response-rate-previous', previousFilters],
     queryFn: async () => {
@@ -689,25 +741,25 @@ export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
         params: historyParams,
       });
 
-      // Responses from followup_response in previous period
+      // Responses from followup_response in previous period (COUNT(*), not DISTINCT)
       const responseParams: (string | number)[] = [...previousFilters.agentCodes];
-      let responseWhereClause = `fq.cod_agent IN (${agentPlaceholders})`;
-      
+      let responseDateFilter = '';
       if (previousFilters.dateFrom) {
-        responseWhereClause += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${responseParams.length + 1}`;
+        responseDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${responseParams.length + 1}`;
         responseParams.push(previousFilters.dateFrom);
       }
       if (previousFilters.dateTo) {
-        responseWhereClause += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${responseParams.length + 1}`;
+        responseDateFilter += ` AND (fr.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${responseParams.length + 1}`;
         responseParams.push(previousFilters.dateTo);
       }
 
       const responseResult = await externalDb.raw<{ responses: string }[]>({
         query: `
-          SELECT COUNT(DISTINCT fq.session_id)::text as responses
+          SELECT COUNT(*)::text as responses
           FROM followup_response fr
           JOIN followup_queue fq ON fq.id = fr.followup_queue_id
-          WHERE ${responseWhereClause}
+          WHERE fq.cod_agent IN (${agentPlaceholders})
+            ${responseDateFilter}
         `,
         params: responseParams,
       });
@@ -716,46 +768,56 @@ export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
       const responses = parseInt(responseResult.flat()[0]?.responses || '0', 10);
       const rate = total > 0 ? (responses / total) * 100 : 0;
 
-      return { total, responses, stopped: responses, rate };
+      return { total, responses, rate };
     },
     enabled,
     staleTime: 1000 * 60,
   });
 
-  // Fetch unique leads for previous period
-  const { data: leadsData, isLoading: isLoadingLeads } = useQuery({
-    queryKey: ['followup-leads-previous', previousFilters],
+  // Fetch queue totals for previous period (total leads and waiting leads)
+  const { data: queueTotals, isLoading: isLoadingQueue } = useQuery({
+    queryKey: ['followup-queue-totals-previous', previousFilters],
     queryFn: async () => {
       if (!previousFilters.agentCodes.length || !previousFilters.dateFrom) {
-        return { uniqueLeads: 0 };
+        return { total: 0, waiting: 0 };
       }
 
       const agentPlaceholders = previousFilters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
       const params: (string | number)[] = [...previousFilters.agentCodes];
 
-      let historyDateFilter = '';
+      let dateFilter = '';
       if (previousFilters.dateFrom) {
-        historyDateFilter += ` AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
+        dateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
         params.push(previousFilters.dateFrom);
       }
       if (previousFilters.dateTo) {
-        historyDateFilter += ` AND (fh.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
+        dateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
         params.push(previousFilters.dateTo);
       }
 
-      const result = await externalDb.raw<{ unique_leads: string }[]>({
+      const result = await externalDb.raw<{ total: string; waiting: string }[]>({
         query: `
-          SELECT COUNT(DISTINCT fq.session_id)::text as unique_leads
-          FROM followup_history fh
-          JOIN followup_queue fq ON fq.id = fh.followup_queue_id
-          WHERE fq.cod_agent IN (${agentPlaceholders})
-            ${historyDateFilter}
+          WITH unique_leads AS (
+            SELECT DISTINCT ON (cod_agent, session_id)
+              session_id, state
+            FROM followup_queue
+            WHERE cod_agent IN (${agentPlaceholders})
+              ${dateFilter}
+            ORDER BY cod_agent, session_id, send_date DESC
+          )
+          SELECT 
+            COUNT(*)::text as total,
+            COUNT(*) FILTER (WHERE state = 'SEND')::text as waiting
+          FROM unique_leads
         `,
         params,
       });
 
       const flatResult = Array.isArray(result) ? result.flat() : [];
-      return { uniqueLeads: parseInt(flatResult[0]?.unique_leads || '0', 10) };
+      return {
+        total: parseInt(flatResult[0]?.total || '0', 10),
+        waiting: parseInt(flatResult[0]?.waiting || '0', 10),
+      };
     },
     enabled,
     staleTime: 1000 * 60,
@@ -764,11 +826,11 @@ export function useFollowupPreviousPeriodStats(filters: FollowupFiltersState) {
   return useMemo((): { previous: FollowupPreviousStats; isLoading: boolean } => ({
     previous: {
       totalSent: sentCount,
-      stopped: responseData?.stopped || 0,
+      stopped: responseData?.responses || 0,
       responseRate: responseData?.rate || 0,
-      total: leadsData?.uniqueLeads || 0,
-      waiting: (responseData?.total || 0) - (responseData?.stopped || 0),
+      total: queueTotals?.total || 0,
+      waiting: queueTotals?.waiting || 0,
     },
-    isLoading: isLoadingSent || isLoadingResponse || isLoadingLeads,
-  }), [sentCount, responseData, leadsData, isLoadingSent, isLoadingResponse, isLoadingLeads]);
+    isLoading: isLoadingSent || isLoadingResponse || isLoadingQueue,
+  }), [sentCount, responseData, queueTotals, isLoadingSent, isLoadingResponse, isLoadingQueue]);
 }
