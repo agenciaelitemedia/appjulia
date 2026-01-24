@@ -140,6 +140,15 @@ export interface FollowupDailyMetrics {
   responseRate: number;      // (stopped / totalRecords) * 100
 }
 
+// Stats do período anterior (para comparação)
+export interface FollowupPreviousStats {
+  total: number;
+  totalSent: number;
+  waiting: number;
+  stopped: number;
+  responseRate: number;
+}
+
 // Stats atualizadas com taxa de resposta
 export interface FollowupStats {
   total: number;           // Leads únicos na fila
@@ -147,4 +156,5 @@ export interface FollowupStats {
   waiting: number;         // Leads aguardando
   stopped: number;         // Leads que responderam (STOP)
   responseRate: number;    // Taxa de resposta %
+  previous?: FollowupPreviousStats; // Dados do período anterior para comparação
 }

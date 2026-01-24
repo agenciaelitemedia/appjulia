@@ -17,6 +17,7 @@ import {
   useFinalizeQueueItem,
   useFollowupDailyMetrics,
   useFollowupResponseRate,
+  useFollowupPreviousPeriodStats,
 } from '../hooks/useFollowupData';
 import { 
   FollowupFiltersState, 
@@ -111,6 +112,9 @@ export default function FollowupPage() {
   // Dashboard-specific data
   const { data: dailyMetrics = [], isLoading: isLoadingDailyMetrics, refetch: refetchDailyMetrics } = useFollowupDailyMetrics(dashboardFilters);
   const { data: responseData, refetch: refetchResponseRate } = useFollowupResponseRate(dashboardFilters);
+  
+  // Previous period stats for comparison
+  const { previous: previousStats, isLoading: isLoadingPrevious } = useFollowupPreviousPeriodStats(dashboardFilters);
 
   // Normalize config data
   const config: FollowupConfigType | null = useMemo(() => {
@@ -172,14 +176,15 @@ export default function FollowupPage() {
     return result;
   }, [filteredItems]);
 
-  // Dashboard stats (using response rate data)
+  // Dashboard stats (using response rate data) with previous period comparison
   const dashboardStats: FollowupStats = useMemo(() => ({
     total: dailyMetrics.reduce((sum, d) => sum + d.uniqueLeads, 0),
     totalSent: dailyMetrics.reduce((sum, d) => sum + d.messagesSent, 0),
     waiting: dailyMetrics.reduce((sum, d) => sum + d.totalRecords - d.stopped, 0),
     stopped: responseData?.stopped || 0,
     responseRate: responseData?.rate || 0,
-  }), [dailyMetrics, responseData]);
+    previous: isLoadingPrevious ? undefined : previousStats,
+  }), [dailyMetrics, responseData, previousStats, isLoadingPrevious]);
 
   // Queue page stats (local to queue tab)
   const queuePageStats: FollowupStats = useMemo(() => ({

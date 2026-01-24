@@ -1,7 +1,32 @@
+import { parseISO, differenceInDays, subDays, format } from 'date-fns';
+
 /**
  * Constante global de timezone para todo o sistema
  */
 export const TIMEZONE = 'America/Sao_Paulo';
+
+/**
+ * Calcula o período anterior equivalente com base no intervalo selecionado.
+ * Exemplo: se o período atual é 17/01 a 24/01 (7 dias), o período anterior será 10/01 a 16/01.
+ */
+export function getPreviousPeriod(dateFrom: string, dateTo: string): { 
+  previousDateFrom: string; 
+  previousDateTo: string;
+  durationDays: number;
+} {
+  const from = parseISO(dateFrom);
+  const to = parseISO(dateTo);
+  const durationDays = differenceInDays(to, from) + 1; // +1 pois inclui ambos os dias
+  
+  const previousTo = subDays(from, 1); // Um dia antes do início atual
+  const previousFrom = subDays(previousTo, durationDays - 1);
+  
+  return {
+    previousDateFrom: format(previousFrom, 'yyyy-MM-dd'),
+    previousDateTo: format(previousTo, 'yyyy-MM-dd'),
+    durationDays,
+  };
+}
 
 /**
  * Retorna a data atual no timezone America/Sao_Paulo no formato 'yyyy-MM-dd'
