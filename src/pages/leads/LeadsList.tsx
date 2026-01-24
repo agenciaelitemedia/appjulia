@@ -30,6 +30,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { externalDb } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
+import { formatDateOnlySaoPaulo } from '@/lib/dateUtils';
 
 interface Lead {
   id: number;
@@ -118,13 +119,6 @@ export default function LeadsList() {
     return phone;
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
-  };
 
   return (
     <div className="space-y-6">
@@ -212,7 +206,7 @@ export default function LeadsList() {
                           </Badge>
                         </TableCell>
                         <TableCell>{lead.source || '-'}</TableCell>
-                        <TableCell>{formatDate(lead.created_at)}</TableCell>
+                        <TableCell>{formatDateOnlySaoPaulo(lead.created_at)}</TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>

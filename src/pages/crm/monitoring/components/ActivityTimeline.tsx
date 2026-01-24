@@ -3,27 +3,15 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowRight, MessageSquare } from 'lucide-react';
-import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { CRMActivityLog } from '../../types';
+import { 
+  formatTimeSaoPaulo, 
+  getDateGroupLabel 
+} from '@/lib/dateUtils';
 
 interface ActivityTimelineProps {
   activities: CRMActivityLog[];
   isLoading?: boolean;
-}
-
-function formatActivityDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  
-  if (isToday(date)) {
-    return `Hoje, ${format(date, 'HH:mm', { locale: ptBR })}`;
-  }
-  
-  if (isYesterday(date)) {
-    return `Ontem, ${format(date, 'HH:mm', { locale: ptBR })}`;
-  }
-  
-  return format(date, "dd/MM 'às' HH:mm", { locale: ptBR });
 }
 
 function groupActivitiesByDate(activities: CRMActivityLog[]) {
@@ -31,15 +19,7 @@ function groupActivitiesByDate(activities: CRMActivityLog[]) {
   
   activities.forEach(activity => {
     const date = new Date(activity.changed_at);
-    let key: string;
-    
-    if (isToday(date)) {
-      key = 'Hoje';
-    } else if (isYesterday(date)) {
-      key = 'Ontem';
-    } else {
-      key = format(date, "dd 'de' MMMM", { locale: ptBR });
-    }
+    const key = getDateGroupLabel(date);
     
     if (!groups[key]) {
       groups[key] = [];
@@ -98,7 +78,7 @@ export function ActivityTimeline({ activities, isLoading }: ActivityTimelineProp
                       className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
                     >
                       <div className="flex-shrink-0 w-10 text-xs text-muted-foreground">
-                        {format(new Date(activity.changed_at), 'HH:mm')}
+                        {formatTimeSaoPaulo(activity.changed_at)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm">

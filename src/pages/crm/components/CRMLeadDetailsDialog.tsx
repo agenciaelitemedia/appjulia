@@ -11,8 +11,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { CRMCard, CRMStage } from '../types';
 import { useCRMCardHistory } from '../hooks/useCRMData';
-import { format, formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateTimeSaoPaulo } from '@/lib/dateUtils';
 
 interface CRMLeadDetailsDialogProps {
   card: CRMCard | null;
@@ -160,7 +161,7 @@ export function CRMLeadDetailsDialog({
                   <span>Criado em</span>
                 </div>
                 <p className="text-sm font-medium">
-                  {format(new Date(card.created_at), "dd/MM/yy, HH:mm", { locale: ptBR })}
+                  {formatDateTimeSaoPaulo(card.created_at)}
                 </p>
               </div>
 
@@ -189,7 +190,7 @@ export function CRMLeadDetailsDialog({
                 )}
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Clock className="h-3 w-3" />
-                  desde {format(new Date(card.stage_entered_at), "dd/MM/yy, HH:mm", { locale: ptBR })}
+                  desde {formatDateTimeSaoPaulo(card.stage_entered_at)}
                 </span>
               </div>
             </div>
@@ -241,7 +242,7 @@ export function CRMLeadDetailsDialog({
                         className="flex items-center gap-2 text-sm p-3 bg-muted/30 rounded-lg"
                       >
                         <span className="text-xs text-muted-foreground shrink-0">
-                          {format(new Date(item.changed_at), 'dd/MM/yy, HH:mm', { locale: ptBR })}
+                          {formatDateTimeSaoPaulo(item.changed_at)}
                         </span>
                         
                         {item.from_stage_name ? (

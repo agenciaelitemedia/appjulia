@@ -9,11 +9,10 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { externalDb } from '@/lib/externalDb';
 import { UaZapiClient } from '@/lib/uazapi';
+import { formatTimeSaoPaulo, formatDateShortSaoPaulo } from '@/lib/dateUtils';
 
 // ============================================
 // Types
@@ -1071,28 +1070,9 @@ export function WhatsAppMessagesDialog({
     }
   };
 
-  const formatMessageTime = (timestamp: number) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString('pt-BR', {
-      timeZone: 'America/Sao_Paulo',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  };
-
-  const formatMessageDate = (timestamp: number) => {
-    const date = new Date(timestamp);
-    return date.toLocaleDateString('pt-BR', {
-      timeZone: 'America/Sao_Paulo',
-      day: '2-digit',
-      month: 'short',
-    });
-  };
-
   // Group messages by date
   const groupedMessages = messages.reduce((groups, message) => {
-    const date = formatMessageDate(message.timestamp);
+    const date = formatDateShortSaoPaulo(message.timestamp);
     if (!groups[date]) {
       groups[date] = [];
     }
@@ -1191,7 +1171,7 @@ export function WhatsAppMessagesDialog({
                             "text-[10px] mt-1 text-right text-muted-foreground"
                           )}
                         >
-                          {formatMessageTime(message.timestamp)}
+                          {formatTimeSaoPaulo(message.timestamp)}
                         </p>
                       </div>
                     </div>
