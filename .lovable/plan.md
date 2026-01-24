@@ -1,176 +1,107 @@
 
 
-# Plano: Reformulação do Editor de Etapas de FollowUp
+# Plano: Melhorias na Lista de FollowUp - Agendamento e Ações
 
 ## Resumo
-Modificar o CadenceStepEditor para usar inputs separados de quantidade e tipo de tempo (como na imagem de referência), adicionar validações de mensagem baseadas na flag de mensagem automática, e implementar limites de etapas.
+Modificar a lista de FollowUp para:
+1. Calcular e exibir a **próxima data de envio** baseada no intervalo da etapa atual
+2. Substituir o dropdown de ações por **ícones diretos com tooltips** (Conversa, Parar/Retomar, Finalizar)
+3. Implementar **ações específicas** com comportamentos distintos para cada operação
 
 ---
 
-## Mudanças Visuais - Intervalo de Tempo
+## Mudanças Visuais - Coluna "Agendado"
 
 ### Estrutura Atual
 ```text
+┌────────────────────────────────────────────────────────────────────────────┐
+│ Etapa │ Status  │ WhatsApp     │ Cliente    │ Agendado      │ Ações       │
+├───────┼─────────┼──────────────┼────────────┼───────────────┼─────────────┤
+│ 2/4   │ Aguard. │ +55 (11)...  │ João Silva │ 24/01 14:30   │ [...]       │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Nova Estrutura
+```text
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│ Etapa │ Status  │ WhatsApp     │ Cliente    │ Próximo Envio    │ Ações          │
+├───────┼─────────┼──────────────┼────────────┼──────────────────┼────────────────┤
+│ 2/4   │ Aguard. │ +55 (11)...  │ João Silva │ 24/01 às 14:30   │ 💬  ⏸  ⏹      │
+│       │         │              │            │ (em 2h 15min)    │ (com tooltip)  │
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Cálculo da Próxima Data de Envio
+
+Para calcular quando será o próximo envio, precisamos:
+
+1. **Obter o intervalo da etapa atual** a partir da config (`step_cadence`)
+2. **Somar o intervalo à `send_date`** existente no item
+
+### Fórmula
+```text
+próximo_envio = send_date + intervalo_etapa_atual
+```
+
+### Exemplo
+```text
+send_date = "2025-01-24 10:00:00"
+step_number = 2
+step_cadence = { "cadence_1": "5 minutes", "cadence_2": "2 hours", "cadence_3": "1 days" }
+
+intervalo_etapa_2 = "2 hours"
+próximo_envio = 2025-01-24 12:00:00
+```
+
+---
+
+## Novas Ações com Ícones
+
+Remover o DropdownMenu e exibir ícones diretos com tooltips:
+
+| Ícone | Tooltip | Ação | Comportamento no Banco |
+|-------|---------|------|------------------------|
+| MessageCircle | "Ver Conversa" | Abre diálogo de mensagens | (nenhum) |
+| Pause/Play | "Parar" / "Retomar" | Alterna status | `state = 'STOP'` ou `state = 'SEND', send_date = NOW(), step_number = 1` |
+| Square | "Finalizar" | Encerra definitivamente | `state = 'STOP', step_number = 0` |
+
+### Visual das Ações
+```text
 ┌─────────────────────────────────────────────────┐
-│  Etapa 1                                        │
-│  ┌───────────────────────────────────────────┐  │
-│  │  ▼ Selecione o intervalo                  │  │
-│  │    • 5 minutos                            │  │
-│  │    • 10 minutos                           │  │
-│  │    • 1 hora                               │  │
-│  │    • 1 dia                                │  │
-│  └───────────────────────────────────────────┘  │
+│  💬        ⏸        ⏹                          │
+│  Ver      Parar    Finalizar                   │
+│  Conversa                                       │
+│                                                 │
+│  (ao hover, mostra tooltip)                    │
 └─────────────────────────────────────────────────┘
 ```
 
-### Nova Estrutura (como na imagem)
-```text
-┌──────────────────────────────────────────────────────┐
-│  Etapa 1                                        [🗑] │
-│                                                      │
-│  Intervalo ⓘ                                         │
-│  ┌─────────────┐  ┌────────────────────────────┐    │
-│  │      5      │  │  ▼ Minutos                 │    │
-│  └─────────────┘  │    • Minutos               │    │
-│   (número 5-999)  │    • Horas                 │    │
-│                   │    • Dias                  │    │
-│                   └────────────────────────────┘    │
-└──────────────────────────────────────────────────────┘
+### Comportamentos Detalhados
+
+**1. Parar (quando `state !== 'STOP'`)**
+```sql
+UPDATE followup_queue 
+SET state = 'STOP' 
+WHERE id = $1
 ```
 
----
-
-## Lógica de Armazenamento no Banco
-
-### Formato Atual
-```typescript
-// step_cadence no banco
-{
-  "cadence_1": "5 minutes",
-  "cadence_2": "1 hours", 
-  "cadence_3": "2 days"
-}
+**2. Retomar (quando `state === 'STOP' AND step_number > 0`)**
+```sql
+UPDATE followup_queue 
+SET state = 'SEND', 
+    send_date = NOW(), 
+    step_number = 1 
+WHERE id = $1
 ```
 
-### Conversão UI → Banco
-| Quantidade | Tipo     | Valor no Banco |
-|------------|----------|----------------|
-| 5          | Minutos  | `"5 minutes"`  |
-| 1          | Horas    | `"1 hours"`    |
-| 2          | Dias     | `"2 days"`     |
-
-### Conversão Banco → UI
-```typescript
-// "5 minutes" → { value: 5, unit: "minutes" }
-// "1 hours"   → { value: 1, unit: "hours" }
-// "2 days"    → { value: 2, unit: "days" }
-
-function parseInterval(interval: string): { value: number; unit: string } {
-  const match = interval.match(/^(\d+)\s+(minutes|hours|days)$/);
-  if (match) {
-    return { value: parseInt(match[1], 10), unit: match[2] };
-  }
-  return { value: 5, unit: 'minutes' }; // Default
-}
-```
-
----
-
-## Validações
-
-### 1. Tempo Mínimo de 5 Minutos
-```typescript
-// Validação no input de quantidade
-const validateInterval = (value: number, unit: string): number => {
-  if (unit === 'minutes' && value < 5) return 5;
-  if (value < 1) return 1;
-  return value;
-};
-```
-
-### 2. Máximo de 50 Etapas
-```typescript
-// Em FollowupConfig.tsx
-const handleAddStep = () => {
-  if (steps.length >= 50) {
-    toast.error('Máximo de 50 etapas atingido');
-    return;
-  }
-  // ... adicionar etapa
-};
-
-// Desabilitar botão quando limite atingido
-<Button 
-  disabled={steps.length >= 50}
-  onClick={handleAddStep}
->
-  Adicionar Etapa
-</Button>
-```
-
-### 3. Mensagens Obrigatórias (quando auto_message = false)
-```typescript
-// Validação antes de salvar
-const validateMessages = (): boolean => {
-  if (autoMessage) return true; // IA gera mensagens
-  
-  for (const step of steps) {
-    if (!step.message || step.message.trim().split(/\s+/).length < 3) {
-      toast.error(`Etapa ${step.key}: mensagem deve ter no mínimo 3 palavras`);
-      return false;
-    }
-  }
-  return true;
-};
-```
-
----
-
-## Nova Interface CadenceStep
-
-```typescript
-export interface CadenceStep {
-  key: string;           // cadence_1, cadence_2, etc.
-  interval: string;      // "5 minutes", "1 days", etc. (formato banco)
-  title: string;         
-  message: string | null;
-}
-
-// Constantes de tipo de intervalo
-export const INTERVAL_UNITS = [
-  { value: 'minutes', label: 'Minutos' },
-  { value: 'hours', label: 'Horas' },
-  { value: 'days', label: 'Dias' },
-] as const;
-```
-
----
-
-## Comportamento do Campo de Mensagem
-
-### Quando `autoMessage = true` (Mensagem Automática)
-```text
-┌─────────────────────────────────────────────────────┐
-│  Mensagem                                           │
-│  ┌─────────────────────────────────────────────────┐│
-│  │ ✨ Mensagem gerada automaticamente pela IA      ││
-│  └─────────────────────────────────────────────────┘│
-│  (Campo apenas leitura, exibe indicador de IA)      │
-└─────────────────────────────────────────────────────┘
-```
-
-### Quando `autoMessage = false` (Mensagem Manual)
-```text
-┌─────────────────────────────────────────────────────┐
-│  Mensagem *                                         │
-│  ┌─────────────────────────────────────────────────┐│
-│  │ Digite a mensagem de follow-up...               ││
-│  │                                                  ││
-│  │                                                  ││
-│  └─────────────────────────────────────────────────┘│
-│  150/300 caracteres                                 │
-│  ⚠️ Mínimo de 3 palavras obrigatório               │
-└─────────────────────────────────────────────────────┘
+**3. Finalizar**
+```sql
+UPDATE followup_queue 
+SET state = 'STOP', 
+    step_number = 0 
+WHERE id = $1
 ```
 
 ---
@@ -179,312 +110,406 @@ export const INTERVAL_UNITS = [
 
 ### 1. src/pages/agente/types.ts
 
-Adicionar constantes de unidades de intervalo:
+Adicionar interface para config parseada no FollowupQueue:
 
 ```typescript
-// Unidades de intervalo para o select
-export const INTERVAL_UNITS = [
-  { value: 'minutes', label: 'Minutos' },
-  { value: 'hours', label: 'Horas' },
-  { value: 'days', label: 'Dias' },
-] as const;
-
-// Limites
-export const STEP_LIMITS = {
-  MAX_STEPS: 50,
-  MIN_INTERVAL_MINUTES: 5,
-  MIN_MESSAGE_WORDS: 3,
-  MAX_MESSAGE_CHARS: 300,
-} as const;
-```
-
-Remover `INTERVAL_OPTIONS` (não será mais necessário).
-
----
-
-### 2. src/pages/agente/followup/components/CadenceStepEditor.tsx
-
-Reformular completamente:
-
-```typescript
-interface CadenceStepEditorProps {
-  step: CadenceStep;
-  stepNumber: number;
-  autoMessage: boolean;
-  onChange: (step: CadenceStep) => void;
-  onRemove: () => void;
-  canRemove: boolean;
+// Tipo para intervalo parseado
+export interface ParsedStepCadence {
+  [key: string]: {
+    value: number;
+    unit: 'minutes' | 'hours' | 'days';
+  };
 }
 
-export function CadenceStepEditor({
-  step,
-  stepNumber,
-  autoMessage,
-  onChange,
-  onRemove,
-  canRemove,
-}: CadenceStepEditorProps) {
-  // Parse interval string to value and unit
-  const parseInterval = (interval: string) => {
-    const match = interval.match(/^(\d+)\s+(minutes|hours|days)$/);
-    return match 
-      ? { value: parseInt(match[1], 10), unit: match[2] }
-      : { value: 5, unit: 'minutes' };
-  };
-
-  const { value: intervalValue, unit: intervalUnit } = parseInterval(step.interval);
-
-  // Handle interval value change with validation
-  const handleIntervalValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = parseInt(e.target.value, 10) || 0;
-    
-    // Validate minimum for minutes
-    if (intervalUnit === 'minutes' && value < 5) {
-      value = 5;
-    } else if (value < 1) {
-      value = 1;
-    }
-    
-    onChange({ ...step, interval: `${value} ${intervalUnit}` });
-  };
-
-  // Handle unit change
-  const handleIntervalUnitChange = (unit: string) => {
-    let value = intervalValue;
-    
-    // If changing to minutes and current value < 5, adjust
-    if (unit === 'minutes' && value < 5) {
-      value = 5;
-    }
-    
-    onChange({ ...step, interval: `${value} ${unit}` });
-  };
-
-  // Message validation (count words)
-  const messageWordCount = step.message?.trim().split(/\s+/).filter(Boolean).length || 0;
-  const isMessageValid = autoMessage || messageWordCount >= 3;
-
-  return (
-    <Card>
-      <CardContent className="p-4">
-        {/* Interval: Value + Unit */}
-        <div className="space-y-2">
-          <Label className="flex items-center gap-1">
-            Intervalo
-            <Tooltip>
-              <TooltipTrigger>
-                <Info className="h-3 w-3" />
-              </TooltipTrigger>
-              <TooltipContent>
-                Tempo de espera antes de enviar esta mensagem
-              </TooltipContent>
-            </Tooltip>
-          </Label>
-          <div className="flex gap-2">
-            <Input
-              type="number"
-              min={intervalUnit === 'minutes' ? 5 : 1}
-              value={intervalValue}
-              onChange={handleIntervalValueChange}
-              className="w-24"
-            />
-            <Select value={intervalUnit} onValueChange={handleIntervalUnitChange}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {INTERVAL_UNITS.map((unit) => (
-                  <SelectItem key={unit.value} value={unit.value}>
-                    {unit.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Message Field */}
-        <div className="space-y-2 mt-4">
-          <Label>
-            Mensagem {!autoMessage && '*'}
-          </Label>
-          
-          {autoMessage ? (
-            // Read-only AI message indicator
-            <div className="flex items-center gap-2 text-sm bg-muted/50 rounded-md p-3">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <span>Mensagem gerada automaticamente pela IA Julia</span>
-            </div>
-          ) : (
-            // Editable message field
-            <>
-              <Textarea
-                value={step.message || ''}
-                onChange={(e) => onChange({ ...step, message: e.target.value })}
-                placeholder="Digite a mensagem de follow-up..."
-                maxLength={300}
-                rows={3}
-                className={!isMessageValid ? 'border-destructive' : ''}
-              />
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>
-                  {!isMessageValid && (
-                    <span className="text-destructive">
-                      Mínimo de 3 palavras obrigatório
-                    </span>
-                  )}
-                </span>
-                <span>{step.message?.length || 0}/300</span>
-              </div>
-            </>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
+// Função para calcular próxima data baseada no intervalo
+export function calculateNextSendDate(
+  sendDate: string, 
+  stepNumber: number, 
+  stepCadence: Record<string, string>
+): Date | null {
+  const cadenceKey = `cadence_${stepNumber}`;
+  const interval = stepCadence[cadenceKey];
+  
+  if (!interval) return null;
+  
+  const { value, unit } = parseInterval(interval);
+  const date = new Date(sendDate);
+  
+  switch (unit) {
+    case 'minutes':
+      date.setMinutes(date.getMinutes() + value);
+      break;
+    case 'hours':
+      date.setHours(date.getHours() + value);
+      break;
+    case 'days':
+      date.setDate(date.getDate() + value);
+      break;
+  }
+  
+  return date;
 }
 ```
 
 ---
 
-### 3. src/pages/agente/followup/components/FollowupConfig.tsx
+### 2. src/pages/agente/followup/FollowupPage.tsx
 
-Adicionar validações e limites:
+Passar `step_cadence` parseado para o `FollowupQueue`:
 
 ```typescript
-import { STEP_LIMITS } from '../../types';
+// Extrair step_cadence da config
+const stepCadence = useMemo(() => {
+  if (!config?.step_cadence) return {};
+  return parseJsonField<Record<string, string>>(config.step_cadence, {});
+}, [config]);
 
-export function FollowupConfig({ config, isLoading, isSaving, onSave }) {
-  // ... existing state
+// No componente FollowupQueue, adicionar prop:
+<FollowupQueue
+  items={filteredItems}
+  stepCadence={stepCadence}  // <-- NOVO
+  isLoading={isLoadingQueue}
+  onUpdateState={handleUpdateState}
+  onRestart={handleRestart}  // <-- NOVO
+  onFinalize={handleFinalize}  // <-- NOVO
+  onDelete={handleDeleteItem}
+  isUpdating={...}
+  searchTerm={searchTerm}
+  onSearchChange={setSearchTerm}
+/>
+```
 
-  const handleAddStep = () => {
-    if (steps.length >= STEP_LIMITS.MAX_STEPS) {
-      toast.error(`Máximo de ${STEP_LIMITS.MAX_STEPS} etapas atingido`);
-      return;
-    }
-    // ... add step logic
-  };
+---
 
-  const validateBeforeSave = (): boolean => {
-    // Validate messages when auto_message is disabled
-    if (!autoMessage) {
-      for (let i = 0; i < steps.length; i++) {
-        const step = steps[i];
-        const wordCount = step.message?.trim().split(/\s+/).filter(Boolean).length || 0;
-        
-        if (wordCount < STEP_LIMITS.MIN_MESSAGE_WORDS) {
-          toast.error(
-            `Etapa ${i + 1}: mensagem deve ter no mínimo ${STEP_LIMITS.MIN_MESSAGE_WORDS} palavras`
-          );
-          return false;
-        }
-        
-        if ((step.message?.length || 0) > STEP_LIMITS.MAX_MESSAGE_CHARS) {
-          toast.error(
-            `Etapa ${i + 1}: mensagem excede ${STEP_LIMITS.MAX_MESSAGE_CHARS} caracteres`
-          );
-          return false;
-        }
-      }
-    }
-    return true;
-  };
+### 3. src/pages/agente/hooks/useFollowupData.ts
 
-  const handleSave = () => {
-    if (!validateBeforeSave()) return;
-    // ... existing save logic
-  };
+Adicionar novas mutations para ações específicas:
 
+```typescript
+// Restart: SEND + NOW() + step_number = 1
+export function useRestartQueueItem() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      return externalDb.raw({
+        query: `
+          UPDATE followup_queue 
+          SET state = 'SEND', 
+              send_date = NOW(), 
+              step_number = 1 
+          WHERE id = $1 
+          RETURNING *
+        `,
+        params: [id],
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['followup-queue'] });
+      toast({
+        title: 'FollowUp retomado',
+        description: 'O lead voltou para a etapa 1 e será processado.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Erro ao retomar',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+// Finalize: STOP + step_number = 0
+export function useFinalizeQueueItem() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      return externalDb.raw({
+        query: `
+          UPDATE followup_queue 
+          SET state = 'STOP', 
+              step_number = 0 
+          WHERE id = $1 
+          RETURNING *
+        `,
+        params: [id],
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['followup-queue'] });
+      toast({
+        title: 'FollowUp finalizado',
+        description: 'O lead foi removido permanentemente da fila.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Erro ao finalizar',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    },
+  });
+}
+```
+
+---
+
+### 4. src/pages/agente/followup/components/FollowupQueue.tsx
+
+Reformular completamente as ações e adicionar cálculo de próximo envio:
+
+```typescript
+import { 
+  MessageCircle, 
+  Pause, 
+  Play, 
+  Square, // Finalizar
+  Search, 
+  ExternalLink,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+} from 'lucide-react';
+import { 
+  Tooltip, 
+  TooltipContent, 
+  TooltipProvider, 
+  TooltipTrigger 
+} from '@/components/ui/tooltip';
+import { calculateNextSendDate } from '../../types';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+interface FollowupQueueProps {
+  items: FollowupQueueItemEnriched[];
+  stepCadence: Record<string, string>;  // NOVO
+  isLoading?: boolean;
+  onUpdateState: (id: number, state: string) => void;
+  onRestart: (id: number) => void;  // NOVO
+  onFinalize: (id: number) => void;  // NOVO
+  onDelete: (id: number) => void;
+  isUpdating?: boolean;
+  searchTerm: string;
+  onSearchChange: (term: string) => void;
+}
+
+// Componente para exibir próximo envio
+function NextSendCell({ 
+  sendDate, 
+  stepNumber, 
+  stepCadence,
+  state 
+}: { 
+  sendDate: string; 
+  stepNumber: number; 
+  stepCadence: Record<string, string>;
+  state: string;
+}) {
+  // Se finalizado (step_number = 0) ou parado, não mostrar próximo envio
+  if (stepNumber === 0 || state === 'STOP') {
+    return <span className="text-muted-foreground">-</span>;
+  }
+  
+  const nextDate = calculateNextSendDate(sendDate, stepNumber, stepCadence);
+  
+  if (!nextDate) {
+    return <span className="text-muted-foreground">-</span>;
+  }
+  
+  const now = new Date();
+  const isPast = nextDate < now;
+  
   return (
-    <div>
-      {/* Button with limit check */}
-      <Button 
-        onClick={handleAddStep}
-        disabled={steps.length >= STEP_LIMITS.MAX_STEPS}
-      >
-        <Plus className="h-4 w-4 mr-2" />
-        Adicionar Etapa ({steps.length}/{STEP_LIMITS.MAX_STEPS})
-      </Button>
-      
-      {/* ... rest of component */}
+    <div className="flex flex-col">
+      <span className={isPast ? 'text-orange-500' : ''}>
+        {format(nextDate, 'dd/MM', { locale: ptBR })} às {format(nextDate, 'HH:mm')}
+      </span>
+      <span className="text-xs text-muted-foreground">
+        {isPast 
+          ? 'Aguardando processamento' 
+          : formatDistanceToNow(nextDate, { addSuffix: true, locale: ptBR })
+        }
+      </span>
     </div>
   );
 }
+
+// Componente de ações com ícones e tooltips
+function ActionButtons({
+  item,
+  onOpenMessages,
+  onStop,
+  onRestart,
+  onFinalize,
+  isUpdating,
+}: {
+  item: FollowupQueueItemEnriched;
+  onOpenMessages: () => void;
+  onStop: () => void;
+  onRestart: () => void;
+  onFinalize: () => void;
+  isUpdating?: boolean;
+}) {
+  const isStopped = item.state === 'STOP';
+  const isFinalized = item.step_number === 0;
+  
+  return (
+    <TooltipProvider delayDuration={0}>
+      <div className="flex items-center justify-end gap-1">
+        {/* Ver Conversa */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8"
+              onClick={onOpenMessages}
+            >
+              <MessageCircle className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Ver Conversa</TooltipContent>
+        </Tooltip>
+        
+        {/* Parar / Retomar */}
+        {!isFinalized && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8"
+                onClick={isStopped ? onRestart : onStop}
+                disabled={isUpdating}
+              >
+                {isStopped ? (
+                  <Play className="h-4 w-4 text-green-500" />
+                ) : (
+                  <Pause className="h-4 w-4 text-yellow-500" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {isStopped ? 'Retomar (volta para etapa 1)' : 'Parar'}
+            </TooltipContent>
+          </Tooltip>
+        )}
+        
+        {/* Finalizar */}
+        {!isFinalized && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8"
+                onClick={onFinalize}
+                disabled={isUpdating}
+              >
+                <Square className="h-4 w-4 text-destructive" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Finalizar FollowUp</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+    </TooltipProvider>
+  );
+}
 ```
 
 ---
 
-## Fluxo de Dados
+## Fluxo de Dados Atualizado
 
 ```text
-FollowupConfig
+FollowupPage
     │
-    ├── autoMessage: boolean
+    ├── config.step_cadence (parseado)
     │
-    └── CadenceStepEditor (para cada etapa)
+    └── FollowupQueue
             │
-            ├── Intervalo
-            │   ├── Input numérico (min: 5 para minutos, 1 para outros)
-            │   └── Select de unidade (Minutos/Horas/Dias)
+            ├── Coluna "Próximo Envio"
+            │   └── calculateNextSendDate(send_date, step_number, step_cadence)
             │
-            └── Mensagem
-                ├── Se autoMessage=true → Exibe indicador IA (read-only)
-                └── Se autoMessage=false → Textarea editável
-                    ├── maxLength: 300
-                    └── Validação: mínimo 3 palavras
+            └── ActionButtons
+                ├── Ver Conversa → WhatsAppMessagesDialog
+                ├── Parar → onUpdateState(id, 'STOP')
+                ├── Retomar → onRestart(id) → SEND + NOW() + step=1
+                └── Finalizar → onFinalize(id) → STOP + step=0
 ```
 
 ---
 
 ## Ordem de Implementação
 
-1. **types.ts** - Adicionar `INTERVAL_UNITS` e `STEP_LIMITS`, remover `INTERVAL_OPTIONS`
+1. **types.ts** - Adicionar função `calculateNextSendDate`
 
-2. **CadenceStepEditor.tsx** - Reformular com:
-   - Input numérico + Select de unidade para intervalo
-   - Lógica de parse/format do formato do banco
-   - Campo de mensagem condicional (IA vs manual)
-   - Contador de caracteres e validação de palavras
+2. **useFollowupData.ts** - Adicionar `useRestartQueueItem` e `useFinalizeQueueItem`
 
-3. **FollowupConfig.tsx** - Adicionar:
-   - Limite de 50 etapas com feedback visual
-   - Validação de mensagens antes de salvar
-   - Contador no botão "Adicionar Etapa"
+3. **FollowupPage.tsx** - Extrair `stepCadence`, adicionar handlers e passar props
+
+4. **FollowupQueue.tsx** - Reformular com:
+   - Componente `NextSendCell` para calcular e exibir próximo envio
+   - Componente `ActionButtons` com ícones e tooltips
+   - Remover DropdownMenu
+   - Remover botão de delete (substitui por Finalizar)
 
 ---
 
 ## Seção Técnica
 
-### Parse e Format do Intervalo
+### Cálculo de Próximo Envio
 ```typescript
-// Banco → UI
-function parseInterval(interval: string): { value: number; unit: string } {
-  const match = interval.match(/^(\d+)\s+(minutes|hours|days)$/);
-  return match 
-    ? { value: parseInt(match[1], 10), unit: match[2] }
-    : { value: 5, unit: 'minutes' };
-}
-
-// UI → Banco
-function formatInterval(value: number, unit: string): string {
-  return `${value} ${unit}`;
+function calculateNextSendDate(
+  sendDate: string, 
+  stepNumber: number, 
+  stepCadence: Record<string, string>
+): Date | null {
+  const cadenceKey = `cadence_${stepNumber}`;
+  const interval = stepCadence[cadenceKey];
+  
+  if (!interval) return null;
+  
+  const { value, unit } = parseInterval(interval);
+  const date = new Date(sendDate);
+  
+  switch (unit) {
+    case 'minutes': date.setMinutes(date.getMinutes() + value); break;
+    case 'hours': date.setHours(date.getHours() + value); break;
+    case 'days': date.setDate(date.getDate() + value); break;
+  }
+  
+  return date;
 }
 ```
 
-### Validação de Mensagem
-```typescript
-function validateMessage(message: string | null): boolean {
-  if (!message) return false;
-  const words = message.trim().split(/\s+/).filter(Boolean);
-  return words.length >= 3 && message.length <= 300;
-}
+### Queries SQL
+```sql
+-- Parar
+UPDATE followup_queue SET state = 'STOP' WHERE id = $1
+
+-- Retomar (volta para etapa 1)
+UPDATE followup_queue 
+SET state = 'SEND', send_date = NOW(), step_number = 1 
+WHERE id = $1
+
+-- Finalizar (remove da fila)
+UPDATE followup_queue 
+SET state = 'STOP', step_number = 0 
+WHERE id = $1
 ```
 
-### Regras de Negócio
-| Regra | Valor |
-|-------|-------|
-| Etapas máximas | 50 |
-| Tempo mínimo | 5 minutos |
-| Palavras mínimas (mensagem) | 3 |
-| Caracteres máximos (mensagem) | 300 |
+### Status Visual Baseado em step_number
+| step_number | state | Visual |
+|-------------|-------|--------|
+| > 0 | SEND/QUEUE | Aguardando / Enviado |
+| > 0 | STOP | Parado (pode retomar) |
+| = 0 | STOP | Finalizado (sem ações) |
 
