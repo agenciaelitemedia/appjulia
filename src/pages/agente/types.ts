@@ -87,3 +87,23 @@ export const DERIVED_STATUS_CONFIG = {
   waiting: { label: 'Aguardando', className: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20' },
   stopped: { label: 'Parado', className: 'bg-muted text-muted-foreground' },
 } as const;
+
+// Métricas diárias para gráficos (registros desagrupados)
+export interface FollowupDailyMetrics {
+  date: string;
+  label: string;
+  totalRecords: number;      // Total de registros no dia
+  messagesSent: number;      // SUM das mensagens enviadas
+  stopped: number;           // Registros com state='STOP'
+  uniqueLeads: number;       // Leads únicos (DISTINCT session_id)
+  responseRate: number;      // (stopped / totalRecords) * 100
+}
+
+// Stats atualizadas com taxa de resposta
+export interface FollowupStats {
+  total: number;           // Leads únicos na fila
+  totalSent: number;       // Total de mensagens enviadas
+  waiting: number;         // Leads aguardando
+  stopped: number;         // Leads que responderam (STOP)
+  responseRate: number;    // Taxa de resposta %
+}

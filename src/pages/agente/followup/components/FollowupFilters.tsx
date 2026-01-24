@@ -17,6 +17,7 @@ interface FollowupFiltersProps {
   onDateFromChange: (date: string) => void;
   onDateToChange: (date: string) => void;
   onStateFilterChange: (state: string) => void;
+  showStateFilter?: boolean;
 }
 
 type QuickPeriod = 'today' | 'yesterday' | 'last7days' | 'custom';
@@ -34,6 +35,7 @@ export function FollowupFilters({
   onDateFromChange,
   onDateToChange,
   onStateFilterChange,
+  showStateFilter = true,
 }: FollowupFiltersProps) {
   // Determine current quick period
   const today = getTodayInSaoPaulo();
@@ -158,22 +160,24 @@ export function FollowupFilters({
       </div>
 
       {/* State Filter */}
-      <div className="flex flex-col gap-1">
-        <Label className="text-xs text-muted-foreground">Status</Label>
-        <Select value={stateFilter} onValueChange={onStateFilterChange}>
-          <SelectTrigger className="w-[140px] h-9">
-            <SelectValue placeholder="Todos" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            {Object.entries(QUEUE_STATES).map(([value, config]) => (
-              <SelectItem key={value} value={value}>
-                {config.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {showStateFilter && (
+        <div className="flex flex-col gap-1">
+          <Label className="text-xs text-muted-foreground">Status</Label>
+          <Select value={stateFilter} onValueChange={onStateFilterChange}>
+            <SelectTrigger className="w-[140px] h-9">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {Object.entries(QUEUE_STATES).map(([value, config]) => (
+                <SelectItem key={value} value={value}>
+                  {config.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* Clear Button */}
       <Button variant="ghost" size="sm" onClick={handleClearFilters}>
