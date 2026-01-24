@@ -1,6 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Clock, Send, ListTodo, MessageCircle, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
+import { Clock, Send, ListTodo, MessageCircle, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Minus, Users } from 'lucide-react';
 import { FollowupStats } from '../../types';
 import { cn } from '@/lib/utils';
 
@@ -67,7 +67,8 @@ interface CardData {
 }
 
 export function FollowupSummary({ stats, isLoading }: FollowupSummaryProps) {
-  const cards: CardData[] = [
+  // Cards da primeira linha (contadores absolutos)
+  const absoluteCards: CardData[] = [
     {
       title: 'Leads na Fila',
       value: stats.total.toLocaleString('pt-BR'),
@@ -79,7 +80,7 @@ export function FollowupSummary({ stats, isLoading }: FollowupSummaryProps) {
         : null,
     },
     {
-      title: 'Aguardando',
+      title: 'Leads em FollowUp',
       value: stats.waiting.toLocaleString('pt-BR'),
       icon: Clock,
       color: 'text-yellow-600',
@@ -108,6 +109,20 @@ export function FollowupSummary({ stats, isLoading }: FollowupSummaryProps) {
         ? calculateChange(stats.stopped, stats.previous.stopped) 
         : null,
     },
+  ];
+
+  // Cards da segunda linha (taxas percentuais)
+  const rateCards: CardData[] = [
+    {
+      title: 'Taxa em FollowUp',
+      value: `${stats.followupRate.toFixed(1)}%`,
+      icon: Users,
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-500/10',
+      change: stats.previous 
+        ? calculatePpChange(stats.followupRate, stats.previous.followupRate) 
+        : null,
+    },
     {
       title: 'Taxa de Retorno',
       value: `${stats.responseRate.toFixed(1)}%`,
@@ -131,66 +146,91 @@ export function FollowupSummary({ stats, isLoading }: FollowupSummaryProps) {
     },
   ];
 
+  const renderCard = (card: CardData, index: number) => {
+    // For inverted change cards (like loss rate), swap the positive/negative logic
+    const effectiveIsPositive = card.invertChange 
+      ? !card.change?.isPositive 
+      : card.change?.isPositive;
+    
+    return (
+      <Card key={index}>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-muted-foreground">{card.title}</p>
+              <p className="text-2xl font-bold">{card.value}</p>
+              
+              {/* Change indicator */}
+              {card.change && (
+                <div className="flex items-center gap-1 text-xs mt-1">
+                  {card.change.isNeutral ? (
+                    <Minus className="h-3 w-3 text-muted-foreground" />
+                  ) : effectiveIsPositive ? (
+                    <ArrowUpRight className="h-3 w-3 text-emerald-500" />
+                  ) : (
+                    <ArrowDownRight className="h-3 w-3 text-red-500" />
+                  )}
+                  <span className={cn(
+                    "font-medium",
+                    card.change.isNeutral ? "text-muted-foreground" :
+                    effectiveIsPositive ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                  )}>
+                    {card.change.label}
+                  </span>
+                  <span className="text-muted-foreground hidden sm:inline">vs anterior</span>
+                </div>
+              )}
+            </div>
+            <div className={`p-2 rounded-lg ${card.bgColor} shrink-0`}>
+              <card.icon className={`h-5 w-5 ${card.color}`} />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-        {cards.map((card, index) => (
-          <Card key={index}>
-            <CardContent className="p-4">
-              <Skeleton className="h-4 w-20 mb-2" />
-              <Skeleton className="h-8 w-16" />
-            </CardContent>
-          </Card>
-        ))}
+      <div className="space-y-4">
+        {/* Linha 1: Contadores Absolutos */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {absoluteCards.map((_, index) => (
+            <Card key={index}>
+              <CardContent className="p-4">
+                <Skeleton className="h-4 w-20 mb-2" />
+                <Skeleton className="h-8 w-16" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        
+        {/* Linha 2: Taxas Percentuais */}
+        <div className="grid grid-cols-3 gap-4">
+          {rateCards.map((_, index) => (
+            <Card key={index}>
+              <CardContent className="p-4">
+                <Skeleton className="h-4 w-20 mb-2" />
+                <Skeleton className="h-8 w-16" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-      {cards.map((card, index) => {
-        // For inverted change cards (like loss rate), swap the positive/negative logic
-        const effectiveIsPositive = card.invertChange 
-          ? !card.change?.isPositive 
-          : card.change?.isPositive;
-        
-        return (
-          <Card key={index}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-muted-foreground">{card.title}</p>
-                  <p className="text-2xl font-bold">{card.value}</p>
-                  
-                  {/* Change indicator */}
-                  {card.change && (
-                    <div className="flex items-center gap-1 text-xs mt-1">
-                      {card.change.isNeutral ? (
-                        <Minus className="h-3 w-3 text-muted-foreground" />
-                      ) : effectiveIsPositive ? (
-                        <ArrowUpRight className="h-3 w-3 text-emerald-500" />
-                      ) : (
-                        <ArrowDownRight className="h-3 w-3 text-red-500" />
-                      )}
-                      <span className={cn(
-                        "font-medium",
-                        card.change.isNeutral ? "text-muted-foreground" :
-                        effectiveIsPositive ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
-                      )}>
-                        {card.change.label}
-                      </span>
-                      <span className="text-muted-foreground hidden sm:inline">vs anterior</span>
-                    </div>
-                  )}
-                </div>
-                <div className={`p-2 rounded-lg ${card.bgColor} shrink-0`}>
-                  <card.icon className={`h-5 w-5 ${card.color}`} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
+    <div className="space-y-4">
+      {/* Linha 1: Contadores Absolutos */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {absoluteCards.map((card, index) => renderCard(card, index))}
+      </div>
+      
+      {/* Linha 2: Taxas Percentuais */}
+      <div className="grid grid-cols-3 gap-4">
+        {rateCards.map((card, index) => renderCard(card, index))}
+      </div>
     </div>
   );
 }
