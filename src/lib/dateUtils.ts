@@ -311,12 +311,18 @@ export function getDaysAgoInSaoPaulo(days: number): string {
 }
 
 /**
+ * Retorna a data de ontem no timezone America/Sao_Paulo no formato 'yyyy-MM-dd'
+ */
+export function getYesterdayInSaoPaulo(): string {
+  return getDaysAgoInSaoPaulo(1);
+}
+
+/**
  * Retorna a data de 7 dias atrás no timezone America/Sao_Paulo no formato 'yyyy-MM-dd'
  */
 export function get7DaysAgoInSaoPaulo(): string {
   return getDaysAgoInSaoPaulo(7);
 }
-
 /**
  * Retorna a data de 30 dias atrás no timezone America/Sao_Paulo no formato 'yyyy-MM-dd'
  */
@@ -330,6 +336,42 @@ export function get30DaysAgoInSaoPaulo(): string {
 export function get3MonthsAgoInSaoPaulo(): string {
   const date = new Date();
   date.setMonth(date.getMonth() - 3);
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(date);
+}
+
+/**
+ * Retorna o primeiro dia da semana passada (segunda-feira) no timezone America/Sao_Paulo
+ */
+export function getLastWeekStartInSaoPaulo(): string {
+  const date = new Date();
+  const dayOfWeek = date.getDay();
+  // Go back to last Monday (if today is Monday, go back 7 days)
+  const daysToLastMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  date.setDate(date.getDate() - daysToLastMonday - 7);
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(date);
+}
+
+/**
+ * Retorna o último dia da semana passada (domingo) no timezone America/Sao_Paulo
+ */
+export function getLastWeekEndInSaoPaulo(): string {
+  const date = new Date();
+  const dayOfWeek = date.getDay();
+  // Go back to last Sunday
+  const daysToLastSunday = dayOfWeek === 0 ? 7 : dayOfWeek;
+  date.setDate(date.getDate() - daysToLastSunday);
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: TIMEZONE,
     year: 'numeric',
