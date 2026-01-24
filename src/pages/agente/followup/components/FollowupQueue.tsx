@@ -290,7 +290,10 @@ export function FollowupQueue({
 }: FollowupQueueProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [finalizeDialogOpen, setFinalizeDialogOpen] = useState(false);
+  const [stopDialogOpen, setStopDialogOpen] = useState(false);
+  const [restartDialogOpen, setRestartDialogOpen] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
+  const [pendingAction, setPendingAction] = useState<'stop' | 'restart' | 'finalize' | null>(null);
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<FollowupQueueItemEnriched | null>(null);
   const [sortField, setSortField] = useState<SortField | null>(null);
@@ -352,17 +355,35 @@ export function FollowupQueue({
     setMessagesOpen(true);
   };
 
-  const handleStop = (item: FollowupQueueItemEnriched) => {
-    onUpdateState(item.id, 'STOP');
+  const handleStopClick = (item: FollowupQueueItemEnriched) => {
+    setSelectedItemId(item.id);
+    setStopDialogOpen(true);
   };
 
-  const handleRestart = (item: FollowupQueueItemEnriched) => {
-    onRestart(item.id);
+  const handleRestartClick = (item: FollowupQueueItemEnriched) => {
+    setSelectedItemId(item.id);
+    setRestartDialogOpen(true);
   };
 
   const handleFinalizeClick = (id: number) => {
     setSelectedItemId(id);
     setFinalizeDialogOpen(true);
+  };
+
+  const handleConfirmStop = () => {
+    if (selectedItemId) {
+      onUpdateState(selectedItemId, 'STOP');
+    }
+    setStopDialogOpen(false);
+    setSelectedItemId(null);
+  };
+
+  const handleConfirmRestart = () => {
+    if (selectedItemId) {
+      onRestart(selectedItemId);
+    }
+    setRestartDialogOpen(false);
+    setSelectedItemId(null);
   };
 
   const handleConfirmFinalize = () => {
@@ -495,8 +516,8 @@ export function FollowupQueue({
                           <ActionButtons
                             item={item}
                             onOpenMessages={() => handleOpenMessages(item)}
-                            onStop={() => handleStop(item)}
-                            onRestart={() => handleRestart(item)}
+                            onStop={() => handleStopClick(item)}
+                            onRestart={() => handleRestartClick(item)}
                             onFinalize={() => handleFinalizeClick(item.id)}
                             isUpdating={isUpdating}
                           />
@@ -575,6 +596,42 @@ export function FollowupQueue({
           codAgent={selectedItem.cod_agent}
         />
       )}
+
+      {/* Stop Confirmation Dialog */}
+      <AlertDialog open={stopDialogOpen} onOpenChange={setStopDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar pausa</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja pausar o FollowUp deste lead? O envio de mensagens será interrompido até que seja retomado manualmente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmStop}>
+              Parar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Restart Confirmation Dialog */}
+      <AlertDialog open={restartDialogOpen} onOpenChange={setRestartDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar retomada</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja retomar o FollowUp? O lead voltará para a Etapa 1 e receberá uma nova mensagem imediatamente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmRestart}>
+              Retomar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Finalize Confirmation Dialog */}
       <AlertDialog open={finalizeDialogOpen} onOpenChange={setFinalizeDialogOpen}>
