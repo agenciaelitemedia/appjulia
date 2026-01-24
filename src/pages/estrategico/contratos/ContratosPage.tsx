@@ -85,7 +85,12 @@ export default function ContratosPage() {
       <ContratosSummary contratos={contratos} isLoading={contratosLoading} />
 
       {/* Evolution Chart */}
-      <ContratosEvolutionChart contratos={contratos} isLoading={contratosLoading} />
+      <ContratosEvolutionChart 
+        contratos={contratos} 
+        isLoading={contratosLoading}
+        dateFrom={filters.dateFrom}
+        dateTo={filters.dateTo}
+      />
 
       {/* Filters */}
       <JuliaFilters

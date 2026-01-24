@@ -4,17 +4,65 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { JuliaContrato } from '../../types';
 import { parseDbTimestamp } from '@/lib/dateUtils';
-import { format, startOfWeek, endOfWeek } from 'date-fns';
+import { format, startOfWeek, endOfWeek, isSameDay, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface ContratosEvolutionChartProps {
   contratos: JuliaContrato[];
   isLoading?: boolean;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
-export function ContratosEvolutionChart({ contratos, isLoading }: ContratosEvolutionChartProps) {
+export function ContratosEvolutionChart({ contratos, isLoading, dateFrom, dateTo }: ContratosEvolutionChartProps) {
+  // Check if filter is for a single day
+  const isSingleDay = useMemo(() => {
+    if (!dateFrom || !dateTo) return false;
+    try {
+      return isSameDay(parseISO(dateFrom), parseISO(dateTo));
+    } catch {
+      return false;
+    }
+  }, [dateFrom, dateTo]);
+
+  // Group by hour (for single day)
+  const hourlyData = useMemo(() => {
+    if (!isSingleDay) return [];
+    
+    const grouped: Record<string, { total: number; signed: number; pending: number }> = {};
+    
+    // Initialize all 24 hours
+    for (let h = 0; h < 24; h++) {
+      const hourKey = h.toString().padStart(2, '0');
+      grouped[hourKey] = { total: 0, signed: 0, pending: 0 };
+    }
+    
+    contratos.forEach((c) => {
+      const date = parseDbTimestamp(c.data_contrato);
+      const hourKey = format(date, 'HH');
+      
+      if (grouped[hourKey]) {
+        grouped[hourKey].total += 1;
+        if (c.status_document === 'SIGNED') {
+          grouped[hourKey].signed += 1;
+        } else {
+          grouped[hourKey].pending += 1;
+        }
+      }
+    });
+    
+    return Object.entries(grouped)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([hour, data]) => ({
+        label: `${hour}h`,
+        ...data,
+      }));
+  }, [contratos, isSingleDay]);
+
   // Group by day
   const dailyData = useMemo(() => {
+    if (isSingleDay) return [];
+    
     const grouped: Record<string, { total: number; signed: number; pending: number }> = {};
     
     contratos.forEach((c) => {
@@ -40,10 +88,12 @@ export function ContratosEvolutionChart({ contratos, isLoading }: ContratosEvolu
         label: format(new Date(date), 'dd/MM', { locale: ptBR }),
         ...data,
       }));
-  }, [contratos]);
+  }, [contratos, isSingleDay]);
 
   // Group by week
   const weeklyData = useMemo(() => {
+    if (isSingleDay) return [];
+    
     const grouped: Record<string, { total: number; signed: number; pending: number; weekStart: Date }> = {};
     
     contratos.forEach((c) => {
@@ -74,7 +124,7 @@ export function ContratosEvolutionChart({ contratos, isLoading }: ContratosEvolu
           pending: data.pending,
         };
       });
-  }, [contratos]);
+  }, [contratos, isSingleDay]);
 
   if (isLoading) {
     return (
@@ -158,6 +208,25 @@ export function ContratosEvolutionChart({ contratos, isLoading }: ContratosEvolu
     </ResponsiveContainer>
   );
 
+  // Single day view - show hourly chart without tabs
+  if (isSingleDay) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">Evolução de Contratos por Hora</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {hourlyData.length > 0 ? renderChart(hourlyData) : (
+            <div className="h-[280px] flex items-center justify-center text-muted-foreground">
+              Nenhum dado disponível
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Multiple days view - show daily/weekly tabs
   return (
     <Card>
       <CardHeader className="pb-2">
