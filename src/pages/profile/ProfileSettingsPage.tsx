@@ -7,11 +7,21 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { User, Lock, Mail, Shield, Eye, EyeOff, Check, X, Camera, Building2, Phone, MapPin, Loader2, Save } from 'lucide-react';
+import { User, Lock, Mail, Shield, Eye, EyeOff, Check, X, Camera, Building2, Phone, MapPin, Loader2, Save, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { externalDb, Client } from '@/lib/externalDb';
 import { supabase } from '@/integrations/supabase/client';
-import { maskCPFCNPJ, maskPhone, maskCEP } from '@/lib/inputMasks';
+import { maskCPFCNPJ, maskPhone, maskCEP, unmask } from '@/lib/inputMasks';
+
+interface ViaCEPResponse {
+  cep: string;
+  logradouro: string;
+  complemento: string;
+  bairro: string;
+  localidade: string;
+  uf: string;
+  erro?: boolean;
+}
 
 export default function ProfileSettingsPage() {
   const { user } = useAuth();
@@ -24,6 +34,7 @@ export default function ProfileSettingsPage() {
   const [isLoadingClient, setIsLoadingClient] = useState(false);
   const [isSavingClient, setIsSavingClient] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [isSearchingCep, setIsSearchingCep] = useState(false);
   
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -103,6 +114,64 @@ export default function ProfileSettingsPage() {
     setFormData(prev => ({ ...prev, [field]: maskFn(value) }));
   }, []);
 
+  const handleInputChange = (field: keyof Client, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Search CEP via ViaCEP API
+  const searchCep = async () => {
+    const cep = unmask(formData.zip_code || '');
+    if (cep.length !== 8) {
+      toast({
+        title: 'CEP inválido',
+        description: 'Digite um CEP válido com 8 dígitos.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSearchingCep(true);
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      const data: ViaCEPResponse = await response.json();
+
+      if (data.erro) {
+        toast({
+          title: 'CEP não encontrado',
+          description: 'Não foi possível encontrar o endereço para este CEP.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        city: data.localidade,
+        state: data.uf,
+      }));
+
+      toast({
+        title: 'Endereço encontrado',
+        description: `${data.localidade} - ${data.uf}`,
+      });
+    } catch (error) {
+      console.error('Error searching CEP:', error);
+      toast({
+        title: 'Erro ao buscar CEP',
+        description: 'Não foi possível consultar o CEP. Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSearchingCep(false);
+    }
+  };
+
+  // Auto-search CEP when it has 8 digits
+  const handleCepChange = useCallback((value: string) => {
+    const masked = maskCEP(value);
+    setFormData(prev => ({ ...prev, zip_code: masked }));
+  }, []);
+
   // Handle photo upload
   const handlePhotoClick = () => {
     fileInputRef.current?.click();
@@ -112,7 +181,6 @@ export default function ProfileSettingsPage() {
     const file = e.target.files?.[0];
     if (!file || !user?.client_id) return;
 
-    // Validate file type
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
       toast({
@@ -123,7 +191,6 @@ export default function ProfileSettingsPage() {
       return;
     }
 
-    // Validate file size (5MB max)
     if (file.size > 5 * 1024 * 1024) {
       toast({
         title: 'Arquivo muito grande',
@@ -149,11 +216,7 @@ export default function ProfileSettingsPage() {
         .getPublicUrl(data.path);
 
       const photoUrl = urlData.publicUrl;
-
-      // Update client photo in database
       await externalDb.updateClient(user.client_id, { photo: photoUrl });
-      
-      // Update local state
       setClientData(prev => prev ? { ...prev, photo: photoUrl } : null);
 
       toast({
@@ -169,7 +232,6 @@ export default function ProfileSettingsPage() {
       });
     } finally {
       setIsUploadingPhoto(false);
-      // Reset input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -264,10 +326,6 @@ export default function ProfileSettingsPage() {
     </div>
   );
 
-  const handleInputChange = (field: keyof Client, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -276,76 +334,252 @@ export default function ProfileSettingsPage() {
         <p className="text-muted-foreground">Gerencie suas informações pessoais e segurança</p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Avatar & Profile Card */}
-        <Card>
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Profile & Client Data Card - Takes 2 columns */}
+        <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Foto de Perfil
+              <Building2 className="h-5 w-5" />
+              Dados do Perfil
             </CardTitle>
-            <CardDescription>Clique na foto para alterar</CardDescription>
+            <CardDescription>Suas informações pessoais e da empresa</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col items-center space-y-4">
-            {/* Avatar with upload overlay */}
-            <div 
-              className="relative group cursor-pointer"
-              onClick={handlePhotoClick}
-            >
-              <Avatar className="h-32 w-32">
-                <AvatarImage src={clientData?.photo || undefined} alt={user?.name} />
-                <AvatarFallback className="bg-primary text-primary-foreground text-3xl">
-                  {user?.name ? getInitials(user.name) : 'U'}
-                </AvatarFallback>
-              </Avatar>
-              
-              {/* Overlay on hover */}
-              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
-                {isUploadingPhoto ? (
-                  <Loader2 className="h-8 w-8 text-white animate-spin" />
+          <CardContent>
+            {isLoadingClient ? (
+              <div className="space-y-6">
+                <div className="flex items-center gap-4">
+                  <Skeleton className="h-24 w-24 rounded-full" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {[...Array(8)].map((_, i) => (
+                    <div key={i} className="space-y-2">
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="h-10 w-full" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Avatar Section */}
+                <div className="flex items-center gap-6">
+                  <div 
+                    className="relative group cursor-pointer"
+                    onClick={handlePhotoClick}
+                  >
+                    <Avatar className="h-24 w-24">
+                      <AvatarImage src={clientData?.photo || undefined} alt={user?.name} />
+                      <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
+                        {user?.name ? getInitials(user.name) : 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                    
+                    <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {isUploadingPhoto ? (
+                        <Loader2 className="h-6 w-6 text-white animate-spin" />
+                      ) : (
+                        <Camera className="h-6 w-6 text-white" />
+                      )}
+                    </div>
+                    
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={handlePhotoChange}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <h3 className="font-semibold text-lg">{user?.name}</h3>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Mail className="h-4 w-4" />
+                      <span>{user?.email}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Shield className="h-4 w-4" />
+                      <span className="capitalize">{user?.role}</span>
+                      {user?.cod_agent && (
+                        <span className="text-xs bg-muted px-2 py-0.5 rounded">
+                          Agente: {user.cod_agent}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Client Data Form */}
+                {user?.client_id ? (
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-sm text-muted-foreground flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      Dados do Cliente
+                    </h4>
+                    
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {/* Name */}
+                      <div className="space-y-2">
+                        <Label htmlFor="client-name">Nome</Label>
+                        <Input
+                          id="client-name"
+                          value={formData.name || ''}
+                          onChange={(e) => handleInputChange('name', e.target.value)}
+                          placeholder="Nome do responsável"
+                          maxLength={100}
+                        />
+                      </div>
+
+                      {/* Business Name */}
+                      <div className="space-y-2">
+                        <Label htmlFor="business-name">Razão Social</Label>
+                        <Input
+                          id="business-name"
+                          value={formData.business_name || ''}
+                          onChange={(e) => handleInputChange('business_name', e.target.value)}
+                          placeholder="Razão social da empresa"
+                          maxLength={100}
+                        />
+                      </div>
+
+                      {/* Federal ID */}
+                      <div className="space-y-2">
+                        <Label htmlFor="federal-id">CPF/CNPJ</Label>
+                        <Input
+                          id="federal-id"
+                          value={formData.federal_id || ''}
+                          onChange={(e) => handleMaskedInputChange('federal_id', e.target.value, maskCPFCNPJ)}
+                          placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                          maxLength={18}
+                        />
+                      </div>
+
+                      {/* Email */}
+                      <div className="space-y-2">
+                        <Label htmlFor="client-email" className="flex items-center gap-1">
+                          <Mail className="h-3 w-3" />
+                          E-mail
+                        </Label>
+                        <Input
+                          id="client-email"
+                          type="email"
+                          value={formData.email || ''}
+                          onChange={(e) => handleInputChange('email', e.target.value)}
+                          placeholder="email@empresa.com"
+                          maxLength={100}
+                        />
+                      </div>
+
+                      {/* Phone */}
+                      <div className="space-y-2">
+                        <Label htmlFor="client-phone" className="flex items-center gap-1">
+                          <Phone className="h-3 w-3" />
+                          Telefone
+                        </Label>
+                        <Input
+                          id="client-phone"
+                          value={formData.phone || ''}
+                          onChange={(e) => handleMaskedInputChange('phone', e.target.value, maskPhone)}
+                          placeholder="(00) 00000-0000"
+                          maxLength={15}
+                        />
+                      </div>
+
+                      {/* Zip Code with search */}
+                      <div className="space-y-2">
+                        <Label htmlFor="client-zipcode" className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          CEP
+                        </Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="client-zipcode"
+                            value={formData.zip_code || ''}
+                            onChange={(e) => handleCepChange(e.target.value)}
+                            placeholder="00000-000"
+                            maxLength={9}
+                            className="flex-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={searchCep}
+                            disabled={isSearchingCep || unmask(formData.zip_code || '').length !== 8}
+                            title="Buscar endereço pelo CEP"
+                          >
+                            {isSearchingCep ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Search className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* State */}
+                      <div className="space-y-2">
+                        <Label htmlFor="client-state">Estado</Label>
+                        <Input
+                          id="client-state"
+                          value={formData.state || ''}
+                          onChange={(e) => handleInputChange('state', e.target.value.toUpperCase())}
+                          placeholder="UF"
+                          maxLength={2}
+                        />
+                      </div>
+
+                      {/* City */}
+                      <div className="space-y-2">
+                        <Label htmlFor="client-city">Cidade</Label>
+                        <Input
+                          id="client-city"
+                          value={formData.city || ''}
+                          onChange={(e) => handleInputChange('city', e.target.value)}
+                          placeholder="Nome da cidade"
+                          maxLength={50}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Save Button */}
+                    <div className="flex justify-end pt-4">
+                      <Button 
+                        onClick={handleSaveClient}
+                        disabled={!hasChanges || isSavingClient}
+                        className="min-w-[150px]"
+                      >
+                        {isSavingClient ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Salvando...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="mr-2 h-4 w-4" />
+                            Salvar Alterações
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
                 ) : (
-                  <Camera className="h-8 w-8 text-white" />
+                  <p className="text-sm text-muted-foreground">
+                    Não há dados de cliente associados a esta conta.
+                  </p>
                 )}
               </div>
-              
-              {/* Hidden file input */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                onChange={handlePhotoChange}
-              />
-            </div>
-
-            <div className="text-center">
-              <h3 className="font-semibold text-lg">{user?.name}</h3>
-              <p className="text-sm text-muted-foreground capitalize">{user?.role}</p>
-            </div>
-
-            <Separator className="w-full" />
-
-            {/* User Info (read-only) */}
-            <div className="w-full space-y-3">
-              <div className="flex items-center gap-3 text-sm">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <span>{user?.email}</span>
-              </div>
-              <div className="flex items-center gap-3 text-sm">
-                <Shield className="h-4 w-4 text-muted-foreground" />
-                <span className="capitalize">{user?.role}</span>
-              </div>
-              {user?.cod_agent && (
-                <div className="flex items-center gap-3 text-sm">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <span>Agente: {user.cod_agent}</span>
-                </div>
-              )}
-            </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Change Password Card */}
+        {/* Change Password Card - Takes 1 column */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -432,13 +666,13 @@ export default function ProfileSettingsPage() {
 
               {/* Password Requirements */}
               {newPassword.length > 0 && (
-                <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
-                  <p className="text-sm font-medium">Requisitos da senha:</p>
-                  <ValidationItem valid={passwordValidation.minLength} text="Mínimo de 8 caracteres" />
-                  <ValidationItem valid={passwordValidation.hasUppercase} text="Pelo menos uma letra maiúscula" />
-                  <ValidationItem valid={passwordValidation.hasLowercase} text="Pelo menos uma letra minúscula" />
-                  <ValidationItem valid={passwordValidation.hasNumber} text="Pelo menos um número" />
-                  <ValidationItem valid={passwordValidation.matches} text="As senhas coincidem" />
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-1">
+                  <p className="text-xs font-medium">Requisitos:</p>
+                  <ValidationItem valid={passwordValidation.minLength} text="Mínimo 8 caracteres" />
+                  <ValidationItem valid={passwordValidation.hasUppercase} text="Letra maiúscula" />
+                  <ValidationItem valid={passwordValidation.hasLowercase} text="Letra minúscula" />
+                  <ValidationItem valid={passwordValidation.hasNumber} text="Número" />
+                  <ValidationItem valid={passwordValidation.matches} text="Senhas coincidem" />
                 </div>
               )}
 
@@ -453,162 +687,6 @@ export default function ProfileSettingsPage() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Client Data Section - Only show if user has client_id */}
-      {user?.client_id && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Dados do Cliente
-            </CardTitle>
-            <CardDescription>Informações cadastrais da empresa</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoadingClient ? (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {[...Array(8)].map((_, i) => (
-                  <div key={i} className="space-y-2">
-                    <Skeleton className="h-4 w-20" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {/* Name */}
-                  <div className="space-y-2">
-                    <Label htmlFor="client-name">Nome</Label>
-                    <Input
-                      id="client-name"
-                      value={formData.name || ''}
-                      onChange={(e) => handleInputChange('name', e.target.value)}
-                      placeholder="Nome do responsável"
-                      maxLength={100}
-                    />
-                  </div>
-
-                  {/* Business Name */}
-                  <div className="space-y-2">
-                    <Label htmlFor="business-name">Razão Social</Label>
-                    <Input
-                      id="business-name"
-                      value={formData.business_name || ''}
-                      onChange={(e) => handleInputChange('business_name', e.target.value)}
-                      placeholder="Razão social da empresa"
-                      maxLength={100}
-                    />
-                  </div>
-
-                  {/* Federal ID */}
-                  <div className="space-y-2">
-                    <Label htmlFor="federal-id">CPF/CNPJ</Label>
-                    <Input
-                      id="federal-id"
-                      value={formData.federal_id || ''}
-                      onChange={(e) => handleMaskedInputChange('federal_id', e.target.value, maskCPFCNPJ)}
-                      placeholder="000.000.000-00 ou 00.000.000/0000-00"
-                      maxLength={18}
-                    />
-                  </div>
-
-                  {/* Email */}
-                  <div className="space-y-2">
-                    <Label htmlFor="client-email" className="flex items-center gap-1">
-                      <Mail className="h-3 w-3" />
-                      E-mail
-                    </Label>
-                    <Input
-                      id="client-email"
-                      type="email"
-                      value={formData.email || ''}
-                      onChange={(e) => handleInputChange('email', e.target.value)}
-                      placeholder="email@empresa.com"
-                      maxLength={100}
-                    />
-                  </div>
-
-                  {/* Phone */}
-                  <div className="space-y-2">
-                    <Label htmlFor="client-phone" className="flex items-center gap-1">
-                      <Phone className="h-3 w-3" />
-                      Telefone
-                    </Label>
-                    <Input
-                      id="client-phone"
-                      value={formData.phone || ''}
-                      onChange={(e) => handleMaskedInputChange('phone', e.target.value, maskPhone)}
-                      placeholder="(00) 00000-0000"
-                      maxLength={15}
-                    />
-                  </div>
-
-                  {/* State */}
-                  <div className="space-y-2">
-                    <Label htmlFor="client-state" className="flex items-center gap-1">
-                      <MapPin className="h-3 w-3" />
-                      Estado
-                    </Label>
-                    <Input
-                      id="client-state"
-                      value={formData.state || ''}
-                      onChange={(e) => handleInputChange('state', e.target.value.toUpperCase())}
-                      placeholder="UF"
-                      maxLength={2}
-                    />
-                  </div>
-
-                  {/* City */}
-                  <div className="space-y-2">
-                    <Label htmlFor="client-city">Cidade</Label>
-                    <Input
-                      id="client-city"
-                      value={formData.city || ''}
-                      onChange={(e) => handleInputChange('city', e.target.value)}
-                      placeholder="Nome da cidade"
-                      maxLength={50}
-                    />
-                  </div>
-
-                  {/* Zip Code */}
-                  <div className="space-y-2">
-                    <Label htmlFor="client-zipcode">CEP</Label>
-                    <Input
-                      id="client-zipcode"
-                      value={formData.zip_code || ''}
-                      onChange={(e) => handleMaskedInputChange('zip_code', e.target.value, maskCEP)}
-                      placeholder="00000-000"
-                      maxLength={9}
-                    />
-                  </div>
-                </div>
-
-                {/* Save Button */}
-                <div className="flex justify-end">
-                  <Button 
-                    onClick={handleSaveClient}
-                    disabled={!hasChanges || isSavingClient}
-                    className="min-w-[150px]"
-                  >
-                    {isSavingClient ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Salvando...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="mr-2 h-4 w-4" />
-                        Salvar Alterações
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
