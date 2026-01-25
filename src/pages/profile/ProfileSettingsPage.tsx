@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,10 +7,13 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { User, Lock, Mail, Shield, Eye, EyeOff, Check, X, Camera, Building2, Phone, MapPin, Loader2, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { externalDb, Client } from '@/lib/externalDb';
 import { supabase } from '@/integrations/supabase/client';
+import { maskCPFCNPJ, maskPhone, maskCEP } from '@/lib/inputMasks';
+import { useBlocker } from 'react-router-dom';
 
 export default function ProfileSettingsPage() {
   const { user } = useAuth();
@@ -79,9 +82,31 @@ export default function ProfileSettingsPage() {
   };
 
   // Check if form has changes
-  const hasChanges = clientData && Object.keys(formData).some(
+  const hasChanges = Boolean(clientData && Object.keys(formData).some(
     key => formData[key as keyof typeof formData] !== (clientData[key as keyof Client] || '')
-  );
+  ));
+
+  // Block navigation if there are unsaved changes
+  const blocker = useBlocker(hasChanges);
+
+  // Handle browser beforeunload event
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasChanges]);
+
+  // Handle masked input changes
+  const handleMaskedInputChange = useCallback((field: keyof Client, value: string, maskFn: (v: string) => string) => {
+    setFormData(prev => ({ ...prev, [field]: maskFn(value) }));
+  }, []);
 
   // Handle photo upload
   const handlePhotoClick = () => {
@@ -487,9 +512,9 @@ export default function ProfileSettingsPage() {
                     <Input
                       id="federal-id"
                       value={formData.federal_id || ''}
-                      onChange={(e) => handleInputChange('federal_id', e.target.value)}
-                      placeholder="00.000.000/0000-00"
-                      maxLength={20}
+                      onChange={(e) => handleMaskedInputChange('federal_id', e.target.value, maskCPFCNPJ)}
+                      placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                      maxLength={18}
                     />
                   </div>
 
@@ -518,9 +543,9 @@ export default function ProfileSettingsPage() {
                     <Input
                       id="client-phone"
                       value={formData.phone || ''}
-                      onChange={(e) => handleInputChange('phone', e.target.value)}
+                      onChange={(e) => handleMaskedInputChange('phone', e.target.value, maskPhone)}
                       placeholder="(00) 00000-0000"
-                      maxLength={20}
+                      maxLength={15}
                     />
                   </div>
 
@@ -557,9 +582,9 @@ export default function ProfileSettingsPage() {
                     <Input
                       id="client-zipcode"
                       value={formData.zip_code || ''}
-                      onChange={(e) => handleInputChange('zip_code', e.target.value)}
+                      onChange={(e) => handleMaskedInputChange('zip_code', e.target.value, maskCEP)}
                       placeholder="00000-000"
-                      maxLength={20}
+                      maxLength={9}
                     />
                   </div>
                 </div>
@@ -589,6 +614,26 @@ export default function ProfileSettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Unsaved Changes Dialog */}
+      <AlertDialog open={blocker.state === 'blocked'}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Alterações não salvas</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você tem alterações não salvas nos dados do cliente. Deseja realmente sair sem salvar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => blocker.reset?.()}>
+              Continuar editando
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => blocker.proceed?.()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Sair sem salvar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
