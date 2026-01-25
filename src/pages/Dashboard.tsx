@@ -17,13 +17,28 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getTodayInSaoPaulo, formatDbDateTime } from '@/lib/dateUtils';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState } from '@/components/filters/types';
-import { useDashboardAgents, useDashboardStats, useRecentLeads } from './dashboard/hooks/useDashboardData';
+import {
+  useDashboardAgents,
+  useDashboardStats,
+  useRecentLeads,
+  useDashboardEvolution,
+  useDashboardActivity,
+  useDashboardStages,
+  useDashboardCardDetails,
+} from './dashboard/hooks/useDashboardData';
+import { DashboardEvolutionChart } from './dashboard/components/DashboardEvolutionChart';
+import { DashboardActivityTimeline } from './dashboard/components/DashboardActivityTimeline';
+import { CRMLeadDetailsDialog } from './crm/components/CRMLeadDetailsDialog';
 
 export default function Dashboard() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const hasInitializedFilters = useRef(false);
+
+  // Modal state for lead details
+  const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const today = getTodayInSaoPaulo();
   const [filters, setFilters] = useState<UnifiedFiltersState>({
@@ -36,6 +51,10 @@ export default function Dashboard() {
   const { data: agents = [], isLoading: agentsLoading } = useDashboardAgents();
   const { data: stats, isLoading: statsLoading } = useDashboardStats(filters);
   const { data: recentLeads = [], isLoading: leadsLoading } = useRecentLeads(filters);
+  const { data: evolutionData = [], isLoading: evolutionLoading } = useDashboardEvolution(filters);
+  const { data: activityData = [], isLoading: activityLoading } = useDashboardActivity(filters);
+  const { data: stages = [] } = useDashboardStages();
+  const { data: selectedCard } = useDashboardCardDetails(selectedLeadId);
 
   // Initialize agent codes when agents load
   useEffect(() => {
@@ -50,9 +69,25 @@ export default function Dashboard() {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-    await queryClient.invalidateQueries({ queryKey: ['dashboard-recent-leads'] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }),
+      queryClient.invalidateQueries({ queryKey: ['dashboard-recent-leads'] }),
+      queryClient.invalidateQueries({ queryKey: ['dashboard-evolution'] }),
+      queryClient.invalidateQueries({ queryKey: ['dashboard-activity'] }),
+    ]);
     setIsRefreshing(false);
+  };
+
+  const handleLeadClick = (leadId: number) => {
+    setSelectedLeadId(leadId);
+    setDetailsOpen(true);
+  };
+
+  const handleDetailsClose = (open: boolean) => {
+    setDetailsOpen(open);
+    if (!open) {
+      setSelectedLeadId(null);
+    }
   };
 
   const statCards = [
@@ -163,6 +198,14 @@ export default function Dashboard() {
         ))}
       </div>
 
+      {/* Evolution Chart */}
+      <DashboardEvolutionChart
+        data={evolutionData}
+        isLoading={evolutionLoading}
+        dateFrom={filters.dateFrom}
+        dateTo={filters.dateTo}
+      />
+
       {/* Recent Activity */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -184,7 +227,11 @@ export default function Dashboard() {
                 ))
               ) : recentLeads.length > 0 ? (
                 recentLeads.map((lead) => (
-                  <div key={lead.id} className="flex items-center gap-4">
+                  <div
+                    key={lead.id}
+                    className="flex items-center gap-4 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -m-2 transition-colors"
+                    onClick={() => handleLeadClick(lead.id)}
+                  >
                     <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                       <User className="h-5 w-5 text-primary" />
                     </div>
@@ -194,11 +241,11 @@ export default function Dashboard() {
                         {lead.owner_name} • {formatDbDateTime(lead.created_at)}
                       </p>
                     </div>
-                    <Badge 
-                      variant="outline" 
-                      style={{ 
+                    <Badge
+                      variant="outline"
+                      style={{
                         borderColor: lead.stage_color,
-                        color: lead.stage_color 
+                        color: lead.stage_color,
                       }}
                     >
                       {lead.stage_name}
@@ -217,29 +264,24 @@ export default function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Atividade dos Agentes</CardTitle>
-            <CardDescription>Últimas interações da Julia</CardDescription>
+            <CardDescription>Últimas movimentações de leads</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {isLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-muted animate-pulse" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 w-24 bg-muted animate-pulse rounded" />
-                      <div className="h-3 w-32 bg-muted animate-pulse rounded" />
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Nenhuma atividade recente encontrada.
-                </p>
-              )}
-            </div>
+            <DashboardActivityTimeline
+              activities={activityData}
+              isLoading={activityLoading}
+            />
           </CardContent>
         </Card>
       </div>
+
+      {/* Lead Details Modal */}
+      <CRMLeadDetailsDialog
+        card={selectedCard || null}
+        stages={stages}
+        open={detailsOpen}
+        onOpenChange={handleDetailsClose}
+      />
     </div>
   );
 }
