@@ -4,39 +4,67 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Save, User, CreditCard, Settings, MessageSquare, Phone } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Save, User, CreditCard, Settings, MessageSquare, UserCircle } from 'lucide-react';
 import { ClientStep } from './wizard-steps/ClientStep';
 import { PlanStep } from './wizard-steps/PlanStep';
 import { ConfigStep } from './wizard-steps/ConfigStep';
 import { PromptStep } from './wizard-steps/PromptStep';
-import { CRMStep } from './wizard-steps/CRMStep';
+import { UserStep } from './wizard-steps/UserStep';
 import { toast } from 'sonner';
 
+export interface SelectedClient {
+  id: number;
+  name: string;
+  business_name: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
+export interface SelectedUser {
+  id: number;
+  name: string;
+  email: string;
+}
+
 export interface AgentFormData {
-  // Step 1 - Cliente
+  // Aba Cliente
   cod_agent: string;
-  client_id: string;
+  client_id: number | null;
   is_closer: boolean;
-  // New client fields (conditional)
+  selected_client: SelectedClient | null;
+  
+  // Campos novo cliente
   new_client: boolean;
   client_name: string;
   client_business_name: string;
-  client_document: string;
+  client_federal_id: string;
   client_email: string;
   client_phone: string;
-  // Step 2 - Planos
+  client_zip_code: string;
+  client_street: string;
+  client_street_number: string;
+  client_complement: string;
+  client_neighborhood: string;
+  client_city: string;
+  client_state: string;
+  
+  // Aba Planos
   plan_id: string;
   lead_limit: number;
   due_day: number;
-  // Step 3 - Configurações
+  
+  // Aba Configurações
   config_json: string;
-  // Step 4 - Prompt
+  
+  // Aba Prompt
   system_prompt: string;
-  // Step 5 - CRM
-  helena_count_id: string;
-  helena_token: string;
-  whatsapp_country: string;
-  whatsapp_number: string;
+  
+  // Aba Usuário
+  user_id: number | null;
+  selected_user: SelectedUser | null;
+  new_user: boolean;
+  user_name: string;
+  user_email: string;
 }
 
 const STEPS = [
@@ -44,7 +72,7 @@ const STEPS = [
   { id: 'planos', label: 'Planos', icon: CreditCard },
   { id: 'config', label: 'Configurações', icon: Settings },
   { id: 'prompt', label: 'Prompt', icon: MessageSquare },
-  { id: 'crm', label: 'CRM', icon: Phone },
+  { id: 'usuario', label: 'Usuário', icon: UserCircle },
 ];
 
 export function CreateAgentWizard() {
@@ -55,23 +83,32 @@ export function CreateAgentWizard() {
   const methods = useForm<AgentFormData>({
     defaultValues: {
       cod_agent: '',
-      client_id: '',
+      client_id: null,
       is_closer: false,
+      selected_client: null,
       new_client: false,
       client_name: '',
       client_business_name: '',
-      client_document: '',
+      client_federal_id: '',
       client_email: '',
       client_phone: '',
+      client_zip_code: '',
+      client_street: '',
+      client_street_number: '',
+      client_complement: '',
+      client_neighborhood: '',
+      client_city: '',
+      client_state: '',
       plan_id: '',
       lead_limit: 0,
-      due_day: 1,
+      due_day: new Date().getDate(),
       config_json: '{\n  \n}',
       system_prompt: '',
-      helena_count_id: '',
-      helena_token: '',
-      whatsapp_country: '55',
-      whatsapp_number: '',
+      user_id: null,
+      selected_user: null,
+      new_user: false,
+      user_name: '',
+      user_email: '',
     },
   });
 
@@ -117,7 +154,7 @@ export function CreateAgentWizard() {
           <CardContent className="p-6">
             <Tabs value={STEPS[currentStep].id} onValueChange={handleTabChange}>
               <TabsList className="grid w-full grid-cols-5 mb-6">
-                {STEPS.map((step, index) => {
+                {STEPS.map((step) => {
                   const Icon = step.icon;
                   return (
                     <TabsTrigger
@@ -145,8 +182,8 @@ export function CreateAgentWizard() {
                 <TabsContent value="prompt" className="mt-0">
                   <PromptStep />
                 </TabsContent>
-                <TabsContent value="crm" className="mt-0">
-                  <CRMStep />
+                <TabsContent value="usuario" className="mt-0">
+                  <UserStep />
                 </TabsContent>
               </div>
             </Tabs>
