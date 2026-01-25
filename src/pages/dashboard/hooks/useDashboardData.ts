@@ -15,6 +15,16 @@ export interface DashboardFiltersState {
   dateTo: string;
 }
 
+export interface RecentLead {
+  id: number;
+  contact_name: string;
+  whatsapp_number: string;
+  stage_name: string;
+  stage_color: string;
+  created_at: string;
+  owner_name: string;
+}
+
 export function useDashboardAgents() {
   const { user } = useAuth();
 
@@ -88,6 +98,42 @@ export function useDashboardStats(filters: DashboardFiltersState) {
         conversions: Number(conversionsResult[0]?.count) || 0,
         activeAgents: agentCodes.length,
       };
+    },
+    enabled: filters.agentCodes.length > 0,
+  });
+}
+
+export function useRecentLeads(filters: DashboardFiltersState) {
+  return useQuery({
+    queryKey: ['dashboard-recent-leads', filters],
+    queryFn: async () => {
+      const { agentCodes, dateFrom, dateTo } = filters;
+      
+      if (agentCodes.length === 0) return [];
+
+      const result = await externalDb.raw<RecentLead>({
+        query: `
+          SELECT 
+            c.id,
+            c.contact_name,
+            c.whatsapp_number,
+            s.name as stage_name,
+            s.color as stage_color,
+            c.created_at,
+            a.owner_name
+          FROM crm_atendimento_cards c
+          JOIN crm_atendimento_stages s ON c.stage_id = s.id
+          LEFT JOIN "vw_list_client-agents-users" a ON c.cod_agent = a.cod_agent::text
+          WHERE c.cod_agent = ANY($1::varchar[])
+            AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+            AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          ORDER BY c.created_at DESC
+          LIMIT 5
+        `,
+        params: [agentCodes, dateFrom, dateTo],
+      });
+
+      return result;
     },
     enabled: filters.agentCodes.length > 0,
   });

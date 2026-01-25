@@ -7,15 +7,17 @@ import {
   Bot,
   ArrowUpRight,
   RefreshCw,
+  User,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
-import { getTodayInSaoPaulo } from '@/lib/dateUtils';
+import { getTodayInSaoPaulo, formatDbDateTime } from '@/lib/dateUtils';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState } from '@/components/filters/types';
-import { useDashboardAgents, useDashboardStats } from './dashboard/hooks/useDashboardData';
+import { useDashboardAgents, useDashboardStats, useRecentLeads } from './dashboard/hooks/useDashboardData';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -33,6 +35,7 @@ export default function Dashboard() {
 
   const { data: agents = [], isLoading: agentsLoading } = useDashboardAgents();
   const { data: stats, isLoading: statsLoading } = useDashboardStats(filters);
+  const { data: recentLeads = [], isLoading: leadsLoading } = useRecentLeads(filters);
 
   // Initialize agent codes when agents load
   useEffect(() => {
@@ -48,6 +51,7 @@ export default function Dashboard() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+    await queryClient.invalidateQueries({ queryKey: ['dashboard-recent-leads'] });
     setIsRefreshing(false);
   };
 
@@ -150,7 +154,7 @@ export default function Dashboard() {
               </div>
               <div className="flex items-center text-xs text-muted-foreground mt-1">
                 {stat.trend === 'up' && (
-                  <ArrowUpRight className="h-3 w-3 text-emerald-500 mr-1" />
+                  <ArrowUpRight className="h-3 w-3 text-chart-2 mr-1" />
                 )}
                 <span>{stat.description}</span>
               </div>
@@ -164,11 +168,11 @@ export default function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Leads Recentes</CardTitle>
-            <CardDescription>Últimos leads capturados</CardDescription>
+            <CardDescription>Últimos leads capturados no período</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {isLoading ? (
+              {leadsLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="flex items-center gap-4">
                     <div className="h-10 w-10 rounded-full bg-muted animate-pulse" />
@@ -178,9 +182,32 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))
+              ) : recentLeads.length > 0 ? (
+                recentLeads.map((lead) => (
+                  <div key={lead.id} className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                      <User className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{lead.contact_name}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {lead.owner_name} • {formatDbDateTime(lead.created_at)}
+                      </p>
+                    </div>
+                    <Badge 
+                      variant="outline" 
+                      style={{ 
+                        borderColor: lead.stage_color,
+                        color: lead.stage_color 
+                      }}
+                    >
+                      {lead.stage_name}
+                    </Badge>
+                  </div>
+                ))
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-8">
-                  Nenhum lead recente encontrado.
+                  Nenhum lead encontrado no período selecionado.
                 </p>
               )}
             </div>
