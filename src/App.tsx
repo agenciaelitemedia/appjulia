@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { UaZapiProvider } from "@/contexts/UaZapiContext";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { AdminRoute } from "@/components/guards/AdminRoute";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import CRMPage from "./pages/crm/CRMPage";
@@ -36,11 +37,15 @@ const App = () => (
                 <Route path="/crm/leads" element={<CRMPage />} />
                 <Route path="/crm/lead-estatisticas" element={<CRMStatisticsPage />} />
                 <Route path="/crm/lead-monitoramento" element={<CRMMonitoringPage />} />
-                <Route path="/admin/agentes" element={<AgentsList />} />
                 <Route path="/estrategico/desempenho" element={<DesempenhoPage />} />
                 <Route path="/estrategico/contratos" element={<ContratosPage />} />
                 <Route path="/agente/followup" element={<FollowupPage />} />
                 <Route path="/criativos" element={<CriativosPage />} />
+                
+                {/* Admin-only routes */}
+                <Route element={<AdminRoute />}>
+                  <Route path="/admin/agentes" element={<AgentsList />} />
+                </Route>
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
