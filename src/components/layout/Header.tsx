@@ -55,7 +55,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
       <div className="flex-1 md:hidden" />
 
       {/* Right side */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 ml-auto">
         {/* Notifications */}
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
