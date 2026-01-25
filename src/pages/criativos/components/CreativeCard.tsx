@@ -18,9 +18,8 @@ export function CreativeCard({ file, onPreview, showOwner, canEdit }: CreativeCa
   const [editOpen, setEditOpen] = useState(false);
   const deleteMutation = useDeleteCreative();
 
-  const thumbnailUrl = file.type_file === 'video' 
-    ? '/placeholder.svg' 
-    : file.name;
+  // The 'name' field now contains the full URL from Supabase Storage
+  const mediaUrl = file.name;
 
   return (
     <Card className="overflow-hidden group cursor-pointer hover:shadow-md transition-shadow">
@@ -30,15 +29,26 @@ export function CreativeCard({ file, onPreview, showOwner, canEdit }: CreativeCa
         onClick={onPreview}
       >
         {file.type_file === 'video' ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Video className="h-12 w-12 text-muted-foreground" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted">
+            <video 
+              src={mediaUrl}
+              className="w-full h-full object-cover"
+              muted
+              preload="metadata"
+              onError={(e) => { 
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <Video className="h-12 w-12 text-white/80 drop-shadow-lg" />
+            </div>
             <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
               VIDEO
             </div>
           </div>
         ) : (
           <img 
-            src={thumbnailUrl}
+            src={mediaUrl}
             alt={file.title}
             className="w-full h-full object-cover"
             onError={(e) => { e.currentTarget.src = '/placeholder.svg' }}
