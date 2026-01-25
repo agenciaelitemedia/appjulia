@@ -1,199 +1,789 @@
 
 
-# Plano de Implementacao: Grafico de Funil e Cores nos Graficos do Dashboard
+# Plano de Implementacao: Pagina de Criativos (Biblioteca de Midias)
 
 ## Visao Geral
 
-Este plano implementa duas melhorias no Dashboard principal:
-
-1. **Definir cores para graficos** - Adicionar variaveis CSS `--chart-1` a `--chart-5` que estao faltando
-2. **Grafico de Funil de CRM** - Adicionar visualizacao da progressao de leads por estagio
-
----
+Este plano cria uma pagina completa de biblioteca de criativos (videos e imagens) com duas abas:
+- **Meus Criativos**: Arquivos do proprio usuario
+- **Biblioteca**: Arquivos compartilhados por outros usuarios
 
 ## Arquitetura da Solucao
 
 ```text
 +------------------------------------------------------------------+
-|                         DASHBOARD.TSX                             |
+|                      CRIATIVOS PAGE                               |
 +------------------------------------------------------------------+
-|  [KPI Cards com Sparklines coloridos]                             |
+|  [Header: Criativos + Botao Upload]                              |
 |                                                                   |
 |  +--------------------------------------------------------------+ |
-|  |  GRAFICO EVOLUCAO (3 series coloridas)                       | |
-|  |  Leads (azul) | Qualificados (laranja) | Contratos (verde)   | |
+|  |  FILTROS                                                     | |
+|  |  [Busca] [Categoria] [Tipo: Todos/Imagem/Video]              | |
 |  +--------------------------------------------------------------+ |
 |                                                                   |
-|  +--------------------------------------------------------------+ |
-|  |         FUNIL DE CONVERSAO (NOVO)                            | |
-|  |  [BarChart horizontal com cores por estagio]                 | |
-|  |  Entrada -> Analise -> Negociacao -> Contrato -> Assinado    | |
-|  +--------------------------------------------------------------+ |
+|  +--------------------+ +--------------------+                    |
+|  | Meus Criativos     | | Biblioteca         |                    |
+|  +--------------------+ +--------------------+                    |
 |                                                                   |
-|  +----------------------+ +-----------------------------------+   |
-|  | LEADS RECENTES       | | ATIVIDADE DOS AGENTES             |   |
-|  +----------------------+ +-----------------------------------+   |
+|  +--------------------------------------------------------------+ |
+|  |    GRADE DE MIDIAS (Responsiva)                              | |
+|  |  +--------+ +--------+ +--------+ +--------+                 | |
+|  |  | Thumb  | | Thumb  | | Thumb  | | Thumb  |                 | |
+|  |  | Titulo | | Titulo | | Titulo | | Titulo |                 | |
+|  |  | Cat.   | | Cat.   | | Cat.   | | Cat.   |                 | |
+|  |  +--------+ +--------+ +--------+ +--------+                 | |
+|  +--------------------------------------------------------------+ |
 +------------------------------------------------------------------+
 ```
 
 ---
 
-## Parte 1: Definir Cores para Graficos no CSS
+## Parte 1: Ajustar Menu (Sidebar)
 
-### 1.1 Adicionar Variaveis CSS
+### 1.1 Simplificar Item de Menu
 
-**Arquivo:** `src/index.css`
+**Arquivo:** `src/components/layout/Sidebar.tsx`
 
-As variaveis `--chart-1` a `--chart-5` sao referenciadas nos graficos mas nao estao definidas. Adicionar:
+Alterar o item "Criativos" de submenu para link direto:
 
-```css
-:root {
-  /* ... variaveis existentes ... */
-  
-  /* Chart colors */
-  --chart-1: 221.2 83.2% 53.3%;  /* Azul vibrante - Leads */
-  --chart-2: 142.1 76.2% 36.3%;  /* Verde - Contratos/Conversoes */
-  --chart-3: 47.9 95.8% 53.1%;   /* Amarelo/Dourado - Mensagens */
-  --chart-4: 24.6 95% 53.1%;     /* Laranja - Qualificados */
-  --chart-5: 262.1 83.3% 57.8%;  /* Roxo - Alternativo */
-}
+**De:**
+```typescript
+{
+  label: 'Criativos',
+  icon: Image,
+  children: [
+    { label: 'Cadastro', href: '/criativos/cadastro' },
+    { label: 'Categorias', href: '/criativos/categorias' },
+  ],
+},
+```
 
-.dark {
-  /* ... variaveis existentes ... */
-  
-  /* Chart colors - versoes mais brilhantes para dark mode */
-  --chart-1: 217.2 91.2% 59.8%;
-  --chart-2: 142.1 70.6% 45.3%;
-  --chart-3: 47.9 95.8% 53.1%;
-  --chart-4: 27.8 87.1% 55.3%;
-  --chart-5: 263.4 70% 50.4%;
-}
+**Para:**
+```typescript
+{ label: 'Criativos', icon: Image, href: '/criativos' },
 ```
 
 ---
 
-## Parte 2: Grafico de Funil de Conversao
+## Parte 2: Estrutura de Arquivos
 
-### 2.1 Novo Hook para Dados do Funil
+Criar a seguinte estrutura:
 
-**Arquivo:** `src/pages/dashboard/hooks/useDashboardData.ts`
+```
+src/pages/criativos/
+  ├── CriativosPage.tsx           # Pagina principal
+  ├── components/
+  │   ├── CriativosHeader.tsx     # Header com titulo e botao upload
+  │   ├── CriativosFilters.tsx    # Filtros de busca/categoria/tipo
+  │   ├── CriativosGrid.tsx       # Grade de miniaturas
+  │   ├── CreativeCard.tsx        # Card individual de midia
+  │   ├── CreativeUploadDialog.tsx # Dialog de upload
+  │   ├── CreativePreviewDialog.tsx # Dialog de visualizacao
+  │   └── CreativeEditDialog.tsx  # Dialog de edicao
+  ├── hooks/
+  │   └── useCriativosData.ts     # Hooks de dados
+  └── types.ts                    # Tipos TypeScript
+```
 
-Adicionar hook `useDashboardFunnel` reutilizando a logica de `useCRMFunnelData`:
+---
+
+## Parte 3: Tipos TypeScript
+
+**Arquivo:** `src/pages/criativos/types.ts`
 
 ```typescript
-export interface DashboardFunnelData {
+export interface CreativeCategory {
   id: number;
   name: string;
-  color: string;
-  position: number;
-  count: number;
-  percentage: number;
+  created_at: string;
+  update_at: string;
 }
 
-export function useDashboardFunnel(filters: DashboardFiltersState) {
+export interface CreativeFile {
+  id: number;
+  creative_category_id: number | null;
+  user_id: number;
+  type_file: 'image' | 'video';
+  name: string;
+  title: string;
+  description: string | null;
+  shared: boolean;
+  created_at: string;
+  update_at: string;
+  // Campos virtuais para join
+  category_name?: string;
+  user_name?: string;
+}
+
+export interface CriativosFiltersState {
+  search: string;
+  categoryId: number | null;
+  typeFile: 'all' | 'image' | 'video';
+}
+
+export interface UploadFormData {
+  title: string;
+  description: string;
+  categoryId: number | null;
+  shared: boolean;
+  file: File | null;
+}
+```
+
+---
+
+## Parte 4: Hooks de Dados
+
+**Arquivo:** `src/pages/criativos/hooks/useCriativosData.ts`
+
+### 4.1 Hook para Categorias
+
+```typescript
+export function useCreativeCategories() {
   return useQuery({
-    queryKey: ['dashboard-funnel', filters],
+    queryKey: ['creative-categories'],
     queryFn: async () => {
-      const { agentCodes, dateFrom, dateTo } = filters;
-      
-      if (agentCodes.length === 0) return [];
-      
-      const result = await externalDb.raw<DashboardFunnelData>({
+      return externalDb.raw<CreativeCategory>({
         query: `
-          SELECT 
-            s.id, s.name, s.color, s.position,
-            COUNT(c.id)::int as count
-          FROM crm_atendimento_stages s
-          LEFT JOIN crm_atendimento_cards c ON s.id = c.stage_id
-            AND c.cod_agent = ANY($1::varchar[])
-            AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-            AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
-          WHERE s.is_active = true
-          GROUP BY s.id, s.name, s.color, s.position
-          ORDER BY s.position
+          SELECT id, name, created_at, update_at
+          FROM creative_category
+          ORDER BY name ASC
         `,
-        params: [agentCodes, dateFrom, dateTo],
       });
-      
-      const total = result.reduce((sum, item) => sum + Number(item.count), 0);
-      
-      return result.map(item => ({
-        ...item,
-        count: Number(item.count),
-        percentage: total > 0 ? (Number(item.count) / total) * 100 : 0,
-      }));
     },
-    enabled: filters.agentCodes.length > 0,
   });
 }
 ```
 
-### 2.2 Novo Componente de Funil
-
-**Arquivo:** `src/pages/dashboard/components/DashboardFunnelChart.tsx`
-
-Componente baseado no `ConversionFunnelChart` existente, adaptado para o Dashboard:
-
-**Estrutura:**
-```tsx
-interface DashboardFunnelChartProps {
-  data: DashboardFunnelData[];
-  isLoading?: boolean;
-}
-
-export function DashboardFunnelChart({ data, isLoading }: DashboardFunnelChartProps) {
-  // BarChart horizontal com:
-  // - Cada barra colorida com a cor do estagio (do banco)
-  // - Labels mostrando contagem e percentual
-  // - Tooltip customizado
-  // - Secao de conversao entre estagios no rodape
-}
-```
-
-**Caracteristicas:**
-- Layout vertical (barras horizontais)
-- Cores dinamicas baseadas no campo `color` de cada estagio
-- Labels com contagem e percentual
-- Tooltip customizado mostrando nome do estagio e metricas
-- Indicadores de conversao entre estagios adjacentes
-
-### 2.3 Integracao no Dashboard
-
-**Arquivo:** `src/pages/Dashboard.tsx`
-
-Adicionar o grafico de funil apos o grafico de evolucao:
-
-```tsx
-import { DashboardFunnelChart } from './dashboard/components/DashboardFunnelChart';
-import { useDashboardFunnel } from './dashboard/hooks/useDashboardData';
-
-// No componente:
-const { data: funnelData = [], isLoading: funnelLoading } = useDashboardFunnel(filters);
-
-// No render, apos DashboardEvolutionChart:
-<DashboardFunnelChart 
-  data={funnelData} 
-  isLoading={funnelLoading} 
-/>
-```
-
-### 2.4 Atualizar Cache no Refresh
-
-Adicionar nova query key ao handleRefresh:
+### 4.2 Hook para Meus Criativos
 
 ```typescript
-const handleRefresh = async () => {
-  setIsRefreshing(true);
-  await Promise.all([
-    queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }),
-    queryClient.invalidateQueries({ queryKey: ['dashboard-stats-previous'] }),
-    queryClient.invalidateQueries({ queryKey: ['dashboard-recent-leads'] }),
-    queryClient.invalidateQueries({ queryKey: ['dashboard-evolution'] }),
-    queryClient.invalidateQueries({ queryKey: ['dashboard-funnel'] }), // NOVO
-    queryClient.invalidateQueries({ queryKey: ['dashboard-activity'] }),
-  ]);
-  setIsRefreshing(false);
-};
+export function useMyCreatives(filters: CriativosFiltersState, userId: number) {
+  return useQuery({
+    queryKey: ['my-creatives', filters, userId],
+    queryFn: async () => {
+      let whereConditions = ['f.user_id = $1'];
+      const params: any[] = [userId];
+      let paramIndex = 2;
+
+      if (filters.typeFile !== 'all') {
+        whereConditions.push(`f.type_file = $${paramIndex}`);
+        params.push(filters.typeFile);
+        paramIndex++;
+      }
+
+      if (filters.categoryId) {
+        whereConditions.push(`f.creative_category_id = $${paramIndex}`);
+        params.push(filters.categoryId);
+        paramIndex++;
+      }
+
+      if (filters.search) {
+        whereConditions.push(`(
+          f.title ILIKE $${paramIndex} 
+          OR f.description ILIKE $${paramIndex}
+          OR f.name ILIKE $${paramIndex}
+        )`);
+        params.push(`%${filters.search}%`);
+        paramIndex++;
+      }
+
+      return externalDb.raw<CreativeFile>({
+        query: `
+          SELECT 
+            f.id, f.creative_category_id, f.user_id, f.type_file,
+            f.name, f.title, f.description, f.shared, 
+            f.created_at, f.update_at,
+            c.name as category_name
+          FROM creative_files f
+          LEFT JOIN creative_category c ON f.creative_category_id = c.id
+          WHERE ${whereConditions.join(' AND ')}
+          ORDER BY f.created_at DESC
+        `,
+        params,
+      });
+    },
+    enabled: !!userId,
+  });
+}
+```
+
+### 4.3 Hook para Biblioteca Compartilhada
+
+```typescript
+export function useSharedCreatives(filters: CriativosFiltersState, userId: number) {
+  return useQuery({
+    queryKey: ['shared-creatives', filters, userId],
+    queryFn: async () => {
+      let whereConditions = ['f.shared = true', 'f.user_id != $1'];
+      const params: any[] = [userId];
+      let paramIndex = 2;
+
+      // ... mesma logica de filtros
+
+      return externalDb.raw<CreativeFile>({
+        query: `
+          SELECT 
+            f.*, c.name as category_name, u.name as user_name
+          FROM creative_files f
+          LEFT JOIN creative_category c ON f.creative_category_id = c.id
+          LEFT JOIN users u ON f.user_id = u.id
+          WHERE ${whereConditions.join(' AND ')}
+          ORDER BY f.created_at DESC
+        `,
+        params,
+      });
+    },
+    enabled: !!userId,
+  });
+}
+```
+
+### 4.4 Mutations para CRUD
+
+```typescript
+export function useCreateCreative() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (data: Omit<CreativeFile, 'id' | 'created_at' | 'update_at'>) => {
+      return externalDb.insert({
+        table: 'creative_files',
+        data,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-creatives'] });
+      queryClient.invalidateQueries({ queryKey: ['shared-creatives'] });
+    },
+  });
+}
+
+export function useUpdateCreative() {
+  // Similar pattern para update
+}
+
+export function useDeleteCreative() {
+  // Similar pattern para delete
+}
+```
+
+---
+
+## Parte 5: Componentes
+
+### 5.1 Pagina Principal
+
+**Arquivo:** `src/pages/criativos/CriativosPage.tsx`
+
+```typescript
+export default function CriativosPage() {
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'my' | 'library'>('my');
+  const [filters, setFilters] = useState<CriativosFiltersState>({
+    search: '',
+    categoryId: null,
+    typeFile: 'all',
+  });
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [previewFile, setPreviewFile] = useState<CreativeFile | null>(null);
+
+  const { data: categories = [] } = useCreativeCategories();
+  const { data: myCreatives = [], isLoading: loadingMy } = useMyCreatives(filters, user?.id!);
+  const { data: sharedCreatives = [], isLoading: loadingShared } = useSharedCreatives(filters, user?.id!);
+
+  const currentData = activeTab === 'my' ? myCreatives : sharedCreatives;
+  const isLoading = activeTab === 'my' ? loadingMy : loadingShared;
+
+  return (
+    <div className="space-y-6">
+      <CriativosHeader onUpload={() => setUploadOpen(true)} />
+
+      <CriativosFilters 
+        filters={filters}
+        onFiltersChange={setFilters}
+        categories={categories}
+      />
+
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'my' | 'library')}>
+        <TabsList>
+          <TabsTrigger value="my">
+            <FolderOpen className="h-4 w-4 mr-2" />
+            Meus Criativos ({myCreatives.length})
+          </TabsTrigger>
+          <TabsTrigger value="library">
+            <Users className="h-4 w-4 mr-2" />
+            Biblioteca ({sharedCreatives.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="my">
+          <CriativosGrid 
+            files={myCreatives}
+            isLoading={loadingMy}
+            onPreview={setPreviewFile}
+            showOwner={false}
+            canEdit={true}
+          />
+        </TabsContent>
+
+        <TabsContent value="library">
+          <CriativosGrid 
+            files={sharedCreatives}
+            isLoading={loadingShared}
+            onPreview={setPreviewFile}
+            showOwner={true}
+            canEdit={false}
+          />
+        </TabsContent>
+      </Tabs>
+
+      <CreativeUploadDialog 
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        categories={categories}
+      />
+
+      <CreativePreviewDialog
+        file={previewFile}
+        open={!!previewFile}
+        onOpenChange={(open) => !open && setPreviewFile(null)}
+      />
+    </div>
+  );
+}
+```
+
+### 5.2 Header
+
+**Arquivo:** `src/pages/criativos/components/CriativosHeader.tsx`
+
+```typescript
+export function CriativosHeader({ onUpload }: { onUpload: () => void }) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div>
+        <h1 className="text-2xl font-bold">Criativos</h1>
+        <p className="text-muted-foreground">
+          Biblioteca de videos e imagens para suas campanhas
+        </p>
+      </div>
+
+      <Button onClick={onUpload} className="gap-2">
+        <Upload className="h-4 w-4" />
+        Novo Criativo
+      </Button>
+    </div>
+  );
+}
+```
+
+### 5.3 Filtros
+
+**Arquivo:** `src/pages/criativos/components/CriativosFilters.tsx`
+
+```typescript
+export function CriativosFilters({ filters, onFiltersChange, categories }) {
+  return (
+    <div className="flex flex-wrap gap-3 p-4 bg-card border rounded-xl">
+      {/* Busca */}
+      <div className="relative flex-1 min-w-[200px]">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Buscar por titulo, descricao..."
+          value={filters.search}
+          onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
+          className="pl-9"
+        />
+      </div>
+
+      {/* Categoria */}
+      <Select 
+        value={filters.categoryId?.toString() || 'all'}
+        onValueChange={(v) => onFiltersChange({ 
+          ...filters, 
+          categoryId: v === 'all' ? null : Number(v) 
+        })}
+      >
+        <SelectTrigger className="w-[180px]">
+          <SelectValue placeholder="Categoria" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Todas Categorias</SelectItem>
+          {categories.map(cat => (
+            <SelectItem key={cat.id} value={cat.id.toString()}>
+              {cat.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {/* Tipo */}
+      <Select 
+        value={filters.typeFile}
+        onValueChange={(v) => onFiltersChange({ 
+          ...filters, 
+          typeFile: v as 'all' | 'image' | 'video' 
+        })}
+      >
+        <SelectTrigger className="w-[140px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Todos Tipos</SelectItem>
+          <SelectItem value="image">Imagens</SelectItem>
+          <SelectItem value="video">Videos</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+```
+
+### 5.4 Grade de Criativos
+
+**Arquivo:** `src/pages/criativos/components/CriativosGrid.tsx`
+
+```typescript
+export function CriativosGrid({ 
+  files, 
+  isLoading, 
+  onPreview, 
+  showOwner,
+  canEdit 
+}) {
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        {Array.from({ length: 10 }).map((_, i) => (
+          <Skeleton key={i} className="aspect-square rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+
+  if (files.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <ImageIcon className="h-12 w-12 text-muted-foreground mb-4" />
+        <h3 className="text-lg font-medium">Nenhum criativo encontrado</h3>
+        <p className="text-muted-foreground">
+          Ajuste os filtros ou adicione novos criativos
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      {files.map(file => (
+        <CreativeCard 
+          key={file.id}
+          file={file}
+          onPreview={() => onPreview(file)}
+          showOwner={showOwner}
+          canEdit={canEdit}
+        />
+      ))}
+    </div>
+  );
+}
+```
+
+### 5.5 Card Individual
+
+**Arquivo:** `src/pages/criativos/components/CreativeCard.tsx`
+
+```typescript
+export function CreativeCard({ file, onPreview, showOwner, canEdit }) {
+  const [editOpen, setEditOpen] = useState(false);
+  const deleteMutation = useDeleteCreative();
+
+  // Placeholder para thumbnail - sera gerado/armazenado
+  const thumbnailUrl = file.type_file === 'video' 
+    ? '/placeholder-video.svg' 
+    : `/uploads/${file.name}`;
+
+  return (
+    <Card className="overflow-hidden group cursor-pointer hover:shadow-md transition-shadow">
+      {/* Thumbnail */}
+      <div 
+        className="aspect-square relative bg-muted"
+        onClick={onPreview}
+      >
+        {file.type_file === 'video' ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Video className="h-12 w-12 text-muted-foreground" />
+            <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+              VIDEO
+            </div>
+          </div>
+        ) : (
+          <img 
+            src={thumbnailUrl}
+            alt={file.title}
+            className="w-full h-full object-cover"
+            onError={(e) => { e.currentTarget.src = '/placeholder.svg' }}
+          />
+        )}
+
+        {/* Overlay com acoes */}
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+          <Button size="icon" variant="secondary">
+            <Eye className="h-4 w-4" />
+          </Button>
+          {canEdit && (
+            <>
+              <Button 
+                size="icon" 
+                variant="secondary"
+                onClick={(e) => { e.stopPropagation(); setEditOpen(true); }}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button 
+                size="icon" 
+                variant="destructive"
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  if (confirm('Excluir este criativo?')) {
+                    deleteMutation.mutate(file.id);
+                  }
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Info */}
+      <CardContent className="p-3">
+        <h4 className="font-medium text-sm truncate">{file.title}</h4>
+        <div className="flex items-center gap-2 mt-1">
+          {file.category_name && (
+            <Badge variant="secondary" className="text-xs">
+              {file.category_name}
+            </Badge>
+          )}
+          {file.shared && (
+            <Badge variant="outline" className="text-xs">
+              <Share2 className="h-3 w-3 mr-1" />
+              Compartilhado
+            </Badge>
+          )}
+        </div>
+        {showOwner && file.user_name && (
+          <p className="text-xs text-muted-foreground mt-1">
+            Por: {file.user_name}
+          </p>
+        )}
+      </CardContent>
+
+      {canEdit && (
+        <CreativeEditDialog 
+          file={file}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+        />
+      )}
+    </Card>
+  );
+}
+```
+
+### 5.6 Dialog de Upload
+
+**Arquivo:** `src/pages/criativos/components/CreativeUploadDialog.tsx`
+
+```typescript
+export function CreativeUploadDialog({ open, onOpenChange, categories }) {
+  const { user } = useAuth();
+  const createMutation = useCreateCreative();
+  const [formData, setFormData] = useState<UploadFormData>({
+    title: '',
+    description: '',
+    categoryId: null,
+    shared: false,
+    file: null,
+  });
+  const [preview, setPreview] = useState<string | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFormData({ ...formData, file, title: file.name.split('.')[0] });
+      
+      // Gerar preview
+      const reader = new FileReader();
+      reader.onload = () => setPreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.file || !user) return;
+
+    // Determinar tipo
+    const typeFile = formData.file.type.startsWith('video/') ? 'video' : 'image';
+
+    await createMutation.mutateAsync({
+      user_id: user.id,
+      type_file: typeFile,
+      name: formData.file.name,
+      title: formData.title,
+      description: formData.description,
+      creative_category_id: formData.categoryId,
+      shared: formData.shared,
+    });
+
+    onOpenChange(false);
+    // Reset form
+    setFormData({ title: '', description: '', categoryId: null, shared: false, file: null });
+    setPreview(null);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Novo Criativo</DialogTitle>
+          <DialogDescription>
+            Adicione uma imagem ou video a sua biblioteca
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Drop Zone */}
+          <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
+            {preview ? (
+              <div className="relative">
+                {formData.file?.type.startsWith('video/') ? (
+                  <video src={preview} className="max-h-48 mx-auto rounded" controls />
+                ) : (
+                  <img src={preview} className="max-h-48 mx-auto rounded" alt="Preview" />
+                )}
+                <Button 
+                  size="icon" 
+                  variant="destructive" 
+                  className="absolute top-2 right-2"
+                  onClick={() => { setPreview(null); setFormData({ ...formData, file: null }); }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <label className="cursor-pointer">
+                <input 
+                  type="file" 
+                  accept="image/*,video/*" 
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm font-medium">Clique para selecionar</p>
+                <p className="text-xs text-muted-foreground">ou arraste e solte aqui</p>
+              </label>
+            )}
+          </div>
+
+          {/* Titulo */}
+          <div className="space-y-2">
+            <Label>Titulo *</Label>
+            <Input 
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              placeholder="Nome do criativo"
+            />
+          </div>
+
+          {/* Descricao */}
+          <div className="space-y-2">
+            <Label>Descricao</Label>
+            <Textarea 
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Descricao opcional..."
+              rows={3}
+            />
+          </div>
+
+          {/* Categoria */}
+          <div className="space-y-2">
+            <Label>Categoria</Label>
+            <Select 
+              value={formData.categoryId?.toString() || ''}
+              onValueChange={(v) => setFormData({ 
+                ...formData, 
+                categoryId: v ? Number(v) : null 
+              })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione uma categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map(cat => (
+                  <SelectItem key={cat.id} value={cat.id.toString()}>
+                    {cat.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Compartilhar */}
+          <div className="flex items-center gap-2">
+            <Checkbox 
+              id="shared"
+              checked={formData.shared}
+              onCheckedChange={(checked) => setFormData({ 
+                ...formData, 
+                shared: !!checked 
+              })}
+            />
+            <Label htmlFor="shared" className="cursor-pointer">
+              Compartilhar na Biblioteca (outros usuarios poderao ver)
+            </Label>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleSubmit}
+            disabled={!formData.file || !formData.title || createMutation.isPending}
+          >
+            {createMutation.isPending ? 'Salvando...' : 'Salvar'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+### 5.7 Dialog de Preview
+
+**Arquivo:** `src/pages/criativos/components/CreativePreviewDialog.tsx`
+
+Dialog modal para visualizar imagem/video em tamanho maior com informacoes completas.
+
+---
+
+## Parte 6: Rotas
+
+**Arquivo:** `src/App.tsx`
+
+Adicionar rota para a pagina:
+
+```typescript
+import CriativosPage from "./pages/criativos/CriativosPage";
+
+// Dentro de Routes:
+<Route path="/criativos" element={<CriativosPage />} />
 ```
 
 ---
@@ -202,136 +792,93 @@ const handleRefresh = async () => {
 
 | Arquivo | Acao | Descricao |
 |---------|------|-----------|
-| `src/index.css` | Modificar | Adicionar variaveis `--chart-1` a `--chart-5` para light e dark mode |
-| `src/pages/dashboard/hooks/useDashboardData.ts` | Modificar | Adicionar hook `useDashboardFunnel` e interface `DashboardFunnelData` |
-| `src/pages/dashboard/components/DashboardFunnelChart.tsx` | Criar | Componente de grafico de funil horizontal com cores por estagio |
-| `src/pages/Dashboard.tsx` | Modificar | Integrar funil e atualizar refresh |
+| `src/components/layout/Sidebar.tsx` | Modificar | Simplificar menu de Criativos para link unico |
+| `src/App.tsx` | Modificar | Adicionar rota /criativos |
+| `src/pages/criativos/types.ts` | Criar | Tipos TypeScript |
+| `src/pages/criativos/hooks/useCriativosData.ts` | Criar | Hooks de dados |
+| `src/pages/criativos/CriativosPage.tsx` | Criar | Pagina principal |
+| `src/pages/criativos/components/CriativosHeader.tsx` | Criar | Header |
+| `src/pages/criativos/components/CriativosFilters.tsx` | Criar | Filtros |
+| `src/pages/criativos/components/CriativosGrid.tsx` | Criar | Grade de miniaturas |
+| `src/pages/criativos/components/CreativeCard.tsx` | Criar | Card individual |
+| `src/pages/criativos/components/CreativeUploadDialog.tsx` | Criar | Dialog de upload |
+| `src/pages/criativos/components/CreativePreviewDialog.tsx` | Criar | Dialog de preview |
+| `src/pages/criativos/components/CreativeEditDialog.tsx` | Criar | Dialog de edicao |
 
 ---
 
-## Detalhes Tecnicos
+## Funcionalidades por Aba
 
-### Tipos a Adicionar
+### Aba "Meus Criativos"
+- Exibe apenas arquivos do usuario logado (`user_id = current_user`)
+- Permite: visualizar, editar, excluir, compartilhar/descompartilhar
+- Botao de upload disponivel
 
-```typescript
-// Em useDashboardData.ts
-export interface DashboardFunnelData {
-  id: number;
-  name: string;
-  color: string;
-  position: number;
-  count: number;
-  percentage: number;
-}
-```
+### Aba "Biblioteca"
+- Exibe arquivos de outros usuarios marcados como `shared = true`
+- Mostra nome do autor
+- Permite apenas: visualizar
+- Nao pode editar/excluir arquivos de outros
 
-### Paleta de Cores dos Graficos
+---
+
+## Fluxo de Upload
 
 ```text
-chart-1 (Azul)     -> Leads no grafico de evolucao
-chart-2 (Verde)    -> Contratos Gerados no grafico de evolucao  
-chart-3 (Amarelo)  -> Mensagens nos sparklines
-chart-4 (Laranja)  -> Qualificados no grafico de evolucao
-chart-5 (Roxo)     -> Reserva para uso futuro
-
-Funil: Usa cores proprias de cada estagio (vindas do banco de dados)
-```
-
-### Query SQL do Funil
-
-A query agrupa leads por estagio usando `created_at` como filtro de data (diferente da pagina de estatisticas que usa `stage_entered_at`). Isso garante consistencia com os outros dados do dashboard que tambem usam `created_at`.
-
-```sql
-SELECT 
-  s.id, s.name, s.color, s.position,
-  COUNT(c.id)::int as count
-FROM crm_atendimento_stages s
-LEFT JOIN crm_atendimento_cards c ON s.id = c.stage_id
-  AND c.cod_agent = ANY($1::varchar[])
-  AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-  AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
-WHERE s.is_active = true
-GROUP BY s.id, s.name, s.color, s.position
-ORDER BY s.position
+1. Usuario clica "Novo Criativo"
+          |
+          v
+2. Dialog abre com dropzone
+          |
+          v
+3. Usuario seleciona arquivo (imagem ou video)
+          |
+          v
+4. Preview e gerado automaticamente
+          |
+          v
+5. Usuario preenche: titulo, descricao, categoria, compartilhar
+          |
+          v
+6. Ao salvar: 
+   - Arquivo e enviado para storage (a definir)
+   - Registro criado em creative_files
+          |
+          v
+7. Lista atualiza automaticamente
 ```
 
 ---
 
-## Layout Visual do Funil
+## Consideracoes sobre Storage de Arquivos
 
-```text
-+----------------------------------------------------------+
-| FUNIL DE CONVERSAO                                        |
-+----------------------------------------------------------+
-|                                                           |
-|  Entrada        ████████████████████████████  45 (35%)   |
-|  Analise        ██████████████████            28 (22%)   |
-|  Negociacao     ████████████                  18 (14%)   |
-|  Contrato Curso ████████                      12 (9%)    |
-|  Assinado       ██████                         8 (6%)    |
-|  Humano         ████                           5 (4%)    |
-|  Desqualificado ████████████                  12 (9%)    |
-|                                                           |
-|  -------------------------------------------------        |
-|  Conversao: Ent->Ana: 62% | Ana->Neg: 64% | Neg->Con: 67%|
-+----------------------------------------------------------+
-```
+A tabela `creative_files` armazena apenas metadados. Os arquivos fisicos precisam ser armazenados em algum lugar. Opcoes:
+
+1. **Servidor externo existente** - Se ja existe um servidor de arquivos
+2. **Lovable Cloud Storage** - Supabase Storage (buckets)
+3. **URL externa** - Armazenar apenas URL do arquivo hospedado em outro lugar
+
+Para a implementacao inicial, o campo `name` pode armazenar a URL ou caminho do arquivo, e a integracao com storage sera feita conforme necessidade.
 
 ---
 
-## Estrutura do Componente de Funil
+## Busca e Filtragem
 
-```tsx
-<Card>
-  <CardHeader className="pb-2">
-    <CardTitle className="text-base font-medium">Funil de Conversão</CardTitle>
-  </CardHeader>
-  <CardContent>
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={data} layout="vertical" margin={{ ... }}>
-        <XAxis type="number" hide />
-        <YAxis 
-          type="category" 
-          dataKey="name" 
-          width={120}
-          tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
-        />
-        <Tooltip content={CustomTooltip} />
-        <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={40}>
-          {data.map((entry) => (
-            <Cell key={entry.id} fill={entry.color} />
-          ))}
-          <LabelList 
-            dataKey="count" 
-            position="right" 
-            formatter={(v) => `${v} (${percentage}%)`}
-          />
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-    
-    {/* Conversao entre estagios */}
-    <div className="mt-4 pt-4 border-t">
-      <p className="text-sm text-muted-foreground mb-2">
-        Conversao entre estagios:
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {/* Badges com taxa de conversao */}
-      </div>
-    </div>
-  </CardContent>
-</Card>
-```
+A interface permite busca eficiente por:
+- **Texto livre**: busca em titulo, descricao e nome do arquivo (ILIKE)
+- **Categoria**: filtro exato por creative_category_id
+- **Tipo**: filtro por type_file (image/video)
+
+Os filtros sao combinados (AND) para resultados precisos.
 
 ---
 
-## Consideracoes Visuais
+## Design Visual
 
-1. **Cores do Funil**: Cada estagio usa sua cor propria do banco de dados (`s.color`), garantindo consistencia visual com o Kanban do CRM
-
-2. **Cores dos Graficos de Evolucao**: Usam as variaveis CSS `--chart-1` a `--chart-4` para manter consistencia do design system
-
-3. **Dark Mode**: As variaveis de cor sao ajustadas no `.dark` para melhor contraste
-
-4. **Responsividade**: O grafico de funil usa `ResponsiveContainer` para adaptar-se a diferentes tamanhos de tela
+- Grade responsiva com aspectos quadrados (miniaturas)
+- Hover effects para revelar acoes
+- Badges para categoria e status de compartilhamento
+- Dialogs modais para upload e preview
+- Skeleton loading durante carregamento
+- Estado vazio com ilustracao e mensagem
 
