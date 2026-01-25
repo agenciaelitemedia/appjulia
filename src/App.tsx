@@ -15,6 +15,7 @@ import AgentsList from "./pages/agents/AgentsList";
 import DesempenhoPage from "./pages/estrategico/desempenho/DesempenhoPage";
 import ContratosPage from "./pages/estrategico/contratos/ContratosPage";
 import FollowupPage from "./pages/agente/followup/FollowupPage";
+import CriativosPage from "./pages/criativos/CriativosPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ const App = () => (
                 <Route path="/estrategico/desempenho" element={<DesempenhoPage />} />
                 <Route path="/estrategico/contratos" element={<ContratosPage />} />
                 <Route path="/agente/followup" element={<FollowupPage />} />
+                <Route path="/criativos" element={<CriativosPage />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

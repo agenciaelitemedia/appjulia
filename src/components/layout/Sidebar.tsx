@@ -50,14 +50,7 @@ const menuGroups: MenuGroup[] = [
   {
     label: 'MARKETING',
     items: [
-      {
-        label: 'Criativos',
-        icon: Image,
-        children: [
-          { label: 'Cadastro', href: '/criativos/cadastro' },
-          { label: 'Categorias', href: '/criativos/categorias' },
-        ],
-      },
+      { label: 'Criativos', icon: Image, href: '/criativos' },
     ],
   },
   {
