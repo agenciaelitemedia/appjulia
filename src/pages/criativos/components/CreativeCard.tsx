@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, Pencil, Trash2, Video, Share2, Copy } from 'lucide-react';
+import { Eye, Pencil, Trash2, Video, Share2, Copy, Download } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,8 @@ import { CreativeFile } from '../types';
 import { useDeleteCreative } from '../hooks/useCriativosData';
 import { CreativeEditDialog } from './CreativeEditDialog';
 import { toast } from '@/hooks/use-toast';
+import { formatFileSize } from '@/lib/formatFileSize';
+
 interface CreativeCardProps {
   file: CreativeFile;
   onPreview: () => void;
@@ -85,6 +87,29 @@ export function CreativeCard({ file, onPreview, showOwner, canEdit }: CreativeCa
               <TooltipContent>Copiar link</TooltipContent>
             </Tooltip>
 
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  size="icon" 
+                  variant="secondary"
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    const link = document.createElement('a');
+                    link.href = mediaUrl;
+                    link.download = file.title || 'download';
+                    link.target = '_blank';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    toast({ title: 'Download iniciado!' });
+                  }}
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Baixar</TooltipContent>
+            </Tooltip>
+
             {canEdit && (
               <>
                 <Tooltip>
@@ -137,6 +162,11 @@ export function CreativeCard({ file, onPreview, showOwner, canEdit }: CreativeCa
               <Share2 className="h-3 w-3 mr-1" />
               Compartilhado
             </Badge>
+          )}
+          {file.size && (
+            <span className="text-xs text-muted-foreground">
+              {formatFileSize(file.size)}
+            </span>
           )}
         </div>
         {showOwner && file.user_name && (
