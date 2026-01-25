@@ -7,6 +7,7 @@ interface User {
   email: string;
   role: string;
   cod_agent?: number;
+  client_id?: number;
   evo_url?: string;
   evo_instance?: string;
   evo_apikey?: string;

@@ -86,6 +86,38 @@ class ExternalDatabase {
       data: { userId, currentPassword, newPassword },
     });
   }
+
+  async getClient<T = any>(clientId: number): Promise<T | null> {
+    const result = await this.invoke({
+      action: 'get_client',
+      data: { clientId },
+    });
+    return result.length > 0 ? result[0] : null;
+  }
+
+  async updateClient<T = any>(clientId: number, clientData: Record<string, any>): Promise<T> {
+    const result = await this.invoke({
+      action: 'update_client',
+      data: { clientId, clientData },
+    });
+    return result[0];
+  }
+}
+
+export interface Client {
+  id: number;
+  name: string | null;
+  business_name: string | null;
+  federal_id: string | null;
+  email: string | null;
+  phone: string | null;
+  country: string | null;
+  state: string | null;
+  city: string | null;
+  zip_code: string | null;
+  photo: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export const externalDb = new ExternalDatabase();
