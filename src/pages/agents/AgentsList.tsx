@@ -62,8 +62,8 @@ interface AgentListItem {
   plan_name: string | null;
   plan_limit: number;
   leads_received: number;
-  last_used: string | null;
-  due_date: string | null;
+  last_used: number | string | null;
+  due_date: number | string | null;
 }
 
 type SortKey = 'status' | 'cod_agent' | 'business_name' | 'plan_name' | 'leads_received' | 'last_used' | 'due_date';
@@ -71,9 +71,15 @@ type SortKey = 'status' | 'cod_agent' | 'business_name' | 'plan_name' | 'leads_r
 const ITEMS_PER_PAGE = 20;
 
 // Helper functions
-const formatDueDate = (date: string | null): { text: string; diffDays: number } | null => {
-  if (!date) return null;
-  const dueDate = new Date(date);
+const formatDueDate = (value: number | string | null): { text: string; diffDays: number } | null => {
+  // Retorna null para valores inválidos: null, undefined, 0, "0", string vazia
+  if (!value || value === 0 || value === '0') return null;
+  
+  const dueDate = new Date(value);
+  
+  // Verifica se a data é válida
+  if (isNaN(dueDate.getTime())) return null;
+  
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   dueDate.setHours(0, 0, 0, 0);
@@ -81,9 +87,15 @@ const formatDueDate = (date: string | null): { text: string; diffDays: number } 
   return { text: `Dia ${dueDate.getDate()}`, diffDays };
 };
 
-const formatLastUsed = (date: string | null): string => {
-  if (!date) return '-';
-  const lastDate = new Date(date);
+const formatLastUsed = (value: number | string | null): string => {
+  // Retorna '-' para valores inválidos: null, undefined, 0, "0", string vazia
+  if (!value || value === 0 || value === '0') return '-';
+  
+  const lastDate = new Date(value);
+  
+  // Verifica se a data é válida
+  if (isNaN(lastDate.getTime())) return '-';
+  
   const now = new Date();
   const diffMs = now.getTime() - lastDate.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -256,12 +268,20 @@ export default function AgentsList() {
           bVal = b.leads_received;
           break;
         case 'last_used':
-          aVal = a.last_used ? new Date(a.last_used).getTime() : 0;
-          bVal = b.last_used ? new Date(b.last_used).getTime() : 0;
+          aVal = (a.last_used && a.last_used !== 0 && a.last_used !== '0') 
+            ? new Date(a.last_used).getTime() 
+            : 0;
+          bVal = (b.last_used && b.last_used !== 0 && b.last_used !== '0') 
+            ? new Date(b.last_used).getTime() 
+            : 0;
           break;
         case 'due_date':
-          aVal = a.due_date ? new Date(a.due_date).getTime() : 0;
-          bVal = b.due_date ? new Date(b.due_date).getTime() : 0;
+          aVal = (a.due_date && a.due_date !== 0 && a.due_date !== '0') 
+            ? new Date(a.due_date).getTime() 
+            : 0;
+          bVal = (b.due_date && b.due_date !== 0 && b.due_date !== '0') 
+            ? new Date(b.due_date).getTime() 
+            : 0;
           break;
         default:
           return 0;
