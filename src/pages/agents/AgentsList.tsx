@@ -42,7 +42,6 @@ interface AgentListItem {
   id: number;
   cod_agent: string;
   status: 'active' | 'inactive';
-  agent_name: string;
   client_name: string;
   business_name: string;
   plan_name: string | null;
@@ -111,26 +110,27 @@ export default function AgentsList() {
           a.id,
           a.cod_agent,
           a.status,
-          a.name AS agent_name,
           c.name AS client_name,
           c.business_name,
           ap.name AS plan_name,
           COALESCE(ap."limit", 0) AS plan_limit,
           (
             SELECT COUNT(DISTINCT s.id)
-            FROM session s
+            FROM sessions s
             WHERE s.agent_id = a.id
               AND EXISTS (
                 SELECT 1 FROM log_messages lm 
                 WHERE lm.session_id = s.id
+                  AND lm.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+                  AND lm.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
               )
           ) AS leads_received,
           a.last_used,
           a.due_date
         FROM agents a
-        JOIN clients c ON c.id = a.client_id
+        JOIN clients c ON c.id = a.client_id AND a.is_visibilided = true
         LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
-        ORDER BY a.name
+        ORDER BY c.business_name
       `;
       
       const result = await externalDb.raw<AgentListItem>({
@@ -164,7 +164,7 @@ export default function AgentsList() {
       );
       toast({
         title: newStatus === 'active' ? 'Agente ativado' : 'Agente desativado',
-        description: `${agent.agent_name} foi ${newStatus === 'active' ? 'ativado' : 'desativado'} com sucesso.`,
+        description: `${agent.business_name || agent.client_name} foi ${newStatus === 'active' ? 'ativado' : 'desativado'} com sucesso.`,
       });
     } catch (error) {
       toast({
@@ -310,8 +310,7 @@ export default function AgentsList() {
                     {agent.cod_agent}
                   </TableCell>
                   <TableCell>
-                    <div className="font-medium">{agent.agent_name}</div>
-                    <div className="text-sm text-muted-foreground">
+                    <div className="font-medium">
                       {agent.business_name || agent.client_name}
                     </div>
                   </TableCell>
