@@ -7,13 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { User, Lock, Mail, Shield, Eye, EyeOff, Check, X, Camera, Building2, Phone, MapPin, Loader2, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { externalDb, Client } from '@/lib/externalDb';
 import { supabase } from '@/integrations/supabase/client';
 import { maskCPFCNPJ, maskPhone, maskCEP } from '@/lib/inputMasks';
-import { useBlocker } from 'react-router-dom';
 
 export default function ProfileSettingsPage() {
   const { user } = useAuth();
@@ -86,10 +84,7 @@ export default function ProfileSettingsPage() {
     key => formData[key as keyof typeof formData] !== (clientData[key as keyof Client] || '')
   ));
 
-  // Block navigation if there are unsaved changes
-  const blocker = useBlocker(hasChanges);
-
-  // Handle browser beforeunload event
+  // Handle browser beforeunload event to warn about unsaved changes
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasChanges) {
@@ -614,26 +609,6 @@ export default function ProfileSettingsPage() {
           </CardContent>
         </Card>
       )}
-
-      {/* Unsaved Changes Dialog */}
-      <AlertDialog open={blocker.state === 'blocked'}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Alterações não salvas</AlertDialogTitle>
-            <AlertDialogDescription>
-              Você tem alterações não salvas nos dados do cliente. Deseja realmente sair sem salvar?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => blocker.reset?.()}>
-              Continuar editando
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={() => blocker.proceed?.()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Sair sem salvar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
