@@ -1,4 +1,4 @@
-import { Video, Calendar, User, FolderOpen, Share2, Copy } from 'lucide-react';
+import { Video, Calendar, User, FolderOpen, Share2, Copy, Download, HardDrive } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import { CreativeFile } from '../types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from '@/hooks/use-toast';
+import { formatFileSize } from '@/lib/formatFileSize';
 
 interface CreativePreviewDialogProps {
   file: CreativeFile | null;
@@ -28,17 +29,36 @@ export function CreativePreviewDialog({ file, open, onOpenChange }: CreativePrev
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader className="flex flex-row items-center justify-between gap-2">
           <DialogTitle>{file.title}</DialogTitle>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => {
-              navigator.clipboard.writeText(mediaUrl);
-              toast({ title: 'Link copiado!', description: 'O link foi copiado para a área de transferência.' });
-            }}
-          >
-            <Copy className="h-4 w-4 mr-2" />
-            Copiar link
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                navigator.clipboard.writeText(mediaUrl);
+                toast({ title: 'Link copiado!', description: 'O link foi copiado para a área de transferência.' });
+              }}
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Copiar link
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                const link = document.createElement('a');
+                link.href = mediaUrl;
+                link.download = file.title || 'download';
+                link.target = '_blank';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                toast({ title: 'Download iniciado!' });
+              }}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Baixar
+            </Button>
+          </div>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -85,6 +105,13 @@ export function CreativePreviewDialog({ file, open, onOpenChange }: CreativePrev
               <div className="flex items-center gap-2 text-muted-foreground">
                 <FolderOpen className="h-4 w-4" />
                 <span>Categoria: {file.category_name}</span>
+              </div>
+            )}
+
+            {file.size && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <HardDrive className="h-4 w-4" />
+                <span>Tamanho: {formatFileSize(file.size)}</span>
               </div>
             )}
 
