@@ -288,7 +288,7 @@ serve(async (req) => {
         const { clientId, clientData } = data;
         
         // Build dynamic update query
-        const allowedFields = ['name', 'business_name', 'federal_id', 'email', 'phone', 'state', 'city', 'zip_code', 'photo'];
+        const allowedFields = ['name', 'business_name', 'federal_id', 'email', 'phone', 'state', 'city', 'zip_code', 'street', 'neighborhood', 'photo'];
         const updates: string[] = [];
         const values: any[] = [];
         let paramIndex = 1;
