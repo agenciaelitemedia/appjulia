@@ -1,139 +1,134 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Users,
   MessageSquare,
   TrendingUp,
   Bot,
   ArrowUpRight,
-  ArrowDownRight,
+  RefreshCw,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
-import { externalDb } from '@/lib/externalDb';
-
-interface DashboardStats {
-  totalLeads: number;
-  totalMessages: number;
-  conversions: number;
-  activeAgents: number;
-}
+import { getTodayInSaoPaulo } from '@/lib/dateUtils';
+import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
+import { UnifiedFiltersState } from '@/components/filters/types';
+import { useDashboardAgents, useDashboardStats } from './dashboard/hooks/useDashboardData';
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [stats, setStats] = useState<DashboardStats>({
-    totalLeads: 0,
-    totalMessages: 0,
-    conversions: 0,
-    activeAgents: 0,
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const hasInitializedFilters = useRef(false);
+
+  const today = getTodayInSaoPaulo();
+  const [filters, setFilters] = useState<UnifiedFiltersState>({
+    search: '',
+    agentCodes: [],
+    dateFrom: today,
+    dateTo: today,
   });
-  const [isLoading, setIsLoading] = useState(true);
 
+  const { data: agents = [], isLoading: agentsLoading } = useDashboardAgents();
+  const { data: stats, isLoading: statsLoading } = useDashboardStats(filters);
+
+  // Initialize agent codes when agents load
   useEffect(() => {
-    loadDashboardStats();
-  }, []);
-
-  const loadDashboardStats = async () => {
-    try {
-      // Get agent codes based on user role
-      const agentCodes = user?.role === 'admin' 
-        ? null // Will fetch all agents
-        : [user?.cod_agent].filter(Boolean);
-
-      // Build the query based on user role
-      const leadsQuery = user?.role === 'admin'
-        ? 'SELECT COUNT(*) as count FROM crm_atendimento_cards'
-        : 'SELECT COUNT(*) as count FROM crm_atendimento_cards WHERE cod_agent = $1';
-      
-      const agentsQuery = user?.role === 'admin'
-        ? 'SELECT COUNT(DISTINCT cod_agent) as count FROM "vw_list_client-agents-users" WHERE cod_agent IS NOT NULL'
-        : 'SELECT COUNT(DISTINCT cod_agent) as count FROM "vw_list_client-agents-users" WHERE cod_agent = $1';
-      
-      const conversionsQuery = user?.role === 'admin'
-        ? `SELECT COUNT(*) as count FROM crm_atendimento_cards c 
-           JOIN crm_atendimento_stages s ON c.stage_id = s.id 
-           WHERE s.name = 'Contrato Assinado'`
-        : `SELECT COUNT(*) as count FROM crm_atendimento_cards c 
-           JOIN crm_atendimento_stages s ON c.stage_id = s.id 
-           WHERE s.name = 'Contrato Assinado' AND c.cod_agent = $1`;
-
-      const params = user?.role === 'admin' ? [] : [user?.cod_agent];
-
-      const [leadsResult, agentsResult, conversionsResult] = await Promise.all([
-        externalDb.raw<{ count: number }>({
-          query: leadsQuery,
-          params,
-        }).catch(() => [{ count: 0 }]),
-        externalDb.raw<{ count: number }>({
-          query: agentsQuery,
-          params,
-        }).catch(() => [{ count: 0 }]),
-        externalDb.raw<{ count: number }>({
-          query: conversionsQuery,
-          params,
-        }).catch(() => [{ count: 0 }]),
-      ]);
-
-      setStats({
-        totalLeads: Number(leadsResult[0]?.count) || 0,
-        totalMessages: 0, // Will be loaded from messages table
-        conversions: Number(conversionsResult[0]?.count) || 0,
-        activeAgents: Number(agentsResult[0]?.count) || 0,
-      });
-    } catch (error) {
-      console.error('Error loading dashboard stats:', error);
-      setStats({
-        totalLeads: 0,
-        totalMessages: 0,
-        conversions: 0,
-        activeAgents: 0,
-      });
-    } finally {
-      setIsLoading(false);
+    if (agents.length > 0 && !hasInitializedFilters.current) {
+      hasInitializedFilters.current = true;
+      setFilters((prev) => ({
+        ...prev,
+        agentCodes: agents.map((a) => a.cod_agent),
+      }));
     }
+  }, [agents]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+    setIsRefreshing(false);
   };
 
   const statCards = [
     {
       title: 'Total de Leads',
-      value: stats.totalLeads,
-      description: '+12% desde o último mês',
+      value: stats?.totalLeads ?? 0,
+      description: 'No período selecionado',
       icon: Users,
       trend: 'up' as const,
     },
     {
       title: 'Mensagens Enviadas',
-      value: stats.totalMessages,
-      description: '+8% desde ontem',
+      value: stats?.totalMessages ?? 0,
+      description: 'No período selecionado',
       icon: MessageSquare,
       trend: 'up' as const,
     },
     {
       title: 'Conversões',
-      value: stats.conversions,
-      description: '+5% esta semana',
+      value: stats?.conversions ?? 0,
+      description: 'Contratos assinados',
       icon: TrendingUp,
       trend: 'up' as const,
     },
     {
-      title: 'Agentes Ativos',
-      value: stats.activeAgents,
-      description: 'Funcionando normalmente',
+      title: 'Agentes Selecionados',
+      value: stats?.activeAgents ?? 0,
+      description: 'Filtrados atualmente',
       icon: Bot,
       trend: 'neutral' as const,
     },
   ];
 
+  const isLoading = agentsLoading || statsLoading;
+
+  if (agentsLoading) {
+    return (
+      <div className="space-y-6 p-6">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-24 w-full" />
+        <div className="grid grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* Welcome Section */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">
-          Olá, {user?.name?.split(' ')[0]}! 👋
-        </h1>
-        <p className="text-muted-foreground">
-          Bem-vindo ao seu painel de controle. Aqui está um resumo das suas atividades.
-        </p>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Olá, {user?.name?.split(' ')[0]}! 👋
+          </h1>
+          <p className="text-muted-foreground">
+            Bem-vindo ao seu painel de controle. Aqui está um resumo das suas atividades.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+          Atualizar
+        </Button>
       </div>
+
+      {/* Filters */}
+      <UnifiedFilters
+        agents={agents}
+        filters={filters}
+        onFiltersChange={setFilters}
+        isLoading={agentsLoading}
+        showSearch={false}
+      />
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
