@@ -116,6 +116,8 @@ export interface Client {
   city: string | null;
   zip_code: string | null;
   street: string | null;
+  street_number: string | null;
+  complement: string | null;
   neighborhood: string | null;
   photo: string | null;
   created_at?: string;

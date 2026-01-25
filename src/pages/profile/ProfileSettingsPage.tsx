@@ -65,6 +65,8 @@ export default function ProfileSettingsPage() {
             city: client.city || '',
             zip_code: client.zip_code || '',
             street: client.street || '',
+            street_number: client.street_number || '',
+            complement: client.complement || '',
             neighborhood: client.neighborhood || '',
           });
         }
@@ -536,6 +538,30 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('street', e.target.value)}
                           placeholder="Rua, Avenida, etc."
                           maxLength={150}
+                        />
+                      </div>
+
+                      {/* Street Number */}
+                      <div className="space-y-2">
+                        <Label htmlFor="client-street-number">Número</Label>
+                        <Input
+                          id="client-street-number"
+                          value={formData.street_number || ''}
+                          onChange={(e) => handleInputChange('street_number', e.target.value)}
+                          placeholder="123"
+                          maxLength={10}
+                        />
+                      </div>
+
+                      {/* Complement */}
+                      <div className="space-y-2">
+                        <Label htmlFor="client-complement">Complemento</Label>
+                        <Input
+                          id="client-complement"
+                          value={formData.complement || ''}
+                          onChange={(e) => handleInputChange('complement', e.target.value)}
+                          placeholder="Apto, Sala, etc."
+                          maxLength={50}
                         />
                       </div>
 
