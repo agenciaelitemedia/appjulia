@@ -265,13 +265,6 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                {/* Sparkline */}
-                {stat.sparklineData && stat.sparklineData.length > 0 && (
-                  <DashboardSparkline
-                    data={stat.sparklineData}
-                    color={stat.sparklineColor}
-                  />
-                )}
 
                 {/* Change indicator */}
                 {stat.change && (
