@@ -50,9 +50,11 @@ const menuGroups: MenuGroup[] = [
     ],
   },
   {
-    label: 'MARKETING',
+    label: 'SEU AGENTE',
     items: [
-      { label: 'Criativos', icon: Image, href: '/criativos' },
+      { label: 'FollowUP', icon: MessageSquare, href: '/agente/followup' },
+      { label: 'Desempenho Julia', icon: BarChart3, href: '/estrategico/desempenho' },
+      { label: 'Contratos Julia', icon: FileCheck, href: '/estrategico/contratos' },
     ],
   },
   {
@@ -64,18 +66,9 @@ const menuGroups: MenuGroup[] = [
     ],
   },
   {
-    label: 'SEU AGENTE',
+    label: 'MARKETING',
     items: [
-      { label: 'FollowUP', icon: MessageSquare, href: '/agente/followup' },
-      { label: 'Personalização', icon: Bot, href: '/agente/personalizacao' },
-      { label: 'Arquivos', icon: FolderOpen, href: '/agente/arquivos' },
-    ],
-  },
-  {
-    label: 'ESTRATÉGICO',
-    items: [
-      { label: 'Desempenho', icon: BarChart3, href: '/estrategico/desempenho' },
-      { label: 'Contratos Julia', icon: FileCheck, href: '/estrategico/contratos' },
+      { label: 'Criativos', icon: Image, href: '/criativos' },
     ],
   },
   {
@@ -99,6 +92,7 @@ const menuGroups: MenuGroup[] = [
   },
   {
     label: 'CONFIGURAÇÕES',
+    adminOnly: true,
     items: [
       { label: 'Sistema', icon: Settings, href: '/configuracoes' },
     ],
