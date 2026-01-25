@@ -1,4 +1,4 @@
-import { Video, Calendar, User, FolderOpen, Share2 } from 'lucide-react';
+import { Video, Calendar, User, FolderOpen, Share2, Copy } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -6,9 +6,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { CreativeFile } from '../types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { toast } from '@/hooks/use-toast';
 
 interface CreativePreviewDialogProps {
   file: CreativeFile | null;
@@ -24,8 +26,19 @@ export function CreativePreviewDialog({ file, open, onOpenChange }: CreativePrev
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+        <DialogHeader className="flex flex-row items-center justify-between gap-2">
           <DialogTitle>{file.title}</DialogTitle>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => {
+              navigator.clipboard.writeText(mediaUrl);
+              toast({ title: 'Link copiado!', description: 'O link foi copiado para a área de transferência.' });
+            }}
+          >
+            <Copy className="h-4 w-4 mr-2" />
+            Copiar link
+          </Button>
         </DialogHeader>
 
         <div className="space-y-4">

@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Eye, Pencil, Trash2, Video, Share2 } from 'lucide-react';
+import { Eye, Pencil, Trash2, Video, Share2, Copy } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { CreativeFile } from '../types';
 import { useDeleteCreative } from '../hooks/useCriativosData';
 import { CreativeEditDialog } from './CreativeEditDialog';
-
+import { toast } from '@/hooks/use-toast';
 interface CreativeCardProps {
   file: CreativeFile;
   onPreview: () => void;
@@ -57,32 +58,68 @@ export function CreativeCard({ file, onPreview, showOwner, canEdit }: CreativeCa
 
         {/* Overlay com ações */}
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-          <Button size="icon" variant="secondary">
-            <Eye className="h-4 w-4" />
-          </Button>
-          {canEdit && (
-            <>
-              <Button 
-                size="icon" 
-                variant="secondary"
-                onClick={(e) => { e.stopPropagation(); setEditOpen(true); }}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-              <Button 
-                size="icon" 
-                variant="destructive"
-                onClick={(e) => { 
-                  e.stopPropagation(); 
-                  if (confirm('Excluir este criativo?')) {
-                    deleteMutation.mutate(file.id);
-                  }
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </>
-          )}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" variant="secondary">
+                  <Eye className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Visualizar</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  size="icon" 
+                  variant="secondary"
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    navigator.clipboard.writeText(mediaUrl);
+                    toast({ title: 'Link copiado!', description: 'O link foi copiado para a área de transferência.' });
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Copiar link</TooltipContent>
+            </Tooltip>
+
+            {canEdit && (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      size="icon" 
+                      variant="secondary"
+                      onClick={(e) => { e.stopPropagation(); setEditOpen(true); }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Editar</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      size="icon" 
+                      variant="destructive"
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        if (confirm('Excluir este criativo?')) {
+                          deleteMutation.mutate(file.id);
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Excluir</TooltipContent>
+                </Tooltip>
+              </>
+            )}
+          </TooltipProvider>
         </div>
       </div>
 
