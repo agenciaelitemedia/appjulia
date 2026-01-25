@@ -172,11 +172,19 @@ export default function ProfileSettingsPage() {
     }
   };
 
-  // Auto-search CEP when it has 8 digits
+  // Handle CEP input change
   const handleCepChange = useCallback((value: string) => {
     const masked = maskCEP(value);
     setFormData(prev => ({ ...prev, zip_code: masked }));
   }, []);
+
+  // Auto-search CEP on blur when it has 8 digits
+  const handleCepBlur = useCallback(() => {
+    const cep = unmask(formData.zip_code || '');
+    if (cep.length === 8 && !isSearchingCep) {
+      searchCep();
+    }
+  }, [formData.zip_code, isSearchingCep, searchCep]);
 
   // Handle photo upload
   const handlePhotoClick = () => {
@@ -508,6 +516,7 @@ export default function ProfileSettingsPage() {
                             id="client-zipcode"
                             value={formData.zip_code || ''}
                             onChange={(e) => handleCepChange(e.target.value)}
+                            onBlur={handleCepBlur}
                             placeholder="00000-000"
                             maxLength={9}
                             className="flex-1"
