@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Upload, X } from 'lucide-react';
+import { useState, useRef, useCallback } from 'react';
+import { Upload, X, FileWarning } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Progress } from '@/components/ui/progress';
 import {
   Select,
   SelectContent,
@@ -23,6 +24,8 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { CreativeCategory, UploadFormData } from '../types';
 import { useCreateCreative } from '../hooks/useCriativosData';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
 
 interface CreativeUploadDialogProps {
   open: boolean;
@@ -30,9 +33,15 @@ interface CreativeUploadDialogProps {
   categories: CreativeCategory[];
 }
 
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
+const ALLOWED_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
 export function CreativeUploadDialog({ open, onOpenChange, categories }: CreativeUploadDialogProps) {
   const { user } = useAuth();
   const createMutation = useCreateCreative();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState<UploadFormData>({
     title: '',
     description: '',
@@ -41,42 +50,151 @@ export function CreativeUploadDialog({ open, onOpenChange, categories }: Creativ
     file: null,
   });
   const [preview, setPreview] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+
+  const validateFile = (file: File): string | null => {
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      return 'Tipo de arquivo não permitido. Use imagens (JPG, PNG, GIF, WebP) ou vídeos (MP4, WebM, MOV).';
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      return 'Arquivo muito grande. Tamanho máximo: 50MB.';
+    }
+    return null;
+  };
+
+  const handleFile = useCallback((file: File) => {
+    setFileError(null);
+    const error = validateFile(file);
+    if (error) {
+      setFileError(error);
+      return;
+    }
+
+    setFormData(prev => ({ 
+      ...prev, 
+      file, 
+      title: prev.title || file.name.split('.')[0] 
+    }));
+    
+    const reader = new FileReader();
+    reader.onload = () => setPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setFormData({ ...formData, file, title: file.name.split('.')[0] });
-      
-      const reader = new FileReader();
-      reader.onload = () => setPreview(reader.result as string);
-      reader.readAsDataURL(file);
+    if (file) handleFile(file);
+  };
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handleFile(files[0]);
     }
+  }, [handleFile]);
+
+  const uploadToStorage = async (file: File): Promise<string> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user?.id}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+    
+    const { data, error } = await supabase.storage
+      .from('creatives')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false,
+      });
+
+    if (error) throw error;
+
+    const { data: urlData } = supabase.storage
+      .from('creatives')
+      .getPublicUrl(data.path);
+
+    return urlData.publicUrl;
   };
 
   const handleSubmit = async () => {
     if (!formData.file || !user) return;
 
-    const typeFile = formData.file.type.startsWith('video/') ? 'video' : 'image';
+    setIsUploading(true);
+    setUploadProgress(10);
 
-    await createMutation.mutateAsync({
-      user_id: user.id,
-      type_file: typeFile,
-      name: formData.file.name,
-      title: formData.title,
-      description: formData.description,
-      creative_category_id: formData.categoryId,
-      shared: formData.shared,
-    });
+    try {
+      // Upload file to storage
+      setUploadProgress(30);
+      const fileUrl = await uploadToStorage(formData.file);
+      setUploadProgress(70);
 
-    onOpenChange(false);
-    setFormData({ title: '', description: '', categoryId: null, shared: false, file: null });
-    setPreview(null);
+      // Determine file type
+      const typeFile = formData.file.type.startsWith('video/') ? 'video' : 'image';
+
+      // Save metadata to database
+      await createMutation.mutateAsync({
+        user_id: user.id,
+        type_file: typeFile,
+        name: fileUrl, // Store the URL in the name field
+        title: formData.title,
+        description: formData.description,
+        creative_category_id: formData.categoryId,
+        shared: formData.shared,
+      });
+
+      setUploadProgress(100);
+      
+      toast({
+        title: 'Sucesso!',
+        description: 'Criativo enviado com sucesso.',
+      });
+
+      handleClose();
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast({
+        title: 'Erro no upload',
+        description: error.message || 'Não foi possível enviar o arquivo.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
   };
 
   const handleClose = () => {
     onOpenChange(false);
     setFormData({ title: '', description: '', categoryId: null, shared: false, file: null });
     setPreview(null);
+    setFileError(null);
+    setUploadProgress(0);
+    setIsUploading(false);
+  };
+
+  const removeFile = () => {
+    setPreview(null);
+    setFormData(prev => ({ ...prev, file: null }));
+    setFileError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   return (
@@ -91,7 +209,18 @@ export function CreativeUploadDialog({ open, onOpenChange, categories }: Creativ
 
         <div className="space-y-4">
           {/* Drop Zone */}
-          <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
+          <div 
+            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+              isDragging 
+                ? 'border-primary bg-primary/5' 
+                : fileError 
+                  ? 'border-destructive bg-destructive/5'
+                  : 'border-border hover:border-primary/50'
+            }`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
             {preview ? (
               <div className="relative">
                 {formData.file?.type.startsWith('video/') ? (
@@ -103,25 +232,51 @@ export function CreativeUploadDialog({ open, onOpenChange, categories }: Creativ
                   size="icon" 
                   variant="destructive" 
                   className="absolute top-2 right-2"
-                  onClick={() => { setPreview(null); setFormData({ ...formData, file: null }); }}
+                  onClick={removeFile}
+                  disabled={isUploading}
                 >
                   <X className="h-4 w-4" />
                 </Button>
               </div>
             ) : (
-              <label className="cursor-pointer">
+              <label className="cursor-pointer block">
                 <input 
+                  ref={fileInputRef}
                   type="file" 
-                  accept="image/*,video/*" 
+                  accept={ALLOWED_TYPES.join(',')}
                   className="hidden"
                   onChange={handleFileChange}
                 />
-                <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
-                <p className="text-sm font-medium">Clique para selecionar</p>
-                <p className="text-xs text-muted-foreground">ou arraste e solte aqui</p>
+                {fileError ? (
+                  <>
+                    <FileWarning className="h-10 w-10 mx-auto text-destructive mb-2" />
+                    <p className="text-sm font-medium text-destructive">{fileError}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Clique para tentar novamente</p>
+                  </>
+                ) : (
+                  <>
+                    <Upload className={`h-10 w-10 mx-auto mb-2 ${isDragging ? 'text-primary' : 'text-muted-foreground'}`} />
+                    <p className="text-sm font-medium">
+                      {isDragging ? 'Solte o arquivo aqui' : 'Clique ou arraste um arquivo'}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Imagens (JPG, PNG, GIF, WebP) ou Vídeos (MP4, WebM, MOV) até 50MB
+                    </p>
+                  </>
+                )}
               </label>
             )}
           </div>
+
+          {/* Upload Progress */}
+          {isUploading && (
+            <div className="space-y-2">
+              <Progress value={uploadProgress} className="h-2" />
+              <p className="text-xs text-muted-foreground text-center">
+                Enviando... {uploadProgress}%
+              </p>
+            </div>
+          )}
 
           {/* Título */}
           <div className="space-y-2">
@@ -130,6 +285,7 @@ export function CreativeUploadDialog({ open, onOpenChange, categories }: Creativ
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               placeholder="Nome do criativo"
+              disabled={isUploading}
             />
           </div>
 
@@ -141,6 +297,7 @@ export function CreativeUploadDialog({ open, onOpenChange, categories }: Creativ
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Descrição opcional..."
               rows={3}
+              disabled={isUploading}
             />
           </div>
 
@@ -153,6 +310,7 @@ export function CreativeUploadDialog({ open, onOpenChange, categories }: Creativ
                 ...formData, 
                 categoryId: v ? Number(v) : null 
               })}
+              disabled={isUploading}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Selecione uma categoria" />
@@ -176,6 +334,7 @@ export function CreativeUploadDialog({ open, onOpenChange, categories }: Creativ
                 ...formData, 
                 shared: !!checked 
               })}
+              disabled={isUploading}
             />
             <Label htmlFor="shared" className="cursor-pointer">
               Compartilhar na Biblioteca (outros usuários poderão ver)
@@ -184,14 +343,14 @@ export function CreativeUploadDialog({ open, onOpenChange, categories }: Creativ
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>
+          <Button variant="outline" onClick={handleClose} disabled={isUploading}>
             Cancelar
           </Button>
           <Button 
             onClick={handleSubmit}
-            disabled={!formData.file || !formData.title || createMutation.isPending}
+            disabled={!formData.file || !formData.title || isUploading || createMutation.isPending}
           >
-            {createMutation.isPending ? 'Salvando...' : 'Salvar'}
+            {isUploading ? 'Enviando...' : 'Salvar'}
           </Button>
         </DialogFooter>
       </DialogContent>
