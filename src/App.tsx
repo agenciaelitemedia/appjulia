@@ -48,7 +48,7 @@ const App = () => (
                 {/* Admin-only routes */}
                 <Route element={<AdminRoute />}>
                   <Route path="/admin/agentes" element={<AgentsList />} />
-                  <Route path="/admin/agentes/novo" element={<CreateAgentPage />} />
+                  <Route path="/admin/agentes-novo" element={<CreateAgentPage />} />
                 </Route>
               </Route>
               <Route path="*" element={<NotFound />} />

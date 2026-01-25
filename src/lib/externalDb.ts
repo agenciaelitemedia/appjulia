@@ -102,6 +102,43 @@ class ExternalDatabase {
     });
     return result[0];
   }
+
+  async searchClients<T = any>(term: string): Promise<T[]> {
+    return this.invoke({
+      action: 'search_clients',
+      data: { term },
+    });
+  }
+
+  async searchUsers<T = any>(term: string): Promise<T[]> {
+    return this.invoke({
+      action: 'search_users',
+      data: { term },
+    });
+  }
+
+  async getNextAgentCode(): Promise<string> {
+    const result = await this.invoke({
+      action: 'get_next_agent_code',
+      data: {},
+    });
+    return result[0].cod_agent;
+  }
+
+  async getPlans<T = any>(): Promise<T[]> {
+    return this.invoke({
+      action: 'get_plans',
+      data: {},
+    });
+  }
+
+  async insertClient<T = any>(clientData: Partial<Client>): Promise<T> {
+    const result = await this.invoke({
+      action: 'insert_client',
+      data: { clientData },
+    });
+    return result[0];
+  }
 }
 
 export interface Client {

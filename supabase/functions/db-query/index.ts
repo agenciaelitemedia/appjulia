@@ -324,6 +324,82 @@ serve(async (req) => {
         break;
       }
 
+      case 'search_clients': {
+        const { term } = data;
+        const searchTerm = `%${term.toLowerCase()}%`;
+        result = await sql.unsafe(
+          `SELECT id, name, business_name, email, phone
+           FROM clients
+           WHERE LOWER(name) LIKE $1 
+              OR LOWER(business_name) LIKE $1 
+              OR LOWER(email) LIKE $1
+           ORDER BY name ASC
+           LIMIT 20`,
+          [searchTerm]
+        );
+        break;
+      }
+
+      case 'search_users': {
+        const { term } = data;
+        const searchTerm = `%${term.toLowerCase()}%`;
+        result = await sql.unsafe(
+          `SELECT id, name, email, role
+           FROM users
+           WHERE LOWER(name) LIKE $1 OR LOWER(email) LIKE $1
+           ORDER BY name ASC
+           LIMIT 20`,
+          [searchTerm]
+        );
+        break;
+      }
+
+      case 'get_next_agent_code': {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const prefix = `${year}${month}`;
+        
+        const rows = await sql.unsafe(
+          `SELECT COALESCE(
+             MAX(CAST(SUBSTRING(cod_agent FROM 7) AS INTEGER)),
+             0
+           ) + 1 as next_seq
+           FROM agents
+           WHERE cod_agent LIKE $1`,
+          [`${prefix}%`]
+        );
+        
+        const nextSeq = String(rows[0].next_seq).padStart(3, '0');
+        result = [{ cod_agent: `${prefix}${nextSeq}` }];
+        break;
+      }
+
+      case 'get_plans': {
+        result = await sql.unsafe(
+          `SELECT id, name, leads_limit, price
+           FROM agents_plan
+           WHERE is_active = true
+           ORDER BY price ASC`
+        );
+        break;
+      }
+
+      case 'insert_client': {
+        const { clientData } = data;
+        const columns = Object.keys(clientData).join(', ');
+        const values = Object.values(clientData) as (string | number | boolean | null)[];
+        const placeholders = values.map((_, i: number) => `$${i + 1}`).join(', ');
+        
+        result = await sql.unsafe(
+          `INSERT INTO clients (${columns}, created_at, updated_at) 
+           VALUES (${placeholders}, now(), now()) 
+           RETURNING *`,
+          values
+        );
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
