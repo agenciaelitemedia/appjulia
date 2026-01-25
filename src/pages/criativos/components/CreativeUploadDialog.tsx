@@ -154,6 +154,7 @@ export function CreativeUploadDialog({ open, onOpenChange, categories }: Creativ
         name: fileUrl, // Store the URL in the name field
         title: formData.title,
         description: formData.description,
+        size: formData.file.size,
         creative_category_id: formData.categoryId,
         shared: formData.shared,
       });

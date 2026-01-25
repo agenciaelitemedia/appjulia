@@ -121,6 +121,7 @@ interface CreateCreativeData {
   name: string;
   title: string;
   description: string;
+  size: number;
   creative_category_id: number | null;
   shared: boolean;
 }

@@ -13,6 +13,7 @@ export interface CreativeFile {
   name: string;
   title: string;
   description: string | null;
+  size: number | null;
   shared: boolean;
   created_at: string;
   update_at: string;
