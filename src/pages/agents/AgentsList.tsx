@@ -56,7 +56,7 @@ import { useToast } from '@/hooks/use-toast';
 interface AgentListItem {
   id: number;
   cod_agent: string;
-  status: 'active' | 'inactive';
+  status: boolean;
   client_name: string;
   business_name: string;
   plan_name: string | null;
@@ -177,7 +177,7 @@ export default function AgentsList() {
   const confirmToggle = async () => {
     if (!agentToToggle) return;
     
-    const newStatus = agentToToggle.status === 'active' ? 'inactive' : 'active';
+    const newStatus = !agentToToggle.status;
     try {
       await externalDb.update({
         table: 'agents',
@@ -188,8 +188,8 @@ export default function AgentsList() {
         prev.map(a => (a.id === agentToToggle.id ? { ...a, status: newStatus } : a))
       );
       toast({
-        title: newStatus === 'active' ? 'Agente ativado' : 'Agente desativado',
-        description: `${agentToToggle.business_name || agentToToggle.client_name} foi ${newStatus === 'active' ? 'ativado' : 'desativado'} com sucesso.`,
+        title: newStatus ? 'Agente ativado' : 'Agente desativado',
+        description: `${agentToToggle.business_name || agentToToggle.client_name} foi ${newStatus ? 'ativado' : 'desativado'} com sucesso.`,
       });
     } catch (error) {
       toast({
@@ -231,13 +231,13 @@ export default function AgentsList() {
   // Sort agents
   const sortedAgents = useMemo(() => {
     const sorted = [...filteredAgents].sort((a, b) => {
-      let aVal: string | number | null;
-      let bVal: string | number | null;
+      let aVal: string | number | boolean | null;
+      let bVal: string | number | boolean | null;
 
       switch (sortConfig.key) {
         case 'status':
-          aVal = a.status;
-          bVal = b.status;
+          aVal = a.status ? 1 : 0;
+          bVal = b.status ? 1 : 0;
           break;
         case 'cod_agent':
           aVal = a.cod_agent || '';
@@ -497,7 +497,7 @@ export default function AgentsList() {
                 <TableRow key={agent.id}>
                   <TableCell>
                     <Switch
-                      checked={agent.status === 'active'}
+                      checked={agent.status === true}
                       onCheckedChange={() => setAgentToToggle(agent)}
                     />
                   </TableCell>
@@ -601,13 +601,13 @@ export default function AgentsList() {
       {/* Confirmation Dialog */}
       <AlertDialog open={!!agentToToggle} onOpenChange={() => setAgentToToggle(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader>
+        <AlertDialogHeader>
             <AlertDialogTitle>
-              {agentToToggle?.status === 'active' ? 'Desativar' : 'Ativar'} agente?
+              {agentToToggle?.status ? 'Desativar' : 'Ativar'} agente?
             </AlertDialogTitle>
             <AlertDialogDescription>
               O agente <strong>{agentToToggle?.business_name || agentToToggle?.client_name}</strong> será{' '}
-              {agentToToggle?.status === 'active' ? 'desativado' : 'ativado'}.
+              {agentToToggle?.status ? 'desativado' : 'ativado'}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
