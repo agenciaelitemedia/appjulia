@@ -22,6 +22,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -31,6 +32,7 @@ interface SidebarProps {
 interface MenuGroup {
   label: string;
   items: MenuItem[];
+  adminOnly?: boolean;
 }
 
 interface MenuItem {
@@ -78,6 +80,7 @@ const menuGroups: MenuGroup[] = [
   },
   {
     label: 'ADMINISTRATIVO',
+    adminOnly: true,
     items: [
       { label: 'Lista de Agentes', icon: Bot, href: '/admin/agentes' },
       { label: 'Novo Agente', icon: UserPlus, href: '/admin/agentes/novo' },
@@ -87,6 +90,7 @@ const menuGroups: MenuGroup[] = [
   },
   {
     label: 'FINANCEIRO',
+    adminOnly: true,
     items: [
       { label: 'Cobranças', icon: CreditCard, href: '/financeiro/cobrancas' },
       { label: 'Clientes', icon: Users, href: '/financeiro/clientes' },
@@ -103,7 +107,11 @@ const menuGroups: MenuGroup[] = [
 
 export function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const location = useLocation();
+  const { user } = useAuth();
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
+  
+  const isAdmin = user?.role === 'admin';
+  const filteredGroups = menuGroups.filter(group => !group.adminOnly || isAdmin);
 
   const toggleMenu = (label: string) => {
     setExpandedMenus(prev =>
@@ -168,7 +176,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
         {/* Menu */}
         <ScrollArea className="h-[calc(100vh-4rem)]">
           <nav className="p-4 space-y-6">
-            {menuGroups.map((group) => (
+            {filteredGroups.map((group) => (
               <div key={group.label}>
                 <h3 className="text-xs font-semibold text-sidebar-foreground/60 uppercase tracking-wider mb-2">
                   {group.label}
