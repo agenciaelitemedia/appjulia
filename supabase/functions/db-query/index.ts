@@ -273,7 +273,8 @@ serve(async (req) => {
         const { clientId } = data;
         const clients = await sql.unsafe(
           `SELECT id, name, business_name, federal_id, email, phone, 
-                  country, state, city, zip_code, photo, created_at, updated_at
+                  country, state, city, zip_code, street, street_number, 
+                  complement, neighborhood, photo, created_at, updated_at
            FROM clients 
            WHERE id = $1 
            LIMIT 1`,
