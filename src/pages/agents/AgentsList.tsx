@@ -3,13 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import {
   Bot,
   Plus,
-  MoreHorizontal,
+  Pencil,
   Settings,
   Trash2,
   QrCode,
   MessageSquare,
   ChevronLeft,
   ChevronRight,
+  Search,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,6 +31,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -35,6 +40,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { externalDb } from '@/lib/externalDb';
 import { useToast } from '@/hooks/use-toast';
 
@@ -50,6 +65,8 @@ interface AgentListItem {
   last_used: string | null;
   due_date: string | null;
 }
+
+type SortKey = 'status' | 'cod_agent' | 'business_name' | 'plan_name' | 'leads_received' | 'last_used' | 'due_date';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -96,6 +113,12 @@ export default function AgentsList() {
   const [agents, setAgents] = useState<AgentListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [agentToToggle, setAgentToToggle] = useState<AgentListItem | null>(null);
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({
+    key: 'business_name',
+    direction: 'asc',
+  });
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -151,20 +174,22 @@ export default function AgentsList() {
     }
   };
 
-  const toggleAgentStatus = async (agent: AgentListItem) => {
-    const newStatus = agent.status === 'active' ? 'inactive' : 'active';
+  const confirmToggle = async () => {
+    if (!agentToToggle) return;
+    
+    const newStatus = agentToToggle.status === 'active' ? 'inactive' : 'active';
     try {
       await externalDb.update({
         table: 'agents',
         data: { status: newStatus },
-        where: { id: agent.id },
+        where: { id: agentToToggle.id },
       });
       setAgents(prev =>
-        prev.map(a => (a.id === agent.id ? { ...a, status: newStatus } : a))
+        prev.map(a => (a.id === agentToToggle.id ? { ...a, status: newStatus } : a))
       );
       toast({
         title: newStatus === 'active' ? 'Agente ativado' : 'Agente desativado',
-        description: `${agent.business_name || agent.client_name} foi ${newStatus === 'active' ? 'ativado' : 'desativado'} com sucesso.`,
+        description: `${agentToToggle.business_name || agentToToggle.client_name} foi ${newStatus === 'active' ? 'ativado' : 'desativado'} com sucesso.`,
       });
     } catch (error) {
       toast({
@@ -172,19 +197,106 @@ export default function AgentsList() {
         title: 'Erro',
         description: 'Não foi possível alterar o status do agente.',
       });
+    } finally {
+      setAgentToToggle(null);
     }
   };
 
+  const handleSort = (key: SortKey) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc',
+    }));
+    setCurrentPage(1);
+  };
+
+  const getSortIcon = (key: SortKey) => {
+    if (sortConfig.key !== key) return <ArrowUpDown className="ml-1 h-3 w-3" />;
+    return sortConfig.direction === 'asc' 
+      ? <ArrowUp className="ml-1 h-3 w-3" /> 
+      : <ArrowDown className="ml-1 h-3 w-3" />;
+  };
+
+  // Filter by search term
+  const filteredAgents = useMemo(() => {
+    if (!searchTerm.trim()) return agents;
+    const term = searchTerm.toLowerCase();
+    return agents.filter(agent =>
+      agent.business_name?.toLowerCase().includes(term) ||
+      agent.client_name?.toLowerCase().includes(term) ||
+      agent.cod_agent?.toLowerCase().includes(term)
+    );
+  }, [agents, searchTerm]);
+
+  // Sort agents
+  const sortedAgents = useMemo(() => {
+    const sorted = [...filteredAgents].sort((a, b) => {
+      let aVal: string | number | null;
+      let bVal: string | number | null;
+
+      switch (sortConfig.key) {
+        case 'status':
+          aVal = a.status;
+          bVal = b.status;
+          break;
+        case 'cod_agent':
+          aVal = a.cod_agent || '';
+          bVal = b.cod_agent || '';
+          break;
+        case 'business_name':
+          aVal = a.business_name || a.client_name || '';
+          bVal = b.business_name || b.client_name || '';
+          break;
+        case 'plan_name':
+          aVal = a.plan_name || '';
+          bVal = b.plan_name || '';
+          break;
+        case 'leads_received':
+          aVal = a.leads_received;
+          bVal = b.leads_received;
+          break;
+        case 'last_used':
+          aVal = a.last_used ? new Date(a.last_used).getTime() : 0;
+          bVal = b.last_used ? new Date(b.last_used).getTime() : 0;
+          break;
+        case 'due_date':
+          aVal = a.due_date ? new Date(a.due_date).getTime() : 0;
+          bVal = b.due_date ? new Date(b.due_date).getTime() : 0;
+          break;
+        default:
+          return 0;
+      }
+
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortConfig.direction === 'asc' 
+          ? aVal.localeCompare(bVal) 
+          : bVal.localeCompare(aVal);
+      }
+      
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
+      }
+
+      return 0;
+    });
+    return sorted;
+  }, [filteredAgents, sortConfig]);
+
   // Pagination logic
-  const totalPages = Math.ceil(agents.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(sortedAgents.length / ITEMS_PER_PAGE);
   const paginatedAgents = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return agents.slice(start, start + ITEMS_PER_PAGE);
-  }, [agents, currentPage]);
+    return sortedAgents.slice(start, start + ITEMS_PER_PAGE);
+  }, [sortedAgents, currentPage]);
 
   const goToPage = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   // Loading skeleton
   if (isLoading) {
@@ -197,6 +309,7 @@ export default function AgentsList() {
           </div>
           <Skeleton className="h-10 w-32" />
         </div>
+        <Skeleton className="h-10 w-80" />
         <Card>
           <Table>
             <TableHeader>
@@ -218,7 +331,6 @@ export default function AgentsList() {
                   <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                   <TableCell>
                     <Skeleton className="h-5 w-32 mb-1" />
-                    <Skeleton className="h-4 w-24" />
                   </TableCell>
                   <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                   <TableCell><Skeleton className="h-6 w-16" /></TableCell>
@@ -280,17 +392,100 @@ export default function AgentsList() {
         </Button>
       </div>
 
+      {/* Search Field */}
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nome ou código..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+      </div>
+
       <Card>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[80px]">Status</TableHead>
-              <TableHead>Cod. Agente</TableHead>
-              <TableHead>Nome/Escritório</TableHead>
-              <TableHead>Plano</TableHead>
-              <TableHead>Limite/Uso</TableHead>
-              <TableHead>Last</TableHead>
-              <TableHead>Venci.</TableHead>
+              <TableHead className="w-[80px]">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 -ml-2 font-medium"
+                  onClick={() => handleSort('status')}
+                >
+                  Status
+                  {getSortIcon('status')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 -ml-2 font-medium"
+                  onClick={() => handleSort('cod_agent')}
+                >
+                  Cod. Agente
+                  {getSortIcon('cod_agent')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 -ml-2 font-medium"
+                  onClick={() => handleSort('business_name')}
+                >
+                  Nome/Escritório
+                  {getSortIcon('business_name')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 -ml-2 font-medium"
+                  onClick={() => handleSort('plan_name')}
+                >
+                  Plano
+                  {getSortIcon('plan_name')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 -ml-2 font-medium"
+                  onClick={() => handleSort('leads_received')}
+                >
+                  Limite/Uso
+                  {getSortIcon('leads_received')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 -ml-2 font-medium"
+                  onClick={() => handleSort('last_used')}
+                >
+                  Last
+                  {getSortIcon('last_used')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 -ml-2 font-medium"
+                  onClick={() => handleSort('due_date')}
+                >
+                  Venci.
+                  {getSortIcon('due_date')}
+                </Button>
+              </TableHead>
               <TableHead className="w-[50px]">Ação</TableHead>
             </TableRow>
           </TableHeader>
@@ -303,7 +498,7 @@ export default function AgentsList() {
                   <TableCell>
                     <Switch
                       checked={agent.status === 'active'}
-                      onCheckedChange={() => toggleAgentStatus(agent)}
+                      onCheckedChange={() => setAgentToToggle(agent)}
                     />
                   </TableCell>
                   <TableCell className="font-mono text-sm">
@@ -340,7 +535,7 @@ export default function AgentsList() {
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
+                          <Pencil className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
@@ -374,7 +569,7 @@ export default function AgentsList() {
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t">
             <div className="text-sm text-muted-foreground">
-              Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} a {Math.min(currentPage * ITEMS_PER_PAGE, agents.length)} de {agents.length} agentes
+              Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} a {Math.min(currentPage * ITEMS_PER_PAGE, sortedAgents.length)} de {sortedAgents.length} agentes
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -402,6 +597,27 @@ export default function AgentsList() {
           </div>
         )}
       </Card>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={!!agentToToggle} onOpenChange={() => setAgentToToggle(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {agentToToggle?.status === 'active' ? 'Desativar' : 'Ativar'} agente?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              O agente <strong>{agentToToggle?.business_name || agentToToggle?.client_name}</strong> será{' '}
+              {agentToToggle?.status === 'active' ? 'desativado' : 'ativado'}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmToggle}>
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
