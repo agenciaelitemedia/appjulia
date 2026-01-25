@@ -17,6 +17,7 @@ import DesempenhoPage from "./pages/estrategico/desempenho/DesempenhoPage";
 import ContratosPage from "./pages/estrategico/contratos/ContratosPage";
 import FollowupPage from "./pages/agente/followup/FollowupPage";
 import CriativosPage from "./pages/criativos/CriativosPage";
+import ProfileSettingsPage from "./pages/profile/ProfileSettingsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,6 +42,7 @@ const App = () => (
                 <Route path="/estrategico/contratos" element={<ContratosPage />} />
                 <Route path="/agente/followup" element={<FollowupPage />} />
                 <Route path="/criativos" element={<CriativosPage />} />
+                <Route path="/perfil" element={<ProfileSettingsPage />} />
                 
                 {/* Admin-only routes */}
                 <Route element={<AdminRoute />}>

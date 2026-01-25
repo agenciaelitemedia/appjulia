@@ -79,6 +79,13 @@ class ExternalDatabase {
       data: { email, password },
     });
   }
+
+  async changePassword(userId: number, currentPassword: string, newPassword: string): Promise<{ success: boolean }> {
+    return this.invoke({
+      action: 'change_password',
+      data: { userId, currentPassword, newPassword },
+    });
+  }
 }
 
 export const externalDb = new ExternalDatabase();
