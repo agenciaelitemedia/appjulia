@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
-import { compare } from "https://esm.sh/bcryptjs@3.0.2";
+import { compare, hash } from "https://esm.sh/bcryptjs@3.0.2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -225,6 +225,46 @@ serve(async (req) => {
         // Remove password from result before returning
         delete user.password;
         result = [user];
+        break;
+      }
+
+      case 'change_password': {
+        // Secure password change with bcrypt verification
+        const { userId, currentPassword, newPassword } = data;
+        
+        // Fetch user by ID to verify current password
+        const users = await sql.unsafe(
+          `SELECT id, password FROM users WHERE id = $1 LIMIT 1`,
+          [userId]
+        );
+        
+        if (users.length === 0) {
+          throw new Error('Usuário não encontrado');
+        }
+        
+        const user = users[0];
+        const storedHash = user.password;
+        
+        // Handle PHP-style $2y$ prefix (convert to $2a$ for bcrypt compatibility)
+        const normalizedHash = storedHash.replace(/^\$2y\$/, '$2a$');
+        
+        // Verify current password
+        const isValid = await compare(currentPassword, normalizedHash);
+        
+        if (!isValid) {
+          throw new Error('Senha atual incorreta');
+        }
+        
+        // Hash new password
+        const newHash = await hash(newPassword, 10);
+        
+        // Update password in database
+        await sql.unsafe(
+          `UPDATE users SET password = $1 WHERE id = $2`,
+          [newHash, userId]
+        );
+        
+        result = [{ success: true }];
         break;
       }
 

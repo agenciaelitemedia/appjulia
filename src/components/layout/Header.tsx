@@ -1,4 +1,5 @@
 import { Menu, Bell, Search, LogOut, User, Settings } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -89,13 +90,17 @@ export function Header({ onMenuToggle }: HeaderProps) {
               </div>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <User className="mr-2 h-4 w-4" />
-              Meu Perfil
+            <DropdownMenuItem asChild>
+              <Link to="/perfil" className="flex items-center cursor-pointer">
+                <User className="mr-2 h-4 w-4" />
+                Meu Perfil
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Settings className="mr-2 h-4 w-4" />
-              Configurações
+            <DropdownMenuItem asChild>
+              <Link to="/perfil" className="flex items-center cursor-pointer">
+                <Settings className="mr-2 h-4 w-4" />
+                Configurações
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={logout} className="text-destructive">
