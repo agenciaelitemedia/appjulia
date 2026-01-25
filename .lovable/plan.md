@@ -1,211 +1,120 @@
 
-# Melhorias na Listagem de Agentes `/admin/agentes`
+# Correção dos Campos Numéricos `last_used` e `due_date`
 
-## Visão Geral
+## Problema Identificado
 
-Implementar melhorias de UX na página de listagem de agentes incluindo campo de busca, confirmação de status, ordenação de colunas e ajustes visuais.
+Os campos `last_used` e `due_date` são **numéricos** no banco de dados, não campos de data. Quando não há valor definido, retornam `0` ou `"0"`, o que causa comportamento incorreto:
+
+- `new Date("0")` ou `new Date(0)` gera uma data inválida ou 01/01/1970
+- As funções atuais não validam esses casos
 
 ---
 
-## Alterações Necessárias
+## Solução
 
-### 1. Campo de Busca
+### 1. Atualizar Interface TypeScript
 
-Adicionar um campo `Input` para filtrar agentes por nome do cliente ou escritório acima da tabela.
-
-**Implementação:**
-- Novo estado: `searchTerm`
-- Filtrar `agents` pelo `business_name` ou `client_name` contendo o termo de busca
-- Posicionado entre o header e a tabela
+Alterar os tipos de `string | null` para `number | string | null` para refletir que podem vir valores numéricos:
 
 ```typescript
-const [searchTerm, setSearchTerm] = useState('');
-
-const filteredAgents = useMemo(() => {
-  if (!searchTerm.trim()) return agents;
-  const term = searchTerm.toLowerCase();
-  return agents.filter(agent =>
-    agent.business_name?.toLowerCase().includes(term) ||
-    agent.client_name?.toLowerCase().includes(term) ||
-    agent.cod_agent?.toLowerCase().includes(term)
-  );
-}, [agents, searchTerm]);
+interface AgentListItem {
+  // ... outros campos
+  last_used: number | string | null;
+  due_date: number | string | null;
+}
 ```
 
----
+### 2. Corrigir `formatLastUsed`
 
-### 2. Confirmação de Ativação/Desativação
-
-Adicionar `AlertDialog` para confirmar antes de alterar o status do agente.
-
-**Implementação:**
-- Novo estado: `agentToToggle` (armazena o agente selecionado)
-- Ao clicar no Switch, abre o dialog de confirmação
-- Mensagem dinâmica: "Deseja ativar/desativar o agente X?"
+Adicionar validação para valores `0`, `"0"`, `null` e `undefined`:
 
 ```typescript
-const [agentToToggle, setAgentToToggle] = useState<AgentListItem | null>(null);
-
-// No Switch:
-onCheckedChange={() => setAgentToToggle(agent)}
-
-// Dialog:
-<AlertDialog open={!!agentToToggle} onOpenChange={() => setAgentToToggle(null)}>
-  <AlertDialogContent>
-    <AlertDialogHeader>
-      <AlertDialogTitle>
-        {agentToToggle?.status === 'active' ? 'Desativar' : 'Ativar'} agente?
-      </AlertDialogTitle>
-      <AlertDialogDescription>
-        O agente {agentToToggle?.business_name || agentToToggle?.client_name} será 
-        {agentToToggle?.status === 'active' ? ' desativado' : ' ativado'}.
-      </AlertDialogDescription>
-    </AlertDialogHeader>
-    <AlertDialogFooter>
-      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-      <AlertDialogAction onClick={() => confirmToggle()}>
-        Confirmar
-      </AlertDialogAction>
-    </AlertDialogFooter>
-  </AlertDialogContent>
-</AlertDialog>
+const formatLastUsed = (value: number | string | null): string => {
+  // Retorna '-' para valores inválidos: null, undefined, 0, "0", string vazia
+  if (!value || value === 0 || value === '0') return '-';
+  
+  const lastDate = new Date(value);
+  
+  // Verifica se a data é válida
+  if (isNaN(lastDate.getTime())) return '-';
+  
+  const now = new Date();
+  const diffMs = now.getTime() - lastDate.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) return 'Hoje';
+  if (diffDays === 1) return 'Ontem';
+  if (diffDays < 7) return `${diffDays}d atrás`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}sem atrás`;
+  return `${Math.floor(diffDays / 30)}m atrás`;
+};
 ```
 
----
+### 3. Corrigir `formatDueDate`
 
-### 3. Ordenação de Colunas
-
-Adicionar ordenação clicável em todas as colunas relevantes.
-
-**Implementação:**
-- Novo estado: `sortConfig` com `key` e `direction`
-- Ícone `ArrowUpDown` ou `ArrowUp`/`ArrowDown` nos cabeçalhos
-- Ordenação client-side
+Aplicar a mesma validação:
 
 ```typescript
-type SortKey = 'status' | 'cod_agent' | 'business_name' | 'plan_name' | 'leads_received' | 'last_used' | 'due_date';
-
-const [sortConfig, setSortConfig] = useState<{
-  key: SortKey;
-  direction: 'asc' | 'desc';
-}>({ key: 'business_name', direction: 'asc' });
-
-const sortedAgents = useMemo(() => {
-  const sorted = [...filteredAgents].sort((a, b) => {
-    // Lógica de comparação baseada na key
-  });
-  return sortConfig.direction === 'desc' ? sorted.reverse() : sorted;
-}, [filteredAgents, sortConfig]);
+const formatDueDate = (value: number | string | null): { text: string; diffDays: number } | null => {
+  // Retorna null para valores inválidos: null, undefined, 0, "0", string vazia
+  if (!value || value === 0 || value === '0') return null;
+  
+  const dueDate = new Date(value);
+  
+  // Verifica se a data é válida
+  if (isNaN(dueDate.getTime())) return null;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  dueDate.setHours(0, 0, 0, 0);
+  const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  return { text: `Dia ${dueDate.getDate()}`, diffDays };
+};
 ```
 
-**Colunas ordenáveis:**
-| Coluna | Campo de ordenação |
-|--------|-------------------|
-| Status | `status` |
-| Cod. Agente | `cod_agent` |
-| Nome/Escritório | `business_name` |
-| Plano | `plan_name` |
-| Limite/Uso | `leads_received` |
-| Last | `last_used` |
-| Venci. | `due_date` |
+### 4. Ajustar Ordenação
 
----
-
-### 4. Ícone de Editar nas Ações
-
-Trocar o ícone `MoreHorizontal` por `Pencil` (ícone de editar) na coluna de ações.
-
-**Alteração:**
-```tsx
-// De:
-import { MoreHorizontal } from 'lucide-react';
-<MoreHorizontal className="h-4 w-4" />
-
-// Para:
-import { Pencil } from 'lucide-react';
-<Pencil className="h-4 w-4" />
-```
-
----
-
-## Novos Imports Necessários
+Atualizar a lógica de ordenação para tratar valores `0` ou `"0"` como ausência de data:
 
 ```typescript
-import { 
-  ArrowUpDown,  // ou ArrowUp, ArrowDown
-  Pencil,
-  Search 
-} from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-```
-
----
-
-## Novos Estados
-
-| Estado | Tipo | Propósito |
-|--------|------|-----------|
-| `searchTerm` | `string` | Termo de busca |
-| `agentToToggle` | `AgentListItem \| null` | Agente para confirmação de toggle |
-| `sortConfig` | `{ key, direction }` | Configuração de ordenação |
-
----
-
-## Fluxo de Dados Atualizado
-
-```text
-agents (dados brutos)
-      │
-      ▼
-filteredAgents (aplicar searchTerm)
-      │
-      ▼
-sortedAgents (aplicar sortConfig)
-      │
-      ▼
-paginatedAgents (aplicar paginação)
-      │
-      ▼
-Renderização na tabela
-```
-
----
-
-## Layout do Campo de Busca
-
-Posicionado abaixo do header e acima da Card da tabela:
-
-```tsx
-<div className="flex items-center gap-4">
-  <div className="relative flex-1 max-w-sm">
-    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-    <Input
-      placeholder="Buscar por nome ou código..."
-      value={searchTerm}
-      onChange={(e) => setSearchTerm(e.target.value)}
-      className="pl-9"
-    />
-  </div>
-</div>
+case 'last_used':
+  aVal = (a.last_used && a.last_used !== 0 && a.last_used !== '0') 
+    ? new Date(a.last_used).getTime() 
+    : 0;
+  bVal = (b.last_used && b.last_used !== 0 && b.last_used !== '0') 
+    ? new Date(b.last_used).getTime() 
+    : 0;
+  break;
+case 'due_date':
+  aVal = (a.due_date && a.due_date !== 0 && a.due_date !== '0') 
+    ? new Date(a.due_date).getTime() 
+    : 0;
+  bVal = (b.due_date && b.due_date !== 0 && b.due_date !== '0') 
+    ? new Date(b.due_date).getTime() 
+    : 0;
+  break;
 ```
 
 ---
 
 ## Resumo das Alterações
 
-| Funcionalidade | Componentes |
-|----------------|-------------|
-| Campo de busca | `Input` + ícone `Search` |
-| Confirmação de status | `AlertDialog` |
-| Ordenação de colunas | Estados + ícone `ArrowUpDown` |
-| Ícone de editar | `Pencil` substituindo `MoreHorizontal` |
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/pages/agents/AgentsList.tsx` | Atualizar tipos na interface `AgentListItem` |
+| `src/pages/agents/AgentsList.tsx` | Corrigir função `formatLastUsed` |
+| `src/pages/agents/AgentsList.tsx` | Corrigir função `formatDueDate` |
+| `src/pages/agents/AgentsList.tsx` | Ajustar lógica de ordenação para `last_used` e `due_date` |
+
+---
+
+## Resultado Esperado
+
+| Valor do banco | Exibição |
+|----------------|----------|
+| `null` | `-` |
+| `0` | `-` |
+| `"0"` | `-` |
+| `""` | `-` |
+| `"2024-01-15"` | Formatado corretamente |
+| `1705276800000` (timestamp) | Formatado corretamente |
