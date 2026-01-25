@@ -409,22 +409,22 @@ export default function AgentsList() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[80px]">
+              <TableHead className="w-[80px] text-center">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 px-2 -ml-2 font-medium"
+                  className="h-8 px-2 font-medium"
                   onClick={() => handleSort('status')}
                 >
                   Status
                   {getSortIcon('status')}
                 </Button>
               </TableHead>
-              <TableHead>
+              <TableHead className="text-center">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 px-2 -ml-2 font-medium"
+                  className="h-8 px-2 font-medium"
                   onClick={() => handleSort('cod_agent')}
                 >
                   Cod. Agente
@@ -442,51 +442,51 @@ export default function AgentsList() {
                   {getSortIcon('business_name')}
                 </Button>
               </TableHead>
-              <TableHead>
+              <TableHead className="text-center">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 px-2 -ml-2 font-medium"
+                  className="h-8 px-2 font-medium"
                   onClick={() => handleSort('plan_name')}
                 >
                   Plano
                   {getSortIcon('plan_name')}
                 </Button>
               </TableHead>
-              <TableHead>
+              <TableHead className="text-center">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 px-2 -ml-2 font-medium"
+                  className="h-8 px-2 font-medium"
                   onClick={() => handleSort('leads_received')}
                 >
                   Limite/Uso
                   {getSortIcon('leads_received')}
                 </Button>
               </TableHead>
-              <TableHead>
+              <TableHead className="text-center">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 px-2 -ml-2 font-medium"
+                  className="h-8 px-2 font-medium"
                   onClick={() => handleSort('last_used')}
                 >
                   Last
                   {getSortIcon('last_used')}
                 </Button>
               </TableHead>
-              <TableHead>
+              <TableHead className="text-center">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 px-2 -ml-2 font-medium"
+                  className="h-8 px-2 font-medium"
                   onClick={() => handleSort('due_date')}
                 >
                   Venci.
                   {getSortIcon('due_date')}
                 </Button>
               </TableHead>
-              <TableHead className="w-[50px]">Ação</TableHead>
+              <TableHead className="w-[50px] text-center">Ação</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -495,13 +495,13 @@ export default function AgentsList() {
               
               return (
                 <TableRow key={agent.id}>
-                  <TableCell>
+                  <TableCell className="text-center">
                     <Switch
                       checked={agent.status === true}
                       onCheckedChange={() => setAgentToToggle(agent)}
                     />
                   </TableCell>
-                  <TableCell className="font-mono text-sm">
+                  <TableCell className="font-mono text-sm text-center">
                     {agent.cod_agent}
                   </TableCell>
                   <TableCell>
@@ -509,20 +509,20 @@ export default function AgentsList() {
                       {agent.business_name || agent.client_name}
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-center">
                     {agent.plan_name || (
                       <span className="text-muted-foreground">Sem plano</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-center">
                     <Badge variant={getUsageVariant(agent.leads_received, agent.plan_limit)}>
                       {agent.leads_received}/{agent.plan_limit}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell className="text-sm text-muted-foreground text-center">
                     {formatLastUsed(agent.last_used)}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-center">
                     {dueDateInfo ? (
                       <Badge variant={getDueDateVariant(dueDateInfo.diffDays)}>
                         {dueDateInfo.text}
@@ -531,7 +531,7 @@ export default function AgentsList() {
                       <span className="text-muted-foreground">-</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-center">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon">
