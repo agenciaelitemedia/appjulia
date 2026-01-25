@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { externalDb } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { getPreviousPeriod } from '@/lib/dateUtils';
 import type { CRMStage, CRMCard } from '@/pages/crm/types';
 
 export interface DashboardAgent {
@@ -32,7 +33,8 @@ export interface DashboardEvolutionData {
   date: string;
   label: string;
   leads: number;
-  conversions: number;
+  qualified: number;
+  contractsGenerated: number;
 }
 
 export interface DashboardActivity {
@@ -47,6 +49,55 @@ export interface DashboardActivity {
   changed_by: string | null;
   changed_at: string;
   notes: string | null;
+}
+
+export interface DashboardStats {
+  totalLeads: number;
+  totalMessages: number;
+  conversions: number;
+  activeAgents: number;
+}
+
+export interface DashboardStatsPrevious {
+  totalLeads: number;
+  totalMessages: number;
+  conversions: number;
+}
+
+// Calculate percentage change between current and previous values
+export function calculateChange(current: number, previous: number): {
+  value: number;
+  isPositive: boolean;
+  isNeutral: boolean;
+  label: string;
+} {
+  if (previous === 0) {
+    return { 
+      value: 0, 
+      isPositive: true, 
+      isNeutral: current === 0, 
+      label: current === 0 ? '—' : 'Novo' 
+    };
+  }
+  const change = ((current - previous) / previous) * 100;
+  return {
+    value: Math.abs(change),
+    isPositive: change >= 0,
+    isNeutral: Math.abs(change) < 0.1,
+    label: `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`,
+  };
+}
+
+// Generate comparison tooltip text
+export function getComparisonTooltip(dateFrom: string, dateTo: string): string {
+  const { previousDateFrom, previousDateTo } = getPreviousPeriod(dateFrom, dateTo);
+  
+  const currentFromFormatted = format(parseISO(dateFrom), 'dd/MM', { locale: ptBR });
+  const currentToFormatted = format(parseISO(dateTo), 'dd/MM', { locale: ptBR });
+  const previousFromFormatted = format(parseISO(previousDateFrom), 'dd/MM', { locale: ptBR });
+  const previousToFormatted = format(parseISO(previousDateTo), 'dd/MM', { locale: ptBR });
+  
+  return `Comparando ${currentFromFormatted} - ${currentToFormatted} com ${previousFromFormatted} - ${previousToFormatted}`;
 }
 
 export function useDashboardAgents() {
@@ -90,7 +141,7 @@ export function useDashboardStats(filters: DashboardFiltersState) {
         };
       }
 
-      const [leadsResult, conversionsResult] = await Promise.all([
+      const [leadsResult, conversionsResult, messagesResult] = await Promise.all([
         externalDb.raw<{ count: number }>({
           query: `
             SELECT COUNT(*) as count 
@@ -114,13 +165,87 @@ export function useDashboardStats(filters: DashboardFiltersState) {
           `,
           params: [agentCodes, dateFrom, dateTo],
         }).catch(() => [{ count: 0 }]),
+        
+        externalDb.raw<{ total: number }>({
+          query: `
+            SELECT COALESCE(SUM(total_msg::int), 0) as total
+            FROM vw_desempenho_julia
+            WHERE cod_agent::text = ANY($1::varchar[])
+              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          `,
+          params: [agentCodes, dateFrom, dateTo],
+        }).catch(() => [{ total: 0 }]),
       ]);
 
       return {
         totalLeads: Number(leadsResult[0]?.count) || 0,
-        totalMessages: 0,
+        totalMessages: Number(messagesResult[0]?.total) || 0,
         conversions: Number(conversionsResult[0]?.count) || 0,
         activeAgents: agentCodes.length,
+      };
+    },
+    enabled: filters.agentCodes.length > 0,
+  });
+}
+
+export function useDashboardStatsPrevious(filters: DashboardFiltersState) {
+  const { previousDateFrom, previousDateTo } = getPreviousPeriod(filters.dateFrom, filters.dateTo);
+
+  return useQuery({
+    queryKey: ['dashboard-stats-previous', filters.agentCodes, previousDateFrom, previousDateTo],
+    queryFn: async () => {
+      const { agentCodes } = filters;
+      
+      if (agentCodes.length === 0) {
+        return {
+          totalLeads: 0,
+          totalMessages: 0,
+          conversions: 0,
+        };
+      }
+
+      const [leadsResult, conversionsResult, messagesResult] = await Promise.all([
+        externalDb.raw<{ count: number }>({
+          query: `
+            SELECT COUNT(*) as count 
+            FROM crm_atendimento_cards 
+            WHERE cod_agent = ANY($1::varchar[])
+              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          `,
+          params: [agentCodes, previousDateFrom, previousDateTo],
+        }).catch(() => [{ count: 0 }]),
+        
+        externalDb.raw<{ count: number }>({
+          query: `
+            SELECT COUNT(*) as count 
+            FROM crm_atendimento_cards c 
+            JOIN crm_atendimento_stages s ON c.stage_id = s.id 
+            WHERE s.name = 'Contrato Assinado' 
+              AND c.cod_agent = ANY($1::varchar[])
+              AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          `,
+          params: [agentCodes, previousDateFrom, previousDateTo],
+        }).catch(() => [{ count: 0 }]),
+        
+        externalDb.raw<{ total: number }>({
+          query: `
+            SELECT COALESCE(SUM(total_msg::int), 0) as total
+            FROM vw_desempenho_julia
+            WHERE cod_agent::text = ANY($1::varchar[])
+              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          `,
+          params: [agentCodes, previousDateFrom, previousDateTo],
+        }).catch(() => [{ total: 0 }]),
+      ]);
+
+      return {
+        totalLeads: Number(leadsResult[0]?.count) || 0,
+        totalMessages: Number(messagesResult[0]?.total) || 0,
+        conversions: Number(conversionsResult[0]?.count) || 0,
       };
     },
     enabled: filters.agentCodes.length > 0,
@@ -175,18 +300,33 @@ export function useDashboardEvolution(filters: DashboardFiltersState) {
 
       if (isSingleDay) {
         // Hourly granularity for single day
-        const result = await externalDb.raw<{ hour: number; leads: number; conversions: number }>({
+        const result = await externalDb.raw<{ hour: number; leads: number; qualified: number; contracts_generated: number }>({
           query: `
+            WITH qualified_stages AS (
+              SELECT id FROM crm_atendimento_stages 
+              WHERE name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
+            ),
+            contracts_generated_stage AS (
+              SELECT id FROM crm_atendimento_stages 
+              WHERE name = 'Contrato em Curso'
+            )
             SELECT 
-              EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Sao_Paulo')::int as hour,
+              EXTRACT(HOUR FROM c.created_at AT TIME ZONE 'America/Sao_Paulo')::int as hour,
               COUNT(*) as leads,
-              COUNT(CASE WHEN stage_id = (
-                SELECT id FROM crm_atendimento_stages WHERE name = 'Contrato Assinado' LIMIT 1
-              ) THEN 1 END) as conversions
-            FROM crm_atendimento_cards
-            WHERE cod_agent = ANY($1::varchar[])
-              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date = $2::date
-            GROUP BY EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Sao_Paulo')
+              COUNT(CASE WHEN c.stage_id IN (SELECT id FROM qualified_stages) 
+                OR EXISTS (
+                  SELECT 1 FROM crm_atendimento_history h 
+                  WHERE h.card_id = c.id AND h.to_stage_id IN (SELECT id FROM qualified_stages)
+                ) THEN 1 END) as qualified,
+              COUNT(CASE WHEN c.stage_id IN (SELECT id FROM contracts_generated_stage)
+                OR EXISTS (
+                  SELECT 1 FROM crm_atendimento_history h 
+                  WHERE h.card_id = c.id AND h.to_stage_id IN (SELECT id FROM contracts_generated_stage)
+                ) THEN 1 END) as contracts_generated
+            FROM crm_atendimento_cards c
+            WHERE c.cod_agent = ANY($1::varchar[])
+              AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date = $2::date
+            GROUP BY EXTRACT(HOUR FROM c.created_at AT TIME ZONE 'America/Sao_Paulo')
             ORDER BY hour ASC
           `,
           params: [agentCodes, dateFrom],
@@ -201,25 +341,41 @@ export function useDashboardEvolution(filters: DashboardFiltersState) {
             date: String(h),
             label: `${String(h).padStart(2, '0')}h`,
             leads: Number(existing?.leads) || 0,
-            conversions: Number(existing?.conversions) || 0,
+            qualified: Number(existing?.qualified) || 0,
+            contractsGenerated: Number(existing?.contracts_generated) || 0,
           });
         }
         return chartData;
       } else {
         // Daily granularity
-        const result = await externalDb.raw<{ date: string; leads: number; conversions: number }>({
+        const result = await externalDb.raw<{ date: string; leads: number; qualified: number; contracts_generated: number }>({
           query: `
+            WITH qualified_stages AS (
+              SELECT id FROM crm_atendimento_stages 
+              WHERE name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
+            ),
+            contracts_generated_stage AS (
+              SELECT id FROM crm_atendimento_stages 
+              WHERE name = 'Contrato em Curso'
+            )
             SELECT 
-              (created_at AT TIME ZONE 'America/Sao_Paulo')::date::text as date,
+              (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date::text as date,
               COUNT(*) as leads,
-              COUNT(CASE WHEN stage_id = (
-                SELECT id FROM crm_atendimento_stages WHERE name = 'Contrato Assinado' LIMIT 1
-              ) THEN 1 END) as conversions
-            FROM crm_atendimento_cards
-            WHERE cod_agent = ANY($1::varchar[])
-              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
-            GROUP BY (created_at AT TIME ZONE 'America/Sao_Paulo')::date
+              COUNT(CASE WHEN c.stage_id IN (SELECT id FROM qualified_stages) 
+                OR EXISTS (
+                  SELECT 1 FROM crm_atendimento_history h 
+                  WHERE h.card_id = c.id AND h.to_stage_id IN (SELECT id FROM qualified_stages)
+                ) THEN 1 END) as qualified,
+              COUNT(CASE WHEN c.stage_id IN (SELECT id FROM contracts_generated_stage)
+                OR EXISTS (
+                  SELECT 1 FROM crm_atendimento_history h 
+                  WHERE h.card_id = c.id AND h.to_stage_id IN (SELECT id FROM contracts_generated_stage)
+                ) THEN 1 END) as contracts_generated
+            FROM crm_atendimento_cards c
+            WHERE c.cod_agent = ANY($1::varchar[])
+              AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+            GROUP BY (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date
             ORDER BY date ASC
           `,
           params: [agentCodes, dateFrom, dateTo],
@@ -229,7 +385,8 @@ export function useDashboardEvolution(filters: DashboardFiltersState) {
           date: r.date,
           label: format(new Date(r.date + 'T12:00:00'), 'dd/MM', { locale: ptBR }),
           leads: Number(r.leads) || 0,
-          conversions: Number(r.conversions) || 0,
+          qualified: Number(r.qualified) || 0,
+          contractsGenerated: Number(r.contracts_generated) || 0,
         }));
       }
     },

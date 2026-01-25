@@ -30,7 +30,7 @@ export function DashboardEvolutionChart({
   const chartTitle = isSingleDay ? 'Evolução por Hora' : 'Evolução Diária';
 
   const hasData = useMemo(() => {
-    return data.some(d => d.leads > 0 || d.conversions > 0);
+    return data.some(d => d.leads > 0 || d.qualified > 0 || d.contractsGenerated > 0);
   }, [data]);
 
   if (isLoading) {
@@ -63,7 +63,11 @@ export function DashboardEvolutionChart({
                 <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3} />
                 <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
               </linearGradient>
-              <linearGradient id="colorConversions" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id="colorQualified" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="hsl(var(--chart-4))" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="hsl(var(--chart-4))" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="colorContracts" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.3} />
                 <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0} />
               </linearGradient>
@@ -91,14 +95,25 @@ export function DashboardEvolutionChart({
                 boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
               }}
               labelStyle={{ color: 'hsl(var(--foreground))' }}
-              formatter={(value: number, name: string) => [
-                value.toLocaleString('pt-BR'),
-                name === 'leads' ? 'Leads' : 'Conversões',
-              ]}
+              formatter={(value: number, name: string) => {
+                const labels: Record<string, string> = {
+                  leads: 'Leads',
+                  qualified: 'Qualificados',
+                  contractsGenerated: 'Contratos Gerados',
+                };
+                return [value.toLocaleString('pt-BR'), labels[name] || name];
+              }}
             />
             <Legend
               wrapperStyle={{ paddingTop: '20px' }}
-              formatter={(value) => (value === 'leads' ? 'Leads' : 'Conversões')}
+              formatter={(value) => {
+                const labels: Record<string, string> = {
+                  leads: 'Leads',
+                  qualified: 'Qualificados',
+                  contractsGenerated: 'Contratos Gerados',
+                };
+                return labels[value] || value;
+              }}
             />
             <Area
               type="monotone"
@@ -110,11 +125,19 @@ export function DashboardEvolutionChart({
             />
             <Area
               type="monotone"
-              dataKey="conversions"
+              dataKey="qualified"
+              stroke="hsl(var(--chart-4))"
+              strokeWidth={2}
+              fillOpacity={1}
+              fill="url(#colorQualified)"
+            />
+            <Area
+              type="monotone"
+              dataKey="contractsGenerated"
               stroke="hsl(var(--chart-2))"
               strokeWidth={2}
               fillOpacity={1}
-              fill="url(#colorConversions)"
+              fill="url(#colorContracts)"
             />
           </AreaChart>
         </ResponsiveContainer>
