@@ -115,6 +115,8 @@ export interface Client {
   state: string | null;
   city: string | null;
   zip_code: string | null;
+  street: string | null;
+  neighborhood: string | null;
   photo: string | null;
   created_at?: string;
   updated_at?: string;

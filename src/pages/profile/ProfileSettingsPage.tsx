@@ -64,6 +64,8 @@ export default function ProfileSettingsPage() {
             state: client.state || '',
             city: client.city || '',
             zip_code: client.zip_code || '',
+            street: client.street || '',
+            neighborhood: client.neighborhood || '',
           });
         }
       } catch (error: any) {
@@ -148,11 +150,13 @@ export default function ProfileSettingsPage() {
         ...prev,
         city: data.localidade,
         state: data.uf,
+        street: data.logradouro || '',
+        neighborhood: data.bairro || '',
       }));
 
       toast({
         title: 'Endereço encontrado',
-        description: `${data.localidade} - ${data.uf}`,
+        description: `${data.logradouro ? data.logradouro + ', ' : ''}${data.bairro ? data.bairro + ' - ' : ''}${data.localidade} - ${data.uf}`,
       });
     } catch (error) {
       console.error('Error searching CEP:', error);
@@ -523,15 +527,27 @@ export default function ProfileSettingsPage() {
                         </div>
                       </div>
 
-                      {/* State */}
-                      <div className="space-y-2">
-                        <Label htmlFor="client-state">Estado</Label>
+                      {/* Street */}
+                      <div className="space-y-2 md:col-span-2">
+                        <Label htmlFor="client-street">Logradouro</Label>
                         <Input
-                          id="client-state"
-                          value={formData.state || ''}
-                          onChange={(e) => handleInputChange('state', e.target.value.toUpperCase())}
-                          placeholder="UF"
-                          maxLength={2}
+                          id="client-street"
+                          value={formData.street || ''}
+                          onChange={(e) => handleInputChange('street', e.target.value)}
+                          placeholder="Rua, Avenida, etc."
+                          maxLength={150}
+                        />
+                      </div>
+
+                      {/* Neighborhood */}
+                      <div className="space-y-2">
+                        <Label htmlFor="client-neighborhood">Bairro</Label>
+                        <Input
+                          id="client-neighborhood"
+                          value={formData.neighborhood || ''}
+                          onChange={(e) => handleInputChange('neighborhood', e.target.value)}
+                          placeholder="Nome do bairro"
+                          maxLength={100}
                         />
                       </div>
 
@@ -544,6 +560,18 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('city', e.target.value)}
                           placeholder="Nome da cidade"
                           maxLength={50}
+                        />
+                      </div>
+
+                      {/* State */}
+                      <div className="space-y-2">
+                        <Label htmlFor="client-state">Estado</Label>
+                        <Input
+                          id="client-state"
+                          value={formData.state || ''}
+                          onChange={(e) => handleInputChange('state', e.target.value.toUpperCase())}
+                          placeholder="UF"
+                          maxLength={2}
                         />
                       </div>
                     </div>
