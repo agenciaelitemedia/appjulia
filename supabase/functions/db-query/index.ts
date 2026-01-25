@@ -194,9 +194,9 @@ serve(async (req) => {
         // Secure authentication with bcrypt verification
         const { email, password } = data;
         
-        // Fetch user by email only
+        // Fetch user by email only (including client_id)
         const users = await sql.unsafe(
-          `SELECT id, name, email, role, cod_agent, evo_url, evo_instance, evo_apikey, data_mask, hub, created_at, password 
+          `SELECT id, name, email, role, cod_agent, client_id, evo_url, evo_instance, evo_apikey, data_mask, hub, created_at, password 
            FROM users 
            WHERE email = $1 
            LIMIT 1`,
@@ -265,6 +265,54 @@ serve(async (req) => {
         );
         
         result = [{ success: true }];
+        break;
+      }
+
+      case 'get_client': {
+        // Fetch client data by ID
+        const { clientId } = data;
+        const clients = await sql.unsafe(
+          `SELECT id, name, business_name, federal_id, email, phone, 
+                  country, state, city, zip_code, photo, created_at, updated_at
+           FROM clients 
+           WHERE id = $1 
+           LIMIT 1`,
+          [clientId]
+        );
+        result = clients;
+        break;
+      }
+
+      case 'update_client': {
+        // Update client data
+        const { clientId, clientData } = data;
+        
+        // Build dynamic update query
+        const allowedFields = ['name', 'business_name', 'federal_id', 'email', 'phone', 'state', 'city', 'zip_code', 'photo'];
+        const updates: string[] = [];
+        const values: any[] = [];
+        let paramIndex = 1;
+        
+        for (const [key, value] of Object.entries(clientData)) {
+          if (allowedFields.includes(key)) {
+            updates.push(`${key} = $${paramIndex}`);
+            values.push(value);
+            paramIndex++;
+          }
+        }
+        
+        if (updates.length === 0) {
+          throw new Error('No valid fields to update');
+        }
+        
+        // Add updated_at
+        updates.push(`updated_at = now()`);
+        
+        // Add clientId as last parameter
+        values.push(clientId);
+        
+        const query = `UPDATE clients SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
+        result = await sql.unsafe(query, values);
         break;
       }
 
