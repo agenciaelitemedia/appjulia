@@ -10,6 +10,7 @@ import {
   Minus,
   RefreshCw,
   User,
+  Percent,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -129,10 +130,28 @@ export default function Dashboard() {
     }
   };
 
+  // Calculate conversion rate
+  const conversionRate = useMemo(() => {
+    const totalLeads = stats?.totalLeads ?? 0;
+    const conversions = stats?.conversions ?? 0;
+    if (totalLeads === 0) return 0;
+    return (conversions / totalLeads) * 100;
+  }, [stats?.totalLeads, stats?.conversions]);
+
+  // Calculate previous conversion rate for comparison
+  const conversionRateChange = useMemo(() => {
+    if (!statsPrevious) return null;
+    const prevTotal = statsPrevious.totalLeads;
+    const prevConversions = statsPrevious.conversions;
+    const prevRate = prevTotal > 0 ? (prevConversions / prevTotal) * 100 : 0;
+    return calculateChange(conversionRate, prevRate);
+  }, [conversionRate, statsPrevious]);
+
   const statCards = [
     {
       title: 'Total de Leads',
       value: stats?.totalLeads ?? 0,
+      displayValue: (stats?.totalLeads ?? 0).toLocaleString('pt-BR'),
       icon: Users,
       change: changes?.leads,
       sparklineData: sparklineData.leads,
@@ -141,6 +160,7 @@ export default function Dashboard() {
     {
       title: 'Mensagens Enviadas',
       value: stats?.totalMessages ?? 0,
+      displayValue: (stats?.totalMessages ?? 0).toLocaleString('pt-BR'),
       icon: MessageSquare,
       change: changes?.messages,
       sparklineData: sparklineData.leads, // Uses leads as proxy for messages trend
@@ -149,14 +169,26 @@ export default function Dashboard() {
     {
       title: 'Conversões',
       value: stats?.conversions ?? 0,
+      displayValue: (stats?.conversions ?? 0).toLocaleString('pt-BR'),
       icon: TrendingUp,
       change: changes?.conversions,
       sparklineData: sparklineData.contractsGenerated,
       sparklineColor: 'hsl(var(--chart-2))',
     },
     {
+      title: 'Taxa de Conversão',
+      value: conversionRate,
+      displayValue: `${conversionRate.toFixed(1)}%`,
+      icon: Percent,
+      change: conversionRateChange,
+      sparklineData: null,
+      sparklineColor: '',
+      description: `${stats?.conversions ?? 0} de ${stats?.totalLeads ?? 0} leads`,
+    },
+    {
       title: 'Agentes Selecionados',
       value: stats?.activeAgents ?? 0,
+      displayValue: (stats?.activeAgents ?? 0).toLocaleString('pt-BR'),
       icon: Bot,
       change: null,
       sparklineData: null,
@@ -214,7 +246,7 @@ export default function Dashboard() {
         />
 
         {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           {statCards.map((stat) => (
             <Card key={stat.title}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -229,7 +261,7 @@ export default function Dashboard() {
                   {isLoading ? (
                     <div className="h-8 w-16 animate-pulse bg-muted rounded" />
                   ) : (
-                    stat.value.toLocaleString('pt-BR')
+                    stat.displayValue
                   )}
                 </div>
 
@@ -274,6 +306,11 @@ export default function Dashboard() {
                       </TooltipContent>
                     </Tooltip>
                   </div>
+                )}
+
+                {/* Description for conversion rate */}
+                {'description' in stat && stat.description && (
+                  <p className="text-xs text-muted-foreground">{stat.description}</p>
                 )}
 
                 {/* Static description for agents */}
