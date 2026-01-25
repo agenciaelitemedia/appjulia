@@ -30,12 +30,14 @@ import {
   useDashboardActivity,
   useDashboardStages,
   useDashboardCardDetails,
+  useDashboardFunnel,
   calculateChange,
   getComparisonTooltip,
 } from './dashboard/hooks/useDashboardData';
 import { DashboardEvolutionChart } from './dashboard/components/DashboardEvolutionChart';
 import { DashboardActivityTimeline } from './dashboard/components/DashboardActivityTimeline';
 import { DashboardSparkline } from './dashboard/components/DashboardSparkline';
+import { DashboardFunnelChart } from './dashboard/components/DashboardFunnelChart';
 import { CRMLeadDetailsDialog } from './crm/components/CRMLeadDetailsDialog';
 
 export default function Dashboard() {
@@ -62,6 +64,7 @@ export default function Dashboard() {
   const { data: recentLeads = [], isLoading: leadsLoading } = useRecentLeads(filters);
   const { data: evolutionData = [], isLoading: evolutionLoading } = useDashboardEvolution(filters);
   const { data: activityData = [], isLoading: activityLoading } = useDashboardActivity(filters);
+  const { data: funnelData = [], isLoading: funnelLoading } = useDashboardFunnel(filters);
   const { data: stages = [] } = useDashboardStages();
   const { data: selectedCard } = useDashboardCardDetails(selectedLeadId);
 
@@ -108,6 +111,7 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats-previous'] }),
       queryClient.invalidateQueries({ queryKey: ['dashboard-recent-leads'] }),
       queryClient.invalidateQueries({ queryKey: ['dashboard-evolution'] }),
+      queryClient.invalidateQueries({ queryKey: ['dashboard-funnel'] }),
       queryClient.invalidateQueries({ queryKey: ['dashboard-activity'] }),
     ]);
     setIsRefreshing(false);
@@ -288,6 +292,9 @@ export default function Dashboard() {
           dateFrom={filters.dateFrom}
           dateTo={filters.dateTo}
         />
+
+        {/* Funnel Chart */}
+        <DashboardFunnelChart data={funnelData} isLoading={funnelLoading} />
 
         {/* Recent Activity */}
         <div className="grid gap-4 md:grid-cols-2">
