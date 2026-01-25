@@ -64,6 +64,16 @@ export interface DashboardStatsPrevious {
   conversions: number;
 }
 
+export interface DashboardFunnelData {
+  id: number;
+  name: string;
+  color: string;
+  position: number;
+  count: number;
+  percentage: number;
+  conversions: number;
+}
+
 // Calculate percentage change between current and previous values
 export function calculateChange(current: number, previous: number): {
   value: number;
@@ -471,5 +481,42 @@ export function useDashboardCardDetails(cardId: number | null) {
       return result[0] || null;
     },
     enabled: cardId !== null,
+  });
+}
+
+export function useDashboardFunnel(filters: DashboardFiltersState) {
+  return useQuery({
+    queryKey: ['dashboard-funnel', filters],
+    queryFn: async () => {
+      const { agentCodes, dateFrom, dateTo } = filters;
+      
+      if (agentCodes.length === 0) return [];
+      
+      const result = await externalDb.raw<Omit<DashboardFunnelData, 'percentage'>>({
+        query: `
+          SELECT 
+            s.id, s.name, s.color, s.position,
+            COUNT(c.id)::int as count
+          FROM crm_atendimento_stages s
+          LEFT JOIN crm_atendimento_cards c ON s.id = c.stage_id
+            AND c.cod_agent = ANY($1::varchar[])
+            AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+            AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          WHERE s.is_active = true
+          GROUP BY s.id, s.name, s.color, s.position
+          ORDER BY s.position
+        `,
+        params: [agentCodes, dateFrom, dateTo],
+      });
+      
+      const total = result.reduce((sum, item) => sum + Number(item.count), 0);
+      
+      return result.map(item => ({
+        ...item,
+        count: Number(item.count),
+        percentage: total > 0 ? (Number(item.count) / total) * 100 : 0,
+      }));
+    },
+    enabled: filters.agentCodes.length > 0,
   });
 }
