@@ -83,15 +83,23 @@ export function ClientStep() {
     setViewState('search');
   };
 
-  const handleNewClient = () => {
+  const handleNewClient = async () => {
     setValue('new_client', true);
     setValue('selected_client', null);
     setValue('client_id', null);
     setViewState('new');
+    
+    // Gerar código do agente automaticamente
+    const generatedCode = await generateCode();
+    if (!generatedCode) {
+      toast.error('Erro ao gerar código do agente');
+    }
   };
 
   const handleCancelNewClient = () => {
     setValue('new_client', false);
+    setValue('cod_agent', '');
+    clearCode();
     // Clear all new client fields
     setValue('client_name', '');
     setValue('client_business_name', '');
@@ -571,6 +579,60 @@ export function ClientStep() {
             </FormItem>
           )}
         />
+      </div>
+
+      <Separator className="my-6" />
+
+      {/* Dados do Agente */}
+      <div>
+        <h4 className="text-base font-medium text-foreground mb-4">Dados do Agente</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <FormField
+            control={control}
+            name="cod_agent"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Código do Agente</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <Input 
+                      {...field} 
+                      readOnly 
+                      className="bg-muted pr-10"
+                    />
+                    {isLoadingCode && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin" />
+                    )}
+                  </div>
+                </FormControl>
+                <FormDescription>
+                  Gerado automaticamente
+                </FormDescription>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={control}
+            name="is_closer"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <FormLabel className="text-base">É Closer?</FormLabel>
+                  <FormDescription>
+                    Define se o agente atua como closer
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        </div>
       </div>
     </div>
   );
