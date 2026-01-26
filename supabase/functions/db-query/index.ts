@@ -7,6 +7,37 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Retry configuration
+const MAX_RETRIES = 3;
+const INITIAL_DELAY_MS = 500;
+
+/**
+ * Sleep for a given number of milliseconds
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Checks if an error is retryable (connection timeouts, network issues)
+ */
+function isRetryableError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  const retryablePatterns = [
+    'connect_timeout',
+    'connection refused',
+    'connection reset',
+    'econnrefused',
+    'econnreset',
+    'etimedout',
+    'socket hang up',
+    'network error',
+    'write connect_timeout',
+  ];
+  return retryablePatterns.some(pattern => message.includes(pattern));
+}
+
 /**
  * Normalizes a CA certificate string into STRICT PEM blocks that Deno can load.
  *
@@ -62,59 +93,67 @@ function normalizeCaCert(input: string): string[] {
   });
 }
 
+/**
+ * Creates a new database connection with SSL config
+ */
+function createConnection(caCerts: string[]) {
+  const externalDbUrl = (Deno.env.get('EXTERNAL_DB_URL') ?? '').trim();
+  
+  const ssl = caCerts.length > 0
+    ? { caCerts, rejectUnauthorized: true }
+    : "require" as const;
+
+  return externalDbUrl
+    ? postgres(externalDbUrl, { 
+        ssl,
+        connect_timeout: 15,
+        idle_timeout: 20,
+        max_lifetime: 60 * 30,
+      })
+    : postgres({
+        host: Deno.env.get('EXTERNAL_DB_HOST'),
+        port: parseInt(Deno.env.get('EXTERNAL_DB_PORT') || '25061'),
+        database: Deno.env.get('EXTERNAL_DB_DATABASE'),
+        username: Deno.env.get('EXTERNAL_DB_USERNAME'),
+        password: Deno.env.get('EXTERNAL_DB_PASSWORD'),
+        ssl,
+        connect_timeout: 15,
+        idle_timeout: 20,
+        max_lifetime: 60 * 30,
+      });
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
-  try {
-    const { action, table, data, where, select, limit, offset, orderBy } = await req.json();
+  // Get and normalize CA certificate once
+  const rawCaCert = Deno.env.get('EXTERNAL_DB_CA_CERT') ?? '';
+  const caCerts = rawCaCert ? normalizeCaCert(rawCaCert) : [];
+  
+  console.log("CA certificates found:", caCerts.length);
+  if (caCerts.length > 0) {
+    console.log("First cert preview:", caCerts[0].substring(0, 60) + "...");
+  }
+  console.log('External DB URL provided:', Boolean(Deno.env.get('EXTERNAL_DB_URL')));
 
-    // Get and normalize CA certificate
-    const rawCaCert = Deno.env.get('EXTERNAL_DB_CA_CERT') ?? '';
-    const caCerts = rawCaCert ? normalizeCaCert(rawCaCert) : [];
+  let lastError: unknown = null;
+  
+  // Retry loop with exponential backoff
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    let sql: ReturnType<typeof postgres> | null = null;
     
-    console.log("CA certificates found:", caCerts.length);
-    if (caCerts.length > 0) {
-      console.log("First cert preview:", caCerts[0].substring(0, 60) + "...");
-    }
+    try {
+      const { action, table, data, where, select, limit, offset, orderBy } = await req.json();
 
-    // Get connection string
-    const externalDbUrl = (Deno.env.get('EXTERNAL_DB_URL') ?? '').trim();
-    console.log('External DB URL provided:', Boolean(externalDbUrl));
+      sql = createConnection(caCerts);
 
-    // Build SSL config for Deno runtime
-    // In Deno, we use 'caCerts' (array of PEM strings) instead of 'ca'
-    // If no custom CA, use 'require' to let Deno use its trust store
-    const ssl = caCerts.length > 0
-      ? { caCerts, rejectUnauthorized: true }
-      : "require" as const; // Uses Deno's default CA store (mozilla + system when DENO_TLS_CA_STORE is set)
+      // Set timezone for this session to America/Sao_Paulo (UTC-3)
+      await sql`SET timezone = 'America/Sao_Paulo'`;
 
-    const sql = externalDbUrl
-      ? postgres(externalDbUrl, { 
-          ssl,
-          connect_timeout: 10,
-          idle_timeout: 20,
-          max_lifetime: 60 * 30,
-        })
-      : postgres({
-          host: Deno.env.get('EXTERNAL_DB_HOST'),
-          port: parseInt(Deno.env.get('EXTERNAL_DB_PORT') || '25061'),
-          database: Deno.env.get('EXTERNAL_DB_DATABASE'),
-          username: Deno.env.get('EXTERNAL_DB_USERNAME'),
-          password: Deno.env.get('EXTERNAL_DB_PASSWORD'),
-          ssl,
-          connect_timeout: 10,
-          idle_timeout: 20,
-          max_lifetime: 60 * 30,
-        });
-
-    // Set timezone for this session to America/Sao_Paulo (UTC-3)
-    // This ensures consistent date/time handling across all queries
-    await sql`SET timezone = 'America/Sao_Paulo'`;
-
-    let result: Record<string, unknown>[] = [];
+      let result: Record<string, unknown>[] = [];
 
     switch (action) {
       case 'select': {
@@ -606,15 +645,43 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
-  } catch (error: unknown) {
-    console.error('Database error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(
-      JSON.stringify({ data: null, error: errorMessage }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    } catch (error: unknown) {
+      // Close connection on error
+      if (sql) {
+        try { await sql.end(); } catch { /* ignore */ }
       }
-    );
+      
+      lastError = error;
+      
+      // Check if this is a retryable error and we have attempts left
+      if (isRetryableError(error) && attempt < MAX_RETRIES) {
+        const delayMs = INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
+        console.warn(`Attempt ${attempt}/${MAX_RETRIES} failed with retryable error, waiting ${delayMs}ms before retry:`, error);
+        await sleep(delayMs);
+        continue; // Try again
+      }
+      
+      // Non-retryable error or no more attempts
+      console.error('Database error (final):', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return new Response(
+        JSON.stringify({ data: null, error: errorMessage }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
   }
+  
+  // All retries exhausted
+  console.error('All retry attempts exhausted:', lastError);
+  const errorMessage = lastError instanceof Error ? lastError.message : 'Unknown error';
+  return new Response(
+    JSON.stringify({ data: null, error: `Connection failed after ${MAX_RETRIES} attempts: ${errorMessage}` }),
+    {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    }
+  );
 });
