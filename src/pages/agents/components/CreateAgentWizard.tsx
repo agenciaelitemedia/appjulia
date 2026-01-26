@@ -112,10 +112,12 @@ export function CreateAgentWizard() {
     },
   });
 
-  const handleNext = () => {
+  const handleNext = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     console.log('handleNext called, currentStep:', currentStep, 'STEPS.length:', STEPS.length);
     if (currentStep < STEPS.length - 1) {
-      setCurrentStep(prev => prev + 1);
+      setCurrentStep(currentStep + 1);
     }
   };
 
@@ -147,6 +149,9 @@ export function CreateAgentWizard() {
   };
 
   const isLastStep = currentStep === STEPS.length - 1;
+  
+  // Debug
+  console.log('Render - currentStep:', currentStep, 'isLastStep:', isLastStep, 'STEPS.length:', STEPS.length);
 
   return (
     <FormProvider {...methods}>
