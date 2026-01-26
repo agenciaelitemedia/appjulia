@@ -14,6 +14,7 @@ import CRMStatisticsPage from "./pages/crm/statistics/CRMStatisticsPage";
 import CRMMonitoringPage from "./pages/crm/monitoring/CRMMonitoringPage";
 import AgentsList from "./pages/agents/AgentsList";
 import CreateAgentPage from "./pages/agents/CreateAgentPage";
+import AgentDetailsPage from "./pages/agents/AgentDetailsPage";
 import DesempenhoPage from "./pages/estrategico/desempenho/DesempenhoPage";
 import ContratosPage from "./pages/estrategico/contratos/ContratosPage";
 import FollowupPage from "./pages/agente/followup/FollowupPage";
@@ -49,6 +50,7 @@ const App = () => (
                 <Route element={<AdminRoute />}>
                   <Route path="/admin/agentes" element={<AgentsList />} />
                   <Route path="/admin/agentes-novo" element={<CreateAgentPage />} />
+                  <Route path="/admin/agentes/:id/detalhes" element={<AgentDetailsPage />} />
                 </Route>
               </Route>
               <Route path="*" element={<NotFound />} />

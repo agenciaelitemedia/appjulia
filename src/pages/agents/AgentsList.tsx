@@ -4,6 +4,7 @@ import {
   Bot,
   Plus,
   Pencil,
+  Eye,
   Settings,
   Trash2,
   QrCode,
@@ -559,6 +560,10 @@ export default function AgentsList() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => navigate(`/admin/agentes/${agent.id}/detalhes`)}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          Visualizar
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => navigate(`/agente/personalizacao?id=${agent.id}`)}>
                           <Settings className="mr-2 h-4 w-4" />
                           Configurar

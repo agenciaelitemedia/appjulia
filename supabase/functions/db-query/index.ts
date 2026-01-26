@@ -507,6 +507,60 @@ serve(async (req) => {
         break;
       }
 
+      case 'get_agent_details': {
+        const { agentId } = data;
+        const rows = await sql.unsafe(
+          `SELECT 
+            a.id,
+            a.cod_agent::text as cod_agent,
+            a.status,
+            a.is_closer,
+            a.settings,
+            a.prompt,
+            a.due_date,
+            a.created_at,
+            -- Cliente
+            c.id as client_id,
+            c.name as client_name,
+            c.business_name,
+            c.federal_id,
+            c.email as client_email,
+            c.phone as client_phone,
+            c.zip_code,
+            c.street,
+            c.street_number,
+            c.complement,
+            c.neighborhood,
+            c.city,
+            c.state,
+            -- Plano
+            ap.id as plan_id,
+            ap.name as plan_name,
+            ap."limit" as plan_limit,
+            -- Usuario
+            u.id as user_id,
+            u.name as user_name,
+            u.email as user_email,
+            u.remember_token,
+            -- Leads do mes
+            (SELECT COUNT(DISTINCT s.id) FROM sessions s 
+             WHERE s.agent_id = a.id 
+             AND EXISTS (SELECT 1 FROM log_messages lm 
+                         WHERE lm.session_id = s.id 
+                         AND lm.created_at >= DATE_TRUNC('month', CURRENT_DATE))) as leads_received
+          FROM agents a
+          JOIN clients c ON c.id = a.client_id
+          LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
+          LEFT JOIN user_agents ua ON ua.agent_id = a.id
+          LEFT JOIN users u ON u.id = ua.user_id
+          WHERE a.id = $1
+          LIMIT 1`,
+          [agentId]
+        );
+        result = rows;
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }

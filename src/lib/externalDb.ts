@@ -231,6 +231,14 @@ class ExternalDatabase {
     });
     return result[0].hasAgents;
   }
+
+  async getAgentDetails<T = any>(agentId: number): Promise<T | null> {
+    const result = await this.invoke({
+      action: 'get_agent_details',
+      data: { agentId },
+    });
+    return result.length > 0 ? result[0] : null;
+  }
 }
 
 export interface AgentInsertData {
