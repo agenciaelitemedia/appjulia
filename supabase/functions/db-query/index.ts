@@ -422,6 +422,11 @@ serve(async (req) => {
 
       case 'check_agent_code_exists': {
         const { codAgent } = data;
+        // Handle empty or null codAgent - return false without querying
+        if (!codAgent || codAgent.trim() === '') {
+          result = [{ exists: false }];
+          break;
+        }
         const rows = await sql.unsafe(
           `SELECT id FROM agents WHERE cod_agent = $1 LIMIT 1`,
           [codAgent]
