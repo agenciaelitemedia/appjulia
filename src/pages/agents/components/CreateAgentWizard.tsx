@@ -113,8 +113,9 @@ export function CreateAgentWizard() {
   });
 
   const handleNext = () => {
+    console.log('handleNext called, currentStep:', currentStep, 'STEPS.length:', STEPS.length);
     if (currentStep < STEPS.length - 1) {
-      setCurrentStep(currentStep + 1);
+      setCurrentStep(prev => prev + 1);
     }
   };
 
