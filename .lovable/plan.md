@@ -1,489 +1,366 @@
 
-# Implementação do Wizard de Criação de Agentes - Versão Completa
+# Plano de Implementacao: Salvar Agente com Cadastros Auxiliares
 
-## Visão Geral
-
-Refatoração completa do wizard de criação de agentes com funcionalidades reais de busca no banco de dados, geração automática de código do agente e melhor experiência do usuário seguindo as referências visuais fornecidas.
-
----
-
-## Alterações de Rota
-
-| De | Para |
-|---|---|
-| `/admin/agentes/novo` | `/admin/agentes-novo` |
-
-**Arquivo:** `src/App.tsx`
+## Resumo Executivo
+Este plano detalha a implementacao do fluxo de salvamento do agente, incluindo validacoes previas, criacao de registros auxiliares (cliente e usuario) e tratamento de erros com rollback manual.
 
 ---
 
-## Aba 1: Cliente (Refatoração Completa)
-
-### Estados da Interface
+## Diagrama do Fluxo de Salvamento
 
 ```text
-1. ESTADO INICIAL (Busca)
-   ┌─────────────────────────────────────────────────────────┐
-   │  🔍 [Buscar cliente por nome, escritório ou email...]  │
-   │                                          [+ Novo Cliente]│
-   ├─────────────────────────────────────────────────────────┤
-   │                                                          │
-   │                      🔍                                  │
-   │         Busque um cliente existente                     │
-   │     ou clique em "Novo Cliente" para cadastrar          │
-   │                                                          │
-   └─────────────────────────────────────────────────────────┘
-
-2. ESTADO PESQUISANDO (após 3 caracteres)
-   ┌─────────────────────────────────────────────────────────┐
-   │  🔍 [mario                                    x]        │
-   │                                          [+ Novo Cliente]│
-   ├─────────────────────────────────────────────────────────┤
-   │  11 cliente(s) encontrado(s)                            │
-   ├─────────────────────────────────────────────────────────┤
-   │  👤 Mario Lucas Malheiros                           >   │
-   │     🏢 Lucas Malheiros Advogados Associados             │
-   ├─────────────────────────────────────────────────────────┤
-   │  👤 Mario_new_v8                                    >   │
-   │     🏢 Mario_new_v8                                     │
-   ├─────────────────────────────────────────────────────────┤
-   │  👤 Mario V8 - Abril 2025                           >   │
-   │     🏢 Mario V8 · 20258888@atendejulia.com.br          │
-   └─────────────────────────────────────────────────────────┘
-
-3. ESTADO CLIENTE SELECIONADO
-   ┌─────────────────────────────────────────────────────────┐
-   │  ┌─────────────────────────────────────────┐  x Trocar  │
-   │  │ 👤 Mario_new_v8                         │            │
-   │  └─────────────────────────────────────────┘            │
-   ├─────────────────────────────────────────────────────────┤
-   │  Código do Agente          É Closer?                    │
-   │  ┌────────────────┐        ○ Não                        │
-   │  │ 202601003      │ (readonly)                          │
-   │  └────────────────┘                                     │
-   └─────────────────────────────────────────────────────────┘
-
-4. ESTADO NOVO CLIENTE
-   ┌─────────────────────────────────────────────────────────┐
-   │  [Novo Cliente]                               x Cancelar │
-   ├─────────────────────────────────────────────────────────┤
-   │  Nome *                    Escritório                   │
-   │  [_____________________]   [_____________________]      │
-   │                                                          │
-   │  CPF/CNPJ                  Email *                      │
-   │  [000.000.000-00_______]   [email@exemplo.com______]    │
-   │                                                          │
-   │  Telefone *                                              │
-   │  [BR +55 ▼] [(00) 00000-0000_______]                    │
-   │                                                          │
-   │  CEP *            Logradouro                            │
-   │  [00000-000 🔍]   [________________________]            │
-   │                                                          │
-   │  Número           Complemento        Bairro             │
-   │  [______]         [____________]     [___________]      │
-   │                                                          │
-   │  Cidade           Estado                                │
-   │  [____________]   [UF]                                  │
-   └─────────────────────────────────────────────────────────┘
++------------------+     +------------------+     +------------------+
+|  VALIDACOES      | --> |  CRIAR CLIENTE   | --> |  CRIAR USUARIO   |
+|  (CPF, Email,    |     |  (se new_client) |     |  (se new_user)   |
+|   cod_agent)     |     |  Retorna:        |     |  Gerar senha     |
+|                  |     |  client_id       |     |  Julia@XXXX      |
++------------------+     +------------------+     +------------------+
+         |                       |                       |
+         v                       v                       v
++------------------------------------------------------------------+
+|                    CRIAR AGENTE                                   |
+|  Campos: client_id, cod_agent, settings, prompt, is_closer,      |
+|          agent_plan_id, due_date                                  |
+|  Retorna: agent_id                                                |
++------------------------------------------------------------------+
+                                 |
+                                 v
++------------------------------------------------------------------+
+|                    CRIAR VINCULO USER_AGENTS                      |
+|  Campos: user_id, agent_id                                        |
++------------------------------------------------------------------+
+                                 |
+                                 v
+                    [SUCESSO] ou [ROLLBACK]
 ```
 
-### Geração Automática do Código do Agente
+---
 
-**Regra:** `YYYYMM` + `NNN` (sequencial no mês)
+## Fase 1: Validacoes em Tempo Real (Frontend)
 
-**Query para obter próximo código:**
+### 1.1 Validacao de CPF/CNPJ ao sair do campo (ClientStep)
+- Adicionar evento `onBlur` no campo `client_federal_id`
+- Chamar endpoint `check_federal_id_exists` para verificar duplicidade
+- Exibir toast de erro se ja existir, bloquear avanço
+
+### 1.2 Validacao de Email do Usuario ao sair do campo (UserStep)  
+- Adicionar evento `onBlur` no campo `user_email` (quando new_user = true)
+- Chamar endpoint `check_user_email_exists` para verificar duplicidade
+- Exibir toast de erro se ja existir
+
+---
+
+## Fase 2: Novos Endpoints na Edge Function (db-query)
+
+### 2.1 `check_federal_id_exists`
 ```sql
-SELECT COALESCE(
-  MAX(CAST(SUBSTRING(cod_agent FROM 7) AS INTEGER)),
-  0
-) + 1 as next_seq
-FROM agents
-WHERE cod_agent LIKE '202601%'
+SELECT id FROM clients WHERE federal_id = $1 LIMIT 1
 ```
+- Parametro: federal_id (somente numeros)
+- Retorno: { exists: boolean, client_id?: number }
 
-**Exemplo:** Se existem agentes `202601001`, `202601002`, `202601003`, o próximo será `202601004`
-
-### Busca de Clientes
-
-**Trigger:** Após digitar 3+ caracteres
-**Debounce:** 300ms
-**Query:**
+### 2.2 `check_user_email_exists`
 ```sql
-SELECT id, name, business_name, email, phone
-FROM clients
-WHERE 
-  LOWER(name) LIKE LOWER('%termo%') OR
-  LOWER(business_name) LIKE LOWER('%termo%') OR
-  LOWER(email) LIKE LOWER('%termo%')
-ORDER BY name ASC
-LIMIT 20
+SELECT id FROM users WHERE email = $1 LIMIT 1
 ```
+- Parametro: email
+- Retorno: { exists: boolean, user_id?: number }
 
-### Campos do Novo Cliente
-
-Mesmos campos do Profile com as mesmas máscaras:
-
-| Campo | Tipo | Máscara | Obrigatório |
-|-------|------|---------|-------------|
-| name | Input | - | Sim |
-| business_name | Input | - | Não |
-| federal_id | Input | maskCPFCNPJ | Não |
-| email | Input | - | Sim |
-| phone | Input | maskPhone | Sim |
-| zip_code | Input | maskCEP | Sim |
-| street | Input | - | - (auto-preenchido) |
-| street_number | Input | - | Não |
-| complement | Input | - | Não |
-| neighborhood | Input | - | - (auto-preenchido) |
-| city | Input | - | - (auto-preenchido) |
-| state | Input | - | - (auto-preenchido) |
-
-### Busca Automática de CEP
-
-- OnBlur do campo CEP quando tiver 8 dígitos
-- Consulta à API ViaCEP: `https://viacep.com.br/ws/{cep}/json/`
-- Auto-preenche: logradouro, bairro, cidade, estado
-
----
-
-## Aba 2: Planos (Ajustes)
-
-### Carregamento de Planos do Banco
-
-**Query:**
+### 2.3 `check_agent_code_exists`
 ```sql
-SELECT id, name, leads_limit, price
-FROM agents_plan
-WHERE is_active = true
-ORDER BY price ASC
+SELECT id FROM agents WHERE cod_agent = $1 LIMIT 1
 ```
+- Parametro: cod_agent
+- Retorno: { exists: boolean }
 
-### Comportamento
-
-1. Ao selecionar um plano, o campo "Limite de Leads" é preenchido automaticamente com o `leads_limit` do plano
-2. Usuário pode alterar manualmente o limite (override)
-3. Dia do vencimento inicia com o dia atual do mês
-
-### Layout
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  Plano *                                                    │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │ Selecione um plano                               ▼    │ │
-│  └───────────────────────────────────────────────────────┘ │
-│                                                             │
-│  Limite de Leads          Dia do Vencimento *              │
-│  ┌────────────────┐       ┌────────────────┐               │
-│  │ 500            │       │ 25             │  (1-31)       │
-│  └────────────────┘       └────────────────┘               │
-│                                                             │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ Resumo do Plano                                      │  │
-│  │ Plano: Profissional                                  │  │
-│  │ Limite base: 500 leads/mês                           │  │
-│  │ Valor: R$ 297,00                                     │  │
-│  └─────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Aba 3: Configurações
-
-Permanece igual (editor JSON).
-
----
-
-## Aba 4: Prompt
-
-Permanece igual (textarea com contador de palavras).
-
----
-
-## Aba 5: Usuário (Renomeada de CRM)
-
-### Estados da Interface
-
-```text
-1. ESTADO INICIAL (Busca)
-   ┌─────────────────────────────────────────────────────────┐
-   │  🔍 [Buscar usuário por nome ou email...]              │
-   │                                          [+ Novo Usuário]│
-   ├─────────────────────────────────────────────────────────┤
-   │                                                          │
-   │                      👤                                  │
-   │         Busque um usuário existente                     │
-   │     ou clique em "Novo Usuário" para cadastrar          │
-   │                                                          │
-   └─────────────────────────────────────────────────────────┘
-
-2. ESTADO USUÁRIO SELECIONADO
-   ┌─────────────────────────────────────────────────────────┐
-   │  ┌─────────────────────────────────────────┐  x Trocar  │
-   │  │ 👤 João Silva                            │            │
-   │  │    joao@empresa.com                     │            │
-   │  └─────────────────────────────────────────┘            │
-   └─────────────────────────────────────────────────────────┘
-
-3. ESTADO NOVO USUÁRIO
-   ┌─────────────────────────────────────────────────────────┐
-   │  [Novo Usuário]                               x Cancelar │
-   ├─────────────────────────────────────────────────────────┤
-   │  Nome *                                                  │
-   │  [_____________________]                                │
-   │                                                          │
-   │  Email *  (pré-preenchido da aba Cliente)               │
-   │  [cliente@email.com_____________]                       │
-   └─────────────────────────────────────────────────────────┘
-```
-
-### Busca de Usuários
-
-**Query:**
+### 2.4 `insert_user`
 ```sql
-SELECT id, name, email, role
-FROM users
-WHERE 
-  LOWER(name) LIKE LOWER('%termo%') OR
-  LOWER(email) LIKE LOWER('%termo%')
-ORDER BY name ASC
-LIMIT 20
+INSERT INTO users (name, email, password, remember_token, role, created_at)
+VALUES ($1, $2, $3, $4, 'user', now())
+RETURNING id, name, email
+```
+- Parametros: name, email, rawPassword
+- Logica: 
+  - Gerar senha padrao `Julia@` + 4 digitos aleatorios
+  - Salvar senha em texto no `remember_token`
+  - Salvar hash bcrypt no `password`
+
+### 2.5 `insert_agent`
+```sql
+INSERT INTO agents (
+  client_id, cod_agent, settings, prompt, is_closer, 
+  agent_plan_id, due_date, status, is_visibilided, created_at
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, true, true, now())
+RETURNING id
+```
+- Campos mapeados do formulario
+
+### 2.6 `insert_user_agent`
+```sql
+INSERT INTO user_agents (user_id, agent_id, created_at)
+VALUES ($1, $2, now())
+RETURNING id
+```
+
+### 2.7 `delete_agent`
+```sql
+DELETE FROM agents WHERE id = $1
+```
+
+### 2.8 `check_user_has_agents`
+```sql
+SELECT COUNT(*) as count FROM user_agents WHERE user_id = $1
+```
+
+### 2.9 `check_client_has_agents`
+```sql
+SELECT COUNT(*) as count FROM agents WHERE client_id = $1
+```
+
+### 2.10 `delete_user`
+```sql
+DELETE FROM users WHERE id = $1
+```
+
+### 2.11 `delete_client`
+```sql
+DELETE FROM clients WHERE id = $1
 ```
 
 ---
 
-## Arquivos a Modificar/Criar
+## Fase 3: Metodos no Cliente ExternalDb
 
-### Modificar
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/App.tsx` | Alterar rota para `/admin/agentes-novo` |
-| `src/pages/agents/CreateAgentPage.tsx` | Atualizar link de retorno |
-| `src/pages/agents/components/CreateAgentWizard.tsx` | Expandir AgentFormData, renomear aba CRM para Usuário |
-| `src/pages/agents/components/wizard-steps/ClientStep.tsx` | Refatoração completa com busca real |
-| `src/pages/agents/components/wizard-steps/PlanStep.tsx` | Carregar planos do banco |
-| `src/pages/agents/components/wizard-steps/CRMStep.tsx` | Renomear para UserStep e implementar busca |
-
-### Criar
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/pages/agents/hooks/useAgentCode.ts` | Hook para gerar código do agente |
-| `src/pages/agents/hooks/useClientSearch.ts` | Hook para busca de clientes |
-| `src/pages/agents/hooks/useUserSearch.ts` | Hook para busca de usuários |
-| `src/pages/agents/hooks/usePlans.ts` | Hook para carregar planos |
-
----
-
-## Novos Endpoints no Edge Function
-
-Adicionar ações ao `db-query/index.ts`:
-
-### search_clients
+### 3.1 Novos metodos em `src/lib/externalDb.ts`
 ```typescript
-case 'search_clients': {
-  const { term } = data;
-  const searchTerm = `%${term.toLowerCase()}%`;
-  result = await sql.unsafe(
-    `SELECT id, name, business_name, email, phone
-     FROM clients
-     WHERE LOWER(name) LIKE $1 
-        OR LOWER(business_name) LIKE $1 
-        OR LOWER(email) LIKE $1
-     ORDER BY name ASC
-     LIMIT 20`,
-    [searchTerm]
-  );
-  break;
-}
-```
+// Validacoes
+async checkFederalIdExists(federalId: string): Promise<{exists: boolean, clientId?: number}>
+async checkUserEmailExists(email: string): Promise<{exists: boolean, userId?: number}>
+async checkAgentCodeExists(codAgent: string): Promise<boolean>
 
-### search_users
-```typescript
-case 'search_users': {
-  const { term } = data;
-  const searchTerm = `%${term.toLowerCase()}%`;
-  result = await sql.unsafe(
-    `SELECT id, name, email, role
-     FROM users
-     WHERE LOWER(name) LIKE $1 OR LOWER(email) LIKE $1
-     ORDER BY name ASC
-     LIMIT 20`,
-    [searchTerm]
-  );
-  break;
-}
-```
+// Insercoes
+async insertUser(name: string, email: string): Promise<{id: number, name: string, email: string, tempPassword: string}>
+async insertAgent(agentData: AgentInsertData): Promise<{id: number}>
+async insertUserAgent(userId: number, agentId: number): Promise<void>
 
-### get_next_agent_code
-```typescript
-case 'get_next_agent_code': {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const prefix = `${year}${month}`;
-  
-  const rows = await sql.unsafe(
-    `SELECT COALESCE(
-       MAX(CAST(SUBSTRING(cod_agent FROM 7) AS INTEGER)),
-       0
-     ) + 1 as next_seq
-     FROM agents
-     WHERE cod_agent LIKE $1`,
-    [`${prefix}%`]
-  );
-  
-  const nextSeq = String(rows[0].next_seq).padStart(3, '0');
-  result = [{ cod_agent: `${prefix}${nextSeq}` }];
-  break;
-}
-```
-
-### get_plans
-```typescript
-case 'get_plans': {
-  result = await sql.unsafe(
-    `SELECT id, name, leads_limit, price
-     FROM agents_plan
-     WHERE is_active = true
-     ORDER BY price ASC`
-  );
-  break;
-}
-```
-
-### insert_client
-```typescript
-case 'insert_client': {
-  const { clientData } = data;
-  const columns = Object.keys(clientData).join(', ');
-  const values = Object.values(clientData);
-  const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
-  
-  result = await sql.unsafe(
-    `INSERT INTO clients (${columns}, created_at, updated_at) 
-     VALUES (${placeholders}, now(), now()) 
-     RETURNING *`,
-    values
-  );
-  break;
-}
+// Delecoes (para rollback)
+async deleteAgent(agentId: number): Promise<void>
+async checkUserHasAgents(userId: number): Promise<boolean>
+async checkClientHasAgents(clientId: number): Promise<boolean>
+async deleteUser(userId: number): Promise<void>
+async deleteClient(clientId: number): Promise<void>
 ```
 
 ---
 
-## Atualização do externalDb.ts
+## Fase 4: Hook de Salvamento
 
+### 4.1 Criar `src/pages/agents/hooks/useAgentSave.ts`
+Hook que encapsula toda a logica de salvamento com:
+- Estado de loading e erro
+- Funcao `saveAgent(data: AgentFormData)`
+- Logica de rollback em caso de erro
+
+### 4.2 Fluxo do saveAgent:
 ```typescript
-// Novos métodos
-async searchClients<T = any>(term: string): Promise<T[]> {
-  return this.invoke({
-    action: 'search_clients',
-    data: { term },
-  });
+async function saveAgent(data: AgentFormData) {
+  let createdClientId: number | null = null;
+  let createdUserId: number | null = null;
+  let createdAgentId: number | null = null;
+  let isNewClient = false;
+  let isNewUser = false;
+  
+  try {
+    // 1. VALIDACOES FINAIS
+    // 1.1 Se novo cliente, validar federal_id
+    if (data.new_client) {
+      const federalId = unmask(data.client_federal_id);
+      const exists = await externalDb.checkFederalIdExists(federalId);
+      if (exists.exists) {
+        throw new Error('CPF/CNPJ ja cadastrado');
+      }
+    }
+    
+    // 1.2 Se novo usuario, validar email
+    if (data.new_user) {
+      const exists = await externalDb.checkUserEmailExists(data.user_email);
+      if (exists.exists) {
+        throw new Error('Email ja cadastrado');
+      }
+    }
+    
+    // 1.3 Validar cod_agent
+    const codeExists = await externalDb.checkAgentCodeExists(data.cod_agent);
+    if (codeExists) {
+      // Gerar novo codigo e lancar erro
+      await generateNewCode();
+      throw new Error('Codigo do agente ja existe. Novo codigo gerado.');
+    }
+    
+    // 2. CRIAR CLIENTE (se necessario)
+    if (data.new_client) {
+      isNewClient = true;
+      const clientResult = await externalDb.insertClient({...});
+      createdClientId = clientResult.id;
+    } else {
+      createdClientId = data.client_id;
+    }
+    
+    // 3. CRIAR USUARIO (se necessario)
+    if (data.new_user) {
+      isNewUser = true;
+      const userResult = await externalDb.insertUser(data.user_name, data.user_email);
+      createdUserId = userResult.id;
+      // Mostrar senha temporaria ao usuario
+      toast.info(`Senha temporaria: ${userResult.tempPassword}`);
+    } else {
+      createdUserId = data.user_id;
+    }
+    
+    // 4. CRIAR AGENTE
+    const agentResult = await externalDb.insertAgent({
+      client_id: createdClientId,
+      cod_agent: data.cod_agent,
+      settings: data.config_json,
+      prompt: data.system_prompt,
+      is_closer: data.is_closer,
+      agent_plan_id: parseInt(data.plan_id),
+      due_date: data.due_day,
+    });
+    createdAgentId = agentResult.id;
+    
+    // 5. CRIAR VINCULO USER_AGENTS
+    await externalDb.insertUserAgent(createdUserId, createdAgentId);
+    
+    return { success: true, agentId: createdAgentId };
+    
+  } catch (error) {
+    // ROLLBACK
+    await rollback(createdAgentId, createdUserId, createdClientId, isNewUser, isNewClient);
+    throw error;
+  }
 }
 
-async searchUsers<T = any>(term: string): Promise<T[]> {
-  return this.invoke({
-    action: 'search_users',
-    data: { term },
-  });
-}
-
-async getNextAgentCode(): Promise<string> {
-  const result = await this.invoke({
-    action: 'get_next_agent_code',
-    data: {},
-  });
-  return result[0].cod_agent;
-}
-
-async getPlans<T = any>(): Promise<T[]> {
-  return this.invoke({
-    action: 'get_plans',
-    data: {},
-  });
-}
-
-async insertClient<T = any>(clientData: Partial<Client>): Promise<T> {
-  const result = await this.invoke({
-    action: 'insert_client',
-    data: { clientData },
-  });
-  return result[0];
-}
-```
-
----
-
-## Estrutura de Dados Atualizada
-
-```typescript
-interface AgentFormData {
-  // Aba Cliente
-  cod_agent: string;           // Gerado automaticamente
-  client_id: number | null;    // ID do cliente selecionado
-  is_closer: boolean;
+async function rollback(agentId, userId, clientId, isNewUser, isNewClient) {
+  // 1. Deletar agente se foi criado
+  if (agentId) {
+    await externalDb.deleteAgent(agentId);
+  }
   
-  // Campos novo cliente (quando client_id === null)
-  new_client: boolean;
-  client_name: string;
-  client_business_name: string;
-  client_federal_id: string;
-  client_email: string;
-  client_phone: string;
-  client_zip_code: string;
-  client_street: string;
-  client_street_number: string;
-  client_complement: string;
-  client_neighborhood: string;
-  client_city: string;
-  client_state: string;
+  // 2. Deletar usuario se foi criado E nao tem outros agentes
+  if (userId && isNewUser) {
+    const hasAgents = await externalDb.checkUserHasAgents(userId);
+    if (!hasAgents) {
+      await externalDb.deleteUser(userId);
+    }
+  }
   
-  // Aba Planos
-  plan_id: string;
-  lead_limit: number;
-  due_day: number;
-  
-  // Aba Configurações
-  config_json: string;
-  
-  // Aba Prompt
-  system_prompt: string;
-  
-  // Aba Usuário
-  user_id: number | null;      // ID do usuário selecionado
-  new_user: boolean;
-  user_name: string;
-  user_email: string;          // Pré-preenchido do cliente
+  // 3. Deletar cliente se foi criado E nao tem outros agentes
+  if (clientId && isNewClient) {
+    const hasAgents = await externalDb.checkClientHasAgents(clientId);
+    if (!hasAgents) {
+      await externalDb.deleteClient(clientId);
+    }
+  }
 }
 ```
 
 ---
 
-## Componentes UI Reutilizados
+## Fase 5: Integracao no Wizard
 
-- `Input` com máscaras existentes (`maskCPFCNPJ`, `maskPhone`, `maskCEP`)
-- Busca de CEP via ViaCEP (mesma lógica do Profile)
-- `ScrollArea` para lista de resultados de busca
-- `Badge` para exibir cliente/usuário selecionado
-- `Skeleton` para estados de carregamento
+### 5.1 Atualizar `CreateAgentWizard.tsx`
+- Importar e usar `useAgentSave`
+- Atualizar funcao `onSubmit` para chamar `saveAgent`
+- Tratar erros e manter dados preenchidos
+- Exibir toast de sucesso com senha temporaria (se novo usuario)
 
----
+### 5.2 Atualizar `ClientStep.tsx`
+- Adicionar `onBlur` no campo CPF/CNPJ para validar duplicidade
+- Exibir feedback visual de validacao
 
-## Fluxo UX Otimizado
-
-1. **Entrada Inicial:** Campo de busca vazio com placeholder orientativo
-2. **Busca Automática:** Após 3 caracteres, lista aparece com debounce de 300ms
-3. **Seleção Rápida:** Um clique seleciona e gera o código automaticamente
-4. **Troca Fácil:** Botão "Trocar" permite voltar à busca
-5. **Novo Cliente:** Formulário completo com CEP auto-preenchendo endereço
-6. **Feedback Visual:** Loading states, contadores de resultados, mensagens de estado vazio
+### 5.3 Atualizar `UserStep.tsx`
+- Adicionar `onBlur` no campo email para validar duplicidade (quando new_user)
+- Exibir feedback visual de validacao
 
 ---
 
-## Escopo
+## Detalhes Tecnicos
 
-Esta implementação **NÃO** inclui a lógica de salvamento final (botão Salvar), que será tratada em uma próxima iteração após validação do layout e fluxos.
+### Geracao de Senha Padrao
+```typescript
+function generateDefaultPassword(): string {
+  const digits = Math.floor(1000 + Math.random() * 9000); // 4 digitos
+  return `Julia@${digits}`;
+}
+```
+
+### Campos da tabela `agents` (estimados com base no uso)
+| Campo | Tipo | Origem no Form |
+|-------|------|----------------|
+| client_id | integer | client_id ou novo client |
+| cod_agent | bigint | cod_agent |
+| settings | jsonb/text | config_json |
+| prompt | text | system_prompt |
+| is_closer | boolean | is_closer |
+| agent_plan_id | integer | plan_id |
+| due_date | integer | due_day |
+| status | boolean | default true |
+| is_visibilided | boolean | default true |
+
+### Campos da tabela `users` (para novo usuario)
+| Campo | Tipo | Valor |
+|-------|------|-------|
+| name | varchar | user_name |
+| email | varchar | user_email |
+| password | varchar | bcrypt hash |
+| remember_token | varchar | senha em texto |
+| role | varchar | 'user' |
+| created_at | timestamp | now() |
+
+### Campos da tabela `user_agents`
+| Campo | Tipo | Valor |
+|-------|------|-------|
+| user_id | integer | FK users.id |
+| agent_id | integer | FK agents.id |
+| created_at | timestamp | now() |
+
+---
+
+## Arquivos a Criar/Modificar
+
+### Novos Arquivos
+1. `src/pages/agents/hooks/useAgentSave.ts` - Hook de salvamento
+
+### Arquivos a Modificar
+1. `supabase/functions/db-query/index.ts` - Novos endpoints
+2. `src/lib/externalDb.ts` - Novos metodos cliente
+3. `src/pages/agents/components/CreateAgentWizard.tsx` - Logica de submit
+4. `src/pages/agents/components/wizard-steps/ClientStep.tsx` - Validacao onBlur CPF/CNPJ
+5. `src/pages/agents/components/wizard-steps/UserStep.tsx` - Validacao onBlur email
+
+---
+
+## Ordem de Implementacao
+
+1. Endpoints na Edge Function (todos os novos actions)
+2. Metodos no externalDb.ts
+3. Hook useAgentSave.ts
+4. Validacoes em tempo real (ClientStep e UserStep)
+5. Integracao no CreateAgentWizard.tsx
+6. Testes end-to-end
+
+---
+
+## Tratamento de Erros
+
+| Erro | Mensagem | Acao |
+|------|----------|------|
+| CPF/CNPJ duplicado | "CPF/CNPJ ja cadastrado" | Voltar para aba Cliente, destacar campo |
+| Email duplicado | "Email ja cadastrado" | Voltar para aba Usuario, destacar campo |
+| cod_agent duplicado | "Codigo do agente ja existe" | Gerar novo codigo automaticamente |
+| Erro ao criar cliente | "Erro ao cadastrar cliente" | Nenhum dado foi salvo |
+| Erro ao criar usuario | "Erro ao cadastrar usuario" | Rollback cliente se novo |
+| Erro ao criar agente | "Erro ao criar agente" | Rollback usuario e cliente se novos |
+| Erro ao vincular user_agent | "Erro ao vincular usuario" | Rollback completo |
