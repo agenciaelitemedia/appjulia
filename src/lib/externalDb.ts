@@ -239,6 +239,21 @@ class ExternalDatabase {
     });
     return result.length > 0 ? result[0] : null;
   }
+
+  async updateAgent(agentId: number, agentData: AgentUpdateData): Promise<void> {
+    await this.invoke({
+      action: 'update_agent',
+      data: { agentId, agentData },
+    });
+  }
+
+  async resetUserPassword(userId: number, hashedPassword: string, rawPassword: string): Promise<{ id: number; name: string; email: string }> {
+    const result = await this.invoke({
+      action: 'reset_user_password',
+      data: { userId, hashedPassword, rawPassword },
+    });
+    return result[0];
+  }
 }
 
 export interface AgentInsertData {
@@ -249,6 +264,15 @@ export interface AgentInsertData {
   is_closer: boolean;
   agent_plan_id: number;
   due_date: number;
+}
+
+export interface AgentUpdateData {
+  settings: string;
+  prompt: string;
+  is_closer: boolean;
+  agent_plan_id: number;
+  due_date: number;
+  status: boolean;
 }
 
 export interface Client {

@@ -561,6 +561,36 @@ serve(async (req) => {
         break;
       }
 
+      case 'update_agent': {
+        const { agentId, agentData } = data;
+        const { settings, prompt, is_closer, agent_plan_id, due_date, status } = agentData;
+        
+        const rows = await sql.unsafe(
+          `UPDATE agents 
+           SET settings = $1, prompt = $2, is_closer = $3, 
+               agent_plan_id = $4, due_date = $5, status = $6, updated_at = now()
+           WHERE id = $7
+           RETURNING *`,
+          [settings, prompt, is_closer, agent_plan_id, due_date, status, agentId]
+        );
+        result = rows;
+        break;
+      }
+
+      case 'reset_user_password': {
+        const { userId, hashedPassword, rawPassword } = data;
+        
+        const rows = await sql.unsafe(
+          `UPDATE users 
+           SET password = $1, remember_token = $2, updated_at = now()
+           WHERE id = $3
+           RETURNING id, name, email`,
+          [hashedPassword, rawPassword, userId]
+        );
+        result = rows;
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }

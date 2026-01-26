@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Copy, Check, CheckCircle, XCircle, Bot, User, Building2, CreditCard, Code2, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Copy, Check, CheckCircle, XCircle, Bot, User, Building2, CreditCard, Code2, MessageSquare, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -149,10 +149,16 @@ export default function AgentDetailsPage() {
   return (
     <div className="space-y-6">
       {/* Top Navigation */}
-      <Button variant="outline" onClick={() => navigate('/admin/agentes')}>
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Voltar à listagem
-      </Button>
+      <div className="flex items-center justify-between">
+        <Button variant="outline" onClick={() => navigate('/admin/agentes')}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Voltar à listagem
+        </Button>
+        <Button onClick={() => navigate(`/admin/agentes/${id}/editar`)}>
+          <Pencil className="mr-2 h-4 w-4" />
+          Editar
+        </Button>
+      </div>
       
       {/* Block 1: Access Data */}
       <Card>
