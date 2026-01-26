@@ -4,13 +4,16 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Save, User, CreditCard, Settings, MessageSquare, UserCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Save, User, CreditCard, Settings, MessageSquare, UserCircle, Loader2 } from 'lucide-react';
 import { ClientStep } from './wizard-steps/ClientStep';
 import { PlanStep } from './wizard-steps/PlanStep';
 import { ConfigStep } from './wizard-steps/ConfigStep';
 import { PromptStep } from './wizard-steps/PromptStep';
 import { UserStep } from './wizard-steps/UserStep';
+import { useAgentSave } from '../hooks/useAgentSave';
+import { useAgentCode } from '../hooks/useAgentCode';
 import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 export interface SelectedClient {
   id: number;
@@ -78,7 +81,11 @@ const STEPS = [
 export function CreateAgentWizard() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  
+  const { saveAgent, isSaving } = useAgentSave();
+  const { generateCode } = useAgentCode();
 
   const methods = useForm<AgentFormData>({
     defaultValues: {
@@ -135,19 +142,45 @@ export function CreateAgentWizard() {
   };
 
   const onSubmit = async (data: AgentFormData) => {
-    setIsSubmitting(true);
-    try {
-      // TODO: Implement actual save logic
-      console.log('Form data:', data);
+    const result = await saveAgent(data, generateCode);
+    
+    if (result.success) {
       toast.success('Agente criado com sucesso!');
-      navigate('/admin/agentes');
-    } catch (error) {
-      toast.error('Erro ao criar agente');
-    } finally {
-      setIsSubmitting(false);
+      
+      // If new user was created, show password dialog
+      if (result.tempPassword) {
+        setTempPassword(result.tempPassword);
+        setShowPasswordDialog(true);
+      } else {
+        navigate('/admin/agentes');
+      }
+    } else {
+      toast.error(result.error || 'Erro ao criar agente');
+      
+      // Navigate to appropriate step based on error
+      if (result.error?.includes('CPF/CNPJ')) {
+        setCurrentStep(0); // Client step
+      } else if (result.error?.includes('E-mail')) {
+        setCurrentStep(4); // User step
+      } else if (result.error?.includes('Código')) {
+        setCurrentStep(0); // Client step (where code is shown)
+      }
     }
   };
 
+  const handleClosePasswordDialog = () => {
+    setShowPasswordDialog(false);
+    setTempPassword(null);
+    navigate('/admin/agentes');
+  };
+
+  const handleCopyPassword = () => {
+    if (tempPassword) {
+      navigator.clipboard.writeText(tempPassword);
+      toast.success('Senha copiada para a área de transferência');
+    }
+  };
+  
   const isLastStep = currentStep === STEPS.length - 1;
   
   // Debug
@@ -207,9 +240,18 @@ export function CreateAgentWizard() {
               </Button>
 
               {isLastStep ? (
-                <Button type="submit" disabled={isSubmitting}>
-                  <Save className="h-4 w-4 mr-2" />
-                  {isSubmitting ? 'Salvando...' : 'Salvar Agente'}
+                <Button type="submit" disabled={isSaving}>
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Salvar Agente
+                    </>
+                  )}
                 </Button>
               ) : (
                 <Button type="button" onClick={handleNext}>
@@ -220,6 +262,35 @@ export function CreateAgentWizard() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Password Dialog */}
+        <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Usuário Criado com Sucesso!</DialogTitle>
+              <DialogDescription>
+                Um novo usuário foi criado para operar este agente. Anote a senha temporária abaixo:
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+                <code className="text-lg font-mono font-semibold">{tempPassword}</code>
+                <Button variant="outline" size="sm" onClick={handleCopyPassword}>
+                  Copiar
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground mt-3">
+                Esta senha será salva no campo "remember_token" do usuário. 
+                Recomendamos que o usuário altere a senha no primeiro acesso.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleClosePasswordDialog}>
+                Entendi, continuar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </form>
     </FormProvider>
   );

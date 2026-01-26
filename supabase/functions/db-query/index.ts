@@ -400,6 +400,113 @@ serve(async (req) => {
         break;
       }
 
+      case 'check_federal_id_exists': {
+        const { federalId } = data;
+        const rows = await sql.unsafe(
+          `SELECT id FROM clients WHERE federal_id = $1 LIMIT 1`,
+          [federalId]
+        );
+        result = [{ exists: rows.length > 0, clientId: rows.length > 0 ? rows[0].id : null }];
+        break;
+      }
+
+      case 'check_user_email_exists': {
+        const { email } = data;
+        const rows = await sql.unsafe(
+          `SELECT id FROM users WHERE email = $1 LIMIT 1`,
+          [email]
+        );
+        result = [{ exists: rows.length > 0, userId: rows.length > 0 ? rows[0].id : null }];
+        break;
+      }
+
+      case 'check_agent_code_exists': {
+        const { codAgent } = data;
+        const rows = await sql.unsafe(
+          `SELECT id FROM agents WHERE cod_agent = $1 LIMIT 1`,
+          [codAgent]
+        );
+        result = [{ exists: rows.length > 0 }];
+        break;
+      }
+
+      case 'insert_user': {
+        const { name, email, hashedPassword, rawPassword } = data;
+        const rows = await sql.unsafe(
+          `INSERT INTO users (name, email, password, remember_token, role, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, 'user', now(), now())
+           RETURNING id, name, email`,
+          [name, email, hashedPassword, rawPassword]
+        );
+        result = rows;
+        break;
+      }
+
+      case 'insert_agent': {
+        const { client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date } = data;
+        const rows = await sql.unsafe(
+          `INSERT INTO agents (client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date, status, is_visibilided, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, true, true, now(), now())
+           RETURNING id`,
+          [client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date]
+        );
+        result = rows;
+        break;
+      }
+
+      case 'insert_user_agent': {
+        const { userId, agentId } = data;
+        const rows = await sql.unsafe(
+          `INSERT INTO user_agents (user_id, agent_id, created_at)
+           VALUES ($1, $2, now())
+           RETURNING id`,
+          [userId, agentId]
+        );
+        result = rows;
+        break;
+      }
+
+      case 'delete_agent': {
+        const { agentId } = data;
+        await sql.unsafe(`DELETE FROM agents WHERE id = $1`, [agentId]);
+        result = [{ success: true }];
+        break;
+      }
+
+      case 'delete_user': {
+        const { userId } = data;
+        await sql.unsafe(`DELETE FROM users WHERE id = $1`, [userId]);
+        result = [{ success: true }];
+        break;
+      }
+
+      case 'delete_client': {
+        const { clientId } = data;
+        await sql.unsafe(`DELETE FROM clients WHERE id = $1`, [clientId]);
+        result = [{ success: true }];
+        break;
+      }
+
+      case 'check_user_has_agents': {
+        const { userId } = data;
+        const rows = await sql.unsafe(
+          `SELECT COUNT(*) as count FROM user_agents WHERE user_id = $1`,
+          [userId]
+        );
+        result = [{ hasAgents: parseInt(rows[0].count) > 0 }];
+        break;
+      }
+
+      case 'check_client_has_agents': {
+        const { clientId } = data;
+        const rows = await sql.unsafe(
+          `SELECT COUNT(*) as count FROM agents WHERE client_id = $1`,
+          [clientId]
+        );
+        result = [{ hasAgents: parseInt(rows[0].count) > 0 }];
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
