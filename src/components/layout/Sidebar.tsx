@@ -76,7 +76,7 @@ const menuGroups: MenuGroup[] = [
     adminOnly: true,
     items: [
       { label: 'Lista de Agentes', icon: Bot, href: '/admin/agentes' },
-      { label: 'Novo Agente', icon: UserPlus, href: '/admin/agentes/novo' },
+      { label: 'Novo Agente', icon: UserPlus, href: '/admin/agentes-novo' },
       { label: 'Produtos', icon: Package, href: '/admin/produtos' },
       { label: 'Arquivos Clientes', icon: FileText, href: '/admin/arquivos-clientes' },
     ],
