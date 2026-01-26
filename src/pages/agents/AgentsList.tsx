@@ -564,6 +564,10 @@ export default function AgentsList() {
                           <Eye className="mr-2 h-4 w-4" />
                           Visualizar
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate(`/admin/agentes/${agent.id}/editar`)}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Editar
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => navigate(`/agente/personalizacao?id=${agent.id}`)}>
                           <Settings className="mr-2 h-4 w-4" />
                           Configurar
