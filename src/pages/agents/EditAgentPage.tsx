@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useForm, FormProvider } from 'react-hook-form';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -237,9 +237,10 @@ export default function EditAgentPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="outline" onClick={() => navigate('/admin/agentes')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar
+          <Button variant="ghost" size="icon" asChild>
+            <Link to="/admin/agentes">
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Editar Agente</h1>
