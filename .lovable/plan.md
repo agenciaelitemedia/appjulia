@@ -1,262 +1,156 @@
 
-# Plano de Implementacao: Editar Agente (Layout em Abas)
+# Plano de Correcao: Exibir cod_agent e is_closer ao criar Novo Cliente
 
-## Resumo
-Criar uma pagina de edicao de agentes usando o mesmo layout de abas do wizard de criacao, mantendo a consistencia visual e de navegacao. As abas serao as mesmas 5 do wizard, com conteudo adaptado para edicao.
+## Problema
+Quando o usuario escolhe criar um novo cliente no wizard de criacao de agentes, os campos `cod_agent` (Codigo do Agente) e `is_closer` (E Closer?) **nao aparecem** apos o formulario de cadastro do cliente. Esses campos aparecem apenas quando um cliente existente e selecionado.
+
+Alem disso, o codigo do agente nao esta sendo gerado automaticamente ao clicar em "Novo Cliente".
+
+## Solucao
+Adicionar os campos `cod_agent` e `is_closer` ao final do formulario de "Novo Cliente", apos os campos de endereco, e disparar a geracao automatica do codigo ao entrar no modo de novo cliente.
 
 ---
 
-## Estrutura das Abas
+## Arquivo a Modificar
+
+### `src/pages/agents/components/wizard-steps/ClientStep.tsx`
+
+#### Mudanca 1: Gerar codigo automaticamente ao clicar em "Novo Cliente"
+
+Na funcao `handleNewClient()` (linhas 86-91), adicionar a chamada para gerar o codigo:
+
+```typescript
+const handleNewClient = async () => {
+  setValue('new_client', true);
+  setValue('selected_client', null);
+  setValue('client_id', null);
+  setViewState('new');
+  
+  // Gerar codigo do agente automaticamente
+  const generatedCode = await generateCode();
+  if (!generatedCode) {
+    toast.error('Erro ao gerar codigo do agente');
+  }
+};
+```
+
+#### Mudanca 2: Adicionar campos cod_agent e is_closer ao formulario de Novo Cliente
+
+Apos o campo "Estado" (linha 573), antes de fechar o `</div>`, adicionar:
+
+1. Um `<Separator />` para separar visualmente
+2. Uma secao "Dados do Agente" com titulo
+3. O campo `cod_agent` (readonly, igual ao do cliente selecionado)
+4. O switch `is_closer` (igual ao do cliente selecionado)
+
+```typescript
+      </div>
+
+      <Separator className="my-6" />
+
+      {/* Dados do Agente */}
+      <div>
+        <h4 className="text-base font-medium text-foreground mb-4">Dados do Agente</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <FormField
+            control={control}
+            name="cod_agent"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Codigo do Agente</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <Input 
+                      {...field} 
+                      readOnly 
+                      className="bg-muted pr-10"
+                    />
+                    {isLoadingCode && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin" />
+                    )}
+                  </div>
+                </FormControl>
+                <FormDescription>
+                  Gerado automaticamente
+                </FormDescription>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={control}
+            name="is_closer"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <FormLabel className="text-base">E Closer?</FormLabel>
+                  <FormDescription>
+                    Define se o agente atua como closer
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        </div>
+      </div>
+    </div>
+  );
+```
+
+#### Mudanca 3: Limpar codigo ao cancelar novo cliente
+
+Na funcao `handleCancelNewClient()` (linhas 93-109), adicionar a limpeza do codigo gerado:
+
+```typescript
+const handleCancelNewClient = () => {
+  setValue('new_client', false);
+  setValue('cod_agent', ''); // Limpar codigo
+  clearCode(); // Limpar estado do hook
+  // ... resto dos campos
+  setViewState('search');
+};
+```
+
+---
+
+## Resultado Esperado
+
+Apos a correcao:
 
 ```text
 +----------------------------------------------------------+
-| [<- Voltar]                                    [Salvar]   |
+| Novo Cliente                              [X Cancelar]    |
 +----------------------------------------------------------+
 |                                                           |
-| +-------------------------------------------------------+ |
-| | [Cliente] [Planos] [Configuracoes] [Prompt] [Usuario] | |
-| +-------------------------------------------------------+ |
+| Nome: [________________]  Escritorio: [________________]  |
+| CPF/CNPJ: [___________]  Email: [_____________________]   |
+| Telefone: [___________]  CEP: [________________________]  |
+| Logradouro: [__________________________________________]  |
+| Numero: [____]  Complemento: [________________________]   |
+| Bairro: [_____________]  Cidade: [_____________________]  |
+| Estado: [__]                                              |
 |                                                           |
-| CONTEUDO DA ABA ATIVA                                     |
+| --------------------------------------------------------- |
+|                                                           |
+| DADOS DO AGENTE                                           |
+| Codigo: [202601008] (readonly)  [Switch] E Closer?        |
 |                                                           |
 +----------------------------------------------------------+
-| [Anterior]                           [Proximo] / [Salvar] |
-+----------------------------------------------------------+
 ```
 
 ---
 
-## Conteudo de Cada Aba (Modo Edicao)
-
-### Aba 1: Cliente
-- **Codigo do Agente**: Exibicao apenas (readonly)
-- **Switch "E Closer"**: Editavel
-- **Dados do Cliente**: Todos editaveis (nome, razao social, CPF/CNPJ, email, telefone, endereco completo com busca CEP)
-- **Importante**: client_id nao pode ser alterado, apenas os dados do cliente vinculado
-
-### Aba 2: Planos
-- **Select Plano**: Editavel
-- **Limite de Leads**: Editavel
-- **Dia de Vencimento**: Editavel (1-31)
-- **Uso Atual**: Exibicao apenas (X/Y leads)
-
-### Aba 3: Configuracoes
-- **Textarea JSON**: Editavel com validacao
-- Mesma interface do wizard
-
-### Aba 4: Prompt
-- **Textarea Prompt**: Editavel
-- Mesma interface do wizard
-
-### Aba 5: Usuario
-- **Dados de Acesso (Readonly)**:
-  - Nome do usuario
-  - Email do usuario
-  - Senha: mostra remember_token ou mascara
-  - Botao "Copiar" senha
-  - Botao "Resetar Senha"
-- Nenhum campo editavel, apenas visualizacao e reset
-
----
-
-## Arquivos a Criar
-
-### 1. `src/pages/agents/EditAgentPage.tsx`
-Pagina principal usando mesmo layout do CreateAgentWizard:
-- Carrega dados via `get_agent_details`
-- FormProvider com react-hook-form
-- Tabs com 5 abas (Cliente, Planos, Configuracoes, Prompt, Usuario)
-- Navegacao Anterior/Proximo/Salvar
-- Dialog de confirmacao para reset senha
-- Dialog mostrando nova senha gerada
-
-### 2. `src/pages/agents/components/edit-steps/EditClientStep.tsx`
-Aba Cliente para edicao:
-- Codigo readonly
-- Switch Closer editavel
-- Formulario de dados do cliente (reutiliza logica de mascaras e CEP)
-- Sem opcao de trocar cliente ou criar novo
-
-### 3. `src/pages/agents/components/edit-steps/EditPlanStep.tsx`
-Aba Planos para edicao:
-- Select de planos
-- Input limite leads
-- Input dia vencimento
-- Exibicao uso atual (leads recebidos/limite)
-
-### 4. `src/pages/agents/components/edit-steps/EditUserStep.tsx`
-Aba Usuario para edicao:
-- Card com dados de acesso (readonly)
-- Email, Nome do usuario
-- Senha com logica remember_token/mascara
-- Botao Copiar senha
-- Botao Resetar Senha com confirmacao
-
-### 5. `src/pages/agents/hooks/useAgentUpdate.ts`
-Hook para gerenciar atualizacao:
-- Funcao `updateAgent(agentId, formData)`
-- Funcao `resetPassword(userId)`
-- Estados de loading
-
----
-
-## Arquivos a Modificar
-
-### 1. `supabase/functions/db-query/index.ts`
-Adicionar endpoints:
-
-#### `update_agent`
-```sql
-UPDATE agents 
-SET settings = $1, prompt = $2, is_closer = $3, 
-    agent_plan_id = $4, due_date = $5, status = $6, updated_at = now()
-WHERE id = $7
-RETURNING *
-```
-
-#### `reset_user_password`
-```sql
-UPDATE users 
-SET password = $1, remember_token = $2, updated_at = now()
-WHERE id = $3
-RETURNING id, name, email
-```
-
-### 2. `src/lib/externalDb.ts`
-Adicionar metodos:
-- `updateAgent(agentId, data)` - Atualiza tabela agents
-- `resetUserPassword(userId, hashedPassword, rawPassword)` - Reset senha
-
-### 3. `src/App.tsx`
-Adicionar rota:
-```typescript
-<Route path="/admin/agentes/:id/editar" element={<EditAgentPage />} />
-```
-
-### 4. `src/pages/agents/AgentsList.tsx`
-Atualizar icone Pencil:
-```typescript
-<DropdownMenuItem onClick={() => navigate(`/admin/agentes/${agent.id}/editar`)}>
-  <Pencil className="mr-2 h-4 w-4" />
-  Editar
-</DropdownMenuItem>
-```
-
-### 5. `src/pages/agents/AgentDetailsPage.tsx`
-Adicionar botao Editar no header:
-```typescript
-<Button onClick={() => navigate(`/admin/agentes/${id}/editar`)}>
-  <Pencil className="mr-2 h-4 w-4" />
-  Editar
-</Button>
-```
-
----
-
-## Interface de Dados
-
-```typescript
-interface AgentEditFormData {
-  // Aba Cliente
-  cod_agent: string; // readonly
-  is_closer: boolean;
-  status: boolean;
-  
-  // Dados do cliente (editaveis)
-  client_id: number; // readonly, nao exibido
-  client_name: string;
-  client_business_name: string;
-  client_federal_id: string;
-  client_email: string;
-  client_phone: string;
-  client_zip_code: string;
-  client_street: string;
-  client_street_number: string;
-  client_complement: string;
-  client_neighborhood: string;
-  client_city: string;
-  client_state: string;
-  
-  // Aba Planos
-  plan_id: string;
-  lead_limit: number;
-  due_day: number;
-  
-  // Aba Configuracoes
-  config_json: string;
-  
-  // Aba Prompt
-  system_prompt: string;
-  
-  // Aba Usuario (readonly, nao no form)
-  user_id: number | null;
-  user_name: string | null;
-  user_email: string | null;
-  remember_token: string | null;
-  leads_received: number;
-}
-```
-
----
-
-## Fluxo de Reset Senha
-
-```typescript
-1. Usuario clica "Resetar Senha"
-2. Abre AlertDialog de confirmacao
-3. Se confirmado:
-   a. Gera nova senha: "Julia@" + 4 digitos
-   b. Hash com bcrypt
-   c. Chama resetUserPassword(userId, hash, raw)
-   d. Atualiza estado local
-   e. Abre Dialog mostrando nova senha
-   f. Botao Copiar disponivel
-```
-
----
-
-## Fluxo de Salvamento
-
-```typescript
-1. Usuario clica "Salvar"
-2. Valida JSON settings
-3. Atualiza cliente via updateClient()
-4. Atualiza agente via updateAgent()
-5. Toast sucesso
-6. Redireciona para detalhes
-```
-
----
-
-## Ordem de Implementacao
-
-1. Endpoints Edge Function (update_agent, reset_user_password)
-2. Metodos externalDb.ts
-3. Hook useAgentUpdate.ts
-4. Componentes edit-steps (EditClientStep, EditPlanStep, EditUserStep)
-5. Pagina EditAgentPage.tsx
-6. Rota no App.tsx
-7. Navegacao AgentsList e AgentDetailsPage
-8. Testes
-
----
-
-## Abas Reutilizadas do Wizard
-
-As abas de Configuracoes e Prompt podem reutilizar os mesmos componentes do wizard (ConfigStep e PromptStep) pois a logica e identica - apenas edicao de textarea.
-
----
-
-## Cenarios de Teste
+## Teste
 
 | Cenario | Esperado |
 |---------|----------|
-| Carregar pagina edicao | Dados preenchidos do agente |
-| Editar dados cliente | Atualiza tabela clients |
-| Alterar plano | Atualiza agent_plan_id |
-| Editar JSON | Valida e salva settings |
-| Editar prompt | Salva na tabela agents |
-| Tentar editar usuario | Campos readonly |
-| Resetar senha | Nova senha gerada e exibida |
-| Navegar entre abas | Dados mantidos |
-| Salvar alteracoes | Redireciona para detalhes |
+| Clicar em "Novo Cliente" | Codigo gerado automaticamente, campos cod_agent e is_closer visiveis |
+| Cancelar novo cliente | Codigo limpo, volta para busca |
+| Selecionar cliente existente | Codigo gerado, campos cod_agent e is_closer visiveis (ja funcionava) |
+| Salvar agente com novo cliente | cod_agent enviado corretamente para o backend |
