@@ -499,12 +499,12 @@ serve(async (req) => {
       }
 
       case 'insert_user_agent': {
-        const { userId, agentId } = data;
+        const { userId, agentId, codAgent } = data;
         const rows = await sql.unsafe(
-          `INSERT INTO user_agents (user_id, agent_id, created_at)
-           VALUES ($1, $2, now())
+          `INSERT INTO user_agents (users_id, agents_id, cod_agent, created_at)
+           VALUES ($1, $2, $3, now())
            RETURNING id`,
-          [userId, agentId]
+          [userId, agentId, codAgent]
         );
         result = rows;
         break;

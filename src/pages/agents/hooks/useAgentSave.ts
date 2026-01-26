@@ -176,8 +176,8 @@ export function useAgentSave() {
       console.log('Agent created with ID:', createdAgentId);
 
       // === CREATE USER-AGENT LINK ===
-      console.log('Creating user-agent link:', createdUserId, createdAgentId);
-      await externalDb.insertUserAgent(createdUserId, createdAgentId);
+      console.log('Creating user-agent link:', createdUserId, createdAgentId, data.cod_agent);
+      await externalDb.insertUserAgent(createdUserId, createdAgentId, data.cod_agent);
       console.log('User-agent link created');
 
       return { 
