@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useFormContext } from 'react-hook-form';
-import { FormField, FormItem, FormLabel, FormControl, FormDescription } from '@/components/ui/form';
+import { FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -8,19 +8,22 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
-import { Search, X, UserPlus, Building2, ChevronRight, Loader2 } from 'lucide-react';
+import { Search, X, UserPlus, Building2, ChevronRight, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { maskCPFCNPJ, maskPhone, maskCEP, unmask } from '@/lib/inputMasks';
 import { useClientSearch, SearchedClient } from '../../hooks/useClientSearch';
 import { useAgentCode } from '../../hooks/useAgentCode';
+import { externalDb } from '@/lib/externalDb';
 import type { AgentFormData, SelectedClient } from '../CreateAgentWizard';
 import { toast } from 'sonner';
 
 type ViewState = 'search' | 'selected' | 'new';
+type ValidationStatus = 'idle' | 'checking' | 'valid' | 'invalid';
 
 export function ClientStep() {
-  const { control, watch, setValue, getValues } = useFormContext<AgentFormData>();
+  const { control, watch, setValue, getValues, setError, clearErrors } = useFormContext<AgentFormData>();
   const [viewState, setViewState] = useState<ViewState>('search');
   const [isLoadingCep, setIsLoadingCep] = useState(false);
+  const [federalIdStatus, setFederalIdStatus] = useState<ValidationStatus>('idle');
   
   const { searchTerm, setSearchTerm, results, isLoading, clearSearch } = useClientSearch();
   const { code, isLoading: isLoadingCode, generateCode, clearCode } = useAgentCode();
@@ -131,7 +134,33 @@ export function ClientStep() {
     }
   };
 
-  // Search state
+  const handleFederalIdBlur = async (federalId: string) => {
+    const cleanId = unmask(federalId);
+    if (!cleanId || cleanId.length < 11) {
+      setFederalIdStatus('idle');
+      clearErrors('client_federal_id');
+      return;
+    }
+
+    setFederalIdStatus('checking');
+    try {
+      const result = await externalDb.checkFederalIdExists(cleanId);
+      if (result.exists) {
+        setFederalIdStatus('invalid');
+        setError('client_federal_id', { 
+          type: 'manual', 
+          message: 'CPF/CNPJ já cadastrado no sistema' 
+        });
+        toast.error('CPF/CNPJ já cadastrado no sistema');
+      } else {
+        setFederalIdStatus('valid');
+        clearErrors('client_federal_id');
+      }
+    } catch (error) {
+      console.error('Error checking federal ID:', error);
+      setFederalIdStatus('idle');
+    }
+  };
   if (viewState === 'search') {
     return (
       <div className="space-y-6">
@@ -365,16 +394,37 @@ export function ClientStep() {
         <FormField
           control={control}
           name="client_federal_id"
-          render={({ field }) => (
+          render={({ field, fieldState }) => (
             <FormItem>
               <FormLabel>CPF/CNPJ</FormLabel>
               <FormControl>
-                <Input
-                  placeholder="000.000.000-00"
-                  {...field}
-                  onChange={(e) => field.onChange(maskCPFCNPJ(e.target.value))}
-                />
+                <div className="relative">
+                  <Input
+                    placeholder="000.000.000-00"
+                    {...field}
+                    onChange={(e) => {
+                      field.onChange(maskCPFCNPJ(e.target.value));
+                      setFederalIdStatus('idle');
+                      clearErrors('client_federal_id');
+                    }}
+                    onBlur={(e) => {
+                      field.onBlur();
+                      handleFederalIdBlur(e.target.value);
+                    }}
+                    className={fieldState.error ? 'border-destructive' : ''}
+                  />
+                  {federalIdStatus === 'checking' && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                  {federalIdStatus === 'valid' && (
+                    <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+                  )}
+                  {federalIdStatus === 'invalid' && (
+                    <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-destructive" />
+                  )}
+                </div>
               </FormControl>
+              <FormMessage />
             </FormItem>
           )}
         />

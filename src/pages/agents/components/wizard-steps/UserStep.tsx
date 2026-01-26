@@ -1,20 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useFormContext } from 'react-hook-form';
-import { FormField, FormItem, FormLabel, FormControl } from '@/components/ui/form';
+import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
-import { Search, X, UserPlus, User, ChevronRight, Mail } from 'lucide-react';
+import { Search, X, UserPlus, User, ChevronRight, Mail, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useUserSearch, SearchedUser } from '../../hooks/useUserSearch';
+import { externalDb } from '@/lib/externalDb';
+import { toast } from 'sonner';
 import type { AgentFormData, SelectedUser } from '../CreateAgentWizard';
 
 type ViewState = 'search' | 'selected' | 'new';
+type ValidationStatus = 'idle' | 'checking' | 'valid' | 'invalid';
 
 export function UserStep() {
-  const { control, watch, setValue, getValues } = useFormContext<AgentFormData>();
+  const { control, watch, setValue, getValues, setError, clearErrors } = useFormContext<AgentFormData>();
   const [viewState, setViewState] = useState<ViewState>('search');
+  const [emailStatus, setEmailStatus] = useState<ValidationStatus>('idle');
   
   const { searchTerm, setSearchTerm, results, isLoading, clearSearch } = useUserSearch();
   
@@ -78,7 +82,36 @@ export function UserStep() {
     setValue('new_user', false);
     setValue('user_name', '');
     setValue('user_email', '');
+    setEmailStatus('idle');
+    clearErrors('user_email');
     setViewState('search');
+  };
+
+  const handleEmailBlur = async (email: string) => {
+    if (!email || !email.includes('@')) {
+      setEmailStatus('idle');
+      clearErrors('user_email');
+      return;
+    }
+
+    setEmailStatus('checking');
+    try {
+      const result = await externalDb.checkUserEmailExists(email);
+      if (result.exists) {
+        setEmailStatus('invalid');
+        setError('user_email', { 
+          type: 'manual', 
+          message: 'E-mail já cadastrado no sistema' 
+        });
+        toast.error('E-mail já cadastrado no sistema');
+      } else {
+        setEmailStatus('valid');
+        clearErrors('user_email');
+      }
+    } catch (error) {
+      console.error('Error checking email:', error);
+      setEmailStatus('idle');
+    }
   };
 
   // Search state
@@ -252,21 +285,43 @@ export function UserStep() {
         <FormField
           control={control}
           name="user_email"
-          render={({ field }) => (
+          render={({ field, fieldState }) => (
             <FormItem>
               <FormLabel>E-mail *</FormLabel>
               <FormControl>
-                <Input 
-                  type="email" 
-                  placeholder="email@exemplo.com" 
-                  {...field} 
-                />
+                <div className="relative">
+                  <Input 
+                    type="email" 
+                    placeholder="email@exemplo.com" 
+                    {...field}
+                    onChange={(e) => {
+                      field.onChange(e);
+                      setEmailStatus('idle');
+                      clearErrors('user_email');
+                    }}
+                    onBlur={(e) => {
+                      field.onBlur();
+                      handleEmailBlur(e.target.value);
+                    }}
+                    className={fieldState.error ? 'border-destructive' : ''}
+                  />
+                  {emailStatus === 'checking' && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                  {emailStatus === 'valid' && (
+                    <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+                  )}
+                  {emailStatus === 'invalid' && (
+                    <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-destructive" />
+                  )}
+                </div>
               </FormControl>
               {(clientEmail || selectedClient?.email) && (
                 <p className="text-xs text-muted-foreground">
                   Pré-preenchido com o e-mail do cliente
                 </p>
               )}
+              <FormMessage />
             </FormItem>
           )}
         />

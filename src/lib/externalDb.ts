@@ -139,6 +139,108 @@ class ExternalDatabase {
     });
     return result[0];
   }
+
+  // === Validation Methods ===
+  
+  async checkFederalIdExists(federalId: string): Promise<{ exists: boolean; clientId: number | null }> {
+    const result = await this.invoke({
+      action: 'check_federal_id_exists',
+      data: { federalId },
+    });
+    return result[0];
+  }
+
+  async checkUserEmailExists(email: string): Promise<{ exists: boolean; userId: number | null }> {
+    const result = await this.invoke({
+      action: 'check_user_email_exists',
+      data: { email },
+    });
+    return result[0];
+  }
+
+  async checkAgentCodeExists(codAgent: string): Promise<boolean> {
+    const result = await this.invoke({
+      action: 'check_agent_code_exists',
+      data: { codAgent },
+    });
+    return result[0].exists;
+  }
+
+  // === Insert Methods ===
+  
+  async insertUser(name: string, email: string, hashedPassword: string, rawPassword: string): Promise<{ id: number; name: string; email: string }> {
+    const result = await this.invoke({
+      action: 'insert_user',
+      data: { name, email, hashedPassword, rawPassword },
+    });
+    return result[0];
+  }
+
+  async insertAgent(agentData: AgentInsertData): Promise<{ id: number }> {
+    const result = await this.invoke({
+      action: 'insert_agent',
+      data: agentData,
+    });
+    return result[0];
+  }
+
+  async insertUserAgent(userId: number, agentId: number): Promise<void> {
+    await this.invoke({
+      action: 'insert_user_agent',
+      data: { userId, agentId },
+    });
+  }
+
+  // === Delete Methods (for rollback) ===
+  
+  async deleteAgent(agentId: number): Promise<void> {
+    await this.invoke({
+      action: 'delete_agent',
+      data: { agentId },
+    });
+  }
+
+  async deleteUser(userId: number): Promise<void> {
+    await this.invoke({
+      action: 'delete_user',
+      data: { userId },
+    });
+  }
+
+  async deleteClient(clientId: number): Promise<void> {
+    await this.invoke({
+      action: 'delete_client',
+      data: { clientId },
+    });
+  }
+
+  // === Check Methods (for rollback safety) ===
+  
+  async checkUserHasAgents(userId: number): Promise<boolean> {
+    const result = await this.invoke({
+      action: 'check_user_has_agents',
+      data: { userId },
+    });
+    return result[0].hasAgents;
+  }
+
+  async checkClientHasAgents(clientId: number): Promise<boolean> {
+    const result = await this.invoke({
+      action: 'check_client_has_agents',
+      data: { clientId },
+    });
+    return result[0].hasAgents;
+  }
+}
+
+export interface AgentInsertData {
+  client_id: number;
+  cod_agent: string;
+  settings: string;
+  prompt: string;
+  is_closer: boolean;
+  agent_plan_id: number;
+  due_date: number;
 }
 
 export interface Client {
