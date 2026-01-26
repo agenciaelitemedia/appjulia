@@ -141,18 +141,22 @@ export function CreateAgentWizard() {
     }
   };
 
+  const [createdAgentId, setCreatedAgentId] = useState<number | null>(null);
+
   const onSubmit = async (data: AgentFormData) => {
     const result = await saveAgent(data, generateCode);
     
-    if (result.success) {
+    if (result.success && result.agentId) {
       toast.success('Agente criado com sucesso!');
+      setCreatedAgentId(result.agentId);
       
-      // If new user was created, show password dialog
+      // If new user was created, show password dialog first
       if (result.tempPassword) {
         setTempPassword(result.tempPassword);
         setShowPasswordDialog(true);
       } else {
-        navigate('/admin/agentes');
+        // Navigate directly to details page
+        navigate(`/admin/agentes/${result.agentId}/detalhes`);
       }
     } else {
       toast.error(result.error || 'Erro ao criar agente');
@@ -170,8 +174,16 @@ export function CreateAgentWizard() {
 
   const handleClosePasswordDialog = () => {
     setShowPasswordDialog(false);
+    // Navigate to details page with tempPassword in state
+    if (createdAgentId) {
+      navigate(`/admin/agentes/${createdAgentId}/detalhes`, {
+        state: { tempPassword }
+      });
+    } else {
+      navigate('/admin/agentes');
+    }
     setTempPassword(null);
-    navigate('/admin/agentes');
+    setCreatedAgentId(null);
   };
 
   const handleCopyPassword = () => {
