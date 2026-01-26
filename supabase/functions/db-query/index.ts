@@ -551,8 +551,8 @@ serve(async (req) => {
           FROM agents a
           JOIN clients c ON c.id = a.client_id
           LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
-          LEFT JOIN user_agents ua ON ua.agent_id = a.id
-          LEFT JOIN users u ON u.id = ua.user_id
+          LEFT JOIN user_agents ua ON ua.agents_id = a.id
+          LEFT JOIN users u ON u.id = ua.users_id
           WHERE a.id = $1
           LIMIT 1`,
           [agentId]
