@@ -362,11 +362,11 @@ serve(async (req) => {
         
         const rows = await sql.unsafe(
           `SELECT COALESCE(
-             MAX(CAST(SUBSTRING(cod_agent FROM 7) AS INTEGER)),
+             MAX(CAST(SUBSTRING(cod_agent::text FROM 7) AS INTEGER)),
              0
            ) + 1 as next_seq
            FROM agents
-           WHERE cod_agent LIKE $1`,
+           WHERE cod_agent::text LIKE $1`,
           [`${prefix}%`]
         );
         
