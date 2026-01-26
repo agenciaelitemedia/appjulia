@@ -377,10 +377,10 @@ serve(async (req) => {
 
       case 'get_plans': {
         result = await sql.unsafe(
-          `SELECT id, name, "limit" as leads_limit, price
+          `SELECT id, name, "limit" as leads_limit, 0 as price
            FROM agents_plan
-           WHERE is_active = true
-           ORDER BY price ASC`
+           WHERE satus = true
+           ORDER BY "limit" ASC`
         );
         break;
       }
