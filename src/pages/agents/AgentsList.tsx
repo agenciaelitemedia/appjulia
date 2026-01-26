@@ -377,7 +377,7 @@ export default function AgentsList() {
               Gerencie seus agentes Julia e instâncias do WhatsApp
             </p>
           </div>
-          <Button onClick={() => navigate('/admin/agentes/novo')}>
+          <Button onClick={() => navigate('/admin/agentes-novo')}>
             <Plus className="mr-2 h-4 w-4" />
             Novo Agente
           </Button>
@@ -388,7 +388,7 @@ export default function AgentsList() {
           <CardDescription className="mb-4">
             Crie seu primeiro agente Julia para começar
           </CardDescription>
-          <Button onClick={() => navigate('/admin/agentes/novo')}>
+          <Button onClick={() => navigate('/admin/agentes-novo')}>
             <Plus className="mr-2 h-4 w-4" />
             Criar Agente
           </Button>
@@ -406,7 +406,7 @@ export default function AgentsList() {
             Gerencie seus agentes Julia e instâncias do WhatsApp
           </p>
         </div>
-        <Button onClick={() => navigate('/admin/agentes/novo')}>
+        <Button onClick={() => navigate('/admin/agentes-novo')}>
           <Plus className="mr-2 h-4 w-4" />
           Novo Agente
         </Button>
