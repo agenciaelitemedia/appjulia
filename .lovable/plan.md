@@ -1,307 +1,249 @@
 
-# Plano de Implementacao: Pagina de Detalhes do Agente
+# Plano de Implementacao: Editar Agente (Layout em Abas)
 
 ## Resumo
-Criar uma pagina dedicada para visualizar todos os detalhes de um agente, acessivel apos a criacao de um novo agente e tambem atraves de um icone de visualizacao na listagem.
+Criar uma pagina de edicao de agentes usando o mesmo layout de abas do wizard de criacao, mantendo a consistencia visual e de navegacao. As abas serao as mesmas 5 do wizard, com conteudo adaptado para edicao.
 
 ---
 
-## Diagrama do Fluxo
+## Estrutura das Abas
 
 ```text
-+------------------+     +------------------+     +------------------+
-|  CRIAR AGENTE    | --> |  REDIRECIONAR    | --> |  PAGINA DETALHES |
-|  (Wizard)        |     |  com agent_id    |     |  /admin/agentes/ |
-|                  |     |                  |     |  :id/detalhes    |
-+------------------+     +------------------+     +------------------+
-
-+------------------+     +------------------+
-|  LISTAGEM        | --> |  PAGINA DETALHES |
-|  (Icone Eye)     |     |  /admin/agentes/ |
-|                  |     |  :id/detalhes    |
-+------------------+     +------------------+
++----------------------------------------------------------+
+| [<- Voltar]                                    [Salvar]   |
++----------------------------------------------------------+
+|                                                           |
+| +-------------------------------------------------------+ |
+| | [Cliente] [Planos] [Configuracoes] [Prompt] [Usuario] | |
+| +-------------------------------------------------------+ |
+|                                                           |
+| CONTEUDO DA ABA ATIVA                                     |
+|                                                           |
++----------------------------------------------------------+
+| [Anterior]                           [Proximo] / [Salvar] |
++----------------------------------------------------------+
 ```
 
 ---
 
-## Estrutura da Pagina de Detalhes
+## Conteudo de Cada Aba (Modo Edicao)
 
-### Layout Principal
-```text
-+----------------------------------------------------------+
-| [<- Voltar a listagem]                                    |
-+----------------------------------------------------------+
-|                                                           |
-| BLOCO 1: DADOS DE ACESSO                                  |
-| +-------------------------------------------------------+ |
-| | Usuario: email@exemplo.com                            | |
-| | Senha:   Julia@1234   [Copiar]                        | |
-| |   (ou)  ••••••••••  (quando remember_token nulo)      | |
-| +-------------------------------------------------------+ |
-|                                                           |
-| BLOCO 2: INFORMACOES DO AGENTE                           |
-| +-------------------------------------------------------+ |
-| | Codigo:     202501001                                 | |
-| | Status:     Ativo                                     | |
-| | Modo Closer: Sim/Nao                                  | |
-| +-------------------------------------------------------+ |
-|                                                           |
-| BLOCO 3: DADOS DO CLIENTE                                |
-| +-------------------------------------------------------+ |
-| | Nome:           Joao Silva                            | |
-| | Razao Social:   Empresa LTDA                          | |
-| | CPF/CNPJ:       12.345.678/0001-90                    | |
-| | Email:          cliente@email.com                     | |
-| | Telefone:       (11) 99999-9999                       | |
-| | Endereco:       Rua X, 123 - Bairro - Cidade/UF      | |
-| +-------------------------------------------------------+ |
-|                                                           |
-| BLOCO 4: PLANO E LIMITES                                 |
-| +-------------------------------------------------------+ |
-| | Plano:          Premium                               | |
-| | Limite Leads:   100                                   | |
-| | Dia Vencimento: 15                                    | |
-| | Uso Atual:      45/100                               | |
-| +-------------------------------------------------------+ |
-|                                                           |
-| BLOCO 5: CONFIGURACOES (JSON)                            |
-| +-------------------------------------------------------+ |
-| | { "key": "value", ... }                              | |
-| +-------------------------------------------------------+ |
-|                                                           |
-| BLOCO 6: PROMPT DO SISTEMA                               |
-| +-------------------------------------------------------+ |
-| | Voce e um assistente virtual...                      | |
-| +-------------------------------------------------------+ |
-|                                                           |
-| [<- Voltar a listagem]                                    |
-+----------------------------------------------------------+
-```
+### Aba 1: Cliente
+- **Codigo do Agente**: Exibicao apenas (readonly)
+- **Switch "E Closer"**: Editavel
+- **Dados do Cliente**: Todos editaveis (nome, razao social, CPF/CNPJ, email, telefone, endereco completo com busca CEP)
+- **Importante**: client_id nao pode ser alterado, apenas os dados do cliente vinculado
+
+### Aba 2: Planos
+- **Select Plano**: Editavel
+- **Limite de Leads**: Editavel
+- **Dia de Vencimento**: Editavel (1-31)
+- **Uso Atual**: Exibicao apenas (X/Y leads)
+
+### Aba 3: Configuracoes
+- **Textarea JSON**: Editavel com validacao
+- Mesma interface do wizard
+
+### Aba 4: Prompt
+- **Textarea Prompt**: Editavel
+- Mesma interface do wizard
+
+### Aba 5: Usuario
+- **Dados de Acesso (Readonly)**:
+  - Nome do usuario
+  - Email do usuario
+  - Senha: mostra remember_token ou mascara
+  - Botao "Copiar" senha
+  - Botao "Resetar Senha"
+- Nenhum campo editavel, apenas visualizacao e reset
 
 ---
 
 ## Arquivos a Criar
 
-### 1. `src/pages/agents/AgentDetailsPage.tsx`
-Componente principal da pagina de detalhes contendo:
-- Botao "Voltar a listagem" no topo
-- 6 blocos de informacoes conforme layout
-- Carregamento dos dados do agente via endpoint dedicado
-- Tratamento de loading e erro
+### 1. `src/pages/agents/EditAgentPage.tsx`
+Pagina principal usando mesmo layout do CreateAgentWizard:
+- Carrega dados via `get_agent_details`
+- FormProvider com react-hook-form
+- Tabs com 5 abas (Cliente, Planos, Configuracoes, Prompt, Usuario)
+- Navegacao Anterior/Proximo/Salvar
+- Dialog de confirmacao para reset senha
+- Dialog mostrando nova senha gerada
 
-### 2. Endpoint `get_agent_details` na Edge Function
-Query SQL que retorna todos os dados necessarios em uma unica chamada:
-- Dados do agente (agents)
-- Dados do cliente vinculado (clients)
-- Dados do usuario vinculado (users via user_agents)
-- Dados do plano (agents_plan)
-- Contagem de leads do mes atual
+### 2. `src/pages/agents/components/edit-steps/EditClientStep.tsx`
+Aba Cliente para edicao:
+- Codigo readonly
+- Switch Closer editavel
+- Formulario de dados do cliente (reutiliza logica de mascaras e CEP)
+- Sem opcao de trocar cliente ou criar novo
+
+### 3. `src/pages/agents/components/edit-steps/EditPlanStep.tsx`
+Aba Planos para edicao:
+- Select de planos
+- Input limite leads
+- Input dia vencimento
+- Exibicao uso atual (leads recebidos/limite)
+
+### 4. `src/pages/agents/components/edit-steps/EditUserStep.tsx`
+Aba Usuario para edicao:
+- Card com dados de acesso (readonly)
+- Email, Nome do usuario
+- Senha com logica remember_token/mascara
+- Botao Copiar senha
+- Botao Resetar Senha com confirmacao
+
+### 5. `src/pages/agents/hooks/useAgentUpdate.ts`
+Hook para gerenciar atualizacao:
+- Funcao `updateAgent(agentId, formData)`
+- Funcao `resetPassword(userId)`
+- Estados de loading
 
 ---
 
 ## Arquivos a Modificar
 
 ### 1. `supabase/functions/db-query/index.ts`
-Adicionar novo case `get_agent_details`:
+Adicionar endpoints:
 
+#### `update_agent`
 ```sql
-SELECT 
-  a.id,
-  a.cod_agent,
-  a.status,
-  a.is_closer,
-  a.settings,
-  a.prompt,
-  a.due_date,
-  a.created_at,
-  -- Cliente
-  c.id as client_id,
-  c.name as client_name,
-  c.business_name,
-  c.federal_id,
-  c.email as client_email,
-  c.phone as client_phone,
-  c.zip_code,
-  c.street,
-  c.street_number,
-  c.complement,
-  c.neighborhood,
-  c.city,
-  c.state,
-  -- Plano
-  ap.id as plan_id,
-  ap.name as plan_name,
-  ap."limit" as plan_limit,
-  -- Usuario
-  u.id as user_id,
-  u.name as user_name,
-  u.email as user_email,
-  u.remember_token,
-  -- Leads do mes
-  (SELECT COUNT(DISTINCT s.id) FROM sessions s 
-   WHERE s.agent_id = a.id 
-   AND EXISTS (SELECT 1 FROM log_messages lm 
-               WHERE lm.session_id = s.id 
-               AND lm.created_at >= DATE_TRUNC('month', CURRENT_DATE))) as leads_received
-FROM agents a
-JOIN clients c ON c.id = a.client_id
-LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
-LEFT JOIN user_agents ua ON ua.agent_id = a.id
-LEFT JOIN users u ON u.id = ua.user_id
-WHERE a.id = $1
-LIMIT 1
+UPDATE agents 
+SET settings = $1, prompt = $2, is_closer = $3, 
+    agent_plan_id = $4, due_date = $5, status = $6, updated_at = now()
+WHERE id = $7
+RETURNING *
+```
+
+#### `reset_user_password`
+```sql
+UPDATE users 
+SET password = $1, remember_token = $2, updated_at = now()
+WHERE id = $3
+RETURNING id, name, email
 ```
 
 ### 2. `src/lib/externalDb.ts`
-Adicionar metodo `getAgentDetails(agentId: number)`:
-
-```typescript
-async getAgentDetails<T = any>(agentId: number): Promise<T | null> {
-  const result = await this.invoke({
-    action: 'get_agent_details',
-    data: { agentId },
-  });
-  return result.length > 0 ? result[0] : null;
-}
-```
+Adicionar metodos:
+- `updateAgent(agentId, data)` - Atualiza tabela agents
+- `resetUserPassword(userId, hashedPassword, rawPassword)` - Reset senha
 
 ### 3. `src/App.tsx`
-Adicionar nova rota:
-
+Adicionar rota:
 ```typescript
-import AgentDetailsPage from './pages/agents/AgentDetailsPage';
-
-// Dentro das rotas admin
-<Route path="/admin/agentes/:id/detalhes" element={<AgentDetailsPage />} />
+<Route path="/admin/agentes/:id/editar" element={<EditAgentPage />} />
 ```
 
 ### 4. `src/pages/agents/AgentsList.tsx`
-Adicionar icone Eye no dropdown de acoes:
-
+Atualizar icone Pencil:
 ```typescript
-import { Eye } from 'lucide-react';
-
-// No DropdownMenu, adicionar como primeiro item:
-<DropdownMenuItem onClick={() => navigate(`/admin/agentes/${agent.id}/detalhes`)}>
-  <Eye className="mr-2 h-4 w-4" />
-  Visualizar
+<DropdownMenuItem onClick={() => navigate(`/admin/agentes/${agent.id}/editar`)}>
+  <Pencil className="mr-2 h-4 w-4" />
+  Editar
 </DropdownMenuItem>
 ```
 
-### 5. `src/pages/agents/components/CreateAgentWizard.tsx`
-Alterar redirecionamento apos sucesso:
-
+### 5. `src/pages/agents/AgentDetailsPage.tsx`
+Adicionar botao Editar no header:
 ```typescript
-// Antes:
-navigate('/admin/agentes');
-
-// Depois:
-navigate(`/admin/agentes/${result.agentId}/detalhes`);
-```
-
-Passar senha temporaria via state para exibir na pagina de detalhes:
-
-```typescript
-navigate(`/admin/agentes/${result.agentId}/detalhes`, {
-  state: { tempPassword: result.tempPassword }
-});
+<Button onClick={() => navigate(`/admin/agentes/${id}/editar`)}>
+  <Pencil className="mr-2 h-4 w-4" />
+  Editar
+</Button>
 ```
 
 ---
 
-## Detalhes Tecnicos
-
-### Bloco de Dados de Acesso - Logica da Senha
+## Interface de Dados
 
 ```typescript
-// No componente AgentDetailsPage:
-const userEmail = agentDetails?.user_email;
-const rememberToken = agentDetails?.remember_token;
-
-// Senha vinda do wizard (para novos agentes)
-const location = useLocation();
-const tempPasswordFromState = location.state?.tempPassword;
-
-// Determinar qual senha mostrar
-const passwordToShow = tempPasswordFromState || rememberToken;
-const hasPassword = Boolean(passwordToShow);
-
-// Renderizacao:
-{hasPassword ? (
-  <div className="flex items-center gap-2">
-    <span className="font-mono">{passwordToShow}</span>
-    <Button variant="ghost" size="sm" onClick={copyPassword}>
-      <Copy className="h-4 w-4" />
-    </Button>
-  </div>
-) : (
-  <span className="font-mono text-muted-foreground">••••••••••</span>
-)}
-```
-
-### Interface de Tipos
-
-```typescript
-interface AgentDetails {
-  // Agente
-  id: number;
-  cod_agent: string;
-  status: boolean;
+interface AgentEditFormData {
+  // Aba Cliente
+  cod_agent: string; // readonly
   is_closer: boolean;
-  settings: string;
-  prompt: string;
-  due_date: number;
-  created_at: string;
+  status: boolean;
   
-  // Cliente
-  client_id: number;
+  // Dados do cliente (editaveis)
+  client_id: number; // readonly, nao exibido
   client_name: string;
-  business_name: string | null;
-  federal_id: string | null;
-  client_email: string | null;
-  client_phone: string | null;
-  zip_code: string | null;
-  street: string | null;
-  street_number: string | null;
-  complement: string | null;
-  neighborhood: string | null;
-  city: string | null;
-  state: string | null;
+  client_business_name: string;
+  client_federal_id: string;
+  client_email: string;
+  client_phone: string;
+  client_zip_code: string;
+  client_street: string;
+  client_street_number: string;
+  client_complement: string;
+  client_neighborhood: string;
+  client_city: string;
+  client_state: string;
   
-  // Plano
-  plan_id: number | null;
-  plan_name: string | null;
-  plan_limit: number;
+  // Aba Planos
+  plan_id: string;
+  lead_limit: number;
+  due_day: number;
   
-  // Usuario
+  // Aba Configuracoes
+  config_json: string;
+  
+  // Aba Prompt
+  system_prompt: string;
+  
+  // Aba Usuario (readonly, nao no form)
   user_id: number | null;
   user_name: string | null;
   user_email: string | null;
   remember_token: string | null;
-  
-  // Metricas
   leads_received: number;
 }
 ```
 
-### Componentes UI Utilizados
-- Card, CardHeader, CardTitle, CardContent (blocos)
-- Badge (status, modo closer)
-- Button (voltar, copiar)
-- Skeleton (loading)
-- ScrollArea (para JSON e prompt extensos)
+---
+
+## Fluxo de Reset Senha
+
+```typescript
+1. Usuario clica "Resetar Senha"
+2. Abre AlertDialog de confirmacao
+3. Se confirmado:
+   a. Gera nova senha: "Julia@" + 4 digitos
+   b. Hash com bcrypt
+   c. Chama resetUserPassword(userId, hash, raw)
+   d. Atualiza estado local
+   e. Abre Dialog mostrando nova senha
+   f. Botao Copiar disponivel
+```
+
+---
+
+## Fluxo de Salvamento
+
+```typescript
+1. Usuario clica "Salvar"
+2. Valida JSON settings
+3. Atualiza cliente via updateClient()
+4. Atualiza agente via updateAgent()
+5. Toast sucesso
+6. Redireciona para detalhes
+```
 
 ---
 
 ## Ordem de Implementacao
 
-1. Adicionar endpoint `get_agent_details` na Edge Function
-2. Adicionar metodo `getAgentDetails` no externalDb.ts
-3. Criar componente `AgentDetailsPage.tsx`
-4. Registrar nova rota no App.tsx
-5. Adicionar icone Eye na listagem de agentes
-6. Alterar redirecionamento do Wizard apos sucesso
-7. Testar fluxo completo
+1. Endpoints Edge Function (update_agent, reset_user_password)
+2. Metodos externalDb.ts
+3. Hook useAgentUpdate.ts
+4. Componentes edit-steps (EditClientStep, EditPlanStep, EditUserStep)
+5. Pagina EditAgentPage.tsx
+6. Rota no App.tsx
+7. Navegacao AgentsList e AgentDetailsPage
+8. Testes
+
+---
+
+## Abas Reutilizadas do Wizard
+
+As abas de Configuracoes e Prompt podem reutilizar os mesmos componentes do wizard (ConfigStep e PromptStep) pois a logica e identica - apenas edicao de textarea.
 
 ---
 
@@ -309,9 +251,12 @@ interface AgentDetails {
 
 | Cenario | Esperado |
 |---------|----------|
-| Criar novo agente com novo usuario | Redireciona para detalhes, mostra senha temporaria |
-| Criar novo agente com usuario existente | Redireciona para detalhes, mostra mascara na senha |
-| Clicar Eye na listagem | Abre pagina de detalhes do agente |
-| Agente sem plano | Exibe "Sem plano" no bloco de planos |
-| Agente sem usuario | Exibe campos de usuario vazios |
-| Botao Voltar | Retorna para /admin/agentes |
+| Carregar pagina edicao | Dados preenchidos do agente |
+| Editar dados cliente | Atualiza tabela clients |
+| Alterar plano | Atualiza agent_plan_id |
+| Editar JSON | Valida e salva settings |
+| Editar prompt | Salva na tabela agents |
+| Tentar editar usuario | Campos readonly |
+| Resetar senha | Nova senha gerada e exibida |
+| Navegar entre abas | Dados mantidos |
+| Salvar alteracoes | Redireciona para detalhes |
