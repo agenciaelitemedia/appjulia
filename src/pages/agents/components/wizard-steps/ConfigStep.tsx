@@ -6,17 +6,20 @@ import { Info } from 'lucide-react';
 import type { AgentFormData } from '../CreateAgentWizard';
 
 const DEFAULT_CONFIG = `{
-  "greeting_message": "Olá! Como posso ajudar?",
-  "max_response_time": 30,
-  "auto_reply": true,
-  "working_hours": {
-    "start": "08:00",
-    "end": "18:00"
-  },
-  "features": {
-    "sentiment_analysis": true,
-    "auto_categorization": true
-  }
+  "CHAT_RESUME": true,
+  "ONLY_ME_RESUME": true,
+  "NOTIFY_RESUME": "",
+  "USING_AUDIO": true,
+  "FOLLOWUP_CALL": true,
+  "SESSION_START": "#start",
+  "ONLY_CAMPAIGN": false,
+  "START_CAMPAIGN": "quero me aposentar",
+  "NOTIFY_DOC_SIGNED": "",
+  "NOTIFY_DOC_CREATED": "",
+  "SESSION_CHECK_SPECIALIZED": "atendimento especializado",
+  "CONTRACT_SIGNED": "Olha que legal. Acabei de receber o seu documento assinado. Agora vou te transferir para o atendimento especializado. Aguarde que logo alguém continuará a falar com você.",
+  "VIDEO_CONTRACT_SIGNED": "",
+  "VIDEO_CONTRACT_CREATED": ""
 }`;
 
 export function ConfigStep() {
