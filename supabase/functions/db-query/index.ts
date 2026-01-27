@@ -39,6 +39,44 @@ function isRetryableError(error: unknown): boolean {
 }
 
 /**
+ * Normalizes settings to ensure it's stored as a JSONB object, not a string.
+ * Handles double-stringified JSON like: "\"{...}\"" → {...}
+ */
+function normalizeSettings(input: unknown): string {
+  let value = input;
+  
+  // If it's a string, try to parse it (possibly multiple times for double-stringified)
+  let attempts = 0;
+  const maxAttempts = 3; // Prevent infinite loops
+  
+  while (typeof value === 'string' && attempts < maxAttempts) {
+    try {
+      value = JSON.parse(value);
+      attempts++;
+    } catch {
+      // Not valid JSON string, break
+      break;
+    }
+  }
+  
+  // Validate that the result is a plain object (not null, not array, not primitive)
+  if (value === null || value === undefined) {
+    throw new Error('Settings não pode ser null ou undefined');
+  }
+  
+  if (typeof value !== 'object') {
+    throw new Error('Settings deve ser um objeto JSON, não ' + typeof value);
+  }
+  
+  if (Array.isArray(value)) {
+    throw new Error('Settings deve ser um objeto JSON, não um array');
+  }
+  
+  // Return as JSON string for PostgreSQL ::jsonb cast
+  return JSON.stringify(value);
+}
+
+/**
  * Normalizes a CA certificate string into STRICT PEM blocks that Deno can load.
  *
  * Problem we must handle:
@@ -550,21 +588,16 @@ serve(async (req) => {
       }
 
       case 'insert_agent': {
-        let { client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date } = data;
+        const { client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date } = data;
         
-        // Normalize settings to valid JSON without formatting (ensures JSONB cast works correctly)
-        try {
-          const parsed = typeof settings === 'string' ? JSON.parse(settings) : settings;
-          settings = JSON.stringify(parsed);
-        } catch (e) {
-          throw new Error('Settings JSON inválido');
-        }
+        // Normalize settings using robust function (handles double-stringified JSON)
+        const normalizedSettings = normalizeSettings(settings);
         
         const rows = await sql.unsafe(
           `INSERT INTO agents (client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date, status, is_visibilided, created_at, updated_at)
            VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, true, true, now(), now())
            RETURNING id`,
-          [client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date]
+          [client_id, cod_agent, normalizedSettings, prompt, is_closer, agent_plan_id, due_date]
         );
         result = rows;
         break;
@@ -631,7 +664,12 @@ serve(async (req) => {
             a.cod_agent::text as cod_agent,
             a.status,
             a.is_closer,
-            a.settings,
+            -- Ensure settings is always returned as object, even if stored as string
+            CASE 
+              WHEN jsonb_typeof(a.settings) = 'string' 
+              THEN (a.settings #>> '{}')::jsonb 
+              ELSE a.settings 
+            END as settings,
             a.prompt,
             a.due_date,
             a.created_at,
@@ -679,15 +717,10 @@ serve(async (req) => {
 
       case 'update_agent': {
         const { agentId, agentData } = data;
-        let { settings, prompt, is_closer, agent_plan_id, due_date, status } = agentData;
+        const { settings, prompt, is_closer, agent_plan_id, due_date, status } = agentData;
         
-        // Normalize settings to valid JSON without formatting (ensures JSONB cast works correctly)
-        try {
-          const parsed = typeof settings === 'string' ? JSON.parse(settings) : settings;
-          settings = JSON.stringify(parsed);
-        } catch (e) {
-          throw new Error('Settings JSON inválido');
-        }
+        // Normalize settings using robust function (handles double-stringified JSON)
+        const normalizedSettings = normalizeSettings(settings);
         
         const rows = await sql.unsafe(
           `UPDATE agents 
@@ -695,7 +728,7 @@ serve(async (req) => {
                agent_plan_id = $4, due_date = $5, status = $6, updated_at = now()
            WHERE id = $7
            RETURNING *`,
-          [settings, prompt, is_closer, agent_plan_id, due_date, status, agentId]
+          [normalizedSettings, prompt, is_closer, agent_plan_id, due_date, status, agentId]
         );
         result = rows;
         break;
@@ -712,6 +745,57 @@ serve(async (req) => {
           [hashedPassword, rawPassword, userId]
         );
         result = rows;
+        break;
+      }
+
+      case 'normalize_agents_settings': {
+        // Diagnose and fix legacy settings stored as JSONB string
+        
+        // Pre-check: count records with settings as string
+        const preCheck = await sql.unsafe(
+          `SELECT jsonb_typeof(settings) AS t, COUNT(*)::int as count 
+           FROM agents 
+           WHERE settings IS NOT NULL 
+           GROUP BY jsonb_typeof(settings)`
+        );
+        
+        // Find count of string-type settings
+        const stringCount = ([...preCheck] as unknown as Array<{t: string; count: number}>).find(r => r.t === 'string')?.count || 0;
+        
+        if (stringCount > 0) {
+          // Fix: convert string to proper object
+          await sql.unsafe(
+            `UPDATE agents 
+             SET settings = (settings #>> '{}')::jsonb, updated_at = now()
+             WHERE jsonb_typeof(settings) = 'string'`
+          );
+        }
+        
+        // Post-check: verify fix
+        const postCheck = await sql.unsafe(
+          `SELECT jsonb_typeof(settings) AS t, COUNT(*)::int as count 
+           FROM agents 
+           WHERE settings IS NOT NULL 
+           GROUP BY jsonb_typeof(settings)`
+        );
+        
+        result = [{
+          pre_check: preCheck,
+          fixed_count: stringCount,
+          post_check: postCheck
+        }];
+        break;
+      }
+
+      case 'diagnose_agents_settings': {
+        // Just diagnose without fixing
+        const diagnosis = await sql.unsafe(
+          `SELECT jsonb_typeof(settings) AS type, COUNT(*)::int as count 
+           FROM agents 
+           WHERE settings IS NOT NULL 
+           GROUP BY jsonb_typeof(settings)`
+        );
+        result = diagnosis;
         break;
       }
 
