@@ -77,6 +77,14 @@ function normalizeSettings(input: unknown): string {
 }
 
 /**
+ * Ensures a settings value is returned to callers as an object (not a JSON string).
+ */
+function coerceSettingsObject(input: unknown): Record<string, unknown> {
+  const normalized = normalizeSettings(input);
+  return JSON.parse(normalized) as Record<string, unknown>;
+}
+
+/**
  * Normalizes a CA certificate string into STRICT PEM blocks that Deno can load.
  *
  * Problem we must handle:
@@ -730,7 +738,21 @@ serve(async (req) => {
            RETURNING *`,
           [normalizedSettings, prompt, is_closer, agent_plan_id, due_date, status, agentId]
         );
-        result = rows;
+
+        // IMPORTANT: some drivers may serialize jsonb as string on RETURNING *.
+        // Force settings to be an object in the API response.
+        result = rows.map((row) => {
+          const r = row as Record<string, unknown>;
+          if ('settings' in r) {
+            try {
+              return { ...r, settings: coerceSettingsObject(r.settings) };
+            } catch {
+              // If something unexpected slips through, keep original.
+              return r;
+            }
+          }
+          return r;
+        });
         break;
       }
 
