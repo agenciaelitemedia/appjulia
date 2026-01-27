@@ -1,360 +1,228 @@
 
-## Plano de Implementação: Botões de Controle de Conexão WhatsApp
+## Plano: Implementar Funcionalidade Completa de Configurar Instância UaZapi
 
 ### Objetivo
-Adicionar botões de controle de conexão dinâmicos nos cards de agente na página "Meus Agentes", permitindo:
-- **Sem conexão**: Criar instância e configurar webhook
-- **Desconectado**: Conectar via QR Code
-- **Conectado**: Desconectar
+Implementar a funcionalidade do botão "Configurar Instância" para criar automaticamente instâncias na UaZapi, configurar webhooks para receber mensagens (ignorando grupos) e salvar as credenciais no banco de dados do agente.
 
 ---
 
-## Análise da Estrutura Atual
+## Requisitos Identificados
 
-### Resposta da API `/instance/status`
+### 1. Secret Necessário
+A UaZapi requer um **admin token** para endpoints administrativos (criar/deletar instâncias). Este token é diferente do token de instância individual.
+
+**Ação necessária**: Adicionar secret `UAZAPI_ADMIN_TOKEN` no projeto.
+
+### 2. URL Base da UaZapi
+A URL base do servidor UaZapi (ex: `https://atende-julia.uazapi.com`) precisa estar configurada.
+
+**Ação necessária**: Adicionar secret `UAZAPI_BASE_URL` no projeto.
+
+---
+
+## Arquitetura da Solução
+
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           Frontend (React)                              │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  ConnectionControlButtons.tsx                                      │  │
+│  │  ├─ status = 'no_config' → Botão "Configurar Instância"           │  │
+│  │  └─ onClick → abre ConfigureInstanceDialog                         │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                              │                                           │
+│                              ▼                                           │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  ConfigureInstanceDialog.tsx                                       │  │
+│  │  ├─ Formulário: Nome da instância (opcional)                      │  │
+│  │  ├─ Mostra progresso (3 etapas)                                   │  │
+│  │  └─ useConfigureInstance mutation                                  │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼ POST /uazapi-admin
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      Edge Function: uazapi-admin                        │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  action: 'create_instance'                                         │  │
+│  │  1. Chama POST /admin/instance (UaZapi) → cria instância          │  │
+│  │  2. Obtém token da nova instância                                  │  │
+│  │  3. Configura webhook (POST /webhook/set)                          │  │
+│  │  4. Atualiza agents no banco de dados                              │  │
+│  │  5. Retorna credenciais                                            │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
+                              │
+              ┌───────────────┴───────────────┐
+              ▼                               ▼
+┌──────────────────────────┐    ┌──────────────────────────┐
+│      UaZapi API          │    │   PostgreSQL (agents)    │
+│  POST /admin/instance    │    │  UPDATE agents SET       │
+│  POST /webhook/set       │    │    hub = 'uazapi',       │
+│                          │    │    evo_url = '...',      │
+│                          │    │    evo_apikey = '...',   │
+│                          │    │    evo_instancia = '...' │
+└──────────────────────────┘    └──────────────────────────┘
+```
+
+---
+
+## Arquivos a Criar
+
+### 1. Edge Function: uazapi-admin
+**Arquivo**: `supabase/functions/uazapi-admin/index.ts`
+
+Esta Edge Function centralizará todas as operações administrativas da UaZapi:
+
+```typescript
+// Endpoints UaZapi Admin (requerem admintoken):
+// POST /admin/instance      → Criar instância
+// DELETE /admin/instance    → Deletar instância
+// GET /admin/instances      → Listar instâncias
+
+// Endpoints de instância (requerem token):
+// POST /webhook/set         → Configurar webhook
+```
+
+**Ações suportadas**:
+- `create_instance`: Cria instância + configura webhook + salva no banco
+- `delete_instance`: Remove instância da UaZapi
+
+**Configuração de Webhook**:
 ```json
 {
-  "instance": {
-    "id": "r4f4efd7dab8735",
-    "status": "connected",
-    "qrcode": "",           // QR Code base64 quando desconectado
-    "name": "[20260101] - Dra. Cristiane",
-    "profileName": "Dra Cristiane Oliveira",
-    "profilePicUrl": "https://...",
-    ...
-  },
-  "status": {
-    "connected": true,
-    "loggedIn": true,
-    "jid": "5521974348872:6@s.whatsapp.net"
+  "url": "https://webhook-url-do-cliente.com/webhook",
+  "events": ["messages.upsert"],
+  "webhook_by_events": false,
+  "ignore_groups": true,
+  "ignore_status": true,
+  "ignore_broadcast": true
+}
+```
+
+### 2. Componente: ConfigureInstanceDialog
+**Arquivo**: `src/pages/agente/meus-agentes/components/ConfigureInstanceDialog.tsx`
+
+Dialog modal que:
+- Coleta nome opcional da instância (padrão: `[cod_agent] - Nome do cliente`)
+- Mostra progresso visual das 3 etapas:
+  1. Criando instância...
+  2. Configurando webhook...
+  3. Salvando credenciais...
+- Exibe QR Code automaticamente após conclusão
+- Trata erros e permite retry
+
+### 3. Hook: useConfigureInstance
+**Arquivo**: `src/pages/agente/meus-agentes/hooks/useConfigureInstance.ts`
+
+Hook com mutation que:
+- Chama a Edge Function `uazapi-admin`
+- Invalida cache do status de conexão após sucesso
+- Retorna estados de loading, erro e sucesso
+
+### 4. Atualizar config.toml
+**Arquivo**: `supabase/config.toml`
+
+Adicionar configuração para a nova Edge Function:
+```toml
+[functions.uazapi-admin]
+verify_jwt = false
+```
+
+---
+
+## Arquivos a Modificar
+
+### 1. ConnectionControlButtons.tsx
+Modificar o handler do botão "Configurar Instância":
+- Trocar o `toast.info()` por abrir o `ConfigureInstanceDialog`
+- Passar o agente como prop para o dialog
+
+### 2. externalDb.ts
+Adicionar método para atualizar credenciais de conexão do agente:
+```typescript
+async updateAgentConnection(
+  agentId: number, 
+  connectionData: {
+    hub: string;
+    evo_url: string;
+    evo_apikey: string;
+    evo_instancia: string;
   }
-}
+): Promise<void>
 ```
 
-### Endpoints UaZapi Disponíveis
-| Endpoint | Uso |
-|----------|-----|
-| `GET /instance/status` | Verifica status + QR Code |
-| `GET /instance/qrcode` | Obtém QR Code para conexão |
-| `POST /instance/connect` | Inicia conexão |
-| `POST /instance/disconnect` | Desconecta instância |
-| `POST /instance/logout` | Logout completo |
-
----
-
-## Arquivos a Criar/Modificar
-
-### 1. Novo Componente: Dialog de QR Code
-**Arquivo:** `src/pages/agente/meus-agentes/components/QRCodeDialog.tsx`
-
-Popup modal que:
-- Exibe QR Code em base64 como imagem
-- Atualiza automaticamente a cada 10 segundos
-- Fecha automaticamente quando conectado
-- Mostra loading durante carregamento
-- Exibe mensagem de sucesso ao conectar
-
-```text
-┌──────────────────────────────────────────────┐
-│  Conectar WhatsApp              [X]          │
-├──────────────────────────────────────────────┤
-│                                              │
-│    ┌────────────────────────┐                │
-│    │                        │                │
-│    │      [QR CODE]         │                │
-│    │                        │                │
-│    └────────────────────────┘                │
-│                                              │
-│    Escaneie com o WhatsApp                   │
-│    Atualização em 8s                         │
-│                                              │
-│    [Cancelar]                                │
-└──────────────────────────────────────────────┘
+### 3. db-query Edge Function
+Adicionar nova action `update_agent_connection`:
+```sql
+UPDATE agents 
+SET hub = $1, evo_url = $2, evo_apikey = $3, evo_instancia = $4, updated_at = now()
+WHERE id = $5
 ```
 
-### 2. Hook para Gerenciar QR Code
-**Arquivo:** `src/pages/agente/meus-agentes/hooks/useQRCodePolling.ts`
-
-Hook que:
-- Busca QR Code via `/instance/status`
-- Polling a cada 10 segundos
-- Detecta quando `status.connected === true`
-- Para o polling e retorna sucesso
-
+### 4. types.ts (meus-agentes)
+Adicionar interface para a resposta de criação de instância:
 ```typescript
-interface UseQRCodePollingResult {
-  qrCode: string | null;
-  isConnected: boolean;
-  isLoading: boolean;
-  error: string | null;
-  countdown: number;
+export interface CreateInstanceResponse {
+  success: boolean;
+  instanceName: string;
+  token: string;
+  error?: string;
 }
-```
-
-### 3. Hook para Ações de Conexão
-**Arquivo:** `src/pages/agente/meus-agentes/hooks/useConnectionActions.ts`
-
-Hook com mutations para:
-- `disconnect()` - Desconecta a instância
-- `connect()` - Inicia conexão (para obter QR Code)
-
-### 4. Novo Componente: Botões de Controle
-**Arquivo:** `src/pages/agente/meus-agentes/components/ConnectionControlButtons.tsx`
-
-Renderiza botões baseado no status:
-
-```text
-Estado: no_config
-┌─────────────────────────────────────┐
-│  [⚙️ Configurar Instância]          │
-└─────────────────────────────────────┘
-
-Estado: disconnected
-┌─────────────────────────────────────┐
-│  [🔗 Conectar]                      │
-└─────────────────────────────────────┘
-
-Estado: connected
-┌─────────────────────────────────────┐
-│  [🔌 Desconectar]                   │
-└─────────────────────────────────────┘
-```
-
-### 5. Atualizar AgentCard
-**Arquivo:** `src/pages/agente/meus-agentes/components/AgentCard.tsx`
-
-Integrar os novos botões de controle no card:
-
-```text
-┌──────────────────────────────────────────────┐
-│ [🤖] [Ativo]            [🟢 Conectado]       │
-├──────────────────────────────────────────────┤
-│ Lira & Resende Advogados                     │
-│ #20250702                                    │
-│ Instância: [20250702] - João Victor          │
-│ Plano: Básico                                │
-│                                              │
-│ Leads do mês       ██████████░░░░ 50/100     │
-├──────────────────────────────────────────────┤
-│            [🔌 Desconectar]                  │
-└──────────────────────────────────────────────┘
 ```
 
 ---
 
-## Detalhamento Técnico
-
-### 1. QRCodeDialog.tsx
-
-```typescript
-interface QRCodeDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  agent: UserAgent;
-  onConnected: () => void;
-}
-
-// Estrutura do componente:
-// - Dialog com DialogContent
-// - Imagem do QR Code (base64)
-// - Countdown visual para próxima atualização
-// - useEffect com setInterval para polling
-// - Detecção de conexão para fechar automaticamente
-```
-
-### 2. useQRCodePolling.ts
-
-```typescript
-export function useQRCodePolling(
-  evoUrl: string,
-  evoApikey: string,
-  enabled: boolean
-) {
-  return useQuery({
-    queryKey: ['qr-code', evoUrl],
-    queryFn: async () => {
-      const client = new UaZapiClient({
-        baseUrl: evoUrl,
-        token: evoApikey,
-      });
-      
-      const response = await client.get('/instance/status');
-      
-      return {
-        qrCode: response.instance?.qrcode || null,
-        isConnected: response.status?.connected === true && 
-                     response.status?.loggedIn === true,
-        profileName: response.instance?.profileName,
-      };
-    },
-    enabled,
-    refetchInterval: 10000, // 10 segundos
-    staleTime: 0,
-  });
-}
-```
-
-### 3. useConnectionActions.ts
-
-```typescript
-export function useConnectionActions(agent: UserAgent) {
-  const queryClient = useQueryClient();
-  
-  const disconnectMutation = useMutation({
-    mutationFn: async () => {
-      const client = new UaZapiClient({
-        baseUrl: agent.evo_url!,
-        token: agent.evo_apikey!,
-      });
-      return client.post('/instance/disconnect');
-    },
-    onSuccess: () => {
-      // Invalidar cache do status
-      queryClient.invalidateQueries({
-        queryKey: ['connection-status', agent.evo_url],
-      });
-      toast.success('WhatsApp desconectado com sucesso');
-    },
-  });
-
-  return {
-    disconnect: disconnectMutation.mutate,
-    isDisconnecting: disconnectMutation.isPending,
-  };
-}
-```
-
-### 4. ConnectionControlButtons.tsx
-
-```typescript
-interface ConnectionControlButtonsProps {
-  agent: UserAgent;
-  status: ConnectionStatus;
-  isLoading: boolean;
-}
-
-export function ConnectionControlButtons({ 
-  agent, 
-  status, 
-  isLoading 
-}: ConnectionControlButtonsProps) {
-  const [qrDialogOpen, setQrDialogOpen] = useState(false);
-  const { disconnect, isDisconnecting } = useConnectionActions(agent);
-  
-  // Renderiza botão apropriado baseado no status
-  switch (status) {
-    case 'no_config':
-      return (
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={handleConfigureInstance}
-        >
-          <Settings className="w-4 h-4 mr-2" />
-          Configurar
-        </Button>
-      );
-      
-    case 'disconnected':
-      return (
-        <>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => setQrDialogOpen(true)}
-          >
-            <QrCode className="w-4 h-4 mr-2" />
-            Conectar
-          </Button>
-          <QRCodeDialog
-            open={qrDialogOpen}
-            onOpenChange={setQrDialogOpen}
-            agent={agent}
-            onConnected={handleConnected}
-          />
-        </>
-      );
-      
-    case 'connected':
-      return (
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={() => disconnect()}
-          disabled={isDisconnecting}
-        >
-          {isDisconnecting ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          ) : (
-            <Unplug className="w-4 h-4 mr-2" />
-          )}
-          Desconectar
-        </Button>
-      );
-  }
-}
-```
-
-### 5. Atualização no AgentCard.tsx
-
-Adicionar os botões de controle ao final do card:
-
-```typescript
-// Adicionar import
-import { ConnectionControlButtons } from './ConnectionControlButtons';
-
-// Dentro do CardContent, após a seção de leads:
-{!isMonitored && (
-  <div className="pt-3 mt-3 border-t border-border/50">
-    <ConnectionControlButtons
-      agent={agent}
-      status={connectionStatus}
-      isLoading={isLoading}
-    />
-  </div>
-)}
-```
-
-**Nota**: Os botões só aparecem para "Meus Agentes", não para "Agentes Monitorados" (view-only).
-
----
-
-## Fluxo de Cada Ação
-
-### Fluxo: Conectar (status = disconnected)
+## Fluxo Detalhado: Configurar Instância
 
 ```text
-1. Usuário clica "Conectar"
-2. Abre QRCodeDialog
-3. Hook useQRCodePolling começa polling
-4. Busca /instance/status a cada 10s
-5. Exibe QR Code (instance.qrcode)
-6. Usuário escaneia com WhatsApp
-7. Próximo poll detecta status.connected = true
-8. Dialog fecha automaticamente
-9. Toast de sucesso
-10. Atualiza status no card (cache invalidado)
+1. Usuário clica "Configurar Instância"
+   └─▶ Abre ConfigureInstanceDialog
+
+2. Dialog exibe formulário
+   ├─ Nome da instância: "[20250901] - Nome do Cliente" (editável)
+   └─ Botão "Configurar"
+
+3. Usuário clica "Configurar"
+   └─▶ mutation.mutate()
+
+4. useConfigureInstance chama Edge Function uazapi-admin
+   ├─ action: 'create_instance'
+   ├─ agentId: agent.agent_id_from_agents
+   ├─ instanceName: "[20250901] - Nome do Cliente"
+   └─ codAgent: agent.cod_agent
+
+5. Edge Function uazapi-admin:
+   │
+   ├─▶ Etapa 1: Criar Instância na UaZapi
+   │   POST https://atende-julia.uazapi.com/admin/instance
+   │   Headers: { admintoken: UAZAPI_ADMIN_TOKEN }
+   │   Body: { name: "[20250901] - Nome do Cliente" }
+   │   Response: { id: "...", name: "...", token: "abc123..." }
+   │
+   ├─▶ Etapa 2: Configurar Webhook
+   │   POST https://atende-julia.uazapi.com/webhook/set
+   │   Headers: { token: "abc123..." }
+   │   Body: {
+   │     url: "https://webhook-url/messages",
+   │     events: ["messages.upsert"],
+   │     ignore_groups: true
+   │   }
+   │
+   └─▶ Etapa 3: Salvar no Banco de Dados
+       UPDATE agents SET
+         hub = 'uazapi',
+         evo_url = 'https://atende-julia.uazapi.com',
+         evo_apikey = 'abc123...',
+         evo_instancia = '[20250901] - Nome do Cliente'
+       WHERE id = agentId
+
+6. Sucesso: Dialog fecha e status atualiza para 'disconnected'
+   └─▶ Usuário pode agora clicar "Conectar" para escanear QR Code
+
+7. Erro: Dialog mostra mensagem de erro
+   └─▶ Usuário pode tentar novamente
 ```
-
-### Fluxo: Desconectar (status = connected)
-
-```text
-1. Usuário clica "Desconectar"
-2. Mutation chama POST /instance/disconnect
-3. Mostra loading no botão
-4. Sucesso: toast + invalida cache
-5. Status atualiza para "disconnected"
-```
-
-### Fluxo: Configurar (status = no_config)
-
-```text
-1. Usuário clica "Configurar"
-2. Exibe toast informativo (funcionalidade futura)
-   "Entre em contato com o suporte para configurar sua instância"
-```
-
-**Nota**: A criação de instâncias na UaZapi requer acesso administrativo e configuração de webhooks. Para esta fase, o botão "Configurar" apenas exibirá uma mensagem orientando o usuário.
 
 ---
 
@@ -363,18 +231,39 @@ import { ConnectionControlButtons } from './ConnectionControlButtons';
 ```text
 src/pages/agente/meus-agentes/
 ├── MyAgentsPage.tsx
-├── types.ts
+├── types.ts                              (modificar)
 ├── components/
-│   ├── AgentCard.tsx           (modificar)
+│   ├── AgentCard.tsx
 │   ├── ConnectionStatusBadge.tsx
-│   ├── ConnectionControlButtons.tsx  (criar)
-│   └── QRCodeDialog.tsx        (criar)
+│   ├── ConnectionControlButtons.tsx      (modificar)
+│   ├── ConfigureInstanceDialog.tsx       (criar)
+│   └── QRCodeDialog.tsx
 └── hooks/
     ├── useMyAgents.ts
     ├── useConnectionStatus.ts
-    ├── useConnectionActions.ts  (criar)
-    └── useQRCodePolling.ts     (criar)
+    ├── useConnectionActions.ts
+    ├── useConfigureInstance.ts           (criar)
+    └── useQRCodePolling.ts
+
+supabase/functions/
+├── db-query/
+│   └── index.ts                          (modificar)
+└── uazapi-admin/
+    └── index.ts                          (criar)
+
+src/lib/
+└── externalDb.ts                         (modificar)
 ```
+
+---
+
+## Secrets Necessários
+
+| Secret | Descrição | Ação |
+|--------|-----------|------|
+| `UAZAPI_ADMIN_TOKEN` | Token admin do servidor UaZapi | Solicitar ao usuário |
+| `UAZAPI_BASE_URL` | URL base (ex: `https://atende-julia.uazapi.com`) | Solicitar ao usuário |
+| `UAZAPI_WEBHOOK_URL` | URL para receber webhooks de mensagens | Solicitar ao usuário |
 
 ---
 
@@ -382,34 +271,23 @@ src/pages/agente/meus-agentes/
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `QRCodeDialog.tsx` | Criar | Dialog com QR Code e polling automático |
-| `useQRCodePolling.ts` | Criar | Hook para polling do QR Code a cada 10s |
-| `useConnectionActions.ts` | Criar | Hook com mutations (disconnect) |
-| `ConnectionControlButtons.tsx` | Criar | Botões dinâmicos por status |
-| `AgentCard.tsx` | Modificar | Integrar botões de controle |
-| `types.ts` | Modificar | Adicionar tipos para QR Code response |
+| `supabase/functions/uazapi-admin/index.ts` | Criar | Edge Function para operações admin UaZapi |
+| `supabase/config.toml` | Modificar | Adicionar config da nova function |
+| `supabase/functions/db-query/index.ts` | Modificar | Adicionar action `update_agent_connection` |
+| `src/lib/externalDb.ts` | Modificar | Adicionar método `updateAgentConnection` |
+| `src/pages/agente/meus-agentes/types.ts` | Modificar | Adicionar interfaces |
+| `src/pages/agente/meus-agentes/hooks/useConfigureInstance.ts` | Criar | Hook para criar instância |
+| `src/pages/agente/meus-agentes/components/ConfigureInstanceDialog.tsx` | Criar | Dialog de configuração |
+| `src/pages/agente/meus-agentes/components/ConnectionControlButtons.tsx` | Modificar | Integrar dialog |
 
 ---
 
-## Comportamentos Especiais
+## Pré-requisitos para Implementação
 
-### QR Code Dialog
-- **Auto-refresh**: Atualiza a cada 10 segundos
-- **Countdown visual**: Mostra contador regressivo para próxima atualização
-- **Auto-close**: Fecha quando detecta conexão bem-sucedida
-- **Loading state**: Skeleton enquanto carrega QR Code
-- **Error handling**: Mensagem se falhar ao obter QR Code
+Antes de implementar, você precisará fornecer:
 
-### Botões de Controle
-- **Loading states**: Spinner durante ações
-- **Toast feedback**: Mensagens de sucesso/erro
-- **Cache invalidation**: Atualiza status automaticamente
-- **Apenas para "Meus Agentes"**: Não aparece em "Agentes Monitorados"
+1. **UAZAPI_ADMIN_TOKEN**: Token administrativo do seu servidor UaZapi
+2. **UAZAPI_BASE_URL**: URL do seu servidor (ex: `https://atende-julia.uazapi.com`)
+3. **UAZAPI_WEBHOOK_URL**: URL onde seu sistema recebe webhooks de mensagens do WhatsApp
 
----
-
-## Dependências Utilizadas
-- `@radix-ui/react-dialog` (já instalado)
-- `@tanstack/react-query` (já instalado)
-- `lucide-react` (já instalado)
-- `sonner` (já instalado para toasts)
+Posso solicitar esses secrets assim que o plano for aprovado.
