@@ -1,203 +1,185 @@
 
-# Plano: Adicionar Exclusao de Instancia e Ajustar Webhook
+# Plano: Otimizar Performance da Lista de Agentes
 
-## Resumo
+## Problema Identificado
 
-Este plano adiciona um botao de exclusao de instancia ao lado do botao "Conectar" na pagina "Meus Agentes", com um dialog de confirmacao seguro que exige que o usuario digite o nome da instancia e marque um checkbox de confirmacao. Alem disso, remove o campo `wasSentByApi` da configuracao do webhook.
+A query atual na pagina `/admin/agentes` possui um **gargalo critico de performance**: uma **subquery correlacionada** que e executada para cada agente individualmente.
 
-## Mudancas Necessarias
+### Query Atual (Lenta)
 
-### 1. Atualizar Edge Function - Remover wasSentByApi do Webhook
-
-**Arquivo:** `supabase/functions/uazapi-admin/index.ts`
-
-Localizar a linha 153 e alterar o array `excludeMessages`:
-
-| Antes | Depois |
-|-------|--------|
-| `excludeMessages: ['wasSentByApi', 'isGroupYes']` | `excludeMessages: ['isGroupYes']` |
-
-### 2. Criar Hook useDeleteInstance
-
-**Novo arquivo:** `src/pages/agente/meus-agentes/hooks/useDeleteInstance.ts`
-
-```typescript
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { UserAgent } from '../types';
-
-interface DeleteInstanceParams {
-  agent: UserAgent;
-}
-
-export function useDeleteInstance() {
-  const queryClient = useQueryClient();
-
-  const mutation = useMutation({
-    mutationFn: async ({ agent }: DeleteInstanceParams) => {
-      if (!agent.evo_instancia || !agent.agent_id_from_agents) {
-        throw new Error('Instancia ou ID do agente nao encontrado');
-      }
-
-      const { data, error } = await supabase.functions.invoke('uazapi-admin', {
-        body: {
-          action: 'delete_instance',
-          instanceName: agent.evo_instancia,
-          agentId: agent.agent_id_from_agents,
-        },
-      });
-
-      if (error) throw new Error(error.message);
-      if (!data.success) throw new Error(data.error);
-      return data;
-    },
-    onSuccess: () => {
-      toast.success('Instancia excluida com sucesso');
-      queryClient.invalidateQueries({ queryKey: ['user-agents'] });
-    },
-    onError: (error: Error) => {
-      toast.error('Erro ao excluir instancia', { description: error.message });
-    },
-  });
-
-  return {
-    deleteInstance: mutation.mutate,
-    deleteInstanceAsync: mutation.mutateAsync,
-    isDeleting: mutation.isPending,
-    reset: mutation.reset,
-  };
-}
+```sql
+SELECT 
+  a.id,
+  ...
+  (
+    SELECT COUNT(DISTINCT s.id)
+    FROM sessions s
+    WHERE s.agent_id = a.id
+      AND EXISTS (
+        SELECT 1 FROM log_messages lm 
+        WHERE lm.session_id = s.id
+          AND lm.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+          AND lm.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
+      )
+  ) AS leads_received,
+  ...
+FROM agents a
+JOIN clients c ON c.id = a.client_id AND a.is_visibilided = true
+LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
+ORDER BY c.business_name
 ```
 
-### 3. Criar Componente DeleteInstanceDialog
+**Problemas:**
+1. Subquery correlacionada executada N vezes (uma por agente)
+2. EXISTS dentro da subquery adiciona mais overhead
+3. Sem indices otimizados para a consulta
+4. Ordena todo o resultado mesmo com paginacao client-side
 
-**Novo arquivo:** `src/pages/agente/meus-agentes/components/DeleteInstanceDialog.tsx`
+## Solucao Proposta
 
-Componentes do dialog:
-- Campo de texto com nome da instancia para copiar (readonly, com botao copiar)
-- Campo de input para digitar o nome da instancia (validacao exata)
-- Checkbox de confirmacao final
-- Botao de exclusao desabilitado ate validacao completa
+### 1. Otimizar Query - Usar LEFT JOIN com Agregacao
 
-```text
-+------------------------------------------+
-|  Excluir Instancia                       |
-+------------------------------------------+
-|  ATENCAO: Esta acao e irreversivel!      |
-|                                          |
-|  Instancia a ser excluida:               |
-|  +------------------------------------+  |
-|  | [JulIAv2][001] - Cliente   [Copiar]|  |
-|  +------------------------------------+  |
-|                                          |
-|  Digite o nome da instancia:             |
-|  +------------------------------------+  |
-|  |                                    |  |
-|  +------------------------------------+  |
-|                                          |
-|  [ ] Confirmo que desejo excluir         |
-|                                          |
-|  [Cancelar]        [Excluir Instancia]   |
-+------------------------------------------+
+Substituir a subquery correlacionada por um LEFT JOIN com pre-agregacao:
+
+```sql
+SELECT 
+  a.id,
+  a.cod_agent,
+  a.status,
+  c.name AS client_name,
+  c.business_name,
+  ap.name AS plan_name,
+  COALESCE(ap."limit", 0) AS plan_limit,
+  COALESCE(leads.count, 0) AS leads_received,
+  a.last_used,
+  a.due_date
+FROM agents a
+JOIN clients c ON c.id = a.client_id
+LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
+LEFT JOIN (
+  SELECT s.agent_id, COUNT(DISTINCT s.id) as count
+  FROM sessions s
+  INNER JOIN log_messages lm ON lm.session_id = s.id
+  WHERE lm.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+    AND lm.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
+  GROUP BY s.agent_id
+) leads ON leads.agent_id = a.id
+WHERE a.is_visibilided = true
+ORDER BY c.business_name
 ```
 
-### 4. Atualizar ConnectionControlButtons
+**Beneficios:**
+- Subquery executada apenas UMA vez
+- Resultado ja agregado e feito JOIN
+- Reducao de N+1 queries para 1+1 queries
 
-**Arquivo:** `src/pages/agente/meus-agentes/components/ConnectionControlButtons.tsx`
+### 2. Criar Acao Dedicada na Edge Function
 
-**Mudancas:**
-1. Adicionar import do icone `Trash2` do lucide-react
-2. Adicionar import do `DeleteInstanceDialog`
-3. Adicionar import do `useDeleteInstance` hook
-4. Adicionar estado `deleteDialogOpen`
-5. No caso `disconnected`, alterar layout para flex row com dois botoes:
-   - Botao "Conectar" (existente, mas menor)
-   - Botao icone vermelho de lixeira (novo)
+Adicionar nova acao `get_agents_list` no `db-query` com a query otimizada.
 
-**Layout visual para status `disconnected`:**
+### 3. Migrar para React Query
 
-```text
-+----------------------------------+
-| [QrCode] Conectar    [Lixeira]   |
-+----------------------------------+
-```
+Substituir `useState` + `useEffect` por `useQuery` do TanStack Query para:
+- Cache automatico
+- Stale-while-revalidate
+- Refetch em background
+- Melhor UX com estados de loading
 
-**Codigo ajustado no case 'disconnected':**
+### 4. Implementar Debounce na Busca
 
-```tsx
-case 'disconnected':
-  return (
-    <>
-      <div className="flex gap-2">
-        <Button
-          size="sm"
-          onClick={() => {
-            connect();
-            setQrDialogOpen(true);
-          }}
-          disabled={isConnecting}
-          className="flex-1 bg-primary hover:bg-primary/90"
-        >
-          {isConnecting ? <Loader2 className="animate-spin" /> : <QrCode />}
-          Conectar
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setDeleteDialogOpen(true)}
-          className="border-destructive text-destructive hover:bg-destructive hover:text-white"
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
-      </div>
-      <QRCodeDialog ... />
-      <DeleteInstanceDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        agent={agent}
-        onSuccess={handleDeleteSuccess}
-      />
-    </>
-  );
-```
-
-## Fluxo de Exclusao
-
-```text
-1. Usuario clica no icone de lixeira
-2. Abre DeleteInstanceDialog
-3. Dialog mostra nome da instancia com botao copiar
-4. Usuario digita nome exato da instancia
-5. Usuario marca checkbox de confirmacao
-6. Botao "Excluir" fica habilitado
-7. Usuario clica em "Excluir"
-8. Frontend chama Edge Function (delete_instance)
-9. Edge Function deleta no UaZapi + limpa banco
-10. Dialog fecha e lista de agentes e atualizada
-```
+Adicionar debounce de 300ms no campo de busca para evitar re-renderizacoes excessivas durante digitacao.
 
 ## Arquivos a Modificar
 
 | Arquivo | Acao | Descricao |
 |---------|------|-----------|
-| `supabase/functions/uazapi-admin/index.ts` | Modificar | Remover `wasSentByApi` do webhook |
-| `src/pages/agente/meus-agentes/hooks/useDeleteInstance.ts` | Criar | Hook para exclusao de instancia |
-| `src/pages/agente/meus-agentes/components/DeleteInstanceDialog.tsx` | Criar | Dialog de confirmacao segura |
-| `src/pages/agente/meus-agentes/components/ConnectionControlButtons.tsx` | Modificar | Adicionar botao de exclusao |
+| `supabase/functions/db-query/index.ts` | Modificar | Adicionar acao `get_agents_list` com query otimizada |
+| `src/lib/externalDb.ts` | Modificar | Adicionar metodo `getAgentsList()` |
+| `src/pages/agents/hooks/useAgentsList.ts` | Criar | Hook com React Query para listagem |
+| `src/pages/agents/AgentsList.tsx` | Modificar | Usar novo hook e adicionar debounce |
 
 ## Detalhes Tecnicos
 
-### Validacao do Dialog
+### Nova Acao na Edge Function
 
-O botao de exclusao so sera habilitado quando:
-1. O texto digitado for identico ao nome da instancia (`agent.evo_instancia`)
-2. O checkbox estiver marcado
+```typescript
+case 'get_agents_list': {
+  result = await sql.unsafe(`
+    SELECT 
+      a.id,
+      a.cod_agent,
+      a.status,
+      c.name AS client_name,
+      c.business_name,
+      ap.name AS plan_name,
+      COALESCE(ap."limit", 0) AS plan_limit,
+      COALESCE(leads.count, 0) AS leads_received,
+      a.last_used,
+      a.due_date
+    FROM agents a
+    JOIN clients c ON c.id = a.client_id
+    LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
+    LEFT JOIN (
+      SELECT s.agent_id, COUNT(DISTINCT s.id) as count
+      FROM sessions s
+      INNER JOIN log_messages lm ON lm.session_id = s.id
+      WHERE lm.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+        AND lm.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
+      GROUP BY s.agent_id
+    ) leads ON leads.agent_id = a.id
+    WHERE a.is_visibilided = true
+    ORDER BY c.business_name
+  `);
+  break;
+}
+```
 
-### Componentes Utilizados
+### Hook com React Query
 
-- `Dialog` do Radix UI (existente)
-- `Input` para digitacao
-- `Checkbox` para confirmacao
-- `Button` com icone `Copy` para copiar
-- Toast para feedback
+```typescript
+import { useQuery } from '@tanstack/react-query';
+import { externalDb } from '@/lib/externalDb';
+
+export function useAgentsList() {
+  return useQuery({
+    queryKey: ['agents-list'],
+    queryFn: () => externalDb.getAgentsList(),
+    staleTime: 60000, // 1 minuto
+  });
+}
+```
+
+### Debounce na Busca
+
+```typescript
+import { useDebounce } from '@/hooks/useDebounce';
+
+// No componente:
+const debouncedSearch = useDebounce(searchTerm, 300);
+
+// Usar debouncedSearch no filtro
+const filteredAgents = useMemo(() => {
+  if (!debouncedSearch.trim()) return agents;
+  // ...
+}, [agents, debouncedSearch]);
+```
+
+## Estimativa de Melhoria
+
+| Metrica | Antes | Depois |
+|---------|-------|--------|
+| Queries no banco | N+1 (por agente) | 2 (fixa) |
+| Tempo de resposta | ~2-5s (varia com N) | ~200-500ms |
+| Re-renders na busca | A cada tecla | Apos 300ms |
+| Cache | Nenhum | 1 minuto |
+
+## Fluxo de Implementacao
+
+```text
+1. Adicionar acao get_agents_list na Edge Function
+2. Adicionar metodo getAgentsList no externalDb
+3. Criar hook useAgentsList com React Query
+4. Refatorar AgentsList para usar novo hook
+5. Adicionar debounce no campo de busca
+6. Testar performance
+```
