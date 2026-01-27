@@ -1,105 +1,314 @@
+import { useEffect } from 'react';
 import { useFormContext } from 'react-hook-form';
-import { FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '@/components/ui/form';
+import { FormField, FormItem, FormLabel, FormControl, FormDescription } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Info } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { MessageSquare, Bell, Phone, Play, FileText, Video } from 'lucide-react';
 import type { AgentFormData } from '../CreateAgentWizard';
 
-const DEFAULT_CONFIG = `{
-  "CHAT_RESUME": true,
-  "ONLY_ME_RESUME": true,
-  "NOTIFY_RESUME": "",
-  "USING_AUDIO": true,
-  "FOLLOWUP_CALL": true,
-  "SESSION_START": "#start",
-  "ONLY_CAMPAIGN": false,
-  "START_CAMPAIGN": "quero me aposentar",
-  "NOTIFY_DOC_SIGNED": "",
-  "NOTIFY_DOC_CREATED": "",
-  "SESSION_CHECK_SPECIALIZED": "atendimento especializado",
-  "CONTRACT_SIGNED": "Olha que legal. Acabei de receber o seu documento assinado. Agora vou te transferir para o atendimento especializado. Aguarde que logo alguém continuará a falar com você.",
-  "VIDEO_CONTRACT_SIGNED": "",
-  "VIDEO_CONTRACT_CREATED": ""
-}`;
+interface ConfigFields {
+  CHAT_RESUME: boolean;
+  ONLY_ME_RESUME: boolean;
+  NOTIFY_RESUME: string;
+  USING_AUDIO: boolean;
+  FOLLOWUP_CALL: boolean;
+  SESSION_START: string;
+  ONLY_CAMPAIGN: boolean;
+  START_CAMPAIGN: string;
+  NOTIFY_DOC_SIGNED: string;
+  NOTIFY_DOC_CREATED: string;
+  SESSION_CHECK_SPECIALIZED: string;
+  CONTRACT_SIGNED: string;
+  VIDEO_CONTRACT_SIGNED: string;
+  VIDEO_CONTRACT_CREATED: string;
+}
+
+const DEFAULT_CONFIG: ConfigFields = {
+  CHAT_RESUME: true,
+  ONLY_ME_RESUME: true,
+  NOTIFY_RESUME: '',
+  USING_AUDIO: true,
+  FOLLOWUP_CALL: true,
+  SESSION_START: '#start',
+  ONLY_CAMPAIGN: false,
+  START_CAMPAIGN: 'quero me aposentar',
+  NOTIFY_DOC_SIGNED: '',
+  NOTIFY_DOC_CREATED: '',
+  SESSION_CHECK_SPECIALIZED: 'atendimento especializado',
+  CONTRACT_SIGNED: 'Olha que legal. Acabei de receber o seu documento assinado. Agora vou te transferir para o atendimento especializado. Aguarde que logo alguém continuará a falar com você.',
+  VIDEO_CONTRACT_SIGNED: '',
+  VIDEO_CONTRACT_CREATED: '',
+};
 
 export function ConfigStep() {
-  const { control, watch, setValue } = useFormContext<AgentFormData>();
+  const { watch, setValue } = useFormContext<AgentFormData>();
   const configJson = watch('config_json');
 
-  const isValidJson = (str: string): boolean => {
+  // Parse JSON to get current config values
+  const parseConfig = (): ConfigFields => {
     try {
-      JSON.parse(str);
-      return true;
+      const parsed = JSON.parse(configJson);
+      return { ...DEFAULT_CONFIG, ...parsed };
     } catch {
-      return false;
+      return DEFAULT_CONFIG;
     }
   };
 
-  const handleLoadDefault = () => {
-    setValue('config_json', DEFAULT_CONFIG);
+  const config = parseConfig();
+
+  // Update a single field and serialize back to JSON
+  const updateField = <K extends keyof ConfigFields>(key: K, value: ConfigFields[K]) => {
+    const currentConfig = parseConfig();
+    const newConfig = { ...currentConfig, [key]: value };
+    setValue('config_json', JSON.stringify(newConfig, null, 2));
   };
 
-  const jsonValid = isValidJson(configJson);
+  // Initialize with default config if empty
+  useEffect(() => {
+    if (configJson === '{\n  \n}' || configJson === '{}') {
+      setValue('config_json', JSON.stringify(DEFAULT_CONFIG, null, 2));
+    }
+  }, []);
 
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-foreground">Configurações Avançadas</h3>
+        <h3 className="text-lg font-medium text-foreground">Configurações do Agente</h3>
         <p className="text-sm text-muted-foreground">
-          Configure opções avançadas do agente em formato JSON
+          Configure as opções de comportamento do agente
         </p>
       </div>
 
-      <Alert>
-        <Info className="h-4 w-4" />
-        <AlertDescription>
-          As configurações devem estar em formato JSON válido. 
-          <button
-            type="button"
-            onClick={handleLoadDefault}
-            className="ml-1 text-primary underline hover:no-underline"
-          >
-            Carregar exemplo
-          </button>
-        </AlertDescription>
-      </Alert>
-
-      <FormField
-        control={control}
-        name="config_json"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Configurações JSON</FormLabel>
-            <FormControl>
-              <Textarea
-                placeholder="{\n  \n}"
-                className="font-mono text-sm min-h-[300px] resize-y"
-                {...field}
-              />
-            </FormControl>
-            <FormDescription className="flex items-center gap-2">
-              {configJson && configJson !== '{\n  \n}' && (
-                <span className={jsonValid ? 'text-green-600' : 'text-destructive'}>
-                  {jsonValid ? '✓ JSON válido' : '✗ JSON inválido'}
-                </span>
-              )}
-            </FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      {/* Config preview */}
-      {jsonValid && configJson !== '{\n  \n}' && (
-        <div className="rounded-lg border bg-muted/50 p-4">
-          <h4 className="font-medium text-foreground mb-2">Prévia das Configurações</h4>
-          <div className="text-sm text-muted-foreground">
-            <pre className="whitespace-pre-wrap overflow-auto max-h-[200px]">
-              {JSON.stringify(JSON.parse(configJson), null, 2)}
-            </pre>
+      {/* Chat & Resume Section */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Chat e Resumo
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <FormLabel>Resumo do Chat</FormLabel>
+              <FormDescription>Ativar resumo automático das conversas</FormDescription>
+            </div>
+            <Switch
+              checked={config.CHAT_RESUME}
+              onCheckedChange={(checked) => updateField('CHAT_RESUME', checked)}
+            />
           </div>
-        </div>
-      )}
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <FormLabel>Apenas Meu Resumo</FormLabel>
+              <FormDescription>Receber apenas resumos próprios</FormDescription>
+            </div>
+            <Switch
+              checked={config.ONLY_ME_RESUME}
+              onCheckedChange={(checked) => updateField('ONLY_ME_RESUME', checked)}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <FormLabel>Notificar Resumo</FormLabel>
+            <FormDescription>Número ou grupo para notificação de resumos</FormDescription>
+            <Input
+              value={config.NOTIFY_RESUME}
+              onChange={(e) => updateField('NOTIFY_RESUME', e.target.value)}
+              placeholder="Ex: 5511999999999 ou ID do grupo"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Audio & Calls Section */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Phone className="h-4 w-4" />
+            Áudio e Ligações
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <FormLabel>Usar Áudio</FormLabel>
+              <FormDescription>Permitir envio e recebimento de áudios</FormDescription>
+            </div>
+            <Switch
+              checked={config.USING_AUDIO}
+              onCheckedChange={(checked) => updateField('USING_AUDIO', checked)}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <FormLabel>Followup por Ligação</FormLabel>
+              <FormDescription>Ativar ligações no fluxo de followup</FormDescription>
+            </div>
+            <Switch
+              checked={config.FOLLOWUP_CALL}
+              onCheckedChange={(checked) => updateField('FOLLOWUP_CALL', checked)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Session Section */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Play className="h-4 w-4" />
+            Sessão e Campanha
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <FormLabel>Início da Sessão</FormLabel>
+            <FormDescription>Comando para iniciar uma nova sessão</FormDescription>
+            <Input
+              value={config.SESSION_START}
+              onChange={(e) => updateField('SESSION_START', e.target.value)}
+              placeholder="Ex: #start"
+            />
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <FormLabel>Apenas Campanha</FormLabel>
+              <FormDescription>Responder apenas leads de campanha</FormDescription>
+            </div>
+            <Switch
+              checked={config.ONLY_CAMPAIGN}
+              onCheckedChange={(checked) => updateField('ONLY_CAMPAIGN', checked)}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <FormLabel>Início de Campanha</FormLabel>
+            <FormDescription>Frase que inicia o fluxo de campanha</FormDescription>
+            <Input
+              value={config.START_CAMPAIGN}
+              onChange={(e) => updateField('START_CAMPAIGN', e.target.value)}
+              placeholder="Ex: quero me aposentar"
+            />
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <FormLabel>Verificar Atendimento Especializado</FormLabel>
+            <FormDescription>Frase para transferir ao atendimento especializado</FormDescription>
+            <Input
+              value={config.SESSION_CHECK_SPECIALIZED}
+              onChange={(e) => updateField('SESSION_CHECK_SPECIALIZED', e.target.value)}
+              placeholder="Ex: atendimento especializado"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Notifications Section */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Bell className="h-4 w-4" />
+            Notificações de Documentos
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <FormLabel>Notificar Documento Assinado</FormLabel>
+            <FormDescription>Número para notificação quando documento for assinado</FormDescription>
+            <Input
+              value={config.NOTIFY_DOC_SIGNED}
+              onChange={(e) => updateField('NOTIFY_DOC_SIGNED', e.target.value)}
+              placeholder="Ex: 5511999999999"
+            />
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <FormLabel>Notificar Documento Criado</FormLabel>
+            <FormDescription>Número para notificação quando documento for criado</FormDescription>
+            <Input
+              value={config.NOTIFY_DOC_CREATED}
+              onChange={(e) => updateField('NOTIFY_DOC_CREATED', e.target.value)}
+              placeholder="Ex: 5511999999999"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Contract Messages Section */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            Mensagens de Contrato
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <FormLabel>Mensagem Contrato Assinado</FormLabel>
+            <FormDescription>Mensagem enviada quando o contrato é assinado</FormDescription>
+            <Textarea
+              value={config.CONTRACT_SIGNED}
+              onChange={(e) => updateField('CONTRACT_SIGNED', e.target.value)}
+              placeholder="Mensagem para o cliente após assinatura..."
+              className="min-h-[100px] resize-y"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Video Section */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Video className="h-4 w-4" />
+            Vídeos
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <FormLabel>Vídeo Contrato Assinado</FormLabel>
+            <FormDescription>URL do vídeo enviado após assinatura do contrato</FormDescription>
+            <Input
+              value={config.VIDEO_CONTRACT_SIGNED}
+              onChange={(e) => updateField('VIDEO_CONTRACT_SIGNED', e.target.value)}
+              placeholder="https://..."
+            />
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <FormLabel>Vídeo Contrato Criado</FormLabel>
+            <FormDescription>URL do vídeo enviado após criação do contrato</FormDescription>
+            <Input
+              value={config.VIDEO_CONTRACT_CREATED}
+              onChange={(e) => updateField('VIDEO_CONTRACT_CREATED', e.target.value)}
+              placeholder="https://..."
+            />
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
