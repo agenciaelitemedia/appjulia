@@ -234,27 +234,80 @@ serve(async (req) => {
       }
 
       case 'insert': {
-        const columns = Object.keys(data).join(', ');
-        const values = Object.values(data) as (string | number | boolean | null)[];
-        const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
-        const query = `INSERT INTO ${table} (${columns}) VALUES (${placeholders}) RETURNING *`;
-        result = await sql.unsafe(query, values);
+        // Special handling for agents table with settings field
+        if (table === 'agents' && data && 'settings' in data) {
+          const normalizedSettings = normalizeSettings(data.settings);
+          const columnsArr = Object.keys(data);
+          const valuesArr: any[] = [];
+          const placeholdersArr: string[] = [];
+          
+          columnsArr.forEach((col, i) => {
+            if (col === 'settings') {
+              // Use CTE + CASE to ensure JSONB object
+              placeholdersArr.push(`(SELECT CASE WHEN jsonb_typeof($${i + 1}::jsonb) = 'string' THEN ($${i + 1}::jsonb #>> '{}')::jsonb ELSE $${i + 1}::jsonb END)`);
+              valuesArr.push(normalizedSettings);
+            } else {
+              placeholdersArr.push(`$${i + 1}`);
+              valuesArr.push(data[col]);
+            }
+          });
+          
+          const query = `INSERT INTO ${table} (${columnsArr.join(', ')}) VALUES (${placeholdersArr.join(', ')}) RETURNING *`;
+          result = await sql.unsafe(query, valuesArr);
+        } else {
+          // Standard insert for other tables
+          const columns = Object.keys(data).join(', ');
+          const values = Object.values(data) as (string | number | boolean | null)[];
+          const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
+          const query = `INSERT INTO ${table} (${columns}) VALUES (${placeholders}) RETURNING *`;
+          result = await sql.unsafe(query, values);
+        }
         break;
       }
 
       case 'update': {
-        const updates = Object.entries(data)
-          .map(([key, _], index) => `${key} = $${index + 1}`)
-          .join(', ');
-        const dataValues = Object.values(data) as (string | number | boolean | null)[];
-        
-        const whereConditions = Object.entries(where)
-          .map(([key, _], index) => `${key} = $${dataValues.length + index + 1}`)
-          .join(' AND ');
-        const whereValues = Object.values(where) as (string | number | boolean | null)[];
-        
-        const query = `UPDATE ${table} SET ${updates} WHERE ${whereConditions} RETURNING *`;
-        result = await sql.unsafe(query, [...dataValues, ...whereValues]);
+        // Special handling for agents table with settings field
+        if (table === 'agents' && data && 'settings' in data) {
+          const normalizedSettings = normalizeSettings(data.settings);
+          const columnsArr = Object.keys(data);
+          const dataValues: any[] = [];
+          const updateParts: string[] = [];
+          let paramIndex = 1;
+          
+          columnsArr.forEach((col) => {
+            if (col === 'settings') {
+              // Use CASE to ensure JSONB object even if string arrives
+              updateParts.push(`settings = CASE WHEN jsonb_typeof($${paramIndex}::jsonb) = 'string' THEN ($${paramIndex}::jsonb #>> '{}')::jsonb ELSE $${paramIndex}::jsonb END`);
+              dataValues.push(normalizedSettings);
+            } else {
+              updateParts.push(`${col} = $${paramIndex}`);
+              dataValues.push(data[col]);
+            }
+            paramIndex++;
+          });
+          
+          const whereConditions = Object.entries(where)
+            .map(([key, _], index) => `${key} = $${paramIndex + index}`)
+            .join(' AND ');
+          const whereValues = Object.values(where) as (string | number | boolean | null)[];
+          
+          const query = `UPDATE ${table} SET ${updateParts.join(', ')} WHERE ${whereConditions} RETURNING *`;
+          result = await sql.unsafe(query, [...dataValues, ...whereValues]);
+        } else {
+          // Standard update for other tables
+          const updates = Object.entries(data)
+            .map(([key, _], index) => `${key} = $${index + 1}`)
+            .join(', ');
+          const dataValues = Object.values(data) as (string | number | boolean | null)[];
+          
+          const whereConditions = Object.entries(where)
+            .map(([key, _], index) => `${key} = $${dataValues.length + index + 1}`)
+            .join(' AND ');
+          const whereValues = Object.values(where) as (string | number | boolean | null)[];
+          
+          const query = `UPDATE ${table} SET ${updates} WHERE ${whereConditions} RETURNING *`;
+          result = await sql.unsafe(query, [...dataValues, ...whereValues]);
+        }
         break;
       }
 
@@ -601,9 +654,14 @@ serve(async (req) => {
         // Normalize settings using robust function (handles double-stringified JSON)
         const normalizedSettings = normalizeSettings(settings);
         
+        // Use CTE + CASE to ensure settings is ALWAYS stored as JSONB object (never string)
         const rows = await sql.unsafe(
-          `INSERT INTO agents (client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date, status, is_visibilided, created_at, updated_at)
-           VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, true, true, now(), now())
+          `WITH s AS (SELECT $3::jsonb AS v)
+           INSERT INTO agents (client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date, status, is_visibilided, created_at, updated_at)
+           SELECT $1, $2, 
+             CASE WHEN jsonb_typeof(s.v) = 'string' THEN (s.v #>> '{}')::jsonb ELSE s.v END,
+             $4, $5, $6, $7, true, true, now(), now()
+           FROM s
            RETURNING id`,
           [client_id, cod_agent, normalizedSettings, prompt, is_closer, agent_plan_id, due_date]
         );
@@ -730,12 +788,15 @@ serve(async (req) => {
         // Normalize settings using robust function (handles double-stringified JSON)
         const normalizedSettings = normalizeSettings(settings);
         
+        // Use CTE + CASE to ensure settings is ALWAYS stored as JSONB object (never string)
         const rows = await sql.unsafe(
-          `UPDATE agents 
-           SET settings = $1::jsonb, prompt = $2, is_closer = $3, 
-               agent_plan_id = $4, due_date = $5, status = $6, updated_at = now()
-           WHERE id = $7
-           RETURNING *`,
+          `WITH s AS (SELECT $1::jsonb AS v)
+           UPDATE agents 
+           SET settings = CASE WHEN jsonb_typeof(s.v) = 'string' THEN (s.v #>> '{}')::jsonb ELSE s.v END, 
+               prompt = $2, is_closer = $3, agent_plan_id = $4, due_date = $5, status = $6, updated_at = now()
+           FROM s
+           WHERE agents.id = $7
+           RETURNING agents.*`,
           [normalizedSettings, prompt, is_closer, agent_plan_id, due_date, status, agentId]
         );
 
@@ -784,7 +845,14 @@ serve(async (req) => {
         // Find count of string-type settings
         const stringCount = ([...preCheck] as unknown as Array<{t: string; count: number}>).find(r => r.t === 'string')?.count || 0;
         
+        // Get sample of IDs that will be fixed
+        let fixedIds: number[] = [];
         if (stringCount > 0) {
+          const sampleIds = await sql.unsafe(
+            `SELECT id FROM agents WHERE jsonb_typeof(settings) = 'string' LIMIT 10`
+          );
+          fixedIds = (sampleIds as Array<Record<string, unknown>>).map((r) => r.id as number);
+          
           // Fix: convert string to proper object
           await sql.unsafe(
             `UPDATE agents 
@@ -804,6 +872,7 @@ serve(async (req) => {
         result = [{
           pre_check: preCheck,
           fixed_count: stringCount,
+          fixed_ids_sample: fixedIds,
           post_check: postCheck
         }];
         break;
@@ -816,6 +885,39 @@ serve(async (req) => {
            FROM agents 
            WHERE settings IS NOT NULL 
            GROUP BY jsonb_typeof(settings)`
+        );
+        result = diagnosis;
+        break;
+      }
+
+      case 'diagnose_latest_agents_settings': {
+        // Detailed diagnosis of the 5 most recent agents
+        const diagnosis = await sql.unsafe(
+          `SELECT 
+            id,
+            created_at,
+            jsonb_typeof(settings) as settings_type,
+            settings ? 'CONTRACT_SIGNED' as has_contract_signed_key,
+            settings->>'CONTRACT_SIGNED' as contract_signed_value,
+            LEFT(settings::text, 100) as settings_preview
+           FROM agents 
+           ORDER BY created_at DESC 
+           LIMIT 5`
+        );
+        result = diagnosis;
+        break;
+      }
+
+      case 'diagnose_db_identity': {
+        // Returns database identity info to confirm which DB is being queried
+        const diagnosis = await sql.unsafe(
+          `SELECT 
+            current_database() as db_name,
+            current_schema() as schema_name,
+            current_user as db_user,
+            inet_server_addr()::text as server_addr,
+            inet_server_port() as server_port,
+            version() as pg_version`
         );
         result = diagnosis;
         break;
