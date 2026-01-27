@@ -144,12 +144,7 @@ export function EquipeMemberDialog({
       return;
     }
 
-    if (selectedAgentIds.length === 0) {
-      toast.error("Selecione pelo menos um agente");
-      return;
-    }
-
-    // Validate email uniqueness
+    // Agents are optional - no validation needed
     const isEmailValid = await validateEmail();
     if (!isEmailValid) {
       return;
