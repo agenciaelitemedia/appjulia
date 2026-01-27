@@ -1,12 +1,13 @@
 import { useEffect } from 'react';
 import { useFormContext } from 'react-hook-form';
-import { FormField, FormItem, FormLabel, FormControl, FormDescription } from '@/components/ui/form';
+import { FormLabel, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { MessageSquare, Bell, Phone, Play, FileText, Video } from 'lucide-react';
+import { MultiPhraseInput } from './MultiPhraseInput';
 import type { AgentFormData } from '../CreateAgentWizard';
 
 interface ConfigFields {
@@ -175,10 +176,10 @@ export function ConfigStep() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <FormLabel>Início da Sessão</FormLabel>
-            <FormDescription>Comando para iniciar uma nova sessão</FormDescription>
-            <Input
+            <FormDescription>Comandos para iniciar uma nova sessão (adicione múltiplas frases)</FormDescription>
+            <MultiPhraseInput
               value={config.SESSION_START}
-              onChange={(e) => updateField('SESSION_START', e.target.value)}
+              onChange={(value) => updateField('SESSION_START', value)}
               placeholder="Ex: #start"
             />
           </div>
@@ -200,10 +201,10 @@ export function ConfigStep() {
 
           <div className="space-y-2">
             <FormLabel>Início de Campanha</FormLabel>
-            <FormDescription>Frase que inicia o fluxo de campanha</FormDescription>
-            <Input
+            <FormDescription>Frases que iniciam o fluxo de campanha (adicione múltiplas)</FormDescription>
+            <MultiPhraseInput
               value={config.START_CAMPAIGN}
-              onChange={(e) => updateField('START_CAMPAIGN', e.target.value)}
+              onChange={(value) => updateField('START_CAMPAIGN', value)}
               placeholder="Ex: quero me aposentar"
             />
           </div>
@@ -212,10 +213,10 @@ export function ConfigStep() {
 
           <div className="space-y-2">
             <FormLabel>Verificar Atendimento Especializado</FormLabel>
-            <FormDescription>Frase para transferir ao atendimento especializado</FormDescription>
-            <Input
+            <FormDescription>Frases para transferir ao atendimento especializado (adicione múltiplas)</FormDescription>
+            <MultiPhraseInput
               value={config.SESSION_CHECK_SPECIALIZED}
-              onChange={(e) => updateField('SESSION_CHECK_SPECIALIZED', e.target.value)}
+              onChange={(value) => updateField('SESSION_CHECK_SPECIALIZED', value)}
               placeholder="Ex: atendimento especializado"
             />
           </div>
