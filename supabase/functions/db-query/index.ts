@@ -941,13 +941,14 @@ serve(async (req) => {
         const { userId } = data;
         result = await sql.unsafe(
           `SELECT DISTINCT 
-            ua.cod_agent::text as cod_agent,
+            COALESCE(ua.cod_agent::text, a.cod_agent::text) as cod_agent,
             c.name as owner_name,
             c.business_name as owner_business_name
           FROM user_agents ua
-          JOIN agents a ON a.id = ua.agent_id
-          JOIN clients c ON c.id = a.client_id
+          LEFT JOIN agents a ON a.id = ua.agent_id OR a.cod_agent::text = ua.cod_agent::text
+          LEFT JOIN clients c ON c.id = a.client_id
           WHERE ua.user_id = $1
+            AND (a.id IS NOT NULL)
           ORDER BY c.name`,
           [userId]
         );
