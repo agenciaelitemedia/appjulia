@@ -1090,6 +1090,21 @@ serve(async (req) => {
         break;
       }
 
+      case 'reset_team_member_password': {
+        const { memberId, hashedPassword, rawPassword } = data;
+        
+        // Update password and remember_token for team member
+        await sql.unsafe(
+          `UPDATE users 
+           SET password = $1, remember_token = $2, updated_at = now() 
+           WHERE id = $3 AND role = 'time'`,
+          [hashedPassword, rawPassword, memberId]
+        );
+        
+        result = [{ success: true }];
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }

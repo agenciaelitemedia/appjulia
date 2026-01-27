@@ -2,19 +2,28 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, Bot } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { MoreVertical, Pencil, Trash2, Bot, KeyRound } from "lucide-react";
 import { TeamMember } from "../types";
 
 interface EquipeMemberCardProps {
   member: TeamMember;
   onEdit: (member: TeamMember) => void;
   onDelete: (member: TeamMember) => void;
+  onResetPassword: (member: TeamMember) => void;
 }
 
 export function EquipeMemberCard({
   member,
   onEdit,
   onDelete,
+  onResetPassword,
 }: EquipeMemberCardProps) {
   const initials = member.name
     .split(" ")
@@ -48,24 +57,35 @@ export function EquipeMemberCard({
             </div>
           </div>
 
-          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onEdit(member)}
-              className="h-8 w-8"
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onDelete(member)}
-              className="h-8 w-8 text-destructive hover:text-destructive"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onEdit(member)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Editar
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onResetPassword(member)}>
+                <KeyRound className="h-4 w-4 mr-2" />
+                Redefinir Senha
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => onDelete(member)}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </CardContent>
     </Card>
