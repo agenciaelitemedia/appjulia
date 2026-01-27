@@ -1,70 +1,135 @@
 
+
 ## Objetivo
-Garantir que o campo `agents.settings` seja **JSONB do tipo “object”** (não “string”) e que a API retorne esse campo como **objeto JSON**, mantendo compatibilidade com outros sistemas.
+Garantir que `agents.settings` seja **sempre JSONB do tipo objeto** (nunca string), corrigindo definitivamente o problema onde `SELECT settings->>'CONTRACT_SIGNED'` retorna `null`.
 
-## O que eu já confirmei (com consultas diretas no backend)
-- A coluna `settings` **é do tipo `jsonb`** no banco (`information_schema.columns`).
-- Para o agente `id=297`, o valor atual no banco **já está como objeto JSONB** (quando consultado diretamente), e o `get_agent_details` também **já pode retornar como objeto**.
+## Diagnóstico Confirmado
+O registro mais recente (`id=297`, `created_at=2026-01-26...`) está com:
+- `jsonb_typeof(settings) = 'string'` (ERRADO)
+- `settings->>'CONTRACT_SIGNED' = null` (consequência)
+- O valor está como `"\"{\\\"CHAT_RESUME\\\":true,...`" (JSON duplamente serializado dentro de JSONB string)
 
-Isso indica que o problema que você está vendo geralmente acontece por um destes motivos:
-1) **Settings “duplamente serializado”** chegando no backend (vira `JSONB string`, exemplo: `"\"{...}\""`), e aí fica salvo como string dentro do JSONB.  
-2) **Registros antigos corrompidos** (já existentes) onde `jsonb_typeof(settings) = 'string'`.  
-3) Algum endpoint/consulta que faça cast para texto (ex.: `settings::text`) — não é o caso do `get_agent_details` atualmente, mas pode existir em outros endpoints/relatórios.
+Enquanto registros anteriores estão corretos (`jsonb_typeof(settings)='object'` e `->>'CONTRACT_SIGNED'` retorna texto).
 
-## Mudanças propostas (para resolver “de vez”)
+## Por que isso ainda acontece mesmo "com cast ::jsonb"
+Hoje o `db-query` faz:
+1. `normalizedSettings = normalizeSettings(settings)` (que retorna `JSON.stringify(obj)`)
+2. `SET settings = $1::jsonb`
 
-### 1) Blindagem no salvamento (insert/update) contra “JSON duplamente stringificado”
-**Problema:** se o frontend (ou outro sistema) mandar `settings` como string já “stringificada de novo”, o `JSON.parse()` retorna **string**, não objeto, e hoje isso pode passar e acabar salvando `jsonb` como string.
+O problema: quando o payload chega já como string literal `"\"{...}\""`, o cast `::jsonb` interpreta isso como um **JSONB do tipo string**, não objeto. A correção "à prova de bala" é: **mesmo que chegue como jsonb string, o SQL converte e grava como objeto**.
 
-**Solução:** criar uma função interna `normalizeSettings()` na função `db-query` que:
-- Aceita `settings` como `unknown`
-- Se for string: faz `JSON.parse()`
-- Se o resultado ainda for string: faz `JSON.parse()` de novo (uma segunda etapa)
-- No final, valida que o resultado é um **objeto plain** (não string, não array, não null)
-- Só então faz `JSON.stringify(obj)` para enviar ao SQL com `::jsonb`
+## Mudanças Técnicas
 
-Resultado: mesmo que chegue `"\"{...}\""`, a função converte para `{...}` antes de gravar.
+### 1. Blindagem no nível do SQL (`insert_agent` e `update_agent`)
+Alterar o SQL para converter automaticamente jsonb string para objeto:
 
-### 2) Blindagem na leitura (garantir retorno como objeto)
-Mesmo com a blindagem acima, pode existir legado.
+```sql
+-- Em vez de apenas: SET settings = $1::jsonb
+-- Usar com CTE:
+WITH s AS (SELECT $1::jsonb AS v)
+UPDATE agents
+SET settings = CASE
+  WHEN jsonb_typeof(s.v) = 'string' THEN (s.v #>> '{}')::jsonb
+  ELSE s.v
+END
+FROM s
+WHERE id = $2
+RETURNING *;
+```
 
-**Solução:** em endpoints que retornam `settings` (pelo menos `get_agent_details` e qualquer outro que exponha settings), retornar:
-- `CASE WHEN jsonb_typeof(a.settings) = 'string' THEN (a.settings #>> '{}')::jsonb ELSE a.settings END AS settings`
+Para INSERT:
+```sql
+WITH s AS (SELECT $1::jsonb AS v)
+INSERT INTO agents (client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date)
+SELECT $2, $3, 
+  CASE WHEN jsonb_typeof(s.v) = 'string' THEN (s.v #>> '{}')::jsonb ELSE s.v END,
+  $4, $5, $6, $7
+FROM s
+RETURNING id;
+```
 
-Isso faz com que, mesmo que algum registro esteja como JSONB string, a API devolva um objeto (e não uma string escapada).
+Isso garante:
+- Se chegar `{...}` → grava objeto
+- Se chegar `"\"{...}\""` → converte e grava objeto
+- Mesmo que a entrada venha "errada", o banco nunca mais fica com `jsonb_typeof(settings)='string'`
 
-### 3) Reparar registros antigos (migração de dados, sem depender de acesso externo)
-Adicionar uma ação “controlada” no backend (ex.: `normalize_agents_settings`) que execute com segurança:
-- **Pré-check:** `SELECT COUNT(*) FROM agents WHERE jsonb_typeof(settings)='string'`
-- **Fix:** `UPDATE agents SET settings = (settings #>> '{}')::jsonb WHERE jsonb_typeof(settings)='string'`
-- **Pós-check:** retorna quantos foram corrigidos
+### 2. Blindagem nas ações genéricas `insert` e `update`
+Para `table === 'agents'` com `settings`:
+- Detectar `table === 'agents' && 'settings' in data`
+- Aplicar mesma lógica de conversão com CASE
+- Garantir cast explícito `::jsonb`
 
-Isso remove o legado que pode estar quebrando “a outra aplicação”.
+Resultado: não existe mais nenhum caminho no backend que consiga gravar `settings` como jsonb string.
 
-### 4) Validação/Diagnóstico (para você ver “preto no branco”)
-Vou deixar preparado um diagnóstico que você (ou eu) pode rodar via backend:
-- `SELECT jsonb_typeof(settings) AS t, COUNT(*) FROM agents GROUP BY 1;`
-Assim a gente confirma se ainda existe `t='string'` em algum registro.
+### 3. Adicionar ações de diagnóstico
+**`diagnose_latest_agents_settings`**:
+```sql
+SELECT 
+  id,
+  created_at,
+  jsonb_typeof(settings) as t,
+  settings ? 'CONTRACT_SIGNED' as has_key,
+  settings->>'CONTRACT_SIGNED' as contract_signed
+FROM agents 
+ORDER BY created_at DESC 
+LIMIT 5;
+```
 
-## Como vamos validar que ficou correto
-1) Salvar um agente pela UI.
-2) Recarregar os detalhes do agente.
-3) Conferir que `settings` volta como objeto (sem aspas e sem escapes).
-4) Rodar o diagnóstico e garantir que não existe mais `jsonb_typeof(settings)='string'`.
+**`diagnose_db_identity`**:
+```sql
+SELECT 
+  current_database() as db_name,
+  current_schema() as schema_name,
+  inet_server_addr() as server_addr,
+  inet_server_port() as server_port;
+```
 
-## Escopo de arquivos (quando eu voltar ao modo de implementação)
-- `supabase/functions/db-query/index.ts`
-  - Refatorar `insert_agent` e `update_agent` para usar `normalizeSettings()`
-  - Ajustar retorno do `get_agent_details` (e revisar outros endpoints que retornem settings)
-  - Adicionar ação segura de normalização em massa (opcional, mas recomendado)
+### 4. Correção de registros existentes (`normalize_agents_settings`)
+Melhorar a ação existente para:
+- Contar quantos estão como string (pré-check)
+- Converter todos para objeto:
+```sql
+UPDATE agents 
+SET settings = (settings #>> '{}')::jsonb 
+WHERE jsonb_typeof(settings) = 'string';
+```
+- Retornar IDs corrigidos (amostra) para auditoria
 
-## Observação importante (por que seu exemplo “com aspas” está errado)
-O formato abaixo representa **um JSON string**, não um JSON object:
-- `"{"CHAT_RESUME":true,...}"`
+## Arquivo a Modificar
 
-Outros sistemas que esperam JSONB object quebram porque isso vira `jsonb_typeof(settings)='string'`.
-O correto é gravar como objeto:
-- `{ "CHAT_RESUME": true, ... }`
+| Arquivo | Ação |
+|---------|------|
+| `supabase/functions/db-query/index.ts` | Modificar `insert_agent`, `update_agent`, ações genéricas `insert`/`update`, adicionar diagnósticos |
 
-Com as mudanças acima, vamos garantir que isso nunca mais aconteça, mesmo se algum cliente mandar o payload errado.
+## Sequência de Execução
+1. Implementar blindagem SQL em `insert_agent` (com CTE + CASE)
+2. Implementar blindagem SQL em `update_agent` (com CTE + CASE)
+3. Implementar blindagem nas ações genéricas `insert`/`update` para tabela `agents`
+4. Adicionar ação `diagnose_latest_agents_settings`
+5. Adicionar ação `diagnose_db_identity`
+6. Melhorar retorno de `normalize_agents_settings` (incluir IDs corrigidos)
+7. Deploy da função
+8. Executar `normalize_agents_settings` para corrigir legado (incluindo registro 297)
+9. Validar com as queries originais
+
+## Validação (Critério de Aceite)
+Após aplicar as mudanças:
+
+1. Salvar um agente (criar e editar)
+2. Rodar `diagnose_latest_agents_settings` e verificar:
+   - `t = 'object'` para todos
+   - `contract_signed` retorna texto (quando a chave existir)
+3. Rodar no banco manualmente:
+   ```sql
+   SELECT settings->>'CONTRACT_SIGNED' FROM public.agents ORDER BY created_at DESC LIMIT 1;
+   ```
+   - Resultado deve ser o texto (não `null`)
+4. Se ainda aparecer `null`, usar `diagnose_db_identity` para confirmar que é o mesmo banco
+
+## Observação Importante
+JSONB no Postgres não guarda formatação/indentação. O que importa é:
+- `jsonb_typeof(settings) = 'object'`
+- Operadores funcionarem (`->`, `->>`, `?`, etc.)
+
+O formato "minificado" vs "bonitinho" é irrelevante — o que quebra é estar como jsonb string. Esta correção elimina isso completamente.
 
