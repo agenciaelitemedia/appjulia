@@ -1,122 +1,98 @@
 
-## Tratamento do campo `settings` como JSONB
+## Vincular usuário ao cliente via `client_id` na tabela `users`
 
-### Contexto do problema
-O campo `settings` da tabela `agents` deveria ser armazenado como JSONB, mas está sendo salvo como texto literal (string com `\n` escapados). Isso causa:
-- Dados salvos incorretamente no banco
-- Erro `[object Object]` ao editar (quando JSONB é lido como objeto)
-- Erro React #31 ao visualizar (tentativa de renderizar objeto como texto)
+### Problema identificado
+Ao criar um novo agente com novo usuário, o sistema não está preenchendo o campo `client_id` na tabela `users`. Por isso, quando o usuário faz login, o `client_id` retorna `null` e a página de perfil não consegue carregar os dados do cliente.
+
+Conforme a requisição de login retornou:
+```json
+{"client_id": null, ...}
+```
 
 ### Causa raiz
-O PostgreSQL está recebendo a string JSON e salvando-a como texto em vez de parseá-la para JSONB. Além disso, o frontend não trata corretamente quando o dado retorna como objeto JavaScript (comportamento esperado do JSONB).
+A ação `insert_user` na Edge Function não recebe nem grava o `client_id`:
 
----
+```sql
+INSERT INTO users (name, email, password, remember_token, role, created_at, updated_at)
+VALUES ($1, $2, $3, $4, 'user', now(), now())
+```
 
-## Mudanças a implementar
+### Mudanças a implementar
 
-### 1. Edge Function - Forçar cast para JSONB no INSERT
+#### 1. Edge Function - Adicionar `client_id` no INSERT de usuário
 
 **Arquivo:** `supabase/functions/db-query/index.ts`
 
-**Ação `insert_agent` (linha ~492):**
-Alterar o INSERT para incluir cast explícito `::jsonb`:
-
+**Ação `insert_user` (linhas 477-486):**
 ```sql
-INSERT INTO agents (client_id, cod_agent, settings, prompt, ...)
-VALUES ($1, $2, $3::jsonb, $4, ...)
+INSERT INTO users (name, email, password, remember_token, role, client_id, created_at, updated_at)
+VALUES ($1, $2, $3, $4, 'user', $5, now(), now())
+RETURNING id, name, email
 ```
 
-Isso garante que o PostgreSQL interprete a string como JSON e armazene no formato JSONB.
+Parâmetros: `[name, email, hashedPassword, rawPassword, clientId]`
 
 ---
 
-### 2. Edge Function - Forçar cast para JSONB no UPDATE
+#### 2. Frontend - Passar `clientId` para a ação `insert_user`
 
-**Arquivo:** `supabase/functions/db-query/index.ts`
+**Arquivo:** `src/lib/externalDb.ts`
 
-**Ação `update_agent` (linha ~612):**
-Alterar o UPDATE para incluir cast explícito:
-
-```sql
-UPDATE agents 
-SET settings = $1::jsonb, prompt = $2, ...
-```
-
----
-
-### 3. Frontend - Tratar `settings` no carregamento (Edição)
-
-**Arquivo:** `src/pages/agents/EditAgentPage.tsx`
-
-**Problema:** Linha 138 assume que `data.settings` é sempre string, mas quando vem de JSONB, é um objeto.
-
-**Solução:** Converter para string se for objeto:
+**Método `insertUser`:**
+Adicionar parâmetro `clientId` na assinatura:
 
 ```typescript
-// Linha 138 - Ao popular o formulário
-config_json: typeof data.settings === 'object' 
-  ? JSON.stringify(data.settings, null, 2) 
-  : (data.settings || '{}'),
+async insertUser(name: string, email: string, hashedPassword: string, rawPassword: string, clientId: number): Promise<{ id: number; name: string; email: string }> {
+  const result = await this.invoke({
+    action: 'insert_user',
+    data: { name, email, hashedPassword, rawPassword, clientId },
+  });
+  return result[0];
+}
 ```
 
 ---
 
-### 4. Frontend - Tratar `settings` na visualização (Detalhes)
+#### 3. Hook de criação - Passar `clientId` ao criar usuário
 
-**Arquivo:** `src/pages/agents/AgentDetailsPage.tsx`
+**Arquivo:** `src/pages/agents/hooks/useAgentSave.ts`
 
-**Problema:** `formatJsonSettings()` (linhas 103-109) tenta fazer `JSON.parse()` em algo que já pode ser objeto.
-
-**Solução:** Verificar o tipo antes de processar:
+**Trecho (linhas 146-151):**
+O `insertUser` é chamado antes de criar o cliente quando é novo usuário, mas o `createdClientId` já está disponível neste ponto. Ajustar a chamada:
 
 ```typescript
-const formatJsonSettings = () => {
-  if (!details?.settings) return '{}';
-  
-  // Se já é objeto (JSONB), formatar diretamente
-  if (typeof details.settings === 'object') {
-    return JSON.stringify(details.settings, null, 2);
-  }
-  
-  // Se é string, tentar parsear
-  try {
-    return JSON.stringify(JSON.parse(details.settings), null, 2);
-  } catch {
-    return details.settings;
-  }
-};
+const userResult = await externalDb.insertUser(
+  data.user_name,
+  data.user_email,
+  hashedPassword,
+  tempPassword,
+  createdClientId  // Adicionar este parâmetro
+);
 ```
 
 ---
 
-### 5. Atualizar a interface TypeScript
+### Consideração sobre usuários existentes
 
-**Arquivos:** `EditAgentPage.tsx` e `AgentDetailsPage.tsx`
-
-**Problema:** A interface `AgentDetails` define `settings: string`, mas após as correções, pode vir como objeto.
-
-**Solução:** Alterar o tipo para aceitar ambos:
-
-```typescript
-settings: string | Record<string, unknown>;
-```
+Usuários existentes que já têm `client_id = null` não serão afetados por esta mudança. Se necessário, seria preciso:
+1. Criar uma ação para atualizar o `client_id` de um usuário existente
+2. Ou executar um UPDATE manual no banco para vincular usuários antigos
 
 ---
 
-## Resumo das alterações por arquivo
+### Resumo das alterações por arquivo
 
 | Arquivo | Mudança |
 |---------|---------|
-| `supabase/functions/db-query/index.ts` | Cast `::jsonb` em `insert_agent` e `update_agent` |
-| `src/pages/agents/EditAgentPage.tsx` | Converter objeto para string ao carregar; ajustar interface |
-| `src/pages/agents/AgentDetailsPage.tsx` | Tratar objeto e string em `formatJsonSettings`; ajustar interface |
+| `supabase/functions/db-query/index.ts` | Adicionar `client_id` no INSERT da ação `insert_user` |
+| `src/lib/externalDb.ts` | Adicionar parâmetro `clientId` ao método `insertUser` |
+| `src/pages/agents/hooks/useAgentSave.ts` | Passar `createdClientId` na chamada de `insertUser` |
 
 ---
 
-## Resultado esperado
+### Resultado esperado
 
 Após implementação:
-- Novo agente: `settings` será salvo como JSONB real no banco
-- Editar agente: Carrega corretamente independente do formato existente
-- Visualizar agente: Exibe JSON formatado sem erros
-- Dados antigos (texto): Continuam funcionando (fallback para string)
+- Novos usuários criados terão o `client_id` vinculado corretamente
+- Ao fazer login, o `client_id` virá preenchido
+- A página de perfil carregará os dados do cliente automaticamente
