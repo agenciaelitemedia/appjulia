@@ -1,185 +1,132 @@
 
-# Plano: Otimizar Performance da Lista de Agentes
+# Plano: Corrigir Gravacao de Settings como JSONB
 
 ## Problema Identificado
 
-A query atual na pagina `/admin/agentes` possui um **gargalo critico de performance**: uma **subquery correlacionada** que e executada para cada agente individualmente.
+O campo `settings` esta sendo gravado como **TEXT** em vez de **JSONB**. Ao consultar o banco, o valor retorna como string escapada:
 
-### Query Atual (Lenta)
-
-```sql
-SELECT 
-  a.id,
-  ...
-  (
-    SELECT COUNT(DISTINCT s.id)
-    FROM sessions s
-    WHERE s.agent_id = a.id
-      AND EXISTS (
-        SELECT 1 FROM log_messages lm 
-        WHERE lm.session_id = s.id
-          AND lm.created_at >= DATE_TRUNC('month', CURRENT_DATE)
-          AND lm.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
-      )
-  ) AS leads_received,
-  ...
-FROM agents a
-JOIN clients c ON c.id = a.client_id AND a.is_visibilided = true
-LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
-ORDER BY c.business_name
+```json
+"settings": "{\n  \"CHAT_RESUME\": true,\n  ..."
 ```
 
-**Problemas:**
-1. Subquery correlacionada executada N vezes (uma por agente)
-2. EXISTS dentro da subquery adiciona mais overhead
-3. Sem indices otimizados para a consulta
-4. Ordena todo o resultado mesmo com paginacao client-side
+Quando deveria retornar como objeto:
 
-## Solucao Proposta
-
-### 1. Otimizar Query - Usar LEFT JOIN com Agregacao
-
-Substituir a subquery correlacionada por um LEFT JOIN com pre-agregacao:
-
-```sql
-SELECT 
-  a.id,
-  a.cod_agent,
-  a.status,
-  c.name AS client_name,
-  c.business_name,
-  ap.name AS plan_name,
-  COALESCE(ap."limit", 0) AS plan_limit,
-  COALESCE(leads.count, 0) AS leads_received,
-  a.last_used,
-  a.due_date
-FROM agents a
-JOIN clients c ON c.id = a.client_id
-LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
-LEFT JOIN (
-  SELECT s.agent_id, COUNT(DISTINCT s.id) as count
-  FROM sessions s
-  INNER JOIN log_messages lm ON lm.session_id = s.id
-  WHERE lm.created_at >= DATE_TRUNC('month', CURRENT_DATE)
-    AND lm.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
-  GROUP BY s.agent_id
-) leads ON leads.agent_id = a.id
-WHERE a.is_visibilided = true
-ORDER BY c.business_name
+```json
+"settings": { "CHAT_RESUME": true, ... }
 ```
 
-**Beneficios:**
-- Subquery executada apenas UMA vez
-- Resultado ja agregado e feito JOIN
-- Reducao de N+1 queries para 1+1 queries
+### Causa Raiz
 
-### 2. Criar Acao Dedicada na Edge Function
+O cast `$1::jsonb` no PostgreSQL funciona, mas ha dois problemas:
 
-Adicionar nova acao `get_agents_list` no `db-query` com a query otimizada.
+1. **Na leitura**: O campo esta vindo do banco ja como string (indicando que pode ter sido gravado incorretamente antes)
+2. **Na gravacao**: O JSON formatado com `\n` pode causar problemas de interpretacao
 
-### 3. Migrar para React Query
+## Solucao
 
-Substituir `useState` + `useEffect` por `useQuery` do TanStack Query para:
-- Cache automatico
-- Stale-while-revalidate
-- Refetch em background
-- Melhor UX com estados de loading
+### 1. Modificar a Acao `update_agent` na Edge Function
 
-### 4. Implementar Debounce na Busca
+Garantir que o settings seja parseado e re-serializado antes de enviar ao banco, usando `JSON.parse()` e `JSON.stringify()` sem formatacao:
 
-Adicionar debounce de 300ms no campo de busca para evitar re-renderizacoes excessivas durante digitacao.
+**Arquivo:** `supabase/functions/db-query/index.ts`
+
+**Localizacao:** Linha 671-684
+
+**Mudanca:**
+
+```typescript
+case 'update_agent': {
+  const { agentId, agentData } = data;
+  let { settings, prompt, is_closer, agent_plan_id, due_date, status } = agentData;
+  
+  // Garantir que settings seja um JSON valido sem formatacao
+  try {
+    const parsed = typeof settings === 'string' ? JSON.parse(settings) : settings;
+    settings = JSON.stringify(parsed); // Remove formatacao \n e espacos
+  } catch (e) {
+    throw new Error('Settings JSON invalido');
+  }
+  
+  const rows = await sql.unsafe(
+    `UPDATE agents 
+     SET settings = $1::jsonb, prompt = $2, is_closer = $3, 
+         agent_plan_id = $4, due_date = $5, status = $6, updated_at = now()
+     WHERE id = $7
+     RETURNING *`,
+    [settings, prompt, is_closer, agent_plan_id, due_date, status, agentId]
+  );
+  result = rows;
+  break;
+}
+```
+
+### 2. Modificar a Acao `insert_agent` (Para Consistencia)
+
+Aplicar a mesma logica no INSERT para garantir que novos agentes tambem tenham settings como JSONB correto:
+
+**Localizacao:** Linha 552-561
+
+```typescript
+case 'insert_agent': {
+  let { client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date } = data;
+  
+  // Garantir que settings seja um JSON valido sem formatacao
+  try {
+    const parsed = typeof settings === 'string' ? JSON.parse(settings) : settings;
+    settings = JSON.stringify(parsed);
+  } catch (e) {
+    throw new Error('Settings JSON invalido');
+  }
+  
+  const rows = await sql.unsafe(
+    `INSERT INTO agents (client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date, status, is_visibilided, created_at, updated_at)
+     VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, true, true, now(), now())
+     RETURNING id`,
+    [client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date]
+  );
+  result = rows;
+  break;
+}
+```
+
+## Fluxo Corrigido
+
+```text
+1. Frontend envia: "{\n  \"CHAT_RESUME\": true\n}"
+2. Edge Function: JSON.parse() -> { CHAT_RESUME: true }
+3. Edge Function: JSON.stringify() -> "{\"CHAT_RESUME\":true}"
+4. PostgreSQL: $1::jsonb -> JSONB { CHAT_RESUME: true }
+5. Consulta retorna: { CHAT_RESUME: true } (objeto)
+```
 
 ## Arquivos a Modificar
 
 | Arquivo | Acao | Descricao |
 |---------|------|-----------|
-| `supabase/functions/db-query/index.ts` | Modificar | Adicionar acao `get_agents_list` com query otimizada |
-| `src/lib/externalDb.ts` | Modificar | Adicionar metodo `getAgentsList()` |
-| `src/pages/agents/hooks/useAgentsList.ts` | Criar | Hook com React Query para listagem |
-| `src/pages/agents/AgentsList.tsx` | Modificar | Usar novo hook e adicionar debounce |
+| `supabase/functions/db-query/index.ts` | Modificar | Normalizar settings em update_agent e insert_agent |
 
-## Detalhes Tecnicos
+## Verificacao Apos Implementacao
 
-### Nova Acao na Edge Function
+Testar salvando um agente e consultando novamente. O campo `settings` deve retornar como objeto JSON, nao como string:
 
-```typescript
-case 'get_agents_list': {
-  result = await sql.unsafe(`
-    SELECT 
-      a.id,
-      a.cod_agent,
-      a.status,
-      c.name AS client_name,
-      c.business_name,
-      ap.name AS plan_name,
-      COALESCE(ap."limit", 0) AS plan_limit,
-      COALESCE(leads.count, 0) AS leads_received,
-      a.last_used,
-      a.due_date
-    FROM agents a
-    JOIN clients c ON c.id = a.client_id
-    LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
-    LEFT JOIN (
-      SELECT s.agent_id, COUNT(DISTINCT s.id) as count
-      FROM sessions s
-      INNER JOIN log_messages lm ON lm.session_id = s.id
-      WHERE lm.created_at >= DATE_TRUNC('month', CURRENT_DATE)
-        AND lm.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
-      GROUP BY s.agent_id
-    ) leads ON leads.agent_id = a.id
-    WHERE a.is_visibilided = true
-    ORDER BY c.business_name
-  `);
-  break;
-}
+**Antes:**
+```json
+"settings": "{\n  \"CHAT_RESUME\": true }"
 ```
 
-### Hook com React Query
-
-```typescript
-import { useQuery } from '@tanstack/react-query';
-import { externalDb } from '@/lib/externalDb';
-
-export function useAgentsList() {
-  return useQuery({
-    queryKey: ['agents-list'],
-    queryFn: () => externalDb.getAgentsList(),
-    staleTime: 60000, // 1 minuto
-  });
-}
+**Depois:**
+```json
+"settings": { "CHAT_RESUME": true }
 ```
 
-### Debounce na Busca
+## Observacao sobre Dados Existentes
 
-```typescript
-import { useDebounce } from '@/hooks/useDebounce';
+Os dados ja gravados como TEXT precisarao ser corrigidos manualmente ou via script SQL:
 
-// No componente:
-const debouncedSearch = useDebounce(searchTerm, 300);
-
-// Usar debouncedSearch no filtro
-const filteredAgents = useMemo(() => {
-  if (!debouncedSearch.trim()) return agents;
-  // ...
-}, [agents, debouncedSearch]);
+```sql
+UPDATE agents 
+SET settings = settings::jsonb 
+WHERE settings IS NOT NULL;
 ```
 
-## Estimativa de Melhoria
-
-| Metrica | Antes | Depois |
-|---------|-------|--------|
-| Queries no banco | N+1 (por agente) | 2 (fixa) |
-| Tempo de resposta | ~2-5s (varia com N) | ~200-500ms |
-| Re-renders na busca | A cada tecla | Apos 300ms |
-| Cache | Nenhum | 1 minuto |
-
-## Fluxo de Implementacao
-
-```text
-1. Adicionar acao get_agents_list na Edge Function
-2. Adicionar metodo getAgentsList no externalDb
-3. Criar hook useAgentsList com React Query
-4. Refatorar AgentsList para usar novo hook
-5. Adicionar debounce no campo de busca
-6. Testar performance
-```
+Isso pode ser feito diretamente no banco de dados externo.
