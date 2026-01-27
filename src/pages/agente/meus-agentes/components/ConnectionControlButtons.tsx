@@ -1,4 +1,4 @@
-import React, { useState, forwardRef } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -23,8 +23,11 @@ interface ConnectionControlButtonsProps {
   isLoading: boolean;
 }
 
-export const ConnectionControlButtons = forwardRef<HTMLDivElement, ConnectionControlButtonsProps>(
-  function ConnectionControlButtons({ agent, status, isLoading }, ref) {
+export function ConnectionControlButtons({
+  agent,
+  status,
+  isLoading,
+}: ConnectionControlButtonsProps) {
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
@@ -149,6 +152,4 @@ export const ConnectionControlButtons = forwardRef<HTMLDivElement, ConnectionCon
     default:
       return null;
   }
-});
-
-ConnectionControlButtons.displayName = 'ConnectionControlButtons';
+}
