@@ -475,12 +475,12 @@ serve(async (req) => {
       }
 
       case 'insert_user': {
-        const { name, email, hashedPassword, rawPassword } = data;
+        const { name, email, hashedPassword, rawPassword, clientId } = data;
         const rows = await sql.unsafe(
-          `INSERT INTO users (name, email, password, remember_token, role, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, 'user', now(), now())
+          `INSERT INTO users (name, email, password, remember_token, role, client_id, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, 'user', $5, now(), now())
            RETURNING id, name, email`,
-          [name, email, hashedPassword, rawPassword]
+          [name, email, hashedPassword, rawPassword, clientId]
         );
         result = rows;
         break;
