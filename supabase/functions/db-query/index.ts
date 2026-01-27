@@ -374,7 +374,7 @@ serve(async (req) => {
             a.hub,
             a.evo_url,
             a.evo_apikey,
-            a.evo_instancia,
+            a.evo_instance as evo_instancia,
             c.name as client_name,
             c.business_name,
             ap.name as plan_name,

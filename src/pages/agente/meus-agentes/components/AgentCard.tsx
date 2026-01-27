@@ -28,29 +28,30 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
       <CardContent className="p-4">
         {/* Header com badges */}
         <div className="flex items-start justify-between mb-3">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              {isMonitored ? (
-                <Eye className="w-4 h-4 text-muted-foreground" />
-              ) : (
-                <Bot className="w-4 h-4 text-primary" />
-              )}
-              <Badge variant={agent.status ? "default" : "secondary"}>
-                {agent.status ? 'Ativo' : 'Inativo'}
-              </Badge>
-            </div>
-            {/* Badge de conexão WhatsApp */}
-            <ConnectionStatusBadge status={connectionStatus} isLoading={isLoading} />
+          {/* Lado esquerdo: ícone + status ativo */}
+          <div className="flex items-center gap-2">
+            {isMonitored ? (
+              <Eye className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <Bot className="w-4 h-4 text-primary" />
+            )}
+            <Badge variant={agent.status ? "default" : "secondary"}>
+              {agent.status ? 'Ativo' : 'Inativo'}
+            </Badge>
           </div>
-          <span className="text-xs text-muted-foreground font-mono">
-            #{agent.cod_agent}
-          </span>
+          {/* Lado direito: badge de conexão WhatsApp */}
+          <ConnectionStatusBadge status={connectionStatus} isLoading={isLoading} />
         </div>
 
-        {/* Nome e detalhes */}
+        {/* Nome */}
         <h3 className="font-semibold text-foreground mb-1 truncate">
           {agent.business_name || agent.client_name || 'Sem nome'}
         </h3>
+        
+        {/* Código do agente - abaixo do nome */}
+        <p className="text-xs text-muted-foreground font-mono mb-1">
+          #{agent.cod_agent}
+        </p>
 
         {/* Instância WhatsApp (se configurada) */}
         {agent.evo_instancia && (
