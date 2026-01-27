@@ -1,132 +1,70 @@
 
-# Plano: Corrigir Gravacao de Settings como JSONB
+## Objetivo
+Garantir que o campo `agents.settings` seja **JSONB do tipo “object”** (não “string”) e que a API retorne esse campo como **objeto JSON**, mantendo compatibilidade com outros sistemas.
 
-## Problema Identificado
+## O que eu já confirmei (com consultas diretas no backend)
+- A coluna `settings` **é do tipo `jsonb`** no banco (`information_schema.columns`).
+- Para o agente `id=297`, o valor atual no banco **já está como objeto JSONB** (quando consultado diretamente), e o `get_agent_details` também **já pode retornar como objeto**.
 
-O campo `settings` esta sendo gravado como **TEXT** em vez de **JSONB**. Ao consultar o banco, o valor retorna como string escapada:
+Isso indica que o problema que você está vendo geralmente acontece por um destes motivos:
+1) **Settings “duplamente serializado”** chegando no backend (vira `JSONB string`, exemplo: `"\"{...}\""`), e aí fica salvo como string dentro do JSONB.  
+2) **Registros antigos corrompidos** (já existentes) onde `jsonb_typeof(settings) = 'string'`.  
+3) Algum endpoint/consulta que faça cast para texto (ex.: `settings::text`) — não é o caso do `get_agent_details` atualmente, mas pode existir em outros endpoints/relatórios.
 
-```json
-"settings": "{\n  \"CHAT_RESUME\": true,\n  ..."
-```
+## Mudanças propostas (para resolver “de vez”)
 
-Quando deveria retornar como objeto:
+### 1) Blindagem no salvamento (insert/update) contra “JSON duplamente stringificado”
+**Problema:** se o frontend (ou outro sistema) mandar `settings` como string já “stringificada de novo”, o `JSON.parse()` retorna **string**, não objeto, e hoje isso pode passar e acabar salvando `jsonb` como string.
 
-```json
-"settings": { "CHAT_RESUME": true, ... }
-```
+**Solução:** criar uma função interna `normalizeSettings()` na função `db-query` que:
+- Aceita `settings` como `unknown`
+- Se for string: faz `JSON.parse()`
+- Se o resultado ainda for string: faz `JSON.parse()` de novo (uma segunda etapa)
+- No final, valida que o resultado é um **objeto plain** (não string, não array, não null)
+- Só então faz `JSON.stringify(obj)` para enviar ao SQL com `::jsonb`
 
-### Causa Raiz
+Resultado: mesmo que chegue `"\"{...}\""`, a função converte para `{...}` antes de gravar.
 
-O cast `$1::jsonb` no PostgreSQL funciona, mas ha dois problemas:
+### 2) Blindagem na leitura (garantir retorno como objeto)
+Mesmo com a blindagem acima, pode existir legado.
 
-1. **Na leitura**: O campo esta vindo do banco ja como string (indicando que pode ter sido gravado incorretamente antes)
-2. **Na gravacao**: O JSON formatado com `\n` pode causar problemas de interpretacao
+**Solução:** em endpoints que retornam `settings` (pelo menos `get_agent_details` e qualquer outro que exponha settings), retornar:
+- `CASE WHEN jsonb_typeof(a.settings) = 'string' THEN (a.settings #>> '{}')::jsonb ELSE a.settings END AS settings`
 
-## Solucao
+Isso faz com que, mesmo que algum registro esteja como JSONB string, a API devolva um objeto (e não uma string escapada).
 
-### 1. Modificar a Acao `update_agent` na Edge Function
+### 3) Reparar registros antigos (migração de dados, sem depender de acesso externo)
+Adicionar uma ação “controlada” no backend (ex.: `normalize_agents_settings`) que execute com segurança:
+- **Pré-check:** `SELECT COUNT(*) FROM agents WHERE jsonb_typeof(settings)='string'`
+- **Fix:** `UPDATE agents SET settings = (settings #>> '{}')::jsonb WHERE jsonb_typeof(settings)='string'`
+- **Pós-check:** retorna quantos foram corrigidos
 
-Garantir que o settings seja parseado e re-serializado antes de enviar ao banco, usando `JSON.parse()` e `JSON.stringify()` sem formatacao:
+Isso remove o legado que pode estar quebrando “a outra aplicação”.
 
-**Arquivo:** `supabase/functions/db-query/index.ts`
+### 4) Validação/Diagnóstico (para você ver “preto no branco”)
+Vou deixar preparado um diagnóstico que você (ou eu) pode rodar via backend:
+- `SELECT jsonb_typeof(settings) AS t, COUNT(*) FROM agents GROUP BY 1;`
+Assim a gente confirma se ainda existe `t='string'` em algum registro.
 
-**Localizacao:** Linha 671-684
+## Como vamos validar que ficou correto
+1) Salvar um agente pela UI.
+2) Recarregar os detalhes do agente.
+3) Conferir que `settings` volta como objeto (sem aspas e sem escapes).
+4) Rodar o diagnóstico e garantir que não existe mais `jsonb_typeof(settings)='string'`.
 
-**Mudanca:**
+## Escopo de arquivos (quando eu voltar ao modo de implementação)
+- `supabase/functions/db-query/index.ts`
+  - Refatorar `insert_agent` e `update_agent` para usar `normalizeSettings()`
+  - Ajustar retorno do `get_agent_details` (e revisar outros endpoints que retornem settings)
+  - Adicionar ação segura de normalização em massa (opcional, mas recomendado)
 
-```typescript
-case 'update_agent': {
-  const { agentId, agentData } = data;
-  let { settings, prompt, is_closer, agent_plan_id, due_date, status } = agentData;
-  
-  // Garantir que settings seja um JSON valido sem formatacao
-  try {
-    const parsed = typeof settings === 'string' ? JSON.parse(settings) : settings;
-    settings = JSON.stringify(parsed); // Remove formatacao \n e espacos
-  } catch (e) {
-    throw new Error('Settings JSON invalido');
-  }
-  
-  const rows = await sql.unsafe(
-    `UPDATE agents 
-     SET settings = $1::jsonb, prompt = $2, is_closer = $3, 
-         agent_plan_id = $4, due_date = $5, status = $6, updated_at = now()
-     WHERE id = $7
-     RETURNING *`,
-    [settings, prompt, is_closer, agent_plan_id, due_date, status, agentId]
-  );
-  result = rows;
-  break;
-}
-```
+## Observação importante (por que seu exemplo “com aspas” está errado)
+O formato abaixo representa **um JSON string**, não um JSON object:
+- `"{"CHAT_RESUME":true,...}"`
 
-### 2. Modificar a Acao `insert_agent` (Para Consistencia)
+Outros sistemas que esperam JSONB object quebram porque isso vira `jsonb_typeof(settings)='string'`.
+O correto é gravar como objeto:
+- `{ "CHAT_RESUME": true, ... }`
 
-Aplicar a mesma logica no INSERT para garantir que novos agentes tambem tenham settings como JSONB correto:
+Com as mudanças acima, vamos garantir que isso nunca mais aconteça, mesmo se algum cliente mandar o payload errado.
 
-**Localizacao:** Linha 552-561
-
-```typescript
-case 'insert_agent': {
-  let { client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date } = data;
-  
-  // Garantir que settings seja um JSON valido sem formatacao
-  try {
-    const parsed = typeof settings === 'string' ? JSON.parse(settings) : settings;
-    settings = JSON.stringify(parsed);
-  } catch (e) {
-    throw new Error('Settings JSON invalido');
-  }
-  
-  const rows = await sql.unsafe(
-    `INSERT INTO agents (client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date, status, is_visibilided, created_at, updated_at)
-     VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, true, true, now(), now())
-     RETURNING id`,
-    [client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date]
-  );
-  result = rows;
-  break;
-}
-```
-
-## Fluxo Corrigido
-
-```text
-1. Frontend envia: "{\n  \"CHAT_RESUME\": true\n}"
-2. Edge Function: JSON.parse() -> { CHAT_RESUME: true }
-3. Edge Function: JSON.stringify() -> "{\"CHAT_RESUME\":true}"
-4. PostgreSQL: $1::jsonb -> JSONB { CHAT_RESUME: true }
-5. Consulta retorna: { CHAT_RESUME: true } (objeto)
-```
-
-## Arquivos a Modificar
-
-| Arquivo | Acao | Descricao |
-|---------|------|-----------|
-| `supabase/functions/db-query/index.ts` | Modificar | Normalizar settings em update_agent e insert_agent |
-
-## Verificacao Apos Implementacao
-
-Testar salvando um agente e consultando novamente. O campo `settings` deve retornar como objeto JSON, nao como string:
-
-**Antes:**
-```json
-"settings": "{\n  \"CHAT_RESUME\": true }"
-```
-
-**Depois:**
-```json
-"settings": { "CHAT_RESUME": true }
-```
-
-## Observacao sobre Dados Existentes
-
-Os dados ja gravados como TEXT precisarao ser corrigidos manualmente ou via script SQL:
-
-```sql
-UPDATE agents 
-SET settings = settings::jsonb 
-WHERE settings IS NOT NULL;
-```
-
-Isso pode ser feito diretamente no banco de dados externo.
