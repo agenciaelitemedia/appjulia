@@ -132,6 +132,13 @@ class ExternalDatabase {
     });
   }
 
+  async getAgentsList<T = any>(): Promise<T[]> {
+    return this.invoke({
+      action: 'get_agents_list',
+      data: {},
+    });
+  }
+
   async insertClient<T = any>(clientData: Partial<Client>): Promise<T> {
     const result = await this.invoke({
       action: 'insert_client',

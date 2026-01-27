@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bot,
@@ -53,19 +53,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { externalDb } from '@/lib/externalDb';
 import { useToast } from '@/hooks/use-toast';
-
-interface AgentListItem {
-  id: number;
-  cod_agent: string;
-  status: boolean;
-  client_name: string;
-  business_name: string;
-  plan_name: string | null;
-  plan_limit: number;
-  leads_received: number;
-  last_used: number | string | null;
-  due_date: number | string | null;
-}
+import { useDebounce } from '@/hooks/useDebounce';
+import { useAgentsList, AgentListItem } from './hooks/useAgentsList';
 
 type SortKey = 'status' | 'cod_agent' | 'business_name' | 'plan_name' | 'leads_received' | 'last_used' | 'due_date';
 
@@ -123,8 +112,6 @@ const getUsageVariant = (used: number, limit: number): 'default' | 'secondary' |
 };
 
 export default function AgentsList() {
-  const [agents, setAgents] = useState<AgentListItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [agentToToggle, setAgentToToggle] = useState<AgentListItem | null>(null);
@@ -134,58 +121,12 @@ export default function AgentsList() {
   });
   const navigate = useNavigate();
   const { toast } = useToast();
-
-  useEffect(() => {
-    loadAgents();
-  }, []);
-
-  const loadAgents = async () => {
-    try {
-      const query = `
-        SELECT 
-          a.id,
-          a.cod_agent,
-          a.status,
-          c.name AS client_name,
-          c.business_name,
-          ap.name AS plan_name,
-          COALESCE(ap."limit", 0) AS plan_limit,
-          (
-            SELECT COUNT(DISTINCT s.id)
-            FROM sessions s
-            WHERE s.agent_id = a.id
-              AND EXISTS (
-                SELECT 1 FROM log_messages lm 
-                WHERE lm.session_id = s.id
-                  AND lm.created_at >= DATE_TRUNC('month', CURRENT_DATE)
-                  AND lm.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
-              )
-          ) AS leads_received,
-          a.last_used,
-          a.due_date
-        FROM agents a
-        JOIN clients c ON c.id = a.client_id AND a.is_visibilided = true
-        LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
-        ORDER BY c.business_name
-      `;
-      
-      const result = await externalDb.raw<AgentListItem>({
-        query,
-        params: [],
-      });
-      setAgents(result);
-    } catch (error) {
-      console.error('Error loading agents:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao carregar agentes',
-        description: 'Não foi possível carregar a lista de agentes.',
-      });
-      setAgents([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  
+  // React Query for optimized data fetching with caching
+  const { data: agents = [], isLoading, refetch } = useAgentsList();
+  
+  // Debounced search for better performance
+  const debouncedSearch = useDebounce(searchTerm, 300);
 
   const confirmToggle = async () => {
     if (!agentToToggle) return;
@@ -197,9 +138,8 @@ export default function AgentsList() {
         data: { status: newStatus },
         where: { id: agentToToggle.id },
       });
-      setAgents(prev =>
-        prev.map(a => (a.id === agentToToggle.id ? { ...a, status: newStatus } : a))
-      );
+      // Refetch to update the cache with new status
+      await refetch();
       toast({
         title: newStatus ? 'Agente ativado' : 'Agente desativado',
         description: `${agentToToggle.business_name || agentToToggle.client_name} foi ${newStatus ? 'ativado' : 'desativado'} com sucesso.`,
@@ -230,16 +170,16 @@ export default function AgentsList() {
       : <ArrowDown className="ml-1 h-3 w-3" />;
   };
 
-  // Filter by search term
+  // Filter by debounced search term
   const filteredAgents = useMemo(() => {
-    if (!searchTerm.trim()) return agents;
-    const term = searchTerm.toLowerCase();
+    if (!debouncedSearch.trim()) return agents;
+    const term = debouncedSearch.toLowerCase();
     return agents.filter(agent =>
       agent.business_name?.toLowerCase().includes(term) ||
       agent.client_name?.toLowerCase().includes(term) ||
       agent.cod_agent?.toLowerCase().includes(term)
     );
-  }, [agents, searchTerm]);
+  }, [agents, debouncedSearch]);
 
   // Sort agents
   const sortedAgents = useMemo(() => {
@@ -314,10 +254,11 @@ export default function AgentsList() {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
 
-  // Reset page when search changes
-  useEffect(() => {
+  // Reset page when debounced search changes
+  const resetPageOnSearchChange = useMemo(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+    return null;
+  }, [debouncedSearch]);
 
   // Loading skeleton
   if (isLoading) {
