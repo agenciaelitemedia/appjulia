@@ -74,7 +74,7 @@ export function QRCodeDialog({
 
             {!isLoading && !isError && hasQRCode && (
               <img
-                src={`data:image/png;base64,${data.qrCode}`}
+                src={data.qrCode.startsWith('data:') ? data.qrCode : `data:image/png;base64,${data.qrCode}`}
                 alt="QR Code WhatsApp"
                 className="w-full h-full object-contain p-2"
               />
