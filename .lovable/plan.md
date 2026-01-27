@@ -1,135 +1,290 @@
 
+# Plano: Menu "Equipe" e Gestao de Usuarios Time
 
-## Objetivo
-Garantir que `agents.settings` seja **sempre JSONB do tipo objeto** (nunca string), corrigindo definitivamente o problema onde `SELECT settings->>'CONTRACT_SIGNED'` retorna `null`.
+## Resumo Executivo
+Implementar uma nova funcionalidade de gerenciamento de equipe que permite a usuarios principais criarem membros de equipe (perfil "time") com acesso compartilhado aos seus agentes. Isso inclui renomear secoes do menu e criar uma nova pagina completa de gestao.
 
-## Diagnóstico Confirmado
-O registro mais recente (`id=297`, `created_at=2026-01-26...`) está com:
-- `jsonb_typeof(settings) = 'string'` (ERRADO)
-- `settings->>'CONTRACT_SIGNED' = null` (consequência)
-- O valor está como `"\"{\\\"CHAT_RESUME\\\":true,...`" (JSON duplamente serializado dentro de JSONB string)
+---
 
-Enquanto registros anteriores estão corretos (`jsonb_typeof(settings)='object'` e `->>'CONTRACT_SIGNED'` retorna texto).
+## Mudancas no Menu Lateral (Sidebar)
 
-## Por que isso ainda acontece mesmo "com cast ::jsonb"
-Hoje o `db-query` faz:
-1. `normalizedSettings = normalizeSettings(settings)` (que retorna `JSON.stringify(obj)`)
-2. `SET settings = $1::jsonb`
+### Renomeacoes
+| Atual | Novo |
+|-------|------|
+| MARKETING | SISTEMA |
+| Criativos | Biblioteca |
 
-O problema: quando o payload chega já como string literal `"\"{...}\""`, o cast `::jsonb` interpreta isso como um **JSONB do tipo string**, não objeto. A correção "à prova de bala" é: **mesmo que chegue como jsonb string, o SQL converte e grava como objeto**.
-
-## Mudanças Técnicas
-
-### 1. Blindagem no nível do SQL (`insert_agent` e `update_agent`)
-Alterar o SQL para converter automaticamente jsonb string para objeto:
-
-```sql
--- Em vez de apenas: SET settings = $1::jsonb
--- Usar com CTE:
-WITH s AS (SELECT $1::jsonb AS v)
-UPDATE agents
-SET settings = CASE
-  WHEN jsonb_typeof(s.v) = 'string' THEN (s.v #>> '{}')::jsonb
-  ELSE s.v
-END
-FROM s
-WHERE id = $2
-RETURNING *;
+### Nova Estrutura da Secao SISTEMA
+```
+SISTEMA
+  |-- Biblioteca (antigo Criativos) → /biblioteca
+  |-- Equipe (NOVO) → /equipe
 ```
 
-Para INSERT:
-```sql
-WITH s AS (SELECT $1::jsonb AS v)
-INSERT INTO agents (client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date)
-SELECT $2, $3, 
-  CASE WHEN jsonb_typeof(s.v) = 'string' THEN (s.v #>> '{}')::jsonb ELSE s.v END,
-  $4, $5, $6, $7
-FROM s
-RETURNING id;
+**Arquivo**: `src/components/layout/Sidebar.tsx`
+
+---
+
+## Modelo de Dados
+
+### Entendimento do Fluxo
+1. Usuario principal (role: "user" ou "admin") cria um membro de equipe
+2. Membro de equipe tem `role = 'time'` e `user_id = ID do usuario principal`
+3. Ao criar, o sistema copia todos os `cod_agent` do usuario principal para a tabela `user_agents`
+4. Membro da equipe herda acesso aos mesmos agentes do usuario principal
+
+### Campos Relevantes na Tabela `users`
+```
+users
+  id           (PK)
+  name
+  email
+  password
+  role         ('admin' | 'user' | 'time')  ← novo valor 'time'
+  user_id      (FK → users.id) ← ID do usuario principal (null para users/admin)
+  client_id    (FK → clients.id)
+  cod_agent    (opcional)
+  ...
 ```
 
-Isso garante:
-- Se chegar `{...}` → grava objeto
-- Se chegar `"\"{...}\""` → converte e grava objeto
-- Mesmo que a entrada venha "errada", o banco nunca mais fica com `jsonb_typeof(settings)='string'`
+### Relacao user_agents
+```
+user_agents
+  id
+  user_id      (FK → users.id)
+  agent_id     (FK → agents.id)
+  cod_agent    (bigint)
+```
 
-### 2. Blindagem nas ações genéricas `insert` e `update`
-Para `table === 'agents'` com `settings`:
-- Detectar `table === 'agents' && 'settings' in data`
-- Aplicar mesma lógica de conversão com CASE
-- Garantir cast explícito `::jsonb`
+---
 
-Resultado: não existe mais nenhum caminho no backend que consiga gravar `settings` como jsonb string.
+## Nova Pagina: Equipe
 
-### 3. Adicionar ações de diagnóstico
-**`diagnose_latest_agents_settings`**:
+### Rota
+`/equipe`
+
+### Layout da Pagina
+
+```
++----------------------------------------------------------+
+|  Equipe                                        [+ Novo]  |
+|  Gerencie os membros da sua equipe                       |
++----------------------------------------------------------+
+|  [Buscar membro...]                                      |
++----------------------------------------------------------+
+|                                                          |
+|  +----------------+  +----------------+  +----------------+
+|  | Avatar/Icone   |  | Avatar/Icone   |  | Avatar/Icone   |
+|  | Nome Membro    |  | Nome Membro    |  | Nome Membro    |
+|  | email@...      |  | email@...      |  | email@...      |
+|  | 3 agentes      |  | 2 agentes      |  | 5 agentes      |
+|  | [Editar][X]    |  | [Editar][X]    |  | [Editar][X]    |
+|  +----------------+  +----------------+  +----------------+
+|                                                          |
++----------------------------------------------------------+
+```
+
+### Componentes
+
+1. **EquipeHeader** - Titulo + botao "Novo Membro"
+2. **EquipeSearch** - Campo de busca por nome/email
+3. **EquipeGrid** - Grid de cards dos membros
+4. **EquipeMemberCard** - Card individual com info do membro
+5. **EquipeMemberDialog** - Modal para criar/editar membro
+
+---
+
+## Modal de Criar/Editar Membro
+
+### Campos do Formulario
+
+| Campo | Tipo | Descricao |
+|-------|------|-----------|
+| Nome | Input | Nome do membro da equipe |
+| Email | Input | Email de login (com validacao de unicidade) |
+| Usuario Principal | Select/Combobox | Lista de usuarios disponiveis para vincular |
+| Agentes | Checkboxes | Lista de agentes do usuario principal selecionado |
+
+### Fluxo de Criacao
+
+```
+1. Usuario preenche Nome e Email
+2. Sistema valida se email ja existe
+3. Usuario seleciona "Usuario Principal" (dropdown)
+4. Sistema carrega agentes vinculados ao usuario principal
+5. Usuario marca quais agentes o membro tera acesso
+6. Usuario clica "Salvar"
+7. Sistema:
+   a) Cria registro em `users` com role='time' e user_id=id_principal
+   b) Para cada agente selecionado, cria registro em `user_agents`
+   c) Retorna senha temporaria para o usuario
+```
+
+### Fluxo de Edicao
+
+```
+1. Usuario clica "Editar" no card do membro
+2. Modal abre com dados pre-preenchidos
+3. Usuario pode alterar:
+   - Nome
+   - Usuario Principal (muda vinculo)
+   - Agentes selecionados
+4. Sistema:
+   a) Atualiza registro em `users`
+   b) Sincroniza `user_agents` (remove os nao selecionados, adiciona novos)
+```
+
+---
+
+## Backend: Novas Acoes na Edge Function
+
+### 1. `get_team_members`
+Retorna membros da equipe do usuario logado.
+
 ```sql
 SELECT 
-  id,
-  created_at,
-  jsonb_typeof(settings) as t,
-  settings ? 'CONTRACT_SIGNED' as has_key,
-  settings->>'CONTRACT_SIGNED' as contract_signed
-FROM agents 
-ORDER BY created_at DESC 
-LIMIT 5;
+  u.id, u.name, u.email, u.user_id, u.created_at,
+  COUNT(ua.id) as agents_count
+FROM users u
+LEFT JOIN user_agents ua ON ua.user_id = u.id
+WHERE u.user_id = $1 AND u.role = 'time'
+GROUP BY u.id
+ORDER BY u.name
 ```
 
-**`diagnose_db_identity`**:
+### 2. `get_principal_users`
+Retorna usuarios principais disponiveis para vincular (somente para admin, ou o proprio usuario logado para users comuns).
+
 ```sql
-SELECT 
-  current_database() as db_name,
-  current_schema() as schema_name,
-  inet_server_addr() as server_addr,
-  inet_server_port() as server_port;
+-- Para admin: todos os usuarios com role != 'time'
+-- Para user comum: somente ele mesmo
+SELECT id, name, email, role
+FROM users
+WHERE role IN ('admin', 'user')
+ORDER BY name
 ```
 
-### 4. Correção de registros existentes (`normalize_agents_settings`)
-Melhorar a ação existente para:
-- Contar quantos estão como string (pré-check)
-- Converter todos para objeto:
+### 3. `get_user_agents_for_principal`
+Retorna agentes de um usuario principal especifico.
+
 ```sql
-UPDATE agents 
-SET settings = (settings #>> '{}')::jsonb 
-WHERE jsonb_typeof(settings) = 'string';
+SELECT ua.agent_id, ua.cod_agent::text, a.status, c.business_name
+FROM user_agents ua
+JOIN agents a ON a.id = ua.agent_id
+JOIN clients c ON c.id = a.client_id
+WHERE ua.user_id = $1
+ORDER BY c.business_name
 ```
-- Retornar IDs corrigidos (amostra) para auditoria
 
-## Arquivo a Modificar
+### 4. `insert_team_member`
+Cria novo membro da equipe.
 
-| Arquivo | Ação |
-|---------|------|
-| `supabase/functions/db-query/index.ts` | Modificar `insert_agent`, `update_agent`, ações genéricas `insert`/`update`, adicionar diagnósticos |
+```typescript
+{
+  name: string;
+  email: string;
+  hashedPassword: string;
+  rawPassword: string;
+  principalUserId: number;
+  clientId: number;
+  agentIds: { agentId: number; codAgent: string }[];
+}
+```
 
-## Sequência de Execução
-1. Implementar blindagem SQL em `insert_agent` (com CTE + CASE)
-2. Implementar blindagem SQL em `update_agent` (com CTE + CASE)
-3. Implementar blindagem nas ações genéricas `insert`/`update` para tabela `agents`
-4. Adicionar ação `diagnose_latest_agents_settings`
-5. Adicionar ação `diagnose_db_identity`
-6. Melhorar retorno de `normalize_agents_settings` (incluir IDs corrigidos)
-7. Deploy da função
-8. Executar `normalize_agents_settings` para corrigir legado (incluindo registro 297)
-9. Validar com as queries originais
+### 5. `update_team_member`
+Atualiza membro existente.
 
-## Validação (Critério de Aceite)
-Após aplicar as mudanças:
+### 6. `delete_team_member`
+Remove membro e seus vinculos em `user_agents`.
 
-1. Salvar um agente (criar e editar)
-2. Rodar `diagnose_latest_agents_settings` e verificar:
-   - `t = 'object'` para todos
-   - `contract_signed` retorna texto (quando a chave existir)
-3. Rodar no banco manualmente:
-   ```sql
-   SELECT settings->>'CONTRACT_SIGNED' FROM public.agents ORDER BY created_at DESC LIMIT 1;
-   ```
-   - Resultado deve ser o texto (não `null`)
-4. Se ainda aparecer `null`, usar `diagnose_db_identity` para confirmar que é o mesmo banco
+### 7. `sync_team_member_agents`
+Sincroniza agentes de um membro (remove antigos, adiciona novos).
 
-## Observação Importante
-JSONB no Postgres não guarda formatação/indentação. O que importa é:
-- `jsonb_typeof(settings) = 'object'`
-- Operadores funcionarem (`->`, `->>`, `?`, etc.)
+---
 
-O formato "minificado" vs "bonitinho" é irrelevante — o que quebra é estar como jsonb string. Esta correção elimina isso completamente.
+## Arquivos a Criar
 
+```
+src/pages/equipe/
+  |-- EquipePage.tsx           # Pagina principal
+  |-- types.ts                 # Tipos TypeScript
+  |-- components/
+  |     |-- EquipeHeader.tsx
+  |     |-- EquipeSearch.tsx
+  |     |-- EquipeGrid.tsx
+  |     |-- EquipeMemberCard.tsx
+  |     |-- EquipeMemberDialog.tsx
+  |     |-- AgentCheckboxList.tsx
+  |-- hooks/
+        |-- useEquipeData.ts   # Queries e mutations
+```
+
+---
+
+## Arquivos a Modificar
+
+| Arquivo | Mudanca |
+|---------|---------|
+| `src/components/layout/Sidebar.tsx` | Renomear secoes, adicionar menu Equipe |
+| `src/App.tsx` | Adicionar rota `/equipe` e renomear `/criativos` para `/biblioteca` |
+| `supabase/functions/db-query/index.ts` | Adicionar 7 novas acoes |
+| `src/lib/externalDb.ts` | Adicionar metodos helper para as novas acoes |
+
+---
+
+## Experiencia do Usuario (UX)
+
+### Destaques
+1. **Cards Visuais**: Interface em grid com cards que mostram rapidamente o status de cada membro
+2. **Selecao Intuitiva de Agentes**: Checkboxes com nome do agente e cliente para facil identificacao
+3. **Feedback Imediato**: Validacao de email em tempo real, igual ao fluxo de criacao de agente
+4. **Senha Temporaria**: Exibicao clara da senha gerada com botao de copiar
+5. **Confirmacao de Exclusao**: Dialog de confirmacao antes de remover membro
+
+### Fluxo Simplificado para Usuario Comum
+- Usuario comum ve apenas seus proprios agentes disponiveis
+- Nao precisa selecionar "Usuario Principal" (e automaticamente ele mesmo)
+- Interface mais limpa e direta
+
+### Fluxo para Admin
+- Admin pode vincular membros a qualquer usuario principal
+- Dropdown com busca para encontrar o usuario
+- Ve todos os agentes do usuario selecionado
+
+---
+
+## Ordem de Implementacao
+
+1. Modificar Sidebar (renomeacoes + novo menu)
+2. Atualizar rotas no App.tsx
+3. Criar estrutura de pastas e tipos
+4. Implementar acoes no backend (db-query)
+5. Criar hooks de dados (useEquipeData)
+6. Criar componentes da pagina
+7. Integrar tudo e testar
+
+---
+
+## Detalhes Tecnicos
+
+### Validacoes
+
+1. **Email**: Verificar unicidade antes de criar/editar
+2. **Agentes**: Pelo menos 1 agente deve ser selecionado
+3. **Usuario Principal**: Obrigatorio para role='time'
+
+### Geracao de Senha
+
+Usar mesma logica do wizard de agentes:
+```typescript
+function generateDefaultPassword(): string {
+  const digits = Math.floor(1000 + Math.random() * 9000);
+  return `Julia@${digits}`;
+}
+```
+
+### Seguranca
+
+- Usuarios com role='time' so veem a pagina "Meus Agentes"
+- Nao tem acesso ao menu "Equipe" (somente user/admin)
+- Verificacao de permissao no backend antes de listar membros
