@@ -1,166 +1,162 @@
 
-## Correção do Status de Conexão WhatsApp
 
-### Problema Identificado
+## Clarificar Filtro de Data no CRM com Tooltip Explicativo
 
-Analisando as respostas da API UaZapi, identifiquei a estrutura correta:
+### Objetivo
+Adicionar um tooltip explicativo ao label "Período" nos filtros, indicando que o CRM filtra pela **data da última movimentação do lead** (`stage_entered_at`), e não pela data de criação.
 
-```json
-{
-  "instance": {
-    "id": "r402ab4f375e52d",
-    "status": "connected",    // String - pode não refletir estado real
-    "name": "[20250702] - João Victor e Felipe",
-    "profileName": "Lira e Resende Advogados",
-    ...
-  },
-  "status": {
-    "connected": true,        // BOOLEANO - estado real da conexão
-    "jid": "556692073586:48@s.whatsapp.net",
-    "loggedIn": true          // BOOLEANO - se está logado
-  }
-}
-```
+---
 
-**Erro atual**: O código verifica `response.status` que retorna o objeto `{ connected: true, ... }`, e depois compara com a string `'connected'`. Como objeto !== string, sempre cai na verificação errada.
+## Análise da Situação Atual
 
-A verificação correta deve usar:
-- `response.status.connected` (booleano real)
-- `response.status.loggedIn` (se está autenticado)
+O CRM **já filtra corretamente por `stage_entered_at`**:
+- Um lead criado em 26/01 mas movimentado em 27/01 aparece quando o filtro está em "Hoje" (27/01)
+- A query SQL já usa: `(c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date`
+
+O que falta é **clareza visual** para o usuário entender esse comportamento.
 
 ---
 
 ## Mudanças a Implementar
 
-### 1. Corrigir o hook useConnectionStatus
+### 1. Adicionar prop opcional para tooltip no UnifiedFilters
 
-**Arquivo:** `src/pages/agente/meus-agentes/hooks/useConnectionStatus.ts`
+**Arquivo:** `src/components/filters/types.ts`
 
-**Mudança na interface de resposta:**
-
-```typescript
-interface InstanceStatusResponse {
-  instance?: {
-    status?: string;
-    name?: string;
-    profileName?: string;
-  };
-  status?: {
-    connected?: boolean;
-    loggedIn?: boolean;
-    jid?: string;
-  };
-}
-```
-
-**Mudança na lógica de verificação:**
+Adicionar nova prop opcional:
 
 ```typescript
-const response = await client.get<InstanceStatusResponse>('/instance/status');
-
-// Verificar o campo correto: status.connected (booleano)
-const isConnected = response.status?.connected === true && response.status?.loggedIn === true;
-
-if (isConnected) {
-  return 'connected';
-}
-
-return 'disconnected';
-```
-
----
-
-## Código Completo Atualizado
-
-```typescript
-import { useQuery } from '@tanstack/react-query';
-import { UaZapiClient } from '@/lib/uazapi/client';
-import { ConnectionStatus } from '../types';
-
-interface InstanceStatusResponse {
-  instance?: {
-    status?: string;
-    name?: string;
-    profileName?: string;
-  };
-  status?: {
-    connected?: boolean;
-    loggedIn?: boolean;
-    jid?: string;
-  };
-}
-
-export function useConnectionStatus(
-  hub: string | null,
-  evoUrl: string | null,
-  evoApikey: string | null,
-  evoInstancia: string | null
-) {
-  return useQuery({
-    queryKey: ['connection-status', evoUrl, evoInstancia],
-    queryFn: async (): Promise<ConnectionStatus> => {
-      // Sem configuração
-      if (!hub || !evoUrl || !evoApikey) {
-        return 'no_config';
-      }
-      
-      // Apenas suporta uazapi por enquanto
-      if (hub !== 'uazapi') {
-        return 'no_config';
-      }
-      
-      try {
-        const client = new UaZapiClient({
-          baseUrl: evoUrl,
-          token: evoApikey,
-          instance: evoInstancia || undefined,
-        });
-        
-        const response = await client.get<InstanceStatusResponse>('/instance/status');
-        
-        // Verificar status.connected e status.loggedIn (booleanos reais)
-        const isConnected = response.status?.connected === true && response.status?.loggedIn === true;
-        
-        if (isConnected) {
-          return 'connected';
-        }
-        
-        return 'disconnected';
-      } catch {
-        return 'disconnected';
-      }
-    },
-    enabled: !!hub && hub === 'uazapi' && !!evoUrl && !!evoApikey,
-    staleTime: 60000, // Cache por 1 minuto
-    retry: 1,
-    refetchOnWindowFocus: false,
-  });
+export interface UnifiedFiltersProps {
+  // ... props existentes ...
+  
+  // Tooltip explicativo para o filtro de período
+  periodTooltip?: string;
 }
 ```
 
 ---
 
-## Resumo da Correção
+### 2. Adicionar tooltip ao label "Período"
 
-| Item | Antes (incorreto) | Depois (correto) |
-|------|------------------|------------------|
-| Campo verificado | `response.status` (objeto) | `response.status.connected` (booleano) |
-| Comparação | `=== 'connected'` (string) | `=== true` (booleano) |
-| Validação extra | Nenhuma | `status.loggedIn === true` |
+**Arquivo:** `src/components/filters/UnifiedFilters.tsx`
+
+Importar componentes de tooltip e adicionar ao label:
+
+```typescript
+import { 
+  Tooltip, 
+  TooltipContent, 
+  TooltipProvider, 
+  TooltipTrigger 
+} from '@/components/ui/tooltip';
+import { Info } from 'lucide-react';
+```
+
+No JSX, alterar a seção de "Período:" (linha 220):
+
+```typescript
+{/* Quick Period Buttons */}
+{showQuickPeriods && (
+  <div className="px-4 py-3 border-b border-border/50 bg-muted/20">
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide mr-1 flex items-center gap-1">
+        Período:
+        {periodTooltip && (
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-xs">
+                <p>{periodTooltip}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+      </span>
+      {/* ... resto dos botões de período ... */}
+    </div>
+  </div>
+)}
+```
 
 ---
 
-## Estrutura de Resposta da API
+### 3. Passar o tooltip na página do CRM
 
-Para referência futura, a API `/instance/status` da UaZapi retorna:
+**Arquivo:** `src/pages/crm/CRMPage.tsx`
 
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| `instance.status` | string | Status geral da instância (sempre "connected" se existe) |
-| `instance.name` | string | Nome da instância |
-| `instance.profileName` | string | Nome do perfil WhatsApp |
-| `status.connected` | boolean | **Se está conectado ao WhatsApp** |
-| `status.loggedIn` | boolean | **Se está autenticado** |
-| `status.jid` | string | ID do WhatsApp conectado |
+Adicionar a prop `periodTooltip` ao componente UnifiedFilters:
 
-A combinação `status.connected === true && status.loggedIn === true` indica conexão ativa real.
+```typescript
+<UnifiedFilters
+  agents={agents}
+  filters={filters}
+  onFiltersChange={setFilters}
+  isLoading={agentsLoading}
+  periodTooltip="Filtra pela data da última movimentação do lead no pipeline (não pela data de criação)"
+/>
+```
+
+---
+
+### 4. Adicionar tooltip também nas subpáginas do CRM
+
+**Arquivos:** 
+- `src/pages/crm/statistics/CRMStatisticsPage.tsx`
+- `src/pages/crm/monitoring/CRMMonitoringPage.tsx`
+
+Aplicar o mesmo tooltip para consistência:
+
+```typescript
+<UnifiedFilters
+  agents={agents}
+  filters={filters}
+  onFiltersChange={setFilters}
+  isLoading={agentsLoading}
+  periodTooltip="Filtra pela data da última movimentação do lead no pipeline"
+/>
+```
+
+---
+
+## Resultado Visual Esperado
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ 🔍 Filtros                                        [3 agentes]   │
+├─────────────────────────────────────────────────────────────────┤
+│ Período: ⓘ   [Hoje] [Ontem] [7 dias] [Semana] [30 dias] ...    │
+│                ↓                                                 │
+│    ┌─────────────────────────────────────────────────┐          │
+│    │ Filtra pela data da última movimentação do      │          │
+│    │ lead no pipeline (não pela data de criação)     │          │
+│    └─────────────────────────────────────────────────┘          │
+├─────────────────────────────────────────────────────────────────┤
+│ [Agentes ▼] [De: 27/01/2026] [Até: 27/01/2026] [Buscar...]     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+O ícone ⓘ (Info) aparece ao lado de "Período:" e ao passar o mouse, exibe o tooltip explicativo.
+
+---
+
+## Resumo das Alterações
+
+| Arquivo | Ação |
+|---------|------|
+| `src/components/filters/types.ts` | Adicionar prop `periodTooltip?: string` |
+| `src/components/filters/UnifiedFilters.tsx` | Renderizar tooltip com ícone Info ao lado de "Período:" |
+| `src/pages/crm/CRMPage.tsx` | Passar texto do tooltip explicando o filtro por última movimentação |
+| `src/pages/crm/statistics/CRMStatisticsPage.tsx` | Aplicar mesmo tooltip para consistência |
+| `src/pages/crm/monitoring/CRMMonitoringPage.tsx` | Aplicar mesmo tooltip para consistência |
+
+---
+
+## Benefícios
+
+1. **Clareza**: Usuários entendem que o filtro considera a última movimentação
+2. **Consistência**: Segue o padrão de tooltips já usado em outras partes do sistema
+3. **Flexibilidade**: A prop é opcional, então outras páginas que usam UnifiedFilters não são afetadas
+4. **Não invasivo**: Pequeno ícone que só mostra informação quando o usuário interage
+
