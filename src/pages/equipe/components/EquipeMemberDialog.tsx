@@ -22,7 +22,6 @@ import { Copy, Check, Loader2 } from "lucide-react";
 import { TeamMember, PrincipalUser, PrincipalUserAgent } from "../types";
 import { AgentCheckboxList } from "./AgentCheckboxList";
 import {
-  usePrincipalUsers,
   usePrincipalUserAgents,
   useCreateTeamMember,
   useUpdateTeamMember,
@@ -45,7 +44,6 @@ export function EquipeMemberDialog({
   onSuccess,
 }: EquipeMemberDialogProps) {
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
   const isEditing = !!member;
 
   // Form state
@@ -58,9 +56,7 @@ export function EquipeMemberDialog({
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Data hooks
-  const { data: principalUsers = [], isLoading: loadingPrincipals } =
-    usePrincipalUsers();
+  // Data hooks - load agents for logged-in user
   const { data: agents = [], isLoading: loadingAgents } =
     usePrincipalUserAgents(principalUserId);
 
@@ -80,19 +76,15 @@ export function EquipeMemberDialog({
       } else {
         setName("");
         setEmail("");
-        // For non-admin users, auto-select themselves
-        if (!isAdmin && user?.id) {
-          setPrincipalUserId(user.id);
-        } else {
-          setPrincipalUserId(null);
-        }
+        // Always use logged-in user as the principal
+        setPrincipalUserId(user?.id || null);
         setSelectedAgentIds([]);
       }
       setEmailError("");
       setTemporaryPassword(null);
       setCopied(false);
     }
-  }, [open, member, isAdmin, user?.id]);
+  }, [open, member, user?.id]);
 
   // Load member's existing agents when editing
   const loadMemberAgents = async (memberId: number) => {
@@ -318,33 +310,7 @@ export function EquipeMemberDialog({
             )}
           </div>
 
-          {/* Principal User - only show for admin */}
-          {isAdmin && (
-            <div className="space-y-2">
-              <Label>Usuário Principal</Label>
-              <Select
-                value={principalUserId?.toString() || ""}
-                onValueChange={(val) => setPrincipalUserId(Number(val))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o usuário principal" />
-                </SelectTrigger>
-                <SelectContent>
-                  {loadingPrincipals ? (
-                    <SelectItem value="loading" disabled>
-                      Carregando...
-                    </SelectItem>
-                  ) : (
-                    principalUsers.map((pu) => (
-                      <SelectItem key={pu.id} value={pu.id.toString()}>
-                        {pu.name} ({pu.email})
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          {/* Principal User is automatically the logged-in user */}
 
           {/* Agents */}
           {principalUserId && (
