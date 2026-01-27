@@ -16,3 +16,10 @@ export interface UserAgent {
 }
 
 export type ConnectionStatus = 'no_config' | 'connected' | 'disconnected' | 'checking';
+
+export interface CreateInstanceResponse {
+  success: boolean;
+  instanceName: string;
+  token: string;
+  error?: string;
+}
