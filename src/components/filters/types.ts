@@ -39,4 +39,7 @@ export interface UnifiedFiltersProps {
   // Personalização
   searchPlaceholder?: string;
   className?: string;
+  
+  // Tooltip explicativo para o filtro de período
+  periodTooltip?: string;
 }

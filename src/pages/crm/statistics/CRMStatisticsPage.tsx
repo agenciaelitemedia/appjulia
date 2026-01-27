@@ -95,6 +95,7 @@ export default function CRMStatisticsPage() {
         filters={filters}
         onFiltersChange={setFilters}
         isLoading={agentsLoading}
+        periodTooltip="Filtra pela data da última movimentação do lead no pipeline"
       />
 
       {/* Charts Grid */}
