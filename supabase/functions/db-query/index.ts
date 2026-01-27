@@ -937,6 +937,23 @@ serve(async (req) => {
         break;
       }
 
+      case 'get_crm_agents_for_user': {
+        const { userId } = data;
+        result = await sql.unsafe(
+          `SELECT DISTINCT 
+            ua.cod_agent::text as cod_agent,
+            c.name as owner_name,
+            c.business_name as owner_business_name
+          FROM user_agents ua
+          JOIN agents a ON a.id = ua.agent_id
+          JOIN clients c ON c.id = a.client_id
+          WHERE ua.user_id = $1
+          ORDER BY c.name`,
+          [userId]
+        );
+        break;
+      }
+
       // === Team Members Actions ===
 
       case 'get_team_members': {
