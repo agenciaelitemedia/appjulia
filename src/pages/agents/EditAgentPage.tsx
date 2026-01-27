@@ -22,7 +22,7 @@ interface AgentDetails {
   cod_agent: string;
   status: boolean;
   is_closer: boolean;
-  settings: string;
+  settings: string | Record<string, unknown>;
   prompt: string;
   due_date: number;
   created_at: string;
@@ -135,7 +135,9 @@ export default function EditAgentPage() {
           plan_id: data.plan_id ? String(data.plan_id) : '',
           lead_limit: data.plan_limit || 0,
           due_day: data.due_date || 1,
-          config_json: data.settings || '{}',
+          config_json: typeof data.settings === 'object' 
+            ? JSON.stringify(data.settings, null, 2) 
+            : (data.settings || '{}'),
           system_prompt: data.prompt || '',
           user_id: data.user_id,
           user_name: data.user_name,

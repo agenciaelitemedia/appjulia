@@ -15,7 +15,7 @@ interface AgentDetails {
   cod_agent: string;
   status: boolean;
   is_closer: boolean;
-  settings: string;
+  settings: string | Record<string, unknown>;
   prompt: string;
   due_date: number;
   created_at: string;
@@ -102,6 +102,13 @@ export default function AgentDetailsPage() {
   
   const formatJsonSettings = () => {
     if (!details?.settings) return '{}';
+    
+    // Se já é objeto (JSONB), formatar diretamente
+    if (typeof details.settings === 'object') {
+      return JSON.stringify(details.settings, null, 2);
+    }
+    
+    // Se é string, tentar parsear
     try {
       return JSON.stringify(JSON.parse(details.settings), null, 2);
     } catch {

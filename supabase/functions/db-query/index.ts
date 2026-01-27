@@ -490,7 +490,7 @@ serve(async (req) => {
         const { client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date } = data;
         const rows = await sql.unsafe(
           `INSERT INTO agents (client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date, status, is_visibilided, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, true, true, now(), now())
+           VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, true, true, now(), now())
            RETURNING id`,
           [client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date]
         );
@@ -611,7 +611,7 @@ serve(async (req) => {
         
         const rows = await sql.unsafe(
           `UPDATE agents 
-           SET settings = $1, prompt = $2, is_closer = $3, 
+           SET settings = $1::jsonb, prompt = $2, is_closer = $3, 
                agent_plan_id = $4, due_date = $5, status = $6, updated_at = now()
            WHERE id = $7
            RETURNING *`,
