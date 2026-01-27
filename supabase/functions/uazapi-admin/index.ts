@@ -150,7 +150,7 @@ serve(async (req) => {
               url: webhookUrl,
               enabled: true,
               events: ['messages'],
-              excludeMessages: ['wasSentByApi', 'isGroupYes'],
+              excludeMessages: ['isGroupYes'],
             }),
           });
 

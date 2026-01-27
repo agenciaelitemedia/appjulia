@@ -10,11 +10,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Loader2, QrCode, Settings, Unplug } from 'lucide-react';
+import { Loader2, QrCode, Settings, Unplug, Trash2 } from 'lucide-react';
 import { UserAgent, ConnectionStatus } from '../types';
 import { useConnectionActions } from '../hooks/useConnectionActions';
 import { QRCodeDialog } from './QRCodeDialog';
 import { ConfigureInstanceDialog } from './ConfigureInstanceDialog';
+import { DeleteInstanceDialog } from './DeleteInstanceDialog';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface ConnectionControlButtonsProps {
@@ -31,6 +32,7 @@ export function ConnectionControlButtons({
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { disconnect, isDisconnecting, connect, isConnecting } = useConnectionActions(agent);
   const queryClient = useQueryClient();
 
@@ -47,6 +49,10 @@ export function ConnectionControlButtons({
   const handleDisconnectConfirm = () => {
     disconnect();
     setDisconnectDialogOpen(false);
+  };
+
+  const handleDeleteSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['user-agents'] });
   };
 
   if (isLoading || status === 'checking') {
@@ -82,27 +88,44 @@ export function ConnectionControlButtons({
     case 'disconnected':
       return (
         <>
-          <Button
-            size="sm"
-            onClick={() => {
-              connect();
-              setQrDialogOpen(true);
-            }}
-            disabled={isConnecting}
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-          >
-            {isConnecting ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <QrCode className="w-4 h-4 mr-2" />
-            )}
-            Conectar
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={() => {
+                connect();
+                setQrDialogOpen(true);
+              }}
+              disabled={isConnecting}
+              className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              {isConnecting ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <QrCode className="w-4 h-4 mr-2" />
+              )}
+              Conectar
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(true)}
+              className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+              title="Excluir instância"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
           <QRCodeDialog
             open={qrDialogOpen}
             onOpenChange={setQrDialogOpen}
             agent={agent}
             onConnected={handleConnected}
+          />
+          <DeleteInstanceDialog
+            open={deleteDialogOpen}
+            onOpenChange={setDeleteDialogOpen}
+            agent={agent}
+            onSuccess={handleDeleteSuccess}
           />
         </>
       );
