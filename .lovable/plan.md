@@ -1,89 +1,122 @@
 
-## Objetivo
-Garantir que a inserção e as consultas relacionadas à tabela `user_agents` usem exatamente o schema real informado por você:
+## Tratamento do campo `settings` como JSONB
 
-- `user_id` (não `users_id`)
-- `agent_id` (não `agents_id`)
-- gravar também `cod_agent`
+### Contexto do problema
+O campo `settings` da tabela `agents` deveria ser armazenado como JSONB, mas está sendo salvo como texto literal (string com `\n` escapados). Isso causa:
+- Dados salvos incorretamente no banco
+- Erro `[object Object]` ao editar (quando JSONB é lido como objeto)
+- Erro React #31 ao visualizar (tentativa de renderizar objeto como texto)
 
-Isso elimina o erro 500: `column "agents_id" of relation "user_agents" does not exist`.
-
----
-
-## O que já está correto (confirmado no diff)
-A ação `insert_user_agent` no backend function já está com:
-```sql
-INSERT INTO user_agents (user_id, agent_id, cod_agent, created_at)
-```
-Então, a parte de INSERT está alinhada com seu schema.
-
----
-
-## Problema que ainda falta corrigir (causa provável de continuar aparecendo “agents_id”)
-No mesmo backend function (`supabase/functions/db-query/index.ts`), a action `get_agent_details` ainda faz JOIN usando colunas antigas:
-
-Hoje está assim:
-```sql
-LEFT JOIN user_agents ua ON ua.agents_id = a.id
-LEFT JOIN users u ON u.id = ua.users_id
-```
-
-Como sua tabela é:
-- `ua.agent_id`
-- `ua.user_id`
-
-essa query pode disparar o mesmo erro `agents_id does not exist` quando a UI tenta carregar detalhes do agente (por exemplo após salvar, ao redirecionar/atualizar a tela).
+### Causa raiz
+O PostgreSQL está recebendo a string JSON e salvando-a como texto em vez de parseá-la para JSONB. Além disso, o frontend não trata corretamente quando o dado retorna como objeto JavaScript (comportamento esperado do JSONB).
 
 ---
 
 ## Mudanças a implementar
 
-### 1) Corrigir `get_agent_details` para usar `user_id` e `agent_id`
-**Arquivo:** `supabase/functions/db-query/index.ts`  
-**Mudança:** trocar:
-- `ua.agents_id` -> `ua.agent_id`
-- `ua.users_id` -> `ua.user_id`
+### 1. Edge Function - Forçar cast para JSONB no INSERT
 
-Ficará assim:
+**Arquivo:** `supabase/functions/db-query/index.ts`
+
+**Ação `insert_agent` (linha ~492):**
+Alterar o INSERT para incluir cast explícito `::jsonb`:
+
 ```sql
-LEFT JOIN user_agents ua ON ua.agent_id = a.id
-LEFT JOIN users u ON u.id = ua.user_id
+INSERT INTO agents (client_id, cod_agent, settings, prompt, ...)
+VALUES ($1, $2, $3::jsonb, $4, ...)
 ```
 
-Opcional (recomendado): também retornar `ua.cod_agent` no SELECT (ajuda a validar rapidamente que está sendo gravado e lido corretamente).
+Isso garante que o PostgreSQL interprete a string como JSON e armazene no formato JSONB.
 
 ---
 
-### 2) Garantir tipagem de `cod_agent` (bigint)
-Você informou `cod_agent bigint`. Hoje o frontend envia como string numérica (ex: `"202601003"`), que geralmente o Postgres converte sozinho, mas para ficar 100% robusto:
-- Ajustar o INSERT para forçar cast: `$3::bigint` (ou `CAST($3 AS bigint)`).
+### 2. Edge Function - Forçar cast para JSONB no UPDATE
 
-Exemplo:
+**Arquivo:** `supabase/functions/db-query/index.ts`
+
+**Ação `update_agent` (linha ~612):**
+Alterar o UPDATE para incluir cast explícito:
+
 ```sql
-VALUES ($1, $2, $3::bigint, now())
+UPDATE agents 
+SET settings = $1::jsonb, prompt = $2, ...
 ```
 
 ---
 
-## Teste após a correção (antes de você tentar no fluxo todo)
-1) Testar a chamada `insert_user_agent` isolada (com userId/agentId/codAgent válidos) e confirmar que retorna `id`.
-2) Testar `get_agent_details` para um `agentId` recém-criado e verificar que não ocorre erro e que o `user_id` e `cod_agent` vêm corretamente.
+### 3. Frontend - Tratar `settings` no carregamento (Edição)
 
-Se qualquer erro persistir, vou adicionar logs explícitos no backend function para registrar:
-- `action` recebido
-- parâmetros (`userId`, `agentId`, `codAgent`)
-- qual query falhou
+**Arquivo:** `src/pages/agents/EditAgentPage.tsx`
+
+**Problema:** Linha 138 assume que `data.settings` é sempre string, mas quando vem de JSONB, é um objeto.
+
+**Solução:** Converter para string se for objeto:
+
+```typescript
+// Linha 138 - Ao popular o formulário
+config_json: typeof data.settings === 'object' 
+  ? JSON.stringify(data.settings, null, 2) 
+  : (data.settings || '{}'),
+```
 
 ---
 
-## Arquivos envolvidos
-- `supabase/functions/db-query/index.ts` (obrigatório: corrigir `get_agent_details`; opcional: cast do `cod_agent`)
-- Nenhuma mudança adicional é necessária no frontend neste ajuste (o `insertUserAgent` já envia `codAgent`).
+### 4. Frontend - Tratar `settings` na visualização (Detalhes)
+
+**Arquivo:** `src/pages/agents/AgentDetailsPage.tsx`
+
+**Problema:** `formatJsonSettings()` (linhas 103-109) tenta fazer `JSON.parse()` em algo que já pode ser objeto.
+
+**Solução:** Verificar o tipo antes de processar:
+
+```typescript
+const formatJsonSettings = () => {
+  if (!details?.settings) return '{}';
+  
+  // Se já é objeto (JSONB), formatar diretamente
+  if (typeof details.settings === 'object') {
+    return JSON.stringify(details.settings, null, 2);
+  }
+  
+  // Se é string, tentar parsear
+  try {
+    return JSON.stringify(JSON.parse(details.settings), null, 2);
+  } catch {
+    return details.settings;
+  }
+};
+```
+
+---
+
+### 5. Atualizar a interface TypeScript
+
+**Arquivos:** `EditAgentPage.tsx` e `AgentDetailsPage.tsx`
+
+**Problema:** A interface `AgentDetails` define `settings: string`, mas após as correções, pode vir como objeto.
+
+**Solução:** Alterar o tipo para aceitar ambos:
+
+```typescript
+settings: string | Record<string, unknown>;
+```
+
+---
+
+## Resumo das alterações por arquivo
+
+| Arquivo | Mudança |
+|---------|---------|
+| `supabase/functions/db-query/index.ts` | Cast `::jsonb` em `insert_agent` e `update_agent` |
+| `src/pages/agents/EditAgentPage.tsx` | Converter objeto para string ao carregar; ajustar interface |
+| `src/pages/agents/AgentDetailsPage.tsx` | Tratar objeto e string em `formatJsonSettings`; ajustar interface |
 
 ---
 
 ## Resultado esperado
-Depois dessas correções:
-- Nenhuma parte do sistema referencia `agents_id/users_id` na tabela `user_agents`
-- O vínculo usuário-agente será criado com `user_id`, `agent_id` e `cod_agent`
-- A tela de detalhes/edição do agente (e qualquer fetch pós-salvamento) deixa de gerar erro 500
+
+Após implementação:
+- Novo agente: `settings` será salvo como JSONB real no banco
+- Editar agente: Carrega corretamente independente do formato existente
+- Visualizar agente: Exibe JSON formatado sem erros
+- Dados antigos (texto): Continuam funcionando (fallback para string)
