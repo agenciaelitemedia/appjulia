@@ -52,6 +52,7 @@ const menuGroups: MenuGroup[] = [
   {
     label: 'SEU AGENTE',
     items: [
+      { label: 'Meus Agentes', icon: Bot, href: '/agente/meus-agentes' },
       { label: 'FollowUP', icon: MessageSquare, href: '/agente/followup' },
       { label: 'Desempenho Julia', icon: BarChart3, href: '/estrategico/desempenho' },
       { label: 'Contratos Julia', icon: FileCheck, href: '/estrategico/contratos' },

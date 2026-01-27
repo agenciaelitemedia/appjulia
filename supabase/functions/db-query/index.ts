@@ -363,6 +363,34 @@ serve(async (req) => {
         break;
       }
 
+      case 'get_user_agents': {
+        const { userId } = data;
+        result = await sql.unsafe(
+          `SELECT 
+            ua.agent_id,
+            ua.cod_agent::text as cod_agent,
+            a.id as agent_id_from_agents,
+            a.status,
+            c.name as client_name,
+            c.business_name,
+            ap.name as plan_name,
+            ap."limit" as plan_limit,
+            (SELECT COUNT(DISTINCT s.id) FROM sessions s 
+             WHERE s.agent_id = a.id 
+             AND EXISTS (SELECT 1 FROM log_messages lm 
+                         WHERE lm.session_id = s.id 
+                         AND lm.created_at >= DATE_TRUNC('month', CURRENT_DATE))) as leads_received
+          FROM user_agents ua
+          LEFT JOIN agents a ON a.id = ua.agent_id OR a.cod_agent::text = ua.cod_agent::text
+          LEFT JOIN clients c ON c.id = a.client_id
+          LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
+          WHERE ua.user_id = $1
+          ORDER BY c.business_name`,
+          [userId]
+        );
+        break;
+      }
+
       case 'search_clients': {
         const { term } = data;
         const searchTerm = `%${term.toLowerCase()}%`;

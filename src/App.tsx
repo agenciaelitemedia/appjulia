@@ -19,6 +19,7 @@ import EditAgentPage from "./pages/agents/EditAgentPage";
 import DesempenhoPage from "./pages/estrategico/desempenho/DesempenhoPage";
 import ContratosPage from "./pages/estrategico/contratos/ContratosPage";
 import FollowupPage from "./pages/agente/followup/FollowupPage";
+import MyAgentsPage from "./pages/agente/meus-agentes/MyAgentsPage";
 import CriativosPage from "./pages/criativos/CriativosPage";
 import ProfileSettingsPage from "./pages/profile/ProfileSettingsPage";
 import NotFound from "./pages/NotFound";
@@ -43,6 +44,7 @@ const App = () => (
                 <Route path="/crm/lead-monitoramento" element={<CRMMonitoringPage />} />
                 <Route path="/estrategico/desempenho" element={<DesempenhoPage />} />
                 <Route path="/estrategico/contratos" element={<ContratosPage />} />
+                <Route path="/agente/meus-agentes" element={<MyAgentsPage />} />
                 <Route path="/agente/followup" element={<FollowupPage />} />
                 <Route path="/criativos" element={<CriativosPage />} />
                 <Route path="/perfil" element={<ProfileSettingsPage />} />

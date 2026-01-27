@@ -254,6 +254,13 @@ class ExternalDatabase {
     });
     return result[0];
   }
+
+  async getUserAgents<T = any>(userId: number): Promise<T[]> {
+    return this.invoke({
+      action: 'get_user_agents',
+      data: { userId },
+    });
+  }
 }
 
 export interface AgentInsertData {
