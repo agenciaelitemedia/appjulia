@@ -355,6 +355,13 @@ class ExternalDatabase {
       data: { agentId, connectionData },
     });
   }
+
+  async getCrmAgentsForUser<T = any>(userId: number): Promise<T[]> {
+    return this.invoke({
+      action: 'get_crm_agents_for_user',
+      data: { userId },
+    });
+  }
 }
 
 export interface AgentInsertData {
