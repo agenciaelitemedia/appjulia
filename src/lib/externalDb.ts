@@ -334,6 +334,13 @@ class ExternalDatabase {
     });
   }
 
+  async resetTeamMemberPassword(memberId: number, hashedPassword: string, rawPassword: string): Promise<void> {
+    await this.invoke({
+      action: 'reset_team_member_password',
+      data: { memberId, hashedPassword, rawPassword },
+    });
+  }
+
   async updateAgentConnection(
     agentId: number,
     connectionData: {

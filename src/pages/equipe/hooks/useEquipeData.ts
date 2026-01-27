@@ -5,7 +5,7 @@ import { TeamMember, PrincipalUser, PrincipalUserAgent } from "../types";
 import { toast } from "sonner";
 import bcrypt from "bcryptjs";
 
-function generateDefaultPassword(): string {
+function generatePassword(): string {
   const digits = Math.floor(1000 + Math.random() * 9000);
   return `Julia@${digits}`;
 }
@@ -59,7 +59,7 @@ export function useCreateTeamMember() {
       agentIds: { agentId: number; codAgent: string }[];
     }) => {
       // Generate password
-      const rawPassword = generateDefaultPassword();
+      const rawPassword = generatePassword();
       const hashedPassword = await bcrypt.hash(rawPassword, 10);
 
       // Get client_id from principal user
@@ -131,6 +131,26 @@ export function useDeleteTeamMember() {
     onError: (error) => {
       console.error("Error deleting team member:", error);
       toast.error("Erro ao remover membro da equipe");
+    },
+  });
+}
+
+export function useResetTeamMemberPassword() {
+  return useMutation({
+    mutationFn: async (memberId: number) => {
+      const rawPassword = generatePassword();
+      const hashedPassword = await bcrypt.hash(rawPassword, 10);
+
+      await externalDb.resetTeamMemberPassword(memberId, hashedPassword, rawPassword);
+
+      return { temporaryPassword: rawPassword };
+    },
+    onSuccess: () => {
+      toast.success("Senha redefinida com sucesso!");
+    },
+    onError: (error) => {
+      console.error("Error resetting password:", error);
+      toast.error("Erro ao redefinir senha");
     },
   });
 }

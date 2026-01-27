@@ -7,6 +7,7 @@ interface EquipeGridProps {
   isLoading: boolean;
   onEdit: (member: TeamMember) => void;
   onDelete: (member: TeamMember) => void;
+  onResetPassword: (member: TeamMember) => void;
 }
 
 export function EquipeGrid({
@@ -14,6 +15,7 @@ export function EquipeGrid({
   isLoading,
   onEdit,
   onDelete,
+  onResetPassword,
 }: EquipeGridProps) {
   if (isLoading) {
     return (
@@ -50,6 +52,7 @@ export function EquipeGrid({
           member={member}
           onEdit={onEdit}
           onDelete={onDelete}
+          onResetPassword={onResetPassword}
         />
       ))}
     </div>

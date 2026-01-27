@@ -4,6 +4,7 @@ import { EquipeSearch } from "./components/EquipeSearch";
 import { EquipeGrid } from "./components/EquipeGrid";
 import { EquipeMemberDialog } from "./components/EquipeMemberDialog";
 import { DeleteMemberDialog } from "./components/DeleteMemberDialog";
+import { ResetPasswordDialog } from "./components/ResetPasswordDialog";
 import { useTeamMembers } from "./hooks/useEquipeData";
 import { TeamMember } from "./types";
 
@@ -11,6 +12,7 @@ export default function EquipePage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
 
   const { data: members = [], isLoading } = useTeamMembers();
@@ -42,6 +44,11 @@ export default function EquipePage() {
     setDeleteDialogOpen(true);
   };
 
+  const handleResetPassword = (member: TeamMember) => {
+    setSelectedMember(member);
+    setResetPasswordDialogOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <EquipeHeader onNewMember={handleNewMember} />
@@ -53,6 +60,7 @@ export default function EquipePage() {
         isLoading={isLoading}
         onEdit={handleEditMember}
         onDelete={handleDeleteMember}
+        onResetPassword={handleResetPassword}
       />
 
       <EquipeMemberDialog
@@ -64,6 +72,12 @@ export default function EquipePage() {
       <DeleteMemberDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
+        member={selectedMember}
+      />
+
+      <ResetPasswordDialog
+        open={resetPasswordDialogOpen}
+        onOpenChange={setResetPasswordDialogOpen}
         member={selectedMember}
       />
     </div>
