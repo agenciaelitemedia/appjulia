@@ -8,4 +8,11 @@ export interface UserAgent {
   plan_name: string | null;
   plan_limit: number | null;
   leads_received: number;
+  // Campos de conexão
+  hub: string | null;
+  evo_url: string | null;
+  evo_apikey: string | null;
+  evo_instancia: string | null;
 }
+
+export type ConnectionStatus = 'no_config' | 'connected' | 'disconnected' | 'checking';
