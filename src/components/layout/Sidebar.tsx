@@ -41,6 +41,7 @@ interface MenuItem {
   icon: React.ElementType;
   href?: string;
   children?: { label: string; href: string }[];
+  hideForTime?: boolean;
 }
 
 const menuGroups: MenuGroup[] = [
@@ -69,7 +70,7 @@ const menuGroups: MenuGroup[] = [
     label: "SISTEMA",
     items: [
       { label: "Biblioteca", icon: Library, href: "/biblioteca" },
-      { label: "Equipe", icon: UsersRound, href: "/equipe" },
+      { label: "Equipe", icon: UsersRound, href: "/equipe", hideForTime: true },
     ],
   },
   {
@@ -104,7 +105,14 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
 
   const isAdmin = user?.role === "admin";
-  const filteredGroups = menuGroups.filter((group) => !group.adminOnly || isAdmin);
+  const isTimeUser = user?.role === "time";
+  const filteredGroups = menuGroups
+    .filter((group) => !group.adminOnly || isAdmin)
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.hideForTime || !isTimeUser),
+    }))
+    .filter((group) => group.items.length > 0);
 
   const toggleMenu = (label: string) => {
     setExpandedMenus((prev) => (prev.includes(label) ? prev.filter((item) => item !== label) : [...prev, label]));
