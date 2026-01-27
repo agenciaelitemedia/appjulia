@@ -50,7 +50,7 @@ export function ConfigureInstanceDialog({
   useEffect(() => {
     if (open) {
       const clientName = agent.client_name || agent.business_name || 'Cliente';
-      const defaultName = `[JulIAv2] - ${clientName}`;
+      const defaultName = `[JulIAv2][${agent.cod_agent}] - ${clientName}`;
       setInstanceName(defaultName);
       setCurrentStep('idle');
       setErrorMessage(null);
