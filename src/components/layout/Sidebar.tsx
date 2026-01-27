@@ -9,13 +9,14 @@ import {
   Settings,
   ChevronDown,
   ChevronRight,
-  Image,
   FolderOpen,
   MessageSquare,
   BarChart3,
   FileCheck,
   UserPlus,
   Package,
+  Library,
+  UsersRound,
   Menu,
   X,
 } from "lucide-react";
@@ -65,8 +66,11 @@ const menuGroups: MenuGroup[] = [
     ],
   },
   {
-    label: "MARKETING",
-    items: [{ label: "Criativos", icon: Image, href: "/criativos" }],
+    label: "SISTEMA",
+    items: [
+      { label: "Biblioteca", icon: Library, href: "/biblioteca" },
+      { label: "Equipe", icon: UsersRound, href: "/equipe" },
+    ],
   },
   {
     label: "ADMINISTRATIVO",

@@ -937,6 +937,159 @@ serve(async (req) => {
         break;
       }
 
+      // === Team Members Actions ===
+
+      case 'get_team_members': {
+        const { userId, isAdmin } = data;
+        // For admin: get all team members (role='time')
+        // For user: get only their team members (where user_id = userId)
+        if (isAdmin) {
+          result = await sql.unsafe(
+            `SELECT 
+              u.id, u.name, u.email, u.user_id, u.created_at,
+              COUNT(ua.id)::int as agents_count
+            FROM users u
+            LEFT JOIN user_agents ua ON ua.user_id = u.id
+            WHERE u.role = 'time'
+            GROUP BY u.id
+            ORDER BY u.name`
+          );
+        } else {
+          result = await sql.unsafe(
+            `SELECT 
+              u.id, u.name, u.email, u.user_id, u.created_at,
+              COUNT(ua.id)::int as agents_count
+            FROM users u
+            LEFT JOIN user_agents ua ON ua.user_id = u.id
+            WHERE u.user_id = $1 AND u.role = 'time'
+            GROUP BY u.id
+            ORDER BY u.name`,
+            [userId]
+          );
+        }
+        break;
+      }
+
+      case 'get_principal_users': {
+        const { userId, isAdmin } = data;
+        // For admin: all users with role != 'time'
+        // For user: only themselves
+        if (isAdmin) {
+          result = await sql.unsafe(
+            `SELECT id, name, email, role
+             FROM users
+             WHERE role IN ('admin', 'user')
+             ORDER BY name`
+          );
+        } else {
+          result = await sql.unsafe(
+            `SELECT id, name, email, role
+             FROM users
+             WHERE id = $1
+             ORDER BY name`,
+            [userId]
+          );
+        }
+        break;
+      }
+
+      case 'get_user_agents_for_principal': {
+        const { principalUserId } = data;
+        result = await sql.unsafe(
+          `SELECT ua.agent_id, ua.cod_agent::text as cod_agent, a.status, c.business_name
+           FROM user_agents ua
+           JOIN agents a ON a.id = ua.agent_id
+           JOIN clients c ON c.id = a.client_id
+           WHERE ua.user_id = $1
+           ORDER BY c.business_name`,
+          [principalUserId]
+        );
+        break;
+      }
+
+      case 'get_team_member_agents': {
+        const { memberId } = data;
+        result = await sql.unsafe(
+          `SELECT ua.agent_id, ua.cod_agent::text as cod_agent
+           FROM user_agents ua
+           WHERE ua.user_id = $1`,
+          [memberId]
+        );
+        break;
+      }
+
+      case 'insert_team_member': {
+        const { name, email, hashedPassword, rawPassword, principalUserId, clientId, agentIds } = data;
+        
+        // Insert user with role='time' and user_id pointing to principal
+        const userRows = await sql.unsafe(
+          `INSERT INTO users (name, email, password, remember_token, role, user_id, client_id, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, 'time', $5, $6, now(), now())
+           RETURNING id, name, email`,
+          [name, email, hashedPassword, rawPassword, principalUserId, clientId]
+        );
+        
+        const newUserId = userRows[0].id;
+        
+        // Insert user_agents for each selected agent
+        for (const agent of agentIds) {
+          await sql.unsafe(
+            `INSERT INTO user_agents (user_id, agent_id, cod_agent, created_at)
+             VALUES ($1, $2, $3::bigint, now())`,
+            [newUserId, agent.agentId, agent.codAgent]
+          );
+        }
+        
+        result = userRows;
+        break;
+      }
+
+      case 'update_team_member': {
+        const { memberId, name, principalUserId, agentIds } = data;
+        
+        // Update user name and principal
+        await sql.unsafe(
+          `UPDATE users SET name = $1, user_id = $2, updated_at = now() WHERE id = $3`,
+          [name, principalUserId, memberId]
+        );
+        
+        // Sync user_agents: delete existing, insert new
+        await sql.unsafe(
+          `DELETE FROM user_agents WHERE user_id = $1`,
+          [memberId]
+        );
+        
+        for (const agent of agentIds) {
+          await sql.unsafe(
+            `INSERT INTO user_agents (user_id, agent_id, cod_agent, created_at)
+             VALUES ($1, $2, $3::bigint, now())`,
+            [memberId, agent.agentId, agent.codAgent]
+          );
+        }
+        
+        result = [{ success: true }];
+        break;
+      }
+
+      case 'delete_team_member': {
+        const { memberId } = data;
+        
+        // Delete user_agents first (FK constraint)
+        await sql.unsafe(
+          `DELETE FROM user_agents WHERE user_id = $1`,
+          [memberId]
+        );
+        
+        // Delete user
+        await sql.unsafe(
+          `DELETE FROM users WHERE id = $1 AND role = 'time'`,
+          [memberId]
+        );
+        
+        result = [{ success: true }];
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }

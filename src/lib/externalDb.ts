@@ -269,6 +269,71 @@ class ExternalDatabase {
     });
   }
 
+  // === Team Members Methods ===
+
+  async getTeamMembers<T = any>(userId: number, isAdmin: boolean): Promise<T[]> {
+    return this.invoke({
+      action: 'get_team_members',
+      data: { userId, isAdmin },
+    });
+  }
+
+  async getPrincipalUsers<T = any>(userId: number, isAdmin: boolean): Promise<T[]> {
+    return this.invoke({
+      action: 'get_principal_users',
+      data: { userId, isAdmin },
+    });
+  }
+
+  async getUserAgentsForPrincipal<T = any>(principalUserId: number): Promise<T[]> {
+    return this.invoke({
+      action: 'get_user_agents_for_principal',
+      data: { principalUserId },
+    });
+  }
+
+  async insertTeamMember<T = any>(data: {
+    name: string;
+    email: string;
+    hashedPassword: string;
+    rawPassword: string;
+    principalUserId: number;
+    clientId: number | null;
+    agentIds: { agentId: number; codAgent: string }[];
+  }): Promise<T> {
+    const result = await this.invoke({
+      action: 'insert_team_member',
+      data,
+    });
+    return result[0];
+  }
+
+  async updateTeamMember(data: {
+    memberId: number;
+    name: string;
+    principalUserId: number;
+    agentIds: { agentId: number; codAgent: string }[];
+  }): Promise<void> {
+    await this.invoke({
+      action: 'update_team_member',
+      data,
+    });
+  }
+
+  async deleteTeamMember(memberId: number): Promise<void> {
+    await this.invoke({
+      action: 'delete_team_member',
+      data: { memberId },
+    });
+  }
+
+  async getTeamMemberAgents<T = any>(memberId: number): Promise<T[]> {
+    return this.invoke({
+      action: 'get_team_member_agents',
+      data: { memberId },
+    });
+  }
+
   async updateAgentConnection(
     agentId: number,
     connectionData: {
