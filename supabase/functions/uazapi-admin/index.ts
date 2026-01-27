@@ -136,6 +136,10 @@ serve(async (req) => {
         
         // Step 2: Configure webhook for the new instance
         if (UAZAPI_WEBHOOK_URL) {
+          // Append cod_agent to webhook URL
+          const webhookUrl = `${UAZAPI_WEBHOOK_URL}${codAgent}`;
+          console.log('Webhook URL:', webhookUrl);
+          
           const webhookResponse = await fetch(`${UAZAPI_BASE_URL}/webhook/set`, {
             method: 'POST',
             headers: {
@@ -143,7 +147,7 @@ serve(async (req) => {
               'token': instanceToken,
             },
             body: JSON.stringify({
-              url: UAZAPI_WEBHOOK_URL,
+              url: webhookUrl,
               events: ['messages.upsert'],
               webhook_by_events: false,
               ignore_groups: true,
@@ -162,7 +166,6 @@ serve(async (req) => {
         } else {
           console.log('No UAZAPI_WEBHOOK_URL configured, skipping webhook setup');
         }
-
         console.log('Step 3: Saving credentials to database...');
         
         // Step 3: Update database with connection credentials
