@@ -1,4 +1,4 @@
-import React, { useEffect, forwardRef } from 'react';
+import { useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -20,8 +20,12 @@ interface QRCodeDialogProps {
   onConnected: () => void;
 }
 
-export const QRCodeDialog = forwardRef<HTMLDivElement, QRCodeDialogProps>(
-  function QRCodeDialog({ open, onOpenChange, agent, onConnected }, ref) {
+export function QRCodeDialog({
+  open,
+  onOpenChange,
+  agent,
+  onConnected,
+}: QRCodeDialogProps) {
   const { data, isLoading, isError, countdown } = useQRCodePolling(
     agent.evo_url,
     agent.evo_apikey,
@@ -131,6 +135,4 @@ export const QRCodeDialog = forwardRef<HTMLDivElement, QRCodeDialogProps>(
       </DialogContent>
     </Dialog>
   );
-});
-
-QRCodeDialog.displayName = 'QRCodeDialog';
+}
