@@ -106,7 +106,7 @@ serve(async (req) => {
         console.log('Step 1: Creating instance on UaZapi...');
         
         // Step 1: Create instance on UaZapi
-        const createResponse = await fetch(`${UAZAPI_BASE_URL}/admin/instance`, {
+        const createResponse = await fetch(`${UAZAPI_BASE_URL}/instance/init`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -140,7 +140,7 @@ serve(async (req) => {
           const webhookUrl = `${UAZAPI_WEBHOOK_URL}${codAgent}`;
           console.log('Webhook URL:', webhookUrl);
           
-          const webhookResponse = await fetch(`${UAZAPI_BASE_URL}/webhook/set`, {
+          const webhookResponse = await fetch(`${UAZAPI_BASE_URL}/webhook`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -148,11 +148,9 @@ serve(async (req) => {
             },
             body: JSON.stringify({
               url: webhookUrl,
-              events: ['messages.upsert'],
-              webhook_by_events: false,
-              ignore_groups: true,
-              ignore_status: true,
-              ignore_broadcast: true,
+              enabled: true,
+              events: ['messages'],
+              excludeMessages: ['wasSentByApi', 'isGroupYes'],
             }),
           });
 
