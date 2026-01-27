@@ -8,8 +8,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Copy, Check, Loader2, KeyRound } from "lucide-react";
+import { Loader2, KeyRound } from "lucide-react";
 import { TeamMember } from "../types";
 import { useResetTeamMemberPassword } from "../hooks/useEquipeData";
 import { toast } from "sonner";
@@ -64,37 +63,25 @@ export function ResetPasswordDialog({
           <DialogHeader>
             <DialogTitle>Senha redefinida com sucesso!</DialogTitle>
             <DialogDescription>
-              Anote a nova senha temporária abaixo. Ela não será exibida novamente.
+              Uma nova senha foi gerada para {member?.name}. Anote a senha temporária abaixo:
             </DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <Alert>
-              <AlertDescription className="space-y-2">
-                <p className="text-sm font-medium">Nova senha para {member?.name}:</p>
-                <div className="flex items-center gap-2 mt-2">
-                  <code className="bg-muted px-3 py-2 rounded text-base font-mono">
-                    {temporaryPassword}
-                  </code>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={handleCopyPassword}
-                  >
-                    {copied ? (
-                      <Check className="h-4 w-4 text-emerald-600" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
+          <div className="py-4">
+            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+              <code className="text-lg font-mono font-semibold">{temporaryPassword}</code>
+              <Button variant="outline" size="sm" onClick={handleCopyPassword}>
+                {copied ? "Copiado!" : "Copiar"}
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground mt-3">
+              Esta senha será salva no campo "remember_token" do usuário. 
+              Recomendamos que o usuário altere a senha no primeiro acesso.
+            </p>
           </div>
-
           <DialogFooter>
-            <Button onClick={handleClose}>Fechar</Button>
+            <Button onClick={handleClose}>
+              Entendi, continuar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

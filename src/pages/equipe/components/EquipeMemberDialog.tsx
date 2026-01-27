@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Copy, Check, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { TeamMember, PrincipalUser, PrincipalUserAgent } from "../types";
 import { AgentCheckboxList } from "./AgentCheckboxList";
 import {
@@ -213,43 +213,25 @@ export function EquipeMemberDialog({
           <DialogHeader>
             <DialogTitle>Membro criado com sucesso!</DialogTitle>
             <DialogDescription>
-              Anote a senha temporária abaixo. Ela não será exibida novamente.
+              Um novo usuário foi criado para a equipe. Anote a senha temporária abaixo:
             </DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <Alert>
-              <AlertDescription className="space-y-2">
-                <p className="text-sm font-medium">Credenciais de acesso:</p>
-                <p className="text-sm">
-                  <strong>Email:</strong> {email}
-                </p>
-                <div className="flex items-center gap-2 mt-2">
-                  <p className="text-sm">
-                    <strong>Senha:</strong>{" "}
-                    <code className="bg-muted px-2 py-1 rounded">
-                      {temporaryPassword}
-                    </code>
-                  </p>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={handleCopyPassword}
-                  >
-                    {copied ? (
-                      <Check className="h-4 w-4 text-emerald-600" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
+          <div className="py-4">
+            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+              <code className="text-lg font-mono font-semibold">{temporaryPassword}</code>
+              <Button variant="outline" size="sm" onClick={handleCopyPassword}>
+                {copied ? "Copiado!" : "Copiar"}
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground mt-3">
+              Esta senha será salva no campo "remember_token" do usuário. 
+              Recomendamos que o usuário altere a senha no primeiro acesso.
+            </p>
           </div>
-
           <DialogFooter>
-            <Button onClick={handleClose}>Fechar</Button>
+            <Button onClick={handleClose}>
+              Entendi, continuar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
