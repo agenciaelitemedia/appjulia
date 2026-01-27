@@ -147,7 +147,8 @@ export function useAgentSave() {
           data.user_name,
           data.user_email,
           hashedPassword,
-          tempPassword
+          tempPassword,
+          createdClientId
         );
         createdUserId = userResult.id;
         console.log('User created with ID:', createdUserId);

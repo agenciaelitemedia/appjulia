@@ -168,10 +168,10 @@ class ExternalDatabase {
 
   // === Insert Methods ===
   
-  async insertUser(name: string, email: string, hashedPassword: string, rawPassword: string): Promise<{ id: number; name: string; email: string }> {
+  async insertUser(name: string, email: string, hashedPassword: string, rawPassword: string, clientId: number): Promise<{ id: number; name: string; email: string }> {
     const result = await this.invoke({
       action: 'insert_user',
-      data: { name, email, hashedPassword, rawPassword },
+      data: { name, email, hashedPassword, rawPassword, clientId },
     });
     return result[0];
   }
