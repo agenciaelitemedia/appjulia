@@ -1,156 +1,166 @@
 
-## Ajustes na Página "Meus Agentes" e Integração UaZapi
+## Correção do Status de Conexão WhatsApp
 
-### Situação Atual
+### Problema Identificado
 
-O projeto já possui uma **implementação completa e robusta do UaZapi** em `src/lib/uazapi/`:
-- Cliente HTTP com retry e timeout (`client.ts`)
-- Tipos TypeScript completos (`types.ts`)
-- Endpoints organizados: Instance, Message, Chat, Business, Agent, Labels, Group, Call, Chatwoot
-- Context Provider (`UaZapiContext.tsx`) 
-- Hook de acesso (`useUaZapi.ts`)
+Analisando as respostas da API UaZapi, identifiquei a estrutura correta:
 
-O repositório de referência possui estrutura similar, então não há necessidade de copiar - apenas utilizar o que já existe.
+```json
+{
+  "instance": {
+    "id": "r402ab4f375e52d",
+    "status": "connected",    // String - pode não refletir estado real
+    "name": "[20250702] - João Victor e Felipe",
+    "profileName": "Lira e Resende Advogados",
+    ...
+  },
+  "status": {
+    "connected": true,        // BOOLEANO - estado real da conexão
+    "jid": "556692073586:48@s.whatsapp.net",
+    "loggedIn": true          // BOOLEANO - se está logado
+  }
+}
+```
 
-**Problema Identificado**: O erro `column a.evo_instancia does not exist` indica que o nome da coluna no banco é diferente (provavelmente `evo_instance` em inglês).
+**Erro atual**: O código verifica `response.status` que retorna o objeto `{ connected: true, ... }`, e depois compara com a string `'connected'`. Como objeto !== string, sempre cai na verificação errada.
+
+A verificação correta deve usar:
+- `response.status.connected` (booleano real)
+- `response.status.loggedIn` (se está autenticado)
 
 ---
 
 ## Mudanças a Implementar
 
-### 1. Corrigir nome da coluna na Edge Function
+### 1. Corrigir o hook useConnectionStatus
 
-**Arquivo:** `supabase/functions/db-query/index.ts`
+**Arquivo:** `src/pages/agente/meus-agentes/hooks/useConnectionStatus.ts`
 
-**Ação `get_user_agents` (linhas 366-395):**
+**Mudança na interface de resposta:**
 
-Corrigir o nome da coluna de `a.evo_instancia` para `a.evo_instance` (ou verificar o nome correto):
+```typescript
+interface InstanceStatusResponse {
+  instance?: {
+    status?: string;
+    name?: string;
+    profileName?: string;
+  };
+  status?: {
+    connected?: boolean;
+    loggedIn?: boolean;
+    jid?: string;
+  };
+}
+```
 
-```sql
-SELECT 
-  ua.agent_id,
-  ua.cod_agent::text as cod_agent,
-  a.id as agent_id_from_agents,
-  a.status,
-  a.hub,
-  a.evo_url,
-  a.evo_apikey,
-  a.evo_instance as evo_instancia,  -- Alias para manter compatibilidade com frontend
-  c.name as client_name,
-  c.business_name,
-  ...
+**Mudança na lógica de verificação:**
+
+```typescript
+const response = await client.get<InstanceStatusResponse>('/instance/status');
+
+// Verificar o campo correto: status.connected (booleano)
+const isConnected = response.status?.connected === true && response.status?.loggedIn === true;
+
+if (isConnected) {
+  return 'connected';
+}
+
+return 'disconnected';
 ```
 
 ---
 
-### 2. Ajustar layout do AgentCard
+## Código Completo Atualizado
 
-**Arquivo:** `src/pages/agente/meus-agentes/components/AgentCard.tsx`
+```typescript
+import { useQuery } from '@tanstack/react-query';
+import { UaZapiClient } from '@/lib/uazapi/client';
+import { ConnectionStatus } from '../types';
 
-**Layout atual:**
-```text
-| [Bot] Ativo             #cod_agent |
-| [Conexão Badge]                    |
-|                                    |
-| Nome do Agente                     |
-```
+interface InstanceStatusResponse {
+  instance?: {
+    status?: string;
+    name?: string;
+    profileName?: string;
+  };
+  status?: {
+    connected?: boolean;
+    loggedIn?: boolean;
+    jid?: string;
+  };
+}
 
-**Novo layout:**
-```text
-| [Bot] Ativo    [Conexão Badge]    |
-|                                    |
-| Nome do Agente                     |
-| #cod_agent                         |
-```
-
-Mudanças específicas:
-- Mover `ConnectionStatusBadge` para o lado direito do header (onde estava o cod_agent)
-- Mover `#cod_agent` para baixo do nome do agente
-- Manter a instância WhatsApp abaixo do código
-
-**Código proposto:**
-```tsx
-<Card className="hover:shadow-md transition-shadow">
-  <CardContent className="p-4">
-    {/* Header com badges */}
-    <div className="flex items-start justify-between mb-3">
-      {/* Lado esquerdo: ícone + status ativo */}
-      <div className="flex items-center gap-2">
-        {isMonitored ? (
-          <Eye className="w-4 h-4 text-muted-foreground" />
-        ) : (
-          <Bot className="w-4 h-4 text-primary" />
-        )}
-        <Badge variant={agent.status ? "default" : "secondary"}>
-          {agent.status ? 'Ativo' : 'Inativo'}
-        </Badge>
-      </div>
-      {/* Lado direito: badge de conexão WhatsApp */}
-      <ConnectionStatusBadge status={connectionStatus} isLoading={isLoading} />
-    </div>
-
-    {/* Nome */}
-    <h3 className="font-semibold text-foreground mb-1 truncate">
-      {agent.business_name || agent.client_name || 'Sem nome'}
-    </h3>
-    
-    {/* Código do agente - agora abaixo do nome */}
-    <p className="text-xs text-muted-foreground font-mono mb-2">
-      #{agent.cod_agent}
-    </p>
-
-    {/* Instância WhatsApp */}
-    {agent.evo_instancia && (
-      <p className="text-xs text-muted-foreground mb-2 truncate">
-        Instância: {agent.evo_instancia}
-      </p>
-    )}
-
-    {/* ... resto do card ... */}
-  </CardContent>
-</Card>
-```
-
----
-
-## Resumo das Alterações
-
-| Arquivo | Ação |
-|---------|------|
-| `supabase/functions/db-query/index.ts` | Corrigir nome da coluna `evo_instance` → alias `evo_instancia` |
-| `src/pages/agente/meus-agentes/components/AgentCard.tsx` | Reposicionar badge de conexão (direita) e cod_agent (abaixo do nome) |
-
----
-
-## Resultado Visual Esperado
-
-```text
-+-----------------------------------------------+
-| [🤖] Ativo               [🟢 Conectado]       |
-|                                               |
-|   Escritório XYZ                              |
-|   #20250901                                   |
-|   Instância: minha-instancia                  |
-|   Plano: Premium                              |
-|                                               |
-|   Leads: 45/100 este mês                      |
-|   ████████░░░░░░░░░░░  45%                    |
-+-----------------------------------------------+
+export function useConnectionStatus(
+  hub: string | null,
+  evoUrl: string | null,
+  evoApikey: string | null,
+  evoInstancia: string | null
+) {
+  return useQuery({
+    queryKey: ['connection-status', evoUrl, evoInstancia],
+    queryFn: async (): Promise<ConnectionStatus> => {
+      // Sem configuração
+      if (!hub || !evoUrl || !evoApikey) {
+        return 'no_config';
+      }
+      
+      // Apenas suporta uazapi por enquanto
+      if (hub !== 'uazapi') {
+        return 'no_config';
+      }
+      
+      try {
+        const client = new UaZapiClient({
+          baseUrl: evoUrl,
+          token: evoApikey,
+          instance: evoInstancia || undefined,
+        });
+        
+        const response = await client.get<InstanceStatusResponse>('/instance/status');
+        
+        // Verificar status.connected e status.loggedIn (booleanos reais)
+        const isConnected = response.status?.connected === true && response.status?.loggedIn === true;
+        
+        if (isConnected) {
+          return 'connected';
+        }
+        
+        return 'disconnected';
+      } catch {
+        return 'disconnected';
+      }
+    },
+    enabled: !!hub && hub === 'uazapi' && !!evoUrl && !!evoApikey,
+    staleTime: 60000, // Cache por 1 minuto
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
+}
 ```
 
 ---
 
-## Sobre a Biblioteca UaZapi
+## Resumo da Correção
 
-A biblioteca existente em `src/lib/uazapi/` já está **completa e bem estruturada**, cobrindo todos os endpoints do repositório de referência:
+| Item | Antes (incorreto) | Depois (correto) |
+|------|------------------|------------------|
+| Campo verificado | `response.status` (objeto) | `response.status.connected` (booleano) |
+| Comparação | `=== 'connected'` (string) | `=== true` (booleano) |
+| Validação extra | Nenhuma | `status.loggedIn === true` |
 
-- **Instance**: status, QR code, connect, disconnect, restart
-- **Message**: text, image, video, audio, document, sticker, location, contact, buttons, list
-- **Chat**: archive, block, delete, find, labels, mute, pin, read
-- **Business**: catalog, profile
-- **Agent**: AI agent configuration
-- **Group**: communities, participants
-- **Labels**: CRUD de etiquetas
-- **Chatwoot**: integração
+---
 
-Não é necessário copiar código do repositório de referência - basta utilizar o hook `useUaZapi()` onde for necessário.
+## Estrutura de Resposta da API
+
+Para referência futura, a API `/instance/status` da UaZapi retorna:
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `instance.status` | string | Status geral da instância (sempre "connected" se existe) |
+| `instance.name` | string | Nome da instância |
+| `instance.profileName` | string | Nome do perfil WhatsApp |
+| `status.connected` | boolean | **Se está conectado ao WhatsApp** |
+| `status.loggedIn` | boolean | **Se está autenticado** |
+| `status.jid` | string | ID do WhatsApp conectado |
+
+A combinação `status.connected === true && status.loggedIn === true` indica conexão ativa real.
