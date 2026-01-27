@@ -5,6 +5,7 @@ import { Bot, Eye } from 'lucide-react';
 import { UserAgent } from '../types';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
 import { ConnectionStatusBadge } from './ConnectionStatusBadge';
+import { ConnectionControlButtons } from './ConnectionControlButtons';
 
 interface AgentCardProps {
   agent: UserAgent;
@@ -73,6 +74,17 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
               </span>
             </div>
             <Progress value={leadsPercentage} className="h-2" />
+          </div>
+        )}
+
+        {/* Botões de controle de conexão - apenas para "Meus Agentes" */}
+        {!isMonitored && (
+          <div className="pt-3 mt-3 border-t border-border/50">
+            <ConnectionControlButtons
+              agent={agent}
+              status={connectionStatus}
+              isLoading={isLoading}
+            />
           </div>
         )}
       </CardContent>
