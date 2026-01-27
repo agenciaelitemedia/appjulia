@@ -46,7 +46,7 @@ export default function MyAgentsPage() {
             Nenhum agente vinculado à sua conta
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {myAgents.map((agent) => (
               <AgentCard 
                 key={`my-${agent.cod_agent}`} 
@@ -66,7 +66,7 @@ export default function MyAgentsPage() {
             <span className="text-sm text-muted-foreground">({monitoredAgents.length})</span>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {monitoredAgents.map((agent) => (
               <AgentCard 
                 key={`monitored-${agent.cod_agent}`} 
