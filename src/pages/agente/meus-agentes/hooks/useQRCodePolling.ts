@@ -55,6 +55,22 @@ export function useQRCodePolling(
 
       const response = await client.get<InstanceStatusResponse>('/instance/status');
 
+      // Se não tem QR Code e não está conectado, tentar iniciar conexão
+      if (!response.instance?.qrcode && !response.status?.connected) {
+        try {
+          await client.post('/instance/connect');
+          // Buscar status novamente após connect
+          const newResponse = await client.get<InstanceStatusResponse>('/instance/status');
+          return {
+            qrCode: newResponse.instance?.qrcode || null,
+            isConnected: newResponse.status?.connected === true && newResponse.status?.loggedIn === true,
+            profileName: newResponse.instance?.profileName || null,
+          };
+        } catch {
+          // Ignorar erro - connect pode falhar se já estiver em progresso
+        }
+      }
+
       const isConnected = response.status?.connected === true && response.status?.loggedIn === true;
 
       return {

@@ -20,7 +20,7 @@ export function ConnectionControlButtons({
 }: ConnectionControlButtonsProps) {
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
-  const { disconnect, isDisconnecting } = useConnectionActions(agent);
+  const { disconnect, isDisconnecting, connect, isConnecting } = useConnectionActions(agent);
   const queryClient = useQueryClient();
 
   const handleConfigureSuccess = () => {
@@ -72,10 +72,18 @@ export function ConnectionControlButtons({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setQrDialogOpen(true)}
+            onClick={() => {
+              connect();
+              setQrDialogOpen(true);
+            }}
+            disabled={isConnecting}
             className="w-full"
           >
-            <QrCode className="w-4 h-4 mr-2" />
+            {isConnecting ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <QrCode className="w-4 h-4 mr-2" />
+            )}
             Conectar
           </Button>
           <QRCodeDialog
