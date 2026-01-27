@@ -114,24 +114,12 @@ export function useDashboardAgents() {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: ['dashboard-agents', user?.role, user?.cod_agent],
+    queryKey: ['dashboard-agents', user?.id],
     queryFn: async () => {
-      if (!user) return [];
-      
-      const query = user.role === 'admin'
-        ? `SELECT DISTINCT cod_agent::text, owner_name, owner_business_name 
-           FROM "vw_list_client-agents-users" 
-           WHERE cod_agent IS NOT NULL
-           ORDER BY owner_name`
-        : `SELECT DISTINCT cod_agent::text, owner_name, owner_business_name 
-           FROM "vw_list_client-agents-users" 
-           WHERE cod_agent = $1`;
-      
-      const params = user.role === 'admin' ? [] : [user.cod_agent];
-      const result = await externalDb.raw<DashboardAgent>({ query, params });
-      return result;
+      if (!user?.id) return [];
+      return externalDb.getCrmAgentsForUser<DashboardAgent>(user.id);
     },
-    enabled: !!user,
+    enabled: !!user?.id,
     staleTime: 1000 * 60 * 5,
   });
 }
