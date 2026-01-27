@@ -8,7 +8,8 @@ import {
   Search, 
   X,
   Users,
-  Filter
+  Filter,
+  Info
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Calendar } from '@/components/ui/calendar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -67,6 +69,7 @@ export function UnifiedFilters({
   stateOptions = [],
   searchPlaceholder = 'Buscar...',
   className,
+  periodTooltip,
 }: UnifiedFiltersProps) {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -217,7 +220,21 @@ export function UnifiedFilters({
         {showQuickPeriods && (
           <div className="px-4 py-3 border-b border-border/50 bg-muted/20">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide mr-1">Período:</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide mr-1 flex items-center gap-1">
+                Período:
+                {periodTooltip && (
+                  <TooltipProvider delayDuration={0}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs">
+                        <p>{periodTooltip}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </span>
               <div className="flex flex-wrap gap-1.5">
                 {QUICK_PERIODS.map((period) => (
                   <Button

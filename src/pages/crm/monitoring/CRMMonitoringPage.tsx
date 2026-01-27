@@ -101,6 +101,7 @@ export default function CRMMonitoringPage() {
         filters={filters}
         onFiltersChange={setFilters}
         isLoading={agentsLoading}
+        periodTooltip="Filtra pela data da última movimentação do lead no pipeline"
       />
 
       {/* Alerts and Activity Grid */}
