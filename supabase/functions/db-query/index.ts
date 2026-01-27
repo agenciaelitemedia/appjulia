@@ -395,6 +395,37 @@ serve(async (req) => {
         break;
       }
 
+      case 'get_agents_list': {
+        // Optimized query with pre-aggregated leads count
+        result = await sql.unsafe(`
+          SELECT 
+            a.id,
+            a.cod_agent,
+            a.status,
+            c.name AS client_name,
+            c.business_name,
+            ap.name AS plan_name,
+            COALESCE(ap."limit", 0) AS plan_limit,
+            COALESCE(leads.count, 0) AS leads_received,
+            a.last_used,
+            a.due_date
+          FROM agents a
+          JOIN clients c ON c.id = a.client_id
+          LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
+          LEFT JOIN (
+            SELECT s.agent_id, COUNT(DISTINCT s.id) as count
+            FROM sessions s
+            INNER JOIN log_messages lm ON lm.session_id = s.id
+            WHERE lm.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+              AND lm.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
+            GROUP BY s.agent_id
+          ) leads ON leads.agent_id = a.id
+          WHERE a.is_visibilided = true
+          ORDER BY c.business_name
+        `);
+        break;
+      }
+
       case 'search_clients': {
         const { term } = data;
         const searchTerm = `%${term.toLowerCase()}%`;
