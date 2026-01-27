@@ -50,7 +50,7 @@ export function ConfigureInstanceDialog({
   useEffect(() => {
     if (open) {
       const clientName = agent.client_name || agent.business_name || 'Cliente';
-      const defaultName = `[${agent.cod_agent}] - ${clientName}`;
+      const defaultName = `[JulIAv2] - ${clientName}`;
       setInstanceName(defaultName);
       setCurrentStep('idle');
       setErrorMessage(null);
@@ -127,9 +127,8 @@ export function ConfigureInstanceDialog({
               <Input
                 id="instanceName"
                 value={instanceName}
-                onChange={(e) => setInstanceName(e.target.value)}
-                placeholder="Ex: [20250901] - Empresa LTDA"
-                disabled={isProcessing}
+                readOnly
+                className="bg-muted cursor-not-allowed"
               />
               <p className="text-xs text-muted-foreground">
                 Este nome será usado para identificar a instância no servidor
