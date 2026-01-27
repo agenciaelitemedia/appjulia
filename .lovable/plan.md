@@ -1,24 +1,36 @@
 
-# Plano: Unificar Busca de Agentes via `user_agents`
+# Plano: Unificar Busca de Agentes em Todas as Páginas via `user_agents`
 
-## Contexto do Problema
+## Problema Identificado
 
-Atualmente, a busca de agentes no filtro do CRM (`useCRMAgents`) usa lógicas diferentes por role:
-- **Admin**: Busca todos os agentes da view `vw_list_client-agents-users`
-- **User**: Busca usando `user.cod_agent` direto (campo do usuário)
+Após analisar o código, identifiquei **três problemas** que impedem a exibição correta de `cod_agent`:
 
-**Problema identificado**: Usuários com `role='time'` têm `cod_agent = null` no registro do usuário, pois seus agentes estão apenas na tabela `user_agents`. Isso faz o filtro retornar vazio.
+### Problema 1: Query `get_crm_agents_for_user` com JOIN incorreto
+A query criada anteriormente usa:
+```sql
+JOIN agents a ON a.id = ua.agent_id
+```
 
-**Solução**: Todos os roles devem buscar os agentes vinculados na tabela `user_agents` baseado no `user_id`.
+Porém, a maioria dos registros em `user_agents` tem `agent_id = NULL` (apenas `cod_agent` preenchido). A query `get_user_agents` (que funciona em "Meus Agentes") usa um JOIN mais flexível:
+```sql
+LEFT JOIN agents a ON a.id = ua.agent_id OR a.cod_agent::text = ua.cod_agent::text
+```
+
+### Problema 2: `useJuliaAgents` ainda usa lógica antiga
+O hook em `src/pages/estrategico/hooks/useJuliaData.ts` ainda usa a lógica baseada em `user.cod_agent`, que retorna vazio para `role='time'`.
+
+### Problema 3: `useDashboardAgents` também usa lógica antiga
+O hook em `src/pages/dashboard/hooks/useDashboardData.ts` tem o mesmo problema.
 
 ---
 
-## Mudanças Necessárias
+## Solução
 
-### 1. Criar nova action na Edge Function `db-query`
+### 1. Corrigir query `get_crm_agents_for_user` no Backend
 
-Adicionar action `get_crm_agents_for_user` que busca os agentes do usuário pela tabela `user_agents`:
+**Arquivo**: `supabase/functions/db-query/index.ts`
 
+Alterar de:
 ```sql
 SELECT DISTINCT 
   ua.cod_agent::text as cod_agent,
@@ -31,58 +43,53 @@ WHERE ua.user_id = $1
 ORDER BY c.name
 ```
 
-### 2. Atualizar `externalDb.ts`
+Para:
+```sql
+SELECT DISTINCT 
+  COALESCE(ua.cod_agent::text, a.cod_agent::text) as cod_agent,
+  c.name as owner_name,
+  c.business_name as owner_business_name
+FROM user_agents ua
+LEFT JOIN agents a ON a.id = ua.agent_id OR a.cod_agent::text = ua.cod_agent::text
+LEFT JOIN clients c ON c.id = a.client_id
+WHERE ua.user_id = $1
+  AND (a.id IS NOT NULL)
+ORDER BY c.name
+```
 
-Adicionar método helper `getCrmAgentsForUser(userId: number)`.
+### 2. Atualizar `useJuliaAgents` para usar a nova action
 
-### 3. Atualizar `useCRMAgents` em `useCRMData.ts`
+**Arquivo**: `src/pages/estrategico/hooks/useJuliaData.ts`
 
-Modificar o hook para:
-- Usar a nova action `get_crm_agents_for_user` passando `user.id`
-- Funciona para todos os roles (admin, user, time)
-- Remove a lógica condicional atual baseada em role
-
----
-
-## Detalhes Técnicos
-
-### Nova Action no Backend
-
-**Arquivo**: `supabase/functions/db-query/index.ts`
-
+De:
 ```typescript
-case 'get_crm_agents_for_user': {
-  const { userId } = data;
-  result = await sql.unsafe(
-    `SELECT DISTINCT 
-      ua.cod_agent::text as cod_agent,
-      c.name as owner_name,
-      c.business_name as owner_business_name
-    FROM user_agents ua
-    JOIN agents a ON a.id = ua.agent_id
-    JOIN clients c ON c.id = a.client_id
-    WHERE ua.user_id = $1
-    ORDER BY c.name`,
-    [userId]
-  );
-  break;
+export function useJuliaAgents() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['julia-agents', user?.role, user?.cod_agent],
+    queryFn: async () => {
+      if (!user) return [];
+      const query = user.role === 'admin'
+        ? `SELECT DISTINCT cod_agent::text, owner_name...`
+        : `SELECT DISTINCT cod_agent::text, owner_name... WHERE cod_agent = $1`;
+      const params = user.role === 'admin' ? [] : [user.cod_agent];
+      const result = await externalDb.raw<JuliaAgent>({ query, params });
+      return result;
+    },
+    enabled: !!user,
+  });
 }
 ```
 
-### Atualização do Hook
-
-**Arquivo**: `src/pages/crm/hooks/useCRMData.ts`
-
+Para:
 ```typescript
-export function useCRMAgents() {
+export function useJuliaAgents() {
   const { user } = useAuth();
-
   return useQuery({
-    queryKey: ['crm-agents', user?.id],
+    queryKey: ['julia-agents', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      const result = await externalDb.getCrmAgentsForUser(user.id);
-      return result;
+      return externalDb.getCrmAgentsForUser<JuliaAgent>(user.id);
     },
     enabled: !!user?.id,
     staleTime: 1000 * 60 * 5,
@@ -90,22 +97,40 @@ export function useCRMAgents() {
 }
 ```
 
+### 3. Atualizar `useDashboardAgents` para usar a nova action
+
+**Arquivo**: `src/pages/dashboard/hooks/useDashboardData.ts`
+
+Aplicar a mesma alteracao do hook `useJuliaAgents`.
+
 ---
 
-## Arquivos a Modificar
+## Resumo dos Arquivos a Modificar
 
-| Arquivo | Ação |
+| Arquivo | Acao |
 |---------|------|
-| `supabase/functions/db-query/index.ts` | Adicionar case `get_crm_agents_for_user` |
-| `src/lib/externalDb.ts` | Adicionar método `getCrmAgentsForUser` |
-| `src/pages/crm/hooks/useCRMData.ts` | Simplificar `useCRMAgents` para usar nova action |
+| `supabase/functions/db-query/index.ts` | Corrigir JOIN na action `get_crm_agents_for_user` |
+| `src/pages/estrategico/hooks/useJuliaData.ts` | Alterar `useJuliaAgents` para usar `getCrmAgentsForUser` |
+| `src/pages/dashboard/hooks/useDashboardData.ts` | Alterar `useDashboardAgents` para usar `getCrmAgentsForUser` |
 
 ---
 
-## Benefícios
+## Paginas Afetadas
 
-1. **Consistência**: Todos os roles usam a mesma lógica baseada em `user_agents`
-2. **Funciona para role='time'**: Membros de equipe verão seus agentes atribuídos
-3. **Manutenibilidade**: Remove lógica condicional complexa
-4. **Segurança**: Cada usuário só vê os agentes explicitamente vinculados a ele
+Apos as correcoes, as seguintes paginas funcionarao corretamente para todos os roles:
+- CRM (Leads) - `/crm`
+- CRM Monitoramento - `/crm/monitoramento`
+- CRM Estatisticas - `/crm/estatisticas`
+- Desempenho - `/estrategico/desempenho`
+- Contratos - `/estrategico/contratos`
+- Dashboard - `/dashboard`
+- FollowUp - `/agente/followup`
 
+---
+
+## Beneficios
+
+1. **Consistencia**: Todos os hooks de agentes usam a mesma logica baseada em `user_agents`
+2. **Funciona para todos os roles**: Admin, User e Time verao seus agentes corretamente
+3. **Manutencao simplificada**: Uma unica action no backend para buscar agentes do usuario
+4. **Seguranca**: Cada usuario so ve os agentes explicitamente vinculados a ele
