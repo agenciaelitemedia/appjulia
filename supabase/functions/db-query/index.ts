@@ -550,7 +550,16 @@ serve(async (req) => {
       }
 
       case 'insert_agent': {
-        const { client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date } = data;
+        let { client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date } = data;
+        
+        // Normalize settings to valid JSON without formatting (ensures JSONB cast works correctly)
+        try {
+          const parsed = typeof settings === 'string' ? JSON.parse(settings) : settings;
+          settings = JSON.stringify(parsed);
+        } catch (e) {
+          throw new Error('Settings JSON inválido');
+        }
+        
         const rows = await sql.unsafe(
           `INSERT INTO agents (client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date, status, is_visibilided, created_at, updated_at)
            VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, true, true, now(), now())
@@ -670,7 +679,15 @@ serve(async (req) => {
 
       case 'update_agent': {
         const { agentId, agentData } = data;
-        const { settings, prompt, is_closer, agent_plan_id, due_date, status } = agentData;
+        let { settings, prompt, is_closer, agent_plan_id, due_date, status } = agentData;
+        
+        // Normalize settings to valid JSON without formatting (ensures JSONB cast works correctly)
+        try {
+          const parsed = typeof settings === 'string' ? JSON.parse(settings) : settings;
+          settings = JSON.stringify(parsed);
+        } catch (e) {
+          throw new Error('Settings JSON inválido');
+        }
         
         const rows = await sql.unsafe(
           `UPDATE agents 
