@@ -261,6 +261,21 @@ class ExternalDatabase {
       data: { userId },
     });
   }
+
+  async updateAgentConnection(
+    agentId: number,
+    connectionData: {
+      hub: string;
+      evo_url: string;
+      evo_apikey: string;
+      evo_instancia: string;
+    }
+  ): Promise<void> {
+    await this.invoke({
+      action: 'update_agent_connection',
+      data: { agentId, connectionData },
+    });
+  }
 }
 
 export interface AgentInsertData {

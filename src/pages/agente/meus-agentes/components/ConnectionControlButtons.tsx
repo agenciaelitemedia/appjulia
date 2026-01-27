@@ -4,7 +4,7 @@ import { Loader2, QrCode, Settings, Unplug } from 'lucide-react';
 import { UserAgent, ConnectionStatus } from '../types';
 import { useConnectionActions } from '../hooks/useConnectionActions';
 import { QRCodeDialog } from './QRCodeDialog';
-import { toast } from 'sonner';
+import { ConfigureInstanceDialog } from './ConfigureInstanceDialog';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface ConnectionControlButtonsProps {
@@ -19,11 +19,13 @@ export function ConnectionControlButtons({
   isLoading,
 }: ConnectionControlButtonsProps) {
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const { disconnect, isDisconnecting } = useConnectionActions(agent);
   const queryClient = useQueryClient();
 
-  const handleConfigureInstance = () => {
-    toast.info('Entre em contato com o suporte para configurar sua instância WhatsApp');
+  const handleConfigureSuccess = () => {
+    // Invalidar cache para atualizar a lista de agentes
+    queryClient.invalidateQueries({ queryKey: ['user-agents'] });
   };
 
   const handleConnected = () => {
@@ -45,15 +47,23 @@ export function ConnectionControlButtons({
   switch (status) {
     case 'no_config':
       return (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleConfigureInstance}
-          className="w-full"
-        >
-          <Settings className="w-4 h-4 mr-2" />
-          Configurar Instância
-        </Button>
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setConfigDialogOpen(true)}
+            className="w-full"
+          >
+            <Settings className="w-4 h-4 mr-2" />
+            Configurar Instância
+          </Button>
+          <ConfigureInstanceDialog
+            open={configDialogOpen}
+            onOpenChange={setConfigDialogOpen}
+            agent={agent}
+            onSuccess={handleConfigureSuccess}
+          />
+        </>
       );
 
     case 'disconnected':

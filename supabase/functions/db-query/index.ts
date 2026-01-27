@@ -667,6 +667,20 @@ serve(async (req) => {
         break;
       }
 
+      case 'update_agent_connection': {
+        const { agentId, connectionData } = data;
+        const { hub, evo_url, evo_apikey, evo_instancia } = connectionData;
+        
+        await sql.unsafe(
+          `UPDATE agents 
+           SET hub = $1, evo_url = $2, evo_apikey = $3, evo_instance = $4, updated_at = now()
+           WHERE id = $5`,
+          [hub, evo_url, evo_apikey, evo_instancia, agentId]
+        );
+        result = [{ success: true }];
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
