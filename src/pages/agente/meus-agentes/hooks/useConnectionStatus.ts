@@ -3,10 +3,15 @@ import { UaZapiClient } from '@/lib/uazapi/client';
 import { ConnectionStatus } from '../types';
 
 interface InstanceStatusResponse {
-  status?: string;
-  state?: string;
   instance?: {
-    state?: string;
+    status?: string;
+    name?: string;
+    profileName?: string;
+  };
+  status?: {
+    connected?: boolean;
+    loggedIn?: boolean;
+    jid?: string;
   };
 }
 
@@ -38,10 +43,10 @@ export function useConnectionStatus(
         
         const response = await client.get<InstanceStatusResponse>('/instance/status');
         
-        // Verificar diferentes formatos de resposta da API
-        const status = response.status || response.state || response.instance?.state;
+        // Verificar status.connected e status.loggedIn (booleanos reais)
+        const isConnected = response.status?.connected === true && response.status?.loggedIn === true;
         
-        if (status === 'connected' || status === 'open') {
+        if (isConnected) {
           return 'connected';
         }
         
