@@ -11,30 +11,36 @@ export function useCRMJuliaSessions(filters: CRMFiltersState) {
       const { agentCodes, dateFrom, dateTo } = filters;
       
       if (agentCodes.length === 0) return { totalSessions: 0, dailyAverage: 0 };
-      
-      const result = await externalDb.raw<{ total_sessions: string; daily_average: string }>({
-        query: `
-          WITH sessions_data AS (
+
+      try {
+        const result = await externalDb.raw<{ total_sessions: string; daily_average: string }>({
+          query: `
+            WITH sessions_data AS (
+              SELECT 
+                COUNT(DISTINCT session_id) as total_sessions,
+                COUNT(DISTINCT (created_at AT TIME ZONE 'America/Sao_Paulo')::date) as total_days
+              FROM vw_desempenho_julia
+              WHERE cod_agent::text = ANY($1::varchar[])
+                AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+                AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+            )
             SELECT 
-              COUNT(DISTINCT session_id) as total_sessions,
-              COUNT(DISTINCT (created_at AT TIME ZONE 'America/Sao_Paulo')::date) as total_days
-            FROM vw_desempenho_julia
-            WHERE cod_agent::text = ANY($1::varchar[])
-              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
-          )
-          SELECT 
-            total_sessions,
-            CASE WHEN total_days > 0 THEN total_sessions::float / total_days ELSE 0 END as daily_average
-          FROM sessions_data
-        `,
-        params: [agentCodes, dateFrom, dateTo],
-      });
-      
-      return {
-        totalSessions: Number(result[0]?.total_sessions ?? 0),
-        dailyAverage: Number(result[0]?.daily_average ?? 0),
-      };
+              total_sessions,
+              CASE WHEN total_days > 0 THEN total_sessions::float / total_days ELSE 0 END as daily_average
+            FROM sessions_data
+          `,
+          params: [agentCodes, dateFrom, dateTo],
+        });
+        
+        return {
+          totalSessions: Number(result[0]?.total_sessions ?? 0),
+          dailyAverage: Number(result[0]?.daily_average ?? 0),
+        };
+      } catch (err) {
+        // Avoid blank screens if the external view/schema changes temporarily.
+        console.error('[CRM] Failed to load Julia sessions:', err);
+        return { totalSessions: 0, dailyAverage: 0 };
+      }
     },
     enabled: filters.agentCodes.length > 0,
   });
