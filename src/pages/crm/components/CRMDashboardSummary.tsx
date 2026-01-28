@@ -21,11 +21,14 @@ export function CRMDashboardSummary({ cards, stages, isLoading }: CRMDashboardSu
   const stats = useMemo(() => {
     const total = cards.length;
     
-    // Find conversion and disqualified stages
-    const conversionStage = stages.find(s => s.name === 'Contrato Assinado');
+    // Find conversion stages (generated + signed) and disqualified stage
+    const contractInProgressStage = stages.find(s => s.name === 'Contrato em Curso');
+    const contractSignedStage = stages.find(s => s.name === 'Contrato Assinado');
     const disqualifiedStage = stages.find(s => s.name === 'Desqualificado');
     
-    const converted = cards.filter(c => c.stage_id === conversionStage?.id).length;
+    const converted = cards.filter(c => 
+      c.stage_id === contractInProgressStage?.id || c.stage_id === contractSignedStage?.id
+    ).length;
     const disqualified = cards.filter(c => c.stage_id === disqualifiedStage?.id).length;
     const active = total - disqualified;
     
