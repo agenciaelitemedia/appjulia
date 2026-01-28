@@ -5,7 +5,7 @@ import { CRMDashboardSummary } from './components/CRMDashboardSummary';
 import { CRMTotalizers } from './components/CRMTotalizers';
 import { CRMPipeline } from './components/CRMPipeline';
 import { CRMLeadDetailsDialog } from './components/CRMLeadDetailsDialog';
-import { useCRMStages, useCRMCards, useCRMAgents } from './hooks/useCRMData';
+import { useCRMStages, useCRMCards, useCRMAgents, useCRMJuliaSessions } from './hooks/useCRMData';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState } from '@/components/filters/types';
 import { CRMCard } from './types';
@@ -30,6 +30,7 @@ export default function CRMPage() {
   const { data: stages = [], isLoading: stagesLoading } = useCRMStages();
   const { data: agents = [], isLoading: agentsLoading } = useCRMAgents();
   const { data: cards = [], isLoading: cardsLoading, refetch } = useCRMCards(filters);
+  const { data: juliaSessions } = useCRMJuliaSessions(filters);
 
   // Initialize agentCodes when agents load
   useEffect(() => {
@@ -113,7 +114,7 @@ export default function CRMPage() {
         periodTooltip="Filtra pela data da última movimentação do lead no pipeline (não pela data de criação)"
       />
 
-      <CRMDashboardSummary cards={filteredCards} stages={stages} isLoading={cardsLoading} />
+      <CRMDashboardSummary cards={filteredCards} stages={stages} isLoading={cardsLoading} juliaSessions={juliaSessions} />
 
       <CRMTotalizers cards={filteredCards} stages={stages} />
 
