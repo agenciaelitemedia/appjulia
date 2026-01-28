@@ -52,8 +52,8 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
       >
         <CardContent className="p-3">
           <div className="space-y-2">
-            {/* Stage badge */}
-            {card.stage_name && (
+            {/* Contract stage badge - only for leads with contract history */}
+            {card.has_contract_history && card.stage_name && (
               <Badge 
                 className="text-[10px] font-medium px-2 py-0.5"
                 style={{ 
