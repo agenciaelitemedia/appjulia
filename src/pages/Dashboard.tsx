@@ -133,20 +133,20 @@ export default function Dashboard() {
     }
   };
 
-  // Calculate conversion rate
+  // Calculate conversion rate based on Julia sessions
   const conversionRate = useMemo(() => {
-    const totalLeads = stats?.totalLeads ?? 0;
+    const totalSessions = stats?.totalSessions ?? 0;
     const conversions = stats?.conversions ?? 0;
-    if (totalLeads === 0) return 0;
-    return (conversions / totalLeads) * 100;
-  }, [stats?.totalLeads, stats?.conversions]);
+    if (totalSessions === 0) return 0;
+    return (conversions / totalSessions) * 100;
+  }, [stats?.totalSessions, stats?.conversions]);
 
-  // Calculate previous conversion rate for comparison
+  // Calculate previous conversion rate for comparison (based on sessions)
   const conversionRateChange = useMemo(() => {
     if (!statsPrevious) return null;
-    const prevTotal = statsPrevious.totalLeads;
+    const prevSessions = statsPrevious.totalSessions;
     const prevConversions = statsPrevious.conversions;
-    const prevRate = prevTotal > 0 ? (prevConversions / prevTotal) * 100 : 0;
+    const prevRate = prevSessions > 0 ? (prevConversions / prevSessions) * 100 : 0;
     return calculateChange(conversionRate, prevRate);
   }, [conversionRate, statsPrevious]);
 
@@ -196,7 +196,7 @@ export default function Dashboard() {
       change: conversionRateChange,
       sparklineData: null,
       sparklineColor: '',
-      description: `${stats?.conversions ?? 0} de ${stats?.totalLeads ?? 0} leads`,
+      description: `${stats?.conversions ?? 0} de ${stats?.totalSessions ?? 0} sessões`,
     },
     {
       title: 'Agentes Selecionados',
