@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
-import { Bot, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import juliaLogo from '@/assets/julia-logo.png';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -60,9 +61,7 @@ export default function Login() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
-            <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center">
-              <Bot className="w-10 h-10 text-primary-foreground" />
-            </div>
+            <img src={juliaLogo} alt="Julia IA Logo" className="w-16 h-16 rounded-2xl" />
           </div>
           <div>
             <CardTitle className="text-2xl">
