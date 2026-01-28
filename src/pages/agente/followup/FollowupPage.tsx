@@ -32,7 +32,7 @@ import { FollowupConfig } from './components/FollowupConfig';
 import { FollowupQueue } from './components/FollowupQueue';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState } from '@/components/filters/types';
-import { getTodayInSaoPaulo, get7DaysAgoInSaoPaulo } from '@/lib/dateUtils';
+import { getInitialDates } from '@/hooks/usePersistedPeriod';
 
 // Queue states for the filter
 const QUEUE_STATES = [
@@ -73,12 +73,14 @@ export default function FollowupPage() {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   
+  const initialDates = getInitialDates();
+  
   // Dashboard filters (using UnifiedFilters)
   const [dashboardFilters, setDashboardFilters] = useState<UnifiedFiltersState>({
     search: '',
     agentCodes: [],
-    dateFrom: get7DaysAgoInSaoPaulo(),
-    dateTo: getTodayInSaoPaulo(),
+    dateFrom: initialDates.dateFrom,
+    dateTo: initialDates.dateTo,
     stateFilter: 'all',
   });
   
@@ -86,8 +88,8 @@ export default function FollowupPage() {
   const [queueFilters, setQueueFilters] = useState<UnifiedFiltersState>({
     search: '',
     agentCodes: [],
-    dateFrom: getTodayInSaoPaulo(),
-    dateTo: getTodayInSaoPaulo(),
+    dateFrom: initialDates.dateFrom,
+    dateTo: initialDates.dateTo,
     stateFilter: 'all',
   });
 

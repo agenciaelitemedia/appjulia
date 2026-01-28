@@ -19,9 +19,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/contexts/AuthContext';
-import { getTodayInSaoPaulo, formatDbDateTime } from '@/lib/dateUtils';
+import { formatDbDateTime } from '@/lib/dateUtils';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState } from '@/components/filters/types';
+import { getInitialDates } from '@/hooks/usePersistedPeriod';
 import { cn } from '@/lib/utils';
 import {
   useDashboardAgents,
@@ -52,12 +53,12 @@ export default function Dashboard() {
   const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
-  const today = getTodayInSaoPaulo();
+  const initialDates = getInitialDates();
   const [filters, setFilters] = useState<UnifiedFiltersState>({
     search: '',
     agentCodes: [],
-    dateFrom: today,
-    dateTo: today,
+    dateFrom: initialDates.dateFrom,
+    dateTo: initialDates.dateTo,
   });
 
   const { data: agents = [], isLoading: agentsLoading } = useDashboardAgents();

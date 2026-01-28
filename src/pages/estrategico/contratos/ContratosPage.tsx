@@ -3,7 +3,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { useJuliaAgents, useJuliaContratos, useJuliaContratosPrevious } from '../hooks/useJuliaData';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState } from '@/components/filters/types';
@@ -12,6 +11,7 @@ import { ContratosTable } from './components/ContratosTable';
 import { ContratoDetailsDialog } from './components/ContratoDetailsDialog';
 import { ContratosEvolutionChart } from './components/ContratosEvolutionChart';
 import { JuliaContrato } from '../types';
+import { getInitialDates } from '@/hooks/usePersistedPeriod';
 
 export default function ContratosPage() {
   const queryClient = useQueryClient();
@@ -19,12 +19,12 @@ export default function ContratosPage() {
   const [selectedContrato, setSelectedContrato] = useState<JuliaContrato | null>(null);
   const hasInitializedFilters = useRef(false);
 
-  const today = getTodayInSaoPaulo();
+  const initialDates = getInitialDates();
   const [filters, setFilters] = useState<UnifiedFiltersState>({
     search: '',
     agentCodes: [],
-    dateFrom: today,
-    dateTo: today,
+    dateFrom: initialDates.dateFrom,
+    dateTo: initialDates.dateTo,
   });
 
   const { data: agents = [], isLoading: agentsLoading } = useJuliaAgents();

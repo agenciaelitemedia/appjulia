@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarIcon, Filter } from 'lucide-react';
@@ -8,17 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { QUEUE_STATES } from '../../types';
+import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { 
-  getTodayInSaoPaulo, 
-  getYesterdayInSaoPaulo, 
-  get7DaysAgoInSaoPaulo,
-  get3MonthsAgoInSaoPaulo,
-  getFirstDayOfMonthInSaoPaulo,
-  getLastDayOfMonthInSaoPaulo,
-  getFirstDayOfPreviousMonthInSaoPaulo,
-  getLastDayOfPreviousMonthInSaoPaulo,
-  getFirstDayOfYearInSaoPaulo,
-} from '@/lib/dateUtils';
+  QuickPeriod, 
+  detectQuickPeriod, 
+  calculatePeriodDates, 
+  savePeriod 
+} from '@/hooks/usePersistedPeriod';
 
 interface FollowupFiltersProps {
   dateFrom: string;
@@ -29,8 +26,6 @@ interface FollowupFiltersProps {
   onStateFilterChange: (state: string) => void;
   showStateFilter?: boolean;
 }
-
-type QuickPeriod = 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'previousMonth' | 'last3Months' | 'thisYear' | 'custom';
 
 const QUICK_PERIODS: { value: QuickPeriod; label: string }[] = [
   { value: 'today', label: 'Hoje' },
@@ -51,59 +46,21 @@ export function FollowupFilters({
   onStateFilterChange,
   showStateFilter = true,
 }: FollowupFiltersProps) {
-  // Determine current quick period
   const today = getTodayInSaoPaulo();
-  const yesterday = getYesterdayInSaoPaulo();
-  const last7Days = get7DaysAgoInSaoPaulo();
-  const last3Months = get3MonthsAgoInSaoPaulo();
-  const thisMonthStart = getFirstDayOfMonthInSaoPaulo();
-  const thisMonthEnd = getLastDayOfMonthInSaoPaulo();
-  const prevMonthStart = getFirstDayOfPreviousMonthInSaoPaulo();
-  const prevMonthEnd = getLastDayOfPreviousMonthInSaoPaulo();
-  const thisYearStart = getFirstDayOfYearInSaoPaulo();
+  
+  // Determine current quick period
+  const currentQuickPeriod = detectQuickPeriod(dateFrom, dateTo);
 
-  const currentQuickPeriod: QuickPeriod = (() => {
-    if (dateFrom === today && dateTo === today) return 'today';
-    if (dateFrom === yesterday && dateTo === yesterday) return 'yesterday';
-    if (dateFrom === last7Days && dateTo === today) return 'last7days';
-    if (dateFrom === thisMonthStart && dateTo === thisMonthEnd) return 'thisMonth';
-    if (dateFrom === prevMonthStart && dateTo === prevMonthEnd) return 'previousMonth';
-    if (dateFrom === last3Months && dateTo === today) return 'last3Months';
-    if (dateFrom === thisYearStart && dateTo === today) return 'thisYear';
-    return 'custom';
-  })();
+  // Save period to localStorage when it changes
+  useEffect(() => {
+    savePeriod(currentQuickPeriod);
+  }, [currentQuickPeriod]);
 
   const handleQuickPeriod = (period: QuickPeriod) => {
-    switch (period) {
-      case 'today':
-        onDateFromChange(today);
-        onDateToChange(today);
-        break;
-      case 'yesterday':
-        onDateFromChange(yesterday);
-        onDateToChange(yesterday);
-        break;
-      case 'last7days':
-        onDateFromChange(last7Days);
-        onDateToChange(today);
-        break;
-      case 'thisMonth':
-        onDateFromChange(thisMonthStart);
-        onDateToChange(thisMonthEnd);
-        break;
-      case 'previousMonth':
-        onDateFromChange(prevMonthStart);
-        onDateToChange(prevMonthEnd);
-        break;
-      case 'last3Months':
-        onDateFromChange(last3Months);
-        onDateToChange(today);
-        break;
-      case 'thisYear':
-        onDateFromChange(thisYearStart);
-        onDateToChange(today);
-        break;
-    }
+    const { dateFrom: newDateFrom, dateTo: newDateTo } = calculatePeriodDates(period);
+    savePeriod(period);
+    onDateFromChange(newDateFrom);
+    onDateToChange(newDateTo);
   };
 
   const handleClearFilters = () => {
