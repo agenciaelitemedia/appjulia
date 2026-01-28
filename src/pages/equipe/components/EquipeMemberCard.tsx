@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { MoreVertical, Pencil, Trash2, Bot, KeyRound, Layers } from "lucide-react";
+import { MoreVertical, Pencil, Trash2, Bot, KeyRound, Layers, Key, Copy, Check } from "lucide-react";
 import { TeamMember } from "../types";
 import { externalDb } from "@/lib/externalDb";
 import { UserPermission } from "@/types/permissions";
@@ -45,12 +46,22 @@ export function EquipeMemberCard({
   onDelete,
   onResetPassword,
 }: EquipeMemberCardProps) {
+  const [copied, setCopied] = useState(false);
+  
   const initials = member.name
     .split(" ")
     .map((n) => n[0])
     .join("")
     .toUpperCase()
     .slice(0, 2);
+
+  const handleCopyPassword = () => {
+    if (member.remember_token) {
+      navigator.clipboard.writeText(member.remember_token);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   // Fetch member's modules
   const { data: permissions = [] } = useQuery({
@@ -125,6 +136,32 @@ export function EquipeMemberCard({
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+
+              {/* Password Badge */}
+              {member.remember_token && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge 
+                        variant="outline" 
+                        className="gap-1 cursor-pointer hover:bg-accent"
+                        onClick={handleCopyPassword}
+                      >
+                        <Key className="h-3 w-3" />
+                        {member.remember_token}
+                        {copied ? (
+                          <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                        ) : (
+                          <Copy className="h-3 w-3" />
+                        )}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p className="text-sm">Clique para copiar a senha</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
           </div>
 
