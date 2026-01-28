@@ -449,6 +449,14 @@ class ExternalDatabase {
     });
     return result[0];
   }
+
+  async getSessionStatus(whatsappNumber: string, codAgent: string): Promise<SessionStatus | null> {
+    const result = await this.invoke({
+      action: 'get_session_status',
+      data: { whatsappNumber, codAgent },
+    });
+    return result.length > 0 ? result[0] : null;
+  }
 }
 
 export interface AgentInsertData {
@@ -488,6 +496,15 @@ export interface Client {
   photo: string | null;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface SessionStatus {
+  id: number;
+  active: boolean;
+  whatsapp_number: string;
+  cod_agent: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export const externalDb = new ExternalDatabase();
