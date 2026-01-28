@@ -119,3 +119,12 @@ export interface CRMStageBottleneck {
   avg_count: number;
   is_bottleneck: boolean;
 }
+
+export interface ContractInfo {
+  zapsing_doctoken?: string;
+  status_document: string;
+  signer_name?: string;
+  data_contrato?: string;
+  data_assinatura?: string;
+  cod_document?: string;
+}
