@@ -1,67 +1,163 @@
 
-# Plano: Padronizar Cálculo de Conversão em Todo o Sistema
+# Plano: Padronizar Métricas do Dashboard com o CRM e Adicionar Card de Sessões
 
 ## Resumo
 
-Corrigir a definição de "conversão" no hook `useCRMAgentPerformance` para incluir **tanto** "Contrato em Curso" **quanto** "Contrato Assinado", alinhando com o restante do sistema.
-
----
-
-## Problema Identificado
-
-Na página de **Estatísticas do CRM** (`/crm/lead-estatisticas`), a tabela de **Performance por Agente** calcula a taxa de conversão considerando apenas contratos assinados. Isso está inconsistente com as outras partes do sistema.
-
-### Locais já corretos:
-- Dashboard principal: ✅ Usa ambos estágios
-- CRM Dashboard Summary: ✅ Usa ambos estágios  
-- CRM Summary Stats: ✅ Usa ambos estágios
-
-### Local a corrigir:
-- `useCRMAgentPerformance`: ❌ Usa apenas "Contrato Assinado"
+Ajustar o Dashboard para usar o mesmo critério de filtragem do CRM (`stage_entered_at` em vez de `created_at`) e adicionar um novo card de "Sessões" que exibe o total de sessões de atendimento da Julia, permitindo validar os valores da página de Desempenho.
 
 ---
 
 ## Mudanças Necessárias
 
-### Arquivo: `src/pages/crm/hooks/useCRMStatistics.ts`
+### 1. Modificar `src/pages/dashboard/hooks/useDashboardData.ts`
 
-**Antes** (linhas 99-111):
+#### 1.1 Alterar filtro de leads para usar `stage_entered_at`
+
+**Queries a modificar:**
+
+- `useDashboardStats`: Alterar de `created_at` para `stage_entered_at`
+- `useDashboardStatsPrevious`: Alterar de `created_at` para `stage_entered_at`  
+- `useRecentLeads`: Alterar de `created_at` para `stage_entered_at`
+- `useDashboardEvolution`: Alterar de `created_at` para `stage_entered_at`
+- `useDashboardFunnel`: Alterar de `created_at` para `stage_entered_at`
+
+**Exemplo de mudança:**
+
 ```sql
-WITH conversion_stage AS (
-  SELECT id FROM crm_atendimento_stages WHERE name = 'Contrato Assinado' LIMIT 1
-)
-SELECT 
-  c.cod_agent,
-  COALESCE(a.owner_name, c.cod_agent) as owner_name,
-  COUNT(c.id)::int as total_leads,
-  COUNT(CASE WHEN c.stage_id = (SELECT id FROM conversion_stage) THEN 1 END)::int as converted_leads,
-  ...
+-- ANTES
+AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+
+-- DEPOIS  
+AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
 ```
 
-**Depois**:
+#### 1.2 Adicionar nova métrica de sessões
+
+**Adicionar ao `DashboardStats`:**
+
+```typescript
+export interface DashboardStats {
+  totalLeads: number;
+  totalMessages: number;
+  conversions: number;
+  activeAgents: number;
+  totalSessions: number;  // NOVO
+}
+```
+
+**Adicionar query de sessões ao `useDashboardStats`:**
+
 ```sql
-WITH conversion_stages AS (
-  SELECT id FROM crm_atendimento_stages 
-  WHERE name IN ('Contrato em Curso', 'Contrato Assinado')
-)
-SELECT 
-  c.cod_agent,
-  COALESCE(a.owner_name, c.cod_agent) as owner_name,
-  COUNT(c.id)::int as total_leads,
-  COUNT(CASE WHEN c.stage_id IN (SELECT id FROM conversion_stages) THEN 1 END)::int as converted_leads,
-  ...
+SELECT COUNT(DISTINCT session_id) as total
+FROM vw_desempenho_julia
+WHERE cod_agent::text = ANY($1::varchar[])
+  AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+  AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+```
+
+#### 1.3 Adicionar comparação de sessões ao período anterior
+
+**Adicionar ao `DashboardStatsPrevious`:**
+
+```typescript
+export interface DashboardStatsPrevious {
+  totalLeads: number;
+  totalMessages: number;
+  conversions: number;
+  totalSessions: number;  // NOVO
+}
 ```
 
 ---
 
-## Impacto
+### 2. Modificar `src/pages/Dashboard.tsx`
 
-### Na Tabela de Performance por Agente:
+#### 2.1 Adicionar novo card de Sessões
 
-| Coluna | Antes | Depois |
-|--------|-------|--------|
-| Leads Convertidos | Apenas assinados | Gerados + Assinados |
-| Taxa de Conversão | Assinados / Total | (Gerados + Assinados) / Total |
+Adicionar um novo card no array `statCards`:
+
+```typescript
+{
+  title: 'Sessões Julia',
+  value: stats?.totalSessions ?? 0,
+  displayValue: (stats?.totalSessions ?? 0).toLocaleString('pt-BR'),
+  icon: Activity, // Importar de lucide-react
+  change: changes?.sessions,
+  sparklineData: null,
+  sparklineColor: '',
+  description: 'Atendimentos de IA',
+},
+```
+
+#### 2.2 Atualizar grid para 6 colunas
+
+**Antes:**
+```tsx
+<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+```
+
+**Depois:**
+```tsx
+<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+```
+
+#### 2.3 Calcular variação de sessões
+
+Adicionar no objeto `changes`:
+
+```typescript
+sessions: calculateChange(stats?.totalSessions ?? 0, statsPrevious.totalSessions),
+```
+
+---
+
+## Detalhes Técnicos
+
+### Queries Modificadas
+
+| Query | Campo Atual | Campo Novo |
+|-------|-------------|------------|
+| Total de Leads | `created_at` | `stage_entered_at` |
+| Conversões | `c.created_at` | `c.stage_entered_at` |
+| Leads Recentes | `c.created_at` | `c.stage_entered_at` |
+| Evolução | `c.created_at` | `c.stage_entered_at` |
+| Funil | `c.created_at` | `c.stage_entered_at` |
+
+### Nova Query de Sessões
+
+```sql
+SELECT COUNT(DISTINCT session_id) as total
+FROM vw_desempenho_julia
+WHERE cod_agent::text = ANY($1::varchar[])
+  AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+  AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+```
+
+---
+
+## Layout Visual
+
+### Antes (5 cards):
+```text
+[Total Leads] [Mensagens] [Conversões] [Taxa Conv.] [Agentes]
+```
+
+### Depois (6 cards):
+```text
+[Total Leads] [Mensagens] [Sessões Julia] [Conversões] [Taxa Conv.] [Agentes]
+```
+
+---
+
+## Resultado Esperado
+
+1. **Mesmas métricas do CRM**: O Total de Leads no Dashboard agora coincidirá com o CRM Leads quando os mesmos filtros forem aplicados
+
+2. **Card de Sessões**: Permitirá ao usuário validar que o total de sessões no Dashboard corresponde ao total na página Desempenho Julia
+
+3. **Comparação com período anterior**: O card de sessões também exibirá a variação percentual vs período anterior
 
 ---
 
@@ -69,4 +165,5 @@ SELECT
 
 | Arquivo | Ação |
 |---------|------|
-| `src/pages/crm/hooks/useCRMStatistics.ts` | Modificar query SQL para incluir ambos estágios |
+| `src/pages/dashboard/hooks/useDashboardData.ts` | Alterar filtros para `stage_entered_at`, adicionar query de sessões |
+| `src/pages/Dashboard.tsx` | Adicionar card de Sessões, ajustar grid para 6 colunas |
