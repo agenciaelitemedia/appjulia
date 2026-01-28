@@ -17,6 +17,7 @@ import {
   Package,
   Library,
   UsersRound,
+  Shield,
   X,
 } from "lucide-react";
 import juliaLogo from "@/assets/julia-logo.png";
@@ -79,6 +80,7 @@ const menuGroups: MenuGroup[] = [
     items: [
       { label: "Lista de Agentes", icon: Bot, href: "/admin/agentes" },
       { label: "Novo Agente", icon: UserPlus, href: "/admin/agentes-novo" },
+      { label: "Permissões", icon: Shield, href: "/admin/permissoes" },
       { label: "Produtos", icon: Package, href: "/admin/produtos" },
       { label: "Arquivos Clientes", icon: FileText, href: "/admin/arquivos-clientes" },
     ],
