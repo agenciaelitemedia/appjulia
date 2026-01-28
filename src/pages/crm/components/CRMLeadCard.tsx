@@ -52,6 +52,21 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
       >
         <CardContent className="p-3">
           <div className="space-y-2">
+            {/* Stage badge */}
+            {card.stage_name && (
+              <Badge 
+                className="text-[10px] font-medium px-2 py-0.5"
+                style={{ 
+                  backgroundColor: card.stage_color ? `${card.stage_color}20` : undefined,
+                  color: card.stage_color || undefined,
+                  borderColor: card.stage_color || undefined
+                }}
+                variant="outline"
+              >
+                {card.stage_name}
+              </Badge>
+            )}
+
             {/* Header with name and actions */}
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-1.5 text-sm font-medium">
