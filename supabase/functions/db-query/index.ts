@@ -187,12 +187,25 @@ serve(async (req) => {
 
   let lastError: unknown = null;
   
+  // Parse JSON body ONCE before retry loop (body can only be consumed once)
+  let body: Record<string, any>;
+  try {
+    body = await req.json();
+  } catch (parseError) {
+    console.error('Failed to parse request body:', parseError);
+    return new Response(
+      JSON.stringify({ data: null, error: 'Invalid JSON body' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+    );
+  }
+  
+  const { action, table, data, where, select, limit, offset, orderBy } = body;
+  
   // Retry loop with exponential backoff
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     let sql: ReturnType<typeof postgres> | null = null;
     
     try {
-      const { action, table, data, where, select, limit, offset, orderBy } = await req.json();
 
       sql = createConnection(caCerts);
 
