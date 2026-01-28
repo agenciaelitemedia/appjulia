@@ -1533,6 +1533,24 @@ serve(async (req) => {
         break;
       }
 
+      case 'update_user_profile': {
+        // Update user profile (admin action)
+        const { userId, name, email, role, isActive } = data;
+        
+        // Sync is_active with status (legacy field)
+        const status = isActive ? 1 : 0;
+        
+        const rows = await sql.unsafe(
+          `UPDATE users 
+           SET name = $1, email = $2, role = $3, is_active = $4, status = $5, updated_at = now()
+           WHERE id = $6
+           RETURNING id, name, email, role, is_active, status, user_id as parent_user_id, created_at, use_custom_permissions`,
+          [name, email, role, isActive, status, userId]
+        );
+        result = rows;
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }

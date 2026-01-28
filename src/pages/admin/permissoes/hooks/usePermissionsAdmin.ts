@@ -3,6 +3,7 @@ import { externalDb } from '@/lib/externalDb';
 import type { Module, UserPermission, PermissionUpdate, AppRole } from '@/types/permissions';
 import type { UserWithPermissions } from '../types';
 import { toast } from '@/hooks/use-toast';
+import bcrypt from 'bcryptjs';
 
 // Fetch users with permissions info
 export function useUsersWithPermissions(roleFilter?: string) {
@@ -97,6 +98,78 @@ export function useUpdateRoleDefaultPermissions() {
     onError: (error: Error) => {
       toast({
         title: 'Erro ao atualizar permissões padrão',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+// Mutation: update user profile
+export function useUpdateUserProfile() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      userId: number;
+      name: string;
+      email: string;
+      role: AppRole;
+      isActive: boolean;
+    }) => {
+      return externalDb.updateUserProfile(data.userId, {
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        isActive: data.isActive,
+      });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['users-with-permissions'] });
+      queryClient.invalidateQueries({ queryKey: ['user-permissions', variables.userId] });
+      toast({
+        title: 'Perfil atualizado',
+        description: 'Os dados do usuário foram salvos com sucesso.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Erro ao atualizar perfil',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+// Generate password in format Julia@XXXX
+function generatePassword(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let suffix = '';
+  for (let i = 0; i < 4; i++) {
+    suffix += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `Julia@${suffix}`;
+}
+
+// Mutation: reset user password
+export function useResetUserPassword() {
+  return useMutation({
+    mutationFn: async (userId: number) => {
+      const rawPassword = generatePassword();
+      const hashedPassword = await bcrypt.hash(rawPassword, 10);
+      await externalDb.resetUserPassword(userId, hashedPassword, rawPassword);
+      return { temporaryPassword: rawPassword };
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Senha redefinida',
+        description: 'A nova senha temporária foi gerada com sucesso.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Erro ao redefinir senha',
         description: error.message,
         variant: 'destructive',
       });

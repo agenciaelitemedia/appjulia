@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, AlertTriangle, RotateCcw, Save } from 'lucide-react';
+import { User, AlertTriangle, RotateCcw, Save, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -7,11 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PermissionMatrix } from './PermissionMatrix';
+import { UserEditDialog } from './UserEditDialog';
 import {
   useUserPermissions,
   useRoleDefaultPermissions,
   useUpdateUserPermissions,
 } from '../hooks/usePermissionsAdmin';
+import { useAuth } from '@/contexts/AuthContext';
 import type { PermissionRow, UserWithPermissions } from '../types';
 import { permissionToRow, roleLabels } from '../types';
 import type { ModuleCode, PermissionUpdate } from '@/types/permissions';
@@ -24,7 +26,9 @@ export function UserPermissionEditor({ user }: UserPermissionEditorProps) {
   const [useCustom, setUseCustom] = useState(user.use_custom_permissions);
   const [editedPermissions, setEditedPermissions] = useState<PermissionRow[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
 
+  const { user: currentUser } = useAuth();
   const { data: userPermissions, isLoading: loadingUserPerms } = useUserPermissions(user.id);
   const { data: roleDefaults, isLoading: loadingDefaults } = useRoleDefaultPermissions(user.role);
   const updateMutation = useUpdateUserPermissions();
@@ -94,23 +98,34 @@ export function UserPermissionEditor({ user }: UserPermissionEditorProps) {
   const isLoading = loadingUserPerms || loadingDefaults;
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="border-b">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-              <User className="w-5 h-5 text-muted-foreground" />
+    <>
+      <Card className="h-full flex flex-col">
+        <CardHeader className="border-b">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                <User className="w-5 h-5 text-muted-foreground" />
+              </div>
+              <div>
+                <CardTitle className="text-lg">{user.name}</CardTitle>
+                <p className="text-sm text-muted-foreground">{user.email}</p>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-lg">{user.name}</CardTitle>
-              <p className="text-sm text-muted-foreground">{user.email}</p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowEditDialog(true)}
+              >
+                <Pencil className="w-4 h-4 mr-2" />
+                Editar Perfil
+              </Button>
+              <Badge variant="secondary" className="text-sm">
+                {roleLabels[user.role]}
+              </Badge>
             </div>
           </div>
-          <Badge variant="secondary" className="text-sm">
-            {roleLabels[user.role]}
-          </Badge>
-        </div>
-      </CardHeader>
+        </CardHeader>
 
       <CardContent className="flex-1 overflow-auto p-4 space-y-4">
         {/* Alerts */}
@@ -185,7 +200,16 @@ export function UserPermissionEditor({ user }: UserPermissionEditorProps) {
             {updateMutation.isPending ? 'Salvando...' : 'Salvar Permissões'}
           </Button>
         </div>
-      )}
-    </Card>
+        )}
+      </Card>
+
+      {/* Edit Profile Dialog */}
+      <UserEditDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        user={user}
+        currentUserId={currentUser?.id ?? 0}
+      />
+    </>
   );
 }

@@ -436,6 +436,17 @@ class ExternalDatabase {
     });
     return result[0]?.has_permission ?? false;
   }
+
+  async updateUserProfile(
+    userId: number,
+    profileData: { name: string; email: string; role: string; isActive: boolean }
+  ): Promise<UserWithPermissions> {
+    const result = await this.invoke({
+      action: 'update_user_profile',
+      data: { userId, ...profileData },
+    });
+    return result[0];
+  }
 }
 
 export interface AgentInsertData {
