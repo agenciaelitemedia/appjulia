@@ -1630,7 +1630,19 @@ serve(async (req) => {
         break;
       }
 
-      default:
+      case 'update_session_status': {
+        // Update session active status
+        const { sessionId, active } = data;
+        
+        await sql.unsafe(
+          `UPDATE sessions 
+           SET active = $1, updated_at = now()
+           WHERE id = $2`,
+          [active, sessionId]
+        );
+        result = [{ success: true }];
+        break;
+      }
         throw new Error(`Unknown action: ${action}`);
     }
 
