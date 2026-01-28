@@ -101,7 +101,38 @@ export function EquipeMemberCard({
               {member.email}
             </p>
 
-            <div className="mt-3 flex items-center gap-2 flex-wrap">
+            {/* Password below email */}
+            {member.remember_token && (
+              <div className="mt-1 flex items-center gap-1">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button 
+                        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                        onClick={handleCopyPassword}
+                      >
+                        <Key className="h-3 w-3" />
+                        <span className="font-mono">{member.remember_token}</span>
+                        {copied ? (
+                          <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                        ) : (
+                          <Copy className="h-3 w-3" />
+                        )}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p className="text-sm">Clique para copiar a senha</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            )}
+
+            {/* Separator */}
+            <div className="my-3 border-t border-border" />
+
+            {/* Badges */}
+            <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="secondary" className="gap-1">
                 <Bot className="h-3 w-3" />
                 {member.agents_count}{" "}
@@ -136,32 +167,6 @@ export function EquipeMemberCard({
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-
-              {/* Password Badge */}
-              {member.remember_token && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Badge 
-                        variant="outline" 
-                        className="gap-1 cursor-pointer hover:bg-accent"
-                        onClick={handleCopyPassword}
-                      >
-                        <Key className="h-3 w-3" />
-                        {member.remember_token}
-                        {copied ? (
-                          <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                        ) : (
-                          <Copy className="h-3 w-3" />
-                        )}
-                      </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">
-                      <p className="text-sm">Clique para copiar a senha</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
             </div>
           </div>
 
