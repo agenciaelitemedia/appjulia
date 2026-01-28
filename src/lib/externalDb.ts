@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Module, UserPermission, PermissionUpdate, UserWithPermissions } from "@/types/permissions";
 
 interface QueryOptions {
   table: string;
@@ -361,6 +362,79 @@ class ExternalDatabase {
       action: 'get_crm_agents_for_user',
       data: { userId },
     });
+  }
+
+  // === Permission System Methods ===
+
+  async initPermissionSystem(): Promise<{ success: boolean; message: string }> {
+    const result = await this.invoke({
+      action: 'init_permission_system',
+      data: {},
+    });
+    return result[0];
+  }
+
+  async getUserPermissions(userId: number): Promise<UserPermission[]> {
+    return this.invoke({
+      action: 'get_user_permissions',
+      data: { userId },
+    });
+  }
+
+  async getModules(): Promise<Module[]> {
+    return this.invoke({
+      action: 'get_modules',
+      data: {},
+    });
+  }
+
+  async getRoleDefaultPermissions(role: string): Promise<UserPermission[]> {
+    return this.invoke({
+      action: 'get_role_default_permissions',
+      data: { role },
+    });
+  }
+
+  async updateUserPermissions(
+    userId: number,
+    permissions: PermissionUpdate[],
+    useCustom: boolean
+  ): Promise<{ success: boolean }> {
+    const result = await this.invoke({
+      action: 'update_user_permissions',
+      data: { userId, permissions, useCustom },
+    });
+    return result[0];
+  }
+
+  async updateRoleDefaultPermissions(
+    role: string,
+    permissions: PermissionUpdate[]
+  ): Promise<{ success: boolean }> {
+    const result = await this.invoke({
+      action: 'update_role_default_permissions',
+      data: { role, permissions },
+    });
+    return result[0];
+  }
+
+  async getUsersWithPermissions(roleFilter?: string): Promise<UserWithPermissions[]> {
+    return this.invoke({
+      action: 'get_users_with_permissions',
+      data: { roleFilter },
+    });
+  }
+
+  async checkPermission(
+    userId: number,
+    moduleCode: string,
+    permissionType: 'view' | 'create' | 'edit' | 'delete' = 'view'
+  ): Promise<boolean> {
+    const result = await this.invoke({
+      action: 'check_permission',
+      data: { userId, moduleCode, permissionType },
+    });
+    return result[0]?.has_permission ?? false;
   }
 }
 
