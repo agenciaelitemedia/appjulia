@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -9,8 +10,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Pencil, Trash2, Bot, KeyRound } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { MoreVertical, Pencil, Trash2, Bot, KeyRound, Layers } from "lucide-react";
 import { TeamMember } from "../types";
+import { externalDb } from "@/lib/externalDb";
+import { UserPermission } from "@/types/permissions";
 
 interface EquipeMemberCardProps {
   member: TeamMember;
@@ -18,6 +27,17 @@ interface EquipeMemberCardProps {
   onDelete: (member: TeamMember) => void;
   onResetPassword: (member: TeamMember) => void;
 }
+
+// Category labels for display
+const categoryLabels: Record<string, string> = {
+  principal: 'Principal',
+  crm: 'CRM',
+  agente: 'Agente',
+  sistema: 'Sistema',
+};
+
+// Only show these categories (exclude admin/financeiro)
+const allowedCategories = ['principal', 'crm', 'agente', 'sistema'];
 
 export function EquipeMemberCard({
   member,
@@ -31,6 +51,28 @@ export function EquipeMemberCard({
     .join("")
     .toUpperCase()
     .slice(0, 2);
+
+  // Fetch member's modules
+  const { data: permissions = [] } = useQuery({
+    queryKey: ["member-permissions", member.id],
+    queryFn: () => externalDb.getUserPermissions(member.id),
+  });
+
+  // Filter to only modules with can_view and allowed categories
+  const activeModules = permissions.filter(
+    (p: UserPermission) =>
+      p.can_view &&
+      allowedCategories.includes(p.category) &&
+      p.module_code !== 'team' &&
+      p.module_code !== 'settings'
+  );
+
+  // Group modules by category for tooltip
+  const groupedModules = activeModules.reduce((acc, mod) => {
+    if (!acc[mod.category]) acc[mod.category] = [];
+    acc[mod.category].push(mod.module_name);
+    return acc;
+  }, {} as Record<string, string[]>);
 
   return (
     <Card className="group hover:shadow-md transition-shadow">
@@ -48,12 +90,41 @@ export function EquipeMemberCard({
               {member.email}
             </p>
 
-            <div className="mt-3 flex items-center gap-2">
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
               <Badge variant="secondary" className="gap-1">
                 <Bot className="h-3 w-3" />
                 {member.agents_count}{" "}
                 {member.agents_count === 1 ? "agente" : "agentes"}
               </Badge>
+
+              {/* Modules Badge with Tooltip */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="gap-1 cursor-help">
+                      <Layers className="h-3 w-3" />
+                      {activeModules.length}{" "}
+                      {activeModules.length === 1 ? "módulo" : "módulos"}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs">
+                    {activeModules.length === 0 ? (
+                      <p className="text-sm">Nenhum módulo atribuído</p>
+                    ) : (
+                      <div className="space-y-2 text-sm">
+                        {Object.entries(groupedModules).map(([category, modules]) => (
+                          <div key={category}>
+                            <p className="font-semibold text-xs uppercase text-muted-foreground">
+                              {categoryLabels[category] || category}
+                            </p>
+                            <p>{(modules as string[]).join(", ")}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
 
@@ -67,7 +138,7 @@ export function EquipeMemberCard({
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="bg-popover">
               <DropdownMenuItem onClick={() => onEdit(member)}>
                 <Pencil className="h-4 w-4 mr-2" />
                 Editar
