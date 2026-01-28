@@ -54,6 +54,10 @@ All colors MUST be HSL.
 
     --sidebar-ring: 217.2 91.2% 59.8%;
 
+    /* Brand accent - Julia IA */
+    --brand-accent: 38 92% 50%;
+    --brand-accent-foreground: 0 0% 100%;
+
     /* Chart colors */
     --chart-1: 221.2 83.2% 53.3%;
     --chart-2: 142.1 76.2% 36.3%;
@@ -98,6 +102,10 @@ All colors MUST be HSL.
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Brand accent - Julia IA */
+    --brand-accent: 38 92% 55%;
+    --brand-accent-foreground: 0 0% 100%;
 
     /* Chart colors - brighter for dark mode */
     --chart-1: 217.2 91.2% 59.8%;
