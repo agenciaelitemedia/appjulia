@@ -96,17 +96,18 @@ export function useCRMAgentPerformance(filters: CRMFiltersState) {
       // Get the "Contrato Assinado" stage ID for conversion calculation
       const result = await externalDb.raw<CRMAgentPerformance>({
         query: `
-          WITH conversion_stage AS (
-            SELECT id FROM crm_atendimento_stages WHERE name = 'Contrato Assinado' LIMIT 1
+          WITH conversion_stages AS (
+            SELECT id FROM crm_atendimento_stages 
+            WHERE name IN ('Contrato em Curso', 'Contrato Assinado')
           )
           SELECT 
             c.cod_agent,
             COALESCE(a.owner_name, c.cod_agent) as owner_name,
             COUNT(c.id)::int as total_leads,
-            COUNT(CASE WHEN c.stage_id = (SELECT id FROM conversion_stage) THEN 1 END)::int as converted_leads,
+            COUNT(CASE WHEN c.stage_id IN (SELECT id FROM conversion_stages) THEN 1 END)::int as converted_leads,
             CASE 
               WHEN COUNT(c.id) > 0 
-              THEN (COUNT(CASE WHEN c.stage_id = (SELECT id FROM conversion_stage) THEN 1 END)::float / COUNT(c.id)) * 100
+              THEN (COUNT(CASE WHEN c.stage_id IN (SELECT id FROM conversion_stages) THEN 1 END)::float / COUNT(c.id)) * 100
               ELSE 0
             END as conversion_rate,
             COALESCE(
