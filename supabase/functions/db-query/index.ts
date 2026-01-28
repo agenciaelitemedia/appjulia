@@ -1123,6 +1123,416 @@ serve(async (req) => {
         break;
       }
 
+      // ==================== PERMISSION SYSTEM ====================
+
+      case 'init_permission_system': {
+        // Creates the permission tables and populates initial data
+        // Should only be run once by an admin
+
+        // 1. Create modules table
+        await sql.unsafe(`
+          CREATE TABLE IF NOT EXISTS public.modules (
+            id SERIAL PRIMARY KEY,
+            code VARCHAR(50) NOT NULL UNIQUE,
+            name VARCHAR(100) NOT NULL,
+            description TEXT,
+            category VARCHAR(50),
+            is_active BOOLEAN DEFAULT TRUE,
+            display_order INT DEFAULT 0,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+          )
+        `);
+
+        // 2. Create user_permissions table
+        await sql.unsafe(`
+          CREATE TABLE IF NOT EXISTS public.user_permissions (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            module_id INT NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+            can_view BOOLEAN DEFAULT FALSE,
+            can_create BOOLEAN DEFAULT FALSE,
+            can_edit BOOLEAN DEFAULT FALSE,
+            can_delete BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            UNIQUE(user_id, module_id)
+          )
+        `);
+
+        // 3. Create role_default_permissions table
+        await sql.unsafe(`
+          CREATE TABLE IF NOT EXISTS public.role_default_permissions (
+            id SERIAL PRIMARY KEY,
+            role VARCHAR(20) NOT NULL,
+            module_id INT NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+            can_view BOOLEAN DEFAULT FALSE,
+            can_create BOOLEAN DEFAULT FALSE,
+            can_edit BOOLEAN DEFAULT FALSE,
+            can_delete BOOLEAN DEFAULT FALSE,
+            UNIQUE(role, module_id)
+          )
+        `);
+
+        // 4. Create indexes
+        await sql.unsafe(`
+          CREATE INDEX IF NOT EXISTS idx_user_permissions_user_id ON user_permissions(user_id);
+          CREATE INDEX IF NOT EXISTS idx_user_permissions_module_id ON user_permissions(module_id);
+          CREATE INDEX IF NOT EXISTS idx_role_default_permissions_role ON role_default_permissions(role);
+        `);
+
+        // 5. Add columns to users table if not exist
+        await sql.unsafe(`
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS use_custom_permissions BOOLEAN DEFAULT FALSE;
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+        `);
+
+        // 6. Insert modules (using INSERT ... ON CONFLICT to avoid duplicates)
+        const modulesData = [
+          { code: 'dashboard', name: 'Dashboard', category: 'principal', display_order: 1 },
+          { code: 'crm_leads', name: 'Leads', category: 'crm', display_order: 10 },
+          { code: 'crm_monitoring', name: 'Monitoramento', category: 'crm', display_order: 11 },
+          { code: 'crm_statistics', name: 'Estatísticas', category: 'crm', display_order: 12 },
+          { code: 'agent_management', name: 'Meus Agentes', category: 'agente', display_order: 20 },
+          { code: 'followup', name: 'FollowUp', category: 'agente', display_order: 21 },
+          { code: 'strategic_perf', name: 'Desempenho Julia', category: 'agente', display_order: 22 },
+          { code: 'strategic_contract', name: 'Contratos Julia', category: 'agente', display_order: 23 },
+          { code: 'library', name: 'Biblioteca', category: 'sistema', display_order: 30 },
+          { code: 'team', name: 'Equipe', category: 'sistema', display_order: 31 },
+          { code: 'admin_agents', name: 'Lista de Agentes', category: 'admin', display_order: 40 },
+          { code: 'admin_products', name: 'Produtos', category: 'admin', display_order: 41 },
+          { code: 'admin_files', name: 'Arquivos Clientes', category: 'admin', display_order: 42 },
+          { code: 'finance_billing', name: 'Cobranças', category: 'financeiro', display_order: 50 },
+          { code: 'finance_clients', name: 'Clientes', category: 'financeiro', display_order: 51 },
+          { code: 'finance_reports', name: 'Relatórios', category: 'financeiro', display_order: 52 },
+          { code: 'settings', name: 'Configurações', category: 'admin', display_order: 60 },
+        ];
+
+        for (const mod of modulesData) {
+          await sql.unsafe(
+            `INSERT INTO modules (code, name, category, display_order)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (code) DO UPDATE SET name = $2, category = $3, display_order = $4`,
+            [mod.code, mod.name, mod.category, mod.display_order]
+          );
+        }
+
+        // 7. Insert role_default_permissions
+        // First, clear existing defaults
+        await sql.unsafe(`DELETE FROM role_default_permissions`);
+
+        // ADMIN: all permissions on all modules
+        await sql.unsafe(`
+          INSERT INTO role_default_permissions (role, module_id, can_view, can_create, can_edit, can_delete)
+          SELECT 'admin', id, TRUE, TRUE, TRUE, TRUE FROM modules
+        `);
+
+        // COLABORADOR: all except admin/financeiro categories
+        await sql.unsafe(`
+          INSERT INTO role_default_permissions (role, module_id, can_view, can_create, can_edit, can_delete)
+          SELECT 'colaborador', id, TRUE, TRUE, TRUE, FALSE 
+          FROM modules WHERE category NOT IN ('admin', 'financeiro')
+        `);
+
+        // USER: client-facing modules
+        await sql.unsafe(`
+          INSERT INTO role_default_permissions (role, module_id, can_view, can_create, can_edit, can_delete)
+          SELECT 'user', id, TRUE, TRUE, TRUE, TRUE 
+          FROM modules WHERE category IN ('principal', 'crm', 'agente', 'sistema')
+        `);
+
+        // TIME: restricted (no team, settings, view only)
+        await sql.unsafe(`
+          INSERT INTO role_default_permissions (role, module_id, can_view, can_create, can_edit, can_delete)
+          SELECT 'time', id, TRUE, FALSE, FALSE, FALSE 
+          FROM modules WHERE code NOT IN ('team', 'settings') AND category IN ('principal', 'crm', 'agente')
+        `);
+
+        // 8. Create the check_user_permission function
+        await sql.unsafe(`
+          CREATE OR REPLACE FUNCTION check_user_permission(
+            p_user_id BIGINT,
+            p_module_code VARCHAR,
+            p_permission_type VARCHAR DEFAULT 'view'
+          ) RETURNS BOOLEAN AS $$
+          DECLARE
+            v_user RECORD;
+            v_permission BOOLEAN;
+            v_parent_permission BOOLEAN;
+            v_module_id INT;
+          BEGIN
+            SELECT id, role, user_id, use_custom_permissions, is_active 
+            INTO v_user FROM users WHERE id = p_user_id;
+            
+            IF NOT FOUND OR NOT COALESCE(v_user.is_active, TRUE) THEN
+              RETURN FALSE;
+            END IF;
+            
+            IF v_user.role = 'admin' THEN
+              RETURN TRUE;
+            END IF;
+            
+            SELECT id INTO v_module_id FROM modules WHERE code = p_module_code AND is_active = TRUE;
+            IF NOT FOUND THEN
+              RETURN FALSE;
+            END IF;
+            
+            IF COALESCE(v_user.use_custom_permissions, FALSE) THEN
+              SELECT 
+                CASE p_permission_type
+                  WHEN 'view' THEN can_view
+                  WHEN 'create' THEN can_create
+                  WHEN 'edit' THEN can_edit
+                  WHEN 'delete' THEN can_delete
+                  ELSE FALSE
+                END INTO v_permission
+              FROM user_permissions 
+              WHERE user_id = p_user_id AND module_id = v_module_id;
+            ELSE
+              SELECT 
+                CASE p_permission_type
+                  WHEN 'view' THEN can_view
+                  WHEN 'create' THEN can_create
+                  WHEN 'edit' THEN can_edit
+                  WHEN 'delete' THEN can_delete
+                  ELSE FALSE
+                END INTO v_permission
+              FROM role_default_permissions 
+              WHERE role = v_user.role AND module_id = v_module_id;
+            END IF;
+            
+            v_permission := COALESCE(v_permission, FALSE);
+            
+            IF v_user.role = 'time' AND v_user.user_id IS NOT NULL THEN
+              v_parent_permission := check_user_permission(v_user.user_id, p_module_code, p_permission_type);
+              RETURN v_permission AND v_parent_permission;
+            END IF;
+            
+            RETURN v_permission;
+          END;
+          $$ LANGUAGE plpgsql SECURITY DEFINER
+        `);
+
+        result = [{ success: true, message: 'Permission system initialized' }];
+        break;
+      }
+
+      case 'get_user_permissions': {
+        // Get all permissions for a user (used after login)
+        const { userId } = data;
+
+        // First check if user exists and get their role
+        const users = await sql.unsafe(
+          `SELECT id, role, use_custom_permissions, is_active FROM users WHERE id = $1`,
+          [userId]
+        );
+
+        if (users.length === 0) {
+          result = [];
+          break;
+        }
+
+        const user = users[0];
+
+        // Admin gets all permissions
+        if (user.role === 'admin') {
+          result = await sql.unsafe(`
+            SELECT m.code as module_code, m.name as module_name, m.category,
+                   TRUE as can_view, TRUE as can_create, TRUE as can_edit, TRUE as can_delete
+            FROM modules m
+            WHERE m.is_active = TRUE
+            ORDER BY m.display_order
+          `);
+          break;
+        }
+
+        // Get permissions based on custom or default
+        if (user.use_custom_permissions) {
+          result = await sql.unsafe(`
+            SELECT m.code as module_code, m.name as module_name, m.category,
+                   COALESCE(up.can_view, FALSE) as can_view,
+                   COALESCE(up.can_create, FALSE) as can_create,
+                   COALESCE(up.can_edit, FALSE) as can_edit,
+                   COALESCE(up.can_delete, FALSE) as can_delete
+            FROM modules m
+            LEFT JOIN user_permissions up ON up.module_id = m.id AND up.user_id = $1
+            WHERE m.is_active = TRUE
+            ORDER BY m.display_order
+          `, [userId]);
+        } else {
+          result = await sql.unsafe(`
+            SELECT m.code as module_code, m.name as module_name, m.category,
+                   COALESCE(rdp.can_view, FALSE) as can_view,
+                   COALESCE(rdp.can_create, FALSE) as can_create,
+                   COALESCE(rdp.can_edit, FALSE) as can_edit,
+                   COALESCE(rdp.can_delete, FALSE) as can_delete
+            FROM modules m
+            LEFT JOIN role_default_permissions rdp ON rdp.module_id = m.id AND rdp.role = $1
+            WHERE m.is_active = TRUE
+            ORDER BY m.display_order
+          `, [user.role]);
+        }
+
+        // For 'time' users, also check parent permissions
+        if (user.role === 'time') {
+          const parentUserId = await sql.unsafe(
+            `SELECT user_id FROM users WHERE id = $1`,
+            [userId]
+          );
+          
+          if (parentUserId.length > 0 && parentUserId[0].user_id) {
+            const parentPerms = await sql.unsafe(`
+              SELECT m.code as module_code,
+                     COALESCE(rdp.can_view, FALSE) as can_view,
+                     COALESCE(rdp.can_create, FALSE) as can_create,
+                     COALESCE(rdp.can_edit, FALSE) as can_edit,
+                     COALESCE(rdp.can_delete, FALSE) as can_delete
+              FROM modules m
+              LEFT JOIN role_default_permissions rdp ON rdp.module_id = m.id AND rdp.role = 'user'
+              WHERE m.is_active = TRUE
+            `);
+
+            // Intersect permissions: child can only have permission if parent also has it
+            const parentMap = new Map(parentPerms.map(p => [p.module_code, p]));
+            result = result.map(perm => {
+              const parent = parentMap.get(perm.module_code);
+              if (parent) {
+                return {
+                  ...perm,
+                  can_view: perm.can_view && parent.can_view,
+                  can_create: perm.can_create && parent.can_create,
+                  can_edit: perm.can_edit && parent.can_edit,
+                  can_delete: perm.can_delete && parent.can_delete,
+                };
+              }
+              return perm;
+            });
+          }
+        }
+        break;
+      }
+
+      case 'get_modules': {
+        // Get all modules (for admin UI)
+        result = await sql.unsafe(`
+          SELECT id, code, name, description, category, is_active, display_order
+          FROM modules
+          ORDER BY display_order
+        `);
+        break;
+      }
+
+      case 'get_role_default_permissions': {
+        // Get default permissions for a specific role
+        const { role } = data;
+        result = await sql.unsafe(`
+          SELECT m.code as module_code, m.name as module_name, m.category,
+                 rdp.can_view, rdp.can_create, rdp.can_edit, rdp.can_delete
+          FROM role_default_permissions rdp
+          JOIN modules m ON m.id = rdp.module_id
+          WHERE rdp.role = $1 AND m.is_active = TRUE
+          ORDER BY m.display_order
+        `, [role]);
+        break;
+      }
+
+      case 'update_user_permissions': {
+        // Update permissions for a specific user (admin action)
+        const { userId, permissions, useCustom } = data;
+
+        // Update the use_custom_permissions flag
+        await sql.unsafe(
+          `UPDATE users SET use_custom_permissions = $1, updated_at = now() WHERE id = $2`,
+          [useCustom, userId]
+        );
+
+        if (useCustom && permissions && permissions.length > 0) {
+          // Clear existing custom permissions
+          await sql.unsafe(`DELETE FROM user_permissions WHERE user_id = $1`, [userId]);
+
+          // Insert new permissions
+          for (const perm of permissions) {
+            const moduleResult = await sql.unsafe(
+              `SELECT id FROM modules WHERE code = $1`,
+              [perm.moduleCode]
+            );
+            
+            if (moduleResult.length > 0) {
+              await sql.unsafe(
+                `INSERT INTO user_permissions (user_id, module_id, can_view, can_create, can_edit, can_delete)
+                 VALUES ($1, $2, $3, $4, $5, $6)
+                 ON CONFLICT (user_id, module_id) DO UPDATE SET
+                   can_view = $3, can_create = $4, can_edit = $5, can_delete = $6, updated_at = now()`,
+                [userId, moduleResult[0].id, perm.canView, perm.canCreate, perm.canEdit, perm.canDelete]
+              );
+            }
+          }
+        }
+
+        result = [{ success: true }];
+        break;
+      }
+
+      case 'update_role_default_permissions': {
+        // Update default permissions for a role (admin action)
+        const { role, permissions } = data;
+
+        for (const perm of permissions) {
+          const moduleResult = await sql.unsafe(
+            `SELECT id FROM modules WHERE code = $1`,
+            [perm.moduleCode]
+          );
+          
+          if (moduleResult.length > 0) {
+            await sql.unsafe(
+              `UPDATE role_default_permissions 
+               SET can_view = $1, can_create = $2, can_edit = $3, can_delete = $4
+               WHERE role = $5 AND module_id = $6`,
+              [perm.canView, perm.canCreate, perm.canEdit, perm.canDelete, role, moduleResult[0].id]
+            );
+          }
+        }
+
+        result = [{ success: true }];
+        break;
+      }
+
+      case 'get_users_with_permissions': {
+        // Get all users with their permission info (for admin UI)
+        const { roleFilter } = data || {};
+        
+        let query = `
+          SELECT u.id, u.name, u.email, u.role, u.use_custom_permissions, u.is_active,
+                 u.user_id as parent_user_id, u.created_at
+          FROM users u
+          WHERE 1=1
+        `;
+        const params: any[] = [];
+        
+        if (roleFilter) {
+          params.push(roleFilter);
+          query += ` AND u.role = $${params.length}`;
+        }
+        
+        query += ` ORDER BY u.role, u.name`;
+        
+        result = await sql.unsafe(query, params);
+        break;
+      }
+
+      case 'check_permission': {
+        // Check if user has permission for a module/action
+        const { userId, moduleCode, permissionType } = data;
+        
+        const checkResult = await sql.unsafe(
+          `SELECT check_user_permission($1, $2, $3) as has_permission`,
+          [userId, moduleCode, permissionType || 'view']
+        );
+        
+        result = checkResult;
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }

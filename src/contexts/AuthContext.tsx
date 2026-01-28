@@ -1,11 +1,13 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { externalDb } from '@/lib/externalDb';
+import type { UserPermission, PermissionMap, ModuleCode, AppRole } from '@/types/permissions';
+import { createPermissionMap } from '@/types/permissions';
 
 interface User {
   id: number;
   name: string;
   email: string;
-  role: string;
+  role: AppRole;
   cod_agent?: number;
   client_id?: number;
   evo_url?: string;
@@ -14,15 +16,22 @@ interface User {
   data_mask?: boolean;
   hub?: string;
   created_at?: string;
-  avatar?: string; // Optional for UI compatibility
+  avatar?: string;
+  use_custom_permissions?: boolean;
+  is_active?: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isAdmin: boolean;
+  permissions: PermissionMap | null;
+  permissionsLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
+  refreshPermissions: () => Promise<void>;
+  hasPermission: (moduleCode: ModuleCode, action?: 'view' | 'create' | 'edit' | 'delete') => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,19 +39,46 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [permissions, setPermissions] = useState<PermissionMap | null>(null);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+
+  const isAdmin = user?.role === 'admin';
+
+  const loadPermissions = useCallback(async (userId: number) => {
+    try {
+      setPermissionsLoading(true);
+      const perms = await externalDb.getUserPermissions(userId);
+      setPermissions(createPermissionMap(perms));
+    } catch (error) {
+      console.error('Failed to load permissions:', error);
+      setPermissions(null);
+    } finally {
+      setPermissionsLoading(false);
+    }
+  }, []);
+
+  const refreshPermissions = useCallback(async () => {
+    if (user?.id) {
+      await loadPermissions(user.id);
+    }
+  }, [user?.id, loadPermissions]);
 
   useEffect(() => {
     // Check for existing session
     const storedUser = localStorage.getItem('julia_user');
     if (storedUser) {
       try {
-        setUser(JSON.parse(storedUser));
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+        // Load permissions for existing session
+        loadPermissions(parsedUser.id);
       } catch {
         localStorage.removeItem('julia_user');
+        localStorage.removeItem('julia_permissions');
       }
     }
     setIsLoading(false);
-  }, []);
+  }, [loadPermissions]);
 
   const login = async (email: string, password: string) => {
     try {
@@ -57,8 +93,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const authenticatedUser = users[0];
 
+      // Check if user is active
+      if (authenticatedUser.is_active === false) {
+        return { success: false, error: 'Usuário inativo. Entre em contato com o administrador.' };
+      }
+
       setUser(authenticatedUser);
       localStorage.setItem('julia_user', JSON.stringify(authenticatedUser));
+      
+      // Load permissions after login
+      await loadPermissions(authenticatedUser.id);
       
       return { success: true };
     } catch (error: any) {
@@ -71,16 +115,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     setUser(null);
+    setPermissions(null);
     localStorage.removeItem('julia_user');
+    localStorage.removeItem('julia_permissions');
   };
+
+  const hasPermission = useCallback((moduleCode: ModuleCode, action: 'view' | 'create' | 'edit' | 'delete' = 'view'): boolean => {
+    // Admin always has access
+    if (isAdmin) return true;
+    
+    // No permissions loaded
+    if (!permissions) return false;
+    
+    const permission = permissions.get(moduleCode);
+    if (!permission) return false;
+    
+    switch (action) {
+      case 'view': return permission.can_view;
+      case 'create': return permission.can_create;
+      case 'edit': return permission.can_edit;
+      case 'delete': return permission.can_delete;
+      default: return false;
+    }
+  }, [isAdmin, permissions]);
 
   return (
     <AuthContext.Provider value={{
       user,
       isLoading,
       isAuthenticated: !!user,
+      isAdmin,
+      permissions,
+      permissionsLoading,
       login,
       logout,
+      refreshPermissions,
+      hasPermission,
     }}>
       {children}
     </AuthContext.Provider>
