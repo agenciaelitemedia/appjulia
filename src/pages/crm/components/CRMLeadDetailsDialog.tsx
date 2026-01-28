@@ -1,4 +1,4 @@
-import { Phone, Building2, Clock, History, ArrowRight, User, Hash, Calendar, AlertTriangle, FileCheck, Lock } from 'lucide-react';
+import { Phone, Building2, Clock, History, ArrowRight, User, Hash, Calendar, AlertTriangle } from 'lucide-react';
 import { useMemo } from 'react';
 import {
   Dialog,
@@ -9,10 +9,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CRMCard, CRMStage } from '../types';
 import { useCRMCardHistory } from '../hooks/useCRMData';
-import { useLeadHasContract } from '../hooks/useLeadContract';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { formatDbDateTime } from '@/lib/dateUtils';
@@ -31,16 +29,9 @@ export function CRMLeadDetailsDialog({
   onOpenChange,
 }: CRMLeadDetailsDialogProps) {
   const { data: history = [], isLoading: historyLoading } = useCRMCardHistory(card?.id || null);
-  const { data: contractStatus } = useLeadHasContract(card?.whatsapp_number, card?.cod_agent);
 
   const currentStage = card ? stages.find((s) => s.id === card.stage_id) : null;
   const entryStage = stages.find((s) => s.position === 1) || { name: 'Entrada', color: '#3B82F6' };
-  
-  // Verificar se o lead está travado (tem contrato e está em "Contrato em Curso")
-  const contratoEmCursoStage = stages.find(s => s.name === 'Contrato em Curso');
-  const isLocked = contractStatus?.has_contract && 
-                   !contractStatus?.is_signed && 
-                   card?.stage_id === contratoEmCursoStage?.id;
 
   // Histórico sintético quando a tabela está vazia
   const syntheticHistory = useMemo(() => {
@@ -184,34 +175,6 @@ export function CRMLeadDetailsDialog({
                 </p>
               </div>
             </div>
-
-            {/* Contract Status Alert */}
-            {contractStatus?.has_contract && (
-              <>
-                <Separator />
-                <Alert variant={isLocked ? "default" : "default"} className={isLocked ? "border-amber-500/50 bg-amber-500/10" : "border-emerald-500/50 bg-emerald-500/10"}>
-                  <FileCheck className={`h-4 w-4 ${isLocked ? "text-amber-500" : "text-emerald-500"}`} />
-                  <AlertDescription className="flex items-center gap-2">
-                    <span className={isLocked ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400"}>
-                      {contractStatus.is_signed 
-                        ? "Contrato assinado" 
-                        : "Contrato gerado aguardando assinatura"}
-                    </span>
-                    {isLocked && (
-                      <Badge variant="outline" className="ml-auto border-amber-500/50 text-amber-600 dark:text-amber-400 gap-1">
-                        <Lock className="h-3 w-3" />
-                        Movimentação restrita
-                      </Badge>
-                    )}
-                  </AlertDescription>
-                </Alert>
-                {isLocked && (
-                  <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
-                    Este lead só pode ser movido para <strong>"Contrato Assinado"</strong> enquanto houver contrato em andamento.
-                  </p>
-                )}
-              </>
-            )}
 
             {/* Current Stage */}
             <Separator />

@@ -101,57 +101,13 @@ export function useMoveCard() {
 
   return useMutation({
     mutationFn: async ({ cardId, toStageId, notes }: { cardId: number; toStageId: number; notes?: string }) => {
-      // 1. Buscar card atual com whatsapp e stage
-      const cards = await externalDb.raw<{ 
-        stage_id: number; 
-        whatsapp_number: string;
-        cod_agent: string;
-      }>({
-        query: `
-          SELECT c.stage_id, c.whatsapp_number, c.cod_agent
-          FROM crm_atendimento_cards c
-          WHERE c.id = $1
-        `,
+      const cards = await externalDb.raw<{ stage_id: number }>({
+        query: 'SELECT stage_id FROM crm_atendimento_cards WHERE id = $1',
         params: [cardId],
       });
       
-      const card = cards[0];
-      if (!card) throw new Error('Card não encontrado');
+      const fromStageId = cards[0]?.stage_id;
       
-      // 2. Buscar stages de contrato (por nome para ser resiliente a mudanças de ID)
-      const stages = await externalDb.raw<{ id: number; name: string }>({
-        query: `
-          SELECT id, name FROM crm_atendimento_stages 
-          WHERE name IN ('Contrato em Curso', 'Contrato Assinado')
-        `,
-        params: [],
-      });
-      
-      const contratoEmCursoId = stages.find(s => s.name === 'Contrato em Curso')?.id;
-      const contratoAssinadoId = stages.find(s => s.name === 'Contrato Assinado')?.id;
-      
-      // 3. Se está em "Contrato em Curso", verificar se pode mover
-      if (card.stage_id === contratoEmCursoId && toStageId !== contratoAssinadoId) {
-        // Verificar se tem contrato gerado
-        const contracts = await externalDb.raw<{ count: string }>({
-          query: `
-            SELECT COUNT(*) as count
-            FROM vw_desempenho_julia_contratos 
-            WHERE whatsapp = $1 
-              AND cod_agent = $2
-              AND status_document IN ('CREATED', 'PENDING', 'SIGNED')
-          `,
-          params: [card.whatsapp_number, card.cod_agent],
-        });
-        
-        if (parseInt(contracts[0]?.count || '0', 10) > 0) {
-          throw new Error(
-            'Este lead possui contrato gerado e só pode ser movido para "Contrato Assinado"'
-          );
-        }
-      }
-      
-      // 4. Continuar com a movimentação normal
       await externalDb.update({
         table: 'crm_atendimento_cards',
         data: {
@@ -166,7 +122,7 @@ export function useMoveCard() {
         table: 'crm_atendimento_history',
         data: {
           card_id: cardId,
-          from_stage_id: card.stage_id,
+          from_stage_id: fromStageId,
           to_stage_id: toStageId,
           changed_by: user?.name || 'Sistema',
           changed_at: new Date().toISOString(),
