@@ -6,8 +6,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { MessageSquare, Bell, Phone, Play, FileText, Video } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { MessageSquare, Bell, Phone, Play, FileText, Video, Clock } from 'lucide-react';
 import { MultiPhraseInput } from './MultiPhraseInput';
+import { BusinessHoursEditor, type BusinessHoursSchedule } from './BusinessHoursEditor';
 import type { AgentFormData } from '../CreateAgentWizard';
 
 interface ConfigFields {
@@ -25,7 +27,32 @@ interface ConfigFields {
   CONTRACT_SIGNED: string;
   VIDEO_CONTRACT_SIGNED: string;
   VIDEO_CONTRACT_CREATED: string;
+  BUSINESS_HOURS_ENABLED: boolean;
+  BUSINESS_HOURS_TIMEZONE: string;
+  BUSINESS_HOURS_SCHEDULE: BusinessHoursSchedule;
+  BUSINESS_HOURS_OFF_MESSAGE: string;
 }
+
+const TIMEZONES = [
+  { value: 'America/Sao_Paulo', label: 'Brasília (GMT-3)' },
+  { value: 'America/Manaus', label: 'Manaus (GMT-4)' },
+  { value: 'America/Cuiaba', label: 'Cuiabá (GMT-4)' },
+  { value: 'America/Belem', label: 'Belém (GMT-3)' },
+  { value: 'America/Fortaleza', label: 'Fortaleza (GMT-3)' },
+  { value: 'America/Recife', label: 'Recife (GMT-3)' },
+  { value: 'America/Rio_Branco', label: 'Rio Branco (GMT-5)' },
+  { value: 'America/Porto_Velho', label: 'Porto Velho (GMT-4)' },
+];
+
+const DEFAULT_BUSINESS_HOURS_SCHEDULE: BusinessHoursSchedule = {
+  monday: { enabled: true, start: '08:00', end: '18:00' },
+  tuesday: { enabled: true, start: '08:00', end: '18:00' },
+  wednesday: { enabled: true, start: '08:00', end: '18:00' },
+  thursday: { enabled: true, start: '08:00', end: '18:00' },
+  friday: { enabled: true, start: '08:00', end: '17:00' },
+  saturday: { enabled: false, start: '09:00', end: '13:00' },
+  sunday: { enabled: false, start: '00:00', end: '00:00' },
+};
 
 const DEFAULT_CONFIG: ConfigFields = {
   CHAT_RESUME: true,
@@ -42,6 +69,10 @@ const DEFAULT_CONFIG: ConfigFields = {
   CONTRACT_SIGNED: 'Olha que legal. Acabei de receber o seu documento assinado. Agora vou te transferir para o atendimento especializado. Aguarde que logo alguém continuará a falar com você.',
   VIDEO_CONTRACT_SIGNED: '',
   VIDEO_CONTRACT_CREATED: '',
+  BUSINESS_HOURS_ENABLED: false,
+  BUSINESS_HOURS_TIMEZONE: 'America/Sao_Paulo',
+  BUSINESS_HOURS_SCHEDULE: DEFAULT_BUSINESS_HOURS_SCHEDULE,
+  BUSINESS_HOURS_OFF_MESSAGE: 'Olá! No momento estamos fora do horário de atendimento. Nosso horário de funcionamento é de segunda a sexta, das 08:00 às 18:00. Retornaremos assim que possível!',
 };
 
 export function ConfigStep() {
@@ -218,6 +249,76 @@ export function ConfigStep() {
               value={config.SESSION_CHECK_SPECIALIZED}
               onChange={(value) => updateField('SESSION_CHECK_SPECIALIZED', value)}
               placeholder="Ex: atendimento especializado"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Business Hours Section */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Horário de Atendimento
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <FormLabel>Ativar Horário Comercial</FormLabel>
+              <FormDescription>Limitar atendimento a horários específicos</FormDescription>
+            </div>
+            <Switch
+              checked={config.BUSINESS_HOURS_ENABLED}
+              onCheckedChange={(checked) => updateField('BUSINESS_HOURS_ENABLED', checked)}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <FormLabel>Fuso Horário</FormLabel>
+            <Select
+              value={config.BUSINESS_HOURS_TIMEZONE}
+              onValueChange={(value) => updateField('BUSINESS_HOURS_TIMEZONE', value)}
+              disabled={!config.BUSINESS_HOURS_ENABLED}
+            >
+              <SelectTrigger className={!config.BUSINESS_HOURS_ENABLED ? 'opacity-50' : ''}>
+                <SelectValue placeholder="Selecione o fuso horário" />
+              </SelectTrigger>
+              <SelectContent>
+                {TIMEZONES.map((tz) => (
+                  <SelectItem key={tz.value} value={tz.value}>
+                    {tz.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <FormLabel>Horários por Dia</FormLabel>
+            <FormDescription>Configure os horários de atendimento para cada dia da semana</FormDescription>
+            <BusinessHoursEditor
+              schedule={config.BUSINESS_HOURS_SCHEDULE}
+              onChange={(schedule) => updateField('BUSINESS_HOURS_SCHEDULE', schedule)}
+              disabled={!config.BUSINESS_HOURS_ENABLED}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <FormLabel>Mensagem Fora do Horário</FormLabel>
+            <FormDescription>Mensagem automática enviada quando receber mensagem fora do expediente</FormDescription>
+            <Textarea
+              value={config.BUSINESS_HOURS_OFF_MESSAGE}
+              onChange={(e) => updateField('BUSINESS_HOURS_OFF_MESSAGE', e.target.value)}
+              placeholder="Mensagem para enviar fora do horário de atendimento..."
+              className="min-h-[100px] resize-y"
+              disabled={!config.BUSINESS_HOURS_ENABLED}
             />
           </div>
         </CardContent>
