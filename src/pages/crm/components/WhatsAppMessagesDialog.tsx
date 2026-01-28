@@ -1023,12 +1023,8 @@ export function WhatsAppMessagesDialog({
 
     setSending(true);
     try {
-      const instanceName = client.instance;
-      const endpoint = instanceName 
-        ? `/message/sendText/${encodeURIComponent(instanceName)}`
-        : '/message/text';
-        
-      await client.post(endpoint, {
+      // UaZapi uses /message/text - instance is identified by token, not path
+      await client.post('/message/text', {
         number: whatsappNumber.replace(/\D/g, ''),
         text: newMessage.trim(),
       });
