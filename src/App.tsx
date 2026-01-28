@@ -23,6 +23,7 @@ import MyAgentsPage from "./pages/agente/meus-agentes/MyAgentsPage";
 import CriativosPage from "./pages/criativos/CriativosPage";
 import EquipePage from "./pages/equipe/EquipePage";
 import ProfileSettingsPage from "./pages/profile/ProfileSettingsPage";
+import PermissoesPage from "./pages/admin/permissoes/PermissoesPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -57,6 +58,7 @@ const App = () => (
                   <Route path="/admin/agentes-novo" element={<CreateAgentPage />} />
                   <Route path="/admin/agentes/:id/editar" element={<EditAgentPage />} />
                   <Route path="/admin/agentes/:id/detalhes" element={<AgentDetailsPage />} />
+                  <Route path="/admin/permissoes" element={<PermissoesPage />} />
                 </Route>
               </Route>
               <Route path="*" element={<NotFound />} />
