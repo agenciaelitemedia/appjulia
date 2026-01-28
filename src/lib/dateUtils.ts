@@ -447,3 +447,63 @@ export function getLastDayOfMonthInSaoPaulo(): string {
   const lastDay = new Date(year, month, 0);
   return formatter.format(lastDay);
 }
+
+/**
+ * Retorna o primeiro dia do mês anterior no timezone America/Sao_Paulo no formato 'yyyy-MM-dd'
+ */
+export function getFirstDayOfPreviousMonthInSaoPaulo(): string {
+  const now = new Date();
+  now.setMonth(now.getMonth() - 1);
+  
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  
+  const parts = formatter.formatToParts(now);
+  const year = parts.find(p => p.type === 'year')?.value;
+  const month = parts.find(p => p.type === 'month')?.value;
+  
+  return `${year}-${month}-01`;
+}
+
+/**
+ * Retorna o último dia do mês anterior no timezone America/Sao_Paulo no formato 'yyyy-MM-dd'
+ */
+export function getLastDayOfPreviousMonthInSaoPaulo(): string {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  
+  const parts = formatter.formatToParts(now);
+  const year = parseInt(parts.find(p => p.type === 'year')?.value || '2026');
+  const month = parseInt(parts.find(p => p.type === 'month')?.value || '1');
+  
+  // Create date for last day of previous month (day 0 of current month)
+  const lastDay = new Date(year, month - 1, 0);
+  return formatter.format(lastDay);
+}
+
+/**
+ * Retorna o primeiro dia do ano atual no timezone America/Sao_Paulo no formato 'yyyy-MM-dd'
+ */
+export function getFirstDayOfYearInSaoPaulo(): string {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  
+  const parts = formatter.formatToParts(now);
+  const year = parts.find(p => p.type === 'year')?.value;
+  
+  return `${year}-01-01`;
+}

@@ -26,25 +26,25 @@ import {
   getTodayInSaoPaulo,
   getYesterdayInSaoPaulo,
   get7DaysAgoInSaoPaulo,
-  get30DaysAgoInSaoPaulo,
   get3MonthsAgoInSaoPaulo,
-  getLastWeekStartInSaoPaulo,
-  getLastWeekEndInSaoPaulo,
   getFirstDayOfMonthInSaoPaulo,
   getLastDayOfMonthInSaoPaulo,
+  getFirstDayOfPreviousMonthInSaoPaulo,
+  getLastDayOfPreviousMonthInSaoPaulo,
+  getFirstDayOfYearInSaoPaulo,
 } from '@/lib/dateUtils';
 import { UnifiedFiltersProps } from './types';
 
-type QuickPeriod = 'today' | 'yesterday' | 'last7days' | 'lastWeek' | 'last30days' | 'last3Months' | 'thisMonth' | 'custom';
+type QuickPeriod = 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'previousMonth' | 'last3Months' | 'thisYear' | 'custom';
 
 const QUICK_PERIODS: { value: QuickPeriod; label: string }[] = [
   { value: 'today', label: 'Hoje' },
   { value: 'yesterday', label: 'Ontem' },
-  { value: 'last7days', label: '7 dias' },
-  { value: 'lastWeek', label: 'Semana' },
-  { value: 'last30days', label: '30 dias' },
-  { value: 'last3Months', label: '3 meses' },
-  { value: 'thisMonth', label: 'Mês' },
+  { value: 'last7days', label: '7 Dias' },
+  { value: 'thisMonth', label: 'Mês Atual' },
+  { value: 'previousMonth', label: 'Mês Anterior' },
+  { value: 'last3Months', label: '3 Meses' },
+  { value: 'thisYear', label: 'Ano Atual' },
 ];
 
 const STATUS_LABELS: Record<string, string> = {
@@ -89,20 +89,20 @@ export function UnifiedFilters({
     const today = getTodayInSaoPaulo();
     const yesterday = getYesterdayInSaoPaulo();
     const last7days = get7DaysAgoInSaoPaulo();
-    const last30days = get30DaysAgoInSaoPaulo();
     const last3Months = get3MonthsAgoInSaoPaulo();
-    const lastWeekStart = getLastWeekStartInSaoPaulo();
-    const lastWeekEnd = getLastWeekEndInSaoPaulo();
     const thisMonthStart = getFirstDayOfMonthInSaoPaulo();
     const thisMonthEnd = getLastDayOfMonthInSaoPaulo();
+    const prevMonthStart = getFirstDayOfPreviousMonthInSaoPaulo();
+    const prevMonthEnd = getLastDayOfPreviousMonthInSaoPaulo();
+    const thisYearStart = getFirstDayOfYearInSaoPaulo();
 
     if (filters.dateFrom === today && filters.dateTo === today) return 'today';
     if (filters.dateFrom === yesterday && filters.dateTo === yesterday) return 'yesterday';
     if (filters.dateFrom === last7days && filters.dateTo === today) return 'last7days';
-    if (filters.dateFrom === lastWeekStart && filters.dateTo === lastWeekEnd) return 'lastWeek';
-    if (filters.dateFrom === last30days && filters.dateTo === today) return 'last30days';
-    if (filters.dateFrom === last3Months && filters.dateTo === today) return 'last3Months';
     if (filters.dateFrom === thisMonthStart && filters.dateTo === thisMonthEnd) return 'thisMonth';
+    if (filters.dateFrom === prevMonthStart && filters.dateTo === prevMonthEnd) return 'previousMonth';
+    if (filters.dateFrom === last3Months && filters.dateTo === today) return 'last3Months';
+    if (filters.dateFrom === thisYearStart && filters.dateTo === today) return 'thisYear';
     return 'custom';
   }, [filters.dateFrom, filters.dateTo]);
 
@@ -125,21 +125,21 @@ export function UnifiedFilters({
         dateFrom = get7DaysAgoInSaoPaulo();
         dateTo = today;
         break;
-      case 'lastWeek':
-        dateFrom = getLastWeekStartInSaoPaulo();
-        dateTo = getLastWeekEndInSaoPaulo();
+      case 'thisMonth':
+        dateFrom = getFirstDayOfMonthInSaoPaulo();
+        dateTo = getLastDayOfMonthInSaoPaulo();
         break;
-      case 'last30days':
-        dateFrom = get30DaysAgoInSaoPaulo();
-        dateTo = today;
+      case 'previousMonth':
+        dateFrom = getFirstDayOfPreviousMonthInSaoPaulo();
+        dateTo = getLastDayOfPreviousMonthInSaoPaulo();
         break;
       case 'last3Months':
         dateFrom = get3MonthsAgoInSaoPaulo();
         dateTo = today;
         break;
-      case 'thisMonth':
-        dateFrom = getFirstDayOfMonthInSaoPaulo();
-        dateTo = getLastDayOfMonthInSaoPaulo();
+      case 'thisYear':
+        dateFrom = getFirstDayOfYearInSaoPaulo();
+        dateTo = today;
         break;
     }
 

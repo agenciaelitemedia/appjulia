@@ -1,7 +1,17 @@
 import { useMemo } from 'react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { getTodayInSaoPaulo, getYesterdayInSaoPaulo, get7DaysAgoInSaoPaulo } from '@/lib/dateUtils';
+import { 
+  getTodayInSaoPaulo, 
+  getYesterdayInSaoPaulo, 
+  get7DaysAgoInSaoPaulo,
+  get3MonthsAgoInSaoPaulo,
+  getFirstDayOfMonthInSaoPaulo,
+  getLastDayOfMonthInSaoPaulo,
+  getFirstDayOfPreviousMonthInSaoPaulo,
+  getLastDayOfPreviousMonthInSaoPaulo,
+  getFirstDayOfYearInSaoPaulo,
+} from '@/lib/dateUtils';
 import { CalendarIcon, Filter, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,18 +31,28 @@ interface CRMFiltersProps {
   isLoading?: boolean;
 }
 
-type QuickPeriod = 'today' | 'yesterday' | 'last7days' | 'custom';
+type QuickPeriod = 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'previousMonth' | 'last3Months' | 'thisYear' | 'custom';
 
 const QUICK_PERIODS: { value: QuickPeriod; label: string }[] = [
   { value: 'today', label: 'Hoje' },
   { value: 'yesterday', label: 'Ontem' },
-  { value: 'last7days', label: 'Últimos 7 dias' },
+  { value: 'last7days', label: '7 Dias' },
+  { value: 'thisMonth', label: 'Mês Atual' },
+  { value: 'previousMonth', label: 'Mês Anterior' },
+  { value: 'last3Months', label: '3 Meses' },
+  { value: 'thisYear', label: 'Ano Atual' },
 ];
 
 export function CRMFilters({ agents, filters, onFiltersChange, isLoading }: CRMFiltersProps) {
   const today = getTodayInSaoPaulo();
   const yesterday = getYesterdayInSaoPaulo();
   const last7Days = get7DaysAgoInSaoPaulo();
+  const last3Months = get3MonthsAgoInSaoPaulo();
+  const thisMonthStart = getFirstDayOfMonthInSaoPaulo();
+  const thisMonthEnd = getLastDayOfMonthInSaoPaulo();
+  const prevMonthStart = getFirstDayOfPreviousMonthInSaoPaulo();
+  const prevMonthEnd = getLastDayOfPreviousMonthInSaoPaulo();
+  const thisYearStart = getFirstDayOfYearInSaoPaulo();
 
   const { selectedCount, allSelected, someSelected } = useMemo(() => {
     const selected = new Set(filters.agentCodes);
@@ -49,8 +69,12 @@ export function CRMFilters({ agents, filters, onFiltersChange, isLoading }: CRMF
     if (filters.dateFrom === today && filters.dateTo === today) return 'today';
     if (filters.dateFrom === yesterday && filters.dateTo === yesterday) return 'yesterday';
     if (filters.dateFrom === last7Days && filters.dateTo === today) return 'last7days';
+    if (filters.dateFrom === thisMonthStart && filters.dateTo === thisMonthEnd) return 'thisMonth';
+    if (filters.dateFrom === prevMonthStart && filters.dateTo === prevMonthEnd) return 'previousMonth';
+    if (filters.dateFrom === last3Months && filters.dateTo === today) return 'last3Months';
+    if (filters.dateFrom === thisYearStart && filters.dateTo === today) return 'thisYear';
     return 'custom';
-  }, [filters.dateFrom, filters.dateTo, today, yesterday, last7Days]);
+  }, [filters.dateFrom, filters.dateTo, today, yesterday, last7Days, last3Months, thisMonthStart, thisMonthEnd, prevMonthStart, prevMonthEnd, thisYearStart]);
 
   const handleQuickPeriod = (period: QuickPeriod) => {
     switch (period) {
@@ -62,6 +86,18 @@ export function CRMFilters({ agents, filters, onFiltersChange, isLoading }: CRMF
         break;
       case 'last7days':
         onFiltersChange({ ...filters, dateFrom: last7Days, dateTo: today });
+        break;
+      case 'thisMonth':
+        onFiltersChange({ ...filters, dateFrom: thisMonthStart, dateTo: thisMonthEnd });
+        break;
+      case 'previousMonth':
+        onFiltersChange({ ...filters, dateFrom: prevMonthStart, dateTo: prevMonthEnd });
+        break;
+      case 'last3Months':
+        onFiltersChange({ ...filters, dateFrom: last3Months, dateTo: today });
+        break;
+      case 'thisYear':
+        onFiltersChange({ ...filters, dateFrom: thisYearStart, dateTo: today });
         break;
     }
   };

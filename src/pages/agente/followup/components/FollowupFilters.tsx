@@ -8,7 +8,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { QUEUE_STATES } from '../../types';
-import { getTodayInSaoPaulo, getYesterdayInSaoPaulo, get7DaysAgoInSaoPaulo } from '@/lib/dateUtils';
+import { 
+  getTodayInSaoPaulo, 
+  getYesterdayInSaoPaulo, 
+  get7DaysAgoInSaoPaulo,
+  get3MonthsAgoInSaoPaulo,
+  getFirstDayOfMonthInSaoPaulo,
+  getLastDayOfMonthInSaoPaulo,
+  getFirstDayOfPreviousMonthInSaoPaulo,
+  getLastDayOfPreviousMonthInSaoPaulo,
+  getFirstDayOfYearInSaoPaulo,
+} from '@/lib/dateUtils';
 
 interface FollowupFiltersProps {
   dateFrom: string;
@@ -20,12 +30,16 @@ interface FollowupFiltersProps {
   showStateFilter?: boolean;
 }
 
-type QuickPeriod = 'today' | 'yesterday' | 'last7days' | 'custom';
+type QuickPeriod = 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'previousMonth' | 'last3Months' | 'thisYear' | 'custom';
 
 const QUICK_PERIODS: { value: QuickPeriod; label: string }[] = [
   { value: 'today', label: 'Hoje' },
   { value: 'yesterday', label: 'Ontem' },
-  { value: 'last7days', label: 'Últimos 7 dias' },
+  { value: 'last7days', label: '7 Dias' },
+  { value: 'thisMonth', label: 'Mês Atual' },
+  { value: 'previousMonth', label: 'Mês Anterior' },
+  { value: 'last3Months', label: '3 Meses' },
+  { value: 'thisYear', label: 'Ano Atual' },
 ];
 
 export function FollowupFilters({
@@ -41,11 +55,21 @@ export function FollowupFilters({
   const today = getTodayInSaoPaulo();
   const yesterday = getYesterdayInSaoPaulo();
   const last7Days = get7DaysAgoInSaoPaulo();
+  const last3Months = get3MonthsAgoInSaoPaulo();
+  const thisMonthStart = getFirstDayOfMonthInSaoPaulo();
+  const thisMonthEnd = getLastDayOfMonthInSaoPaulo();
+  const prevMonthStart = getFirstDayOfPreviousMonthInSaoPaulo();
+  const prevMonthEnd = getLastDayOfPreviousMonthInSaoPaulo();
+  const thisYearStart = getFirstDayOfYearInSaoPaulo();
 
   const currentQuickPeriod: QuickPeriod = (() => {
     if (dateFrom === today && dateTo === today) return 'today';
     if (dateFrom === yesterday && dateTo === yesterday) return 'yesterday';
     if (dateFrom === last7Days && dateTo === today) return 'last7days';
+    if (dateFrom === thisMonthStart && dateTo === thisMonthEnd) return 'thisMonth';
+    if (dateFrom === prevMonthStart && dateTo === prevMonthEnd) return 'previousMonth';
+    if (dateFrom === last3Months && dateTo === today) return 'last3Months';
+    if (dateFrom === thisYearStart && dateTo === today) return 'thisYear';
     return 'custom';
   })();
 
@@ -61,6 +85,22 @@ export function FollowupFilters({
         break;
       case 'last7days':
         onDateFromChange(last7Days);
+        onDateToChange(today);
+        break;
+      case 'thisMonth':
+        onDateFromChange(thisMonthStart);
+        onDateToChange(thisMonthEnd);
+        break;
+      case 'previousMonth':
+        onDateFromChange(prevMonthStart);
+        onDateToChange(prevMonthEnd);
+        break;
+      case 'last3Months':
+        onDateFromChange(last3Months);
+        onDateToChange(today);
+        break;
+      case 'thisYear':
+        onDateFromChange(thisYearStart);
         onDateToChange(today);
         break;
     }
