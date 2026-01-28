@@ -26,6 +26,7 @@ export interface RecentLead {
   stage_name: string;
   stage_color: string;
   created_at: string;
+  stage_entered_at: string;
   owner_name: string;
 }
 
@@ -56,12 +57,14 @@ export interface DashboardStats {
   totalMessages: number;
   conversions: number;
   activeAgents: number;
+  totalSessions: number;
 }
 
 export interface DashboardStatsPrevious {
   totalLeads: number;
   totalMessages: number;
   conversions: number;
+  totalSessions: number;
 }
 
 export interface DashboardFunnelData {
@@ -136,21 +139,24 @@ export function useDashboardStats(filters: DashboardFiltersState) {
           totalMessages: 0,
           conversions: 0,
           activeAgents: agentCodes.length,
+          totalSessions: 0,
         };
       }
 
-      const [leadsResult, conversionsResult, messagesResult] = await Promise.all([
+      const [leadsResult, conversionsResult, messagesResult, sessionsResult] = await Promise.all([
+        // Total leads - filtered by stage_entered_at (same as CRM)
         externalDb.raw<{ count: number }>({
           query: `
             SELECT COUNT(*) as count 
             FROM crm_atendimento_cards 
             WHERE cod_agent = ANY($1::varchar[])
-              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+              AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           `,
           params: [agentCodes, dateFrom, dateTo],
         }).catch(() => [{ count: 0 }]),
         
+        // Conversions - filtered by stage_entered_at
         externalDb.raw<{ count: number }>({
           query: `
             SELECT COUNT(*) as count 
@@ -158,15 +164,28 @@ export function useDashboardStats(filters: DashboardFiltersState) {
             JOIN crm_atendimento_stages s ON c.stage_id = s.id 
             WHERE s.name IN ('Contrato em Curso', 'Contrato Assinado')
               AND c.cod_agent = ANY($1::varchar[])
-              AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           `,
           params: [agentCodes, dateFrom, dateTo],
         }).catch(() => [{ count: 0 }]),
         
+        // Messages from Julia performance view
         externalDb.raw<{ total: number }>({
           query: `
             SELECT COALESCE(SUM(total_msg::int), 0) as total
+            FROM vw_desempenho_julia
+            WHERE cod_agent::text = ANY($1::varchar[])
+              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          `,
+          params: [agentCodes, dateFrom, dateTo],
+        }).catch(() => [{ total: 0 }]),
+        
+        // Sessions from Julia performance view
+        externalDb.raw<{ total: number }>({
+          query: `
+            SELECT COUNT(DISTINCT session_id) as total
             FROM vw_desempenho_julia
             WHERE cod_agent::text = ANY($1::varchar[])
               AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
@@ -181,6 +200,7 @@ export function useDashboardStats(filters: DashboardFiltersState) {
         totalMessages: Number(messagesResult[0]?.total) || 0,
         conversions: Number(conversionsResult[0]?.count) || 0,
         activeAgents: agentCodes.length,
+        totalSessions: Number(sessionsResult[0]?.total) || 0,
       };
     },
     enabled: filters.agentCodes.length > 0,
@@ -200,21 +220,24 @@ export function useDashboardStatsPrevious(filters: DashboardFiltersState) {
           totalLeads: 0,
           totalMessages: 0,
           conversions: 0,
+          totalSessions: 0,
         };
       }
 
-      const [leadsResult, conversionsResult, messagesResult] = await Promise.all([
+      const [leadsResult, conversionsResult, messagesResult, sessionsResult] = await Promise.all([
+        // Total leads - filtered by stage_entered_at (same as CRM)
         externalDb.raw<{ count: number }>({
           query: `
             SELECT COUNT(*) as count 
             FROM crm_atendimento_cards 
             WHERE cod_agent = ANY($1::varchar[])
-              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+              AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           `,
           params: [agentCodes, previousDateFrom, previousDateTo],
         }).catch(() => [{ count: 0 }]),
         
+        // Conversions - filtered by stage_entered_at
         externalDb.raw<{ count: number }>({
           query: `
             SELECT COUNT(*) as count 
@@ -222,15 +245,28 @@ export function useDashboardStatsPrevious(filters: DashboardFiltersState) {
             JOIN crm_atendimento_stages s ON c.stage_id = s.id 
             WHERE s.name IN ('Contrato em Curso', 'Contrato Assinado')
               AND c.cod_agent = ANY($1::varchar[])
-              AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           `,
           params: [agentCodes, previousDateFrom, previousDateTo],
         }).catch(() => [{ count: 0 }]),
         
+        // Messages from Julia performance view
         externalDb.raw<{ total: number }>({
           query: `
             SELECT COALESCE(SUM(total_msg::int), 0) as total
+            FROM vw_desempenho_julia
+            WHERE cod_agent::text = ANY($1::varchar[])
+              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          `,
+          params: [agentCodes, previousDateFrom, previousDateTo],
+        }).catch(() => [{ total: 0 }]),
+        
+        // Sessions from Julia performance view
+        externalDb.raw<{ total: number }>({
+          query: `
+            SELECT COUNT(DISTINCT session_id) as total
             FROM vw_desempenho_julia
             WHERE cod_agent::text = ANY($1::varchar[])
               AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
@@ -244,6 +280,7 @@ export function useDashboardStatsPrevious(filters: DashboardFiltersState) {
         totalLeads: Number(leadsResult[0]?.count) || 0,
         totalMessages: Number(messagesResult[0]?.total) || 0,
         conversions: Number(conversionsResult[0]?.count) || 0,
+        totalSessions: Number(sessionsResult[0]?.total) || 0,
       };
     },
     enabled: filters.agentCodes.length > 0,
@@ -267,14 +304,15 @@ export function useRecentLeads(filters: DashboardFiltersState) {
             s.name as stage_name,
             s.color as stage_color,
             c.created_at,
+            c.stage_entered_at,
             a.owner_name
           FROM crm_atendimento_cards c
           JOIN crm_atendimento_stages s ON c.stage_id = s.id
           LEFT JOIN "vw_list_client-agents-users" a ON c.cod_agent = a.cod_agent::text
           WHERE c.cod_agent = ANY($1::varchar[])
-            AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-            AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
-          ORDER BY c.created_at DESC
+            AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+            AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          ORDER BY c.stage_entered_at DESC
           LIMIT 5
         `,
         params: [agentCodes, dateFrom, dateTo],
@@ -297,7 +335,7 @@ export function useDashboardEvolution(filters: DashboardFiltersState) {
       if (agentCodes.length === 0) return [];
 
       if (isSingleDay) {
-        // Hourly granularity for single day
+        // Hourly granularity for single day - using stage_entered_at
         const result = await externalDb.raw<{ hour: number; leads: number; qualified: number; contracts_generated: number }>({
           query: `
             WITH qualified_stages AS (
@@ -309,7 +347,7 @@ export function useDashboardEvolution(filters: DashboardFiltersState) {
               WHERE name = 'Contrato em Curso'
             )
             SELECT 
-              EXTRACT(HOUR FROM c.created_at AT TIME ZONE 'America/Sao_Paulo')::int as hour,
+              EXTRACT(HOUR FROM c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::int as hour,
               COUNT(*) as leads,
               COUNT(CASE WHEN c.stage_id IN (SELECT id FROM qualified_stages) 
                 OR EXISTS (
@@ -323,8 +361,8 @@ export function useDashboardEvolution(filters: DashboardFiltersState) {
                 ) THEN 1 END) as contracts_generated
             FROM crm_atendimento_cards c
             WHERE c.cod_agent = ANY($1::varchar[])
-              AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date = $2::date
-            GROUP BY EXTRACT(HOUR FROM c.created_at AT TIME ZONE 'America/Sao_Paulo')
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date = $2::date
+            GROUP BY EXTRACT(HOUR FROM c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')
             ORDER BY hour ASC
           `,
           params: [agentCodes, dateFrom],
@@ -345,7 +383,7 @@ export function useDashboardEvolution(filters: DashboardFiltersState) {
         }
         return chartData;
       } else {
-        // Daily granularity
+        // Daily granularity - using stage_entered_at
         const result = await externalDb.raw<{ date: string; leads: number; qualified: number; contracts_generated: number }>({
           query: `
             WITH qualified_stages AS (
@@ -357,7 +395,7 @@ export function useDashboardEvolution(filters: DashboardFiltersState) {
               WHERE name = 'Contrato em Curso'
             )
             SELECT 
-              (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date::text as date,
+              (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date::text as date,
               COUNT(*) as leads,
               COUNT(CASE WHEN c.stage_id IN (SELECT id FROM qualified_stages) 
                 OR EXISTS (
@@ -371,9 +409,9 @@ export function useDashboardEvolution(filters: DashboardFiltersState) {
                 ) THEN 1 END) as contracts_generated
             FROM crm_atendimento_cards c
             WHERE c.cod_agent = ANY($1::varchar[])
-              AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
-            GROUP BY (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+            GROUP BY (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date
             ORDER BY date ASC
           `,
           params: [agentCodes, dateFrom, dateTo],
@@ -488,8 +526,8 @@ export function useDashboardFunnel(filters: DashboardFiltersState) {
           FROM crm_atendimento_stages s
           LEFT JOIN crm_atendimento_cards c ON s.id = c.stage_id
             AND c.cod_agent = ANY($1::varchar[])
-            AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-            AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+            AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+            AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           WHERE s.is_active = true
           GROUP BY s.id, s.name, s.color, s.position
           ORDER BY s.position

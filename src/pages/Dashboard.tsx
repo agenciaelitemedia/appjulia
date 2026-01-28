@@ -11,6 +11,7 @@ import {
   RefreshCw,
   User,
   Percent,
+  Activity,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -102,6 +103,7 @@ export default function Dashboard() {
       leads: calculateChange(stats?.totalLeads ?? 0, statsPrevious.totalLeads),
       messages: calculateChange(stats?.totalMessages ?? 0, statsPrevious.totalMessages),
       conversions: calculateChange(stats?.conversions ?? 0, statsPrevious.conversions),
+      sessions: calculateChange(stats?.totalSessions ?? 0, statsPrevious.totalSessions),
     };
   }, [stats, statsPrevious]);
 
@@ -165,6 +167,16 @@ export default function Dashboard() {
       change: changes?.messages,
       sparklineData: sparklineData.leads, // Uses leads as proxy for messages trend
       sparklineColor: 'hsl(var(--chart-3))',
+    },
+    {
+      title: 'Sessões Julia',
+      value: stats?.totalSessions ?? 0,
+      displayValue: (stats?.totalSessions ?? 0).toLocaleString('pt-BR'),
+      icon: Activity,
+      change: changes?.sessions,
+      sparklineData: null,
+      sparklineColor: '',
+      description: 'Atendimentos de IA',
     },
     {
       title: 'Conversões',
@@ -246,7 +258,7 @@ export default function Dashboard() {
         />
 
         {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
           {statCards.map((stat) => (
             <Card key={stat.title}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -358,7 +370,7 @@ export default function Dashboard() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{lead.contact_name}</p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {lead.owner_name} • {formatDbDateTime(lead.created_at)}
+                          {lead.owner_name} • {formatDbDateTime(lead.stage_entered_at || lead.created_at)}
                         </p>
                       </div>
                       <Badge
