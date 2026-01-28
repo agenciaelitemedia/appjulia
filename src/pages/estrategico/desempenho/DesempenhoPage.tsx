@@ -3,25 +3,25 @@ import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { useJuliaAgents, useJuliaSessoes, useJuliaSessoesPrevious } from '../hooks/useJuliaData';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState } from '@/components/filters/types';
 import { DesempenhoSummary } from './components/DesempenhoSummary';
 import { DesempenhoEvolutionChart } from './components/DesempenhoEvolutionChart';
 import { DesempenhoTable } from './components/DesempenhoTable';
+import { getInitialDates } from '@/hooks/usePersistedPeriod';
 
 export default function DesempenhoPage() {
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const hasInitializedFilters = useRef(false);
 
-  const today = getTodayInSaoPaulo();
+  const initialDates = getInitialDates();
   const [filters, setFilters] = useState<UnifiedFiltersState>({
     search: '',
     agentCodes: [],
-    dateFrom: today,
-    dateTo: today,
+    dateFrom: initialDates.dateFrom,
+    dateTo: initialDates.dateTo,
     perfilAgent: 'ALL',
   });
 

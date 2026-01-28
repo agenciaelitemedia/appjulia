@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
@@ -22,20 +22,14 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  getTodayInSaoPaulo,
-  getYesterdayInSaoPaulo,
-  get7DaysAgoInSaoPaulo,
-  get3MonthsAgoInSaoPaulo,
-  getFirstDayOfMonthInSaoPaulo,
-  getLastDayOfMonthInSaoPaulo,
-  getFirstDayOfPreviousMonthInSaoPaulo,
-  getLastDayOfPreviousMonthInSaoPaulo,
-  getFirstDayOfYearInSaoPaulo,
-} from '@/lib/dateUtils';
+import { getTodayInSaoPaulo } from '@/lib/dateUtils';
+import { 
+  QuickPeriod, 
+  detectQuickPeriod, 
+  calculatePeriodDates, 
+  savePeriod 
+} from '@/hooks/usePersistedPeriod';
 import { UnifiedFiltersProps } from './types';
-
-type QuickPeriod = 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'previousMonth' | 'last3Months' | 'thisYear' | 'custom';
 
 const QUICK_PERIODS: { value: QuickPeriod; label: string }[] = [
   { value: 'today', label: 'Hoje' },
@@ -86,63 +80,18 @@ export function UnifiedFilters({
 
   // Determinar período rápido atual
   const currentQuickPeriod = useMemo<QuickPeriod>(() => {
-    const today = getTodayInSaoPaulo();
-    const yesterday = getYesterdayInSaoPaulo();
-    const last7days = get7DaysAgoInSaoPaulo();
-    const last3Months = get3MonthsAgoInSaoPaulo();
-    const thisMonthStart = getFirstDayOfMonthInSaoPaulo();
-    const thisMonthEnd = getLastDayOfMonthInSaoPaulo();
-    const prevMonthStart = getFirstDayOfPreviousMonthInSaoPaulo();
-    const prevMonthEnd = getLastDayOfPreviousMonthInSaoPaulo();
-    const thisYearStart = getFirstDayOfYearInSaoPaulo();
-
-    if (filters.dateFrom === today && filters.dateTo === today) return 'today';
-    if (filters.dateFrom === yesterday && filters.dateTo === yesterday) return 'yesterday';
-    if (filters.dateFrom === last7days && filters.dateTo === today) return 'last7days';
-    if (filters.dateFrom === thisMonthStart && filters.dateTo === thisMonthEnd) return 'thisMonth';
-    if (filters.dateFrom === prevMonthStart && filters.dateTo === prevMonthEnd) return 'previousMonth';
-    if (filters.dateFrom === last3Months && filters.dateTo === today) return 'last3Months';
-    if (filters.dateFrom === thisYearStart && filters.dateTo === today) return 'thisYear';
-    return 'custom';
+    return detectQuickPeriod(filters.dateFrom, filters.dateTo);
   }, [filters.dateFrom, filters.dateTo]);
+
+  // Salvar período no localStorage quando mudar
+  useEffect(() => {
+    savePeriod(currentQuickPeriod);
+  }, [currentQuickPeriod]);
 
   // Handlers
   const handleQuickPeriod = (period: QuickPeriod) => {
-    const today = getTodayInSaoPaulo();
-    let dateFrom = today;
-    let dateTo = today;
-
-    switch (period) {
-      case 'today':
-        dateFrom = today;
-        dateTo = today;
-        break;
-      case 'yesterday':
-        dateFrom = getYesterdayInSaoPaulo();
-        dateTo = getYesterdayInSaoPaulo();
-        break;
-      case 'last7days':
-        dateFrom = get7DaysAgoInSaoPaulo();
-        dateTo = today;
-        break;
-      case 'thisMonth':
-        dateFrom = getFirstDayOfMonthInSaoPaulo();
-        dateTo = getLastDayOfMonthInSaoPaulo();
-        break;
-      case 'previousMonth':
-        dateFrom = getFirstDayOfPreviousMonthInSaoPaulo();
-        dateTo = getLastDayOfPreviousMonthInSaoPaulo();
-        break;
-      case 'last3Months':
-        dateFrom = get3MonthsAgoInSaoPaulo();
-        dateTo = today;
-        break;
-      case 'thisYear':
-        dateFrom = getFirstDayOfYearInSaoPaulo();
-        dateTo = today;
-        break;
-    }
-
+    const { dateFrom, dateTo } = calculatePeriodDates(period);
+    savePeriod(period);
     onFiltersChange({ ...filters, dateFrom, dateTo });
   };
 
