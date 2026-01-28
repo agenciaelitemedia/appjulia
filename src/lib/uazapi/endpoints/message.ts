@@ -19,61 +19,61 @@ import type {
 export interface MessageEndpoints {
   /**
    * Send a text message
-   * POST /message/text
+   * POST /send/text
    */
   sendText: (data: SendTextRequest) => Promise<MessageResponse>;
   
   /**
    * Send an image message
-   * POST /message/image
+   * POST /send/media (type: image)
    */
   sendImage: (data: SendMediaRequest) => Promise<MessageResponse>;
   
   /**
    * Send a video message
-   * POST /message/video
+   * POST /send/media (type: video)
    */
   sendVideo: (data: SendMediaRequest) => Promise<MessageResponse>;
   
   /**
    * Send an audio message
-   * POST /message/audio
+   * POST /send/media (type: audio)
    */
   sendAudio: (data: SendMediaRequest) => Promise<MessageResponse>;
   
   /**
    * Send a document
-   * POST /message/document
+   * POST /send/media (type: document)
    */
   sendDocument: (data: SendMediaRequest) => Promise<MessageResponse>;
   
   /**
    * Send a sticker
-   * POST /message/sticker
+   * POST /send/media (type: sticker)
    */
   sendSticker: (data: SendMediaRequest) => Promise<MessageResponse>;
   
   /**
    * Send a location
-   * POST /message/location
+   * POST /send/location
    */
   sendLocation: (data: SendLocationRequest) => Promise<MessageResponse>;
   
   /**
    * Send a contact card
-   * POST /message/contact
+   * POST /send/contact
    */
   sendContact: (data: SendContactRequest) => Promise<MessageResponse>;
   
   /**
    * Send interactive buttons
-   * POST /message/buttons
+   * POST /send/menu
    */
   sendButtons: (data: SendButtonsRequest) => Promise<MessageResponse>;
   
   /**
    * Send an interactive list
-   * POST /message/list
+   * POST /send/menu
    */
   sendList: (data: SendListRequest) => Promise<MessageResponse>;
   
@@ -106,43 +106,43 @@ export function createMessageEndpoints(client: UaZapiClient | null): MessageEndp
 
   return {
     async sendText(data: SendTextRequest): Promise<MessageResponse> {
-      return assertClient().post<MessageResponse>('/message/text', data);
+      return assertClient().post<MessageResponse>('/send/text', data);
     },
 
     async sendImage(data: SendMediaRequest): Promise<MessageResponse> {
-      return assertClient().post<MessageResponse>('/message/image', data);
+      return assertClient().post<MessageResponse>('/send/media', { ...data, type: 'image' });
     },
 
     async sendVideo(data: SendMediaRequest): Promise<MessageResponse> {
-      return assertClient().post<MessageResponse>('/message/video', data);
+      return assertClient().post<MessageResponse>('/send/media', { ...data, type: 'video' });
     },
 
     async sendAudio(data: SendMediaRequest): Promise<MessageResponse> {
-      return assertClient().post<MessageResponse>('/message/audio', data);
+      return assertClient().post<MessageResponse>('/send/media', { ...data, type: 'audio' });
     },
 
     async sendDocument(data: SendMediaRequest): Promise<MessageResponse> {
-      return assertClient().post<MessageResponse>('/message/document', data);
+      return assertClient().post<MessageResponse>('/send/media', { ...data, type: 'document' });
     },
 
     async sendSticker(data: SendMediaRequest): Promise<MessageResponse> {
-      return assertClient().post<MessageResponse>('/message/sticker', data);
+      return assertClient().post<MessageResponse>('/send/media', { ...data, type: 'sticker' });
     },
 
     async sendLocation(data: SendLocationRequest): Promise<MessageResponse> {
-      return assertClient().post<MessageResponse>('/message/location', data);
+      return assertClient().post<MessageResponse>('/send/location', data);
     },
 
     async sendContact(data: SendContactRequest): Promise<MessageResponse> {
-      return assertClient().post<MessageResponse>('/message/contact', data);
+      return assertClient().post<MessageResponse>('/send/contact', data);
     },
 
     async sendButtons(data: SendButtonsRequest): Promise<MessageResponse> {
-      return assertClient().post<MessageResponse>('/message/buttons', data);
+      return assertClient().post<MessageResponse>('/send/menu', data);
     },
 
     async sendList(data: SendListRequest): Promise<MessageResponse> {
-      return assertClient().post<MessageResponse>('/message/list', data);
+      return assertClient().post<MessageResponse>('/send/menu', data);
     },
 
     async react(messageId: string, emoji: string): Promise<MessageResponse> {
