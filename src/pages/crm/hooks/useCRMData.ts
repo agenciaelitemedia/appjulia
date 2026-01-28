@@ -3,6 +3,43 @@ import { externalDb } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
 import { CRMCard, CRMStage, CRMHistory, CRMAgent, CRMFiltersState } from '../types';
 
+// Hook to get Julia sessions count for CRM dashboard
+export function useCRMJuliaSessions(filters: CRMFiltersState) {
+  return useQuery({
+    queryKey: ['crm-julia-sessions', filters],
+    queryFn: async () => {
+      const { agentCodes, dateFrom, dateTo } = filters;
+      
+      if (agentCodes.length === 0) return { totalSessions: 0, dailyAverage: 0 };
+      
+      const result = await externalDb.raw<{ total_sessions: string; daily_average: string }>({
+        query: `
+          WITH sessions_data AS (
+            SELECT 
+              COUNT(DISTINCT session_id) as total_sessions,
+              COUNT(DISTINCT (data_inicio AT TIME ZONE 'America/Sao_Paulo')::date) as total_days
+            FROM vw_desempenho_julia
+            WHERE cod_agent = ANY($1::varchar[])
+              AND (data_inicio AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (data_inicio AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          )
+          SELECT 
+            total_sessions,
+            CASE WHEN total_days > 0 THEN total_sessions::float / total_days ELSE 0 END as daily_average
+          FROM sessions_data
+        `,
+        params: [agentCodes, dateFrom, dateTo],
+      });
+      
+      return {
+        totalSessions: Number(result[0]?.total_sessions ?? 0),
+        dailyAverage: Number(result[0]?.daily_average ?? 0),
+      };
+    },
+    enabled: filters.agentCodes.length > 0,
+  });
+}
+
 export function useCRMStages() {
   return useQuery({
     queryKey: ['crm-stages'],

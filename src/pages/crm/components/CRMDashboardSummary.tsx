@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { TrendingUp, TrendingDown, Clock, Users, Target, Activity } from 'lucide-react';
+import { Clock, Target, Headphones } from 'lucide-react';
 import { 
   LineChart, 
   Line, 
@@ -15,9 +15,10 @@ interface CRMDashboardSummaryProps {
   cards: CRMCard[];
   stages: CRMStage[];
   isLoading?: boolean;
+  juliaSessions?: { totalSessions: number; dailyAverage: number };
 }
 
-export function CRMDashboardSummary({ cards, stages, isLoading }: CRMDashboardSummaryProps) {
+export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }: CRMDashboardSummaryProps) {
   const stats = useMemo(() => {
     const total = cards.length;
     
@@ -32,7 +33,9 @@ export function CRMDashboardSummary({ cards, stages, isLoading }: CRMDashboardSu
     const disqualified = cards.filter(c => c.stage_id === disqualifiedStage?.id).length;
     const active = total - disqualified;
     
-    const conversionRate = total > 0 ? (converted / total) * 100 : 0;
+    // Conversion rate based on Julia sessions
+    const totalSessions = juliaSessions?.totalSessions ?? 0;
+    const conversionRate = totalSessions > 0 ? (converted / totalSessions) * 100 : 0;
     const activeRate = total > 0 ? (active / total) * 100 : 0;
     
     // Calculate average time in current stage (days)
@@ -67,6 +70,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading }: CRMDashboardSu
       total,
       converted,
       conversionRate,
+      totalSessions,
       active,
       disqualified,
       activeRate,
@@ -74,12 +78,12 @@ export function CRMDashboardSummary({ cards, stages, isLoading }: CRMDashboardSu
       dailyTrend,
       pieData,
     };
-  }, [cards, stages]);
+  }, [cards, stages, juliaSessions]);
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[1, 2, 3, 4].map((i) => (
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        {[1, 2, 3, 4, 5].map((i) => (
           <Card key={i} className="animate-pulse">
             <CardContent className="p-4">
               <div className="h-16 bg-muted rounded" />
@@ -91,28 +95,8 @@ export function CRMDashboardSummary({ cards, stages, isLoading }: CRMDashboardSu
   }
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      {/* Conversion Rate */}
-      <Card className="border-l-4 border-l-chart-2">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">Taxa de Conversão</p>
-              <p className="text-2xl font-bold text-foreground">
-                {stats.conversionRate.toFixed(1)}%
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {stats.converted} de {stats.total}
-              </p>
-            </div>
-            <div className="p-2 bg-chart-2/10 rounded-full">
-              <Target className="h-5 w-5 text-chart-2" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Daily Trend */}
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      {/* 1. Leads/Dia */}
       <Card className="border-l-4 border-l-chart-1">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
@@ -138,7 +122,27 @@ export function CRMDashboardSummary({ cards, stages, isLoading }: CRMDashboardSu
         </CardContent>
       </Card>
 
-      {/* Average Time */}
+      {/* 2. Atendimento/Dia (Julia Sessions) */}
+      <Card className="border-l-4 border-l-chart-4">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground font-medium">Atendimento/Dia</p>
+              <p className="text-2xl font-bold text-foreground">
+                {(juliaSessions?.dailyAverage ?? 0).toFixed(1)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {stats.totalSessions} sessões Julia
+              </p>
+            </div>
+            <div className="p-2 bg-chart-4/10 rounded-full">
+              <Headphones className="h-5 w-5 text-chart-4" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 3. Tempo Médio */}
       <Card className="border-l-4 border-l-chart-3">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
@@ -156,12 +160,32 @@ export function CRMDashboardSummary({ cards, stages, isLoading }: CRMDashboardSu
         </CardContent>
       </Card>
 
-      {/* Active vs Lost */}
-      <Card className="border-l-4 border-l-chart-4">
+      {/* 4. Taxa de Conversão (based on Julia sessions) */}
+      <Card className="border-l-4 border-l-chart-2">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground font-medium">Ativos vs Perdidos</p>
+              <p className="text-xs text-muted-foreground font-medium">Taxa de Conversão</p>
+              <p className="text-2xl font-bold text-foreground">
+                {stats.conversionRate.toFixed(1)}%
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {stats.converted} de {stats.totalSessions} sessões
+              </p>
+            </div>
+            <div className="p-2 bg-chart-2/10 rounded-full">
+              <Target className="h-5 w-5 text-chart-2" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 5. Ativos x Perdidos */}
+      <Card className="border-l-4 border-l-chart-5">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground font-medium">Ativos x Perdidos</p>
               <p className="text-2xl font-bold text-foreground">
                 {stats.activeRate.toFixed(0)}%
               </p>
