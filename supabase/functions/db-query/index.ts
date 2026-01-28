@@ -1012,14 +1012,22 @@ serve(async (req) => {
       }
 
       case 'get_user_agents_for_principal': {
+        // Returns both "own" agents (agent_id filled) and "monitored" agents (agent_id null)
         const { principalUserId } = data;
         result = await sql.unsafe(
-          `SELECT ua.agent_id, ua.cod_agent::text as cod_agent, a.status, c.business_name
-           FROM user_agents ua
-           JOIN agents a ON a.id = ua.agent_id
-           JOIN clients c ON c.id = a.client_id
-           WHERE ua.user_id = $1
-           ORDER BY c.business_name`,
+          `SELECT 
+            ua.agent_id,
+            ua.cod_agent::text as cod_agent,
+            COALESCE(a.status, true) as status,
+            COALESCE(c.business_name, 'Agente ' || ua.cod_agent) as business_name,
+            CASE WHEN ua.agent_id IS NOT NULL THEN 'own' ELSE 'monitored' END as agent_type
+          FROM user_agents ua
+          LEFT JOIN agents a ON a.id = ua.agent_id OR a.cod_agent::text = ua.cod_agent::text
+          LEFT JOIN clients c ON c.id = a.client_id
+          WHERE ua.user_id = $1
+          ORDER BY 
+            CASE WHEN ua.agent_id IS NOT NULL THEN 0 ELSE 1 END,
+            c.business_name`,
           [principalUserId]
         );
         break;
@@ -1037,19 +1045,19 @@ serve(async (req) => {
       }
 
       case 'insert_team_member': {
-        const { name, email, hashedPassword, rawPassword, principalUserId, clientId, agentIds } = data;
+        const { name, email, hashedPassword, rawPassword, principalUserId, clientId, agentIds, modulePermissions } = data;
         
-        // Insert user with role='time' and user_id pointing to principal
+        // Insert user with role='time', user_id pointing to principal, and use_custom_permissions = true
         const userRows = await sql.unsafe(
-          `INSERT INTO users (name, email, password, remember_token, role, user_id, client_id, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, 'time', $5, $6, now(), now())
+          `INSERT INTO users (name, email, password, remember_token, role, user_id, client_id, use_custom_permissions, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, 'time', $5, $6, TRUE, now(), now())
            RETURNING id, name, email`,
           [name, email, hashedPassword, rawPassword, principalUserId, clientId]
         );
         
         const newUserId = userRows[0].id;
         
-        // Insert user_agents for each selected agent
+        // Insert user_agents for each selected agent (agentId can be null for monitored)
         for (const agent of agentIds) {
           await sql.unsafe(
             `INSERT INTO user_agents (user_id, agent_id, cod_agent, created_at)
@@ -1058,12 +1066,23 @@ serve(async (req) => {
           );
         }
         
+        // Insert user_permissions for selected modules
+        if (modulePermissions && modulePermissions.length > 0) {
+          for (const mod of modulePermissions) {
+            await sql.unsafe(
+              `INSERT INTO user_permissions (user_id, module_id, can_view, can_create, can_edit, can_delete)
+               SELECT $1, id, TRUE, TRUE, TRUE, FALSE FROM modules WHERE code = $2`,
+              [newUserId, mod.moduleCode]
+            );
+          }
+        }
+        
         result = userRows;
         break;
       }
 
       case 'update_team_member': {
-        const { memberId, name, principalUserId, agentIds } = data;
+        const { memberId, name, principalUserId, agentIds, modulePermissions } = data;
         
         // Update user name and principal
         await sql.unsafe(
@@ -1083,6 +1102,21 @@ serve(async (req) => {
              VALUES ($1, $2, $3::bigint, now())`,
             [memberId, agent.agentId, agent.codAgent]
           );
+        }
+        
+        // Sync user_permissions: delete existing, insert new
+        if (modulePermissions !== undefined) {
+          await sql.unsafe(`DELETE FROM user_permissions WHERE user_id = $1`, [memberId]);
+          
+          if (modulePermissions && modulePermissions.length > 0) {
+            for (const mod of modulePermissions) {
+              await sql.unsafe(
+                `INSERT INTO user_permissions (user_id, module_id, can_view, can_create, can_edit, can_delete)
+                 SELECT $1, id, TRUE, TRUE, TRUE, FALSE FROM modules WHERE code = $2`,
+                [memberId, mod.moduleCode]
+              );
+            }
+          }
         }
         
         result = [{ success: true }];

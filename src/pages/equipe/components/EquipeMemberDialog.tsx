@@ -10,19 +10,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
-import { TeamMember, PrincipalUser, PrincipalUserAgent } from "../types";
-import { AgentCheckboxList } from "./AgentCheckboxList";
+import { TeamMember } from "../types";
+import { AgentCheckboxList, SelectedAgent } from "./AgentCheckboxList";
+import { ModuleCheckboxList } from "./ModuleCheckboxList";
 import {
   usePrincipalUserAgents,
+  useParentUserPermissions,
   useCreateTeamMember,
   useUpdateTeamMember,
 } from "../hooks/useEquipeData";
@@ -50,7 +45,8 @@ export function EquipeMemberDialog({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [principalUserId, setPrincipalUserId] = useState<number | null>(null);
-  const [selectedAgentIds, setSelectedAgentIds] = useState<number[]>([]);
+  const [selectedAgents, setSelectedAgents] = useState<SelectedAgent[]>([]);
+  const [selectedModuleCodes, setSelectedModuleCodes] = useState<string[]>([]);
   const [emailError, setEmailError] = useState("");
   const [isValidatingEmail, setIsValidatingEmail] = useState(false);
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
@@ -59,6 +55,10 @@ export function EquipeMemberDialog({
   // Data hooks - load agents for logged-in user
   const { data: agents = [], isLoading: loadingAgents } =
     usePrincipalUserAgents(principalUserId);
+
+  // Load parent permissions
+  const { data: parentPermissions = [], isLoading: loadingPermissions } =
+    useParentUserPermissions(principalUserId);
 
   // Mutations
   const createMember = useCreateTeamMember();
@@ -71,14 +71,15 @@ export function EquipeMemberDialog({
         setName(member.name);
         setEmail(member.email);
         setPrincipalUserId(member.user_id);
-        // Load member's current agents
-        loadMemberAgents(member.id);
+        // Load member's current agents and modules
+        loadMemberData(member.id);
       } else {
         setName("");
         setEmail("");
         // Always use logged-in user as the principal
         setPrincipalUserId(user?.id || null);
-        setSelectedAgentIds([]);
+        setSelectedAgents([]);
+        setSelectedModuleCodes([]);
       }
       setEmailError("");
       setTemporaryPassword(null);
@@ -86,20 +87,34 @@ export function EquipeMemberDialog({
     }
   }, [open, member, user?.id]);
 
-  // Load member's existing agents when editing
-  const loadMemberAgents = async (memberId: number) => {
+  // Load member's existing agents and modules when editing
+  const loadMemberData = async (memberId: number) => {
     try {
+      // Load agents
       const memberAgents = await externalDb.getTeamMemberAgents(memberId);
-      setSelectedAgentIds(memberAgents.map((a: any) => a.agent_id));
+      setSelectedAgents(
+        memberAgents.map((a: any) => ({
+          agentId: a.agent_id,
+          codAgent: a.cod_agent,
+        }))
+      );
+
+      // Load modules
+      const memberPermissions = await externalDb.getUserPermissions(memberId);
+      const activeCodes = memberPermissions
+        .filter((p) => p.can_view)
+        .map((p) => p.module_code);
+      setSelectedModuleCodes(activeCodes);
     } catch (error) {
-      console.error("Error loading member agents:", error);
+      console.error("Error loading member data:", error);
     }
   };
 
-  // When principal user changes, reset agent selection (unless editing)
+  // When principal user changes, reset selections (unless editing)
   useEffect(() => {
     if (!isEditing) {
-      setSelectedAgentIds([]);
+      setSelectedAgents([]);
+      setSelectedModuleCodes([]);
     }
   }, [principalUserId, isEditing]);
 
@@ -144,20 +159,15 @@ export function EquipeMemberDialog({
       return;
     }
 
-    // Agents are optional - no validation needed
     const isEmailValid = await validateEmail();
     if (!isEmailValid) {
       return;
     }
 
-    // Build agent data
-    const agentData = selectedAgentIds.map((agentId) => {
-      const agent = agents.find((a) => a.agent_id === agentId);
-      return {
-        agentId,
-        codAgent: agent?.cod_agent || "",
-      };
-    });
+    // Build module permissions
+    const modulePermissions = selectedModuleCodes.map((code) => ({
+      moduleCode: code,
+    }));
 
     try {
       if (isEditing) {
@@ -165,7 +175,8 @@ export function EquipeMemberDialog({
           memberId: member.id,
           name,
           principalUserId,
-          agentIds: agentData,
+          agentIds: selectedAgents,
+          modulePermissions,
         });
         onOpenChange(false);
         onSuccess?.();
@@ -174,7 +185,8 @@ export function EquipeMemberDialog({
           name,
           email,
           principalUserId,
-          agentIds: agentData,
+          agentIds: selectedAgents,
+          modulePermissions,
         });
         setTemporaryPassword(result.temporaryPassword);
       }
@@ -240,7 +252,7 @@ export function EquipeMemberDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? "Editar Membro" : "Novo Membro da Equipe"}
@@ -287,17 +299,28 @@ export function EquipeMemberDialog({
             )}
           </div>
 
-          {/* Principal User is automatically the logged-in user */}
-
           {/* Agents */}
           {principalUserId && (
             <div className="space-y-2">
               <Label>Agentes com Acesso</Label>
               <AgentCheckboxList
                 agents={agents}
-                selectedIds={selectedAgentIds}
-                onChange={setSelectedAgentIds}
+                selectedAgents={selectedAgents}
+                onChange={setSelectedAgents}
                 isLoading={loadingAgents}
+              />
+            </div>
+          )}
+
+          {/* Modules */}
+          {principalUserId && (
+            <div className="space-y-2">
+              <Label>Módulos com Acesso</Label>
+              <ModuleCheckboxList
+                parentPermissions={parentPermissions}
+                selectedModuleCodes={selectedModuleCodes}
+                onChange={setSelectedModuleCodes}
+                isLoading={loadingPermissions}
               />
             </div>
           )}
