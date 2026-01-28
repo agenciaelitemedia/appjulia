@@ -66,7 +66,7 @@ export function useJuliaSessoesPrevious(filters: JuliaFiltersState) {
       
       let query = `
         SELECT 
-          cod_agent::text, total_msg::int
+          cod_agent::text, session_id, total_msg::int
         FROM vw_desempenho_julia
         WHERE cod_agent::text = ANY($1::varchar[])
           AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
@@ -80,7 +80,7 @@ export function useJuliaSessoesPrevious(filters: JuliaFiltersState) {
         params.push(perfilAgent);
       }
       
-      const result = await externalDb.raw<Pick<JuliaSessao, 'cod_agent' | 'total_msg'>>({ query, params });
+      const result = await externalDb.raw<Pick<JuliaSessao, 'cod_agent' | 'session_id' | 'total_msg'>>({ query, params });
       return result;
     },
     enabled: filters.agentCodes.length > 0,

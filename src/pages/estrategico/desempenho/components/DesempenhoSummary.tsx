@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 
 interface DesempenhoSummaryProps {
   sessoes: JuliaSessao[];
-  previousSessoes?: Pick<JuliaSessao, 'cod_agent' | 'total_msg'>[];
+  previousSessoes?: Pick<JuliaSessao, 'cod_agent' | 'session_id' | 'total_msg'>[];
   isLoading?: boolean;
   dateFrom?: string;
   dateTo?: string;
@@ -83,19 +83,29 @@ export function DesempenhoSummary({ sessoes, previousSessoes, isLoading, dateFro
     }
 
     const today = getTodayInSaoPaulo();
+    
+    // Use distinct session_id count to match Dashboard behavior
+    const uniqueSessionIds = new Set(sessoes.map(s => s.session_id));
+    const totalSessoes = uniqueSessionIds.size;
+    
     const totalMensagens = sessoes.reduce((acc, s) => acc + (s.total_msg || 0), 0);
     
-    const sessoesHoje = sessoes.filter((s) => {
-      const date = parseDbTimestamp(s.created_at);
-      const dateStr = date.toISOString().split('T')[0];
-      return dateStr === today;
-    }).length;
+    // Count distinct sessions for today
+    const sessoesHojeSet = new Set(
+      sessoes
+        .filter((s) => {
+          const date = parseDbTimestamp(s.created_at);
+          const dateStr = date.toISOString().split('T')[0];
+          return dateStr === today;
+        })
+        .map(s => s.session_id)
+    );
 
     return {
-      totalSessoes: sessoes.length,
+      totalSessoes,
       totalMensagens,
-      mediaMsg: sessoes.length > 0 ? Math.round((totalMensagens / sessoes.length) * 10) / 10 : 0,
-      sessoesHoje,
+      mediaMsg: totalSessoes > 0 ? Math.round((totalMensagens / totalSessoes) * 10) / 10 : 0,
+      sessoesHoje: sessoesHojeSet.size,
     };
   }, [sessoes]);
 
@@ -104,12 +114,16 @@ export function DesempenhoSummary({ sessoes, previousSessoes, isLoading, dateFro
       return null;
     }
 
+    // Use distinct session_id count to match Dashboard behavior
+    const uniqueSessionIds = new Set(previousSessoes.map(s => s.session_id));
+    const totalSessoes = uniqueSessionIds.size;
+    
     const totalMensagens = previousSessoes.reduce((acc, s) => acc + (s.total_msg || 0), 0);
 
     return {
-      totalSessoes: previousSessoes.length,
+      totalSessoes,
       totalMensagens,
-      mediaMsg: previousSessoes.length > 0 ? Math.round((totalMensagens / previousSessoes.length) * 10) / 10 : 0,
+      mediaMsg: totalSessoes > 0 ? Math.round((totalMensagens / totalSessoes) * 10) / 10 : 0,
     };
   }, [previousSessoes]);
 
