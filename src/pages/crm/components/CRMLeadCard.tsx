@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Clock, Eye, Hash, MessageCircle } from 'lucide-react';
+import { Clock, Eye, Hash, MessageCircle, Scale } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +8,9 @@ import { CRMCard } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { WhatsAppMessagesDialog } from './WhatsAppMessagesDialog';
+import { ContractInfoDialog } from './ContractInfoDialog';
 import { formatDbDateTime } from '@/lib/dateUtils';
+import { cn } from '@/lib/utils';
 
 interface CRMLeadCardProps {
   card: CRMCard;
@@ -22,6 +24,7 @@ function truncateText(text: string | undefined, maxLength: number): string {
 
 export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
   const [messagesOpen, setMessagesOpen] = useState(false);
+  const [contractOpen, setContractOpen] = useState(false);
   
   const timeInStage = formatDistanceToNow(new Date(card.stage_entered_at), {
     addSuffix: false,
@@ -38,10 +41,19 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
     setMessagesOpen(true);
   };
 
+  const handleContract = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setContractOpen(true);
+  };
+
   const truncatedBusinessName = truncateText(card.owner_business_name, 20);
   const fullTooltip = card.owner_name || card.owner_business_name
     ? `${card.owner_name || ''}${card.owner_name && card.owner_business_name ? ' • ' : ''}${card.owner_business_name || ''}`
     : card.cod_agent;
+
+  // Determine contract status based on stage name
+  const isContractSigned = card.stage_name === 'Contrato Assinado';
+  const isContractInProgress = card.stage_name === 'Contrato em Curso';
 
   return (
     <>
@@ -52,20 +64,6 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
       >
         <CardContent className="p-3">
           <div className="space-y-2">
-            {/* Contract stage badge - only for leads with contract history */}
-            {card.has_contract_history && card.stage_name && (
-              <Badge 
-                className="text-[10px] font-medium px-2 py-0.5"
-                style={{ 
-                  backgroundColor: card.stage_color ? `${card.stage_color}20` : undefined,
-                  color: card.stage_color || undefined,
-                  borderColor: card.stage_color || undefined
-                }}
-                variant="outline"
-              >
-                {card.stage_name}
-              </Badge>
-            )}
 
             {/* Header with name and actions */}
             <div className="flex items-start justify-between gap-2">
@@ -74,6 +72,33 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
                 <span className="line-clamp-1">{card.whatsapp_number}</span>
               </div>
               <div className="flex items-center gap-1 shrink-0">
+                {/* Contract Icon - only for leads with contract history */}
+                {card.has_contract_history && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={cn(
+                            "h-7 w-7 relative transition-all duration-300",
+                            "hover:scale-110",
+                            isContractSigned
+                              ? "text-green-500 hover:bg-green-100/50 dark:hover:bg-green-900/30 shadow-[0_0_8px_rgba(34,197,94,0.4)]"
+                              : "text-cyan-500 hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30 shadow-[0_0_8px_rgba(6,182,212,0.4)]",
+                            "animate-pulse"
+                          )}
+                          onClick={handleContract}
+                        >
+                          <Scale className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{isContractSigned ? 'Contrato Assinado' : 'Contrato em Curso'}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -154,6 +179,15 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
         whatsappNumber={card.whatsapp_number}
         leadName={card.contact_name}
         codAgent={card.cod_agent}
+      />
+
+      {/* Contract Info Dialog */}
+      <ContractInfoDialog
+        open={contractOpen}
+        onOpenChange={setContractOpen}
+        whatsappNumber={card.whatsapp_number}
+        codAgent={card.cod_agent}
+        contactName={card.contact_name}
       />
     </>
   );
