@@ -1,36 +1,54 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { PrincipalUserAgent } from "../types";
-import { Bot } from "lucide-react";
+import { Bot, Eye } from "lucide-react";
+
+// Selected agent with cod_agent as key (agent_id can be null for monitored)
+export interface SelectedAgent {
+  agentId: number | null;
+  codAgent: string;
+}
 
 interface AgentCheckboxListProps {
   agents: PrincipalUserAgent[];
-  selectedIds: number[];
-  onChange: (ids: number[]) => void;
+  selectedAgents: SelectedAgent[];
+  onChange: (agents: SelectedAgent[]) => void;
   isLoading?: boolean;
 }
 
 export function AgentCheckboxList({
   agents,
-  selectedIds,
+  selectedAgents,
   onChange,
   isLoading,
 }: AgentCheckboxListProps) {
-  const handleToggle = (agentId: number) => {
-    if (selectedIds.includes(agentId)) {
-      onChange(selectedIds.filter((id) => id !== agentId));
+  // Use cod_agent as key since agent_id can be null
+  const selectedCodAgents = selectedAgents.map((a) => a.codAgent);
+
+  const handleToggle = (agent: PrincipalUserAgent) => {
+    if (selectedCodAgents.includes(agent.cod_agent)) {
+      onChange(selectedAgents.filter((a) => a.codAgent !== agent.cod_agent));
     } else {
-      onChange([...selectedIds, agentId]);
+      onChange([
+        ...selectedAgents,
+        { agentId: agent.agent_id, codAgent: agent.cod_agent },
+      ]);
     }
   };
 
   const handleSelectAll = () => {
-    if (selectedIds.length === agents.length) {
+    if (selectedAgents.length === agents.length) {
       onChange([]);
     } else {
-      onChange(agents.map((a) => a.agent_id));
+      onChange(
+        agents.map((a) => ({ agentId: a.agent_id, codAgent: a.cod_agent }))
+      );
     }
   };
+
+  // Split agents by type
+  const ownAgents = agents.filter((a) => a.agent_type === 'own');
+  const monitoredAgents = agents.filter((a) => a.agent_type === 'monitored');
 
   if (isLoading) {
     return (
@@ -51,12 +69,38 @@ export function AgentCheckboxList({
     );
   }
 
+  const renderAgentItem = (agent: PrincipalUserAgent) => (
+    <div
+      key={agent.cod_agent}
+      className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
+    >
+      <Checkbox
+        id={`agent-${agent.cod_agent}`}
+        checked={selectedCodAgents.includes(agent.cod_agent)}
+        onCheckedChange={() => handleToggle(agent)}
+      />
+      <Label
+        htmlFor={`agent-${agent.cod_agent}`}
+        className="flex-1 cursor-pointer"
+      >
+        <span className="font-medium">{agent.business_name}</span>
+        <span className="text-muted-foreground text-xs ml-2">
+          #{agent.cod_agent}
+        </span>
+      </Label>
+      {!agent.status && (
+        <span className="text-xs text-destructive">Inativo</span>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-3">
+      {/* Select All */}
       <div className="flex items-center gap-2 pb-2 border-b">
         <Checkbox
           id="select-all"
-          checked={selectedIds.length === agents.length && agents.length > 0}
+          checked={selectedAgents.length === agents.length && agents.length > 0}
           onCheckedChange={handleSelectAll}
         />
         <Label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
@@ -64,31 +108,36 @@ export function AgentCheckboxList({
         </Label>
       </div>
 
-      <div className="max-h-60 overflow-y-auto space-y-2">
-        {agents.map((agent) => (
-          <div
-            key={agent.agent_id}
-            className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
-          >
-            <Checkbox
-              id={`agent-${agent.agent_id}`}
-              checked={selectedIds.includes(agent.agent_id)}
-              onCheckedChange={() => handleToggle(agent.agent_id)}
-            />
-            <Label
-              htmlFor={`agent-${agent.agent_id}`}
-              className="flex-1 cursor-pointer"
-            >
-              <span className="font-medium">{agent.business_name}</span>
-              <span className="text-muted-foreground text-xs ml-2">
-                #{agent.cod_agent}
-              </span>
-            </Label>
-            {!agent.status && (
-              <span className="text-xs text-destructive">Inativo</span>
-            )}
+      <div className="max-h-60 overflow-y-auto space-y-4">
+        {/* Own Agents Section */}
+        {ownAgents.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Bot className="h-4 w-4 text-muted-foreground" />
+              <h4 className="font-semibold text-xs uppercase text-muted-foreground tracking-wide">
+                Meus Agentes ({ownAgents.length})
+              </h4>
+            </div>
+            <div className="space-y-1">
+              {ownAgents.map(renderAgentItem)}
+            </div>
           </div>
-        ))}
+        )}
+
+        {/* Monitored Agents Section */}
+        {monitoredAgents.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Eye className="h-4 w-4 text-muted-foreground" />
+              <h4 className="font-semibold text-xs uppercase text-muted-foreground tracking-wide">
+                Agentes Monitorados ({monitoredAgents.length})
+              </h4>
+            </div>
+            <div className="space-y-1">
+              {monitoredAgents.map(renderAgentItem)}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

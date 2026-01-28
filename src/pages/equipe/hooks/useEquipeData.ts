@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { externalDb } from "@/lib/externalDb";
 import { useAuth } from "@/contexts/AuthContext";
 import { TeamMember, PrincipalUser, PrincipalUserAgent } from "../types";
+import { UserPermission } from "@/types/permissions";
 import { toast } from "sonner";
 import bcrypt from "bcryptjs";
 
@@ -41,9 +42,20 @@ export function usePrincipalUserAgents(principalUserId: number | null) {
     queryKey: ["principal-user-agents", principalUserId],
     queryFn: async () => {
       if (!principalUserId) return [];
-      return externalDb.getUserAgentsForPrincipal(principalUserId);
+      return externalDb.getUserAgentsForPrincipal<PrincipalUserAgent>(principalUserId);
     },
     enabled: !!principalUserId,
+  });
+}
+
+export function useParentUserPermissions(parentUserId: number | null) {
+  return useQuery({
+    queryKey: ["parent-user-permissions", parentUserId],
+    queryFn: async () => {
+      if (!parentUserId) return [];
+      return externalDb.getUserPermissions(parentUserId);
+    },
+    enabled: !!parentUserId,
   });
 }
 
@@ -56,7 +68,8 @@ export function useCreateTeamMember() {
       name: string;
       email: string;
       principalUserId: number;
-      agentIds: { agentId: number; codAgent: string }[];
+      agentIds: { agentId: number | null; codAgent: string }[];
+      modulePermissions: { moduleCode: string }[];
     }) => {
       // Generate password
       const rawPassword = generatePassword();
@@ -79,6 +92,7 @@ export function useCreateTeamMember() {
         principalUserId: data.principalUserId,
         clientId,
         agentIds: data.agentIds,
+        modulePermissions: data.modulePermissions,
       });
 
       return { ...result, temporaryPassword: rawPassword };
@@ -102,7 +116,8 @@ export function useUpdateTeamMember() {
       memberId: number;
       name: string;
       principalUserId: number;
-      agentIds: { agentId: number; codAgent: string }[];
+      agentIds: { agentId: number | null; codAgent: string }[];
+      modulePermissions: { moduleCode: string }[];
     }) => {
       return externalDb.updateTeamMember(data);
     },

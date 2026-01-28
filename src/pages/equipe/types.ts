@@ -15,10 +15,11 @@ export interface PrincipalUser {
 }
 
 export interface PrincipalUserAgent {
-  agent_id: number;
+  agent_id: number | null;
   cod_agent: string;
   status: boolean;
   business_name: string;
+  agent_type: 'own' | 'monitored';
 }
 
 export interface TeamMemberFormData {
