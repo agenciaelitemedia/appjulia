@@ -84,13 +84,20 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
                             "h-7 w-7 relative transition-all duration-300",
                             "hover:scale-110",
                             isContractSigned
-                              ? "text-green-500 hover:bg-green-100/50 dark:hover:bg-green-900/30 shadow-[0_0_8px_rgba(34,197,94,0.4)]"
-                              : "text-cyan-500 hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30 shadow-[0_0_8px_rgba(6,182,212,0.4)]",
-                            "animate-pulse"
+                              ? "text-green-500 hover:bg-green-100/50 dark:hover:bg-green-900/30"
+                              : "text-cyan-500 hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30",
+                            "before:absolute before:inset-0 before:rounded-full before:animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite]",
+                            isContractSigned
+                              ? "before:bg-green-400/40"
+                              : "before:bg-cyan-400/40",
+                            "after:absolute after:inset-[-4px] after:rounded-full after:animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite_0.5s]",
+                            isContractSigned
+                              ? "after:bg-green-300/20"
+                              : "after:bg-cyan-300/20"
                           )}
                           onClick={handleContract}
                         >
-                          <Scale className="h-4 w-4" />
+                          <Scale className="h-4 w-4 relative z-10 animate-pulse" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
