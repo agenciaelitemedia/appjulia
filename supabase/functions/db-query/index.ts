@@ -332,11 +332,12 @@ serve(async (req) => {
         // Secure authentication with bcrypt verification
         const { email, password } = data;
         
-        // Fetch user by email only (including client_id)
+        // Fetch user by email only (including client_id and photo from clients table)
         const users = await sql.unsafe(
-          `SELECT id, name, email, role, cod_agent, client_id, evo_url, evo_instance, evo_apikey, data_mask, hub, created_at, password 
-           FROM users 
-           WHERE email = $1 
+          `SELECT u.id, u.name, u.email, u.role, u.cod_agent, u.client_id, u.evo_url, u.evo_instance, u.evo_apikey, u.data_mask, u.hub, u.created_at, u.password, u.is_active, c.photo as avatar
+           FROM users u
+           LEFT JOIN clients c ON c.id = u.client_id
+           WHERE u.email = $1 
            LIMIT 1`,
           [email]
         );
