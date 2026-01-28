@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Clock, Eye, Hash, MessageCircle } from 'lucide-react';
+import { Clock, Eye, FileCheck, FileSignature, Hash, MessageCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { WhatsAppMessagesDialog } from './WhatsAppMessagesDialog';
 import { formatDbDateTime } from '@/lib/dateUtils';
+import { useLeadHasContract } from '../hooks/useLeadContract';
 
 interface CRMLeadCardProps {
   card: CRMCard;
@@ -22,6 +23,7 @@ function truncateText(text: string | undefined, maxLength: number): string {
 
 export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
   const [messagesOpen, setMessagesOpen] = useState(false);
+  const { data: contractStatus } = useLeadHasContract(card.whatsapp_number, card.cod_agent);
   
   const timeInStage = formatDistanceToNow(new Date(card.stage_entered_at), {
     addSuffix: false,
@@ -109,7 +111,44 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
               </div>
             )}
 
-            {/* Dates and time in stage */}
+            {/* Contract Status Indicator */}
+            {contractStatus?.has_contract && (
+              <div className="flex items-center gap-1.5">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge 
+                        variant="outline" 
+                        className={`text-[10px] font-medium gap-1 ${
+                          contractStatus.is_signed 
+                            ? 'border-green-500/50 bg-green-500/10 text-green-700 dark:text-green-400' 
+                            : 'border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                        }`}
+                      >
+                        {contractStatus.is_signed ? (
+                          <>
+                            <FileSignature className="h-3 w-3" />
+                            Assinado
+                          </>
+                        ) : (
+                          <>
+                            <FileCheck className="h-3 w-3" />
+                            Contrato Gerado
+                          </>
+                        )}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">
+                        {contractStatus.is_signed 
+                          ? 'Este lead possui contrato assinado' 
+                          : 'Este lead possui contrato gerado aguardando assinatura'}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            )}
             <div className="pt-2 border-t space-y-1 text-xs text-muted-foreground">
               <div className="flex items-center justify-between">
                 <span>Criado:</span>
