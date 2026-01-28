@@ -17,9 +17,9 @@ import {
   Package,
   Library,
   UsersRound,
-  Menu,
   X,
 } from "lucide-react";
+import juliaLogo from "@/assets/julia-logo.png";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -145,12 +145,10 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
         {/* Logo Header */}
         <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <Bot className="w-5 h-5 text-primary-foreground" />
-            </div>
+            <img src={juliaLogo} alt="Julia IA" className="w-8 h-8 rounded-lg" />
             <span className="text-lg font-semibold">
               <span className="text-sidebar-foreground">Jul</span>
-              <span className="text-amber-500">IA</span>
+              <span className="text-primary">IA</span>
             </span>
           </div>
           <Button variant="ghost" size="icon" onClick={onToggle} className="lg:hidden text-sidebar-foreground">
