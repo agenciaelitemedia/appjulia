@@ -148,7 +148,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
             <img src={juliaLogo} alt="Julia IA" className="w-8 h-8 rounded-lg" />
             <span className="text-lg font-semibold">
               <span className="text-sidebar-foreground">Jul</span>
-              <span className="text-primary">IA</span>
+              <span className="text-amber-500">IA</span>
             </span>
           </div>
           <Button variant="ghost" size="icon" onClick={onToggle} className="lg:hidden text-sidebar-foreground">
