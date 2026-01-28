@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   MessageCircle, Send, Loader2, 
-  Mic, FileText, Download, MapPin, User, Image as ImageIcon, Video, Play
+  Mic, FileText, Download, MapPin, User, Image as ImageIcon, Video, Play, Bot
 } from 'lucide-react';
+import { SessionStatusDialog } from './SessionStatusDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -751,6 +752,9 @@ export function WhatsAppMessagesDialog({
   // Media download state
   const [downloadingMedia, setDownloadingMedia] = useState<Set<string>>(new Set());
   const [mediaUrls, setMediaUrls] = useState<Record<string, string>>({});
+  
+  // Session status dialog state
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
 
   // Format number to JID
   const formatToJid = (number: string): string => {
@@ -1098,8 +1102,26 @@ export function WhatsAppMessagesDialog({
                 {whatsappNumber}
               </p>
             </div>
+            {/* Session Status Button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setStatusDialogOpen(true)}
+              className="h-8 w-8"
+              title="Ver status do atendimento"
+            >
+              <Bot className="h-5 w-5 text-muted-foreground hover:text-primary" />
+            </Button>
           </div>
         </DialogHeader>
+
+        {/* Session Status Dialog */}
+        <SessionStatusDialog
+          open={statusDialogOpen}
+          onOpenChange={setStatusDialogOpen}
+          whatsappNumber={whatsappNumber}
+          codAgent={codAgent}
+        />
 
         {/* Messages Area */}
         <ScrollArea className="flex-1 px-4" ref={scrollRef} onScrollCapture={handleScroll}>

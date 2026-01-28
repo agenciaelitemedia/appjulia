@@ -1603,6 +1603,33 @@ serve(async (req) => {
         break;
       }
 
+      case 'get_session_status': {
+        // Fetch session status for a WhatsApp number and agent
+        const { whatsappNumber, codAgent } = data;
+        
+        // Remove non-digits from whatsapp
+        const cleanNumber = whatsappNumber.replace(/\D/g, '');
+        
+        const rows = await sql.unsafe(
+          `SELECT 
+            s.id,
+            s.active,
+            s.whatsapp_number::text,
+            s.created_at,
+            s.updated_at,
+            a.cod_agent::text
+          FROM sessions s
+          JOIN agents a ON a.id = s.agent_id
+          WHERE s.whatsapp_number::text = $1
+            AND a.cod_agent::text = $2
+          ORDER BY s.created_at DESC
+          LIMIT 1`,
+          [cleanNumber, codAgent]
+        );
+        result = rows;
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
