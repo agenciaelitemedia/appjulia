@@ -5,6 +5,7 @@ export interface TeamMember {
   user_id: number | null;
   created_at: string;
   agents_count: number;
+  remember_token: string | null;
 }
 
 export interface PrincipalUser {

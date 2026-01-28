@@ -964,7 +964,7 @@ serve(async (req) => {
         if (isAdmin) {
           result = await sql.unsafe(
             `SELECT 
-              u.id, u.name, u.email, u.user_id, u.created_at,
+              u.id, u.name, u.email, u.user_id, u.created_at, u.remember_token,
               COUNT(ua.id)::int as agents_count
             FROM users u
             LEFT JOIN user_agents ua ON ua.user_id = u.id
@@ -975,7 +975,7 @@ serve(async (req) => {
         } else {
           result = await sql.unsafe(
             `SELECT 
-              u.id, u.name, u.email, u.user_id, u.created_at,
+              u.id, u.name, u.email, u.user_id, u.created_at, u.remember_token,
               COUNT(ua.id)::int as agents_count
             FROM users u
             LEFT JOIN user_agents ua ON ua.user_id = u.id
