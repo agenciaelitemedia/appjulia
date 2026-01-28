@@ -1102,12 +1102,12 @@ export function WhatsAppMessagesDialog({
                 {whatsappNumber}
               </p>
             </div>
-            {/* Session Status Button */}
+            {/* Session Status Button - positioned away from close button */}
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setStatusDialogOpen(true)}
-              className="h-8 w-8"
+              className="h-8 w-8 mr-6"
               title="Ver status do atendimento"
             >
               <Bot className="h-5 w-5 text-muted-foreground hover:text-primary" />

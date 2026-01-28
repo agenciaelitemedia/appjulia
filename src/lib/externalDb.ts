@@ -457,6 +457,13 @@ class ExternalDatabase {
     });
     return result.length > 0 ? result[0] : null;
   }
+
+  async updateSessionStatus(sessionId: number, active: boolean): Promise<void> {
+    await this.invoke({
+      action: 'update_session_status',
+      data: { sessionId, active },
+    });
+  }
 }
 
 export interface AgentInsertData {
