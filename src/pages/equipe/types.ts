@@ -6,6 +6,7 @@ export interface TeamMember {
   created_at: string;
   agents_count: number;
   remember_token: string | null;
+  photo: string | null;
 }
 
 export interface PrincipalUser {

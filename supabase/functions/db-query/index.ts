@@ -965,22 +965,26 @@ serve(async (req) => {
           result = await sql.unsafe(
             `SELECT 
               u.id, u.name, u.email, u.user_id, u.created_at, u.remember_token,
+              c.photo,
               COUNT(ua.id)::int as agents_count
             FROM users u
             LEFT JOIN user_agents ua ON ua.user_id = u.id
+            LEFT JOIN clients c ON c.id = u.client_id
             WHERE u.role = 'time'
-            GROUP BY u.id
+            GROUP BY u.id, c.photo
             ORDER BY u.name`
           );
         } else {
           result = await sql.unsafe(
             `SELECT 
               u.id, u.name, u.email, u.user_id, u.created_at, u.remember_token,
+              c.photo,
               COUNT(ua.id)::int as agents_count
             FROM users u
             LEFT JOIN user_agents ua ON ua.user_id = u.id
+            LEFT JOIN clients c ON c.id = u.client_id
             WHERE u.user_id = $1 AND u.role = 'time'
-            GROUP BY u.id
+            GROUP BY u.id, c.photo
             ORDER BY u.name`,
             [userId]
           );
