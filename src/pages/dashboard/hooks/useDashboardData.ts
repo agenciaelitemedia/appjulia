@@ -156,7 +156,7 @@ export function useDashboardStats(filters: DashboardFiltersState) {
             SELECT COUNT(*) as count 
             FROM crm_atendimento_cards c 
             JOIN crm_atendimento_stages s ON c.stage_id = s.id 
-            WHERE s.name = 'Contrato Assinado' 
+            WHERE s.name IN ('Contrato em Curso', 'Contrato Assinado')
               AND c.cod_agent = ANY($1::varchar[])
               AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
               AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
@@ -220,7 +220,7 @@ export function useDashboardStatsPrevious(filters: DashboardFiltersState) {
             SELECT COUNT(*) as count 
             FROM crm_atendimento_cards c 
             JOIN crm_atendimento_stages s ON c.stage_id = s.id 
-            WHERE s.name = 'Contrato Assinado' 
+            WHERE s.name IN ('Contrato em Curso', 'Contrato Assinado')
               AND c.cod_agent = ANY($1::varchar[])
               AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
               AND (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
