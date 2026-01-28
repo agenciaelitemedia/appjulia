@@ -176,9 +176,10 @@ export function useCRMSummaryStats(filters: CRMFiltersState) {
   
   const totalLeads = funnelData.reduce((sum, item) => sum + item.count, 0);
   
-  // Find conversion stage (Contrato Assinado)
-  const conversionStage = funnelData.find(s => s.name === 'Contrato Assinado');
-  const convertedLeads = conversionStage?.count || 0;
+  // Find conversion stages (Contrato em Curso + Contrato Assinado)
+  const contractInProgressStage = funnelData.find(s => s.name === 'Contrato em Curso');
+  const contractSignedStage = funnelData.find(s => s.name === 'Contrato Assinado');
+  const convertedLeads = (contractInProgressStage?.count || 0) + (contractSignedStage?.count || 0);
   const conversionRate = totalLeads > 0 ? (convertedLeads / totalLeads) * 100 : 0;
   
   // Find disqualified stage
