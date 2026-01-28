@@ -1,72 +1,107 @@
 
-# Plano: Ajustar Taxa de Conversão para Base em Sessões Julia
 
-## Resumo
-Alterar o cálculo da taxa de conversão no Dashboard principal para usar o número de sessões que a Julia atendeu como denominador, em vez do total de leads.
+# Plano: Corrigir Endpoints da UaZapi para Envio de Mensagens
 
-## Situação Atual
-- **Formula atual**: `Taxa de Conversão = (Conversões / Total de Leads) × 100`
-- **Descrição atual**: "X de Y leads"
+## Problema Identificado
 
-## Nova Lógica
-- **Nova formula**: `Taxa de Conversão = (Conversões / Sessões Julia) × 100`
-- **Nova descrição**: "X de Y sessões"
+O erro `405 Method Not Allowed` ocorre porque os endpoints definidos na biblioteca UaZapi estão incorretos. A documentação oficial da UaZapi (https://docs.uazapi.com) mostra que os endpoints seguem o padrão `/send/...`, não `/message/...`.
 
-Esta mudança faz sentido porque:
-- As sessões Julia representam os atendimentos realizados pela IA
-- A conversão deve medir a eficácia dos atendimentos da Julia, não a proporção geral de leads
+**Endpoints atuais (incorretos):**
+- `/message/text`
+- `/message/image`
+- `/message/video`
+- `/message/audio`
+- `/message/document`
+- `/message/sticker`
+- `/message/location`
+- `/message/contact`
+- `/message/buttons`
+- `/message/list`
 
-## Alterações Necessárias
+**Endpoints corretos da UaZapi:**
+- `/send/text` - Enviar mensagem de texto
+- `/send/media` - Enviar mídia (imagem, vídeo, áudio, documento, sticker)
+- `/send/location` - Enviar localização
+- `/send/contact` - Enviar contato (vCard)
+- `/send/menu` - Enviar menus interativos (botões, lista, enquete)
 
-### 1. Dashboard.tsx (linhas 136-151)
-Atualizar o cálculo da taxa de conversão:
+## Arquivos a Modificar
 
-**Antes:**
+### 1. `src/lib/uazapi/endpoints/message.ts`
+
+Atualizar todos os endpoints de envio de mensagem:
+
+| Método | Antes | Depois |
+|--------|-------|--------|
+| `sendText` | `/message/text` | `/send/text` |
+| `sendImage` | `/message/image` | `/send/media` (com `type: 'image'`) |
+| `sendVideo` | `/message/video` | `/send/media` (com `type: 'video'`) |
+| `sendAudio` | `/message/audio` | `/send/media` (com `type: 'audio'`) |
+| `sendDocument` | `/message/document` | `/send/media` (com `type: 'document'`) |
+| `sendSticker` | `/message/sticker` | `/send/media` (com `type: 'sticker'`) |
+| `sendLocation` | `/message/location` | `/send/location` |
+| `sendContact` | `/message/contact` | `/send/contact` |
+| `sendButtons` | `/message/buttons` | `/send/menu` |
+| `sendList` | `/message/list` | `/send/menu` |
+
+### 2. `src/pages/crm/components/WhatsAppMessagesDialog.tsx`
+
+Atualizar a chamada de envio de mensagem de texto para usar o endpoint correto:
+
+**Antes (linha ~1027):**
 ```typescript
-const conversionRate = useMemo(() => {
-  const totalLeads = stats?.totalLeads ?? 0;
-  const conversions = stats?.conversions ?? 0;
-  if (totalLeads === 0) return 0;
-  return (conversions / totalLeads) * 100;
-}, [stats?.totalLeads, stats?.conversions]);
+await client.post('/message/text', {
+  number: whatsappNumber.replace(/\D/g, ''),
+  text: newMessage.trim(),
+});
 ```
 
 **Depois:**
 ```typescript
-const conversionRate = useMemo(() => {
-  const totalSessions = stats?.totalSessions ?? 0;
-  const conversions = stats?.conversions ?? 0;
-  if (totalSessions === 0) return 0;
-  return (conversions / totalSessions) * 100;
-}, [stats?.totalSessions, stats?.conversions]);
+await client.post('/send/text', {
+  number: whatsappNumber.replace(/\D/g, ''),
+  text: newMessage.trim(),
+});
 ```
 
-### 2. Atualizar comparação com período anterior
-**Antes:**
+## Detalhes Técnicos
+
+### Parâmetros do endpoint `/send/text`
+
 ```typescript
-const prevRate = prevTotal > 0 ? (prevConversions / prevTotal) * 100 : 0;
+interface SendTextRequest {
+  number: string;      // Número em formato internacional (ex: "5511999999999")
+  text: string;        // Texto da mensagem
+  linkPreview?: boolean; // Ativar preview de links (opcional)
+  replyid?: string;    // ID da mensagem para responder (opcional)
+  delay?: number;      // Atraso em ms antes do envio (opcional)
+  readchat?: boolean;  // Marcar conversa como lida (opcional)
+}
 ```
 
-**Depois:**
-```typescript
-const prevSessions = statsPrevious.totalSessions;
-const prevRate = prevSessions > 0 ? (prevConversions / prevSessions) * 100 : 0;
-```
+### Parâmetros do endpoint `/send/media`
 
-### 3. Atualizar descrição do card (linha 199)
-**Antes:**
 ```typescript
-description: `${stats?.conversions ?? 0} de ${stats?.totalLeads ?? 0} leads`,
-```
-
-**Depois:**
-```typescript
-description: `${stats?.conversions ?? 0} de ${stats?.totalSessions ?? 0} sessões`,
+interface SendMediaRequest {
+  number: string;      // Número do destinatário
+  type: 'image' | 'video' | 'audio' | 'document' | 'sticker' | 'ptt';
+  media: string;       // URL ou Base64 da mídia
+  caption?: string;    // Legenda (opcional, para imagem/vídeo/documento)
+  filename?: string;   // Nome do arquivo (para documentos)
+}
 ```
 
 ## Impacto
-- O card "Taxa de Conversão" no Dashboard refletirá a eficácia da Julia em converter sessões de atendimento em contratos
-- O indicador de variação percentual comparará com o período anterior usando a mesma lógica baseada em sessões
 
-## Arquivos a Modificar
-- `src/pages/Dashboard.tsx` - 3 pequenas alterações
+- O envio de mensagens pelo popup do WhatsApp no CRM funcionará corretamente
+- A biblioteca UaZapi ficará alinhada com a documentação oficial da API
+- Futuros envios de mídia, localização e contatos também funcionarão corretamente
+
+## Verificação
+
+Após a implementação:
+1. Abrir o popup de chat do WhatsApp no CRM
+2. Enviar uma mensagem de texto
+3. Verificar nos logs de rede que o endpoint chamado é `/send/text`
+4. Confirmar que a resposta é 200 (sucesso) e a mensagem é enviada
+
