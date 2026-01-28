@@ -1,10 +1,10 @@
 
 
-# Plano: Página de Administração de Permissões
+# Plano: Botao "Editar Perfil" na Pagina de Permissoes
 
 ## Visao Geral
 
-Criar uma interface administrativa completa para gerenciar permissões de usuarios com uma matriz visual de modulo x acao (view, create, edit, delete). A pagina permitira ao admin selecionar usuarios, visualizar e editar suas permissoes, e alternar entre permissoes padrao do role ou customizadas.
+Adicionar um botao "Editar Perfil" no cabecalho do `UserPermissionEditor` que abre um dialog para editar os dados cadastrais do usuario selecionado: nome, email, status (ativo/inativo), perfil (role) e opcao de resetar senha.
 
 ---
 
@@ -12,224 +12,270 @@ Criar uma interface administrativa completa para gerenciar permissões de usuari
 
 ```text
 src/pages/admin/permissoes/
-  PermissoesPage.tsx           <- Pagina principal
   components/
-    PermissoesHeader.tsx       <- Cabecalho com titulo e filtros
-    UserPermissionsList.tsx    <- Lista de usuarios com filtro por role
-    PermissionMatrix.tsx       <- Matriz de modulos x acoes (checkboxes)
-    PermissionDialog.tsx       <- Dialog para editar permissoes de um usuario
-    RoleDefaultsDialog.tsx     <- Dialog para editar permissoes padrao de um role
+    UserEditDialog.tsx        <- NOVO: Dialog para editar perfil do usuario
+    ResetPasswordSection.tsx  <- NOVO: Secao de reset de senha dentro do dialog
   hooks/
-    usePermissionsAdmin.ts     <- Hooks React Query para dados de permissoes
-  types.ts                     <- Tipos especificos da pagina
+    usePermissionsAdmin.ts    <- ATUALIZAR: Adicionar mutations para update/reset
+```
+
+---
+
+## Fluxo de Uso
+
+```text
++-------------------------------------------------------------------+
+|  UserPermissionEditor (usuario selecionado)                       |
++-------------------------------------------------------------------+
+|  [Avatar] Maria Silva                              [Editar Perfil]|
+|           maria@email.com              Badge: Colaborador         |
++-------------------------------------------------------------------+
+|                                                                   |
+|  ... matriz de permissoes ...                                     |
+|                                                                   |
++-------------------------------------------------------------------+
+
+         |
+         v  (clique em "Editar Perfil")
+
++-------------------------------------------------------------------+
+|  Dialog: Editar Perfil do Usuario                            [X]  |
++-------------------------------------------------------------------+
+|                                                                   |
+|  Nome:   [Maria Silva________________________]                    |
+|                                                                   |
+|  Email:  [maria@email.com____________________]                    |
+|                                                                   |
+|  Perfil: [Colaborador v]  (dropdown: admin, colaborador, user)    |
+|                                                                   |
+|  Status: [x] Usuario ativo                                        |
+|                                                                   |
+|  +---------------------------------------------------------+      |
+|  |  Redefinir Senha                                        |      |
+|  |                                                         |      |
+|  |  Clique para gerar uma nova senha temporaria.           |      |
+|  |                              [Redefinir Senha]          |      |
+|  +---------------------------------------------------------+      |
+|                                                                   |
+|                            [Cancelar]  [Salvar Alteracoes]        |
++-------------------------------------------------------------------+
 ```
 
 ---
 
 ## Componentes
 
-### 1. PermissoesPage.tsx
+### 1. UserEditDialog.tsx
 
-Pagina principal com layout em duas colunas:
-- Esquerda: Lista de usuarios com filtros
-- Direita: Visualizacao/edicao das permissoes do usuario selecionado
+Dialog com formulario para editar dados do usuario:
+
+**Campos:**
+- **Nome** (Input text, obrigatorio)
+- **Email** (Input email, com validacao de unicidade)
+- **Perfil/Role** (Select dropdown)
+  - Opcoes: Administrador, Colaborador, Usuario, Time
+  - Desabilitado para o proprio usuario logado (nao pode mudar proprio role)
+- **Status** (Switch ou Checkbox)
+  - "Usuario ativo" - true/false
+  - Desabilitado para o proprio usuario logado
+- **Secao Redefinir Senha**
+  - Botao que gera nova senha temporaria
+  - Exibe a senha gerada para copiar
+
+**Comportamentos:**
+- Ao abrir, preenche com dados atuais do usuario
+- Validacao de email unico (reusa `checkUserEmailExists`)
+- Ao salvar, chama endpoint de update
+- Exibe toast de sucesso/erro
+
+### 2. Atualizacao do UserPermissionEditor.tsx
+
+Adicionar botao "Editar Perfil" no header:
 
 ```text
-+------------------------------------------------------------+
-|  Gerenciar Permissoes                    [Editar Padroes]  |
-+--------------------+---------------------------------------+
-| [Filtro: Todos v]  |  Usuario: Maria Silva (colaborador)  |
-|                    |  [x] Usar permissoes customizadas     |
-| [Buscar...]        +---------------------------------------+
-|                    |  MODULO        | Ver | Add | Edt | Del|
-| * Admin User       +----------------+-----+-----+-----+----+
-|   Maria Silva  <-- |  Dashboard     | [x] | [ ] | [ ] | [ ]|
-|   Jose Santos      |  CRM Leads     | [x] | [x] | [x] | [ ]|
-|   Ana Oliveira     |  CRM Monitor   | [x] | [ ] | [ ] | [ ]|
-|   ...              |  ...           | ... | ... | ... | ...|
-|                    +---------------------------------------+
-|                    |        [Cancelar]  [Salvar Permissoes]|
-+--------------------+---------------------------------------+
+<Button variant="outline" size="sm" onClick={() => setShowEditDialog(true)}>
+  <Pencil className="w-4 h-4 mr-2" />
+  Editar Perfil
+</Button>
 ```
 
-### 2. PermissoesHeader.tsx
+---
 
-- Titulo "Gerenciar Permissoes"
-- Botao "Editar Padraes de Role" (abre dialog para editar role_default_permissions)
+## Backend (Edge Function)
 
-### 3. UserPermissionsList.tsx
+Criar novo endpoint `update_user_profile`:
 
-- Select para filtrar por role (Todos, admin, colaborador, user, time)
-- Input de busca por nome/email
-- Lista de usuarios com:
-  - Nome e email
-  - Badge do role
-  - Indicador se usa permissoes customizadas
-  - Indicador se esta ativo/inativo
+```sql
+UPDATE users 
+SET name = $1, 
+    email = $2, 
+    role = $3, 
+    is_active = $4,
+    status = $5,
+    updated_at = now()
+WHERE id = $6
+RETURNING id, name, email, role, is_active, status
+```
 
-### 4. PermissionMatrix.tsx
-
-- Tabela com modulos agrupados por categoria
-- Colunas: Modulo | Ver | Criar | Editar | Excluir
-- Checkboxes para cada permissao
-- Cores por categoria (seguindo o padrao do Sidebar)
-- Modo visualizacao ou edicao
-
-### 5. PermissionDialog.tsx
-
-- Dialog para editar permissoes de um usuario
-- Toggle para ativar permissoes customizadas
-- Matriz de permissoes editavel
-- Botao para resetar para padrao do role
-
-### 6. RoleDefaultsDialog.tsx
-
-- Select para escolher o role
-- Matriz de permissoes padrao do role selecionado
-- Permite alterar as permissoes padrao globais
+**Campos atualizados:**
+- `name` - nome do usuario
+- `email` - email (com validacao previa)
+- `role` - perfil (admin, colaborador, user, time)
+- `is_active` - flag de usuario ativo
+- `status` - status legacy (manter sincronizado com is_active)
 
 ---
 
 ## Hooks (usePermissionsAdmin.ts)
 
-```typescript
-// Buscar usuarios com info de permissoes
-function useUsersWithPermissions(roleFilter?: string)
-
-// Buscar permissoes de um usuario especifico
-function useUserPermissions(userId: number)
-
-// Buscar modulos
-function useModules()
-
-// Buscar permissoes padrao de um role
-function useRoleDefaultPermissions(role: string)
-
-// Mutacao: atualizar permissoes de usuario
-function useUpdateUserPermissions()
-
-// Mutacao: atualizar permissoes padrao do role
-function useUpdateRoleDefaultPermissions()
-```
-
----
-
-## Integracao com Backend
-
-Os endpoints ja existem na edge function `db-query`:
-
-| Acao                        | Endpoint                      | Implementado |
-|-----------------------------|-------------------------------|--------------|
-| Listar usuarios             | `get_users_with_permissions`  | Sim          |
-| Permissoes do usuario       | `get_user_permissions`        | Sim          |
-| Listar modulos              | `get_modules`                 | Sim          |
-| Permissoes padrao do role   | `get_role_default_permissions`| Sim          |
-| Atualizar permissoes usuario| `update_user_permissions`     | Sim          |
-| Atualizar padrao do role    | `update_role_default_permissions` | Sim      |
-
----
-
-## Fluxo de Uso
-
-1. Admin acessa `/admin/permissoes`
-2. Ve lista de todos os usuarios (filtro padrao: todos)
-3. Clica em um usuario para ver suas permissoes
-4. Se o usuario usa permissoes do role, mostra badge "Padrao do Role"
-5. Admin pode ativar "Usar permissoes customizadas"
-6. Edita checkboxes da matriz
-7. Clica em "Salvar"
-8. Sistema atualiza e mostra toast de sucesso
-
----
-
-## Regras de Negocio
-
-1. **Admin tem tudo**: Usuarios admin sempre tem acesso total, nao editavel
-2. **TIME herda**: Usuarios TIME tem permissoes limitadas pelo pai (mostrar aviso)
-3. **Padrao vs Customizado**: Toggle claro entre usar padrao do role ou custom
-4. **Validacao visual**: Mostrar diferenca entre padrao e customizado com cores
-
----
-
-## Integracao com Rotas
-
-Adicionar rota no `App.tsx`:
-```typescript
-<Route path="/admin/permissoes" element={<PermissoesPage />} />
-```
-
-Adicionar item no menu Sidebar em "ADMINISTRATIVO":
-```typescript
-{ label: "Permissoes", icon: Shield, href: "/admin/permissoes" }
-```
-
----
-
-## Secao Tecnica
-
-### Estrutura de Dados
+Adicionar novas mutations:
 
 ```typescript
-// Usuario com info de permissao
-interface UserWithPermissions {
-  id: number;
-  name: string;
-  email: string;
-  role: AppRole;
-  use_custom_permissions: boolean;
-  is_active: boolean;
-  parent_user_id: number | null;
-  created_at: string;
+// Atualizar dados do usuario
+export function useUpdateUserProfile() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      userId: number;
+      name: string;
+      email: string;
+      role: AppRole;
+      isActive: boolean;
+    }) => {
+      return externalDb.updateUserProfile(data.userId, {
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        isActive: data.isActive,
+      });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['users-with-permissions'] });
+      queryClient.invalidateQueries({ queryKey: ['user-permissions', variables.userId] });
+      toast({ title: 'Perfil atualizado com sucesso' });
+    },
+  });
 }
 
-// Permissao para exibicao na matriz
-interface PermissionRow {
-  moduleCode: ModuleCode;
-  moduleName: string;
-  category: ModuleCategory;
-  canView: boolean;
-  canCreate: boolean;
-  canEdit: boolean;
-  canDelete: boolean;
-  isDefault?: boolean; // para comparacao visual
+// Resetar senha do usuario
+export function useResetUserPassword() {
+  return useMutation({
+    mutationFn: async (userId: number) => {
+      const rawPassword = generatePassword(); // Julia@XXXX
+      const hashedPassword = await bcrypt.hash(rawPassword, 10);
+      await externalDb.resetUserPassword(userId, hashedPassword, rawPassword);
+      return { temporaryPassword: rawPassword };
+    },
+    onSuccess: () => {
+      toast({ title: 'Senha redefinida com sucesso' });
+    },
+  });
 }
 ```
 
-### Estado do Componente Principal
+---
+
+## ExternalDb (src/lib/externalDb.ts)
+
+Adicionar metodo:
 
 ```typescript
-const [selectedUser, setSelectedUser] = useState<UserWithPermissions | null>(null);
-const [roleFilter, setRoleFilter] = useState<string>('');
-const [searchTerm, setSearchTerm] = useState('');
-const [editMode, setEditMode] = useState(false);
-const [pendingChanges, setPendingChanges] = useState<PermissionRow[]>([]);
+async updateUserProfile(
+  userId: number, 
+  data: { name: string; email: string; role: string; isActive: boolean }
+): Promise<UserWithPermissions> {
+  const result = await this.invoke({
+    action: 'update_user_profile',
+    data: { userId, ...data },
+  });
+  return result[0];
+}
 ```
 
-### Agrupamento de Modulos por Categoria
+---
 
-```typescript
-const categoryLabels: Record<ModuleCategory, string> = {
-  principal: 'Principal',
-  crm: 'CRM',
-  agente: 'Agente',
-  sistema: 'Sistema',
-  admin: 'Administrativo',
-  financeiro: 'Financeiro',
-};
+## Validacoes e Regras de Negocio
+
+| Regra | Descricao |
+|-------|-----------|
+| Email unico | Validar antes de salvar se email ja existe para outro usuario |
+| Auto-edicao | Usuario logado nao pode alterar seu proprio role ou status |
+| Role admin | Alertar antes de rebaixar um admin para outro role |
+| Time vinculado | Usuario TIME nao pode ter role alterado para admin |
+| Senha temporaria | Salva no campo `remember_token` para referencia |
+
+---
+
+## Estados do Dialog
+
+```text
+ESTADO 1: Formulario de edicao
+  - Campos editaveis
+  - Botao "Salvar Alteracoes"
+  - Secao de reset de senha colapsavel
+
+ESTADO 2: Senha redefinida (apos clicar em Redefinir)
+  - Exibe a nova senha temporaria
+  - Botao "Copiar"
+  - Mensagem orientando trocar no primeiro acesso
 ```
 
 ---
 
 ## Tarefas de Implementacao
 
-1. Criar estrutura de pastas e arquivos base
-2. Implementar hooks `usePermissionsAdmin.ts`
-3. Criar componente `UserPermissionsList`
-4. Criar componente `PermissionMatrix`
-5. Criar componente `PermissionDialog`
-6. Criar componente `RoleDefaultsDialog`
-7. Montar `PermissoesPage` com layout completo
-8. Adicionar rota em `App.tsx`
-9. Adicionar item no Sidebar
-10. Testar fluxo completo
+1. Criar endpoint `update_user_profile` na Edge Function `db-query`
+2. Adicionar metodo `updateUserProfile` no `externalDb.ts`
+3. Criar hook `useUpdateUserProfile` no `usePermissionsAdmin.ts`
+4. Criar hook `useResetUserPassword` no `usePermissionsAdmin.ts` (reutilizar logica existente)
+5. Criar componente `UserEditDialog.tsx`
+6. Atualizar `UserPermissionEditor.tsx` com botao e integracao do dialog
+7. Testar fluxo completo
+
+---
+
+## Secao Tecnica
+
+### Estrutura do UserEditDialog
+
+```typescript
+interface UserEditDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  user: UserWithPermissions;
+  currentUserId: number; // usuario logado, para validar auto-edicao
+  onSuccess?: () => void;
+}
+
+// Estados internos
+const [name, setName] = useState(user.name);
+const [email, setEmail] = useState(user.email);
+const [role, setRole] = useState(user.role);
+const [isActive, setIsActive] = useState(user.is_active);
+const [emailError, setEmailError] = useState('');
+const [showPasswordReset, setShowPasswordReset] = useState(false);
+const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
+```
+
+### Endpoint update_user_profile
+
+```typescript
+case 'update_user_profile': {
+  const { userId, name, email, role, isActive } = data;
+  
+  // Sincronizar is_active com status (legacy)
+  const status = isActive ? 1 : 0;
+  
+  const rows = await sql.unsafe(
+    `UPDATE users 
+     SET name = $1, email = $2, role = $3, is_active = $4, status = $5, updated_at = now()
+     WHERE id = $6
+     RETURNING id, name, email, role, is_active, status, user_id as parent_user_id, created_at`,
+    [name, email, role, isActive, status, userId]
+  );
+  result = rows;
+  break;
+}
+```
 
