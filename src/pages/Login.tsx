@@ -59,7 +59,7 @@ export default function Login() {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
       {/* Left side - Login Form (30%) */}
-      <div className="w-full lg:w-[30%] min-h-screen flex flex-col items-center justify-center p-8 bg-background">
+      <div className="w-full lg:w-[40%] min-h-screen flex flex-col items-center justify-center p-8 bg-background">
         <div className="w-full max-w-sm space-y-8">
           {/* Logo */}
           <div className="flex justify-center">
@@ -135,14 +135,14 @@ export default function Login() {
 
       {/* Right side - Image & Text (70%) */}
       <div 
-        className="hidden lg:flex w-[70%] min-h-screen relative bg-cover bg-center bg-no-repeat"
+        className="hidden lg:flex w-[60%] min-h-screen relative bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: `url(${loginBackground})` }}
       >
         {/* Dark overlay */}
         <div className="absolute inset-0 bg-slate-900/80" />
         
         {/* Content */}
-        <div className="relative z-10 flex flex-col justify-center px-16 xl:px-24">
+        <div className="relative z-10 flex flex-col items-center justify-center text-center w-full px-16 xl:px-24">
           <h2 className="text-4xl xl:text-5xl font-bold text-white leading-tight max-w-2xl">
             A IA que atende, qualifica e fecha contratos sozinha
           </h2>
