@@ -73,7 +73,6 @@ const menuGroups: MenuGroup[] = [
     label: "CRM",
     items: [
       { label: "Leads", icon: Users, href: "/crm/leads" },
-      { label: "Videochamadas", icon: Video, href: "/video/queue" },
       { label: "Monitoramento", icon: BarChart3, href: "/crm/lead-monitoramento" },
       { label: "Estatísticas", icon: BarChart3, href: "/crm/lead-estatisticas" },
     ],
@@ -81,6 +80,7 @@ const menuGroups: MenuGroup[] = [
   {
     label: "SISTEMA",
     items: [
+      { label: "Sala de Reunião", icon: Video, href: "/video/queue" },
       { label: "Biblioteca", icon: Library, href: "/biblioteca" },
       { label: "Equipe", icon: UsersRound, href: "/equipe", hideForTime: true },
     ],
