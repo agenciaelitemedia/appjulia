@@ -179,7 +179,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed, onCollapse }: SidebarPr
           </div>
 
           {/* Menu */}
-          <ScrollArea className="h-[calc(100vh-4rem-3rem)]">
+          <ScrollArea className="h-[calc(100vh-4rem)]">
             <nav className={cn("p-4 space-y-6", isCollapsed && "p-2 space-y-4")}>
               {filteredGroups.map((group) => (
                 <div key={group.label}>
@@ -306,31 +306,6 @@ export function Sidebar({ isOpen, onToggle, isCollapsed, onCollapse }: SidebarPr
             </nav>
           </ScrollArea>
 
-          {/* Collapse Toggle Button */}
-          <div className={cn(
-            "absolute bottom-0 left-0 right-0 h-12 border-t border-sidebar-border flex items-center",
-            isCollapsed ? "justify-center" : "justify-end px-4"
-          )}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={onCollapse}
-                  className="text-sidebar-foreground hover:bg-sidebar-accent/50 hidden lg:flex"
-                >
-                  {isCollapsed ? (
-                    <PanelLeft className="w-5 h-5" />
-                  ) : (
-                    <PanelLeftClose className="w-5 h-5" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right">
-                {isCollapsed ? "Expandir menu" : "Recolher menu"}
-              </TooltipContent>
-            </Tooltip>
-          </div>
         </aside>
       </>
     </TooltipProvider>
