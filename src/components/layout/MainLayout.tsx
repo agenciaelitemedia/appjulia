@@ -3,9 +3,11 @@ import { Outlet, Navigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useAuth } from '@/contexts/AuthContext';
+import { cn } from '@/lib/utils';
 
 export function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
@@ -25,9 +27,17 @@ export function MainLayout() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
+      <Sidebar 
+        isOpen={sidebarOpen} 
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        isCollapsed={sidebarCollapsed}
+        onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+      />
       
-      <div className="lg:ml-64">
+      <div className={cn(
+        "transition-all duration-300",
+        sidebarCollapsed ? "lg:ml-16" : "lg:ml-64"
+      )}>
         <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
         
         <main className="p-4 lg:p-6">
