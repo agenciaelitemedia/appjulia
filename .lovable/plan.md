@@ -1,368 +1,151 @@
 
+# Plano de Correção: Videochamadas
 
-# Plano de Implementação: Videoconferência 1x1 com Daily.co
+## Problema Principal Identificado
 
-## Visão Geral
+Quando você clica em "Atender", o componente `VideoCallEmbed` tenta inicializar o iframe do Daily.co, mas ocorre um erro (`Cannot read properties of null (reading 'postMessage')`). O callback `onError` então chama `handleLeaveRoom()` que **deleta a sala permanentemente no Daily.co**.
 
-Implementar um sistema de videoconferência integrado ao CRM que permita:
-- **Lead**: Acessar a chamada via link enviado pelo WhatsApp (sem download, direto no navegador)
-- **Operador**: Gerenciar fila de leads aguardando e atender chamadas 1x1 dentro do sistema
+Isso significa que a sala é destruída antes mesmo de conseguir conectar.
 
-## Pré-requisitos
+## Correções Necessárias
 
-### 1. Criar Conta no Daily.co
-- Acessar [daily.co](https://www.daily.co/) e criar uma conta
-- Obter a **API Key** do painel de desenvolvedor
-- O plano gratuito permite até 100 participantes/mês e salas de até 60 minutos
+### 1. Separar "erro de conexão" de "encerrar chamada"
 
-### 2. Configurar Secret no Projeto
-- Adicionar a secret `DAILY_API_KEY` nas configurações do projeto
+O `onError` não deve deletar a sala - apenas desconectar o operador da interface. A sala deve continuar existindo para que o lead possa esperar.
 
----
-
-## Arquitetura da Solução
-
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│                              FLUXO GERAL                                 │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│   OPERADOR (CRM)                    DAILY.CO                  LEAD       │
-│   ┌──────────────┐                ┌──────────┐          ┌──────────────┐│
-│   │ Clica ícone  │───────────────>│ Cria     │          │              ││
-│   │ videochamada │                │ sala     │          │              ││
-│   │ no lead card │                │ única    │          │              ││
-│   └──────────────┘                └────┬─────┘          │              ││
-│          │                             │                │              ││
-│          │                             │ URL da sala    │              ││
-│          v                             v                │              ││
-│   ┌──────────────┐          ┌──────────────────┐        │              ││
-│   │ Envia link   │─────────>│ WhatsApp (UaZapi)│───────>│ Recebe link  ││
-│   │ via WhatsApp │          └──────────────────┘        │ no WhatsApp  ││
-│   └──────────────┘                                      └──────┬───────┘│
-│          │                                                     │        │
-│          v                                                     v        │
-│   ┌──────────────┐                                      ┌──────────────┐│
-│   │ Lead aparece │<─────────────── Sala ───────────────>│ Clica e      ││
-│   │ na fila de   │              Daily.co                │ entra na     ││
-│   │ espera       │                                      │ chamada      ││
-│   └──────┬───────┘                                      └──────────────┘│
-│          │                                                              │
-│          v                                                              │
-│   ┌──────────────┐                                                      │
-│   │ Operador     │                                                      │
-│   │ atende       │                                                      │
-│   │ (embed)      │                                                      │
-│   └──────────────┘                                                      │
-│                                                                          │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Etapas de Implementação
-
-### Fase 1: Backend (Edge Function)
-
-#### Criar Edge Function `video-room`
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `supabase/functions/video-room/index.ts` | Gerencia criação e listagem de salas |
-
-**Endpoints:**
-
-| Método | Ação | Descrição |
-|--------|------|-----------|
-| POST | `create` | Cria uma nova sala no Daily.co |
-| GET | `list` | Lista salas ativas (leads aguardando) |
-| POST | `close` | Encerra uma sala específica |
-
-**Lógica de criação de sala:**
-- Gera nome único baseado em timestamp + cod_agent
-- Define expiração de 60 minutos (configurável)
-- Salva metadados no banco (lead_id, cod_agent, room_name, status)
-- Retorna URL da sala para envio via WhatsApp
-
-**Tabela no banco externo (via db-query):**
-
-```sql
-CREATE TABLE video_rooms (
-  id SERIAL PRIMARY KEY,
-  room_name VARCHAR(255) UNIQUE NOT NULL,
-  room_url TEXT NOT NULL,
-  lead_id INTEGER REFERENCES crm_atendimento_cards(id),
-  cod_agent VARCHAR(50) NOT NULL,
-  whatsapp_number VARCHAR(20) NOT NULL,
-  contact_name VARCHAR(255),
-  status VARCHAR(20) DEFAULT 'waiting', -- waiting, in_call, ended
-  created_at TIMESTAMP DEFAULT NOW(),
-  ended_at TIMESTAMP,
-  operator_joined_at TIMESTAMP
-);
-```
-
----
-
-### Fase 2: Frontend - Card do Lead
-
-#### Modificar `CRMLeadCard.tsx`
-
-| Alteração | Descrição |
-|-----------|-----------|
-| Novo ícone | Adicionar ícone de vídeo (Video) ao lado dos botões existentes |
-| Handler | `handleVideoCall` - chama API para criar sala |
-| Dialog | Confirma envio do link via WhatsApp |
-
-**Novo botão no card:**
-```tsx
-<Button
-  variant="ghost"
-  size="icon"
-  className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-100/50"
-  onClick={handleVideoCall}
->
-  <Video className="h-4 w-4" />
-</Button>
-```
-
-#### Criar `VideoCallDialog.tsx`
-
-Dialog de confirmação que:
-1. Mostra preview da mensagem que será enviada
-2. Permite personalizar texto (opcional)
-3. Envia link via WhatsApp usando integração existente (UaZapi)
-4. Mostra feedback de sucesso/erro
-
----
-
-### Fase 3: Frontend - Página de Fila de Atendimento
-
-#### Criar nova rota `/video/queue`
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/pages/video/VideoQueuePage.tsx` | Página principal da fila |
-| `src/pages/video/components/VideoQueueCard.tsx` | Card de lead aguardando |
-| `src/pages/video/components/VideoCallEmbed.tsx` | Embed do Daily.co |
-| `src/pages/video/hooks/useVideoQueue.ts` | Hook para gerenciar fila |
-
-**Layout da página:**
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│  🎥 Fila de Videochamadas                      [🔄 Atualizar]  │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌─────────────────────────┐  ┌─────────────────────────────────┐│
-│  │   LEADS AGUARDANDO (3)  │  │     VIDEOCHAMADA ATIVA          ││
-│  │                         │  │                                  ││
-│  │  ┌───────────────────┐  │  │  ┌───────────────────────────┐  ││
-│  │  │ 📞 5511999999999  │  │  │  │                           │  ││
-│  │  │ Há 2 minutos      │  │  │  │    [Daily.co Embed]       │  ││
-│  │  │ [Atender]         │  │  │  │                           │  ││
-│  │  └───────────────────┘  │  │  │                           │  ││
-│  │                         │  │  │                           │  ││
-│  │  ┌───────────────────┐  │  │  │                           │  ││
-│  │  │ 📞 5521988888888  │  │  │  │                           │  ││
-│  │  │ Há 5 minutos      │  │  │  └───────────────────────────┘  ││
-│  │  │ [Atender]         │  │  │                                  ││
-│  │  └───────────────────┘  │  │  Lead: João Silva                ││
-│  │                         │  │  Duração: 05:23                  ││
-│  │  ┌───────────────────┐  │  │  [Encerrar Chamada]              ││
-│  │  │ 📞 5531977777777  │  │  │                                  ││
-│  │  │ Há 8 minutos      │  │  └─────────────────────────────────┘│
-│  │  │ [Atender]         │  │                                     │
-│  │  └───────────────────┘  │                                     │
-│  │                         │                                     │
-│  └─────────────────────────┘                                     │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Funcionalidades:**
-- Lista de leads aguardando com tempo de espera
-- Embed do Daily.co para a chamada ativa
-- Botão para encerrar chamada
-- Atualização em tempo real (polling ou realtime)
-- Indicador visual de status (aguardando, em chamada)
-
----
-
-### Fase 4: Integração Daily.co
-
-#### Instalar SDK React do Daily.co
-
-```bash
-npm install @daily-co/daily-js @daily-co/daily-react
-```
-
-#### Componente de Embed
+**Arquivo:** `src/pages/video/VideoQueuePage.tsx`
 
 ```tsx
-// VideoCallEmbed.tsx
-import DailyIframe from '@daily-co/daily-js';
-import { useEffect, useRef } from 'react';
+// ANTES (problemático)
+onError={(error) => {
+  console.error('Video call error:', error);
+  handleLeaveRoom(); // ❌ Isso DELETA a sala!
+}}
 
-function VideoCallEmbed({ roomUrl, onLeave }) {
-  const callRef = useRef(null);
+// DEPOIS (correção)
+onError={(error) => {
+  console.error('Video call error:', error);
+  setActiveRoom(null); // ✅ Apenas desconecta da UI, não deleta a sala
+  toast.error('Erro ao conectar. Tente novamente.');
+}}
+```
+
+### 2. Corrigir inicialização do iframe Daily.co
+
+O erro `postMessage` geralmente ocorre quando o container DOM não está pronto. Vamos adicionar um pequeno delay e melhor verificação:
+
+**Arquivo:** `src/pages/video/components/VideoCallEmbed.tsx`
+
+```tsx
+// Adicionar verificação mais robusta
+useEffect(() => {
+  if (!containerRef.current || !roomUrl) return;
   
-  useEffect(() => {
-    if (!roomUrl) return;
-    
-    const callFrame = DailyIframe.createFrame(callRef.current, {
-      iframeStyle: {
-        width: '100%',
-        height: '100%',
-        border: '0',
-        borderRadius: '8px',
-      },
-      showLeaveButton: true,
-    });
-    
-    callFrame.join({ url: roomUrl });
-    callFrame.on('left-meeting', onLeave);
-    
-    return () => callFrame.destroy();
-  }, [roomUrl]);
+  // Dar tempo para o DOM estar completamente pronto
+  const timeoutId = setTimeout(() => {
+    if (isInitializingRef.current || callFrameRef.current) return;
+    initCall();
+  }, 100);
   
-  return <div ref={callRef} className="w-full h-full min-h-[400px]" />;
-}
+  return () => clearTimeout(timeoutId);
+}, [roomUrl]);
 ```
 
----
+### 3. Adicionar tradução para português
 
-### Fase 5: Menu e Navegação
-
-#### Atualizar Sidebar
-
-Adicionar novo item no menu:
-
-| Grupo | Item | Rota | Ícone |
-|-------|------|------|-------|
-| CRM | Videochamadas | `/video/queue` | Video |
-
-#### Atualizar App.tsx
-
-Adicionar nova rota:
+**Arquivo:** `src/pages/video/components/VideoCallEmbed.tsx`
 
 ```tsx
-<Route path="/video/queue" element={<VideoQueuePage />} />
+const callFrame = DailyIframe.createFrame(containerRef.current!, {
+  iframeStyle: { /* ... */ },
+  showLeaveButton: false,
+  showFullscreenButton: false,
+  lang: 'pt', // ✅ Interface em português
+});
 ```
 
----
+### 4. Ocultar branding do Daily.co
 
-## Arquivos a Criar/Modificar
+Isso requer configuração na conta Daily.co (adicionar cartão de crédito) + usar a propriedade na criação da sala.
 
-### Novos Arquivos
+**Arquivo:** `supabase/functions/video-room/index.ts`
 
-| Arquivo | Descrição |
-|---------|-----------|
-| `supabase/functions/video-room/index.ts` | Edge function para gerenciar salas |
-| `src/pages/video/VideoQueuePage.tsx` | Página principal da fila |
-| `src/pages/video/components/VideoQueueCard.tsx` | Card de lead na fila |
-| `src/pages/video/components/VideoCallEmbed.tsx` | Embed do Daily.co |
-| `src/pages/video/components/VideoCallDialog.tsx` | Dialog de confirmação |
-| `src/pages/video/hooks/useVideoQueue.ts` | Hook de dados da fila |
-| `src/pages/video/types.ts` | Tipos TypeScript |
+```typescript
+// Na criação da sala
+body: JSON.stringify({
+  name: roomName,
+  privacy: 'public',
+  properties: {
+    // ... outras configs
+    hide_daily_branding: true, // Requer conta com cartão
+  },
+}),
+```
 
-### Arquivos a Modificar
+### 5. Link do cliente em domínio próprio
+
+Para o cliente acessar por um link do seu domínio, podemos criar uma página pública que embeda a chamada:
+
+**Nova rota:** `/call/:roomName`
+
+Esta página será simples, sem autenticação, apenas mostrando o vídeo do Daily.co embedado. O lead acessa esta URL ao invés da URL direta do Daily.co.
+
+## Resumo das Alterações
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/crm/components/CRMLeadCard.tsx` | Adicionar botão de videochamada |
-| `src/pages/crm/components/CRMLeadDetailsDialog.tsx` | Adicionar botão de videochamada |
-| `src/components/layout/Sidebar.tsx` | Adicionar item de menu |
-| `src/App.tsx` | Adicionar rota |
-| `supabase/functions/db-query/index.ts` | Adicionar actions para video_rooms |
-| `src/lib/externalDb.ts` | Adicionar métodos para video_rooms |
+| `src/pages/video/VideoQueuePage.tsx` | Separar erro de encerramento; não deletar sala em erro |
+| `src/pages/video/components/VideoCallEmbed.tsx` | Delay na inicialização + lang: 'pt' |
+| `supabase/functions/video-room/index.ts` | Adicionar hide_daily_branding |
+| `src/pages/video/JoinCallPage.tsx` | **NOVA** - Página pública para leads |
+| `src/App.tsx` | Adicionar rota /call/:roomName |
+| `src/pages/video/components/VideoCallDialog.tsx` | Usar novo link do domínio próprio |
 
----
+## Detalhes Técnicos
 
-## Fluxo Detalhado
+### Nova Página para Leads (`JoinCallPage.tsx`)
 
-### 1. Operador Inicia Videochamada
-
-```text
-1. Operador clica no ícone de vídeo no card do lead
-2. Dialog de confirmação aparece com preview da mensagem
-3. Operador confirma envio
-4. Sistema:
-   a. Chama Edge Function para criar sala no Daily.co
-   b. Salva sala no banco com status 'waiting'
-   c. Envia link via WhatsApp (UaZapi)
-5. Lead recebe link no WhatsApp
-6. Card atualiza com indicador de "videochamada pendente"
+```tsx
+// Página simples sem autenticação
+export default function JoinCallPage() {
+  const { roomName } = useParams();
+  const [roomUrl, setRoomUrl] = useState<string | null>(null);
+  
+  useEffect(() => {
+    // Buscar URL da sala no backend
+    joinRoom(roomName).then(setRoomUrl);
+  }, [roomName]);
+  
+  return (
+    <div className="min-h-screen bg-gray-900">
+      {roomUrl && (
+        <DailyEmbed url={roomUrl} lang="pt" />
+      )}
+    </div>
+  );
+}
 ```
 
-### 2. Lead Entra na Sala
+### Link enviado ao cliente
 
-```text
-1. Lead clica no link recebido
-2. Abre no navegador (sem download)
-3. Entra automaticamente na sala
-4. Sistema detecta presença (webhook Daily.co ou polling)
-5. Lead aparece na fila de espera do operador
+Em vez de enviar `https://your-team.daily.co/sala-xyz`, enviamos:
+```
+https://seudominio.com/call/julia-agent123-1234567890
 ```
 
-### 3. Operador Atende
+Isso esconde completamente a origem do Daily.co.
 
-```text
-1. Operador acessa /video/queue
-2. Vê lista de leads aguardando
-3. Clica em "Atender" em um lead
-4. Daily.co embed carrega com a sala
-5. Operador entra na chamada 1x1
-6. Status da sala muda para 'in_call'
-```
+## Sobre remover branding
 
-### 4. Encerramento
+Para remover o logo "Daily.co" da interface, você precisa:
+1. Acessar sua conta no Daily.co
+2. Adicionar um cartão de crédito (não cobra se não usar minutos além do free)
+3. Habilitar `hide_daily_branding` via API
 
-```text
-1. Operador ou lead encerra a chamada
-2. Sistema atualiza status para 'ended'
-3. Sala é removida da fila
-4. Opcionalmente: registra duração no histórico
-```
+## Ordem de Implementação
 
----
-
-## Considerações Técnicas
-
-### Segurança
-- Salas com expiração automática (60 min)
-- URLs únicas e não previsíveis
-- Validação de cod_agent para acesso à fila
-
-### Performance
-- Polling a cada 10 segundos para atualizar fila
-- Lazy loading do SDK Daily.co
-- Cache de salas ativas
-
-### UX
-- Feedback visual claro de status
-- Toast de confirmação ao enviar link
-- Indicador de tempo de espera
-- Notificação sonora (opcional) quando lead entra
-
----
-
-## Custos Estimados (Daily.co)
-
-| Plano | Minutos/mês | Custo |
-|-------|-------------|-------|
-| Free | 100 participantes | $0 |
-| Scale | Pay-as-you-go | $0.01/min |
-| Enterprise | Customizado | Contato |
-
----
-
-## Próximos Passos após Aprovação
-
-1. Criar conta no Daily.co e obter API Key
-2. Configurar secret `DAILY_API_KEY` no projeto
-3. Implementar Edge Function `video-room`
-4. Criar tabela `video_rooms` no banco externo
-5. Implementar componentes frontend
-6. Testar fluxo completo end-to-end
-
+1. **Correção crítica**: Não deletar sala em erro
+2. **Delay na inicialização**: Resolver erro de postMessage
+3. **Tradução**: Adicionar lang: 'pt'
+4. **Página do lead**: Criar rota /call/:roomName
+5. **Branding** (opcional): Configurar hide_daily_branding
