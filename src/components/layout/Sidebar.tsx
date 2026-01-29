@@ -183,25 +183,22 @@ export function Sidebar({ isOpen, onToggle, isCollapsed, onCollapse }: SidebarPr
             <nav className={cn("p-4 space-y-6", isCollapsed && "px-2 py-4 space-y-4")}>
               {filteredGroups.map((group) => (
                 <div key={group.label}>
-                  {isCollapsed ? (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="flex justify-center mb-2">
-                          <span className="text-xs font-semibold text-sidebar-foreground/60 uppercase w-6 h-6 flex items-center justify-center">
-                            {group.label.charAt(0)}
-                          </span>
-                        </div>
-                      </TooltipTrigger>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <h3 className={cn(
+                        "text-xs font-semibold text-sidebar-foreground/60 uppercase tracking-wider mb-2",
+                        isCollapsed && "px-1"
+                      )}>
+                        {isCollapsed ? group.label.slice(0, 5) : group.label}
+                      </h3>
+                    </TooltipTrigger>
+                    {isCollapsed && (
                       <TooltipContent side="right" className="font-medium">
                         {group.label}
                       </TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    <h3 className="text-xs font-semibold text-sidebar-foreground/60 uppercase tracking-wider mb-2">
-                      {group.label}
-                    </h3>
-                  )}
-                  <ul className={cn("space-y-1", isCollapsed && "space-y-1")}>
+                    )}
+                  </Tooltip>
+                  <ul className="space-y-1">
                     {group.items.map((item) => (
                       <li key={item.label}>
                         {item.children ? (
@@ -213,7 +210,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed, onCollapse }: SidebarPr
                                   <button
                                     onClick={() => toggleMenu(item.label)}
                                     className={cn(
-                                      "w-full flex items-center justify-center px-3 py-2 rounded-lg transition-colors",
+                                      "w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
                                       isMenuActive(item)
                                         ? "bg-sidebar-accent text-sidebar-accent-foreground"
                                         : "text-sidebar-foreground hover:bg-sidebar-accent/50",
@@ -280,7 +277,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed, onCollapse }: SidebarPr
                                   to={item.href!}
                                   className={({ isActive }) =>
                                     cn(
-                                      "flex items-center justify-center px-3 py-2 rounded-lg transition-colors",
+                                      "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
                                       isActive
                                         ? "bg-sidebar-primary text-sidebar-primary-foreground"
                                         : "text-sidebar-foreground hover:bg-sidebar-accent/50",
