@@ -1,117 +1,133 @@
 
-# Correção: Página de Videochamada para Leads Travada em "Conectando..."
+# Plano: Ajustar Tamanho das Telas de Vídeo e Remover Branding do Daily.co
 
-## Problema Identificado
+## Problemas Identificados
 
-A página `/call/:roomName` fica mostrando "Conectando..." infinitamente porque:
+### 1. Tela de Vídeo Pequena
+Com base no screenshot, o vídeo aparece em uma área pequena porque:
+- **VideoCallEmbed.tsx**: O container tem `min-h-[400px]`, que é muito pequeno
+- **JoinCallPage.tsx**: Apesar de ter `min-h-screen`, o iframe dentro pode não estar ocupando todo o espaço
 
-1. **O overlay de loading bloqueia a interface do Daily.co** - O overlay com z-index 10 cobre o iframe
-2. **O status só muda para "connected" quando entra na chamada** - Mas o Daily.co tem uma tela de pré-entrada (prejoin) onde o usuário escolhe câmera/microfone antes de entrar
-3. **O container do iframe não tem altura fixa** - Pode causar problemas de renderização
+### 2. "Powered by Daily" Aparecendo
+A faixa verde "Powered by Daily" aparece no topo da chamada. Isso é controlado pela propriedade `hide_daily_branding`.
 
-## Solução Proposta
+Segundo a documentação oficial do Daily.co:
+> **`hide_daily_branding`** (boolean) - [Pay-as-you-go] - Whether "Powered by Daily" displays in the in-call UI. Default: false
 
-### 1. Remover o overlay durante a fase "joining"
+**Importante**: Esta opção requer um plano pago ("Pay-as-you-go"). No plano gratuito, não é possível remover o branding via API.
 
-O overlay de "Conectando..." deve desaparecer assim que o iframe for criado, permitindo que o usuário veja a interface do Daily.co para configurar câmera/microfone.
+## Soluções
 
-### 2. Usar evento "loaded" do Daily.co
+### Solução 1: Aumentar o tamanho do vídeo
 
-O Daily.co dispara um evento `loading` que indica quando a interface está pronta. Vamos usar isso para ocultar o loading.
-
-### 3. Garantir altura do container
-
-O container precisa ter uma altura mínima definida para que o iframe seja exibido corretamente.
-
-## Alterações no Código
-
-### Arquivo: `src/pages/video/JoinCallPage.tsx`
-
-**Mudanças:**
-
-1. Adicionar evento `loading` para detectar quando iframe está pronto
-2. Mudar o status para "connected" assim que o iframe carregar (não esperar joined-meeting)
-3. Ou simplesmente remover o overlay quando estiver na fase "joining"
+#### Arquivo: `src/pages/video/components/VideoCallEmbed.tsx`
+Aumentar a altura mínima do container do vídeo de `min-h-[400px]` para ocupar toda a área disponível:
 
 ```tsx
-// ANTES - Overlay bloqueia interface
-{status === 'joining' && (
-  <div className="absolute inset-0 flex items-center justify-center bg-background z-10">
-    <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
-    <p>Conectando...</p>
-  </div>
-)}
-<div ref={containerRef} className="flex-1 w-full" />
-
-// DEPOIS - Remover overlay ou usar z-index menor, e garantir altura
+// ANTES
 <div 
   ref={containerRef} 
-  className="flex-1 w-full min-h-screen"
+  className="w-full h-full min-h-[400px] bg-muted"
 />
-// Loading apenas no estado inicial "loading", não em "joining"
+
+// DEPOIS
+<div 
+  ref={containerRef} 
+  className="w-full h-full min-h-[calc(100vh-200px)] bg-muted"
+/>
 ```
 
-**Alternativa mais simples:** Remover o overlay "Conectando..." durante joining e deixar o Daily.co mostrar sua própria interface de loading/prejoin.
+E ajustar o Card pai para ocupar altura total:
 
-## Fluxo Corrigido
+```tsx
+// ANTES
+<Card className={cn("flex flex-col", isFullscreen && "fixed inset-0 z-50 rounded-none")}>
 
-```text
-┌────────────────────────────────────────────────────────────────────┐
-│                        FLUXO ATUAL (PROBLEMA)                       │
-├────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  1. Lead abre link                                                   │
-│  2. Status: "loading" → Mostra spinner                               │
-│  3. API retorna URL da sala                                          │
-│  4. Status: "joining" → Overlay "Conectando..." BLOQUEIA o iframe    │
-│  5. Daily.co cria iframe (por baixo do overlay, invisível)           │
-│  6. Usuário NÃO consegue ver/interagir com Daily.co                  │
-│  7. Status fica "joining" eternamente                                │
-│                                                                      │
-└────────────────────────────────────────────────────────────────────┘
+// DEPOIS  
+<Card className={cn("flex flex-col h-full min-h-[calc(100vh-200px)]", isFullscreen && "fixed inset-0 z-50 rounded-none")}>
+```
 
-┌────────────────────────────────────────────────────────────────────┐
-│                        FLUXO CORRIGIDO                              │
-├────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  1. Lead abre link                                                   │
-│  2. Status: "loading" → Mostra spinner                               │
-│  3. API retorna URL da sala                                          │
-│  4. Status: "joining" → Iframe Daily.co visível                      │
-│  5. Daily.co mostra tela prejoin (câmera/mic)                        │
-│  6. Usuário interage e entra na chamada                              │
-│  7. Status: "connected" quando joined-meeting dispara                │
-│                                                                      │
-└────────────────────────────────────────────────────────────────────┘
+#### Arquivo: `src/pages/video/JoinCallPage.tsx`
+Garantir que o container ocupe 100% da viewport:
+
+```tsx
+// ANTES
+return (
+  <div className="min-h-screen bg-background flex flex-col">
+    <div 
+      ref={containerRef} 
+      className="flex-1 w-full min-h-screen"
+    />
+  </div>
+);
+
+// DEPOIS
+return (
+  <div className="h-screen w-screen bg-background overflow-hidden">
+    <div 
+      ref={containerRef} 
+      className="w-full h-full"
+    />
+  </div>
+);
+```
+
+### Solução 2: Remover "Powered by Daily"
+
+#### Opção A: Habilitar `hide_daily_branding` (Requer conta paga)
+
+No arquivo `supabase/functions/video-room/index.ts`, descomentar e ativar:
+
+```typescript
+properties: {
+  // ... outras propriedades
+  hide_daily_branding: true, // Remover branding
+},
+```
+
+**⚠️ Requisito**: A conta Daily.co deve estar no plano Pay-as-you-go (com cartão de crédito cadastrado). Caso contrário, a API retornará erro ou ignorará esta propriedade.
+
+#### Opção B: Construir UI Customizada (Alternativa sem custo)
+
+Se não for possível usar o plano pago, a alternativa é construir uma interface de vídeo completamente customizada usando o Daily.co "Call Object" ao invés do "Prebuilt". Isso envolve:
+
+1. Renderizar os vídeos manualmente (`<video>` tags)
+2. Controlar câmera/microfone via API
+3. Construir toda a UI de controles
+
+**Complexidade**: Alta - requer reimplementar toda a interface de vídeo
+
+### Solução 3: Tradução
+
+Já foi implementada a propriedade `lang: 'pt'` nas configurações. Se ainda estiver em inglês, pode ser porque a conta Daily.co tem configuração padrão em inglês. Podemos reforçar no nível da sala:
+
+```typescript
+// video-room/index.ts
+properties: {
+  lang: 'pt', // ou 'pt-BR'
+  // ...
+},
 ```
 
 ## Resumo das Alterações
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/video/JoinCallPage.tsx` | Remover overlay durante "joining"; garantir altura do container |
+| `src/pages/video/components/VideoCallEmbed.tsx` | Aumentar altura mínima do container de vídeo |
+| `src/pages/video/JoinCallPage.tsx` | Usar `h-screen w-screen` para ocupar toda a tela |
+| `supabase/functions/video-room/index.ts` | Habilitar `hide_daily_branding: true` (requer conta paga) |
 
-## Detalhes Técnicos
+## Sobre Remover Completamente o Branding
 
-A correção é simples: quando o status é "joining", não mostramos mais o overlay. O Daily.co tem sua própria interface de loading e pré-entrada que é melhor para a experiência do usuário.
+Para remover totalmente qualquer identificação do Daily.co:
 
-```tsx
-// Remover completamente o bloco:
-{status === 'joining' && (
-  <div className="absolute ...">
-    ...
-  </div>
-)}
+1. **Branding na interface**: Use `hide_daily_branding: true` (conta paga)
+2. **URL**: Já está resolvido com a rota `/call/:roomName`
+3. **UI Prebuilt**: Se precisar 100% customizado, será necessário reconstruir usando Call Object (complexidade alta)
 
-// E garantir que o container tenha altura
-<div 
-  ref={containerRef} 
-  className="flex-1 w-full min-h-screen"
-/>
-```
+## Próximos Passos Recomendados
 
-## Nota sobre o Link Testado
-
-O link `https://acesso.atendejulia.com.br/call/julia-20240038-1769679431244` mostra "Sala não encontrada ou expirada" porque essa sala foi **deletada** quando você clicou "Atender" antes da correção anterior. 
-
-O sistema agora está funcionando corretamente para salas existentes - só precisamos corrigir esse overlay para que a interface do Daily.co apareça.
+1. Primeiro, aplicar as correções de tamanho
+2. Tentar habilitar `hide_daily_branding: true` e verificar se funciona com sua conta
+3. Se não funcionar, verificar no painel do Daily.co se a conta está no plano correto
+4. Se precisar de remoção total de branding sem custo, discutir a opção de UI customizada
