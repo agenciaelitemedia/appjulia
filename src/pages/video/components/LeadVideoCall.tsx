@@ -23,6 +23,23 @@ interface LeadVideoCallProps {
 // Timeout em ms para watchdog
 const CONNECTION_TIMEOUT_MS = 20000;
 
+// Variável módulo-level para rastrear instância única (singleton)
+let globalLeadCallInstance: ReturnType<typeof DailyIframe.createCallObject> | null = null;
+
+// Função helper para destruir instância existente
+async function destroyExistingLeadInstance() {
+  if (globalLeadCallInstance) {
+    console.log('[LeadVideoCall] Destruindo instância global anterior...');
+    try {
+      await globalLeadCallInstance.leave();
+      globalLeadCallInstance.destroy();
+    } catch (e) {
+      console.warn('[LeadVideoCall] Erro ao destruir instância anterior:', e);
+    }
+    globalLeadCallInstance = null;
+  }
+}
+
 // Componente interno que faz o join DENTRO do provider
 function VideoCallJoiner({ 
   roomUrl, 
@@ -180,33 +197,19 @@ export function LeadVideoCall({ roomUrl, onLeave, onError }: LeadVideoCallProps)
     onError?.(msg);
   }, [onError]);
 
-  const handleTimeout = useCallback(() => {
-    const call = callRef.current;
-    if (call) {
-      try {
-        call.leave();
-        call.destroy();
-      } catch (e) {
-        console.warn('[LeadVideoCall] Erro ao limpar após timeout:', e);
-      }
-      callRef.current = null;
-    }
+  const handleTimeout = useCallback(async () => {
+    console.log('[LeadVideoCall] Timeout - destruindo instância...');
+    await destroyExistingLeadInstance();
+    callRef.current = null;
     setCallObject(null);
     handleError('Conexão demorou muito. Verifique sua internet e tente novamente.');
   }, [handleError]);
 
-  const handleRetry = useCallback(() => {
+  const handleRetry = useCallback(async () => {
     console.log('[LeadVideoCall] Retry solicitado');
-    // Limpar estado anterior
-    if (callRef.current) {
-      try {
-        callRef.current.leave();
-        callRef.current.destroy();
-      } catch (e) {
-        console.warn('[LeadVideoCall] Erro ao destruir no retry:', e);
-      }
-      callRef.current = null;
-    }
+    // Destruir instância global antes de recriar
+    await destroyExistingLeadInstance();
+    callRef.current = null;
     
     setCallObject(null);
     setHasError(false);
@@ -221,9 +224,14 @@ export function LeadVideoCall({ roomUrl, onLeave, onError }: LeadVideoCallProps)
   useEffect(() => {
     let mounted = true;
 
-    const createCallObject = () => {
+    const createCallObject = async () => {
+      // SEMPRE destruir instância anterior primeiro (garante singleton)
+      await destroyExistingLeadInstance();
+      
+      if (!mounted) return;
+
       if (callRef.current) {
-        console.log('[LeadVideoCall] Call object já existe, pulando criação');
+        console.log('[LeadVideoCall] Call object já existe no ref, pulando criação');
         return;
       }
 
@@ -235,6 +243,8 @@ export function LeadVideoCall({ roomUrl, onLeave, onError }: LeadVideoCallProps)
           subscribeToTracksAutomatically: true,
         });
         
+        // Registrar globalmente E no ref
+        globalLeadCallInstance = call;
         callRef.current = call;
 
         // Handler de erro do Daily
@@ -274,17 +284,9 @@ export function LeadVideoCall({ roomUrl, onLeave, onError }: LeadVideoCallProps)
 
     return () => {
       mounted = false;
-      const call = callRef.current;
-      if (call) {
-        console.log('[LeadVideoCall] Cleanup: destruindo call object');
-        callRef.current = null;
-        try {
-          call.leave();
-          call.destroy();
-        } catch (e) {
-          console.warn('[LeadVideoCall] Erro no cleanup:', e);
-        }
-      }
+      // Cleanup: destruir instância global
+      destroyExistingLeadInstance();
+      callRef.current = null;
     };
   }, [retryKey, handleError]);
 
