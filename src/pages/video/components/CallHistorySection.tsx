@@ -1,4 +1,4 @@
-import { History, Phone, Clock, User } from 'lucide-react';
+import { History, Phone, Clock, User, Video } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -15,6 +15,7 @@ import { useCallHistory, type CallHistoryRecord } from '../hooks/useCallHistory'
 import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { RecordingDownloadButton } from './RecordingDownloadButton';
 
 interface CallHistorySectionProps {
   expanded?: boolean;
@@ -107,6 +108,7 @@ export function CallHistorySection({ expanded = false }: CallHistorySectionProps
                   <TableHead>Contato</TableHead>
                   <TableHead>WhatsApp</TableHead>
                   <TableHead>Duração</TableHead>
+                  <TableHead>Gravação</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -139,6 +141,16 @@ export function CallHistorySection({ expanded = false }: CallHistorySectionProps
                     </TableCell>
                     <TableCell className="font-mono">
                       {formatDuration(record.duration_seconds)}
+                    </TableCell>
+                    <TableCell>
+                      {record.recording_id ? (
+                        <RecordingDownloadButton 
+                          recordingId={record.recording_id}
+                          status={record.recording_status}
+                        />
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       {getStatusBadge(record.status)}
