@@ -139,17 +139,9 @@ export default function JoinCallPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {status === 'joining' && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background z-10">
-          <div className="text-center space-y-4">
-            <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
-            <p className="text-lg text-muted-foreground">Conectando...</p>
-          </div>
-        </div>
-      )}
       <div 
         ref={containerRef} 
-        className="flex-1 w-full"
+        className="flex-1 w-full min-h-screen"
       />
     </div>
   );
