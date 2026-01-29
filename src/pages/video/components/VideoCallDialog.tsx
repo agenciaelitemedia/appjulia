@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Video, Send, Loader2 } from 'lucide-react';
+import { Video, Send, Loader2, Copy, Check } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -39,6 +39,8 @@ export function VideoCallDialog({
 }: VideoCallDialogProps) {
   const [customMessage, setCustomMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const createRoom = useCreateVideoRoom();
 
   const defaultMessage = `Olá${contactName ? ` ${contactName}` : ''}! 👋
@@ -50,6 +52,36 @@ Preparamos uma videochamada exclusiva para você. Clique no link abaixo para ent
 *Não precisa baixar nenhum aplicativo*, a chamada abre direto no navegador! 📱💻
 
 Estamos te aguardando! 🎥`;
+
+  const handleCopyLink = async () => {
+    setIsCopying(true);
+    
+    try {
+      // Create the video room
+      const room = await createRoom.mutateAsync({
+        leadId,
+        codAgent,
+        whatsappNumber,
+        contactName,
+      });
+
+      // Copy to clipboard
+      await navigator.clipboard.writeText(room.url);
+      setCopiedUrl(room.url);
+      
+      toast.success('Link copiado!', {
+        description: 'O link da videochamada foi copiado para a área de transferência.',
+      });
+
+      // Reset copied state after 3 seconds
+      setTimeout(() => setCopiedUrl(null), 3000);
+    } catch (error) {
+      console.error('Error copying link:', error);
+      toast.error('Erro ao criar link de videochamada');
+    } finally {
+      setIsCopying(false);
+    }
+  };
 
   const handleSend = async () => {
     setIsSending(true);
@@ -92,6 +124,7 @@ Estamos te aguardando! 🎥`;
       
       onOpenChange(false);
       setCustomMessage('');
+      setCopiedUrl(null);
     } catch (error) {
       console.error('Error sending video call:', error);
       toast.error('Erro ao enviar link de videochamada');
@@ -139,11 +172,33 @@ Estamos te aguardando! 🎥`;
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={handleSend} disabled={isSending}>
+          <Button 
+            variant="secondary" 
+            onClick={handleCopyLink} 
+            disabled={isCopying || isSending}
+          >
+            {isCopying ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Criando...
+              </>
+            ) : copiedUrl ? (
+              <>
+                <Check className="h-4 w-4 mr-2" />
+                Copiado!
+              </>
+            ) : (
+              <>
+                <Copy className="h-4 w-4 mr-2" />
+                Copiar Link
+              </>
+            )}
+          </Button>
+          <Button onClick={handleSend} disabled={isSending || isCopying}>
             {isSending ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -152,7 +207,7 @@ Estamos te aguardando! 🎥`;
             ) : (
               <>
                 <Send className="h-4 w-4 mr-2" />
-                Enviar Link
+                Enviar via WhatsApp
               </>
             )}
           </Button>
