@@ -1,157 +1,330 @@
 
-## Objetivo
-Implementar as seguintes melhorias na Sala de Reuniao:
-1. Identificar o operador logado ao atender uma sala
-2. Criar abas para separar "Atendimento" do "Historico"
-3. Filtrar o historico por perfil: admins veem todos, outros veem apenas seus atendimentos
-4. Preparar estrutura para gravacoes (futuro)
+
+# Plano: Implementar Gravacao de Videochamadas na Nuvem do Daily.co
+
+## Resumo Executivo
+
+Este plano implementa gravacao automatica de videochamadas utilizando a API de Cloud Recording do Daily.co. As gravacoes serao armazenadas na nuvem do Daily.co e links de download serao disponibilizados no historico.
 
 ---
 
-## Analise do Estado Atual
+## Como Funciona a Gravacao do Daily.co
 
-### Tabela `video_call_records`
-Colunas atuais:
-- `id`, `room_name`, `lead_id`, `cod_agent`
-- `operator_name` (texto livre - nao rastreavel)
-- `contact_name`, `whatsapp_number`
-- `started_at`, `ended_at`, `duration_seconds`
-- `status`, `created_at`
+### Fluxo de Gravacao
+```text
+1. Sala criada com enable_recording: "cloud"
+2. Operador entra na sala
+3. POST /rooms/:name/recordings/start → inicia gravacao
+4. Chamada acontece normalmente
+5. POST /rooms/:name/recordings/stop → para gravacao
+6. Daily.co processa e gera arquivo MP4
+7. GET /recordings/:id/access-link → obtem URL de download
+```
 
-**Problema**: Nao existe `operator_id` para identificar o usuario que atendeu.
-
-### Autenticacao
-O sistema usa `AuthContext` com usuario do banco externo:
-- `user.id` (number) - identificador unico
-- `user.name` - nome do operador
-- `user.role` - 'admin' | 'manager' | 'agent' | 'time'
+### Endpoints da API
+| Endpoint | Metodo | Funcao |
+|----------|--------|--------|
+| `/rooms` (create) | POST | Habilitar gravacao com `enable_recording: "cloud"` |
+| `/rooms/:name/recordings/start` | POST | Iniciar gravacao |
+| `/rooms/:name/recordings/stop` | POST | Parar gravacao (retorna `recording_id`) |
+| `/recordings/:id` | GET | Status da gravacao |
+| `/recordings/:id/access-link` | GET | Link de download (valido por 1h) |
 
 ---
 
-## Plano de Implementacao
+## Alteracoes no Banco de Dados
 
-### A) Alterar banco de dados
-Adicionar coluna `operator_id` (integer, nullable) para vincular ao usuario que atendeu.
+Adicionar colunas para armazenar informacoes da gravacao:
 
 ```sql
 ALTER TABLE video_call_records 
-ADD COLUMN operator_id integer;
-
-CREATE INDEX idx_video_call_records_operator_id 
-ON video_call_records(operator_id);
+ADD COLUMN recording_id text,
+ADD COLUMN recording_status text DEFAULT 'none';
+-- Status: 'none' | 'recording' | 'processing' | 'ready' | 'error'
 ```
 
-### B) Atualizar Edge Function `video-room`
+---
 
-#### B.1 Acao `record-start`
-Receber `operatorId` e `operatorName` do frontend:
+## Alteracoes na Edge Function `video-room`
+
+### A) Acao `create` - Habilitar gravacao na sala
+
+Adicionar `enable_recording: "cloud"` nas propriedades da sala:
 
 ```typescript
-interface RecordStartRequest {
-  action: 'record-start';
-  roomName: string;
-  operatorId?: number;    // NOVO
-  operatorName?: string;
-}
+body: JSON.stringify({
+  name: roomName,
+  privacy: 'public',
+  properties: {
+    exp: Math.floor(Date.now() / 1000) + 3600,
+    enable_chat: true,
+    enable_screenshare: true,
+    enable_recording: 'cloud',  // NOVO: habilita gravacao
+    // ... demais propriedades
+  },
+}),
 ```
 
-#### B.2 Acao `history` - Filtro por perfil
-Receber `operatorId` e `isAdmin` para filtrar:
+### B) Acao `record-start` - Iniciar gravacao via API
+
+Alem de atualizar o banco, chamar a API do Daily.co:
 
 ```typescript
-interface GetHistoryRequest {
-  action: 'history';
-  limit?: number;
-  operatorId?: number;  // NOVO
-  isAdmin?: boolean;    // NOVO
-}
-
-// Logica:
-if (isAdmin) {
-  // Retorna todos os registros
-} else {
-  // Filtra por operator_id = operatorId
-}
-```
-
-### C) Atualizar Frontend
-
-#### C.1 Hook `useCallHistory`
-Enviar `operatorId` e `isAdmin` do usuario logado:
-
-```typescript
-export function useCallHistory(limit = 50) {
-  const { user, isAdmin } = useAuth();
+case 'record-start': {
+  const { roomName, operatorId, operatorName } = body;
   
-  return useQuery({
-    queryKey: ['video-call-history', limit, user?.id, isAdmin],
-    queryFn: async () => {
-      const { data } = await supabase.functions.invoke('video-room', {
+  // Iniciar gravacao via API Daily.co
+  const startResponse = await fetch(
+    `${DAILY_API_URL}/rooms/${roomName}/recordings/start`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${DAILY_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'cloud',
+        layout: { preset: 'default' },
+        maxDuration: 3600, // 1 hora max
+      }),
+    }
+  );
+  
+  // Atualizar banco com status
+  await supabase
+    .from('video_call_records')
+    .update({ 
+      started_at: new Date().toISOString(),
+      operator_id: operatorId,
+      operator_name: operatorName,
+      recording_status: 'recording',
+      status: 'active' 
+    })
+    .eq('room_name', roomName);
+
+  return new Response(
+    JSON.stringify({ success: true, message: 'Recording started' }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
+```
+
+### C) Acao `close` - Parar gravacao e capturar recording_id
+
+```typescript
+case 'close': {
+  const { roomName } = body;
+  
+  // Parar gravacao via API Daily.co
+  const stopResponse = await fetch(
+    `${DAILY_API_URL}/rooms/${roomName}/recordings/stop`,
+    {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${DAILY_API_KEY}` },
+    }
+  );
+  
+  let recordingId = null;
+  if (stopResponse.ok) {
+    const stopData = await stopResponse.json();
+    recordingId = stopData.id; // ID da gravacao
+  }
+  
+  // Atualizar banco com recording_id
+  await supabase
+    .from('video_call_records')
+    .update({ 
+      ended_at: new Date().toISOString(),
+      duration_seconds: durationSeconds,
+      recording_id: recordingId,
+      recording_status: recordingId ? 'processing' : 'error',
+      status: 'completed' 
+    })
+    .eq('room_name', roomName);
+  
+  // ... deletar sala
+}
+```
+
+### D) Nova acao `get-recording-link` - Obter link de download
+
+```typescript
+interface GetRecordingLinkRequest {
+  action: 'get-recording-link';
+  recordingId: string;
+}
+
+case 'get-recording-link': {
+  const { recordingId } = body;
+  
+  const linkResponse = await fetch(
+    `${DAILY_API_URL}/recordings/${recordingId}/access-link?valid_for_secs=3600`,
+    {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${DAILY_API_KEY}` },
+    }
+  );
+  
+  if (!linkResponse.ok) {
+    throw new Error('Recording not ready or not found');
+  }
+  
+  const linkData = await linkResponse.json();
+  
+  // Atualizar status para 'ready' se ainda nao estava
+  await supabase
+    .from('video_call_records')
+    .update({ recording_status: 'ready' })
+    .eq('recording_id', recordingId);
+  
+  return new Response(
+    JSON.stringify({ 
+      success: true, 
+      downloadLink: linkData.download_link,
+      expiresAt: new Date(linkData.expires * 1000).toISOString(),
+    }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
+```
+
+---
+
+## Alteracoes no Frontend
+
+### A) Novo hook `useRecordingLink`
+
+```typescript
+export function useRecordingLink() {
+  return useMutation({
+    mutationFn: async (recordingId: string) => {
+      const { data, error } = await supabase.functions.invoke('video-room', {
         body: {
-          action: 'history',
-          limit,
-          operatorId: user?.id,
-          isAdmin,
+          action: 'get-recording-link',
+          recordingId,
         },
       });
-      return data.records;
+      
+      if (error) throw error;
+      return data;
     },
   });
 }
 ```
 
-#### C.2 Pagina `VideoQueuePage`
-Enviar dados do operador ao iniciar atendimento:
+### B) Atualizar `CallHistorySection` - Botao de download
+
+Adicionar coluna "Gravacao" na tabela com botao de download:
+
+```tsx
+<TableHead>Gravacao</TableHead>
+
+// Na linha:
+<TableCell>
+  {record.recording_id ? (
+    <RecordingDownloadButton 
+      recordingId={record.recording_id}
+      status={record.recording_status}
+    />
+  ) : (
+    <span className="text-muted-foreground text-sm">-</span>
+  )}
+</TableCell>
+```
+
+### C) Componente `RecordingDownloadButton`
+
+```tsx
+function RecordingDownloadButton({ recordingId, status }: Props) {
+  const { mutate: getLink, isPending } = useRecordingLink();
+  
+  const handleDownload = () => {
+    getLink(recordingId, {
+      onSuccess: (data) => {
+        window.open(data.downloadLink, '_blank');
+      },
+      onError: () => {
+        toast.error('Gravacao ainda em processamento. Tente novamente em alguns minutos.');
+      },
+    });
+  };
+  
+  if (status === 'processing') {
+    return (
+      <Badge variant="outline" className="text-yellow-600">
+        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+        Processando
+      </Badge>
+    );
+  }
+  
+  if (status === 'error') {
+    return <Badge variant="destructive">Erro</Badge>;
+  }
+  
+  return (
+    <Button 
+      variant="ghost" 
+      size="sm"
+      onClick={handleDownload}
+      disabled={isPending}
+    >
+      {isPending ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Download className="h-4 w-4" />
+      )}
+    </Button>
+  );
+}
+```
+
+---
+
+## Atualizar Types
 
 ```typescript
-const handleJoinRoom = useCallback(async (room: VideoRoom) => {
-  await supabase.functions.invoke('video-room', {
-    body: {
-      action: 'record-start',
-      roomName: room.name,
-      operatorId: user?.id,       // NOVO
-      operatorName: user?.name,
-    },
-  });
-  setActiveRoom(room);
-}, [user]);
+// types.ts
+export interface CallHistoryRecord {
+  // ... campos existentes
+  recording_id: string | null;      // NOVO
+  recording_status: string | null;  // NOVO: 'none'|'recording'|'processing'|'ready'|'error'
+}
 ```
 
-#### C.3 Criar Layout com Abas
-Reestruturar a pagina com `Tabs` do Radix:
+---
+
+## Fluxo Completo
 
 ```text
-┌─────────────────────────────────────────────────────┐
-│ [Icone] Sala de Reuniao              [Atualizar]    │
-├─────────────────────────────────────────────────────┤
-│   [Atendimento]     [Historico]    <-- Abas         │
-├─────────────────────────────────────────────────────┤
-│                                                     │
-│   Conteudo da aba selecionada                       │
-│                                                     │
-└─────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│ 1. Agente envia link para lead                                     │
+│    → action: 'create' com enable_recording: 'cloud'                │
+│    → recording_status: 'none'                                      │
+├────────────────────────────────────────────────────────────────────┤
+│ 2. Operador clica em "Atender"                                     │
+│    → action: 'record-start'                                        │
+│    → POST /rooms/:name/recordings/start                            │
+│    → recording_status: 'recording'                                 │
+├────────────────────────────────────────────────────────────────────┤
+│ 3. Chamada em andamento (gravacao ativa)                           │
+│    → Daily.co grava audio/video na nuvem                           │
+├────────────────────────────────────────────────────────────────────┤
+│ 4. Operador encerra chamada                                        │
+│    → action: 'close'                                               │
+│    → POST /rooms/:name/recordings/stop → retorna recording_id      │
+│    → recording_status: 'processing'                                │
+├────────────────────────────────────────────────────────────────────┤
+│ 5. Daily.co processa gravacao (1-5 minutos)                        │
+│    → Arquivo MP4 disponivel na nuvem                               │
+├────────────────────────────────────────────────────────────────────┤
+│ 6. Operador clica no botao de download no historico                │
+│    → action: 'get-recording-link'                                  │
+│    → GET /recordings/:id/access-link                               │
+│    → Abre link de download (valido por 1 hora)                     │
+│    → recording_status: 'ready'                                     │
+└────────────────────────────────────────────────────────────────────┘
 ```
-
-**Aba Atendimento**: Layout atual (fila + video)
-**Aba Historico**: Tabela expandida com todos os registros
-
-### D) Sobre Gravacoes (Informativo)
-
-A API do Daily.co suporta gravacoes via:
-- `POST /rooms/:name/recordings/start` - Iniciar gravacao
-- `POST /rooms/:name/recordings/stop` - Parar gravacao
-- `GET /recordings` - Listar gravacoes
-
-Para habilitar, seria necessario:
-1. Chamar `start` ao iniciar atendimento
-2. Chamar `stop` ao encerrar
-3. Armazenar `recording_id` na tabela
-4. Criar acao `get-recordings` para buscar URLs
-
-**Recomendacao**: Implementar em fase posterior, pois requer:
-- Armazenamento adicional (videos sao grandes)
-- Player de video na UI
-- Custo adicional do Daily.co para gravacoes em nuvem
 
 ---
 
@@ -159,49 +332,40 @@ Para habilitar, seria necessario:
 
 | Arquivo | Mudanca |
 |---------|---------|
-| `supabase/functions/video-room/index.ts` | Receber operatorId em record-start e filtrar history |
-| `src/pages/video/VideoQueuePage.tsx` | Adicionar Tabs, enviar user ao record-start |
-| `src/pages/video/hooks/useCallHistory.ts` | Enviar operatorId e isAdmin |
-| `src/pages/video/components/CallHistorySection.tsx` | Exibir coluna de operador, ajustar scroll |
+| `supabase/functions/video-room/index.ts` | Habilitar gravacao, start/stop recording, get-link |
+| `src/pages/video/types.ts` | Adicionar recording_id e recording_status |
+| `src/pages/video/hooks/useCallHistory.ts` | Adicionar useRecordingLink mutation |
+| `src/pages/video/components/CallHistorySection.tsx` | Adicionar coluna e botao de download |
 
 ---
 
 ## Migracao SQL
 
 ```sql
--- Adicionar coluna operator_id
 ALTER TABLE video_call_records 
-ADD COLUMN operator_id integer;
+ADD COLUMN recording_id text,
+ADD COLUMN recording_status text DEFAULT 'none';
 
--- Indice para filtros por operador
-CREATE INDEX idx_video_call_records_operator_id 
-ON video_call_records(operator_id);
+CREATE INDEX idx_video_call_records_recording_id 
+ON video_call_records(recording_id);
 ```
 
 ---
 
-## Fluxo Final
+## Consideracoes de Custo
 
-```text
-1. Operador (user.id=5, role='agent') acessa /video/queue
-2. Ve aba "Atendimento" com fila de leads
-3. Clica em "Atender"
-4. Frontend envia record-start com operatorId=5, operatorName='João'
-5. Backend salva operator_id=5 no registro
-6. Operador finaliza chamada
-7. Operador clica em aba "Historico"
-8. Frontend envia history com operatorId=5, isAdmin=false
-9. Backend retorna apenas registros WHERE operator_id=5
-10. Se fosse admin (role='admin'):
-    - Backend retorna TODOS os registros
-```
+O Daily.co cobra pela gravacao em nuvem:
+- Gravacao: aproximadamente $0.02/minuto por participante
+- Armazenamento: os arquivos ficam disponiveis por 7 dias por padrao
+- Para retencao maior, considere copiar para storage proprio (S3, Supabase Storage)
 
 ---
 
-## Resultado Esperado
+## Beneficios da Implementacao
 
-- Operadores nao-admin verao apenas seus proprios atendimentos
-- Admins verao todos os atendimentos de todos os operadores
-- O campo `operator_name` continuara sendo gravado para display
-- O campo `operator_id` permitira filtros e vinculos futuros
-- Interface com abas separa claramente atendimento ativo do historico
+1. **Gravacao automatica**: Toda chamada sera gravada sem acao manual
+2. **Armazenamento na nuvem**: Nenhum custo de storage proprio (por 7 dias)
+3. **Links temporarios**: Seguranca com links que expiram em 1 hora
+4. **Processamento assíncrono**: Nao impacta performance da chamada
+5. **Historico completo**: Operadores e admins podem revisar atendimentos
+
