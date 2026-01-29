@@ -1,16 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import DailyIframe, { DailyCall } from '@daily-co/daily-js';
-import { Loader2, Video, AlertCircle } from 'lucide-react';
+import { AlertCircle, Video } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { LeadVideoCall } from './components/LeadVideoCall';
 
 export default function JoinCallPage() {
   const { roomName } = useParams<{ roomName: string }>();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const callFrameRef = useRef<DailyCall | null>(null);
-  const isInitializingRef = useRef(false);
-  
-  const [status, setStatus] = useState<'loading' | 'joining' | 'connected' | 'error' | 'ended'>('loading');
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'ended'>('loading');
+  const [roomUrl, setRoomUrl] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -20,9 +17,8 @@ export default function JoinCallPage() {
       return;
     }
 
-    const joinRoom = async () => {
+    const fetchRoom = async () => {
       try {
-        // Buscar URL da sala no backend
         const { data, error } = await supabase.functions.invoke<{ success: boolean; room: { url: string } }>('video-room', {
           body: {
             action: 'join',
@@ -36,72 +32,33 @@ export default function JoinCallPage() {
           return;
         }
 
-        setStatus('joining');
-
-        // Esperar DOM estar pronto
-        await new Promise(resolve => setTimeout(resolve, 200));
-
-        if (!containerRef.current || isInitializingRef.current || callFrameRef.current) return;
-
-        isInitializingRef.current = true;
-
-        const callFrame = DailyIframe.createFrame(containerRef.current, {
-          iframeStyle: {
-            width: '100%',
-            height: '100%',
-            border: '0',
-          },
-          showLeaveButton: true,
-          showFullscreenButton: true,
-          lang: 'pt',
-        });
-
-        callFrameRef.current = callFrame;
-
-        callFrame.on('joined-meeting', () => {
-          setStatus('connected');
-        });
-
-        callFrame.on('left-meeting', () => {
-          setStatus('ended');
-        });
-
-        callFrame.on('error', (event) => {
-          console.error('Daily.co error:', event);
-          setStatus('error');
-          setErrorMessage(event?.errorMsg || 'Erro na conexão');
-        });
-
-        await callFrame.join({ url: data.room.url });
+        setRoomUrl(data.room.url);
+        setStatus('ready');
       } catch (err) {
-        console.error('Error joining room:', err);
+        console.error('Error fetching room:', err);
         setStatus('error');
         setErrorMessage('Erro ao conectar na sala');
-      } finally {
-        isInitializingRef.current = false;
       }
     };
 
-    joinRoom();
-
-    return () => {
-      if (callFrameRef.current) {
-        try {
-          callFrameRef.current.destroy();
-        } catch (e) {
-          console.warn('Error destroying call frame:', e);
-        }
-        callFrameRef.current = null;
-      }
-      isInitializingRef.current = false;
-    };
+    fetchRoom();
   }, [roomName]);
+
+  const handleLeave = () => {
+    setStatus('ended');
+  };
+
+  const handleError = (error: string) => {
+    console.error('Video call error:', error);
+    setStatus('error');
+    setErrorMessage(error);
+  };
 
   if (status === 'loading') {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
           <p className="text-lg text-muted-foreground">Carregando sala...</p>
         </div>
       </div>
@@ -137,12 +94,15 @@ export default function JoinCallPage() {
     );
   }
 
+  if (!roomUrl) {
+    return null;
+  }
+
   return (
-    <div className="h-screen w-screen bg-background overflow-hidden">
-      <div 
-        ref={containerRef} 
-        className="w-full h-full"
-      />
-    </div>
+    <LeadVideoCall
+      roomUrl={roomUrl}
+      onLeave={handleLeave}
+      onError={handleError}
+    />
   );
 }
