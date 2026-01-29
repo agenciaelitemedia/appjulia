@@ -55,6 +55,7 @@ import { externalDb } from '@/lib/externalDb';
 import { useToast } from '@/hooks/use-toast';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useAgentsList, AgentListItem } from './hooks/useAgentsList';
+import { BusinessHoursBadge } from '@/components/BusinessHoursBadge';
 
 type SortKey = 'status' | 'cod_agent' | 'business_name' | 'plan_name' | 'leads_received' | 'last_used' | 'due_date';
 
@@ -277,6 +278,7 @@ export default function AgentsList() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[80px]">Status</TableHead>
+                <TableHead>Horário</TableHead>
                 <TableHead>Cod. Agente</TableHead>
                 <TableHead>Nome/Escritório</TableHead>
                 <TableHead>Plano</TableHead>
@@ -290,6 +292,7 @@ export default function AgentsList() {
               {Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
                   <TableCell><Skeleton className="h-6 w-11" /></TableCell>
+                  <TableCell><Skeleton className="h-6 w-16" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                   <TableCell>
                     <Skeleton className="h-5 w-32 mb-1" />
@@ -393,6 +396,7 @@ export default function AgentsList() {
                   {getSortIcon('cod_agent')}
                 </Button>
               </TableHead>
+              <TableHead className="w-[90px] text-center">Horário</TableHead>
               <TableHead>
                 <Button
                   variant="ghost"
@@ -465,6 +469,9 @@ export default function AgentsList() {
                   </TableCell>
                   <TableCell className="font-mono text-sm text-center">
                     {agent.cod_agent}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <BusinessHoursBadge settings={agent.settings} />
                   </TableCell>
                   <TableCell>
                     <div className="font-medium">
