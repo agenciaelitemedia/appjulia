@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, memo } from 'react';
 import { Video, RefreshCw, Users, PhoneCall, History } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,27 @@ import { CallHistorySection } from './components/CallHistorySection';
 import { useAuth } from '@/contexts/AuthContext';
 import type { VideoRoom } from './types';
 import { supabase } from '@/integrations/supabase/client';
+
+// Memoized video call component to prevent re-renders from polling
+const ActiveCallSection = memo(function ActiveCallSection({ 
+  room, 
+  onLeave, 
+  onError 
+}: { 
+  room: VideoRoom;
+  onLeave: () => void;
+  onError: (error: string) => void;
+}) {
+  return (
+    <Card className="h-full min-h-[400px] overflow-hidden">
+      <CustomVideoCall
+        roomUrl={room.url}
+        onLeave={onLeave}
+        onError={onError}
+      />
+    </Card>
+  );
+});
 
 export default function VideoQueuePage() {
   const { user } = useAuth();
@@ -45,6 +66,12 @@ export default function VideoQueuePage() {
     }
     setActiveRoom(null);
   }, [activeRoom, closeRoom]);
+
+  const handleVideoError = useCallback((error: string) => {
+    console.error('Video call error:', error);
+    setActiveRoom(null);
+    toast.error('Erro ao conectar. Tente novamente.');
+  }, []);
 
   const handleRefresh = () => {
     refetch();
@@ -141,17 +168,11 @@ export default function VideoQueuePage() {
             {/* Video call column */}
             <div className="lg:col-span-2">
               {activeRoom ? (
-                <Card className="h-full min-h-[400px] overflow-hidden">
-                  <CustomVideoCall
-                    roomUrl={activeRoom.url}
-                    onLeave={handleLeaveRoom}
-                    onError={(error) => {
-                      console.error('Video call error:', error);
-                      setActiveRoom(null);
-                      toast.error('Erro ao conectar. Tente novamente.');
-                    }}
-                  />
-                </Card>
+                <ActiveCallSection
+                  room={activeRoom}
+                  onLeave={handleLeaveRoom}
+                  onError={handleVideoError}
+                />
               ) : (
                 <Card className="h-full min-h-[400px] flex items-center justify-center">
                   <div className="text-center text-muted-foreground">
