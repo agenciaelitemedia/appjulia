@@ -1,371 +1,375 @@
 
+# Plano de Correcao: Desconexao do Operador na Sala de Reuniao
 
-# Plano: Implementar Gravacao de Videochamadas na Nuvem do Daily.co
+## Diagnostico Detalhado
 
-## Resumo Executivo
+Apos analise criteriosa do codigo e logs, identifico **multiplas causas potenciais** para a desconexao do operador apos poucos segundos:
 
-Este plano implementa gravacao automatica de videochamadas utilizando a API de Cloud Recording do Daily.co. As gravacoes serao armazenadas na nuvem do Daily.co e links de download serao disponibilizados no historico.
+### Problema 1: Erro na API de Gravacao do Daily.co (CRITICO)
 
----
-
-## Como Funciona a Gravacao do Daily.co
-
-### Fluxo de Gravacao
-```text
-1. Sala criada com enable_recording: "cloud"
-2. Operador entra na sala
-3. POST /rooms/:name/recordings/start → inicia gravacao
-4. Chamada acontece normalmente
-5. POST /rooms/:name/recordings/stop → para gravacao
-6. Daily.co processa e gera arquivo MP4
-7. GET /recordings/:id/access-link → obtem URL de download
+**Log de erro encontrado:**
+```
+Failed to start recording: {"info":"\"max_duration\" is not allowed [Received max_duration=3600]","error":"invalid-request-error"}
 ```
 
-### Endpoints da API
-| Endpoint | Metodo | Funcao |
-|----------|--------|--------|
-| `/rooms` (create) | POST | Habilitar gravacao com `enable_recording: "cloud"` |
-| `/rooms/:name/recordings/start` | POST | Iniciar gravacao |
-| `/rooms/:name/recordings/stop` | POST | Parar gravacao (retorna `recording_id`) |
-| `/recordings/:id` | GET | Status da gravacao |
-| `/recordings/:id/access-link` | GET | Link de download (valido por 1h) |
+**Causa raiz:** O parametro esta incorreto - a API do Daily.co espera `maxDuration` (camelCase), mas o codigo envia `max_duration` (snake_case).
 
----
+**Impacto:** Quando a gravacao falha ao iniciar, o Daily.co pode estar rejeitando a sessao ou causando instabilidade na conexao.
 
-## Alteracoes no Banco de Dados
-
-Adicionar colunas para armazenar informacoes da gravacao:
-
-```sql
-ALTER TABLE video_call_records 
-ADD COLUMN recording_id text,
-ADD COLUMN recording_status text DEFAULT 'none';
--- Status: 'none' | 'recording' | 'processing' | 'ready' | 'error'
-```
-
----
-
-## Alteracoes na Edge Function `video-room`
-
-### A) Acao `create` - Habilitar gravacao na sala
-
-Adicionar `enable_recording: "cloud"` nas propriedades da sala:
+**Localizacao:** `supabase/functions/video-room/index.ts`, linha 354
 
 ```typescript
+// ERRADO (atual)
 body: JSON.stringify({
-  name: roomName,
-  privacy: 'public',
-  properties: {
-    exp: Math.floor(Date.now() / 1000) + 3600,
-    enable_chat: true,
-    enable_screenshare: true,
-    enable_recording: 'cloud',  // NOVO: habilita gravacao
-    // ... demais propriedades
-  },
+  type: 'cloud',
+  layout: { preset: 'default' },
+  max_duration: 3600, // <- snake_case incorreto
+}),
+
+// CORRETO
+body: JSON.stringify({
+  type: 'cloud',
+  layout: { preset: 'default' },
+  maxDuration: 3600, // <- camelCase correto
 }),
 ```
 
-### B) Acao `record-start` - Iniciar gravacao via API
+---
 
-Alem de atualizar o banco, chamar a API do Daily.co:
+### Problema 2: Race Condition no Cleanup do Call Object
+
+**Analise do codigo em `CustomVideoCall.tsx`:**
+
+O cleanup no `useEffect` (linha 284-289) chama `destroyExistingInstance()` que executa `leave()` e `destroy()` na instancia global. Isso pode ocorrer prematuramente em certos cenarios:
+
+1. Quando o `retryKey` muda (retry solicitado)
+2. Quando o componente e desmontado (navegacao ou erro)
+3. Quando o React faz fast-refresh durante desenvolvimento
+
+**Fluxo problematico:**
+```text
+1. Operador clica "Atender"
+2. CustomVideoCall monta
+3. createCallObject() inicia
+4. record-start e chamado (com erro de API)
+5. Possivel re-render causa cleanup
+6. destroyExistingInstance() e chamado
+7. Operador e desconectado
+```
+
+---
+
+### Problema 3: Listener de `left-meeting` Muito Agressivo
+
+O codigo escuta o evento `left-meeting` e chama `onLeave()` imediatamente:
+
+```typescript
+useDailyEvent('left-meeting', useCallback(() => {
+  console.log('[CustomVideoCall] Evento left-meeting recebido');
+  onLeave(); // <- Isso pode ser disparado por qualquer desconexao
+}, [onLeave]));
+```
+
+O problema e que `left-meeting` pode ser disparado por:
+- Desconexao de rede temporaria
+- Timeout de WebSocket
+- Erro na API
+- Fechamento intencional
+
+**Diferenca entre Lead e Operador:**
+
+| Fator | Lead (Cliente) | Operador |
+|-------|---------------|----------|
+| Componente | `LeadVideoCall` | `CustomVideoCall` |
+| Contexto React | Simples (pagina isolada) | Complexo (dentro de MainLayout com providers) |
+| Polling | Nenhum | `useVideoRooms` a cada 10s |
+| Chamada record-start | Nao | Sim (com erro) |
+
+O operador esta dentro de um contexto mais complexo com mais re-renders potenciais.
+
+---
+
+### Problema 4: Query Polling Pode Causar Re-renders
+
+```typescript
+const { data: rooms = [], isLoading, refetch, isFetching } = useVideoRooms();
+// refetchInterval: 10000 <- A cada 10 segundos
+```
+
+Quando o polling ocorre, o estado `rooms` muda, causando re-render do `VideoQueuePage`. Embora o `activeRoom` nao dependa diretamente de `rooms`, qualquer instabilidade no React pode causar efeitos colaterais.
+
+---
+
+## Plano de Correcao em 6 Etapas
+
+### Etapa 1: Corrigir API de Gravacao (Edge Function)
+
+Corrigir o nome do parametro de `max_duration` para `maxDuration`:
+
+```typescript
+// supabase/functions/video-room/index.ts (case 'record-start')
+body: JSON.stringify({
+  type: 'cloud',
+  layout: { preset: 'default' },
+  maxDuration: 3600, // CORRIGIDO: camelCase
+}),
+```
+
+### Etapa 2: Adicionar Tratamento de Erro Robusto na Gravacao
+
+Nao permitir que falha de gravacao afete a conexao principal:
 
 ```typescript
 case 'record-start': {
-  const { roomName, operatorId, operatorName } = body;
+  const { roomName, operatorId, operatorName } = body as RecordStartRequest;
   
-  // Iniciar gravacao via API Daily.co
-  const startResponse = await fetch(
-    `${DAILY_API_URL}/rooms/${roomName}/recordings/start`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${DAILY_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        type: 'cloud',
-        layout: { preset: 'default' },
-        maxDuration: 3600, // 1 hora max
-      }),
+  // Gravacao e feature secundaria - nao deve bloquear a chamada
+  let recordingStarted = false;
+  try {
+    const startRecordingResponse = await fetch(
+      `${DAILY_API_URL}/rooms/${roomName}/recordings/start`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${DAILY_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'cloud',
+          layout: { preset: 'default' },
+          maxDuration: 3600,
+        }),
+      }
+    );
+    
+    if (startRecordingResponse.ok) {
+      recordingStarted = true;
+      console.log('Recording started successfully');
+    } else {
+      const errorText = await startRecordingResponse.text();
+      console.warn('Recording start warning (non-blocking):', errorText);
     }
-  );
+  } catch (recordingError) {
+    console.warn('Recording start error (non-blocking):', recordingError);
+  }
   
-  // Atualizar banco com status
+  // Atualizar banco independente do status da gravacao
   await supabase
     .from('video_call_records')
     .update({ 
       started_at: new Date().toISOString(),
       operator_id: operatorId,
       operator_name: operatorName,
-      recording_status: 'recording',
+      recording_status: recordingStarted ? 'recording' : 'none',
       status: 'active' 
     })
     .eq('room_name', roomName);
 
   return new Response(
-    JSON.stringify({ success: true, message: 'Recording started' }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
-}
-```
-
-### C) Acao `close` - Parar gravacao e capturar recording_id
-
-```typescript
-case 'close': {
-  const { roomName } = body;
-  
-  // Parar gravacao via API Daily.co
-  const stopResponse = await fetch(
-    `${DAILY_API_URL}/rooms/${roomName}/recordings/stop`,
-    {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${DAILY_API_KEY}` },
-    }
-  );
-  
-  let recordingId = null;
-  if (stopResponse.ok) {
-    const stopData = await stopResponse.json();
-    recordingId = stopData.id; // ID da gravacao
-  }
-  
-  // Atualizar banco com recording_id
-  await supabase
-    .from('video_call_records')
-    .update({ 
-      ended_at: new Date().toISOString(),
-      duration_seconds: durationSeconds,
-      recording_id: recordingId,
-      recording_status: recordingId ? 'processing' : 'error',
-      status: 'completed' 
-    })
-    .eq('room_name', roomName);
-  
-  // ... deletar sala
-}
-```
-
-### D) Nova acao `get-recording-link` - Obter link de download
-
-```typescript
-interface GetRecordingLinkRequest {
-  action: 'get-recording-link';
-  recordingId: string;
-}
-
-case 'get-recording-link': {
-  const { recordingId } = body;
-  
-  const linkResponse = await fetch(
-    `${DAILY_API_URL}/recordings/${recordingId}/access-link?valid_for_secs=3600`,
-    {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${DAILY_API_KEY}` },
-    }
-  );
-  
-  if (!linkResponse.ok) {
-    throw new Error('Recording not ready or not found');
-  }
-  
-  const linkData = await linkResponse.json();
-  
-  // Atualizar status para 'ready' se ainda nao estava
-  await supabase
-    .from('video_call_records')
-    .update({ recording_status: 'ready' })
-    .eq('recording_id', recordingId);
-  
-  return new Response(
     JSON.stringify({ 
       success: true, 
-      downloadLink: linkData.download_link,
-      expiresAt: new Date(linkData.expires * 1000).toISOString(),
+      message: recordingStarted ? 'Recording started' : 'Call started (recording unavailable)',
+      recordingStarted 
     }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   );
 }
 ```
 
----
+### Etapa 3: Proteger Call Object Contra Destruicao Prematura
 
-## Alteracoes no Frontend
-
-### A) Novo hook `useRecordingLink`
+Adicionar flag `isLeaving` para evitar race conditions:
 
 ```typescript
-export function useRecordingLink() {
-  return useMutation({
-    mutationFn: async (recordingId: string) => {
-      const { data, error } = await supabase.functions.invoke('video-room', {
-        body: {
-          action: 'get-recording-link',
-          recordingId,
-        },
-      });
-      
-      if (error) throw error;
-      return data;
-    },
-  });
-}
-```
+// CustomVideoCall.tsx
+const [isLeaving, setIsLeaving] = useState(false);
+const isLeavingRef = useRef(false);
 
-### B) Atualizar `CallHistorySection` - Botao de download
+// Modificar handlers
+const handleError = useCallback((msg: string) => {
+  if (isLeavingRef.current) return; // Ignorar erros durante saida
+  console.error('[CustomVideoCall] handleError:', msg);
+  setErrorMessage(msg);
+  setHasError(true);
+  onError?.(msg);
+}, [onError]);
 
-Adicionar coluna "Gravacao" na tabela com botao de download:
+// Modificar evento left-meeting
+useDailyEvent('left-meeting', useCallback(() => {
+  if (isLeavingRef.current) return; // Ja estava saindo
+  console.log('[CustomVideoCall] Evento left-meeting recebido');
+  isLeavingRef.current = true;
+  setIsLeaving(true);
+  onLeave();
+}, [onLeave]));
 
-```tsx
-<TableHead>Gravacao</TableHead>
+// Modificar cleanup
+useEffect(() => {
+  let mounted = true;
 
-// Na linha:
-<TableCell>
-  {record.recording_id ? (
-    <RecordingDownloadButton 
-      recordingId={record.recording_id}
-      status={record.recording_status}
-    />
-  ) : (
-    <span className="text-muted-foreground text-sm">-</span>
-  )}
-</TableCell>
-```
-
-### C) Componente `RecordingDownloadButton`
-
-```tsx
-function RecordingDownloadButton({ recordingId, status }: Props) {
-  const { mutate: getLink, isPending } = useRecordingLink();
-  
-  const handleDownload = () => {
-    getLink(recordingId, {
-      onSuccess: (data) => {
-        window.open(data.downloadLink, '_blank');
-      },
-      onError: () => {
-        toast.error('Gravacao ainda em processamento. Tente novamente em alguns minutos.');
-      },
-    });
+  const createCallObject = async () => {
+    if (isLeavingRef.current) return; // Nao criar se estiver saindo
+    
+    await destroyExistingInstance();
+    
+    if (!mounted || isLeavingRef.current) return;
+    // ... resto do codigo
   };
-  
-  if (status === 'processing') {
-    return (
-      <Badge variant="outline" className="text-yellow-600">
-        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-        Processando
-      </Badge>
-    );
-  }
-  
-  if (status === 'error') {
-    return <Badge variant="destructive">Erro</Badge>;
-  }
-  
-  return (
-    <Button 
-      variant="ghost" 
-      size="sm"
-      onClick={handleDownload}
-      disabled={isPending}
-    >
-      {isPending ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
-      ) : (
-        <Download className="h-4 w-4" />
-      )}
-    </Button>
-  );
-}
+
+  createCallObject();
+
+  return () => {
+    mounted = false;
+    // NAO destruir automaticamente - deixar o leave() cuidar disso
+    // destroyExistingInstance() sera chamado apenas via handleLeave
+  };
+}, [retryKey, handleError]);
 ```
 
----
+### Etapa 4: Isolar Chamada de Atualizar do VideoCall
 
-## Atualizar Types
+Evitar que polling cause re-renders no componente de video:
 
 ```typescript
-// types.ts
-export interface CallHistoryRecord {
-  // ... campos existentes
-  recording_id: string | null;      // NOVO
-  recording_status: string | null;  // NOVO: 'none'|'recording'|'processing'|'ready'|'error'
-}
+// VideoQueuePage.tsx
+// Separar o componente de video em memo
+const ActiveCallSection = memo(function ActiveCallSection({ 
+  room, 
+  onLeave, 
+  onError 
+}: { 
+  room: VideoRoom;
+  onLeave: () => void;
+  onError: (error: string) => void;
+}) {
+  return (
+    <Card className="h-full min-h-[400px] overflow-hidden">
+      <CustomVideoCall
+        roomUrl={room.url}
+        onLeave={onLeave}
+        onError={onError}
+      />
+    </Card>
+  );
+});
+
+// Usar no JSX
+{activeRoom && (
+  <ActiveCallSection
+    room={activeRoom}
+    onLeave={handleLeaveRoom}
+    onError={(error) => {
+      console.error('Video call error:', error);
+      setActiveRoom(null);
+      toast.error('Erro ao conectar. Tente novamente.');
+    }}
+  />
+)}
 ```
 
----
+### Etapa 5: Implementar Logica de Reconexao Automatica
 
-## Fluxo Completo
+Adicionar suporte a reconexao em caso de desconexao temporaria:
 
-```text
-┌────────────────────────────────────────────────────────────────────┐
-│ 1. Agente envia link para lead                                     │
-│    → action: 'create' com enable_recording: 'cloud'                │
-│    → recording_status: 'none'                                      │
-├────────────────────────────────────────────────────────────────────┤
-│ 2. Operador clica em "Atender"                                     │
-│    → action: 'record-start'                                        │
-│    → POST /rooms/:name/recordings/start                            │
-│    → recording_status: 'recording'                                 │
-├────────────────────────────────────────────────────────────────────┤
-│ 3. Chamada em andamento (gravacao ativa)                           │
-│    → Daily.co grava audio/video na nuvem                           │
-├────────────────────────────────────────────────────────────────────┤
-│ 4. Operador encerra chamada                                        │
-│    → action: 'close'                                               │
-│    → POST /rooms/:name/recordings/stop → retorna recording_id      │
-│    → recording_status: 'processing'                                │
-├────────────────────────────────────────────────────────────────────┤
-│ 5. Daily.co processa gravacao (1-5 minutos)                        │
-│    → Arquivo MP4 disponivel na nuvem                               │
-├────────────────────────────────────────────────────────────────────┤
-│ 6. Operador clica no botao de download no historico                │
-│    → action: 'get-recording-link'                                  │
-│    → GET /recordings/:id/access-link                               │
-│    → Abre link de download (valido por 1 hora)                     │
-│    → recording_status: 'ready'                                     │
-└────────────────────────────────────────────────────────────────────┘
+```typescript
+// CustomVideoCall.tsx - Adicionar monitoramento de rede
+useDailyEvent('network-connection', useCallback((event) => {
+  console.log('[CustomVideoCall] network-connection:', event);
+  if (event?.type === 'connected') {
+    setDebugState('Conectado');
+  } else if (event?.type === 'disconnected') {
+    setDebugState('Desconectado - tentando reconectar...');
+  }
+}, []));
+
+useDailyEvent('nonfatal-error', useCallback((event) => {
+  console.warn('[CustomVideoCall] nonfatal-error:', event);
+  // Erros nao-fatais nao devem causar desconexao
+}, []));
+```
+
+### Etapa 6: Adicionar Logging Detalhado para Debug
+
+Implementar logging abrangente para diagnostico futuro:
+
+```typescript
+// CustomVideoCall.tsx - Adicionar listeners de diagnostico
+useEffect(() => {
+  if (!callObject) return;
+
+  const logEvent = (name: string, event: any) => {
+    console.log(`[CustomVideoCall] Event ${name}:`, event);
+  };
+
+  // Eventos criticos para monitorar
+  callObject.on('joining-meeting', (e) => logEvent('joining-meeting', e));
+  callObject.on('joined-meeting', (e) => logEvent('joined-meeting', e));
+  callObject.on('left-meeting', (e) => logEvent('left-meeting', e));
+  callObject.on('error', (e) => logEvent('error', e));
+  callObject.on('participant-joined', (e) => logEvent('participant-joined', e));
+  callObject.on('participant-left', (e) => logEvent('participant-left', e));
+  callObject.on('network-connection', (e) => logEvent('network-connection', e));
+  callObject.on('nonfatal-error', (e) => logEvent('nonfatal-error', e));
+  callObject.on('call-instance-destroyed', (e) => logEvent('call-instance-destroyed', e));
+
+  return () => {
+    callObject.off('joining-meeting');
+    callObject.off('joined-meeting');
+    callObject.off('left-meeting');
+    callObject.off('error');
+    callObject.off('participant-joined');
+    callObject.off('participant-left');
+    callObject.off('network-connection');
+    callObject.off('nonfatal-error');
+    callObject.off('call-instance-destroyed');
+  };
+}, [callObject]);
 ```
 
 ---
 
 ## Arquivos a Modificar
 
-| Arquivo | Mudanca |
-|---------|---------|
-| `supabase/functions/video-room/index.ts` | Habilitar gravacao, start/stop recording, get-link |
-| `src/pages/video/types.ts` | Adicionar recording_id e recording_status |
-| `src/pages/video/hooks/useCallHistory.ts` | Adicionar useRecordingLink mutation |
-| `src/pages/video/components/CallHistorySection.tsx` | Adicionar coluna e botao de download |
+| Arquivo | Mudancas |
+|---------|----------|
+| `supabase/functions/video-room/index.ts` | Corrigir `maxDuration`, melhorar tratamento de erro |
+| `src/pages/video/components/CustomVideoCall.tsx` | Proteger contra race conditions, adicionar logging |
+| `src/pages/video/VideoQueuePage.tsx` | Isolar componente de video com memo |
 
 ---
 
-## Migracao SQL
+## Ordem de Implementacao
 
-```sql
-ALTER TABLE video_call_records 
-ADD COLUMN recording_id text,
-ADD COLUMN recording_status text DEFAULT 'none';
+1. **Edge Function** - Corrigir erro de API (impacto imediato)
+2. **CustomVideoCall** - Proteger contra race conditions
+3. **VideoQueuePage** - Isolar re-renders
+4. **Testes** - Validar fluxo completo
 
-CREATE INDEX idx_video_call_records_recording_id 
-ON video_call_records(recording_id);
+---
+
+## Verificacoes Pos-Implementacao
+
+1. Abrir sala de reuniao
+2. Lead entra via link
+3. Operador clica "Atender"
+4. Confirmar que ambos permanecem conectados por mais de 1 minuto
+5. Verificar logs no console para eventos `joined-meeting`
+6. Confirmar que gravacao inicia sem erro
+
+---
+
+## Solucao Tecnica Resumida
+
+```text
+PROBLEMA RAIZ:
+- API de gravacao com parametro incorreto causa falha silenciosa
+- Race condition no cleanup do React causa left-meeting prematuro
+- Re-renders do polling afetam o componente de video
+
+CORRECAO:
+- Corrigir maxDuration (camelCase)
+- Tratar falha de gravacao como nao-bloqueante
+- Usar refs para controlar fluxo de saida
+- Memorizar componente de video
+- Adicionar listeners de diagnostico
 ```
-
----
-
-## Consideracoes de Custo
-
-O Daily.co cobra pela gravacao em nuvem:
-- Gravacao: aproximadamente $0.02/minuto por participante
-- Armazenamento: os arquivos ficam disponiveis por 7 dias por padrao
-- Para retencao maior, considere copiar para storage proprio (S3, Supabase Storage)
-
----
-
-## Beneficios da Implementacao
-
-1. **Gravacao automatica**: Toda chamada sera gravada sem acao manual
-2. **Armazenamento na nuvem**: Nenhum custo de storage proprio (por 7 dias)
-3. **Links temporarios**: Seguranca com links que expiram em 1 hora
-4. **Processamento assíncrono**: Nao impacta performance da chamada
-5. **Historico completo**: Operadores e admins podem revisar atendimentos
-
