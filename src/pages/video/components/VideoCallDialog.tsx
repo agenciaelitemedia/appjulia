@@ -53,6 +53,12 @@ Preparamos uma videochamada exclusiva para você. Clique no link abaixo para ent
 
 Estamos te aguardando! 🎥`;
 
+  // Gera URL do domínio próprio ao invés do Daily.co direto
+  const getDomainUrl = (roomName: string) => {
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/call/${roomName}`;
+  };
+
   const handleCopyLink = async () => {
     setIsCopying(true);
     
@@ -65,9 +71,12 @@ Estamos te aguardando! 🎥`;
         contactName,
       });
 
+      // Usar URL do domínio próprio
+      const domainUrl = getDomainUrl(room.name);
+
       // Copy to clipboard
-      await navigator.clipboard.writeText(room.url);
-      setCopiedUrl(room.url);
+      await navigator.clipboard.writeText(domainUrl);
+      setCopiedUrl(domainUrl);
       
       toast.success('Link copiado!', {
         description: 'O link da videochamada foi copiado para a área de transferência.',
@@ -95,8 +104,11 @@ Estamos te aguardando! 🎥`;
         contactName,
       });
 
+      // Usar URL do domínio próprio
+      const domainUrl = getDomainUrl(room.name);
+
       // Prepare the message with room URL
-      const messageText = (customMessage || defaultMessage).replace('{ROOM_URL}', room.url);
+      const messageText = (customMessage || defaultMessage).replace('{ROOM_URL}', domainUrl);
 
       // Send via WhatsApp (UaZapi)
       if (apiCredentials) {

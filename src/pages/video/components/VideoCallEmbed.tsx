@@ -78,58 +78,65 @@ export function VideoCallEmbed({
       return;
     }
 
-    isInitializingRef.current = true;
+    // Delay para garantir que o DOM está pronto
+    const timeoutId = setTimeout(() => {
+      if (isInitializingRef.current || callFrameRef.current) return;
+      
+      isInitializingRef.current = true;
 
-    const initCall = async () => {
-      try {
-        // Double-check we haven't already created a frame
-        if (callFrameRef.current) {
+      const initCall = async () => {
+        try {
+          // Double-check we haven't already created a frame
+          if (callFrameRef.current || !containerRef.current) {
+            isInitializingRef.current = false;
+            return;
+          }
+
+          const callFrame = DailyIframe.createFrame(containerRef.current, {
+            iframeStyle: {
+              width: '100%',
+              height: '100%',
+              border: '0',
+              borderRadius: '8px',
+            },
+            showLeaveButton: false,
+            showFullscreenButton: false,
+            lang: 'pt', // Interface em português
+          });
+
+          callFrameRef.current = callFrame;
+
+          callFrame.on('joined-meeting', () => {
+            setIsConnected(true);
+          });
+
+          callFrame.on('left-meeting', () => {
+            setIsConnected(false);
+            onLeaveRef.current?.();
+          });
+
+          callFrame.on('error', (event) => {
+            console.error('Daily.co error:', event);
+            onErrorRef.current?.(new Error(event?.errorMsg || 'Unknown error'));
+          });
+
+          await callFrame.join({ url: roomUrl });
+        } catch (error) {
+          console.error('Error initializing call:', error);
+          // Only call onError if it's not a duplicate instance error
+          if (!(error instanceof Error && error.message.includes('Duplicate'))) {
+            onErrorRef.current?.(error as Error);
+          }
+        } finally {
           isInitializingRef.current = false;
-          return;
         }
+      };
 
-        const callFrame = DailyIframe.createFrame(containerRef.current!, {
-          iframeStyle: {
-            width: '100%',
-            height: '100%',
-            border: '0',
-            borderRadius: '8px',
-          },
-          showLeaveButton: false,
-          showFullscreenButton: false,
-        });
-
-        callFrameRef.current = callFrame;
-
-        callFrame.on('joined-meeting', () => {
-          setIsConnected(true);
-        });
-
-        callFrame.on('left-meeting', () => {
-          setIsConnected(false);
-          onLeaveRef.current?.();
-        });
-
-        callFrame.on('error', (event) => {
-          console.error('Daily.co error:', event);
-          onErrorRef.current?.(new Error(event?.errorMsg || 'Unknown error'));
-        });
-
-        await callFrame.join({ url: roomUrl });
-      } catch (error) {
-        console.error('Error initializing call:', error);
-        // Only call onError if it's not a duplicate instance error
-        if (!(error instanceof Error && error.message.includes('Duplicate'))) {
-          onErrorRef.current?.(error as Error);
-        }
-      } finally {
-        isInitializingRef.current = false;
-      }
-    };
-
-    initCall();
+      initCall();
+    }, 150); // 150ms delay para o DOM estar pronto
 
     return () => {
+      clearTimeout(timeoutId);
       if (callFrameRef.current) {
         try {
           callFrameRef.current.destroy();

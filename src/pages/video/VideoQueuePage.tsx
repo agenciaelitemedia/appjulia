@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'sonner';
 import { useVideoRooms, useCloseVideoRoom } from './hooks/useVideoRoom';
 import { VideoQueueCard } from './components/VideoQueueCard';
 import { VideoCallEmbed } from './components/VideoCallEmbed';
@@ -114,7 +115,9 @@ export default function VideoQueuePage() {
               onLeave={handleLeaveRoom}
               onError={(error) => {
                 console.error('Video call error:', error);
-                handleLeaveRoom();
+                // Apenas desconecta da UI, NÃO deleta a sala
+                setActiveRoom(null);
+                toast.error('Erro ao conectar. Tente novamente.');
               }}
             />
           ) : (

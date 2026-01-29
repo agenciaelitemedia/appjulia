@@ -25,6 +25,7 @@ import EquipePage from "./pages/equipe/EquipePage";
 import ProfileSettingsPage from "./pages/profile/ProfileSettingsPage";
 import PermissoesPage from "./pages/admin/permissoes/PermissoesPage";
 import VideoQueuePage from "./pages/video/VideoQueuePage";
+import JoinCallPage from "./pages/video/JoinCallPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ const App = () => (
           <UaZapiProvider>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/call/:roomName" element={<JoinCallPage />} />
               <Route element={<MainLayout />}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/dashboard" element={<Dashboard />} />
