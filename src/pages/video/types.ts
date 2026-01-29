@@ -31,3 +31,18 @@ export interface VideoQueueItem {
   createdAt: string;
   waitTime: number; // in seconds
 }
+
+export interface CallHistoryRecord {
+  id: string;
+  room_name: string;
+  lead_id: number | null;
+  cod_agent: string;
+  operator_name: string | null;
+  contact_name: string | null;
+  whatsapp_number: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  duration_seconds: number | null;
+  status: string;
+  created_at: string;
+}

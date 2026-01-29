@@ -8,15 +8,29 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { useVideoRooms, useCloseVideoRoom } from './hooks/useVideoRoom';
 import { VideoQueueCard } from './components/VideoQueueCard';
-import { VideoCallEmbed } from './components/VideoCallEmbed';
+import { CustomVideoCall } from './components/CustomVideoCall';
+import { CallHistorySection } from './components/CallHistorySection';
 import type { VideoRoom } from './types';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function VideoQueuePage() {
   const [activeRoom, setActiveRoom] = useState<VideoRoom | null>(null);
   const { data: rooms = [], isLoading, refetch, isFetching } = useVideoRooms();
   const closeRoom = useCloseVideoRoom();
 
-  const handleJoinRoom = useCallback((room: VideoRoom) => {
+  const handleJoinRoom = useCallback(async (room: VideoRoom) => {
+    // Register the start of the call
+    try {
+      await supabase.functions.invoke('video-room', {
+        body: {
+          action: 'record-start',
+          roomName: room.name,
+        },
+      });
+    } catch (err) {
+      console.error('Error recording call start:', err);
+    }
+    
     setActiveRoom(room);
   }, []);
 
@@ -73,7 +87,7 @@ export default function VideoQueuePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <ScrollArea className="h-[calc(100vh-300px)]">
+              <ScrollArea className="h-[calc(100vh-450px)] min-h-[200px]">
                 <div className="p-4 space-y-3">
                   {isLoading ? (
                     <>
@@ -86,7 +100,7 @@ export default function VideoQueuePage() {
                       <PhoneCall className="h-12 w-12 mx-auto mb-3 opacity-50" />
                       <p className="font-medium">Nenhum lead aguardando</p>
                       <p className="text-sm mt-1">
-                        Inicie uma videochamada a partir do CRM
+                        Leads aparecerão aqui quando entrarem na sala
                       </p>
                     </div>
                   ) : (
@@ -108,20 +122,19 @@ export default function VideoQueuePage() {
         {/* Video call column */}
         <div className="lg:col-span-2">
           {activeRoom ? (
-            <VideoCallEmbed
-              roomUrl={activeRoom.url}
-              contactName={activeRoom.contactName}
-              whatsappNumber={activeRoom.whatsappNumber}
-              onLeave={handleLeaveRoom}
-              onError={(error) => {
-                console.error('Video call error:', error);
-                // Apenas desconecta da UI, NÃO deleta a sala
-                setActiveRoom(null);
-                toast.error('Erro ao conectar. Tente novamente.');
-              }}
-            />
+            <Card className="h-full min-h-[400px] overflow-hidden">
+              <CustomVideoCall
+                roomUrl={activeRoom.url}
+                onLeave={handleLeaveRoom}
+                onError={(error) => {
+                  console.error('Video call error:', error);
+                  setActiveRoom(null);
+                  toast.error('Erro ao conectar. Tente novamente.');
+                }}
+              />
+            </Card>
           ) : (
-            <Card className="h-full min-h-[500px] flex items-center justify-center">
+            <Card className="h-full min-h-[400px] flex items-center justify-center">
               <div className="text-center text-muted-foreground">
                 <Video className="h-16 w-16 mx-auto mb-4 opacity-30" />
                 <h3 className="text-lg font-medium">Nenhuma chamada ativa</h3>
@@ -133,6 +146,9 @@ export default function VideoQueuePage() {
           )}
         </div>
       </div>
+
+      {/* Call History Section */}
+      <CallHistorySection />
     </div>
   );
 }
