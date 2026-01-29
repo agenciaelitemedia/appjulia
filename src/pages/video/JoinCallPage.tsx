@@ -85,7 +85,7 @@ export default function JoinCallPage() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4 max-w-md px-4">
           <Video className="h-16 w-16 text-muted-foreground mx-auto" />
-          <h1 className="text-2xl font-bold">Chamada encerrada</h1>
+          <h1 className="text-2xl font-bold">Reunião encerrada</h1>
           <p className="text-muted-foreground">
             Obrigado por participar! Você pode fechar esta janela.
           </p>
