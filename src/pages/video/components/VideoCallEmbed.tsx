@@ -22,11 +22,21 @@ export function VideoCallEmbed({
 }: VideoCallEmbedProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const callFrameRef = useRef<DailyCall | null>(null);
+  const isInitializingRef = useRef(false);
+  const onLeaveRef = useRef(onLeave);
+  const onErrorRef = useRef(onError);
+  
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [duration, setDuration] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
+
+  // Keep refs updated
+  useEffect(() => {
+    onLeaveRef.current = onLeave;
+    onErrorRef.current = onError;
+  }, [onLeave, onError]);
 
   // Timer for call duration
   useEffect(() => {
@@ -47,19 +57,37 @@ export function VideoCallEmbed({
 
   const handleLeave = useCallback(() => {
     if (callFrameRef.current) {
-      callFrameRef.current.leave();
-      callFrameRef.current.destroy();
+      try {
+        callFrameRef.current.leave();
+        callFrameRef.current.destroy();
+      } catch (e) {
+        console.warn('Error leaving call:', e);
+      }
       callFrameRef.current = null;
     }
     setIsConnected(false);
-    onLeave?.();
-  }, [onLeave]);
+    onLeaveRef.current?.();
+  }, []);
 
+  // Initialize Daily.co call - only depends on roomUrl
   useEffect(() => {
     if (!containerRef.current || !roomUrl) return;
+    
+    // Prevent duplicate initialization
+    if (isInitializingRef.current || callFrameRef.current) {
+      return;
+    }
+
+    isInitializingRef.current = true;
 
     const initCall = async () => {
       try {
+        // Double-check we haven't already created a frame
+        if (callFrameRef.current) {
+          isInitializingRef.current = false;
+          return;
+        }
+
         const callFrame = DailyIframe.createFrame(containerRef.current!, {
           iframeStyle: {
             width: '100%',
@@ -77,17 +105,25 @@ export function VideoCallEmbed({
           setIsConnected(true);
         });
 
-        callFrame.on('left-meeting', handleLeave);
+        callFrame.on('left-meeting', () => {
+          setIsConnected(false);
+          onLeaveRef.current?.();
+        });
 
         callFrame.on('error', (event) => {
           console.error('Daily.co error:', event);
-          onError?.(new Error(event?.errorMsg || 'Unknown error'));
+          onErrorRef.current?.(new Error(event?.errorMsg || 'Unknown error'));
         });
 
         await callFrame.join({ url: roomUrl });
       } catch (error) {
         console.error('Error initializing call:', error);
-        onError?.(error as Error);
+        // Only call onError if it's not a duplicate instance error
+        if (!(error instanceof Error && error.message.includes('Duplicate'))) {
+          onErrorRef.current?.(error as Error);
+        }
+      } finally {
+        isInitializingRef.current = false;
       }
     };
 
@@ -95,11 +131,16 @@ export function VideoCallEmbed({
 
     return () => {
       if (callFrameRef.current) {
-        callFrameRef.current.destroy();
+        try {
+          callFrameRef.current.destroy();
+        } catch (e) {
+          console.warn('Error destroying call frame:', e);
+        }
         callFrameRef.current = null;
       }
+      isInitializingRef.current = false;
     };
-  }, [roomUrl, handleLeave, onError]);
+  }, [roomUrl]); // Only roomUrl as dependency
 
   const toggleMute = () => {
     if (callFrameRef.current) {
