@@ -138,10 +138,10 @@ export default function JoinCallPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen w-screen bg-background overflow-hidden">
       <div 
         ref={containerRef} 
-        className="flex-1 w-full min-h-screen"
+        className="w-full h-full"
       />
     </div>
   );
