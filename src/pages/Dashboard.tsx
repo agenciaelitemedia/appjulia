@@ -213,7 +213,7 @@ export default function Dashboard() {
 
   if (agentsLoading) {
     return (
-      <div className="space-y-6 p-6">
+      <div className="space-y-6">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-24 w-full" />
         <div className="grid grid-cols-4 gap-4">

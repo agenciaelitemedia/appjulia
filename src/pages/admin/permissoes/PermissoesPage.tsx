@@ -26,7 +26,7 @@ export default function PermissoesPage() {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PermissoesHeader onEditDefaults={() => setShowDefaultsDialog(true)} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ minHeight: 'calc(100vh - 200px)' }}>
