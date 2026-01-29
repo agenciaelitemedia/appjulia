@@ -509,12 +509,13 @@ serve(async (req) => {
       }
 
       case 'get_agents_list': {
-        // Optimized query with pre-aggregated leads count
+        // Optimized query with pre-aggregated leads count and settings for business hours
         result = await sql.unsafe(`
           SELECT 
             a.id,
             a.cod_agent,
             a.status,
+            a.settings,
             c.name AS client_name,
             c.business_name,
             ap.name AS plan_name,

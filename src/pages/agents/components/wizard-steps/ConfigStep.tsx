@@ -274,53 +274,54 @@ export function ConfigStep() {
             />
           </div>
 
-          <Separator />
+          {config.BUSINESS_HOURS_ENABLED && (
+            <>
+              <Separator />
 
-          <div className="space-y-2">
-            <FormLabel>Fuso Horário</FormLabel>
-            <Select
-              value={config.BUSINESS_HOURS_TIMEZONE}
-              onValueChange={(value) => updateField('BUSINESS_HOURS_TIMEZONE', value)}
-              disabled={!config.BUSINESS_HOURS_ENABLED}
-            >
-              <SelectTrigger className={!config.BUSINESS_HOURS_ENABLED ? 'opacity-50' : ''}>
-                <SelectValue placeholder="Selecione o fuso horário" />
-              </SelectTrigger>
-              <SelectContent>
-                {TIMEZONES.map((tz) => (
-                  <SelectItem key={tz.value} value={tz.value}>
-                    {tz.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              <div className="space-y-2">
+                <FormLabel>Fuso Horário</FormLabel>
+                <Select
+                  value={config.BUSINESS_HOURS_TIMEZONE}
+                  onValueChange={(value) => updateField('BUSINESS_HOURS_TIMEZONE', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o fuso horário" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIMEZONES.map((tz) => (
+                      <SelectItem key={tz.value} value={tz.value}>
+                        {tz.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <Separator />
+              <Separator />
 
-          <div className="space-y-2">
-            <FormLabel>Horários por Dia</FormLabel>
-            <FormDescription>Configure os horários de atendimento para cada dia da semana</FormDescription>
-            <BusinessHoursEditor
-              schedule={config.BUSINESS_HOURS_SCHEDULE}
-              onChange={(schedule) => updateField('BUSINESS_HOURS_SCHEDULE', schedule)}
-              disabled={!config.BUSINESS_HOURS_ENABLED}
-            />
-          </div>
+              <div className="space-y-2">
+                <FormLabel>Horários por Dia</FormLabel>
+                <FormDescription>Configure os horários de atendimento para cada dia da semana</FormDescription>
+                <BusinessHoursEditor
+                  schedule={config.BUSINESS_HOURS_SCHEDULE}
+                  onChange={(schedule) => updateField('BUSINESS_HOURS_SCHEDULE', schedule)}
+                />
+              </div>
 
-          <Separator />
+              <Separator />
 
-          <div className="space-y-2">
-            <FormLabel>Mensagem Fora do Horário</FormLabel>
-            <FormDescription>Mensagem automática enviada quando receber mensagem fora do expediente</FormDescription>
-            <Textarea
-              value={config.BUSINESS_HOURS_OFF_MESSAGE}
-              onChange={(e) => updateField('BUSINESS_HOURS_OFF_MESSAGE', e.target.value)}
-              placeholder="Mensagem para enviar fora do horário de atendimento..."
-              className="min-h-[100px] resize-y"
-              disabled={!config.BUSINESS_HOURS_ENABLED}
-            />
-          </div>
+              <div className="space-y-2">
+                <FormLabel>Mensagem Fora do Horário</FormLabel>
+                <FormDescription>Mensagem automática enviada quando receber mensagem fora do expediente</FormDescription>
+                <Textarea
+                  value={config.BUSINESS_HOURS_OFF_MESSAGE}
+                  onChange={(e) => updateField('BUSINESS_HOURS_OFF_MESSAGE', e.target.value)}
+                  placeholder="Mensagem para enviar fora do horário de atendimento..."
+                  className="min-h-[100px] resize-y"
+                />
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

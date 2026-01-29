@@ -5,6 +5,7 @@ export interface AgentListItem {
   id: number;
   cod_agent: string;
   status: boolean;
+  settings: Record<string, unknown> | null;
   client_name: string;
   business_name: string;
   plan_name: string | null;

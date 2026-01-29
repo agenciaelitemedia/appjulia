@@ -9,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { externalDb } from '@/lib/externalDb';
 import { toast } from 'sonner';
 import { maskCPFCNPJ, maskPhone } from '@/lib/inputMasks';
+import { BusinessHoursSummary } from './components/BusinessHoursSummary';
 
 interface AgentDetails {
   id: number;
@@ -257,7 +258,10 @@ export default function AgentDetailsPage() {
         </CardContent>
       </Card>
       
-      {/* Block 3: Client Data */}
+      {/* Block 3: Business Hours */}
+      <BusinessHoursSummary settings={typeof details.settings === 'object' ? details.settings as Record<string, unknown> : null} />
+      
+      {/* Block 4: Client Data */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
@@ -299,7 +303,7 @@ export default function AgentDetailsPage() {
         </CardContent>
       </Card>
       
-      {/* Block 4: Plan and Limits */}
+      {/* Block 5: Plan and Limits */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
@@ -331,7 +335,7 @@ export default function AgentDetailsPage() {
         </CardContent>
       </Card>
       
-      {/* Block 5: Settings (JSON) */}
+      {/* Block 6: Settings (JSON) */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
@@ -346,7 +350,7 @@ export default function AgentDetailsPage() {
         </CardContent>
       </Card>
       
-      {/* Block 6: System Prompt */}
+      {/* Block 7: System Prompt */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
