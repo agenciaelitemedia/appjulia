@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { 
   DailyProvider, 
+  useDaily,
   useLocalParticipant, 
   useParticipantIds,
   useDailyEvent,
@@ -19,18 +20,94 @@ interface CustomVideoCallProps {
   onError?: (error: string) => void;
 }
 
+// Timeout em ms para watchdog
+const CONNECTION_TIMEOUT_MS = 20000;
+
+// Componente interno que faz o join DENTRO do provider
+function VideoCallJoiner({ 
+  roomUrl, 
+  onJoinError,
+  onTimeout 
+}: { 
+  roomUrl: string;
+  onJoinError: (msg: string) => void;
+  onTimeout: () => void;
+}) {
+  const daily = useDaily();
+  const meetingState = useMeetingState();
+  const hasJoined = useRef(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Log de transições de estado
+  useEffect(() => {
+    console.log('[CustomVideoCall] meetingState ->', meetingState);
+  }, [meetingState]);
+
+  // Watchdog: se não conectar em X segundos, dispara timeout
+  useEffect(() => {
+    if (meetingState === 'joined-meeting') {
+      // Conectou, limpar timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      return;
+    }
+
+    // Iniciar watchdog apenas se ainda não temos um
+    if (!timeoutRef.current && meetingState !== 'error' && meetingState !== 'left-meeting') {
+      timeoutRef.current = setTimeout(() => {
+        console.error('[CustomVideoCall] Timeout: não conectou em', CONNECTION_TIMEOUT_MS, 'ms. meetingState:', meetingState);
+        onTimeout();
+      }, CONNECTION_TIMEOUT_MS);
+    }
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, [meetingState, onTimeout]);
+
+  // Executar join assim que o daily estiver pronto
+  useEffect(() => {
+    if (!daily || hasJoined.current) return;
+
+    const doJoin = async () => {
+      hasJoined.current = true;
+      try {
+        console.log('[CustomVideoCall] Iniciando join para:', roomUrl);
+        await daily.join({ url: roomUrl });
+        console.log('[CustomVideoCall] Join completado com sucesso');
+      } catch (err: any) {
+        console.error('[CustomVideoCall] Erro no join:', err);
+        onJoinError(err?.errorMsg || err?.message || 'Erro ao entrar na chamada');
+      }
+    };
+
+    doJoin();
+  }, [daily, roomUrl, onJoinError]);
+
+  return null;
+}
+
+// Componente que renderiza o conteúdo da chamada
 function VideoCallContent({ onLeave }: { onLeave: () => void }) {
   const localParticipant = useLocalParticipant();
   const remoteParticipantIds = useParticipantIds({ filter: 'remote' });
   const meetingState = useMeetingState();
 
-  // Detectar saída via evento (ainda necessário para callback)
+  // Detectar saída via evento
   useDailyEvent('left-meeting', useCallback(() => {
+    console.log('[CustomVideoCall] Evento left-meeting recebido');
     onLeave();
   }, [onLeave]));
 
-  // Estado derivado diretamente do hook - elimina race condition
   const isConnected = meetingState === 'joined-meeting';
+
+  // Debug info
+  const debugInfo = `Estado: ${meetingState || 'null'}`;
 
   if (!isConnected) {
     return (
@@ -38,6 +115,8 @@ function VideoCallContent({ onLeave }: { onLeave: () => void }) {
         <div className="text-center space-y-4">
           <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
           <p className="text-muted-foreground">Conectando...</p>
+          {/* Debug footer */}
+          <p className="text-xs text-muted-foreground/50 font-mono">{debugInfo}</p>
         </div>
       </div>
     );
@@ -86,22 +165,44 @@ function VideoCallContent({ onLeave }: { onLeave: () => void }) {
 
 export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallProps) {
   const [callObject, setCallObject] = useState<ReturnType<typeof DailyIframe.createCallObject> | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [debugState, setDebugState] = useState<string>('Inicializando...');
   const [retryKey, setRetryKey] = useState(0);
   
-  // Refs para prevenir conexões duplicadas e race conditions
-  const isConnecting = useRef(false);
   const callRef = useRef<ReturnType<typeof DailyIframe.createCallObject> | null>(null);
 
+  const handleError = useCallback((msg: string) => {
+    console.error('[CustomVideoCall] handleError:', msg);
+    setErrorMessage(msg);
+    setHasError(true);
+    onError?.(msg);
+  }, [onError]);
+
+  const handleTimeout = useCallback(() => {
+    const call = callRef.current;
+    if (call) {
+      try {
+        call.leave();
+        call.destroy();
+      } catch (e) {
+        console.warn('[CustomVideoCall] Erro ao limpar após timeout:', e);
+      }
+      callRef.current = null;
+    }
+    setCallObject(null);
+    handleError('Conexão demorou muito. Verifique sua internet e tente novamente.');
+  }, [handleError]);
+
   const handleRetry = useCallback(() => {
+    console.log('[CustomVideoCall] Retry solicitado');
     // Limpar estado anterior
     if (callRef.current) {
       try {
+        callRef.current.leave();
         callRef.current.destroy();
       } catch (e) {
-        console.warn('[CustomVideoCall] Error destroying on retry:', e);
+        console.warn('[CustomVideoCall] Erro ao destruir no retry:', e);
       }
       callRef.current = null;
     }
@@ -109,101 +210,82 @@ export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallPr
     setCallObject(null);
     setHasError(false);
     setErrorMessage('');
-    setIsLoading(true);
-    isConnecting.current = false;
+    setDebugState('Reconectando...');
     
-    // Incrementar key para forçar re-execução do useEffect
+    // Incrementar key para forçar re-criação
     setRetryKey(prev => prev + 1);
   }, []);
 
+  // Criar call object (SEM fazer join aqui)
   useEffect(() => {
     let mounted = true;
 
-    const initCall = async () => {
-      // Prevenir conexões duplicadas (importante para React StrictMode)
-      if (isConnecting.current || callRef.current) {
-        console.log('[CustomVideoCall] Already connecting or connected, skipping');
+    const createCallObject = () => {
+      if (callRef.current) {
+        console.log('[CustomVideoCall] Call object já existe, pulando criação');
         return;
       }
-      
-      isConnecting.current = true;
 
       try {
-        console.log('[CustomVideoCall] Creating call object...');
+        console.log('[CustomVideoCall] Criando call object...');
+        setDebugState('Criando conexão...');
+        
         const call = DailyIframe.createCallObject({
           subscribeToTracksAutomatically: true,
         });
         
         callRef.current = call;
 
-        // Handler de erro com mensagens específicas
+        // Handler de erro do Daily
         call.on('error', (event) => {
-          console.error('[CustomVideoCall] Daily error:', event);
+          console.error('[CustomVideoCall] Daily error event:', event);
           if (!mounted) return;
           
           let message = 'Erro na conexão';
           if (event?.error?.type === 'meeting-full') {
-            message = 'Sala lotada. Aguarde a saída do participante ou crie uma nova sala.';
+            message = 'Sala lotada. Aguarde ou crie uma nova sala.';
           } else if (event?.error?.type === 'exp-room') {
             message = 'Sala expirada. Crie uma nova sala.';
           } else if (event?.errorMsg) {
             message = event.errorMsg;
           }
           
-          setErrorMessage(message);
-          setHasError(true);
-          setIsLoading(false);
-          onError?.(message);
+          handleError(message);
         });
 
         call.on('camera-error', (event) => {
           console.warn('[CustomVideoCall] Camera error:', event);
         });
 
-        console.log('[CustomVideoCall] Joining room:', roomUrl);
-        
-        // IMPORTANTE: Join ANTES de setar o state
-        await call.join({ url: roomUrl });
-        
-        console.log('[CustomVideoCall] Successfully joined room');
-        
         if (mounted) {
           setCallObject(call);
-          setIsLoading(false);
+          setDebugState('Aguardando provider...');
         }
       } catch (err: any) {
-        console.error('[CustomVideoCall] Error joining call:', err);
+        console.error('[CustomVideoCall] Erro ao criar call object:', err);
         if (mounted) {
-          const message = err?.errorMsg || err?.message || 'Erro ao entrar na chamada';
-          setErrorMessage(message);
-          setHasError(true);
-          setIsLoading(false);
-          onError?.(message);
+          handleError(err?.message || 'Erro ao inicializar chamada');
         }
-      } finally {
-        isConnecting.current = false;
       }
     };
 
-    initCall();
+    createCallObject();
 
     return () => {
       mounted = false;
-      isConnecting.current = false;
-      
       const call = callRef.current;
       if (call) {
-        console.log('[CustomVideoCall] Cleaning up call object');
+        console.log('[CustomVideoCall] Cleanup: destruindo call object');
         callRef.current = null;
-        // Destruir síncronamente no cleanup
         try {
+          call.leave();
           call.destroy();
         } catch (e) {
-          console.warn('[CustomVideoCall] Error destroying:', e);
+          console.warn('[CustomVideoCall] Erro no cleanup:', e);
         }
       }
     };
-  }, [roomUrl, retryKey]); // retryKey força re-execução quando retry é clicado
+  }, [retryKey, handleError]);
 
   if (hasError) {
     return (
@@ -221,20 +303,28 @@ export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallPr
     );
   }
 
-  if (isLoading || !callObject) {
+  if (!callObject) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-background rounded-lg">
         <div className="text-center space-y-4">
           <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
           <p className="text-muted-foreground">Iniciando chamada...</p>
           <p className="text-muted-foreground text-sm">Permita o acesso à câmera e microfone</p>
+          {/* Debug footer */}
+          <p className="text-xs text-muted-foreground/50 font-mono">{debugState}</p>
         </div>
       </div>
     );
   }
 
+  // Provider monta PRIMEIRO, depois o Joiner faz o join DENTRO do provider
   return (
     <DailyProvider callObject={callObject}>
+      <VideoCallJoiner 
+        roomUrl={roomUrl} 
+        onJoinError={handleError}
+        onTimeout={handleTimeout}
+      />
       <VideoCallContent onLeave={onLeave} />
     </DailyProvider>
   );
