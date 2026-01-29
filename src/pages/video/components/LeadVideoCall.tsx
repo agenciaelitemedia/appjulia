@@ -86,6 +86,7 @@ function LeadCallContent({ onLeave }: { onLeave: () => void }) {
 export function LeadVideoCall({ roomUrl, onLeave, onError }: LeadVideoCallProps) {
   const [callObject, setCallObject] = useState<ReturnType<typeof DailyIframe.createCallObject> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -93,27 +94,42 @@ export function LeadVideoCall({ roomUrl, onLeave, onError }: LeadVideoCallProps)
 
     const initCall = async () => {
       try {
+        console.log('[LeadVideoCall] Creating call object...');
         call = DailyIframe.createCallObject({
           subscribeToTracksAutomatically: true,
         });
 
         call.on('error', (event) => {
-          console.error('Daily error:', event);
-          onError?.(event?.errorMsg || 'Erro na conexão');
+          console.error('[LeadVideoCall] Daily error:', event);
+          if (mounted) {
+            setHasError(true);
+            onError?.(event?.errorMsg || 'Erro na conexão');
+          }
         });
 
+        call.on('camera-error', (event) => {
+          console.warn('[LeadVideoCall] Camera error:', event);
+        });
+
+        console.log('[LeadVideoCall] Joining room:', roomUrl);
+        
         if (mounted) {
           setCallObject(call);
         }
         
         await call.join({ url: roomUrl });
         
+        console.log('[LeadVideoCall] Successfully joined room');
+        
         if (mounted) {
           setIsLoading(false);
         }
       } catch (err) {
-        console.error('Error joining call:', err);
-        onError?.('Erro ao entrar na chamada');
+        console.error('[LeadVideoCall] Error joining call:', err);
+        if (mounted) {
+          setHasError(true);
+          onError?.('Erro ao entrar na chamada');
+        }
       }
     };
 
@@ -122,11 +138,23 @@ export function LeadVideoCall({ roomUrl, onLeave, onError }: LeadVideoCallProps)
     return () => {
       mounted = false;
       if (call) {
+        console.log('[LeadVideoCall] Cleaning up call object');
         call.leave().catch(console.warn);
         call.destroy();
       }
     };
-  }, [roomUrl, onError]);
+  }, [roomUrl]); // Remove onError from dependencies to prevent re-runs
+
+  if (hasError) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <p className="text-destructive text-lg">Erro ao conectar</p>
+          <p className="text-muted-foreground">Tente recarregar a página</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || !callObject) {
     return (
@@ -134,6 +162,7 @@ export function LeadVideoCall({ roomUrl, onLeave, onError }: LeadVideoCallProps)
         <div className="text-center space-y-4">
           <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
           <p className="text-muted-foreground text-lg">Preparando sua chamada...</p>
+          <p className="text-muted-foreground text-sm">Permita o acesso à câmera e microfone</p>
         </div>
       </div>
     );

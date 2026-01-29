@@ -85,6 +85,7 @@ function VideoCallContent({ onLeave }: { onLeave: () => void }) {
 export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallProps) {
   const [callObject, setCallObject] = useState<ReturnType<typeof DailyIframe.createCallObject> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -92,27 +93,42 @@ export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallPr
 
     const initCall = async () => {
       try {
+        console.log('[CustomVideoCall] Creating call object...');
         call = DailyIframe.createCallObject({
           subscribeToTracksAutomatically: true,
         });
 
         call.on('error', (event) => {
-          console.error('Daily error:', event);
-          onError?.(event?.errorMsg || 'Erro na conexão');
+          console.error('[CustomVideoCall] Daily error:', event);
+          if (mounted) {
+            setHasError(true);
+            onError?.(event?.errorMsg || 'Erro na conexão');
+          }
         });
 
+        call.on('camera-error', (event) => {
+          console.warn('[CustomVideoCall] Camera error:', event);
+        });
+
+        console.log('[CustomVideoCall] Joining room:', roomUrl);
+        
         if (mounted) {
           setCallObject(call);
         }
         
         await call.join({ url: roomUrl });
         
+        console.log('[CustomVideoCall] Successfully joined room');
+        
         if (mounted) {
           setIsLoading(false);
         }
       } catch (err) {
-        console.error('Error joining call:', err);
-        onError?.('Erro ao entrar na chamada');
+        console.error('[CustomVideoCall] Error joining call:', err);
+        if (mounted) {
+          setHasError(true);
+          onError?.('Erro ao entrar na chamada');
+        }
       }
     };
 
@@ -121,11 +137,23 @@ export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallPr
     return () => {
       mounted = false;
       if (call) {
+        console.log('[CustomVideoCall] Cleaning up call object');
         call.leave().catch(console.warn);
         call.destroy();
       }
     };
-  }, [roomUrl, onError]);
+  }, [roomUrl]); // Remove onError from dependencies to prevent re-runs
+
+  if (hasError) {
+    return (
+      <div className="h-full w-full flex items-center justify-center bg-background rounded-lg">
+        <div className="text-center space-y-4">
+          <p className="text-destructive text-lg">Erro ao conectar</p>
+          <p className="text-muted-foreground">Tente novamente</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || !callObject) {
     return (
