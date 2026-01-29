@@ -174,7 +174,7 @@ export function VideoCallEmbed({
   };
 
   return (
-    <Card className={cn("flex flex-col", isFullscreen && "fixed inset-0 z-50 rounded-none")}>
+    <Card className={cn("flex flex-col h-full min-h-[calc(100vh-200px)]", isFullscreen && "fixed inset-0 z-50 rounded-none")}>
       <CardHeader className="py-3 px-4 border-b">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
@@ -205,7 +205,7 @@ export function VideoCallEmbed({
       <CardContent className="flex-1 p-0 relative">
         <div 
           ref={containerRef} 
-          className="w-full h-full min-h-[400px] bg-muted"
+          className="w-full h-full min-h-[calc(100vh-200px)] bg-muted"
         />
         
         {/* Controls overlay */}

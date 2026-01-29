@@ -80,7 +80,7 @@ serve(async (req) => {
               lang: 'pt',
               enable_prejoin_ui: true,
               enable_network_ui: true,
-              // hide_daily_branding: true, // Requer conta com cartão de crédito no Daily.co
+              hide_daily_branding: true,
             },
           }),
         });
