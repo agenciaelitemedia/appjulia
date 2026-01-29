@@ -13,9 +13,13 @@ import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { VideoTile } from './VideoTile';
 import { VideoControls } from './VideoControls';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
 
 interface CustomVideoCallProps {
   roomUrl: string;
+  roomName?: string;
+  operatorId?: number;
+  operatorName?: string;
   onLeave: () => void;
   onError?: (error: string) => void;
 }
@@ -118,14 +122,53 @@ function VideoCallJoiner({
 // Componente que renderiza o conteúdo da chamada
 function VideoCallContent({ 
   onLeave,
-  isLeavingRef 
+  isLeavingRef,
+  roomName,
+  operatorId,
+  operatorName
 }: { 
   onLeave: () => void;
   isLeavingRef: React.MutableRefObject<boolean>;
+  roomName?: string;
+  operatorId?: number;
+  operatorName?: string;
 }) {
   const localParticipant = useLocalParticipant();
   const remoteParticipantIds = useParticipantIds({ filter: 'remote' });
   const meetingState = useMeetingState();
+  const [recordingStatus, setRecordingStatus] = useState<'none' | 'starting' | 'recording'>('none');
+  const hasStartedRecording = useRef(false);
+
+  // Start recording after successfully joining the meeting
+  useDailyEvent('joined-meeting', useCallback(async () => {
+    if (hasStartedRecording.current || isLeavingRef.current) return;
+    hasStartedRecording.current = true;
+    
+    console.log('[CustomVideoCall] joined-meeting - starting recording');
+    
+    if (roomName && operatorId) {
+      setRecordingStatus('starting');
+      try {
+        const result = await supabase.functions.invoke('video-room', {
+          body: {
+            action: 'record-start',
+            roomName,
+            operatorId,
+            operatorName,
+          },
+        });
+        console.log('[CustomVideoCall] record-start result:', result.data);
+        if (result.data?.recordingStarted) {
+          setRecordingStatus('recording');
+        } else {
+          setRecordingStatus('none');
+        }
+      } catch (err) {
+        console.error('[CustomVideoCall] record-start error:', err);
+        setRecordingStatus('none');
+      }
+    }
+  }, [roomName, operatorId, operatorName, isLeavingRef]));
 
   // Detectar saída via evento - only call onLeave if we weren't already leaving
   useDailyEvent('left-meeting', useCallback(() => {
@@ -170,6 +213,19 @@ function VideoCallContent({
 
   return (
     <div className="relative h-full w-full bg-background">
+      {/* Recording indicator */}
+      {recordingStatus === 'recording' && (
+        <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 bg-destructive rounded-full text-destructive-foreground text-sm animate-pulse">
+          <span className="w-2 h-2 bg-destructive-foreground rounded-full" />
+          Gravando
+        </div>
+      )}
+      {recordingStatus === 'starting' && (
+        <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 bg-muted rounded-full text-muted-foreground text-sm">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          Iniciando gravação...
+        </div>
+      )}
       {/* Vídeo principal (remoto ou local se sozinho) */}
       <div className="absolute inset-0">
         {hasRemote ? (
@@ -207,7 +263,7 @@ function VideoCallContent({
   );
 }
 
-export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallProps) {
+export function CustomVideoCall({ roomUrl, roomName, operatorId, operatorName, onLeave, onError }: CustomVideoCallProps) {
   const [callObject, setCallObject] = useState<ReturnType<typeof DailyIframe.createCallObject> | null>(null);
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -405,7 +461,13 @@ export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallPr
         onTimeout={handleTimeout}
         isLeavingRef={isLeavingRef}
       />
-      <VideoCallContent onLeave={onLeave} isLeavingRef={isLeavingRef} />
+      <VideoCallContent 
+        onLeave={onLeave} 
+        isLeavingRef={isLeavingRef}
+        roomName={roomName}
+        operatorId={operatorId}
+        operatorName={operatorName}
+      />
     </DailyProvider>
   );
 }

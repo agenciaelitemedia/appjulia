@@ -18,10 +18,14 @@ import { supabase } from '@/integrations/supabase/client';
 // Memoized video call component to prevent re-renders from polling
 const ActiveCallSection = memo(function ActiveCallSection({ 
   room, 
+  operatorId,
+  operatorName,
   onLeave, 
   onError 
 }: { 
   room: VideoRoom;
+  operatorId?: number;
+  operatorName?: string;
   onLeave: () => void;
   onError: (error: string) => void;
 }) {
@@ -29,6 +33,9 @@ const ActiveCallSection = memo(function ActiveCallSection({
     <Card className="h-full min-h-[400px] overflow-hidden">
       <CustomVideoCall
         roomUrl={room.url}
+        roomName={room.name}
+        operatorId={operatorId}
+        operatorName={operatorName}
         onLeave={onLeave}
         onError={onError}
       />
@@ -42,23 +49,10 @@ export default function VideoQueuePage() {
   const { data: rooms = [], isLoading, refetch, isFetching } = useVideoRooms();
   const closeRoom = useCloseVideoRoom();
 
-  const handleJoinRoom = useCallback(async (room: VideoRoom) => {
-    // Register the start of the call with operator info
-    try {
-      await supabase.functions.invoke('video-room', {
-        body: {
-          action: 'record-start',
-          roomName: room.name,
-          operatorId: user?.id,
-          operatorName: user?.name,
-        },
-      });
-    } catch (err) {
-      console.error('Error recording call start:', err);
-    }
-    
+  const handleJoinRoom = useCallback((room: VideoRoom) => {
+    // Recording will be started by CustomVideoCall after joined-meeting event
     setActiveRoom(room);
-  }, [user]);
+  }, []);
 
   const handleLeaveRoom = useCallback(() => {
     if (activeRoom) {
@@ -170,6 +164,8 @@ export default function VideoQueuePage() {
               {activeRoom ? (
                 <ActiveCallSection
                   room={activeRoom}
+                  operatorId={user?.id}
+                  operatorName={user?.name}
                   onLeave={handleLeaveRoom}
                   onError={handleVideoError}
                 />
