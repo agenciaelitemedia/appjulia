@@ -20,6 +20,7 @@ import {
   X,
   PanelLeftClose,
   PanelLeft,
+  Video,
 } from "lucide-react";
 import juliaLogo from "@/assets/julia-logo.png";
 import { cn } from "@/lib/utils";
@@ -72,6 +73,7 @@ const menuGroups: MenuGroup[] = [
     label: "CRM",
     items: [
       { label: "Leads", icon: Users, href: "/crm/leads" },
+      { label: "Videochamadas", icon: Video, href: "/video/queue" },
       { label: "Monitoramento", icon: BarChart3, href: "/crm/lead-monitoramento" },
       { label: "Estatísticas", icon: BarChart3, href: "/crm/lead-estatisticas" },
     ],

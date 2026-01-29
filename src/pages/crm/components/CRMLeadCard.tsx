@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Clock, Eye, Hash, MessageCircle, Scale } from 'lucide-react';
+import { Clock, Eye, Hash, MessageCircle, Scale, Video } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,12 +9,18 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { WhatsAppMessagesDialog } from './WhatsAppMessagesDialog';
 import { ContractInfoDialog } from './ContractInfoDialog';
+import { VideoCallDialog } from '@/pages/video/components/VideoCallDialog';
 import { formatDbDateTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 
 interface CRMLeadCardProps {
   card: CRMCard;
   onClick: () => void;
+  apiCredentials?: {
+    apiUrl: string;
+    apiKey: string;
+    apiInstance: string;
+  };
 }
 
 function truncateText(text: string | undefined, maxLength: number): string {
@@ -22,9 +28,10 @@ function truncateText(text: string | undefined, maxLength: number): string {
   return text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
 }
 
-export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
+export function CRMLeadCard({ card, onClick, apiCredentials }: CRMLeadCardProps) {
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
+  const [videoCallOpen, setVideoCallOpen] = useState(false);
   
   const timeInStage = formatDistanceToNow(new Date(card.stage_entered_at), {
     addSuffix: false,
@@ -44,6 +51,11 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
   const handleContract = (e: React.MouseEvent) => {
     e.stopPropagation();
     setContractOpen(true);
+  };
+
+  const handleVideoCall = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setVideoCallOpen(true);
   };
 
   const truncatedBusinessName = truncateText(card.owner_business_name, 20);
@@ -106,6 +118,25 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
                     </Tooltip>
                   </TooltipProvider>
                 )}
+                {/* Video Call Button */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-100/50 dark:hover:bg-blue-900/30"
+                        onClick={handleVideoCall}
+                        title="Videochamada"
+                      >
+                        <Video className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Iniciar videochamada</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -195,6 +226,17 @@ export function CRMLeadCard({ card, onClick }: CRMLeadCardProps) {
         whatsappNumber={card.whatsapp_number}
         codAgent={card.cod_agent}
         contactName={card.contact_name}
+      />
+
+      {/* Video Call Dialog */}
+      <VideoCallDialog
+        open={videoCallOpen}
+        onOpenChange={setVideoCallOpen}
+        leadId={card.id}
+        codAgent={card.cod_agent}
+        whatsappNumber={card.whatsapp_number}
+        contactName={card.contact_name}
+        apiCredentials={apiCredentials}
       />
     </>
   );

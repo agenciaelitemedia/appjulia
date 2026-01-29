@@ -24,6 +24,7 @@ import CriativosPage from "./pages/criativos/CriativosPage";
 import EquipePage from "./pages/equipe/EquipePage";
 import ProfileSettingsPage from "./pages/profile/ProfileSettingsPage";
 import PermissoesPage from "./pages/admin/permissoes/PermissoesPage";
+import VideoQueuePage from "./pages/video/VideoQueuePage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,6 +49,7 @@ const App = () => (
                 <Route path="/estrategico/contratos" element={<ContratosPage />} />
                 <Route path="/agente/meus-agentes" element={<MyAgentsPage />} />
                 <Route path="/agente/followup" element={<FollowupPage />} />
+                <Route path="/video/queue" element={<VideoQueuePage />} />
                 <Route path="/biblioteca" element={<CriativosPage />} />
                 <Route path="/equipe" element={<EquipePage />} />
                 <Route path="/perfil" element={<ProfileSettingsPage />} />
