@@ -14,7 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      video_call_records: {
+        Row: {
+          cod_agent: string
+          contact_name: string | null
+          created_at: string | null
+          duration_seconds: number | null
+          ended_at: string | null
+          id: string
+          lead_id: number | null
+          operator_name: string | null
+          room_name: string
+          started_at: string | null
+          status: string | null
+          whatsapp_number: string | null
+        }
+        Insert: {
+          cod_agent: string
+          contact_name?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          lead_id?: number | null
+          operator_name?: string | null
+          room_name: string
+          started_at?: string | null
+          status?: string | null
+          whatsapp_number?: string | null
+        }
+        Update: {
+          cod_agent?: string
+          contact_name?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          lead_id?: number | null
+          operator_name?: string | null
+          room_name?: string
+          started_at?: string | null
+          status?: string | null
+          whatsapp_number?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
