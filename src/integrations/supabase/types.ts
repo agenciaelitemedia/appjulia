@@ -25,6 +25,8 @@ export type Database = {
           lead_id: number | null
           operator_id: number | null
           operator_name: string | null
+          recording_id: string | null
+          recording_status: string | null
           room_name: string
           started_at: string | null
           status: string | null
@@ -40,6 +42,8 @@ export type Database = {
           lead_id?: number | null
           operator_id?: number | null
           operator_name?: string | null
+          recording_id?: string | null
+          recording_status?: string | null
           room_name: string
           started_at?: string | null
           status?: string | null
@@ -55,6 +59,8 @@ export type Database = {
           lead_id?: number | null
           operator_id?: number | null
           operator_name?: string | null
+          recording_id?: string | null
+          recording_status?: string | null
           room_name?: string
           started_at?: string | null
           status?: string | null

@@ -16,6 +16,8 @@ export interface CallHistoryRecord {
   duration_seconds: number | null;
   status: string;
   created_at: string;
+  recording_id: string | null;
+  recording_status: string | null;
 }
 
 interface HistoryResponse {

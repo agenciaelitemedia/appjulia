@@ -51,7 +51,12 @@ interface GetHistoryRequest {
   isAdmin?: boolean;
 }
 
-type RequestBody = CreateRoomRequest | ListRoomsRequest | CloseRoomRequest | JoinRoomRequest | RecordStartRequest | RecordEndRequest | GetHistoryRequest;
+interface GetRecordingLinkRequest {
+  action: 'get-recording-link';
+  recordingId: string;
+}
+
+type RequestBody = CreateRoomRequest | ListRoomsRequest | CloseRoomRequest | JoinRoomRequest | RecordStartRequest | RecordEndRequest | GetHistoryRequest | GetRecordingLinkRequest;
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -98,6 +103,7 @@ serve(async (req) => {
               exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour expiration
               enable_chat: true,
               enable_screenshare: true,
+              enable_recording: 'cloud',
               enable_knocking: false,
               start_video_off: false,
               start_audio_off: false,
@@ -227,6 +233,27 @@ serve(async (req) => {
       case 'close': {
         const { roomName } = body as CloseRoomRequest;
         
+        // Stop cloud recording and get recording_id
+        let recordingId: string | null = null;
+        try {
+          const stopRecordingResponse = await fetch(
+            `${DAILY_API_URL}/rooms/${roomName}/recordings/stop`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${DAILY_API_KEY}`,
+              },
+            }
+          );
+          
+          if (stopRecordingResponse.ok) {
+            const stopData = await stopRecordingResponse.json();
+            recordingId = stopData.id || null;
+          }
+        } catch (recordingError) {
+          console.error('Recording stop error:', recordingError);
+        }
+        
         // Update record in database
         const endedAt = new Date().toISOString();
         
@@ -249,6 +276,8 @@ serve(async (req) => {
           .update({ 
             ended_at: endedAt, 
             duration_seconds: durationSeconds,
+            recording_id: recordingId,
+            recording_status: recordingId ? 'processing' : 'none',
             status: 'completed' 
           })
           .eq('room_name', roomName);
@@ -266,7 +295,7 @@ serve(async (req) => {
         }
 
         return new Response(
-          JSON.stringify({ success: true, message: 'Room closed' }),
+          JSON.stringify({ success: true, message: 'Room closed', recordingId }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -309,13 +338,39 @@ serve(async (req) => {
       case 'record-start': {
         const { roomName, operatorId, operatorName } = body as RecordStartRequest;
         
-        // Update record with start time and operator info
+        // Start cloud recording via Daily.co API
+        try {
+          const startRecordingResponse = await fetch(
+            `${DAILY_API_URL}/rooms/${roomName}/recordings/start`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${DAILY_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                type: 'cloud',
+                layout: { preset: 'default' },
+                max_duration: 3600, // 1 hour max
+              }),
+            }
+          );
+          
+          if (!startRecordingResponse.ok) {
+            console.error('Failed to start recording:', await startRecordingResponse.text());
+          }
+        } catch (recordingError) {
+          console.error('Recording start error:', recordingError);
+        }
+        
+        // Update record with start time, operator info, and recording status
         await supabase
           .from('video_call_records')
           .update({ 
             started_at: new Date().toISOString(),
             operator_id: operatorId,
             operator_name: operatorName,
+            recording_status: 'recording',
             status: 'active' 
           })
           .eq('room_name', roomName);
@@ -382,6 +437,53 @@ serve(async (req) => {
 
         return new Response(
           JSON.stringify({ success: true, records: data }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'get-recording-link': {
+        const { recordingId } = body as GetRecordingLinkRequest;
+        
+        if (!recordingId) {
+          return new Response(
+            JSON.stringify({ error: 'Recording ID is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        const linkResponse = await fetch(
+          `${DAILY_API_URL}/recordings/${recordingId}/access-link?valid_for_secs=3600`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${DAILY_API_KEY}`,
+            },
+          }
+        );
+        
+        if (!linkResponse.ok) {
+          const errorText = await linkResponse.text();
+          console.error('Failed to get recording link:', errorText);
+          return new Response(
+            JSON.stringify({ error: 'Recording not ready or not found' }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        const linkData = await linkResponse.json();
+        
+        // Update status to 'ready' if not already
+        await supabase
+          .from('video_call_records')
+          .update({ recording_status: 'ready' })
+          .eq('recording_id', recordingId);
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            downloadLink: linkData.download_link,
+            expiresAt: new Date(linkData.expires * 1000).toISOString(),
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
