@@ -98,7 +98,7 @@ serve(async (req) => {
               enable_knocking: false,
               start_video_off: false,
               start_audio_off: false,
-              max_participants: 2,
+              max_participants: 4,
               lang: 'pt',
               enable_prejoin_ui: false,
               enable_network_ui: true,

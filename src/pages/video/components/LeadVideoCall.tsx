@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { 
   DailyProvider, 
   useLocalParticipant, 
@@ -7,9 +7,10 @@ import {
   DailyAudio 
 } from '@daily-co/daily-react';
 import DailyIframe from '@daily-co/daily-js';
-import { Loader2, Video as VideoIcon } from 'lucide-react';
+import { Loader2, Video as VideoIcon, AlertCircle, RefreshCw } from 'lucide-react';
 import { VideoTile } from './VideoTile';
 import { VideoControls } from './VideoControls';
+import { Button } from '@/components/ui/button';
 
 interface LeadVideoCallProps {
   roomUrl: string;
@@ -87,24 +88,72 @@ export function LeadVideoCall({ roomUrl, onLeave, onError }: LeadVideoCallProps)
   const [callObject, setCallObject] = useState<ReturnType<typeof DailyIframe.createCallObject> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [retryKey, setRetryKey] = useState(0);
+  
+  // Refs para prevenir conexões duplicadas e race conditions
+  const isConnecting = useRef(false);
+  const callRef = useRef<ReturnType<typeof DailyIframe.createCallObject> | null>(null);
+
+  const handleRetry = useCallback(() => {
+    // Limpar estado anterior
+    if (callRef.current) {
+      try {
+        callRef.current.destroy();
+      } catch (e) {
+        console.warn('[LeadVideoCall] Error destroying on retry:', e);
+      }
+      callRef.current = null;
+    }
+    
+    setCallObject(null);
+    setHasError(false);
+    setErrorMessage('');
+    setIsLoading(true);
+    isConnecting.current = false;
+    
+    // Incrementar key para forçar re-execução do useEffect
+    setRetryKey(prev => prev + 1);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
-    let call: ReturnType<typeof DailyIframe.createCallObject> | null = null;
 
     const initCall = async () => {
+      // Prevenir conexões duplicadas (importante para React StrictMode)
+      if (isConnecting.current || callRef.current) {
+        console.log('[LeadVideoCall] Already connecting or connected, skipping');
+        return;
+      }
+      
+      isConnecting.current = true;
+
       try {
         console.log('[LeadVideoCall] Creating call object...');
-        call = DailyIframe.createCallObject({
+        const call = DailyIframe.createCallObject({
           subscribeToTracksAutomatically: true,
         });
+        
+        callRef.current = call;
 
+        // Handler de erro com mensagens específicas
         call.on('error', (event) => {
           console.error('[LeadVideoCall] Daily error:', event);
-          if (mounted) {
-            setHasError(true);
-            onError?.(event?.errorMsg || 'Erro na conexão');
+          if (!mounted) return;
+          
+          let message = 'Erro na conexão';
+          if (event?.error?.type === 'meeting-full') {
+            message = 'Sala lotada. Aguarde a saída do participante ou tente novamente.';
+          } else if (event?.error?.type === 'exp-room') {
+            message = 'Esta sala expirou ou não existe mais.';
+          } else if (event?.errorMsg) {
+            message = event.errorMsg;
           }
+          
+          setErrorMessage(message);
+          setHasError(true);
+          setIsLoading(false);
+          onError?.(message);
         });
 
         call.on('camera-error', (event) => {
@@ -113,23 +162,26 @@ export function LeadVideoCall({ roomUrl, onLeave, onError }: LeadVideoCallProps)
 
         console.log('[LeadVideoCall] Joining room:', roomUrl);
         
-        if (mounted) {
-          setCallObject(call);
-        }
-        
+        // IMPORTANTE: Join ANTES de setar o state
         await call.join({ url: roomUrl });
         
         console.log('[LeadVideoCall] Successfully joined room');
         
         if (mounted) {
+          setCallObject(call);
           setIsLoading(false);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('[LeadVideoCall] Error joining call:', err);
         if (mounted) {
+          const message = err?.errorMsg || err?.message || 'Erro ao entrar na chamada';
+          setErrorMessage(message);
           setHasError(true);
-          onError?.('Erro ao entrar na chamada');
+          setIsLoading(false);
+          onError?.(message);
         }
+      } finally {
+        isConnecting.current = false;
       }
     };
 
@@ -137,20 +189,33 @@ export function LeadVideoCall({ roomUrl, onLeave, onError }: LeadVideoCallProps)
 
     return () => {
       mounted = false;
+      isConnecting.current = false;
+      
+      const call = callRef.current;
       if (call) {
         console.log('[LeadVideoCall] Cleaning up call object');
-        call.leave().catch(console.warn);
-        call.destroy();
+        callRef.current = null;
+        // Destruir síncronamente no cleanup
+        try {
+          call.destroy();
+        } catch (e) {
+          console.warn('[LeadVideoCall] Error destroying:', e);
+        }
       }
     };
-  }, [roomUrl]); // Remove onError from dependencies to prevent re-runs
+  }, [roomUrl, retryKey]); // retryKey força re-execução quando retry é clicado
 
   if (hasError) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-4">
-          <p className="text-destructive text-lg">Erro ao conectar</p>
-          <p className="text-muted-foreground">Tente recarregar a página</p>
+        <div className="text-center space-y-4 p-6">
+          <AlertCircle className="h-12 w-12 text-destructive mx-auto" />
+          <p className="text-destructive text-lg font-medium">Erro ao conectar</p>
+          <p className="text-muted-foreground text-sm max-w-xs">{errorMessage}</p>
+          <Button onClick={handleRetry} variant="outline" className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Tentar novamente
+          </Button>
         </div>
       </div>
     );
