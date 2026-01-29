@@ -44,11 +44,13 @@ async function destroyExistingInstance() {
 function VideoCallJoiner({ 
   roomUrl, 
   onJoinError,
-  onTimeout 
+  onTimeout,
+  isLeavingRef
 }: { 
   roomUrl: string;
   onJoinError: (msg: string) => void;
   onTimeout: () => void;
+  isLeavingRef: React.MutableRefObject<boolean>;
 }) {
   const daily = useDaily();
   const meetingState = useMeetingState();
@@ -62,6 +64,8 @@ function VideoCallJoiner({
 
   // Watchdog: se não conectar em X segundos, dispara timeout
   useEffect(() => {
+    if (isLeavingRef.current) return; // Skip if leaving
+    
     if (meetingState === 'joined-meeting') {
       // Conectou, limpar timeout
       if (timeoutRef.current) {
@@ -74,6 +78,7 @@ function VideoCallJoiner({
     // Iniciar watchdog apenas se ainda não temos um
     if (!timeoutRef.current && meetingState !== 'error' && meetingState !== 'left-meeting') {
       timeoutRef.current = setTimeout(() => {
+        if (isLeavingRef.current) return;
         console.error('[CustomVideoCall] Timeout: não conectou em', CONNECTION_TIMEOUT_MS, 'ms. meetingState:', meetingState);
         onTimeout();
       }, CONNECTION_TIMEOUT_MS);
@@ -85,11 +90,11 @@ function VideoCallJoiner({
         timeoutRef.current = null;
       }
     };
-  }, [meetingState, onTimeout]);
+  }, [meetingState, onTimeout, isLeavingRef]);
 
   // Executar join assim que o daily estiver pronto
   useEffect(() => {
-    if (!daily || hasJoined.current) return;
+    if (!daily || hasJoined.current || isLeavingRef.current) return;
 
     const doJoin = async () => {
       hasJoined.current = true;
@@ -98,28 +103,50 @@ function VideoCallJoiner({
         await daily.join({ url: roomUrl });
         console.log('[CustomVideoCall] Join completado com sucesso');
       } catch (err: any) {
+        if (isLeavingRef.current) return;
         console.error('[CustomVideoCall] Erro no join:', err);
         onJoinError(err?.errorMsg || err?.message || 'Erro ao entrar na chamada');
       }
     };
 
     doJoin();
-  }, [daily, roomUrl, onJoinError]);
+  }, [daily, roomUrl, onJoinError, isLeavingRef]);
 
   return null;
 }
 
 // Componente que renderiza o conteúdo da chamada
-function VideoCallContent({ onLeave }: { onLeave: () => void }) {
+function VideoCallContent({ 
+  onLeave,
+  isLeavingRef 
+}: { 
+  onLeave: () => void;
+  isLeavingRef: React.MutableRefObject<boolean>;
+}) {
   const localParticipant = useLocalParticipant();
   const remoteParticipantIds = useParticipantIds({ filter: 'remote' });
   const meetingState = useMeetingState();
 
-  // Detectar saída via evento
+  // Detectar saída via evento - only call onLeave if we weren't already leaving
   useDailyEvent('left-meeting', useCallback(() => {
-    console.log('[CustomVideoCall] Evento left-meeting recebido');
+    if (isLeavingRef.current) {
+      console.log('[CustomVideoCall] left-meeting event received, but already leaving - ignoring');
+      return;
+    }
+    console.log('[CustomVideoCall] left-meeting event received - initiating leave');
+    isLeavingRef.current = true;
     onLeave();
-  }, [onLeave]));
+  }, [onLeave, isLeavingRef]));
+
+  // Monitor network connection status
+  useDailyEvent('network-connection', useCallback((event: any) => {
+    console.log('[CustomVideoCall] network-connection:', event);
+  }, []));
+
+  // Log non-fatal errors without disconnecting
+  useDailyEvent('nonfatal-error', useCallback((event: any) => {
+    console.warn('[CustomVideoCall] nonfatal-error (non-blocking):', event);
+  }, []));
 
   const isConnected = meetingState === 'joined-meeting';
 
@@ -188,8 +215,13 @@ export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallPr
   const [retryKey, setRetryKey] = useState(0);
   
   const callRef = useRef<ReturnType<typeof DailyIframe.createCallObject> | null>(null);
+  const isLeavingRef = useRef(false);
 
   const handleError = useCallback((msg: string) => {
+    if (isLeavingRef.current) {
+      console.log('[CustomVideoCall] handleError ignored (already leaving):', msg);
+      return;
+    }
     console.error('[CustomVideoCall] handleError:', msg);
     setErrorMessage(msg);
     setHasError(true);
@@ -197,7 +229,9 @@ export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallPr
   }, [onError]);
 
   const handleTimeout = useCallback(async () => {
+    if (isLeavingRef.current) return;
     console.log('[CustomVideoCall] Timeout - destruindo instância...');
+    isLeavingRef.current = true;
     await destroyExistingInstance();
     callRef.current = null;
     setCallObject(null);
@@ -206,10 +240,14 @@ export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallPr
 
   const handleRetry = useCallback(async () => {
     console.log('[CustomVideoCall] Retry solicitado');
+    isLeavingRef.current = true;
+    
     // Destruir instância global antes de recriar
     await destroyExistingInstance();
     callRef.current = null;
     
+    // Reset state
+    isLeavingRef.current = false;
     setCallObject(null);
     setHasError(false);
     setErrorMessage('');
@@ -224,10 +262,16 @@ export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallPr
     let mounted = true;
 
     const createCallObject = async () => {
+      // Don't create if we're leaving
+      if (isLeavingRef.current) {
+        console.log('[CustomVideoCall] createCallObject skipped (isLeaving)');
+        return;
+      }
+      
       // SEMPRE destruir instância anterior primeiro (garante singleton)
       await destroyExistingInstance();
       
-      if (!mounted) return;
+      if (!mounted || isLeavingRef.current) return;
 
       if (callRef.current) {
         console.log('[CustomVideoCall] Call object já existe no ref, pulando criação');
@@ -249,7 +293,7 @@ export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallPr
         // Handler de erro do Daily
         call.on('error', (event) => {
           console.error('[CustomVideoCall] Daily error event:', event);
-          if (!mounted) return;
+          if (!mounted || isLeavingRef.current) return;
           
           let message = 'Erro na conexão';
           if (event?.error?.type === 'meeting-full') {
@@ -267,13 +311,36 @@ export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallPr
           console.warn('[CustomVideoCall] Camera error:', event);
         });
 
-        if (mounted) {
+        // Diagnostic event listeners
+        call.on('joining-meeting', () => {
+          console.log('[CustomVideoCall] Event: joining-meeting');
+          if (mounted) setDebugState('Entrando na sala...');
+        });
+        
+        call.on('joined-meeting', () => {
+          console.log('[CustomVideoCall] Event: joined-meeting');
+          if (mounted) setDebugState('Conectado');
+        });
+        
+        call.on('participant-joined', (event) => {
+          console.log('[CustomVideoCall] Event: participant-joined', event?.participant?.user_name);
+        });
+        
+        call.on('participant-left', (event) => {
+          console.log('[CustomVideoCall] Event: participant-left', event?.participant?.user_name);
+        });
+
+        call.on('call-instance-destroyed', () => {
+          console.log('[CustomVideoCall] Event: call-instance-destroyed');
+        });
+
+        if (mounted && !isLeavingRef.current) {
           setCallObject(call);
           setDebugState('Aguardando provider...');
         }
       } catch (err: any) {
         console.error('[CustomVideoCall] Erro ao criar call object:', err);
-        if (mounted) {
+        if (mounted && !isLeavingRef.current) {
           handleError(err?.message || 'Erro ao inicializar chamada');
         }
       }
@@ -283,11 +350,21 @@ export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallPr
 
     return () => {
       mounted = false;
-      // Cleanup: destruir instância global
+      // DON'T destroy on cleanup - let the explicit leave() handle this
+      // This prevents premature destruction during re-renders
+      console.log('[CustomVideoCall] useEffect cleanup (mounted=false, NOT destroying)');
+    };
+  }, [retryKey, handleError]);
+
+  // Cleanup on unmount ONLY
+  useEffect(() => {
+    return () => {
+      console.log('[CustomVideoCall] Component unmounting - cleaning up');
+      isLeavingRef.current = true;
       destroyExistingInstance();
       callRef.current = null;
     };
-  }, [retryKey, handleError]);
+  }, []);
 
   if (hasError) {
     return (
@@ -326,8 +403,9 @@ export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallPr
         roomUrl={roomUrl} 
         onJoinError={handleError}
         onTimeout={handleTimeout}
+        isLeavingRef={isLeavingRef}
       />
-      <VideoCallContent onLeave={onLeave} />
+      <VideoCallContent onLeave={onLeave} isLeavingRef={isLeavingRef} />
     </DailyProvider>
   );
 }

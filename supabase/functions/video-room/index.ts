@@ -338,7 +338,8 @@ serve(async (req) => {
       case 'record-start': {
         const { roomName, operatorId, operatorName } = body as RecordStartRequest;
         
-        // Start cloud recording via Daily.co API
+        // Recording is a secondary feature - failures should NOT block the call
+        let recordingStarted = false;
         try {
           const startRecordingResponse = await fetch(
             `${DAILY_API_URL}/rooms/${roomName}/recordings/start`,
@@ -351,32 +352,40 @@ serve(async (req) => {
               body: JSON.stringify({
                 type: 'cloud',
                 layout: { preset: 'default' },
-                max_duration: 3600, // 1 hour max
+                maxDuration: 3600, // FIXED: camelCase (was max_duration)
               }),
             }
           );
           
-          if (!startRecordingResponse.ok) {
-            console.error('Failed to start recording:', await startRecordingResponse.text());
+          if (startRecordingResponse.ok) {
+            recordingStarted = true;
+            console.log('Recording started successfully for room:', roomName);
+          } else {
+            const errorText = await startRecordingResponse.text();
+            console.warn('Recording start warning (non-blocking):', errorText);
           }
         } catch (recordingError) {
-          console.error('Recording start error:', recordingError);
+          console.warn('Recording start error (non-blocking):', recordingError);
         }
         
-        // Update record with start time, operator info, and recording status
+        // Update record with start time, operator info - recording status based on success
         await supabase
           .from('video_call_records')
           .update({ 
             started_at: new Date().toISOString(),
             operator_id: operatorId,
             operator_name: operatorName,
-            recording_status: 'recording',
+            recording_status: recordingStarted ? 'recording' : 'none',
             status: 'active' 
           })
           .eq('room_name', roomName);
 
         return new Response(
-          JSON.stringify({ success: true, message: 'Recording started' }),
+          JSON.stringify({ 
+            success: true, 
+            message: recordingStarted ? 'Recording started' : 'Call started (recording unavailable)',
+            recordingStarted 
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
