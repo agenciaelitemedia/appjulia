@@ -1,176 +1,207 @@
 
-# Correção: Duplicate DailyIframe instances are not allowed
+## Objetivo
+Implementar as seguintes melhorias na Sala de Reuniao:
+1. Identificar o operador logado ao atender uma sala
+2. Criar abas para separar "Atendimento" do "Historico"
+3. Filtrar o historico por perfil: admins veem todos, outros veem apenas seus atendimentos
+4. Preparar estrutura para gravacoes (futuro)
 
-## Diagnóstico
+---
 
-O Daily.js impõe uma **restrição de singleton global**: apenas uma instância de `DailyIframe` pode existir por vez em toda a aplicação. O erro ocorre quando:
+## Analise do Estado Atual
 
-1. O operador clica em "Atender" e `CustomVideoCall` monta
-2. O componente chama `DailyIframe.createCallObject()` com sucesso
-3. Ocorre um erro na conexão (timeout, rede, etc.)
-4. O `handleError` é chamado, que dispara `onError` no pai
-5. O `VideoQueuePage` executa `setActiveRoom(null)`, desmontando `CustomVideoCall`
-6. O cleanup do `useEffect` tenta `call.destroy()`, mas isso é **assíncrono**
-7. Antes do destroy completar, o Query `useVideoRooms` faz refetch (a cada 10s) e re-renderiza a página
-8. Se o usuário clicar novamente em "Atender" (ou se algum re-render ocorrer), um novo `CustomVideoCall` monta e tenta criar outro callObject
-9. **ERRO**: A instância antiga ainda existe → "Duplicate DailyIframe instances are not allowed"
+### Tabela `video_call_records`
+Colunas atuais:
+- `id`, `room_name`, `lead_id`, `cod_agent`
+- `operator_name` (texto livre - nao rastreavel)
+- `contact_name`, `whatsapp_number`
+- `started_at`, `ended_at`, `duration_seconds`
+- `status`, `created_at`
 
-## Estratégia de Correção
+**Problema**: Nao existe `operator_id` para identificar o usuario que atendeu.
 
-### A) Implementar gestão global de instância com verificação antes de criar
+### Autenticacao
+O sistema usa `AuthContext` com usuario do banco externo:
+- `user.id` (number) - identificador unico
+- `user.name` - nome do operador
+- `user.role` - 'admin' | 'manager' | 'agent' | 'time'
 
-Em vez de confiar apenas no cleanup do useEffect, vamos:
+---
 
-1. **Verificar se existe instância ativa globalmente** antes de criar
-2. **Destruir qualquer instância existente** antes de criar nova
-3. **Usar variável global (ou módulo-level)** para rastrear a instância atual
+## Plano de Implementacao
 
-```typescript
-// Variável módulo-level para rastrear instância
-let globalCallObject: ReturnType<typeof DailyIframe.createCallObject> | null = null;
+### A) Alterar banco de dados
+Adicionar coluna `operator_id` (integer, nullable) para vincular ao usuario que atendeu.
 
-// Antes de criar:
-if (globalCallObject) {
-  try {
-    globalCallObject.leave();
-    globalCallObject.destroy();
-  } catch (e) {
-    console.warn('Cleanup de instância anterior:', e);
-  }
-  globalCallObject = null;
-}
+```sql
+ALTER TABLE video_call_records 
+ADD COLUMN operator_id integer;
 
-// Criar nova:
-globalCallObject = DailyIframe.createCallObject({ ... });
+CREATE INDEX idx_video_call_records_operator_id 
+ON video_call_records(operator_id);
 ```
 
-### B) Garantir cleanup síncrono antes de permitir nova criação
+### B) Atualizar Edge Function `video-room`
 
-Adicionar um **debounce/lock** que impede nova criação até o destroy completar:
+#### B.1 Acao `record-start`
+Receber `operatorId` e `operatorName` do frontend:
 
 ```typescript
-const [isCleaningUp, setIsCleaningUp] = useState(false);
-
-// No cleanup:
-setIsCleaningUp(true);
-await call.destroy();
-setIsCleaningUp(false);
-
-// No create:
-if (isCleaningUp) {
-  console.log('Aguardando cleanup...');
-  return;
+interface RecordStartRequest {
+  action: 'record-start';
+  roomName: string;
+  operatorId?: number;    // NOVO
+  operatorName?: string;
 }
 ```
 
-### C) Corrigir o fluxo de retry
+#### B.2 Acao `history` - Filtro por perfil
+Receber `operatorId` e `isAdmin` para filtrar:
 
-O retry atual incrementa `retryKey` mas não garante que a instância anterior foi destruída. Vamos:
+```typescript
+interface GetHistoryRequest {
+  action: 'history';
+  limit?: number;
+  operatorId?: number;  // NOVO
+  isAdmin?: boolean;    // NOVO
+}
 
-1. Destruir instância no início do retry (não apenas no cleanup)
-2. Aguardar um pequeno delay antes de re-criar
+// Logica:
+if (isAdmin) {
+  // Retorna todos os registros
+} else {
+  // Filtra por operator_id = operatorId
+}
+```
+
+### C) Atualizar Frontend
+
+#### C.1 Hook `useCallHistory`
+Enviar `operatorId` e `isAdmin` do usuario logado:
+
+```typescript
+export function useCallHistory(limit = 50) {
+  const { user, isAdmin } = useAuth();
+  
+  return useQuery({
+    queryKey: ['video-call-history', limit, user?.id, isAdmin],
+    queryFn: async () => {
+      const { data } = await supabase.functions.invoke('video-room', {
+        body: {
+          action: 'history',
+          limit,
+          operatorId: user?.id,
+          isAdmin,
+        },
+      });
+      return data.records;
+    },
+  });
+}
+```
+
+#### C.2 Pagina `VideoQueuePage`
+Enviar dados do operador ao iniciar atendimento:
+
+```typescript
+const handleJoinRoom = useCallback(async (room: VideoRoom) => {
+  await supabase.functions.invoke('video-room', {
+    body: {
+      action: 'record-start',
+      roomName: room.name,
+      operatorId: user?.id,       // NOVO
+      operatorName: user?.name,
+    },
+  });
+  setActiveRoom(room);
+}, [user]);
+```
+
+#### C.3 Criar Layout com Abas
+Reestruturar a pagina com `Tabs` do Radix:
+
+```text
+┌─────────────────────────────────────────────────────┐
+│ [Icone] Sala de Reuniao              [Atualizar]    │
+├─────────────────────────────────────────────────────┤
+│   [Atendimento]     [Historico]    <-- Abas         │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│   Conteudo da aba selecionada                       │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+**Aba Atendimento**: Layout atual (fila + video)
+**Aba Historico**: Tabela expandida com todos os registros
+
+### D) Sobre Gravacoes (Informativo)
+
+A API do Daily.co suporta gravacoes via:
+- `POST /rooms/:name/recordings/start` - Iniciar gravacao
+- `POST /rooms/:name/recordings/stop` - Parar gravacao
+- `GET /recordings` - Listar gravacoes
+
+Para habilitar, seria necessario:
+1. Chamar `start` ao iniciar atendimento
+2. Chamar `stop` ao encerrar
+3. Armazenar `recording_id` na tabela
+4. Criar acao `get-recordings` para buscar URLs
+
+**Recomendacao**: Implementar em fase posterior, pois requer:
+- Armazenamento adicional (videos sao grandes)
+- Player de video na UI
+- Custo adicional do Daily.co para gravacoes em nuvem
+
+---
 
 ## Arquivos a Modificar
 
-| Arquivo | Mudança |
+| Arquivo | Mudanca |
 |---------|---------|
-| `CustomVideoCall.tsx` | Implementar singleton global + cleanup robusto |
-| `LeadVideoCall.tsx` | Mesma correção para consistência |
+| `supabase/functions/video-room/index.ts` | Receber operatorId em record-start e filtrar history |
+| `src/pages/video/VideoQueuePage.tsx` | Adicionar Tabs, enviar user ao record-start |
+| `src/pages/video/hooks/useCallHistory.ts` | Enviar operatorId e isAdmin |
+| `src/pages/video/components/CallHistorySection.tsx` | Exibir coluna de operador, ajustar scroll |
 
-## Código Proposto para CustomVideoCall.tsx
+---
 
-```typescript
-// Variável módulo-level para rastrear instância única
-let globalCallInstance: ReturnType<typeof DailyIframe.createCallObject> | null = null;
+## Migracao SQL
 
-// Função helper para destruir instância existente
-async function destroyExistingInstance() {
-  if (globalCallInstance) {
-    console.log('[CustomVideoCall] Destruindo instância anterior...');
-    try {
-      await globalCallInstance.leave();
-      globalCallInstance.destroy();
-    } catch (e) {
-      console.warn('[CustomVideoCall] Erro ao destruir instância anterior:', e);
-    }
-    globalCallInstance = null;
-  }
-}
+```sql
+-- Adicionar coluna operator_id
+ALTER TABLE video_call_records 
+ADD COLUMN operator_id integer;
 
-export function CustomVideoCall(...) {
-  // No useEffect de criação:
-  useEffect(() => {
-    let mounted = true;
-
-    const createCallObject = async () => {
-      // SEMPRE destruir instância anterior primeiro
-      await destroyExistingInstance();
-      
-      if (!mounted) return;
-
-      try {
-        const call = DailyIframe.createCallObject({
-          subscribeToTracksAutomatically: true,
-        });
-        
-        globalCallInstance = call;
-        callRef.current = call;
-        
-        // ... resto do setup
-        
-        if (mounted) {
-          setCallObject(call);
-        }
-      } catch (err: any) {
-        // ...
-      }
-    };
-
-    createCallObject();
-
-    return () => {
-      mounted = false;
-      // Cleanup usa a função helper
-      destroyExistingInstance();
-    };
-  }, [retryKey, handleError]);
-}
+-- Indice para filtros por operador
+CREATE INDEX idx_video_call_records_operator_id 
+ON video_call_records(operator_id);
 ```
 
-## Fluxo Corrigido
+---
+
+## Fluxo Final
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│ 1. Usuário clica "Atender"                                      │
-│ 2. CustomVideoCall monta                                        │
-│ 3. useEffect executa → destroyExistingInstance() (limpa global) │
-│ 4. DailyIframe.createCallObject() → OK (não há duplicata)       │
-│ 5. globalCallInstance = call                                    │
-│ 6. join() é iniciado...                                         │
-│                                                                  │
-│ [Se ocorrer erro/timeout:]                                      │
-│ 7. handleError → onError → setActiveRoom(null)                  │
-│ 8. Componente desmonta → cleanup executa destroyExistingInstance│
-│ 9. globalCallInstance = null                                    │
-│                                                                  │
-│ [Se usuário clicar "Atender" novamente:]                        │
-│ 10. Novo CustomVideoCall monta                                  │
-│ 11. destroyExistingInstance() confirma que não há instância     │
-│ 12. createCallObject() → OK                                     │
-└─────────────────────────────────────────────────────────────────┘
+1. Operador (user.id=5, role='agent') acessa /video/queue
+2. Ve aba "Atendimento" com fila de leads
+3. Clica em "Atender"
+4. Frontend envia record-start com operatorId=5, operatorName='João'
+5. Backend salva operator_id=5 no registro
+6. Operador finaliza chamada
+7. Operador clica em aba "Historico"
+8. Frontend envia history com operatorId=5, isAdmin=false
+9. Backend retorna apenas registros WHERE operator_id=5
+10. Se fosse admin (role='admin'):
+    - Backend retorna TODOS os registros
 ```
 
-## Verificação Pós-Implementação
+---
 
-1. Criar uma sala e clicar em "Atender"
-2. Aguardar erro/timeout (ou forçar fechando a sala)
-3. Clicar em "Atender" novamente
-4. Confirmar que **não aparece** o erro "Duplicate DailyIframe"
-5. Confirmar que a videochamada conecta normalmente
+## Resultado Esperado
 
-## Benefícios
-
-- **Singleton garantido**: Nunca haverá duas instâncias, independente do timing
-- **Cleanup robusto**: Destruição acontece antes de qualquer nova criação
-- **Retry funcional**: Usuário pode tentar novamente sem F5
-- **Código defensivo**: Mesmo em cenários de race condition, o erro é evitado
+- Operadores nao-admin verao apenas seus proprios atendimentos
+- Admins verao todos os atendimentos de todos os operadores
+- O campo `operator_name` continuara sendo gravado para display
+- O campo `operator_id` permitira filtros e vinculos futuros
+- Interface com abas separa claramente atendimento ativo do historico
