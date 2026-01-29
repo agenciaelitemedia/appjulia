@@ -1,11 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface CallHistoryRecord {
   id: string;
   room_name: string;
   lead_id: number | null;
   cod_agent: string;
+  operator_id: number | null;
   operator_name: string | null;
   contact_name: string | null;
   whatsapp_number: string | null;
@@ -23,13 +25,17 @@ interface HistoryResponse {
 }
 
 export function useCallHistory(limit = 50) {
+  const { user, isAdmin } = useAuth();
+  
   return useQuery({
-    queryKey: ['video-call-history', limit],
+    queryKey: ['video-call-history', limit, user?.id, isAdmin],
     queryFn: async (): Promise<CallHistoryRecord[]> => {
       const { data, error } = await supabase.functions.invoke<HistoryResponse>('video-room', {
         body: {
           action: 'history',
           limit,
+          operatorId: user?.id,
+          isAdmin,
         },
       });
 
@@ -40,6 +46,7 @@ export function useCallHistory(limit = 50) {
 
       return data.records || [];
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    enabled: !!user,
+    refetchInterval: 30000,
   });
 }

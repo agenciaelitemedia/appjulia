@@ -37,6 +37,7 @@ export interface CallHistoryRecord {
   room_name: string;
   lead_id: number | null;
   cod_agent: string;
+  operator_id: number | null;
   operator_name: string | null;
   contact_name: string | null;
   whatsapp_number: string | null;
