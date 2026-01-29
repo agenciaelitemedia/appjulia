@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { 
   DailyProvider, 
+  useDaily,
   useLocalParticipant, 
   useParticipantIds,
   useDailyEvent,
@@ -19,18 +20,94 @@ interface LeadVideoCallProps {
   onError?: (error: string) => void;
 }
 
+// Timeout em ms para watchdog
+const CONNECTION_TIMEOUT_MS = 20000;
+
+// Componente interno que faz o join DENTRO do provider
+function VideoCallJoiner({ 
+  roomUrl, 
+  onJoinError,
+  onTimeout 
+}: { 
+  roomUrl: string;
+  onJoinError: (msg: string) => void;
+  onTimeout: () => void;
+}) {
+  const daily = useDaily();
+  const meetingState = useMeetingState();
+  const hasJoined = useRef(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Log de transições de estado
+  useEffect(() => {
+    console.log('[LeadVideoCall] meetingState ->', meetingState);
+  }, [meetingState]);
+
+  // Watchdog: se não conectar em X segundos, dispara timeout
+  useEffect(() => {
+    if (meetingState === 'joined-meeting') {
+      // Conectou, limpar timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      return;
+    }
+
+    // Iniciar watchdog apenas se ainda não temos um
+    if (!timeoutRef.current && meetingState !== 'error' && meetingState !== 'left-meeting') {
+      timeoutRef.current = setTimeout(() => {
+        console.error('[LeadVideoCall] Timeout: não conectou em', CONNECTION_TIMEOUT_MS, 'ms. meetingState:', meetingState);
+        onTimeout();
+      }, CONNECTION_TIMEOUT_MS);
+    }
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, [meetingState, onTimeout]);
+
+  // Executar join assim que o daily estiver pronto
+  useEffect(() => {
+    if (!daily || hasJoined.current) return;
+
+    const doJoin = async () => {
+      hasJoined.current = true;
+      try {
+        console.log('[LeadVideoCall] Iniciando join para:', roomUrl);
+        await daily.join({ url: roomUrl });
+        console.log('[LeadVideoCall] Join completado com sucesso');
+      } catch (err: any) {
+        console.error('[LeadVideoCall] Erro no join:', err);
+        onJoinError(err?.errorMsg || err?.message || 'Erro ao entrar na chamada');
+      }
+    };
+
+    doJoin();
+  }, [daily, roomUrl, onJoinError]);
+
+  return null;
+}
+
+// Componente que renderiza o conteúdo da chamada
 function LeadCallContent({ onLeave }: { onLeave: () => void }) {
   const localParticipant = useLocalParticipant();
   const remoteParticipantIds = useParticipantIds({ filter: 'remote' });
   const meetingState = useMeetingState();
 
-  // Detectar saída via evento (ainda necessário para callback)
+  // Detectar saída via evento
   useDailyEvent('left-meeting', useCallback(() => {
+    console.log('[LeadVideoCall] Evento left-meeting recebido');
     onLeave();
   }, [onLeave]));
 
-  // Estado derivado diretamente do hook - elimina race condition
   const isConnected = meetingState === 'joined-meeting';
+
+  // Debug info
+  const debugInfo = `Estado: ${meetingState || 'null'}`;
 
   if (!isConnected) {
     return (
@@ -38,6 +115,8 @@ function LeadCallContent({ onLeave }: { onLeave: () => void }) {
         <div className="text-center space-y-4">
           <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
           <p className="text-muted-foreground text-lg">Entrando na chamada...</p>
+          {/* Debug footer */}
+          <p className="text-xs text-muted-foreground/50 font-mono">{debugInfo}</p>
         </div>
       </div>
     );
@@ -87,22 +166,44 @@ function LeadCallContent({ onLeave }: { onLeave: () => void }) {
 
 export function LeadVideoCall({ roomUrl, onLeave, onError }: LeadVideoCallProps) {
   const [callObject, setCallObject] = useState<ReturnType<typeof DailyIframe.createCallObject> | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [debugState, setDebugState] = useState<string>('Inicializando...');
   const [retryKey, setRetryKey] = useState(0);
   
-  // Refs para prevenir conexões duplicadas e race conditions
-  const isConnecting = useRef(false);
   const callRef = useRef<ReturnType<typeof DailyIframe.createCallObject> | null>(null);
 
+  const handleError = useCallback((msg: string) => {
+    console.error('[LeadVideoCall] handleError:', msg);
+    setErrorMessage(msg);
+    setHasError(true);
+    onError?.(msg);
+  }, [onError]);
+
+  const handleTimeout = useCallback(() => {
+    const call = callRef.current;
+    if (call) {
+      try {
+        call.leave();
+        call.destroy();
+      } catch (e) {
+        console.warn('[LeadVideoCall] Erro ao limpar após timeout:', e);
+      }
+      callRef.current = null;
+    }
+    setCallObject(null);
+    handleError('Conexão demorou muito. Verifique sua internet e tente novamente.');
+  }, [handleError]);
+
   const handleRetry = useCallback(() => {
+    console.log('[LeadVideoCall] Retry solicitado');
     // Limpar estado anterior
     if (callRef.current) {
       try {
+        callRef.current.leave();
         callRef.current.destroy();
       } catch (e) {
-        console.warn('[LeadVideoCall] Error destroying on retry:', e);
+        console.warn('[LeadVideoCall] Erro ao destruir no retry:', e);
       }
       callRef.current = null;
     }
@@ -110,101 +211,82 @@ export function LeadVideoCall({ roomUrl, onLeave, onError }: LeadVideoCallProps)
     setCallObject(null);
     setHasError(false);
     setErrorMessage('');
-    setIsLoading(true);
-    isConnecting.current = false;
+    setDebugState('Reconectando...');
     
-    // Incrementar key para forçar re-execução do useEffect
+    // Incrementar key para forçar re-criação
     setRetryKey(prev => prev + 1);
   }, []);
 
+  // Criar call object (SEM fazer join aqui)
   useEffect(() => {
     let mounted = true;
 
-    const initCall = async () => {
-      // Prevenir conexões duplicadas (importante para React StrictMode)
-      if (isConnecting.current || callRef.current) {
-        console.log('[LeadVideoCall] Already connecting or connected, skipping');
+    const createCallObject = () => {
+      if (callRef.current) {
+        console.log('[LeadVideoCall] Call object já existe, pulando criação');
         return;
       }
-      
-      isConnecting.current = true;
 
       try {
-        console.log('[LeadVideoCall] Creating call object...');
+        console.log('[LeadVideoCall] Criando call object...');
+        setDebugState('Criando conexão...');
+        
         const call = DailyIframe.createCallObject({
           subscribeToTracksAutomatically: true,
         });
         
         callRef.current = call;
 
-        // Handler de erro com mensagens específicas
+        // Handler de erro do Daily
         call.on('error', (event) => {
-          console.error('[LeadVideoCall] Daily error:', event);
+          console.error('[LeadVideoCall] Daily error event:', event);
           if (!mounted) return;
           
           let message = 'Erro na conexão';
           if (event?.error?.type === 'meeting-full') {
-            message = 'Sala lotada. Aguarde a saída do participante ou tente novamente.';
+            message = 'Sala lotada. Aguarde ou tente novamente.';
           } else if (event?.error?.type === 'exp-room') {
-            message = 'Esta sala expirou ou não existe mais.';
+            message = 'Esta sala expirou.';
           } else if (event?.errorMsg) {
             message = event.errorMsg;
           }
           
-          setErrorMessage(message);
-          setHasError(true);
-          setIsLoading(false);
-          onError?.(message);
+          handleError(message);
         });
 
         call.on('camera-error', (event) => {
           console.warn('[LeadVideoCall] Camera error:', event);
         });
 
-        console.log('[LeadVideoCall] Joining room:', roomUrl);
-        
-        // IMPORTANTE: Join ANTES de setar o state
-        await call.join({ url: roomUrl });
-        
-        console.log('[LeadVideoCall] Successfully joined room');
-        
         if (mounted) {
           setCallObject(call);
-          setIsLoading(false);
+          setDebugState('Aguardando provider...');
         }
       } catch (err: any) {
-        console.error('[LeadVideoCall] Error joining call:', err);
+        console.error('[LeadVideoCall] Erro ao criar call object:', err);
         if (mounted) {
-          const message = err?.errorMsg || err?.message || 'Erro ao entrar na chamada';
-          setErrorMessage(message);
-          setHasError(true);
-          setIsLoading(false);
-          onError?.(message);
+          handleError(err?.message || 'Erro ao inicializar chamada');
         }
-      } finally {
-        isConnecting.current = false;
       }
     };
 
-    initCall();
+    createCallObject();
 
     return () => {
       mounted = false;
-      isConnecting.current = false;
-      
       const call = callRef.current;
       if (call) {
-        console.log('[LeadVideoCall] Cleaning up call object');
+        console.log('[LeadVideoCall] Cleanup: destruindo call object');
         callRef.current = null;
-        // Destruir síncronamente no cleanup
         try {
+          call.leave();
           call.destroy();
         } catch (e) {
-          console.warn('[LeadVideoCall] Error destroying:', e);
+          console.warn('[LeadVideoCall] Erro no cleanup:', e);
         }
       }
     };
-  }, [roomUrl, retryKey]); // retryKey força re-execução quando retry é clicado
+  }, [retryKey, handleError]);
 
   if (hasError) {
     return (
@@ -222,20 +304,28 @@ export function LeadVideoCall({ roomUrl, onLeave, onError }: LeadVideoCallProps)
     );
   }
 
-  if (isLoading || !callObject) {
+  if (!callObject) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
           <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
           <p className="text-muted-foreground text-lg">Preparando sua chamada...</p>
           <p className="text-muted-foreground text-sm">Permita o acesso à câmera e microfone</p>
+          {/* Debug footer */}
+          <p className="text-xs text-muted-foreground/50 font-mono">{debugState}</p>
         </div>
       </div>
     );
   }
 
+  // Provider monta PRIMEIRO, depois o Joiner faz o join DENTRO do provider
   return (
     <DailyProvider callObject={callObject}>
+      <VideoCallJoiner 
+        roomUrl={roomUrl} 
+        onJoinError={handleError}
+        onTimeout={handleTimeout}
+      />
       <LeadCallContent onLeave={onLeave} />
     </DailyProvider>
   );
