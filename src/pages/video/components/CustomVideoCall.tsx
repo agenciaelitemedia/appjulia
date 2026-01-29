@@ -4,6 +4,7 @@ import {
   useLocalParticipant, 
   useParticipantIds,
   useDailyEvent,
+  useMeetingState,
   DailyAudio 
 } from '@daily-co/daily-react';
 import DailyIframe from '@daily-co/daily-js';
@@ -21,15 +22,15 @@ interface CustomVideoCallProps {
 function VideoCallContent({ onLeave }: { onLeave: () => void }) {
   const localParticipant = useLocalParticipant();
   const remoteParticipantIds = useParticipantIds({ filter: 'remote' });
-  const [isConnected, setIsConnected] = useState(false);
+  const meetingState = useMeetingState();
 
-  useDailyEvent('joined-meeting', () => {
-    setIsConnected(true);
-  });
-
-  useDailyEvent('left-meeting', () => {
+  // Detectar saída via evento (ainda necessário para callback)
+  useDailyEvent('left-meeting', useCallback(() => {
     onLeave();
-  });
+  }, [onLeave]));
+
+  // Estado derivado diretamente do hook - elimina race condition
+  const isConnected = meetingState === 'joined-meeting';
 
   if (!isConnected) {
     return (
