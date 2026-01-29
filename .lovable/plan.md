@@ -1,151 +1,117 @@
 
-# Plano de Correção: Videochamadas
+# Correção: Página de Videochamada para Leads Travada em "Conectando..."
 
-## Problema Principal Identificado
+## Problema Identificado
 
-Quando você clica em "Atender", o componente `VideoCallEmbed` tenta inicializar o iframe do Daily.co, mas ocorre um erro (`Cannot read properties of null (reading 'postMessage')`). O callback `onError` então chama `handleLeaveRoom()` que **deleta a sala permanentemente no Daily.co**.
+A página `/call/:roomName` fica mostrando "Conectando..." infinitamente porque:
 
-Isso significa que a sala é destruída antes mesmo de conseguir conectar.
+1. **O overlay de loading bloqueia a interface do Daily.co** - O overlay com z-index 10 cobre o iframe
+2. **O status só muda para "connected" quando entra na chamada** - Mas o Daily.co tem uma tela de pré-entrada (prejoin) onde o usuário escolhe câmera/microfone antes de entrar
+3. **O container do iframe não tem altura fixa** - Pode causar problemas de renderização
 
-## Correções Necessárias
+## Solução Proposta
 
-### 1. Separar "erro de conexão" de "encerrar chamada"
+### 1. Remover o overlay durante a fase "joining"
 
-O `onError` não deve deletar a sala - apenas desconectar o operador da interface. A sala deve continuar existindo para que o lead possa esperar.
+O overlay de "Conectando..." deve desaparecer assim que o iframe for criado, permitindo que o usuário veja a interface do Daily.co para configurar câmera/microfone.
 
-**Arquivo:** `src/pages/video/VideoQueuePage.tsx`
+### 2. Usar evento "loaded" do Daily.co
 
-```tsx
-// ANTES (problemático)
-onError={(error) => {
-  console.error('Video call error:', error);
-  handleLeaveRoom(); // ❌ Isso DELETA a sala!
-}}
+O Daily.co dispara um evento `loading` que indica quando a interface está pronta. Vamos usar isso para ocultar o loading.
 
-// DEPOIS (correção)
-onError={(error) => {
-  console.error('Video call error:', error);
-  setActiveRoom(null); // ✅ Apenas desconecta da UI, não deleta a sala
-  toast.error('Erro ao conectar. Tente novamente.');
-}}
-```
+### 3. Garantir altura do container
 
-### 2. Corrigir inicialização do iframe Daily.co
+O container precisa ter uma altura mínima definida para que o iframe seja exibido corretamente.
 
-O erro `postMessage` geralmente ocorre quando o container DOM não está pronto. Vamos adicionar um pequeno delay e melhor verificação:
+## Alterações no Código
 
-**Arquivo:** `src/pages/video/components/VideoCallEmbed.tsx`
+### Arquivo: `src/pages/video/JoinCallPage.tsx`
+
+**Mudanças:**
+
+1. Adicionar evento `loading` para detectar quando iframe está pronto
+2. Mudar o status para "connected" assim que o iframe carregar (não esperar joined-meeting)
+3. Ou simplesmente remover o overlay quando estiver na fase "joining"
 
 ```tsx
-// Adicionar verificação mais robusta
-useEffect(() => {
-  if (!containerRef.current || !roomUrl) return;
-  
-  // Dar tempo para o DOM estar completamente pronto
-  const timeoutId = setTimeout(() => {
-    if (isInitializingRef.current || callFrameRef.current) return;
-    initCall();
-  }, 100);
-  
-  return () => clearTimeout(timeoutId);
-}, [roomUrl]);
+// ANTES - Overlay bloqueia interface
+{status === 'joining' && (
+  <div className="absolute inset-0 flex items-center justify-center bg-background z-10">
+    <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+    <p>Conectando...</p>
+  </div>
+)}
+<div ref={containerRef} className="flex-1 w-full" />
+
+// DEPOIS - Remover overlay ou usar z-index menor, e garantir altura
+<div 
+  ref={containerRef} 
+  className="flex-1 w-full min-h-screen"
+/>
+// Loading apenas no estado inicial "loading", não em "joining"
 ```
 
-### 3. Adicionar tradução para português
+**Alternativa mais simples:** Remover o overlay "Conectando..." durante joining e deixar o Daily.co mostrar sua própria interface de loading/prejoin.
 
-**Arquivo:** `src/pages/video/components/VideoCallEmbed.tsx`
+## Fluxo Corrigido
 
-```tsx
-const callFrame = DailyIframe.createFrame(containerRef.current!, {
-  iframeStyle: { /* ... */ },
-  showLeaveButton: false,
-  showFullscreenButton: false,
-  lang: 'pt', // ✅ Interface em português
-});
+```text
+┌────────────────────────────────────────────────────────────────────┐
+│                        FLUXO ATUAL (PROBLEMA)                       │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  1. Lead abre link                                                   │
+│  2. Status: "loading" → Mostra spinner                               │
+│  3. API retorna URL da sala                                          │
+│  4. Status: "joining" → Overlay "Conectando..." BLOQUEIA o iframe    │
+│  5. Daily.co cria iframe (por baixo do overlay, invisível)           │
+│  6. Usuário NÃO consegue ver/interagir com Daily.co                  │
+│  7. Status fica "joining" eternamente                                │
+│                                                                      │
+└────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────┐
+│                        FLUXO CORRIGIDO                              │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  1. Lead abre link                                                   │
+│  2. Status: "loading" → Mostra spinner                               │
+│  3. API retorna URL da sala                                          │
+│  4. Status: "joining" → Iframe Daily.co visível                      │
+│  5. Daily.co mostra tela prejoin (câmera/mic)                        │
+│  6. Usuário interage e entra na chamada                              │
+│  7. Status: "connected" quando joined-meeting dispara                │
+│                                                                      │
+└────────────────────────────────────────────────────────────────────┘
 ```
-
-### 4. Ocultar branding do Daily.co
-
-Isso requer configuração na conta Daily.co (adicionar cartão de crédito) + usar a propriedade na criação da sala.
-
-**Arquivo:** `supabase/functions/video-room/index.ts`
-
-```typescript
-// Na criação da sala
-body: JSON.stringify({
-  name: roomName,
-  privacy: 'public',
-  properties: {
-    // ... outras configs
-    hide_daily_branding: true, // Requer conta com cartão
-  },
-}),
-```
-
-### 5. Link do cliente em domínio próprio
-
-Para o cliente acessar por um link do seu domínio, podemos criar uma página pública que embeda a chamada:
-
-**Nova rota:** `/call/:roomName`
-
-Esta página será simples, sem autenticação, apenas mostrando o vídeo do Daily.co embedado. O lead acessa esta URL ao invés da URL direta do Daily.co.
 
 ## Resumo das Alterações
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/video/VideoQueuePage.tsx` | Separar erro de encerramento; não deletar sala em erro |
-| `src/pages/video/components/VideoCallEmbed.tsx` | Delay na inicialização + lang: 'pt' |
-| `supabase/functions/video-room/index.ts` | Adicionar hide_daily_branding |
-| `src/pages/video/JoinCallPage.tsx` | **NOVA** - Página pública para leads |
-| `src/App.tsx` | Adicionar rota /call/:roomName |
-| `src/pages/video/components/VideoCallDialog.tsx` | Usar novo link do domínio próprio |
+| `src/pages/video/JoinCallPage.tsx` | Remover overlay durante "joining"; garantir altura do container |
 
 ## Detalhes Técnicos
 
-### Nova Página para Leads (`JoinCallPage.tsx`)
+A correção é simples: quando o status é "joining", não mostramos mais o overlay. O Daily.co tem sua própria interface de loading e pré-entrada que é melhor para a experiência do usuário.
 
 ```tsx
-// Página simples sem autenticação
-export default function JoinCallPage() {
-  const { roomName } = useParams();
-  const [roomUrl, setRoomUrl] = useState<string | null>(null);
-  
-  useEffect(() => {
-    // Buscar URL da sala no backend
-    joinRoom(roomName).then(setRoomUrl);
-  }, [roomName]);
-  
-  return (
-    <div className="min-h-screen bg-gray-900">
-      {roomUrl && (
-        <DailyEmbed url={roomUrl} lang="pt" />
-      )}
-    </div>
-  );
-}
+// Remover completamente o bloco:
+{status === 'joining' && (
+  <div className="absolute ...">
+    ...
+  </div>
+)}
+
+// E garantir que o container tenha altura
+<div 
+  ref={containerRef} 
+  className="flex-1 w-full min-h-screen"
+/>
 ```
 
-### Link enviado ao cliente
+## Nota sobre o Link Testado
 
-Em vez de enviar `https://your-team.daily.co/sala-xyz`, enviamos:
-```
-https://seudominio.com/call/julia-agent123-1234567890
-```
+O link `https://acesso.atendejulia.com.br/call/julia-20240038-1769679431244` mostra "Sala não encontrada ou expirada" porque essa sala foi **deletada** quando você clicou "Atender" antes da correção anterior. 
 
-Isso esconde completamente a origem do Daily.co.
-
-## Sobre remover branding
-
-Para remover o logo "Daily.co" da interface, você precisa:
-1. Acessar sua conta no Daily.co
-2. Adicionar um cartão de crédito (não cobra se não usar minutos além do free)
-3. Habilitar `hide_daily_branding` via API
-
-## Ordem de Implementação
-
-1. **Correção crítica**: Não deletar sala em erro
-2. **Delay na inicialização**: Resolver erro de postMessage
-3. **Tradução**: Adicionar lang: 'pt'
-4. **Página do lead**: Criar rota /call/:roomName
-5. **Branding** (opcional): Configurar hide_daily_branding
+O sistema agora está funcionando corretamente para salas existentes - só precisamos corrigir esse overlay para que a interface do Daily.co apareça.
