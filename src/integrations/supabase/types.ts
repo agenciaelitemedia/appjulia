@@ -23,6 +23,7 @@ export type Database = {
           ended_at: string | null
           id: string
           lead_id: number | null
+          operator_id: number | null
           operator_name: string | null
           room_name: string
           started_at: string | null
@@ -37,6 +38,7 @@ export type Database = {
           ended_at?: string | null
           id?: string
           lead_id?: number | null
+          operator_id?: number | null
           operator_name?: string | null
           room_name: string
           started_at?: string | null
@@ -51,6 +53,7 @@ export type Database = {
           ended_at?: string | null
           id?: string
           lead_id?: number | null
+          operator_id?: number | null
           operator_name?: string | null
           room_name?: string
           started_at?: string | null

@@ -35,6 +35,7 @@ interface JoinRoomRequest {
 interface RecordStartRequest {
   action: 'record-start';
   roomName: string;
+  operatorId?: number;
   operatorName?: string;
 }
 
@@ -46,6 +47,8 @@ interface RecordEndRequest {
 interface GetHistoryRequest {
   action: 'history';
   limit?: number;
+  operatorId?: number;
+  isAdmin?: boolean;
 }
 
 type RequestBody = CreateRoomRequest | ListRoomsRequest | CloseRoomRequest | JoinRoomRequest | RecordStartRequest | RecordEndRequest | GetHistoryRequest;
@@ -304,13 +307,14 @@ serve(async (req) => {
       }
 
       case 'record-start': {
-        const { roomName, operatorName } = body as RecordStartRequest;
+        const { roomName, operatorId, operatorName } = body as RecordStartRequest;
         
-        // Update record with start time
+        // Update record with start time and operator info
         await supabase
           .from('video_call_records')
           .update({ 
             started_at: new Date().toISOString(),
+            operator_id: operatorId,
             operator_name: operatorName,
             status: 'active' 
           })
@@ -357,13 +361,20 @@ serve(async (req) => {
       }
 
       case 'history': {
-        const { limit = 50 } = body as GetHistoryRequest;
+        const { limit = 50, operatorId, isAdmin } = body as GetHistoryRequest;
         
-        const { data, error } = await supabase
+        let query = supabase
           .from('video_call_records')
           .select('*')
           .order('created_at', { ascending: false })
           .limit(limit);
+        
+        // Filter by operator if not admin
+        if (!isAdmin && operatorId) {
+          query = query.eq('operator_id', operatorId);
+        }
+        
+        const { data, error } = await query;
         
         if (error) {
           throw new Error(`Failed to fetch history: ${error.message}`);

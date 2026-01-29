@@ -12,8 +12,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useCallHistory, type CallHistoryRecord } from '../hooks/useCallHistory';
+import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+interface CallHistorySectionProps {
+  expanded?: boolean;
+}
 
 function formatDuration(seconds: number | null): string {
   if (!seconds) return '-';
@@ -46,7 +51,6 @@ function getStatusBadge(status: string) {
 
 function formatWhatsApp(number: string | null): string {
   if (!number) return '-';
-  // Format as +55 11 99999-9999
   const clean = number.replace(/\D/g, '');
   if (clean.length === 13) {
     return `+${clean.slice(0, 2)} ${clean.slice(2, 4)} ${clean.slice(4, 9)}-${clean.slice(9)}`;
@@ -57,8 +61,10 @@ function formatWhatsApp(number: string | null): string {
   return number;
 }
 
-export function CallHistorySection() {
-  const { data: records = [], isLoading } = useCallHistory(20);
+export function CallHistorySection({ expanded = false }: CallHistorySectionProps) {
+  const { isAdmin } = useAuth();
+  const limit = expanded ? 100 : 20;
+  const { data: records = [], isLoading } = useCallHistory(limit);
 
   return (
     <Card>
@@ -69,6 +75,11 @@ export function CallHistorySection() {
           {records.length > 0 && (
             <Badge variant="secondary" className="ml-2">
               {records.length}
+            </Badge>
+          )}
+          {isAdmin && (
+            <Badge variant="outline" className="ml-auto text-xs">
+              Todos os operadores
             </Badge>
           )}
         </CardTitle>
@@ -87,7 +98,7 @@ export function CallHistorySection() {
             <p className="text-sm mt-1">O histórico aparecerá aqui após a primeira chamada</p>
           </div>
         ) : (
-          <ScrollArea className="max-h-[300px]">
+          <ScrollArea className={expanded ? 'max-h-[calc(100vh-300px)]' : 'max-h-[300px]'}>
             <Table>
               <TableHeader>
                 <TableRow>
