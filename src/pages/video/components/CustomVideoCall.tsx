@@ -23,6 +23,23 @@ interface CustomVideoCallProps {
 // Timeout em ms para watchdog
 const CONNECTION_TIMEOUT_MS = 20000;
 
+// Variável módulo-level para rastrear instância única (singleton)
+let globalCallInstance: ReturnType<typeof DailyIframe.createCallObject> | null = null;
+
+// Função helper para destruir instância existente
+async function destroyExistingInstance() {
+  if (globalCallInstance) {
+    console.log('[CustomVideoCall] Destruindo instância global anterior...');
+    try {
+      await globalCallInstance.leave();
+      globalCallInstance.destroy();
+    } catch (e) {
+      console.warn('[CustomVideoCall] Erro ao destruir instância anterior:', e);
+    }
+    globalCallInstance = null;
+  }
+}
+
 // Componente interno que faz o join DENTRO do provider
 function VideoCallJoiner({ 
   roomUrl, 
@@ -179,33 +196,19 @@ export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallPr
     onError?.(msg);
   }, [onError]);
 
-  const handleTimeout = useCallback(() => {
-    const call = callRef.current;
-    if (call) {
-      try {
-        call.leave();
-        call.destroy();
-      } catch (e) {
-        console.warn('[CustomVideoCall] Erro ao limpar após timeout:', e);
-      }
-      callRef.current = null;
-    }
+  const handleTimeout = useCallback(async () => {
+    console.log('[CustomVideoCall] Timeout - destruindo instância...');
+    await destroyExistingInstance();
+    callRef.current = null;
     setCallObject(null);
     handleError('Conexão demorou muito. Verifique sua internet e tente novamente.');
   }, [handleError]);
 
-  const handleRetry = useCallback(() => {
+  const handleRetry = useCallback(async () => {
     console.log('[CustomVideoCall] Retry solicitado');
-    // Limpar estado anterior
-    if (callRef.current) {
-      try {
-        callRef.current.leave();
-        callRef.current.destroy();
-      } catch (e) {
-        console.warn('[CustomVideoCall] Erro ao destruir no retry:', e);
-      }
-      callRef.current = null;
-    }
+    // Destruir instância global antes de recriar
+    await destroyExistingInstance();
+    callRef.current = null;
     
     setCallObject(null);
     setHasError(false);
@@ -220,9 +223,14 @@ export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallPr
   useEffect(() => {
     let mounted = true;
 
-    const createCallObject = () => {
+    const createCallObject = async () => {
+      // SEMPRE destruir instância anterior primeiro (garante singleton)
+      await destroyExistingInstance();
+      
+      if (!mounted) return;
+
       if (callRef.current) {
-        console.log('[CustomVideoCall] Call object já existe, pulando criação');
+        console.log('[CustomVideoCall] Call object já existe no ref, pulando criação');
         return;
       }
 
@@ -234,6 +242,8 @@ export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallPr
           subscribeToTracksAutomatically: true,
         });
         
+        // Registrar globalmente E no ref
+        globalCallInstance = call;
         callRef.current = call;
 
         // Handler de erro do Daily
@@ -273,17 +283,9 @@ export function CustomVideoCall({ roomUrl, onLeave, onError }: CustomVideoCallPr
 
     return () => {
       mounted = false;
-      const call = callRef.current;
-      if (call) {
-        console.log('[CustomVideoCall] Cleanup: destruindo call object');
-        callRef.current = null;
-        try {
-          call.leave();
-          call.destroy();
-        } catch (e) {
-          console.warn('[CustomVideoCall] Erro no cleanup:', e);
-        }
-      }
+      // Cleanup: destruir instância global
+      destroyExistingInstance();
+      callRef.current = null;
     };
   }, [retryKey, handleError]);
 
