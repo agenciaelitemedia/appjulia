@@ -1,5 +1,6 @@
-import { Phone, Building2, Clock, History, ArrowRight, User, Hash, Calendar, AlertTriangle } from 'lucide-react';
-import { useMemo } from 'react';
+import { Phone, Building2, Clock, History, ArrowRight, User, Hash, Calendar, AlertTriangle, Scale, Download, Loader2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -7,10 +8,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { CRMCard, CRMStage } from '../types';
 import { useCRMCardHistory } from '../hooks/useCRMData';
+import { useContractInfo } from '../hooks/useContractInfo';
+import { ContractInfoDialog } from './ContractInfoDialog';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { formatDbDateTime } from '@/lib/dateUtils';
@@ -28,10 +32,24 @@ export function CRMLeadDetailsDialog({
   open,
   onOpenChange,
 }: CRMLeadDetailsDialogProps) {
+  const { toast } = useToast();
   const { data: history = [], isLoading: historyLoading } = useCRMCardHistory(card?.id || null);
+  const [contractDialogOpen, setContractDialogOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const currentStage = card ? stages.find((s) => s.id === card.stage_id) : null;
   const entryStage = stages.find((s) => s.position === 1) || { name: 'Entrada', color: '#3B82F6' };
+  
+  // Check if card is in contract stage
+  const isContractStage = currentStage?.name === 'Contrato em Curso' || 
+                          currentStage?.name === 'Contrato Assinado';
+  
+  // Fetch contract info only when in contract stage
+  const { data: contractInfo } = useContractInfo(
+    card?.whatsapp_number || '',
+    card?.cod_agent || '',
+    isContractStage && open
+  );
 
   // Histórico sintético quando a tabela está vazia
   const syntheticHistory = useMemo(() => {
@@ -103,6 +121,76 @@ export function CRMLeadDetailsDialog({
       return `+55 (${cleaned.slice(2, 4)}) ${cleaned.slice(4, 9)}-${cleaned.slice(9)}`;
     }
     return phone;
+  };
+
+  const handleDownloadContract = async () => {
+    if (!contractInfo?.zapsing_doctoken) {
+      toast({
+        title: 'Erro',
+        description: 'Contrato sem token para download',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setDownloading(true);
+
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/zapsign-file`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey,
+        },
+        body: JSON.stringify({ doc_token: contractInfo.zapsing_doctoken, file: 'signed' }),
+      });
+
+      const contentType = response.headers.get('Content-Type') || '';
+
+      if (contentType.includes('application/json')) {
+        const data = await response.json();
+        throw new Error(data.error || 'Erro ao obter documento');
+      }
+
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      
+      const disposition = response.headers.get('Content-Disposition');
+      let fileName = `${contractInfo.signer_name || card?.contact_name || 'contrato'}.pdf`;
+      if (disposition) {
+        const match = disposition.match(/filename="?([^";\n]+)"?/);
+        if (match?.[1]) {
+          fileName = match[1];
+        }
+      }
+      
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+      
+      toast({
+        title: 'Download concluído',
+        description: 'O contrato foi baixado com sucesso',
+      });
+
+    } catch (error) {
+      console.error('Erro ao baixar contrato:', error);
+      toast({
+        title: 'Erro ao baixar',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    } finally {
+      setDownloading(false);
+    }
   };
 
   
@@ -195,6 +283,46 @@ export function CRMLeadDetailsDialog({
               </div>
             </div>
 
+            {/* Contract Actions - Only for contract stages */}
+            {isContractStage && (
+              <>
+                <Separator />
+                <div>
+                  <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                    <Scale className="h-4 w-4" />
+                    Contrato
+                  </h4>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setContractDialogOpen(true)}
+                    >
+                      <Scale className="h-4 w-4 mr-2" />
+                      Ver Detalhes
+                    </Button>
+                    
+                    {contractInfo?.status_document === 'SIGNED' && contractInfo.zapsing_doctoken && (
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        onClick={handleDownloadContract}
+                        disabled={downloading}
+                      >
+                        {downloading ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <Download className="h-4 w-4 mr-2" />
+                        )}
+                        Baixar Contrato
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
             {/* Notes */}
             {card.notes && (
               <>
@@ -284,6 +412,15 @@ export function CRMLeadDetailsDialog({
             </div>
           </div>
         </ScrollArea>
+
+        {/* Contract Details Dialog */}
+        <ContractInfoDialog
+          open={contractDialogOpen}
+          onOpenChange={setContractDialogOpen}
+          whatsappNumber={card.whatsapp_number}
+          codAgent={card.cod_agent}
+          contactName={card.contact_name}
+        />
       </DialogContent>
     </Dialog>
   );
