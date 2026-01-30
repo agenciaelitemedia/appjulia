@@ -1,4 +1,4 @@
-import { Phone, Building2, Clock, History, ArrowRight, User, Hash, Calendar, AlertTriangle, Scale, Download, Loader2 } from 'lucide-react';
+import { Phone, Building2, Clock, History, ArrowRight, User, Hash, Calendar, AlertTriangle, Scale, Download, Loader2, ExternalLink } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -303,7 +303,7 @@ export function CRMLeadDetailsDialog({
                       Ver Detalhes
                     </Button>
                     
-                    {contractInfo?.status_document === 'SIGNED' && contractInfo.zapsing_doctoken && (
+                    {contractInfo?.status_document === 'SIGNED' && contractInfo.zapsing_doctoken ? (
                       <Button
                         size="sm"
                         className="flex-1"
@@ -317,7 +317,16 @@ export function CRMLeadDetailsDialog({
                         )}
                         Baixar Contrato
                       </Button>
-                    )}
+                    ) : contractInfo?.cod_document ? (
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => window.open(`https://app.zapsign.com.br/verificar/${contractInfo.cod_document}`, '_blank')}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Ver Documentos
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               </>
