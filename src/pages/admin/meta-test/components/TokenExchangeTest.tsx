@@ -81,14 +81,14 @@ export function TokenExchangeTest({
       <CardContent className="space-y-4">
         <Button
           onClick={handleExchangeToken}
-          disabled={!isEnabled || isLoading}
+          disabled={!isEnabled || isLoading || !!tokenData}
         >
           {isLoading ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <Key className="mr-2 h-4 w-4" />
           )}
-          Testar Troca de Token
+          {tokenData ? 'Token Obtido' : 'Testar Troca de Token'}
         </Button>
 
         {error && (
