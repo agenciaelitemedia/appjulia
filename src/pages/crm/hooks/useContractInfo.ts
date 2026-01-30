@@ -12,9 +12,24 @@ export function useContractInfo(whatsappNumber: string, codAgent: string, enable
             zapsing_doctoken,
             status_document,
             signer_name,
+            signer_cpf,
+            signer_uf,
+            signer_cidade,
+            signer_bairro,
+            signer_endereco,
+            signer_cep,
             data_contrato,
             data_assinatura,
-            cod_document
+            cod_document,
+            situacao,
+            resumo_do_caso,
+            case_title,
+            case_category_name,
+            case_category_color,
+            cod_agent,
+            name as agent_name,
+            business_name,
+            whatsapp
           FROM vw_desempenho_julia_contratos
           WHERE whatsapp = $1
             AND cod_agent::text = $2
