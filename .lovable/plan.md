@@ -1,194 +1,265 @@
 
-# Plano: Expandir Detalhes do Contrato no CRM
 
-## Situacao Atual
+# Plano: Pagina de Teste para Meta Embedded Signup
 
-A secao de contrato ja existe no dialog de detalhes do lead CRM, mas o popup de detalhes (`ContractInfoDialog`) mostra **informacoes limitadas** comparado com o popup da pagina de contratos Julia (`ContratoDetailsDialog`).
+## Objetivo
 
-### Campos Atuais vs Campos Desejados
+Criar uma pagina de teste isolada para validar todo o fluxo do **Embedded Signup da Meta** antes de integrar ao sistema de agentes. Isso permite testar sem afetar funcionalidades existentes.
 
-| Campo | Atual | Julia (Desejado) |
-|-------|-------|------------------|
-| Status | Sim | Sim |
-| Signatario | Sim | Sim |
-| Data contrato | Sim | Sim |
-| Data assinatura | Sim | Sim |
-| Codigo documento | Sim | Sim |
-| CPF | Nao | Sim |
-| WhatsApp | Nao | Sim |
-| Endereco completo | Nao | Sim |
-| Titulo do caso | Nao | Sim |
-| Categoria | Nao | Sim |
-| Resumo do caso | Nao | Sim |
-| Agente responsavel | Nao | Sim |
-| Situacao | Nao | Sim |
+## O que a Pagina de Teste Incluira
 
-## Alteracoes Planejadas
-
-### Etapa 1: Expandir Tipo ContractInfo
-
-Adicionar todos os campos do `JuliaContrato` ao tipo `ContractInfo`:
-
-```typescript
-// src/pages/crm/types.ts
-export interface ContractInfo {
-  zapsing_doctoken?: string;
-  status_document: string;
-  signer_name?: string;
-  signer_cpf?: string;
-  signer_uf?: string;
-  signer_cidade?: string;
-  signer_bairro?: string;
-  signer_endereco?: string;
-  signer_cep?: string;
-  data_contrato?: string;
-  data_assinatura?: string;
-  cod_document?: string;
-  situacao?: string;
-  resumo_do_caso?: string;
-  case_title?: string;
-  case_category_name?: string;
-  case_category_color?: string;
-  cod_agent?: string;
-  agent_name?: string;
-  business_name?: string;
-  whatsapp?: string;
-}
-```
-
-### Etapa 2: Atualizar Query do Hook
-
-Buscar todos os campos da view `vw_desempenho_julia_contratos`:
-
-```typescript
-// src/pages/crm/hooks/useContractInfo.ts
-const result = await externalDb.raw<ContractInfo>({
-  query: `
-    SELECT 
-      zapsing_doctoken,
-      status_document,
-      signer_name,
-      signer_cpf,
-      signer_uf,
-      signer_cidade,
-      signer_bairro,
-      signer_endereco,
-      signer_cep,
-      data_contrato,
-      data_assinatura,
-      cod_document,
-      situacao,
-      resumo_do_caso,
-      case_title,
-      case_category_name,
-      case_category_color,
-      cod_agent,
-      name as agent_name,
-      business_name,
-      whatsapp
-    FROM vw_desempenho_julia_contratos
-    WHERE whatsapp = $1
-      AND cod_agent::text = $2
-    ORDER BY data_contrato DESC
-    LIMIT 1
-  `,
-  params: [whatsappNumber, codAgent],
-});
-```
-
-### Etapa 3: Redesenhar ContractInfoDialog
-
-Transformar o dialog simples em um popup completo igual ao `ContratoDetailsDialog`:
-
-**Estrutura do novo dialog:**
 ```text
-┌─────────────────────────────────────────────────────────┐
-│ Detalhes do Contrato                                [X] │
-├─────────────────────────────────────────────────────────┤
-│ Informacoes do Contrato                                 │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ Codigo: ABC123         Status: [Assinado]          │ │
-│ │ Situacao: Ativo        Data: 30/01/2026            │ │
-│ │                        [Baixar Contrato]           │ │
-│ └─────────────────────────────────────────────────────┘ │
-│ ─────────────────────────────────────────────────────── │
-│ Dados do Signatario                                     │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ Nome: Maria Silva      CPF: 123.456.789-00         │ │
-│ │ WhatsApp: (11) 99999-9999                          │ │
-│ └─────────────────────────────────────────────────────┘ │
-│ ─────────────────────────────────────────────────────── │
-│ Endereco                                                │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ Rua ABC, 123 - Centro                              │ │
-│ │ Sao Paulo - SP, 01234-567                          │ │
-│ └─────────────────────────────────────────────────────┘ │
-│ ─────────────────────────────────────────────────────── │
-│ Vinculo com Processo                                    │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ Titulo: Acao Trabalhista                           │ │
-│ │ Categoria: [Trabalhista]                           │ │
-│ └─────────────────────────────────────────────────────┘ │
-│ ─────────────────────────────────────────────────────── │
-│ Resumo do Caso                                          │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ Cliente busca indenizacao por demissao sem justa   │ │
-│ │ causa apos 5 anos de servico...                    │ │
-│ └─────────────────────────────────────────────────────┘ │
-│ ─────────────────────────────────────────────────────── │
-│ Agente Responsavel                                      │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ Codigo: AGT001         Nome: Dr. Joao              │ │
-│ │ Escritorio: Advocacia Silva & Associados           │ │
-│ └─────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  /admin/meta-test                                                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  Teste de Integracao Meta WhatsApp API                              │   │
+│  │  Validar o fluxo do Embedded Signup antes da implementacao final    │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  Etapa 1: Configuracao do App                                       │   │
+│  │  ─────────────────────────────────────────────────────────────────  │   │
+│  │  App ID:       [_______________________]                            │   │
+│  │  Config ID:    [_______________________]                            │   │
+│  │                                                                     │   │
+│  │  Status SDK: ● Carregado / ○ Nao Carregado                          │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  Etapa 2: Embedded Signup                                           │   │
+│  │  ─────────────────────────────────────────────────────────────────  │   │
+│  │                                                                     │   │
+│  │  [  Iniciar Embedded Signup  ]                                      │   │
+│  │                                                                     │   │
+│  │  Eventos capturados:                                                │   │
+│  │  ┌─────────────────────────────────────────────────────────────┐   │   │
+│  │  │ [timestamp] WA_EMBEDDED_SIGNUP: SETUP_STARTED               │   │   │
+│  │  │ [timestamp] WA_EMBEDDED_SIGNUP: SETUP_STEP - business       │   │   │
+│  │  │ [timestamp] WA_EMBEDDED_SIGNUP: SETUP_STEP - phone          │   │   │
+│  │  │ [timestamp] WA_EMBEDDED_SIGNUP: FINISH                      │   │   │
+│  │  └─────────────────────────────────────────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  Etapa 3: Dados Retornados                                          │   │
+│  │  ─────────────────────────────────────────────────────────────────  │   │
+│  │                                                                     │   │
+│  │  WABA ID:          123456789012345                                  │   │
+│  │  Phone Number ID:  987654321098765                                  │   │
+│  │  Auth Code:        AQB...xxxxx...                                   │   │
+│  │                                                                     │   │
+│  │  [  Testar Troca de Token  ]                                        │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  Etapa 4: Validar Access Token                                      │   │
+│  │  ─────────────────────────────────────────────────────────────────  │   │
+│  │                                                                     │   │
+│  │  Access Token: EAAG...xxxxx... (valido)                             │   │
+│  │  Expira em: Nunca (token permanente)                                │   │
+│  │                                                                     │   │
+│  │  [  Testar Envio de Mensagem  ]                                     │   │
+│  │                                                                     │   │
+│  │  Numero destino: [+55 11 99999-9999]                                │   │
+│  │  Mensagem:       [Teste da Julia via Meta API]                      │   │
+│  │                                                                     │   │
+│  │  Resultado: ✓ Mensagem enviada com sucesso (wamid: xxx)             │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  Etapa 5: Testar Webhook                                            │   │
+│  │  ─────────────────────────────────────────────────────────────────  │   │
+│  │                                                                     │   │
+│  │  Webhook URL:                                                       │   │
+│  │  https://zenizgyrwlonmufxnjqt.supabase.co/functions/v1/meta-webhook│   │
+│  │  [Copiar]                                                           │   │
+│  │                                                                     │   │
+│  │  Verify Token: test_verify_12345                                    │   │
+│  │  [Copiar]                                                           │   │
+│  │                                                                     │   │
+│  │  Ultimas mensagens recebidas:                                       │   │
+│  │  ┌─────────────────────────────────────────────────────────────┐   │   │
+│  │  │ [10:30] De: +5511999999999 | "Ola, tudo bem?"               │   │   │
+│  │  │ [10:31] De: +5511888888888 | "Preciso de ajuda"             │   │   │
+│  │  └─────────────────────────────────────────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Etapa 4: Ajustar Botoes na Secao de Contrato
+## Arquivos a Criar
 
-Atualizar os botoes no `CRMLeadDetailsDialog` para:
+| Arquivo | Descricao |
+|---------|-----------|
+| `src/pages/admin/meta-test/MetaTestPage.tsx` | Pagina principal de teste |
+| `src/pages/admin/meta-test/components/MetaSdkLoader.tsx` | Carregador do Facebook SDK |
+| `src/pages/admin/meta-test/components/EmbeddedSignupTest.tsx` | Teste do signup |
+| `src/pages/admin/meta-test/components/TokenExchangeTest.tsx` | Teste de troca de token |
+| `src/pages/admin/meta-test/components/MessageSendTest.tsx` | Teste de envio de mensagem |
+| `src/pages/admin/meta-test/components/WebhookTest.tsx` | Teste de webhook |
+| `src/pages/admin/meta-test/components/EventLog.tsx` | Log de eventos em tempo real |
+| `supabase/functions/meta-auth/index.ts` | Edge Function para trocar code por token |
+| `supabase/functions/meta-webhook/index.ts` | Edge Function para receber webhooks |
+| `supabase/functions/meta-send-test/index.ts` | Edge Function para testar envio |
 
-**Contrato Assinado:**
-- "Baixar Contrato" (download do PDF)
-- "Ver Detalhes" (popup com todas as informacoes)
+## Detalhamento Tecnico
 
-**Contrato em Curso:**
-- "Ver Documentos" (abre pagina do ZapSign para assinar/verificar)
-- "Ver Detalhes" (popup com todas as informacoes)
+### 1. Pagina Principal (MetaTestPage.tsx)
 
 ```typescript
-<div className="flex gap-2">
-  <Button variant="outline" size="sm" onClick={() => setContractDialogOpen(true)}>
-    <Scale className="h-4 w-4 mr-2" />
-    Ver Detalhes
-  </Button>
-  
-  {contractInfo?.status_document === 'SIGNED' && contractInfo.zapsing_doctoken ? (
-    <Button size="sm" onClick={handleDownloadContract} disabled={downloading}>
-      {downloading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
-      Baixar Contrato
-    </Button>
-  ) : contractInfo?.cod_document ? (
-    <Button size="sm" onClick={handleOpenContract}>
-      <ExternalLink className="h-4 w-4 mr-2" />
-      Ver Documentos
-    </Button>
-  ) : null}
-</div>
+// Estados principais
+const [appId, setAppId] = useState('');
+const [configId, setConfigId] = useState('');
+const [sdkLoaded, setSdkLoaded] = useState(false);
+const [events, setEvents] = useState<EventLog[]>([]);
+const [signupData, setSignupData] = useState<SignupData | null>(null);
+const [accessToken, setAccessToken] = useState<string | null>(null);
+
+// Fluxo de teste em 5 etapas
+// Cada etapa so habilita apos a anterior ser concluida com sucesso
 ```
 
-## Arquivos a Modificar
+### 2. Carregador do SDK (MetaSdkLoader.tsx)
 
-| Arquivo | Mudanca |
-|---------|---------|
-| `src/pages/crm/types.ts` | Expandir interface ContractInfo com todos os campos |
-| `src/pages/crm/hooks/useContractInfo.ts` | Atualizar query para buscar todos os campos |
-| `src/pages/crm/components/ContractInfoDialog.tsx` | Redesenhar igual ao ContratoDetailsDialog |
-| `src/pages/crm/components/CRMLeadDetailsDialog.tsx` | Adicionar botao "Ver Documentos" para contratos em curso |
+```typescript
+// Carrega o Facebook SDK dinamicamente
+// Inicializa com o App ID informado
+// Mostra status: carregando, carregado, erro
 
-## Beneficios
+useEffect(() => {
+  const script = document.createElement('script');
+  script.src = 'https://connect.facebook.net/en_US/sdk.js';
+  script.onload = () => {
+    window.FB.init({
+      appId: appId,
+      cookie: true,
+      xfbml: true,
+      version: 'v21.0'
+    });
+    setSdkLoaded(true);
+  };
+  document.body.appendChild(script);
+}, [appId]);
+```
 
-1. **Paridade de funcionalidade** - Mesmas informacoes da pagina de contratos Julia
-2. **Botao contextual** - Download para assinados, ver documentos para em curso
-3. **Experiencia completa** - Usuario nao precisa ir para outra pagina
-4. **Reutilizacao de codigo** - Mesma estrutura visual do ContratoDetailsDialog
+### 3. Teste do Embedded Signup (EmbeddedSignupTest.tsx)
+
+```typescript
+// Inicia o fluxo de signup
+// Captura todos os eventos via postMessage
+// Mostra log em tempo real
+// Extrai waba_id, phone_number_id e code
+
+const handleLaunchSignup = () => {
+  window.FB.login((response) => {
+    if (response.authResponse) {
+      addEvent('LOGIN_SUCCESS', { code: response.authResponse.code });
+      setSignupData(prev => ({ ...prev, code: response.authResponse.code }));
+    }
+  }, {
+    config_id: configId,
+    response_type: 'code',
+    override_default_response_type: true,
+    extras: {
+      sessionInfoVersion: 2,
+      feature: 'whatsapp_embedded_signup'
+    }
+  });
+};
+```
+
+### 4. Edge Function meta-auth
+
+```typescript
+// Recebe: code, app_id, app_secret (via secrets)
+// Troca code por access_token
+// Retorna: access_token, token_type, expires_in
+
+const tokenResponse = await fetch(
+  `https://graph.facebook.com/v21.0/oauth/access_token?` +
+  `client_id=${META_APP_ID}&` +
+  `client_secret=${META_APP_SECRET}&` +
+  `code=${code}`
+);
+
+// Retorna token para a pagina de teste validar
+```
+
+### 5. Edge Function meta-webhook (modo teste)
+
+```typescript
+// GET: Responde challenge de verificacao
+// POST: Loga mensagens recebidas em tabela temporaria
+
+// Tabela temporaria para testes
+CREATE TABLE meta_webhook_logs (
+  id SERIAL PRIMARY KEY,
+  payload JSONB,
+  received_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### 6. Teste de Envio de Mensagem
+
+```typescript
+// Usa o access_token obtido
+// Permite enviar mensagem de teste para numero informado
+// Mostra resposta da API (sucesso/erro)
+
+const sendTestMessage = async () => {
+  const response = await supabase.functions.invoke('meta-send-test', {
+    body: {
+      accessToken,
+      phoneNumberId: signupData.phone_number_id,
+      to: testPhoneNumber,
+      message: testMessage
+    }
+  });
+};
+```
+
+## Secrets Necessarios
+
+Precisamos adicionar os seguintes secrets:
+
+| Secret | Descricao | Onde Obter |
+|--------|-----------|------------|
+| `META_APP_ID` | ID do App aprovado | developers.facebook.com > Seu App > Configuracoes |
+| `META_APP_SECRET` | Secret do App | developers.facebook.com > Seu App > Configuracoes |
+
+## Rota Protegida
+
+A pagina sera acessivel apenas por admins em `/admin/meta-test`:
+
+```typescript
+// Em App.tsx, dentro de AdminRoute
+<Route path="/admin/meta-test" element={<MetaTestPage />} />
+```
+
+## Variaveis de Ambiente Frontend
+
+Adicionar ao `.env` (serao preenchidas na UI de teste):
+
+```env
+# Nao necessario - usuario informa na pagina de teste
+# VITE_META_APP_ID e VITE_META_CONFIG_ID serao inputs na pagina
+```
+
+## Beneficios da Pagina de Teste
+
+1. **Validacao completa** - Testar cada etapa do fluxo isoladamente
+2. **Debug facilitado** - Log de eventos em tempo real
+3. **Sem afetar producao** - Nenhuma alteracao no fluxo existente dos agentes
+4. **Documentacao viva** - Serve como referencia de implementacao
+5. **Teste de webhook** - Validar que mensagens estao sendo recebidas
+
+## Proximos Passos Apos Criar Pagina de Teste
+
+1. Testar fluxo completo do Embedded Signup
+2. Validar troca de token
+3. Testar envio de mensagem
+4. Testar recepcao de webhook
+5. Validar que tudo funciona antes de integrar nos agentes
+
