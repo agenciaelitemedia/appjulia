@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, Play } from 'lucide-react';
@@ -22,6 +22,7 @@ export function EmbeddedSignupTest({
 }: EmbeddedSignupTestProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [signupData, setSignupData] = useState<SignupData | null>(null);
+  const signupDataRef = useRef<SignupData | null>(null);
 
   const handleLaunchSignup = () => {
     if (!window.FB) {
@@ -51,6 +52,7 @@ export function EmbeddedSignupTest({
               waba_id: data.data?.waba_id,
               phone_number_id: data.data?.phone_number_id,
             };
+            signupDataRef.current = { ...signupDataRef.current, ...newData };
             setSignupData((prev) => ({ ...prev, ...newData }));
           }
 
@@ -76,9 +78,10 @@ export function EmbeddedSignupTest({
           });
           
           const finalData: SignupData = {
-            ...signupData,
+            ...signupDataRef.current,
             code: response.authResponse.code,
           };
+          signupDataRef.current = finalData;
           setSignupData(finalData);
           onSignupComplete(finalData);
         } else {
