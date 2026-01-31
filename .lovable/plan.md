@@ -1,80 +1,99 @@
 
 
-# Plano: Correcao dos Problemas da Sala de Espera e Gravacao
+# Plano: Correcao do Preview da Camera e Inicio Automatico da Sala
 
 ## Problemas Identificados
 
-### 1. Posicao na fila nao aparece
-**Causa raiz:** O hook `useLeadQueuePosition` chama a action `queue-status` que retorna 0 quando o lead ainda nao foi registrado como aguardando. O problema esta em:
-- A action `lead-waiting` precisa retornar a posicao apos registrar o lead
-- O `useLeadQueuePosition` nao recebe resposta inicial correta do `lead-waiting`
+### Problema 1: Preview da camera nao aparece na sala de espera
 
-### 2. Sala nao iniciou quando atendente entrou
-**Causa raiz:** Olhando o banco, o `operator_joined_at` nunca e preenchido porque:
-- O operador chama `operator-join` apenas depois de sair do lobby (no `handleConfirmJoin`)
-- O Realtime subscription do lead esta escutando a tabela, mas o `old.operator_joined_at` nao vem preenchido no payload do Supabase por padrao
+**Causa raiz:** O video element nao esta mostrando o stream corretamente. Analisando o `LeadWaitingRoom.tsx`:
 
-**Problema critico no Realtime:** O Supabase Realtime nao envia `old` por padrao - precisa de `REPLICA IDENTITY FULL` na tabela para que o `old` tenha todos os campos.
+```typescript
+// Linha 98-100
+if (videoRef.current) {
+  videoRef.current.srcObject = stream;
+}
+```
 
-### 3. Gravacao nao disponivel
-**Causa raiz:** Vejo no banco que `recording_status` = `none` mesmo para chamadas completadas. Isso acontece porque:
-- A gravacao so inicia no evento `joined-meeting` do **CustomVideoCall** (operador)
-- Quando o operador chama `close`, o `record_id` nao e capturado corretamente
-- A API do Daily retorna status 404 quando a gravacao ainda esta processando
+O problema e que este codigo esta dentro do `initializeCamera` que roda quando o componente monta, mas a atribuicao do `srcObject` pode estar sendo feita antes do elemento `<video>` estar no DOM (devido ao `isInitializing` ainda ser `true`).
+
+**Fluxo atual:**
+1. `initializeCamera()` comeca a rodar
+2. `isInitializing = true`, entao o video element NAO esta no DOM (mostra loader)
+3. Stream e obtido
+4. `videoRef.current.srcObject = stream` - MAS o video element ainda nao existe!
+5. `setIsInitializing(false)` - agora o video element aparece, MAS sem o stream
+
+### Problema 2: Sala nao inicia quando atendente entra
+
+**Causa raiz verificada no banco de dados:**
+```
+room_name: julia-20251101-1769877211395
+lead_waiting_at: 2026-01-31 16:33:55.432+00
+operator_joined_at: NULL  <-- NUNCA FOI PREENCHIDO!
+status: active
+```
+
+O `operator_joined_at` nunca esta sendo preenchido, o que significa que:
+1. O operador clica em "Entrar na Chamada" no lobby
+2. O `handleConfirmJoin` e chamado
+3. O `operatorJoin.mutate()` e executado
+4. O backend atualiza `operator_joined_at`
+5. O Realtime deveria notificar o lead
+
+Mas olhando os logs de rede, nao ha nenhuma chamada `operator-join` recente. Isso indica que o fluxo esta quebrando em algum ponto.
+
+**Investigacao adicional:** O `PreJoinLobby` cria sua propria instancia do Daily (`lobbyCallInstance`) e a destroi quando o operador clica "Entrar". Depois, o `CustomVideoCall` cria uma nova instancia. Essa transicao pode estar causando problemas de estado.
+
+**Problema critico encontrado:** O `handleConfirmJoin` no `VideoQueuePage` chama `operatorJoin.mutate()` ANTES de transicionar para `call`. Se a mutacao falhar ou demorar, ainda transiciona (linhas 120-128), mas a notificacao nao chega ao lead.
+
+Adicionalmente, o subscription Realtime no `useRealtimeQueue` pode nao estar funcionando corretamente porque:
+1. A condicao `!oldRecord.operator_joined_at` depende de `REPLICA IDENTITY FULL` (que ja foi aplicado)
+2. MAS se a subscription nao estiver ativa ou houver erro, o callback nunca e chamado
 
 ---
 
 ## Correcoes Necessarias
 
-### Correcao 1: Habilitar REPLICA IDENTITY FULL para Realtime funcionar
+### Correcao 1: Atribuir stream ao video APOS o elemento existir no DOM
 
-O Supabase Realtime precisa que a tabela tenha `REPLICA IDENTITY FULL` para enviar os valores antigos (old) no payload de UPDATE.
-
-```sql
-ALTER TABLE video_call_records REPLICA IDENTITY FULL;
-```
-
-### Correcao 2: Corrigir hook useLeadQueuePosition para usar resposta do lead-waiting
-
-O hook `useLeadQueuePosition` deve usar a resposta do `lead-waiting` que ja retorna a posicao, em vez de chamar `queue-status` separadamente.
-
-**Mudancas em `useRealtimeQueue.ts`:**
-- Remover chamada separada a `queue-status`
-- Usar a resposta do `lead-waiting` do `LeadWaitingRoom`
-
-**Mudancas em `LeadWaitingRoom.tsx`:**
-- Passar a posicao retornada pelo `lead-waiting` para o estado
-- Atualizar posicao quando receber eventos Realtime da tabela
-
-### Correcao 3: Corrigir deteccao de operator_joined no Realtime
-
-**Mudancas em `useRealtimeQueue.ts`:**
-O payload do Realtime nao tem `old` populado sem REPLICA IDENTITY. Apos habilitar, a logica vai funcionar. Mas como backup, podemos verificar apenas se `new.operator_joined_at` existe:
+Modificar `LeadWaitingRoom.tsx` para usar um `useEffect` separado que atribui o stream ao video element depois que `isInitializing` se torna `false`.
 
 ```typescript
-if (newRecord.operator_joined_at) {
+// Novo useEffect para atribuir stream ao video quando o elemento existir
+useEffect(() => {
+  if (!isInitializing && videoRef.current && streamRef.current) {
+    videoRef.current.srcObject = streamRef.current;
+  }
+}, [isInitializing]);
+```
+
+### Correcao 2: Garantir que o callback Realtime seja chamado corretamente
+
+O problema pode estar na logica de verificacao. Atualmente:
+
+```typescript
+if (newRecord.operator_joined_at && !oldRecord.operator_joined_at && !hasNotifiedOperatorRef.current) {
+```
+
+Se por algum motivo o `oldRecord` estiver vazio (mesmo com REPLICA IDENTITY FULL, a subscription pode ter sido criada apos o registro existir), a verificacao `!oldRecord.operator_joined_at` pode falhar.
+
+**Correcao:** Simplificar a logica para verificar apenas se `newRecord.operator_joined_at` existe e o guard nao foi acionado:
+
+```typescript
+if (newRecord.operator_joined_at && !hasNotifiedOperatorRef.current) {
+  hasNotifiedOperatorRef.current = true;
   onOperatorJoinedRef.current?.();
 }
 ```
 
-Isso pode causar chamadas duplicadas, entao precisamos de um estado para rastrear se ja processamos.
+### Correcao 3: Adicionar polling como fallback para Realtime
 
-### Correcao 4: Melhorar fluxo de gravacao
+Mesmo com Realtime, problemas de conectividade podem impedir que eventos cheguem. Adicionar um polling de fallback a cada 5 segundos para verificar se o operador ja entrou.
 
-O problema e que quando a sala fecha, nem sempre ha uma gravacao ativa. Precisamos:
+### Correcao 4: Logging de debug para identificar problemas
 
-1. Verificar se ha uma sessao de gravacao ANTES de tentar parar
-2. Buscar gravacoes existentes para a sala apos fechar
-
-**Mudancas em `video-room/index.ts` (action `close`):**
-- Antes de chamar `/recordings/stop`, verificar se existe gravacao com `/recordings?room_name=X`
-- Se encontrar gravacao em andamento, parar e salvar o ID
-- Se encontrar gravacao ja concluida, salvar diretamente
-
-### Correcao 5: Adicionar estado para evitar processamento duplicado de Realtime
-
-**Mudancas em `LeadWaitingRoom.tsx`:**
-- Adicionar ref `hasTransitioned` para evitar que o callback `onOperatorJoined` seja chamado multiplas vezes
+Adicionar logs detalhados no hook Realtime para identificar se a subscription esta funcionando e quais eventos estao sendo recebidos.
 
 ---
 
@@ -82,108 +101,129 @@ O problema e que quando a sala fecha, nem sempre ha uma gravacao ativa. Precisam
 
 | Arquivo | Modificacao |
 |---------|-------------|
-| **Migracao SQL** | Adicionar `REPLICA IDENTITY FULL` |
-| `src/pages/video/hooks/useRealtimeQueue.ts` | Corrigir logica de deteccao de operador, adicionar guards |
-| `src/pages/video/components/LeadWaitingRoom.tsx` | Usar posicao retornada do lead-waiting, adicionar guards |
-| `supabase/functions/video-room/index.ts` | Corrigir action `close` para buscar gravacoes existentes |
+| `src/pages/video/components/LeadWaitingRoom.tsx` | Corrigir atribuicao do stream ao video element |
+| `src/pages/video/hooks/useRealtimeQueue.ts` | Simplificar logica de deteccao + adicionar logs + polling fallback |
 
 ---
 
 ## Detalhes das Correcoes
 
-### 1. Migracao SQL
-
-```sql
--- Habilitar REPLICA IDENTITY FULL para Realtime enviar dados antigos
-ALTER TABLE video_call_records REPLICA IDENTITY FULL;
-```
-
-### 2. useRealtimeQueue.ts - Corrigir deteccao
+### 1. LeadWaitingRoom.tsx - Corrigir preview da camera
 
 ```typescript
-// Adicionar estado para rastrear se ja processou
-const hasNotifiedOperatorRef = useRef(false);
-
-// Na subscription do room
-if (newRecord.operator_joined_at && !hasNotifiedOperatorRef.current) {
-  hasNotifiedOperatorRef.current = true;
-  onOperatorJoinedRef.current?.();
-}
-```
-
-### 3. LeadWaitingRoom.tsx - Gerenciar estado corretamente
-
-```typescript
-const [position, setPosition] = useState(0);
-const [totalInQueue, setTotalInQueue] = useState(0);
-const hasTransitioned = useRef(false);
-
-// Ao registrar lead-waiting, usar a resposta
-const { data } = await supabase.functions.invoke('video-room', {
-  body: { action: 'lead-waiting', roomName },
-});
-if (data?.success) {
-  setPosition(data.position);
-  setTotalInQueue(data.totalInQueue);
-}
-
-// No callback de operator joined
-const handleOperatorJoined = useCallback(() => {
-  if (hasTransitioned.current) return;
-  hasTransitioned.current = true;
-  onOperatorJoined();
-}, [onOperatorJoined]);
-```
-
-### 4. video-room/index.ts - Corrigir busca de gravacao
-
-```typescript
-case 'close': {
-  const { roomName } = body as CloseRoomRequest;
-  
-  let recordingId: string | null = null;
-  
-  // 1. Tentar parar gravacao ativa
-  try {
-    const stopResponse = await fetch(
-      `${DAILY_API_URL}/rooms/${roomName}/recordings/stop`,
-      {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${DAILY_API_KEY}` },
-      }
-    );
-    
-    if (stopResponse.ok) {
-      const stopData = await stopResponse.json();
-      recordingId = stopData.id || null;
-    }
-  } catch (e) {
-    console.log('No active recording to stop');
+// Adicionar useEffect para atribuir stream DEPOIS que o video element existe
+useEffect(() => {
+  // Quando isInitializing muda para false e temos stream, atribuir ao video
+  if (!isInitializing && streamRef.current && videoRef.current) {
+    videoRef.current.srcObject = streamRef.current;
+    // Garantir que o video toca
+    videoRef.current.play().catch(e => console.warn('Video autoplay blocked:', e));
   }
-  
-  // 2. Se nao conseguiu parar, buscar gravacoes existentes
-  if (!recordingId) {
+}, [isInitializing]);
+
+// Modificar initializeCamera para NAO tentar atribuir ao video
+useEffect(() => {
+  const initializeCamera = async () => {
     try {
-      const listResponse = await fetch(
-        `${DAILY_API_URL}/recordings?room_name=${roomName}`,
-        {
-          headers: { 'Authorization': `Bearer ${DAILY_API_KEY}` },
-        }
-      );
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+
+      streamRef.current = stream;
+      setIsInitializing(false);
       
-      if (listResponse.ok) {
-        const listData = await listResponse.json();
-        // Pegar a gravacao mais recente
-        if (listData.data?.length > 0) {
-          recordingId = listData.data[0].id;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to list recordings:', e);
+      // REMOVIDO: a atribuicao ao videoRef sera feita no outro useEffect
+    } catch (err) {
+      // ... error handling
     }
-  }
-  
-  // ... resto da logica
+  };
+
+  initializeCamera();
+  // ... cleanup
+}, [onError]);
+```
+
+### 2. useRealtimeQueue.ts - Melhorar deteccao do operador
+
+```typescript
+export function useRealtimeQueue(options: UseRealtimeQueueOptions) {
+  const { roomName, codAgents, onOperatorJoined, onQueueUpdate, onRecordingReady } = options;
+  const channelsRef = useRef<RealtimeChannel[]>([]);
+  const hasNotifiedOperatorRef = useRef(false);
+
+  // ... refs ...
+
+  useEffect(() => {
+    // Cleanup e setup das subscriptions
+    channelsRef.current.forEach(ch => supabase.removeChannel(ch));
+    channelsRef.current = [];
+
+    if (roomName) {
+      console.log('[useRealtimeQueue] Setting up subscription for room:', roomName);
+      
+      const roomChannel = supabase
+        .channel(`room-${roomName}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'video_call_records',
+            filter: `room_name=eq.${roomName}`,
+          },
+          (payload) => {
+            console.log('[useRealtimeQueue] Received UPDATE:', payload);
+            const newRecord = payload.new as Record<string, unknown>;
+            
+            // Simplificar: apenas verificar se tem operator_joined_at
+            if (newRecord.operator_joined_at && !hasNotifiedOperatorRef.current) {
+              console.log('[useRealtimeQueue] Operator joined! Notifying...');
+              hasNotifiedOperatorRef.current = true;
+              onOperatorJoinedRef.current?.();
+            }
+            
+            // ... resto da logica
+          }
+        )
+        .subscribe((status) => {
+          console.log('[useRealtimeQueue] Subscription status:', status);
+        });
+
+      channelsRef.current.push(roomChannel);
+      
+      // FALLBACK: Polling a cada 5s para verificar se operador entrou
+      const pollInterval = setInterval(async () => {
+        if (hasNotifiedOperatorRef.current) {
+          clearInterval(pollInterval);
+          return;
+        }
+        
+        try {
+          const { data } = await supabase.functions.invoke('video-room', {
+            body: { action: 'join', roomName },
+          });
+          
+          if (data?.room?.operatorJoined && !hasNotifiedOperatorRef.current) {
+            console.log('[useRealtimeQueue] Fallback polling detected operator joined');
+            hasNotifiedOperatorRef.current = true;
+            onOperatorJoinedRef.current?.();
+          }
+        } catch (e) {
+          console.warn('[useRealtimeQueue] Polling error:', e);
+        }
+      }, 5000);
+
+      // Adicionar cleanup do polling
+      return () => {
+        clearInterval(pollInterval);
+        channelsRef.current.forEach(ch => supabase.removeChannel(ch));
+        channelsRef.current = [];
+      };
+    }
+    
+    // ... resto
+  }, [roomName, codAgents?.join(',')]);
 }
 ```
 
@@ -191,9 +231,12 @@ case 'close': {
 
 ## Resumo das Correcoes
 
-1. **REPLICA IDENTITY FULL** - Essencial para Realtime funcionar com `old` values
-2. **Guards contra duplicacao** - Evita multiplas transicoes/notificacoes
-3. **Posicao na fila** - Usar resposta do `lead-waiting` diretamente
-4. **Busca de gravacao** - Listar gravacoes existentes se parada falhar
-5. **Limpeza de stream** - Garantir que camera/microfone sao liberados na transicao
+1. **Preview da camera**: Separar a logica de atribuicao do stream em um `useEffect` que roda apos `isInitializing` se tornar `false`
+
+2. **Deteccao do operador**: 
+   - Simplificar a condicao de verificacao (remover dependencia de `oldRecord`)
+   - Adicionar logs detalhados para debug
+   - Adicionar polling de fallback a cada 5 segundos
+
+3. **Robustez**: Se o Realtime falhar por qualquer motivo, o polling garantira que o lead seja notificado
 
