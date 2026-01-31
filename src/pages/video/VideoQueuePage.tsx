@@ -10,10 +10,10 @@ import { toast } from 'sonner';
 import { useVideoRooms, useCloseVideoRoom } from './hooks/useVideoRoom';
 import { VideoQueueCard } from './components/VideoQueueCard';
 import { CustomVideoCall } from './components/CustomVideoCall';
+import { PreJoinLobby } from './components/PreJoinLobby';
 import { CallHistorySection } from './components/CallHistorySection';
 import { useAuth } from '@/contexts/AuthContext';
 import type { VideoRoom } from './types';
-import { supabase } from '@/integrations/supabase/client';
 
 // Memoized video call component to prevent re-renders from polling
 const ActiveCallSection = memo(function ActiveCallSection({ 
@@ -43,27 +43,68 @@ const ActiveCallSection = memo(function ActiveCallSection({
   );
 });
 
+// Pre-join lobby section
+const LobbySection = memo(function LobbySection({
+  room,
+  userName,
+  onJoin,
+  onCancel,
+}: {
+  room: VideoRoom;
+  userName?: string;
+  onJoin: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Card className="h-full min-h-[400px] overflow-hidden">
+      <PreJoinLobby
+        roomUrl={room.url}
+        userName={userName}
+        onJoin={onJoin}
+        onCancel={onCancel}
+      />
+    </Card>
+  );
+});
+
+type CallState = 'idle' | 'lobby' | 'call';
+
 export default function VideoQueuePage() {
   const { user } = useAuth();
-  const [activeRoom, setActiveRoom] = useState<VideoRoom | null>(null);
+  const [selectedRoom, setSelectedRoom] = useState<VideoRoom | null>(null);
+  const [callState, setCallState] = useState<CallState>('idle');
   const { data: rooms = [], isLoading, refetch, isFetching } = useVideoRooms();
   const closeRoom = useCloseVideoRoom();
 
+  // When user clicks "Atender" on a room card, show lobby first
   const handleJoinRoom = useCallback((room: VideoRoom) => {
-    // Recording will be started by CustomVideoCall after joined-meeting event
-    setActiveRoom(room);
+    setSelectedRoom(room);
+    setCallState('lobby');
+  }, []);
+
+  // When user confirms from lobby, start the actual call
+  const handleConfirmJoin = useCallback(() => {
+    setCallState('call');
+  }, []);
+
+  // When user cancels from lobby, go back to idle
+  const handleCancelLobby = useCallback(() => {
+    setSelectedRoom(null);
+    setCallState('idle');
   }, []);
 
   const handleLeaveRoom = useCallback(() => {
-    if (activeRoom) {
-      closeRoom.mutate(activeRoom.name);
+    if (selectedRoom) {
+      closeRoom.mutate(selectedRoom.name);
     }
-    setActiveRoom(null);
-  }, [activeRoom, closeRoom]);
+    setSelectedRoom(null);
+    setCallState('idle');
+  }, [selectedRoom, closeRoom]);
 
   const handleVideoError = useCallback((error: string) => {
     console.error('Video call error:', error);
-    setActiveRoom(null);
+    setSelectedRoom(null);
+    setCallState('idle');
     toast.error('Erro ao conectar. Tente novamente.');
   }, []);
 
@@ -149,7 +190,7 @@ export default function VideoQueuePage() {
                             key={room.name}
                             room={room}
                             onJoin={handleJoinRoom}
-                            isActive={activeRoom?.name === room.name}
+                            isActive={selectedRoom?.name === room.name && callState !== 'idle'}
                           />
                         ))
                       )}
@@ -159,15 +200,22 @@ export default function VideoQueuePage() {
               </Card>
             </div>
 
-            {/* Video call column */}
+            {/* Video call / Lobby column */}
             <div className="lg:col-span-2">
-              {activeRoom ? (
+              {callState === 'call' && selectedRoom ? (
                 <ActiveCallSection
-                  room={activeRoom}
+                  room={selectedRoom}
                   operatorId={user?.id}
                   operatorName={user?.name}
                   onLeave={handleLeaveRoom}
                   onError={handleVideoError}
+                />
+              ) : callState === 'lobby' && selectedRoom ? (
+                <LobbySection
+                  room={selectedRoom}
+                  userName={user?.name}
+                  onJoin={handleConfirmJoin}
+                  onCancel={handleCancelLobby}
                 />
               ) : (
                 <Card className="h-full min-h-[400px] flex items-center justify-center">
