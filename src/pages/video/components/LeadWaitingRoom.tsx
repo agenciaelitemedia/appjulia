@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Video, Mic, MicOff, VideoOff, Settings, Loader2 } from 'lucide-react';
+import { Video, Mic, MicOff, VideoOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { useRealtimeQueue, useLeadQueuePosition } from '../hooks/useRealtimeQueue';
+import { useRealtimeQueue } from '../hooks/useRealtimeQueue';
 import { QueuePositionIndicator } from './QueuePositionIndicator';
 import { InformativeCarousel } from './InformativeCarousel';
 import { supabase } from '@/integrations/supabase/client';
-import DailyIframe from '@daily-co/daily-js';
 
 interface LeadWaitingRoomProps {
   roomName: string;
@@ -27,19 +26,19 @@ export function LeadWaitingRoom({
   const [isMicOn, setIsMicOn] = useState(true);
   const [isInitializing, setIsInitializing] = useState(true);
   const [hasRegistered, setHasRegistered] = useState(false);
+  const [position, setPosition] = useState(0);
+  const [totalInQueue, setTotalInQueue] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const dailyRef = useRef<ReturnType<typeof DailyIframe.createCallObject> | null>(null);
+  const hasTransitionedRef = useRef(false);
 
-  const { position, totalInQueue } = useLeadQueuePosition(roomName, codAgent);
-
-  // Register lead as waiting
+  // Register lead as waiting and get initial queue position
   useEffect(() => {
     if (hasRegistered) return;
 
     const registerLeadWaiting = async () => {
       try {
-        const { error } = await supabase.functions.invoke('video-room', {
+        const { data, error } = await supabase.functions.invoke('video-room', {
           body: {
             action: 'lead-waiting',
             roomName,
@@ -50,6 +49,11 @@ export function LeadWaitingRoom({
           console.error('Failed to register lead waiting:', error);
         } else {
           setHasRegistered(true);
+          // Use position directly from lead-waiting response
+          if (data?.success) {
+            setPosition(data.position || 1);
+            setTotalInQueue(data.totalInQueue || 1);
+          }
         }
       } catch (err) {
         console.error('Error registering lead:', err);
@@ -59,13 +63,25 @@ export function LeadWaitingRoom({
     registerLeadWaiting();
   }, [roomName, hasRegistered]);
 
+  // Handle operator joined with guard against duplicates
+  const handleOperatorJoined = useCallback(() => {
+    if (hasTransitionedRef.current) return;
+    hasTransitionedRef.current = true;
+    
+    // Stop camera stream before transitioning
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    
+    console.log('Operator joined! Transitioning to call...');
+    onOperatorJoined();
+  }, [onOperatorJoined]);
+
   // Listen for operator joining via realtime
   useRealtimeQueue({
     roomName,
-    onOperatorJoined: useCallback(() => {
-      console.log('Operator joined! Transitioning to call...');
-      onOperatorJoined();
-    }, [onOperatorJoined]),
+    onOperatorJoined: handleOperatorJoined,
   });
 
   // Initialize camera preview

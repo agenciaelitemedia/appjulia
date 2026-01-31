@@ -342,6 +342,8 @@ serve(async (req) => {
         
         // Stop cloud recording and get recording_id
         let recordingId: string | null = null;
+        
+        // 1. Try to stop active recording
         try {
           const stopRecordingResponse = await fetch(
             `${DAILY_API_URL}/rooms/${roomName}/recordings/stop`,
@@ -356,9 +358,41 @@ serve(async (req) => {
           if (stopRecordingResponse.ok) {
             const stopData = await stopRecordingResponse.json();
             recordingId = stopData.id || null;
+            console.log('Recording stopped, id:', recordingId);
+          } else {
+            console.log('No active recording to stop, status:', stopRecordingResponse.status);
           }
         } catch (recordingError) {
-          console.error('Recording stop error:', recordingError);
+          console.log('Recording stop error (expected if no active recording):', recordingError);
+        }
+        
+        // 2. If no recording from stop, search for existing recordings for this room
+        if (!recordingId) {
+          try {
+            const listRecordingsResponse = await fetch(
+              `${DAILY_API_URL}/recordings?room_name=${roomName}`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${DAILY_API_KEY}`,
+                },
+              }
+            );
+            
+            if (listRecordingsResponse.ok) {
+              const listData = await listRecordingsResponse.json();
+              // Get the most recent recording for this room
+              if (listData.data && listData.data.length > 0) {
+                // Sort by start_ts descending to get most recent
+                const sortedRecordings = listData.data.sort(
+                  (a: { start_ts: number }, b: { start_ts: number }) => b.start_ts - a.start_ts
+                );
+                recordingId = sortedRecordings[0].id;
+                console.log('Found existing recording:', recordingId);
+              }
+            }
+          } catch (listError) {
+            console.error('Failed to list recordings:', listError);
+          }
         }
         
         // Update record in database
