@@ -1,212 +1,202 @@
 
-# Plano: Corrigir Sincronizacao entre Operador e Lead
+# Plano: Corrigir Gravacao Presa em "Processando"
 
-## Problemas Identificados
+## Problema Identificado
 
-### 1. Race Condition no Fluxo do Operador
+A gravacao ja esta pronta na Daily.co (acabei de verificar com sucesso), mas o status no banco de dados fica em "processing" indefinidamente.
 
-O fluxo atual tem uma corrida critica:
+### Causa Raiz
 
-```
-Fluxo atual (QUEBRADO):
-1. Operador clica "Entrar na Chamada"
-2. handleConfirmJoin() chama operatorJoin.mutate() (ASYNC)
-3. onSuccess/onError -> setCallState('call') (imediato)
-4. CustomVideoCall monta, faz join no Daily
-5. joined-meeting -> record-start -> status = 'active'
-6. Lead some da fila (status != 'pending')
-7. MAS operator_joined_at pode nao ter sido atualizado ainda!
-8. Lead nunca recebe notificacao Realtime
-```
+O componente `RecordingDownloadButton` exibe apenas um Badge estatico quando `status === 'processing'`:
 
-O problema e que `setCallState('call')` acontece ANTES de garantir que `operator-join` completou.
-
-### 2. Status 'active' Remove Lead da Fila Prematuramente
-
-A query `list` filtra `status = 'pending'`:
-
-```typescript
-let query = supabase
-  .from('video_call_records')
-  .select('*')
-  .eq('status', 'pending')  // <-- Lead some quando status muda
-  .not('lead_waiting_at', 'is', null)
-  .is('operator_joined_at', null);
+```tsx
+if (status === 'processing') {
+  return (
+    <Badge variant="secondary" className="...">
+      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+      Processando
+    </Badge>
+  );
+}
 ```
 
-Quando `record-start` muda para `active`, o lead desaparece da fila do operador antes de transicionar para a chamada.
+Nao ha nenhum mecanismo para:
+1. O usuario clicar e verificar se ja esta pronta
+2. Polling automatico para verificar o status
+3. Atualizacao automatica quando a gravacao fica disponivel
 
-### 3. operator_joined_at Nunca e Preenchido
-
-Dados do banco mostram TODOS os registros com `operator_joined_at = NULL`:
-
-```
-julia-20251101-1769879842698: operator_joined_at = NULL
-julia-20251101-1769877211395: operator_joined_at = NULL  
-julia-20251101-1769874955347: operator_joined_at = NULL
-```
-
-Isso indica que `operator-join` nunca esta sendo chamado corretamente ou esta falhando.
+O status so muda para "ready" quando alguem chama a action `get-recording-link`, que:
+1. Busca o link de download na API Daily.co
+2. Atualiza o `recording_status` para "ready" no banco de dados
 
 ---
 
 ## Solucao Proposta
 
-### Correcao 1: Aguardar operator-join antes de iniciar chamada
+### Modificar `RecordingDownloadButton.tsx`
 
-Modificar `VideoQueuePage.tsx` para so transicionar para `call` APOS o `operator-join` completar com sucesso.
+Quando o status for "processing", mostrar um botao clicavel que permite ao usuario verificar se a gravacao ja esta pronta:
 
-```typescript
-const handleConfirmJoin = useCallback(async () => {
-  if (!selectedRoom) return;
-  
-  try {
-    // AWAIT the mutation to complete before transitioning
-    await operatorJoin.mutateAsync({
-      roomName: selectedRoom.name,
-      operatorId: user?.id,
-      operatorName: user?.name,
-    });
-    
-    // Only transition after success
-    setCallState('call');
-  } catch (error) {
-    console.error('Failed to notify operator join:', error);
-    toast.error('Erro ao entrar na sala. Tente novamente.');
-    // Do NOT transition if failed
-    setCallState('idle');
-    setSelectedRoom(null);
-  }
-}, [selectedRoom, operatorJoin, user]);
-```
-
-### Correcao 2: Remover status 'active' do filtro da fila
-
-A query `list` nao deveria depender do status para filtrar leads aguardando. O criterio correto e:
-
-- `lead_waiting_at` preenchido (lead entrou na sala de espera)
-- `operator_joined_at` NULL (operador ainda nao entrou)
-- `ended_at` NULL (chamada nao encerrada)
-
-Modificar a edge function para usar este criterio:
-
-```typescript
-case 'list': {
-  let query = supabase
-    .from('video_call_records')
-    .select('*')
-    .not('lead_waiting_at', 'is', null)
-    .is('operator_joined_at', null)
-    .is('ended_at', null);  // Nao usar status
-
-  // ... resto
+```tsx
+if (status === 'processing') {
+  return (
+    <Button 
+      variant="ghost" 
+      size="sm"
+      onClick={handleCheckRecording}  // Novo handler
+      disabled={isPending}
+      className="h-8 px-2"
+    >
+      {isPending ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <>
+          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+          Processando
+        </>
+      )}
+    </Button>
+  );
 }
 ```
 
-### Correcao 3: Adicionar log na action operator-join
+O `handleCheckRecording` vai:
+1. Chamar `get-recording-link` com o `recordingId`
+2. Se sucesso: atualizar o estado local para mostrar botoes de download/copiar
+3. Se erro: mostrar toast "Ainda processando, tente novamente em alguns minutos"
 
-Adicionar logs detalhados para debug e verificar se a action esta sendo chamada.
+### Adicionar Verificacao Automatica (Polling)
 
-### Correcao 4: Mover preenchimento de operator_id/operator_name para operator-join
+Quando o componente monta com `status === 'processing'`, iniciar um polling a cada 30 segundos para verificar se a gravacao ficou pronta:
 
-Atualmente, `record-start` tambem preenche `operator_id` e `operator_name`. Isso causa duplicacao e pode sobrescrever valores. Centralizar no `operator-join`.
+```tsx
+useEffect(() => {
+  if (status !== 'processing' || downloadUrl) return;
+  
+  const checkRecording = async () => {
+    try {
+      const response = await getLink(recordingId);
+      if (response?.downloadLink) {
+        setDownloadUrl(response.downloadLink);
+      }
+    } catch {
+      // Silently ignore - still processing
+    }
+  };
+
+  // Check after 30 seconds, then every 30 seconds
+  const timeout = setTimeout(checkRecording, 30000);
+  const interval = setInterval(checkRecording, 30000);
+  
+  return () => {
+    clearTimeout(timeout);
+    clearInterval(interval);
+  };
+}, [status, recordingId, downloadUrl]);
+```
 
 ---
 
-## Arquivos a Modificar
+## Arquivo a Modificar
 
 | Arquivo | Modificacao |
 |---------|-------------|
-| `src/pages/video/VideoQueuePage.tsx` | Aguardar `mutateAsync` completar antes de transicionar |
-| `supabase/functions/video-room/index.ts` | Corrigir query `list` para nao depender de status |
-| `supabase/functions/video-room/index.ts` | Adicionar logs no `operator-join` |
+| `src/pages/video/components/RecordingDownloadButton.tsx` | Adicionar botao clicavel quando processing + polling automatico |
 
 ---
 
-## Detalhes das Correcoes
+## Detalhes da Implementacao
 
-### 1. VideoQueuePage.tsx - Aguardar mutation
+```tsx
+// RecordingDownloadButton.tsx
 
-```typescript
-const handleConfirmJoin = useCallback(async () => {
-  if (!selectedRoom) return;
-  
-  try {
-    // Mostrar estado de loading
-    toast.loading('Entrando na sala...', { id: 'join-room' });
+export function RecordingDownloadButton({ 
+  recordingId, 
+  status,
+  recordingUrl 
+}: RecordingDownloadButtonProps) {
+  const { mutate: getLink, mutateAsync: getLinkAsync, isPending } = useRecordingLink();
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(recordingUrl || null);
+  const [copied, setCopied] = useState(false);
+  const [isReady, setIsReady] = useState(status === 'ready' || !!recordingUrl);
+
+  // Auto-check recording status when processing
+  useEffect(() => {
+    // If already ready or has URL, skip
+    if (isReady || downloadUrl) return;
+    // Only poll when status is 'processing'
+    if (status !== 'processing') return;
     
-    // AWAIT mutation to complete
-    await operatorJoin.mutateAsync({
-      roomName: selectedRoom.name,
-      operatorId: user?.id,
-      operatorName: user?.name,
+    const checkRecording = async () => {
+      try {
+        const response = await getLinkAsync(recordingId);
+        if (response?.downloadLink) {
+          setDownloadUrl(response.downloadLink);
+          setIsReady(true);
+        }
+      } catch {
+        // Still processing, ignore
+      }
+    };
+
+    // First check after 30 seconds, then every 30 seconds
+    const timeout = setTimeout(checkRecording, 30000);
+    const interval = setInterval(checkRecording, 30000);
+    
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
+  }, [status, recordingId, downloadUrl, isReady, getLinkAsync]);
+
+  // Handler for manual check when clicking on "Processando"
+  const handleCheckRecording = () => {
+    getLink(recordingId, {
+      onSuccess: (data) => {
+        if (data.downloadLink) {
+          setDownloadUrl(data.downloadLink);
+          setIsReady(true);
+          toast.success('Gravacao pronta para download!');
+        }
+      },
+      onError: () => {
+        toast.info('Ainda processando. Tente novamente em alguns minutos.');
+      },
     });
-    
-    toast.success('Conectado!', { id: 'join-room' });
-    setCallState('call');
-  } catch (error) {
-    console.error('Failed to notify operator join:', error);
-    toast.error('Erro ao entrar na sala', { id: 'join-room' });
-    setCallState('idle');
-    setSelectedRoom(null);
+  };
+
+  // ... rest of the component
+
+  // Update the processing status check to be clickable
+  if (status === 'processing' && !isReady) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={handleCheckRecording}
+              disabled={isPending}
+              className="h-8 px-2 text-warning-foreground"
+            >
+              {isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  Processando
+                </>
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Clique para verificar se a gravacao esta pronta</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
   }
-}, [selectedRoom, operatorJoin, user]);
-```
-
-### 2. Edge Function - Corrigir query list
-
-```typescript
-case 'list': {
-  const { codAgents } = body as ListRoomsRequest;
-  
-  // Get rooms where lead is waiting but operator hasn't joined yet
-  let query = supabase
-    .from('video_call_records')
-    .select('*')
-    .not('lead_waiting_at', 'is', null)  // Lead esta esperando
-    .is('operator_joined_at', null)       // Operador nao entrou
-    .is('ended_at', null);                // Chamada nao encerrada
-  
-  // Remover: .eq('status', 'pending')
-  
-  if (codAgents && codAgents.length > 0) {
-    query = query.in('cod_agent', codAgents);
-  }
-  
-  const { data: dbRooms, error: dbError } = await query.order('lead_waiting_at', { ascending: true });
-  // ...
-}
-```
-
-### 3. Edge Function - Melhorar logs no operator-join
-
-```typescript
-case 'operator-join': {
-  const { roomName, operatorId, operatorName } = body as OperatorJoinRequest;
-  
-  console.log('[operator-join] Request:', { roomName, operatorId, operatorName });
-  
-  const { error: updateError, data: updateData } = await supabase
-    .from('video_call_records')
-    .update({ 
-      operator_joined_at: new Date().toISOString(),
-      operator_id: operatorId,
-      operator_name: operatorName,
-    })
-    .eq('room_name', roomName)
-    .select();
-  
-  if (updateError) {
-    console.error('[operator-join] Update failed:', updateError);
-    throw new Error('Failed to register operator join');
-  }
-  
-  console.log('[operator-join] Success:', updateData);
-  
-  return new Response(
-    JSON.stringify({ success: true, updated: updateData }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
 }
 ```
 
@@ -214,7 +204,7 @@ case 'operator-join': {
 
 ## Resumo
 
-1. **Aguardar operator-join completar**: Usar `mutateAsync` e so transicionar apos sucesso
-2. **Corrigir query da fila**: Remover dependencia de `status`, usar `ended_at` como criterio
-3. **Melhorar logs**: Adicionar logs detalhados para debug
-4. **Ordem de operacoes garantida**: operator-join -> transicionar -> joined-meeting -> record-start
+1. **Badge "Processando" agora e clicavel**: Permite ao usuario verificar manualmente se a gravacao ja esta pronta
+2. **Polling automatico a cada 30 segundos**: Verifica automaticamente se a gravacao ficou disponivel, sem necessidade de acao do usuario
+3. **Estado local `isReady`**: Quando a verificacao detecta que a gravacao esta pronta, o componente atualiza para mostrar os botoes de download/copiar imediatamente
+4. **Tooltip informativo**: Explica ao usuario que ele pode clicar para verificar o status
