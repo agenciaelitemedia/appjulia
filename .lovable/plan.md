@@ -1,258 +1,313 @@
 
-# Plano de Melhorias: Sistema de Videoconferência com Daily.co
 
-## Análise da Implementação Atual
+# Fase 2: Seletor de Dispositivos e Background Blur
 
-O sistema de videoconferência já possui:
-- Criação e gerenciamento de salas via Edge Function
-- Gravação automática na nuvem com download posterior
-- Compartilhamento de tela
-- Controles básicos (microfone, câmera, encerrar)
-- Histórico de chamadas com filtro por operador
-- Interface white-label sem marcas do Daily.co
-- Watchdog de conexão (20s timeout)
-- Singleton global para evitar duplicação de instâncias
+## Visao Geral
 
-## Funcionalidades Disponíveis no Daily.co para Implementar
+Este plano implementa a Fase 2 do sistema de videoconferencia, adicionando:
 
-Baseado na documentação atual do Daily.co, as seguintes funcionalidades podem agregar valor:
-
-| Funcionalidade | Impacto | Complexidade |
-|----------------|---------|--------------|
-| 1. Background Blur/Virtual Background | Alto | Média |
-| 2. Cancelamento de Ruído | Alto | Baixa |
-| 3. Seletor de Dispositivos (câmera/mic) | Alto | Média |
-| 4. Indicador de Qualidade de Rede | Médio | Baixa |
-| 5. Transcrição em Tempo Real | Alto | Alta |
-| 6. Indicador de Speaker Ativo | Médio | Baixa |
-| 7. Lobby/Sala de Espera (Pre-join) | Médio | Média |
+1. **Seletor de Dispositivos** - Permite escolher camera, microfone e alto-falante
+2. **Background Blur** - Desfoque de fundo durante a chamada
+3. **Modal de Configuracoes Centralizado** - Agrupa todas as opcoes em um unico lugar
 
 ---
 
-## 1. Background Blur e Virtual Background
+## Arquitetura da Solucao
 
-Permite aos usuários desfocar ou substituir o fundo durante a chamada.
-
-**Implementação:**
-- Usar `updateInputSettings()` do Daily.co
-- Tipos disponíveis: `background-blur`, `background-image`, `none`
-- Adicionar botão nos controles de vídeo
-
-**Código necessário:**
-```typescript
-// Ativar blur
-daily.updateInputSettings({
-  video: {
-    processor: {
-      type: 'background-blur',
-      config: { strength: 0.8 }
-    }
-  }
-});
-
-// Ativar fundo virtual
-daily.updateInputSettings({
-  video: {
-    processor: {
-      type: 'background-image',
-      config: { source: 'https://example.com/bg.jpg' }
-    }
-  }
-});
-```
-
-**Limitação:** Suportado apenas em browsers desktop (Chrome, Firefox, Edge).
-
----
-
-## 2. Cancelamento de Ruído (Krisp)
-
-Reduz ruído de fundo no microfone automaticamente.
-
-**Implementação:**
-- Usar `updateInputSettings()` com `noise-cancellation`
-- Adicionar toggle nos controles de áudio
-
-**Código necessário:**
-```typescript
-daily.updateInputSettings({
-  audio: {
-    processor: {
-      type: 'noise-cancellation'
-    }
-  }
-});
-```
-
-**Compatibilidade:** Chrome, Firefox, Edge, Safari 17.4+
-
----
-
-## 3. Seletor de Dispositivos
-
-Permitir que usuários escolham qual câmera e microfone usar durante a chamada.
-
-**Implementação:**
-- Usar hooks `useDevices()` ou `daily.enumerateDevices()`
-- Criar dropdown com lista de dispositivos
-- Usar `setInputDevicesAsync()` para trocar dispositivo
-
-**Código necessário:**
-```typescript
-// Listar dispositivos
-const devices = await daily.enumerateDevices();
-const cameras = devices.devices.filter(d => d.kind === 'videoinput');
-const mics = devices.devices.filter(d => d.kind === 'audioinput');
-
-// Trocar dispositivo
-await daily.setInputDevicesAsync({
-  videoDeviceId: selectedCameraId,
-  audioDeviceId: selectedMicId,
-});
+```text
+VideoControls.tsx
+     |
+     +-- [Settings] Button --> VideoSettingsModal.tsx
+                                    |
+                                    +-- useDevices() (Daily React hook)
+                                    +-- useVideoSettings() (expandido)
+                                    |
+                                    +-- Device Selectors (Camera/Mic/Speaker)
+                                    +-- Background Blur Toggle + Slider
+                                    +-- Noise Cancellation Toggle
 ```
 
 ---
 
-## 4. Indicador de Qualidade de Rede
+## Componentes a Criar/Modificar
 
-Mostrar ao usuário se a conexão está boa, média ou ruim.
-
-**Implementação:**
-- Escutar evento `network-connection` e `network-quality-change`
-- Exibir ícone com cores (verde/amarelo/vermelho)
-
-**Código necessário:**
-```typescript
-useDailyEvent('network-quality-change', (event) => {
-  // event.threshold: 'good' | 'low' | 'very-low'
-  setNetworkQuality(event.threshold);
-});
-```
+| Arquivo | Acao | Descricao |
+|---------|------|-----------|
+| `src/pages/video/components/VideoSettingsModal.tsx` | Criar | Modal centralizado de configuracoes |
+| `src/pages/video/hooks/useVideoSettings.ts` | Modificar | Adicionar background blur e integracao com useDevices |
+| `src/pages/video/components/VideoControls.tsx` | Modificar | Adicionar botao de configuracoes e remover toggle de ruido inline |
 
 ---
 
-## 5. Transcrição em Tempo Real (Legendas)
+## 1. Expandir o Hook useVideoSettings
 
-Exibir legendas ao vivo durante a chamada.
+O hook existente sera expandido para incluir:
 
-**Implementação:**
-- Requer integração com Deepgram (API key separada)
-- Habilitar `enable_transcription` na criação da sala
-- Usar hook `useTranscription()` para receber texto
+- Gerenciamento de **background blur** com intensidade configuravel
+- Referencia ao hook `useDevices()` do Daily React para listagem de dispositivos
+- Funcoes para alterar dispositivos selecionados
 
-**Código necessário (Edge Function):**
+**Estado adicional:**
 ```typescript
-// Na criação da sala
-properties: {
-  enable_transcription: 'deepgram:YOUR_DEEPGRAM_KEY'
+interface VideoSettings {
+  noiseCancellation: boolean;
+  networkQuality: NetworkQuality;
+  backgroundBlur: boolean;
+  backgroundBlurStrength: number; // 0.0 a 1.0
 }
 ```
 
+**Novas funcoes:**
 ```typescript
-// No frontend
-const { transcription } = useTranscription();
-// transcription contém o texto em tempo real
-```
+// Background blur
+toggleBackgroundBlur: () => Promise<void>
+setBackgroundBlurStrength: (strength: number) => Promise<void>
 
-**Observação:** Requer API key do Deepgram (custo adicional).
-
----
-
-## 6. Indicador de Speaker Ativo
-
-Destacar visualmente quem está falando na chamada.
-
-**Implementação:**
-- Usar hook `useActiveSpeakerId()`
-- Adicionar borda animada no VideoTile do speaker ativo
-
-**Código necessário:**
-```typescript
-const activeSpeakerId = useActiveSpeakerId();
-
-// No VideoTile
-<div className={cn(
-  "relative rounded-lg",
-  sessionId === activeSpeakerId && "ring-2 ring-primary animate-pulse"
-)}>
+// Retorno do useDevices
+devices: {
+  cameras: DeviceObject[];
+  microphones: DeviceObject[];
+  speakers: DeviceObject[];
+  currentCam: DeviceObject | undefined;
+  currentMic: DeviceObject | undefined;
+  currentSpeaker: DeviceObject | undefined;
+  setCamera: (deviceId: string) => void;
+  setMicrophone: (deviceId: string) => void;
+  setSpeaker: (deviceId: string) => void;
+}
 ```
 
 ---
 
-## 7. Lobby/Pre-join UI
+## 2. Criar Modal de Configuracoes (VideoSettingsModal.tsx)
 
-Tela de preparação antes de entrar na chamada (testar câmera/mic).
-
-**Implementação:**
-- Usar `startCamera()` sem `join()` para preview
-- Mostrar preview do próprio vídeo
-- Botão "Entrar na Reunião" executa `join()`
-
-**Código necessário:**
-```typescript
-// Preview sem entrar
-await daily.startCamera();
-
-// Quando pronto
-await daily.join({ url: roomUrl });
-```
-
----
-
-## Arquivos a Criar/Modificar
-
-| Arquivo | Ação | Descrição |
-|---------|------|-----------|
-| `src/pages/video/components/VideoControls.tsx` | Modificar | Adicionar botões de blur, noise, devices |
-| `src/pages/video/components/VideoSettings.tsx` | Criar | Modal de configurações (devices, blur) |
-| `src/pages/video/components/NetworkIndicator.tsx` | Criar | Indicador de qualidade de rede |
-| `src/pages/video/components/VideoTile.tsx` | Modificar | Destacar speaker ativo |
-| `src/pages/video/components/PreJoinLobby.tsx` | Criar | Tela de preview antes de entrar |
-| `src/pages/video/hooks/useVideoSettings.ts` | Criar | Hook para gerenciar blur/noise/devices |
-
----
-
-## Priorização Recomendada
-
-**Fase 1 - Alto impacto, baixa complexidade:**
-1. Cancelamento de Ruído
-2. Indicador de Speaker Ativo
-3. Indicador de Qualidade de Rede
-
-**Fase 2 - Alto impacto, média complexidade:**
-4. Seletor de Dispositivos
-5. Background Blur
-
-**Fase 3 - Funcionalidades avançadas:**
-6. Lobby/Pre-join UI
-7. Transcrição em Tempo Real (requer Deepgram)
-
----
-
-## Detalhes Técnicos
-
-### Estrutura do VideoSettings
+Modal com tres secoes:
 
 ```text
-┌─────────────────────────────────┐
-│         Configurações           │
-├─────────────────────────────────┤
-│ Câmera: [Dropdown]              │
-│ Microfone: [Dropdown]           │
-│ Alto-falante: [Dropdown]        │
-├─────────────────────────────────┤
-│ ☐ Cancelar ruído de fundo       │
-│ ☐ Desfocar fundo                │
-│   Intensidade: [═══●═══]        │
-└─────────────────────────────────┘
++------------------------------------------+
+|           Configuracoes de Video         |
++------------------------------------------+
+|                                          |
+|  DISPOSITIVOS                            |
+|  +------------------------------------+  |
+|  | Camera: [v] Webcam HD (C920)       |  |
+|  +------------------------------------+  |
+|  | Microfone: [v] Mic Interno         |  |
+|  +------------------------------------+  |
+|  | Alto-falante: [v] Speakers (HD)    |  |
+|  +------------------------------------+  |
+|                                          |
+|  AUDIO                                   |
+|  [x] Cancelamento de ruido               |
+|                                          |
+|  VIDEO                                   |
+|  [x] Desfocar fundo                      |
+|      Intensidade: [====o=====] 50%       |
+|                                          |
+|  +------------------------------------+  |
+|  |           [  Fechar  ]             |  |
+|  +------------------------------------+  |
++------------------------------------------+
 ```
 
-### Controles Expandidos
+**Componentes utilizados:**
+- `Dialog` do Radix UI (ja existe no projeto)
+- `Select` para dropdowns de dispositivos
+- `Switch` para toggles (ruido, blur)
+- `Slider` para intensidade do blur
 
+---
+
+## 3. Atualizar VideoControls.tsx
+
+**Mudancas:**
+- Adicionar botao de configuracoes (icone `Settings`)
+- Manter botoes de mic, camera e encerrar
+- Remover o botao inline de cancelamento de ruido (movido para modal)
+
+**Nova estrutura:**
 ```text
-┌───────────────────────────────────────────────┐
-│  [Mic] [Câmera] [Tela] [Config] [Sair]       │
-│                                               │
-│  ● Rede boa                                   │
-└───────────────────────────────────────────────┘
+[Mic] [Camera] [Settings] [Encerrar]
 ```
+
+---
+
+## 4. APIs do Daily.co Utilizadas
+
+### useDevices()
+```typescript
+import { useDevices } from '@daily-co/daily-react';
+
+const {
+  cameras,           // Lista de cameras
+  microphones,       // Lista de microfones
+  speakers,          // Lista de alto-falantes
+  currentCam,        // Camera atual
+  currentMic,        // Microfone atual
+  currentSpeaker,    // Alto-falante atual
+  setCamera,         // Trocar camera
+  setMicrophone,     // Trocar microfone
+  setSpeaker,        // Trocar alto-falante
+} = useDevices();
+```
+
+### useInputSettings()
+```typescript
+import { useInputSettings } from '@daily-co/daily-react';
+
+const { updateInputSettings } = useInputSettings();
+
+// Background blur
+updateInputSettings({
+  video: {
+    processor: {
+      type: 'background-blur',
+      config: { strength: 0.5 },
+    },
+  },
+});
+
+// Noise cancellation
+updateInputSettings({
+  audio: {
+    processor: {
+      type: 'noise-cancellation',
+    },
+  },
+});
+
+// Desativar processadores
+updateInputSettings({
+  video: { processor: { type: 'none' } },
+  audio: { processor: { type: 'none' } },
+});
+```
+
+---
+
+## 5. Compatibilidade
+
+| Funcionalidade | Browsers Suportados |
+|----------------|---------------------|
+| Background Blur | Chrome, Edge, Firefox (desktop apenas) |
+| Noise Cancellation | Chrome, Edge, Firefox, Safari 17.4+ |
+| Device Selection | Todos os browsers modernos |
+
+**Nota:** Em dispositivos moveis ou browsers nao suportados, os toggles de blur serao desabilitados automaticamente.
+
+---
+
+## Detalhes Tecnicos
+
+### Estrutura do VideoSettingsModal
+
+```typescript
+interface VideoSettingsModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function VideoSettingsModal({ open, onOpenChange }: VideoSettingsModalProps) {
+  const {
+    cameras,
+    microphones, 
+    speakers,
+    currentCam,
+    currentMic,
+    currentSpeaker,
+    setCamera,
+    setMicrophone,
+    setSpeaker,
+  } = useDevices();
+  
+  const {
+    noiseCancellation,
+    backgroundBlur,
+    backgroundBlurStrength,
+    toggleNoiseCancellation,
+    toggleBackgroundBlur,
+    setBackgroundBlurStrength,
+  } = useVideoSettings();
+
+  // ... renderizacao do modal
+}
+```
+
+### Atualizacao do useVideoSettings
+
+```typescript
+export function useVideoSettings() {
+  const { updateInputSettings } = useInputSettings();
+  
+  const [settings, setSettings] = useState<VideoSettings>({
+    noiseCancellation: false,
+    networkQuality: 'unknown',
+    backgroundBlur: false,
+    backgroundBlurStrength: 0.5,
+  });
+
+  const toggleBackgroundBlur = useCallback(async () => {
+    const newValue = !settings.backgroundBlur;
+    
+    if (newValue) {
+      await updateInputSettings({
+        video: {
+          processor: {
+            type: 'background-blur',
+            config: { strength: settings.backgroundBlurStrength },
+          },
+        },
+      });
+    } else {
+      await updateInputSettings({
+        video: { processor: { type: 'none' } },
+      });
+    }
+    
+    setSettings(prev => ({ ...prev, backgroundBlur: newValue }));
+  }, [updateInputSettings, settings.backgroundBlur, settings.backgroundBlurStrength]);
+
+  const setBackgroundBlurStrength = useCallback(async (strength: number) => {
+    setSettings(prev => ({ ...prev, backgroundBlurStrength: strength }));
+    
+    if (settings.backgroundBlur) {
+      await updateInputSettings({
+        video: {
+          processor: {
+            type: 'background-blur',
+            config: { strength },
+          },
+        },
+      });
+    }
+  }, [updateInputSettings, settings.backgroundBlur]);
+
+  // ... resto do hook
+}
+```
+
+---
+
+## Fluxo do Usuario
+
+1. Usuario entra na chamada
+2. Clica no botao de engrenagem (Settings)
+3. Modal abre com configuracoes atuais
+4. Usuario pode:
+   - Trocar camera/microfone/alto-falante
+   - Ativar/desativar cancelamento de ruido
+   - Ativar/desativar blur de fundo
+   - Ajustar intensidade do blur
+5. Mudancas sao aplicadas em tempo real
+6. Usuario fecha o modal
+
+---
+
+## Arquivos Finais
+
+| Arquivo | Linhas Estimadas |
+|---------|------------------|
+| `src/pages/video/components/VideoSettingsModal.tsx` | ~200 |
+| `src/pages/video/hooks/useVideoSettings.ts` | ~120 (atualizado) |
+| `src/pages/video/components/VideoControls.tsx` | ~100 (atualizado) |
+
