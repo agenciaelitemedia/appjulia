@@ -53,8 +53,28 @@ export function VideoSettingsModal({ open, onOpenChange }: VideoSettingsModalPro
   } = useVideoSettings();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [customBackgrounds, setCustomBackgrounds] = useState<string[]>([]);
+  const [customBackgrounds, setCustomBackgrounds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('video-custom-backgrounds');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [isUploading, setIsUploading] = useState(false);
+
+  // Persist custom backgrounds to localStorage
+  const updateCustomBackgrounds = useCallback((updater: (prev: string[]) => string[]) => {
+    setCustomBackgrounds(prev => {
+      const next = updater(prev);
+      try {
+        localStorage.setItem('video-custom-backgrounds', JSON.stringify(next));
+      } catch (e) {
+        console.warn('Failed to save backgrounds to localStorage:', e);
+      }
+      return next;
+    });
+  }, []);
 
   const handleCameraChange = (deviceId: string) => {
     setCamera(deviceId);
@@ -111,7 +131,7 @@ export function VideoSettingsModal({ open, onOpenChange }: VideoSettingsModalPro
         const dataUrl = event.target?.result as string;
         
         // Add to custom backgrounds (keep max 4)
-        setCustomBackgrounds(prev => [dataUrl, ...prev].slice(0, 4));
+        updateCustomBackgrounds(prev => [dataUrl, ...prev].slice(0, 4));
         
         // Set as current background
         await setBackgroundImage(dataUrl);
@@ -137,13 +157,13 @@ export function VideoSettingsModal({ open, onOpenChange }: VideoSettingsModalPro
 
   const handleRemoveCustomBackground = useCallback((url: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setCustomBackgrounds(prev => prev.filter(bg => bg !== url));
+    updateCustomBackgrounds(prev => prev.filter(bg => bg !== url));
     
     // If this was the active background, reset to none
     if (backgroundImageUrl === url) {
       removeBackground();
     }
-  }, [backgroundImageUrl, removeBackground]);
+  }, [backgroundImageUrl, removeBackground, updateCustomBackgrounds]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
