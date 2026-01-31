@@ -13,6 +13,7 @@ interface UseRealtimeQueueOptions {
 export function useRealtimeQueue(options: UseRealtimeQueueOptions) {
   const { roomName, codAgents, onOperatorJoined, onQueueUpdate, onRecordingReady } = options;
   const channelsRef = useRef<RealtimeChannel[]>([]);
+  const hasNotifiedOperatorRef = useRef(false);
 
   // Stable callbacks using refs
   const onOperatorJoinedRef = useRef(onOperatorJoined);
@@ -24,6 +25,11 @@ export function useRealtimeQueue(options: UseRealtimeQueueOptions) {
     onQueueUpdateRef.current = onQueueUpdate;
     onRecordingReadyRef.current = onRecordingReady;
   }, [onOperatorJoined, onQueueUpdate, onRecordingReady]);
+
+  // Reset operator notification flag when roomName changes
+  useEffect(() => {
+    hasNotifiedOperatorRef.current = false;
+  }, [roomName]);
 
   useEffect(() => {
     // Cleanup previous channels
@@ -46,8 +52,11 @@ export function useRealtimeQueue(options: UseRealtimeQueueOptions) {
             const newRecord = payload.new as Record<string, unknown>;
             const oldRecord = payload.old as Record<string, unknown>;
 
-            // Operator just joined
-            if (newRecord.operator_joined_at && !oldRecord.operator_joined_at) {
+            // Operator just joined - check with guard to avoid duplicates
+            // With REPLICA IDENTITY FULL, old.operator_joined_at will be available
+            // Without it, we check if new has it and we haven't notified yet
+            if (newRecord.operator_joined_at && !oldRecord.operator_joined_at && !hasNotifiedOperatorRef.current) {
+              hasNotifiedOperatorRef.current = true;
               onOperatorJoinedRef.current?.();
             }
 
