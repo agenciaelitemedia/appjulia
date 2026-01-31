@@ -1,4 +1,4 @@
-import { useState, useCallback, memo } from 'react';
+import { useState, useCallback, memo, useEffect } from 'react';
 import { Video, RefreshCw, Users, PhoneCall, History } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,12 +7,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { useVideoRooms, useCloseVideoRoom } from './hooks/useVideoRoom';
+import { useVideoRooms, useCloseVideoRoom, useOperatorJoinRoom } from './hooks/useVideoRoom';
+import { useRealtimeQueue } from './hooks/useRealtimeQueue';
 import { VideoQueueCard } from './components/VideoQueueCard';
 import { CustomVideoCall } from './components/CustomVideoCall';
 import { PreJoinLobby } from './components/PreJoinLobby';
 import { CallHistorySection } from './components/CallHistorySection';
 import { useAuth } from '@/contexts/AuthContext';
+import { externalDb } from '@/lib/externalDb';
 import type { VideoRoom } from './types';
 
 // Memoized video call component to prevent re-renders from polling
@@ -73,8 +75,28 @@ export default function VideoQueuePage() {
   const { user } = useAuth();
   const [selectedRoom, setSelectedRoom] = useState<VideoRoom | null>(null);
   const [callState, setCallState] = useState<CallState>('idle');
-  const { data: rooms = [], isLoading, refetch, isFetching } = useVideoRooms();
+  const [userAgents, setUserAgents] = useState<string[]>([]);
+  
+  // Fetch user's cod_agents for multi-tenant filtering
+  useEffect(() => {
+    if (user?.id) {
+      externalDb.getUserAgents(user.id).then(agents => {
+        setUserAgents(agents.map(a => a.cod_agent));
+      }).catch(console.error);
+    }
+  }, [user?.id]);
+
+  const { data: rooms = [], isLoading, refetch, isFetching } = useVideoRooms(userAgents);
   const closeRoom = useCloseVideoRoom();
+  const operatorJoin = useOperatorJoinRoom();
+
+  // Realtime updates for queue
+  useRealtimeQueue({
+    codAgents: userAgents,
+    onQueueUpdate: useCallback(() => {
+      refetch();
+    }, [refetch]),
+  });
 
   // When user clicks "Atender" on a room card, show lobby first
   const handleJoinRoom = useCallback((room: VideoRoom) => {
@@ -82,10 +104,26 @@ export default function VideoQueuePage() {
     setCallState('lobby');
   }, []);
 
-  // When user confirms from lobby, start the actual call
+  // When user confirms from lobby, notify backend and start the actual call
   const handleConfirmJoin = useCallback(() => {
-    setCallState('call');
-  }, []);
+    if (!selectedRoom) return;
+    
+    // Notify backend that operator is joining
+    operatorJoin.mutate({
+      roomName: selectedRoom.name,
+      operatorId: user?.id,
+      operatorName: user?.name,
+    }, {
+      onSuccess: () => {
+        setCallState('call');
+      },
+      onError: (error) => {
+        console.error('Failed to notify operator join:', error);
+        // Still proceed with call even if notification fails
+        setCallState('call');
+      },
+    });
+  }, [selectedRoom, operatorJoin, user]);
 
   // When user cancels from lobby, go back to idle
   const handleCancelLobby = useCallback(() => {

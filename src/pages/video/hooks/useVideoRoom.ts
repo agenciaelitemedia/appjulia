@@ -10,6 +10,12 @@ interface CreateRoomParams {
   contactName?: string;
 }
 
+interface OperatorJoinParams {
+  roomName: string;
+  operatorId?: number;
+  operatorName?: string;
+}
+
 export function useCreateVideoRoom() {
   const queryClient = useQueryClient();
 
@@ -39,13 +45,14 @@ export function useCreateVideoRoom() {
   });
 }
 
-export function useVideoRooms(enabled = true) {
+export function useVideoRooms(codAgents: string[] = [], enabled = true) {
   return useQuery({
-    queryKey: ['video-rooms'],
+    queryKey: ['video-rooms', codAgents],
     queryFn: async (): Promise<VideoRoom[]> => {
       const { data, error } = await supabase.functions.invoke<ListRoomsResponse>('video-room', {
         body: {
           action: 'list',
+          codAgents,
         },
       });
 
@@ -56,8 +63,8 @@ export function useVideoRooms(enabled = true) {
 
       return data.rooms || [];
     },
-    enabled,
-    refetchInterval: 10000, // Refresh every 10 seconds
+    enabled: enabled && codAgents.length > 0,
+    refetchInterval: 30000, // Fallback polling every 30s (realtime handles most updates)
   });
 }
 
@@ -89,10 +96,39 @@ export function useCloseVideoRoom() {
   });
 }
 
+export function useOperatorJoinRoom() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: OperatorJoinParams): Promise<void> => {
+      const { data, error } = await supabase.functions.invoke('video-room', {
+        body: {
+          action: 'operator-join',
+          ...params,
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to register operator join');
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['video-rooms'] });
+    },
+    onError: (error) => {
+      console.error('Error registering operator join:', error);
+    },
+  });
+}
+
 export function useJoinVideoRoom() {
   return useMutation({
-    mutationFn: async (roomName: string): Promise<VideoRoom> => {
-      const { data, error } = await supabase.functions.invoke<{ success: boolean; room: VideoRoom }>('video-room', {
+    mutationFn: async (roomName: string): Promise<VideoRoom & { operatorJoined?: boolean }> => {
+      const { data, error } = await supabase.functions.invoke<{ 
+        success: boolean; 
+        room: VideoRoom & { operatorJoined?: boolean };
+      }>('video-room', {
         body: {
           action: 'join',
           roomName,

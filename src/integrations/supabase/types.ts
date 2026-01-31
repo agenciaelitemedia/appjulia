@@ -23,10 +23,13 @@ export type Database = {
           ended_at: string | null
           id: string
           lead_id: number | null
+          lead_waiting_at: string | null
           operator_id: number | null
+          operator_joined_at: string | null
           operator_name: string | null
           recording_id: string | null
           recording_status: string | null
+          recording_url: string | null
           room_name: string
           started_at: string | null
           status: string | null
@@ -40,10 +43,13 @@ export type Database = {
           ended_at?: string | null
           id?: string
           lead_id?: number | null
+          lead_waiting_at?: string | null
           operator_id?: number | null
+          operator_joined_at?: string | null
           operator_name?: string | null
           recording_id?: string | null
           recording_status?: string | null
+          recording_url?: string | null
           room_name: string
           started_at?: string | null
           status?: string | null
@@ -57,10 +63,13 @@ export type Database = {
           ended_at?: string | null
           id?: string
           lead_id?: number | null
+          lead_waiting_at?: string | null
           operator_id?: number | null
+          operator_joined_at?: string | null
           operator_name?: string | null
           recording_id?: string | null
           recording_status?: string | null
+          recording_url?: string | null
           room_name?: string
           started_at?: string | null
           status?: string | null
