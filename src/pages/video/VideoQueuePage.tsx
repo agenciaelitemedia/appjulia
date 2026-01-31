@@ -90,12 +90,15 @@ export default function VideoQueuePage() {
   const closeRoom = useCloseVideoRoom();
   const operatorJoin = useOperatorJoinRoom();
 
+  // Stable callback for realtime queue updates
+  const handleQueueUpdate = useCallback(() => {
+    refetch();
+  }, [refetch]);
+
   // Realtime updates for queue
   useRealtimeQueue({
     codAgents: userAgents,
-    onQueueUpdate: useCallback(() => {
-      refetch();
-    }, [refetch]),
+    onQueueUpdate: handleQueueUpdate,
   });
 
   // When user clicks "Atender" on a room card, show lobby first
