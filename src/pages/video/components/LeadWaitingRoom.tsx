@@ -84,7 +84,7 @@ export function LeadWaitingRoom({
     onOperatorJoined: handleOperatorJoined,
   });
 
-  // Initialize camera preview
+  // Initialize camera preview - only get stream, don't assign to video yet
   useEffect(() => {
     const initializeCamera = async () => {
       try {
@@ -94,11 +94,6 @@ export function LeadWaitingRoom({
         });
 
         streamRef.current = stream;
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-
         setIsInitializing(false);
       } catch (err) {
         console.error('Failed to access camera:', err);
@@ -116,6 +111,14 @@ export function LeadWaitingRoom({
       }
     };
   }, [onError]);
+
+  // Assign stream to video element AFTER it exists in DOM
+  useEffect(() => {
+    if (!isInitializing && streamRef.current && videoRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(e => console.warn('Video autoplay blocked:', e));
+    }
+  }, [isInitializing]);
 
   // Toggle camera
   const toggleCamera = useCallback(() => {
