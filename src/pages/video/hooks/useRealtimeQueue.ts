@@ -36,8 +36,12 @@ export function useRealtimeQueue(options: UseRealtimeQueueOptions) {
     channelsRef.current.forEach(ch => supabase.removeChannel(ch));
     channelsRef.current = [];
 
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+
     // Subscription for specific room (lead waiting for operator)
     if (roomName) {
+      console.log('[useRealtimeQueue] Setting up subscription for room:', roomName);
+      
       const roomChannel = supabase
         .channel(`room-${roomName}`)
         .on(
@@ -49,13 +53,13 @@ export function useRealtimeQueue(options: UseRealtimeQueueOptions) {
             filter: `room_name=eq.${roomName}`,
           },
           (payload) => {
+            console.log('[useRealtimeQueue] Received UPDATE:', payload);
             const newRecord = payload.new as Record<string, unknown>;
             const oldRecord = payload.old as Record<string, unknown>;
 
-            // Operator just joined - check with guard to avoid duplicates
-            // With REPLICA IDENTITY FULL, old.operator_joined_at will be available
-            // Without it, we check if new has it and we haven't notified yet
-            if (newRecord.operator_joined_at && !oldRecord.operator_joined_at && !hasNotifiedOperatorRef.current) {
+            // Operator just joined - simplified check (no dependency on oldRecord)
+            if (newRecord.operator_joined_at && !hasNotifiedOperatorRef.current) {
+              console.log('[useRealtimeQueue] Operator joined! Notifying...');
               hasNotifiedOperatorRef.current = true;
               onOperatorJoinedRef.current?.();
             }
@@ -66,9 +70,33 @@ export function useRealtimeQueue(options: UseRealtimeQueueOptions) {
             }
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+          console.log('[useRealtimeQueue] Subscription status:', status);
+        });
 
       channelsRef.current.push(roomChannel);
+
+      // FALLBACK: Polling every 5s to check if operator joined
+      pollInterval = setInterval(async () => {
+        if (hasNotifiedOperatorRef.current) {
+          if (pollInterval) clearInterval(pollInterval);
+          return;
+        }
+        
+        try {
+          const { data } = await supabase.functions.invoke('video-room', {
+            body: { action: 'join', roomName },
+          });
+          
+          if (data?.room?.operatorJoined && !hasNotifiedOperatorRef.current) {
+            console.log('[useRealtimeQueue] Fallback polling detected operator joined');
+            hasNotifiedOperatorRef.current = true;
+            onOperatorJoinedRef.current?.();
+          }
+        } catch (e) {
+          console.warn('[useRealtimeQueue] Polling error:', e);
+        }
+      }, 5000);
     }
 
     // Subscription for video queue (operator watching queue)
@@ -92,6 +120,7 @@ export function useRealtimeQueue(options: UseRealtimeQueueOptions) {
     }
 
     return () => {
+      if (pollInterval) clearInterval(pollInterval);
       channelsRef.current.forEach(ch => supabase.removeChannel(ch));
       channelsRef.current = [];
     };
