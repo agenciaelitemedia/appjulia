@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Download, Loader2, AlertCircle, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,9 +22,55 @@ export function RecordingDownloadButton({
   status,
   recordingUrl 
 }: RecordingDownloadButtonProps) {
-  const { mutate: getLink, isPending } = useRecordingLink();
+  const { mutate: getLink, mutateAsync: getLinkAsync, isPending } = useRecordingLink();
   const [downloadUrl, setDownloadUrl] = useState<string | null>(recordingUrl || null);
   const [copied, setCopied] = useState(false);
+  const [isReady, setIsReady] = useState(status === 'ready' || !!recordingUrl);
+
+  // Auto-check recording status when processing
+  useEffect(() => {
+    // If already ready or has URL, skip
+    if (isReady || downloadUrl) return;
+    // Only poll when status is 'processing'
+    if (status !== 'processing') return;
+    
+    const checkRecording = async () => {
+      try {
+        const response = await getLinkAsync(recordingId);
+        if (response?.downloadLink) {
+          setDownloadUrl(response.downloadLink);
+          setIsReady(true);
+        }
+      } catch {
+        // Still processing, ignore
+      }
+    };
+
+    // First check after 30 seconds, then every 30 seconds
+    const timeout = setTimeout(checkRecording, 30000);
+    const interval = setInterval(checkRecording, 30000);
+    
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
+  }, [status, recordingId, downloadUrl, isReady, getLinkAsync]);
+
+  // Handler for manual check when clicking on "Processando"
+  const handleCheckRecording = () => {
+    getLink(recordingId, {
+      onSuccess: (data) => {
+        if (data.downloadLink) {
+          setDownloadUrl(data.downloadLink);
+          setIsReady(true);
+          toast.success('Gravação pronta para download!');
+        }
+      },
+      onError: () => {
+        toast.info('Ainda processando. Tente novamente em alguns minutos.');
+      },
+    });
+  };
 
   const handleDownload = () => {
     if (downloadUrl) {
@@ -36,6 +82,7 @@ export function RecordingDownloadButton({
       onSuccess: (data) => {
         if (data.downloadLink) {
           setDownloadUrl(data.downloadLink);
+          setIsReady(true);
           window.open(data.downloadLink, '_blank');
         }
       },
@@ -51,6 +98,7 @@ export function RecordingDownloadButton({
         onSuccess: async (data) => {
           if (data.downloadLink) {
             setDownloadUrl(data.downloadLink);
+            setIsReady(true);
             await navigator.clipboard.writeText(data.downloadLink);
             setCopied(true);
             toast.success('Link copiado para a área de transferência!');
@@ -83,18 +131,31 @@ export function RecordingDownloadButton({
     );
   }
 
-  if (status === 'processing') {
+  // Clickable processing state with polling
+  if (status === 'processing' && !isReady) {
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="secondary" className="bg-warning/20 text-warning-foreground border-warning/30 cursor-help">
-              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-              Processando
-            </Badge>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={handleCheckRecording}
+              disabled={isPending}
+              className="h-8 px-2"
+            >
+              {isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  Processando
+                </>
+              )}
+            </Button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>A gravação será disponibilizada em 2-5 minutos</p>
+            <p>Clique para verificar se a gravação está pronta</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -110,7 +171,7 @@ export function RecordingDownloadButton({
     );
   }
 
-  // status === 'ready' or downloadUrl exists
+  // status === 'ready' or isReady or downloadUrl exists
   return (
     <div className="flex items-center gap-1">
       <TooltipProvider>
