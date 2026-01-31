@@ -19,7 +19,7 @@ interface CreateRoomRequest {
 
 interface ListRoomsRequest {
   action: 'list';
-  codAgent?: string;
+  codAgents?: string[];
 }
 
 interface CloseRoomRequest {
@@ -30,6 +30,24 @@ interface CloseRoomRequest {
 interface JoinRoomRequest {
   action: 'join';
   roomName: string;
+}
+
+interface LeadWaitingRequest {
+  action: 'lead-waiting';
+  roomName: string;
+}
+
+interface OperatorJoinRequest {
+  action: 'operator-join';
+  roomName: string;
+  operatorId?: number;
+  operatorName?: string;
+}
+
+interface QueueStatusRequest {
+  action: 'queue-status';
+  roomName: string;
+  codAgent: string;
 }
 
 interface RecordStartRequest {
@@ -49,6 +67,7 @@ interface GetHistoryRequest {
   limit?: number;
   operatorId?: number;
   isAdmin?: boolean;
+  codAgents?: string[];
 }
 
 interface GetRecordingLinkRequest {
@@ -56,7 +75,18 @@ interface GetRecordingLinkRequest {
   recordingId: string;
 }
 
-type RequestBody = CreateRoomRequest | ListRoomsRequest | CloseRoomRequest | JoinRoomRequest | RecordStartRequest | RecordEndRequest | GetHistoryRequest | GetRecordingLinkRequest;
+type RequestBody = 
+  | CreateRoomRequest 
+  | ListRoomsRequest 
+  | CloseRoomRequest 
+  | JoinRoomRequest 
+  | LeadWaitingRequest
+  | OperatorJoinRequest
+  | QueueStatusRequest
+  | RecordStartRequest 
+  | RecordEndRequest 
+  | GetHistoryRequest 
+  | GetRecordingLinkRequest;
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -153,67 +183,52 @@ serve(async (req) => {
       }
 
       case 'list': {
-        // List active rooms from Daily.co
-        const listResponse = await fetch(`${DAILY_API_URL}/rooms`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${DAILY_API_KEY}`,
-          },
-        });
-
-        if (!listResponse.ok) {
-          throw new Error('Failed to list rooms');
+        const { codAgents } = body as ListRoomsRequest;
+        
+        // Get rooms from database that have leads waiting (lead_waiting_at set, operator_joined_at null)
+        let query = supabase
+          .from('video_call_records')
+          .select('*')
+          .eq('status', 'pending')
+          .not('lead_waiting_at', 'is', null)
+          .is('operator_joined_at', null);
+        
+        // Apply multi-tenant filter
+        if (codAgents && codAgents.length > 0) {
+          query = query.in('cod_agent', codAgents);
+        }
+        
+        const { data: dbRooms, error: dbError } = await query.order('lead_waiting_at', { ascending: true });
+        
+        if (dbError) {
+          console.error('Database error:', dbError);
+          throw new Error('Failed to list rooms from database');
         }
 
-        const roomsData = await listResponse.json();
-        
-        // Filter rooms that are still active (not expired) and match our naming pattern
-        const now = Math.floor(Date.now() / 1000);
-        const juliaRooms = (roomsData.data || []).filter((room: any) => {
-          const isJuliaRoom = room.name.startsWith('julia-');
-          const isNotExpired = !room.config?.exp || room.config.exp > now;
-          return isJuliaRoom && isNotExpired;
-        });
-
-        // Check each room for active participants
-        const roomsWithParticipants = await Promise.all(
-          juliaRooms.map(async (room: any) => {
+        // For each room, get the Daily.co room info
+        const roomsWithDetails = await Promise.all(
+          (dbRooms || []).map(async (record) => {
             try {
-              const meetingResponse = await fetch(
-                `${DAILY_API_URL}/meetings?room=${room.name}&ongoing=true`,
-                { headers: { 'Authorization': `Bearer ${DAILY_API_KEY}` } }
-              );
+              const roomResponse = await fetch(`${DAILY_API_URL}/rooms/${record.room_name}`, {
+                headers: { 'Authorization': `Bearer ${DAILY_API_KEY}` },
+              });
               
-              if (!meetingResponse.ok) {
-                return null;
+              if (!roomResponse.ok) {
+                return null; // Room expired or deleted
               }
               
-              const meetingData = await meetingResponse.json();
+              const roomData = await roomResponse.json();
               
-              // Room only appears if it has at least one participant
-              const hasParticipants = (meetingData.data || []).some(
-                (m: any) => m.ongoing && m.max_participants > 0
-              );
-              
-              if (!hasParticipants) {
-                return null;
-              }
-
-              // Get room metadata from database
-              const { data: recordData } = await supabase
-                .from('video_call_records')
-                .select('contact_name, whatsapp_number, lead_id')
-                .eq('room_name', room.name)
-                .single();
-
               return {
-                name: room.name,
-                url: room.url,
-                createdAt: room.created_at,
-                expiresAt: room.config?.exp ? new Date(room.config.exp * 1000).toISOString() : null,
-                contactName: recordData?.contact_name,
-                whatsappNumber: recordData?.whatsapp_number,
-                leadId: recordData?.lead_id,
+                name: record.room_name,
+                url: roomData.url,
+                createdAt: record.created_at,
+                leadWaitingAt: record.lead_waiting_at,
+                expiresAt: roomData.config?.exp ? new Date(roomData.config.exp * 1000).toISOString() : null,
+                contactName: record.contact_name,
+                whatsappNumber: record.whatsapp_number,
+                leadId: record.lead_id,
+                codAgent: record.cod_agent,
               };
             } catch {
               return null;
@@ -221,11 +236,103 @@ serve(async (req) => {
           })
         );
 
-        // Filter only rooms with active participants
-        const activeRooms = roomsWithParticipants.filter(Boolean);
+        const activeRooms = roomsWithDetails.filter(Boolean);
 
         return new Response(
           JSON.stringify({ success: true, rooms: activeRooms }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'lead-waiting': {
+        const { roomName } = body as LeadWaitingRequest;
+        
+        // Register that lead is waiting
+        const { error: updateError } = await supabase
+          .from('video_call_records')
+          .update({ lead_waiting_at: new Date().toISOString() })
+          .eq('room_name', roomName);
+        
+        if (updateError) {
+          console.error('Failed to update lead_waiting_at:', updateError);
+          throw new Error('Failed to register lead waiting');
+        }
+        
+        // Get queue position
+        const { data: room } = await supabase
+          .from('video_call_records')
+          .select('cod_agent, lead_waiting_at')
+          .eq('room_name', roomName)
+          .single();
+        
+        if (!room) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Room not found' }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        // Count rooms ahead in queue (same cod_agent, waiting before this one)
+        const { data: queueRooms } = await supabase
+          .from('video_call_records')
+          .select('room_name, lead_waiting_at')
+          .eq('cod_agent', room.cod_agent)
+          .eq('status', 'pending')
+          .is('operator_joined_at', null)
+          .not('lead_waiting_at', 'is', null)
+          .order('lead_waiting_at', { ascending: true });
+        
+        const position = (queueRooms || []).findIndex(r => r.room_name === roomName) + 1;
+        const totalInQueue = (queueRooms || []).length;
+        
+        return new Response(
+          JSON.stringify({ success: true, position, totalInQueue }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'queue-status': {
+        const { roomName, codAgent } = body as QueueStatusRequest;
+        
+        // Get queue position for this room
+        const { data: queueRooms } = await supabase
+          .from('video_call_records')
+          .select('room_name, lead_waiting_at')
+          .eq('cod_agent', codAgent)
+          .eq('status', 'pending')
+          .is('operator_joined_at', null)
+          .not('lead_waiting_at', 'is', null)
+          .order('lead_waiting_at', { ascending: true });
+        
+        const position = (queueRooms || []).findIndex(r => r.room_name === roomName) + 1;
+        const totalInQueue = (queueRooms || []).length;
+        
+        return new Response(
+          JSON.stringify({ success: true, position, totalInQueue }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'operator-join': {
+        const { roomName, operatorId, operatorName } = body as OperatorJoinRequest;
+        
+        // Mark operator as joined - this triggers Realtime event
+        const { error: updateError } = await supabase
+          .from('video_call_records')
+          .update({ 
+            operator_joined_at: new Date().toISOString(),
+            operator_id: operatorId,
+            operator_name: operatorName,
+          })
+          .eq('room_name', roomName);
+        
+        if (updateError) {
+          console.error('Failed to update operator_joined_at:', updateError);
+          throw new Error('Failed to register operator join');
+        }
+        
+        return new Response(
+          JSON.stringify({ success: true }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -303,7 +410,7 @@ serve(async (req) => {
       case 'join': {
         const { roomName } = body as JoinRoomRequest;
         
-        // Get room details
+        // Get room details from Daily.co
         const roomResponse = await fetch(`${DAILY_API_URL}/rooms/${roomName}`, {
           method: 'GET',
           headers: {
@@ -323,12 +430,22 @@ serve(async (req) => {
 
         const roomData = await roomResponse.json();
         
+        // Get room record from database for cod_agent info
+        const { data: dbRecord } = await supabase
+          .from('video_call_records')
+          .select('cod_agent, contact_name, operator_joined_at')
+          .eq('room_name', roomName)
+          .single();
+        
         return new Response(
           JSON.stringify({
             success: true,
             room: {
               name: roomData.name,
               url: roomData.url,
+              codAgent: dbRecord?.cod_agent,
+              contactName: dbRecord?.contact_name,
+              operatorJoined: !!dbRecord?.operator_joined_at,
             },
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -352,7 +469,7 @@ serve(async (req) => {
               body: JSON.stringify({
                 type: 'cloud',
                 layout: { preset: 'default' },
-                maxDuration: 3600, // FIXED: camelCase (was max_duration)
+                maxDuration: 3600,
               }),
             }
           );
@@ -425,7 +542,7 @@ serve(async (req) => {
       }
 
       case 'history': {
-        const { limit = 50, operatorId, isAdmin } = body as GetHistoryRequest;
+        const { limit = 50, operatorId, isAdmin, codAgents } = body as GetHistoryRequest;
         
         let query = supabase
           .from('video_call_records')
@@ -436,6 +553,11 @@ serve(async (req) => {
         // Filter by operator if not admin
         if (!isAdmin && operatorId) {
           query = query.eq('operator_id', operatorId);
+        }
+        
+        // Apply multi-tenant filter
+        if (codAgents && codAgents.length > 0) {
+          query = query.in('cod_agent', codAgents);
         }
         
         const { data, error } = await query;
@@ -481,10 +603,13 @@ serve(async (req) => {
         
         const linkData = await linkResponse.json();
         
-        // Update status to 'ready' if not already
+        // Update status to 'ready' and save the URL
         await supabase
           .from('video_call_records')
-          .update({ recording_status: 'ready' })
+          .update({ 
+            recording_status: 'ready',
+            recording_url: linkData.download_link,
+          })
           .eq('recording_id', recordingId);
         
         return new Response(

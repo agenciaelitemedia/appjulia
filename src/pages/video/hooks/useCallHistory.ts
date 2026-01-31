@@ -18,6 +18,9 @@ export interface CallHistoryRecord {
   created_at: string;
   recording_id: string | null;
   recording_status: string | null;
+  recording_url: string | null;
+  lead_waiting_at: string | null;
+  operator_joined_at: string | null;
 }
 
 interface HistoryResponse {

@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { History, Phone, Clock, User, Video } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +13,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useCallHistory, type CallHistoryRecord } from '../hooks/useCallHistory';
+import { useRealtimeHistory } from '../hooks/useRealtimeQueue';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { RecordingDownloadButton } from './RecordingDownloadButton';
@@ -63,9 +66,17 @@ function formatWhatsApp(number: string | null): string {
 }
 
 export function CallHistorySection({ expanded = false }: CallHistorySectionProps) {
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
+  const queryClient = useQueryClient();
   const limit = expanded ? 100 : 20;
   const { data: records = [], isLoading } = useCallHistory(limit);
+
+  // Realtime updates for recording status
+  const handleRealtimeUpdate = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['video-call-history'] });
+  }, [queryClient]);
+
+  useRealtimeHistory(handleRealtimeUpdate);
 
   return (
     <Card>
@@ -147,6 +158,7 @@ export function CallHistorySection({ expanded = false }: CallHistorySectionProps
                         <RecordingDownloadButton 
                           recordingId={record.recording_id}
                           status={record.recording_status}
+                          recordingUrl={record.recording_url}
                         />
                       ) : (
                         <span className="text-muted-foreground text-sm">-</span>
