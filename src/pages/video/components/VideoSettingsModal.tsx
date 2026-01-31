@@ -1,5 +1,5 @@
 import { useDevices } from '@daily-co/daily-react';
-import { Settings, Camera, Mic, Volume2, Sparkles, AudioLines } from 'lucide-react';
+import { Settings, Camera, Mic, Volume2, Sparkles, AudioLines, ImageIcon, Ban } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -17,7 +17,8 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { useVideoSettings } from '../hooks/useVideoSettings';
+import { cn } from '@/lib/utils';
+import { useVideoSettings, DEFAULT_BACKGROUNDS, BackgroundType } from '../hooks/useVideoSettings';
 
 interface VideoSettingsModalProps {
   open: boolean;
@@ -39,11 +40,14 @@ export function VideoSettingsModal({ open, onOpenChange }: VideoSettingsModalPro
 
   const {
     noiseCancellation,
-    backgroundBlur,
+    backgroundType,
     backgroundBlurStrength,
+    backgroundImageUrl,
     toggleNoiseCancellation,
-    toggleBackgroundBlur,
+    setBackgroundType,
     setBackgroundBlurStrength,
+    setBackgroundImage,
+    removeBackground,
   } = useVideoSettings();
 
   const handleCameraChange = (deviceId: string) => {
@@ -62,9 +66,19 @@ export function VideoSettingsModal({ open, onOpenChange }: VideoSettingsModalPro
     setBackgroundBlurStrength(value[0]);
   };
 
+  const handleBackgroundSelect = (type: BackgroundType, imageUrl?: string) => {
+    if (type === 'image' && imageUrl) {
+      setBackgroundImage(imageUrl);
+    } else if (type === 'blur') {
+      setBackgroundType('blur');
+    } else {
+      removeBackground();
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
@@ -180,28 +194,76 @@ export function VideoSettingsModal({ open, onOpenChange }: VideoSettingsModalPro
 
           <Separator />
 
-          {/* Video Section */}
+          {/* Video Background Section */}
           <div className="space-y-4">
             <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              Vídeo
+              Fundo do Vídeo
             </h3>
 
-            <div className="flex items-center justify-between">
-              <Label className="flex items-center gap-2 cursor-pointer">
-                <Sparkles className="h-4 w-4" />
-                Desfocar fundo
-              </Label>
-              <Switch
-                checked={backgroundBlur}
-                onCheckedChange={toggleBackgroundBlur}
-              />
+            {/* Background Options Grid */}
+            <div className="grid grid-cols-3 gap-2">
+              {/* None option */}
+              <button
+                onClick={() => handleBackgroundSelect('none')}
+                className={cn(
+                  "relative aspect-video rounded-lg border-2 overflow-hidden transition-all flex items-center justify-center bg-muted",
+                  backgroundType === 'none' 
+                    ? "border-primary ring-2 ring-primary/20" 
+                    : "border-border hover:border-primary/50"
+                )}
+              >
+                <Ban className="h-6 w-6 text-muted-foreground" />
+                <span className="absolute bottom-1 left-1 right-1 text-[10px] text-muted-foreground truncate text-center">
+                  Nenhum
+                </span>
+              </button>
+
+              {/* Blur option */}
+              <button
+                onClick={() => handleBackgroundSelect('blur')}
+                className={cn(
+                  "relative aspect-video rounded-lg border-2 overflow-hidden transition-all flex items-center justify-center bg-gradient-to-br from-muted to-muted/50",
+                  backgroundType === 'blur' 
+                    ? "border-primary ring-2 ring-primary/20" 
+                    : "border-border hover:border-primary/50"
+                )}
+              >
+                <Sparkles className="h-6 w-6 text-muted-foreground" />
+                <span className="absolute bottom-1 left-1 right-1 text-[10px] text-muted-foreground truncate text-center">
+                  Desfoque
+                </span>
+              </button>
+
+              {/* Default background images */}
+              {DEFAULT_BACKGROUNDS.map((bg) => (
+                <button
+                  key={bg.id}
+                  onClick={() => handleBackgroundSelect('image', bg.url)}
+                  className={cn(
+                    "relative aspect-video rounded-lg border-2 overflow-hidden transition-all",
+                    backgroundType === 'image' && backgroundImageUrl === bg.url
+                      ? "border-primary ring-2 ring-primary/20" 
+                      : "border-border hover:border-primary/50"
+                  )}
+                >
+                  <img 
+                    src={bg.url} 
+                    alt={bg.name} 
+                    className="w-full h-full object-cover"
+                  />
+                  <span className="absolute bottom-0 left-0 right-0 bg-background/80 text-[10px] text-foreground truncate text-center py-0.5">
+                    {bg.name}
+                  </span>
+                </button>
+              ))}
             </div>
 
-            {backgroundBlur && (
-              <div className="space-y-2 pl-6">
+            {/* Blur strength slider (only when blur is active) */}
+            {backgroundType === 'blur' && (
+              <div className="space-y-2 pt-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-sm text-muted-foreground">
-                    Intensidade
+                    Intensidade do desfoque
                   </Label>
                   <span className="text-sm text-muted-foreground">
                     {Math.round(backgroundBlurStrength * 100)}%
@@ -221,7 +283,7 @@ export function VideoSettingsModal({ open, onOpenChange }: VideoSettingsModalPro
 
           {/* Compatibility Note */}
           <p className="text-xs text-muted-foreground text-center">
-            Algumas funcionalidades podem não estar disponíveis em todos os navegadores.
+            Fundos virtuais funcionam melhor em Chrome, Edge e Firefox (desktop).
           </p>
         </div>
       </DialogContent>
