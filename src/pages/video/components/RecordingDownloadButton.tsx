@@ -46,12 +46,11 @@ export function RecordingDownloadButton({
       }
     };
 
-    // First check after 30 seconds, then every 30 seconds
-    const timeout = setTimeout(checkRecording, 30000);
+    // Check immediately on mount, then every 30 seconds
+    checkRecording();
     const interval = setInterval(checkRecording, 30000);
     
     return () => {
-      clearTimeout(timeout);
       clearInterval(interval);
     };
   }, [status, recordingId, downloadUrl, isReady, getLinkAsync]);
