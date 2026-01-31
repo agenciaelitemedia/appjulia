@@ -108,24 +108,30 @@ export default function VideoQueuePage() {
   }, []);
 
   // When user confirms from lobby, notify backend and start the actual call
-  const handleConfirmJoin = useCallback(() => {
+  const handleConfirmJoin = useCallback(async () => {
     if (!selectedRoom) return;
     
-    // Notify backend that operator is joining
-    operatorJoin.mutate({
-      roomName: selectedRoom.name,
-      operatorId: user?.id,
-      operatorName: user?.name,
-    }, {
-      onSuccess: () => {
-        setCallState('call');
-      },
-      onError: (error) => {
-        console.error('Failed to notify operator join:', error);
-        // Still proceed with call even if notification fails
-        setCallState('call');
-      },
-    });
+    try {
+      // Show loading state
+      toast.loading('Entrando na sala...', { id: 'join-room' });
+      
+      // AWAIT mutation to complete - this ensures operator_joined_at is set
+      // BEFORE transitioning to the call state
+      await operatorJoin.mutateAsync({
+        roomName: selectedRoom.name,
+        operatorId: user?.id,
+        operatorName: user?.name,
+      });
+      
+      toast.success('Conectado!', { id: 'join-room' });
+      setCallState('call');
+    } catch (error) {
+      console.error('Failed to notify operator join:', error);
+      toast.error('Erro ao entrar na sala', { id: 'join-room' });
+      // Do NOT transition if failed - reset to idle
+      setCallState('idle');
+      setSelectedRoom(null);
+    }
   }, [selectedRoom, operatorJoin, user]);
 
   // When user cancels from lobby, go back to idle

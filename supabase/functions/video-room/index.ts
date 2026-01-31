@@ -186,12 +186,14 @@ serve(async (req) => {
         const { codAgents } = body as ListRoomsRequest;
         
         // Get rooms from database that have leads waiting (lead_waiting_at set, operator_joined_at null)
+        // IMPORTANT: Don't filter by status - use ended_at to determine if room is still active
+        // This fixes the race condition where status changes to 'active' before operator joins
         let query = supabase
           .from('video_call_records')
           .select('*')
-          .eq('status', 'pending')
           .not('lead_waiting_at', 'is', null)
-          .is('operator_joined_at', null);
+          .is('operator_joined_at', null)
+          .is('ended_at', null);
         
         // Apply multi-tenant filter
         if (codAgents && codAgents.length > 0) {
@@ -316,23 +318,28 @@ serve(async (req) => {
       case 'operator-join': {
         const { roomName, operatorId, operatorName } = body as OperatorJoinRequest;
         
-        // Mark operator as joined - this triggers Realtime event
-        const { error: updateError } = await supabase
+        console.log('[operator-join] Request received:', { roomName, operatorId, operatorName });
+        
+        // Mark operator as joined - this triggers Realtime event for the lead
+        const { error: updateError, data: updateData } = await supabase
           .from('video_call_records')
           .update({ 
             operator_joined_at: new Date().toISOString(),
             operator_id: operatorId,
             operator_name: operatorName,
           })
-          .eq('room_name', roomName);
+          .eq('room_name', roomName)
+          .select();
         
         if (updateError) {
-          console.error('Failed to update operator_joined_at:', updateError);
+          console.error('[operator-join] Update failed:', updateError);
           throw new Error('Failed to register operator join');
         }
         
+        console.log('[operator-join] Success - updated record:', updateData);
+        
         return new Response(
-          JSON.stringify({ success: true }),
+          JSON.stringify({ success: true, updated: updateData }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
