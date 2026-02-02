@@ -12,6 +12,7 @@ import { ContractInfoDialog } from './ContractInfoDialog';
 import { VideoCallDialog } from '@/pages/video/components/VideoCallDialog';
 import { formatDbDateTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface CRMLeadCardProps {
   card: CRMCard;
@@ -29,9 +30,13 @@ function truncateText(text: string | undefined, maxLength: number): string {
 }
 
 export function CRMLeadCard({ card, onClick, apiCredentials }: CRMLeadCardProps) {
+  const { user } = useAuth();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
   const [videoCallOpen, setVideoCallOpen] = useState(false);
+
+  // Video call only visible for admin and colaborador roles
+  const canStartVideoCall = user?.role === 'admin' || user?.role === 'colaborador';
   
   const timeInStage = formatDistanceToNow(new Date(card.stage_entered_at), {
     addSuffix: false,
@@ -118,25 +123,27 @@ export function CRMLeadCard({ card, onClick, apiCredentials }: CRMLeadCardProps)
                     </Tooltip>
                   </TooltipProvider>
                 )}
-                {/* Video Call Button */}
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-100/50 dark:hover:bg-blue-900/30"
-                        onClick={handleVideoCall}
-                        title="Videochamada"
-                      >
-                        <Video className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Iniciar videochamada</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                {/* Video Call Button - only for admin and colaborador */}
+                {canStartVideoCall && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-100/50 dark:hover:bg-blue-900/30"
+                          onClick={handleVideoCall}
+                          title="Videochamada"
+                        >
+                          <Video className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Iniciar videochamada</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
