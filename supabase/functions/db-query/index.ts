@@ -1478,13 +1478,32 @@ serve(async (req) => {
 
       case 'get_menu_modules': {
         // Get modules visible in the menu (for Sidebar)
-        result = await sql.unsafe(`
-          SELECT id, code, name, category, display_order,
-                 icon, route, parent_module_id, menu_group, is_menu_visible
-          FROM modules
-          WHERE is_active = TRUE AND is_menu_visible = TRUE
-          ORDER BY menu_group, display_order
+        // First check if the new columns exist (schema might not be migrated yet)
+        const columnCheck = await sql.unsafe(`
+          SELECT column_name FROM information_schema.columns 
+          WHERE table_name = 'modules' AND column_name = 'icon'
         `);
+        
+        if (columnCheck.length > 0) {
+          // New schema - use all columns
+          result = await sql.unsafe(`
+            SELECT id, code, name, category, display_order,
+                   icon, route, parent_module_id, menu_group, is_menu_visible
+            FROM modules
+            WHERE is_active = TRUE AND COALESCE(is_menu_visible, TRUE) = TRUE
+            ORDER BY COALESCE(menu_group, 'OUTROS'), display_order
+          `);
+        } else {
+          // Old schema - return basic columns with defaults
+          result = await sql.unsafe(`
+            SELECT id, code, name, category, display_order,
+                   NULL as icon, NULL as route, NULL as parent_module_id, 
+                   category as menu_group, TRUE as is_menu_visible
+            FROM modules
+            WHERE is_active = TRUE
+            ORDER BY category, display_order
+          `);
+        }
         break;
       }
 
