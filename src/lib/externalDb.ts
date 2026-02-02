@@ -390,6 +390,44 @@ class ExternalDatabase {
     });
   }
 
+  async getMenuModules(): Promise<Module[]> {
+    return this.invoke({
+      action: 'get_menu_modules',
+      data: {},
+    });
+  }
+
+  async createModule(moduleData: Partial<Module>): Promise<Module> {
+    const result = await this.invoke({
+      action: 'create_module',
+      data: { moduleData },
+    });
+    return result[0];
+  }
+
+  async updateModule(moduleId: number, moduleData: Partial<Module>): Promise<Module> {
+    const result = await this.invoke({
+      action: 'update_module',
+      data: { moduleId, moduleData },
+    });
+    return result[0];
+  }
+
+  async deleteModule(moduleId: number): Promise<void> {
+    await this.invoke({
+      action: 'delete_module',
+      data: { moduleId },
+    });
+  }
+
+  async migrateModulesSchema(): Promise<{ success: boolean; message: string }> {
+    const result = await this.invoke({
+      action: 'migrate_modules_schema',
+      data: {},
+    });
+    return result[0];
+  }
+
   async getRoleDefaultPermissions(role: string): Promise<UserPermission[]> {
     return this.invoke({
       action: 'get_role_default_permissions',

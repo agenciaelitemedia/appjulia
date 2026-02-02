@@ -25,6 +25,7 @@ import EquipePage from "./pages/equipe/EquipePage";
 import ProfileSettingsPage from "./pages/profile/ProfileSettingsPage";
 import PermissoesPage from "./pages/admin/permissoes/PermissoesPage";
 import MetaTestPage from "./pages/admin/meta-test/MetaTestPage";
+import ModulosPage from "./pages/admin/modulos/ModulosPage";
 import VideoQueuePage from "./pages/video/VideoQueuePage";
 import JoinCallPage from "./pages/video/JoinCallPage";
 import NotFound from "./pages/NotFound";
@@ -63,6 +64,7 @@ const App = () => (
                   <Route path="/admin/agentes-novo" element={<CreateAgentPage />} />
                   <Route path="/admin/agentes/:id/editar" element={<EditAgentPage />} />
                   <Route path="/admin/agentes/:id/detalhes" element={<AgentDetailsPage />} />
+                  <Route path="/admin/modulos" element={<ModulosPage />} />
                   <Route path="/admin/permissoes" element={<PermissoesPage />} />
                   <Route path="/admin/meta-test" element={<MetaTestPage />} />
                 </Route>

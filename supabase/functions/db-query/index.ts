@@ -1468,10 +1468,130 @@ serve(async (req) => {
       case 'get_modules': {
         // Get all modules (for admin UI)
         result = await sql.unsafe(`
-          SELECT id, code, name, description, category, is_active, display_order
+          SELECT id, code, name, description, category, is_active, display_order,
+                 icon, route, parent_module_id, menu_group, is_menu_visible
           FROM modules
           ORDER BY display_order
         `);
+        break;
+      }
+
+      case 'get_menu_modules': {
+        // Get modules visible in the menu (for Sidebar)
+        result = await sql.unsafe(`
+          SELECT id, code, name, category, display_order,
+                 icon, route, parent_module_id, menu_group, is_menu_visible
+          FROM modules
+          WHERE is_active = TRUE AND is_menu_visible = TRUE
+          ORDER BY menu_group, display_order
+        `);
+        break;
+      }
+
+      case 'create_module': {
+        const { moduleData } = data;
+        const { code, name, description, category, icon, route, menu_group, is_menu_visible, display_order } = moduleData;
+        
+        result = await sql.unsafe(
+          `INSERT INTO modules (code, name, description, category, icon, route, menu_group, is_menu_visible, display_order, is_active, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, now(), now())
+           RETURNING *`,
+          [code, name, description || null, category, icon || null, route || null, menu_group || null, is_menu_visible ?? true, display_order || 0]
+        );
+        break;
+      }
+
+      case 'update_module': {
+        const { moduleId, moduleData } = data;
+        const { code, name, description, category, icon, route, menu_group, is_menu_visible, display_order, is_active } = moduleData;
+        
+        result = await sql.unsafe(
+          `UPDATE modules 
+           SET code = $1, name = $2, description = $3, category = $4, icon = $5, 
+               route = $6, menu_group = $7, is_menu_visible = $8, display_order = $9, 
+               is_active = $10, updated_at = now()
+           WHERE id = $11
+           RETURNING *`,
+          [code, name, description || null, category, icon || null, route || null, menu_group || null, is_menu_visible ?? true, display_order || 0, is_active ?? true, moduleId]
+        );
+        break;
+      }
+
+      case 'delete_module': {
+        // Soft delete - just deactivate
+        const { moduleId } = data;
+        
+        result = await sql.unsafe(
+          `UPDATE modules SET is_active = FALSE, updated_at = now() WHERE id = $1 RETURNING *`,
+          [moduleId]
+        );
+        break;
+      }
+
+      case 'migrate_modules_schema': {
+        // Add new columns to modules table if they don't exist
+        await sql.unsafe(`
+          ALTER TABLE modules ADD COLUMN IF NOT EXISTS icon VARCHAR(50);
+          ALTER TABLE modules ADD COLUMN IF NOT EXISTS route VARCHAR(100);
+          ALTER TABLE modules ADD COLUMN IF NOT EXISTS parent_module_id INT REFERENCES modules(id);
+          ALTER TABLE modules ADD COLUMN IF NOT EXISTS menu_group VARCHAR(50);
+          ALTER TABLE modules ADD COLUMN IF NOT EXISTS is_menu_visible BOOLEAN DEFAULT TRUE;
+        `);
+
+        // Update existing modules with route, icon, and menu_group
+        const moduleUpdates = [
+          { code: 'dashboard', icon: 'LayoutDashboard', route: '/dashboard', menu_group: 'PRINCIPAL' },
+          { code: 'agent_management', icon: 'Bot', route: '/agente/meus-agentes', menu_group: 'AGENTES DA JULIA' },
+          { code: 'followup', icon: 'MessageSquare', route: '/agente/followup', menu_group: 'AGENTES DA JULIA' },
+          { code: 'strategic_perf', icon: 'BarChart3', route: '/estrategico/desempenho', menu_group: 'AGENTES DA JULIA' },
+          { code: 'strategic_contract', icon: 'FileCheck', route: '/estrategico/contratos', menu_group: 'AGENTES DA JULIA' },
+          { code: 'crm_leads', icon: 'Users', route: '/crm/leads', menu_group: 'CRM' },
+          { code: 'crm_monitoring', icon: 'Activity', route: '/crm/lead-monitoramento', menu_group: 'CRM' },
+          { code: 'crm_statistics', icon: 'BarChart3', route: '/crm/lead-estatisticas', menu_group: 'CRM' },
+          { code: 'library', icon: 'Library', route: '/biblioteca', menu_group: 'SISTEMA' },
+          { code: 'team', icon: 'UsersRound', route: '/equipe', menu_group: 'SISTEMA' },
+          { code: 'admin_agents', icon: 'Bot', route: '/admin/agentes', menu_group: 'ADMINISTRATIVO' },
+          { code: 'admin_products', icon: 'Package', route: '/admin/produtos', menu_group: 'ADMINISTRATIVO' },
+          { code: 'admin_files', icon: 'FileText', route: '/admin/arquivos-clientes', menu_group: 'ADMINISTRATIVO' },
+          { code: 'finance_billing', icon: 'CreditCard', route: '/financeiro/cobrancas', menu_group: 'FINANCEIRO' },
+          { code: 'finance_clients', icon: 'Users', route: '/financeiro/clientes', menu_group: 'FINANCEIRO' },
+          { code: 'finance_reports', icon: 'BarChart3', route: '/financeiro/relatorios', menu_group: 'FINANCEIRO' },
+          { code: 'settings', icon: 'Settings', route: '/configuracoes', menu_group: 'CONFIGURAÇÕES' },
+        ];
+
+        for (const mod of moduleUpdates) {
+          await sql.unsafe(
+            `UPDATE modules SET icon = $1, route = $2, menu_group = $3, is_menu_visible = TRUE WHERE code = $4`,
+            [mod.icon, mod.route, mod.menu_group, mod.code]
+          );
+        }
+
+        // Insert new modules that don't exist yet
+        const newModules = [
+          { code: 'video_room', name: 'Sala de Reunião', category: 'sistema', icon: 'Video', route: '/video/queue', menu_group: 'SISTEMA', display_order: 29 },
+          { code: 'admin_new_agent', name: 'Novo Agente', category: 'admin', icon: 'UserPlus', route: '/admin/agentes-novo', menu_group: 'ADMINISTRATIVO', display_order: 41 },
+          { code: 'admin_modules', name: 'Módulos', category: 'admin', icon: 'Layers', route: '/admin/modulos', menu_group: 'ADMINISTRATIVO', display_order: 42 },
+          { code: 'admin_permissions', name: 'Permissões', category: 'admin', icon: 'Shield', route: '/admin/permissoes', menu_group: 'ADMINISTRATIVO', display_order: 43 },
+        ];
+
+        for (const mod of newModules) {
+          await sql.unsafe(
+            `INSERT INTO modules (code, name, category, icon, route, menu_group, display_order, is_menu_visible, is_active, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, TRUE, now(), now())
+             ON CONFLICT (code) DO UPDATE SET icon = $4, route = $5, menu_group = $6, display_order = $7, is_menu_visible = TRUE`,
+            [mod.code, mod.name, mod.category, mod.icon, mod.route, mod.menu_group, mod.display_order]
+          );
+        }
+
+        // Add admin permissions for new modules
+        await sql.unsafe(`
+          INSERT INTO role_default_permissions (role, module_id, can_view, can_create, can_edit, can_delete)
+          SELECT 'admin', id, TRUE, TRUE, TRUE, TRUE FROM modules 
+          WHERE code IN ('video_room', 'admin_new_agent', 'admin_modules', 'admin_permissions')
+          ON CONFLICT (role, module_id) DO NOTHING
+        `);
+
+        result = [{ success: true, message: 'Schema migrated and modules updated' }];
         break;
       }
 
