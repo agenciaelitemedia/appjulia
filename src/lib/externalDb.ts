@@ -458,6 +458,14 @@ class ExternalDatabase {
     return result[0];
   }
 
+  async syncRolePermissions(): Promise<{ success: boolean; message: string }> {
+    const result = await this.invoke({
+      action: 'sync_role_permissions',
+      data: {},
+    });
+    return result[0];
+  }
+
   async getUsersWithPermissions(roleFilter?: string): Promise<UserWithPermissions[]> {
     return this.invoke({
       action: 'get_users_with_permissions',
