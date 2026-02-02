@@ -31,6 +31,12 @@ export interface Module {
   category: ModuleCategory;
   is_active: boolean;
   display_order: number;
+  // Menu fields
+  icon?: string;
+  route?: string;
+  parent_module_id?: number | null;
+  menu_group?: string;
+  is_menu_visible?: boolean;
 }
 
 export interface UserPermission {
