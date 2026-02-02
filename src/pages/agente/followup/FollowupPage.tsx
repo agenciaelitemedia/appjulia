@@ -96,16 +96,22 @@ export default function FollowupPage() {
   // Fetch agents
   const { data: agents = [], isLoading: isLoadingAgents } = useJuliaAgents();
 
-  // Set default agent
+  // Set default agent - always select first available agent on load
   useEffect(() => {
-    if (agents.length > 0 && !selectedAgent) {
+    if (agents.length > 0) {
+      // If non-admin user has assigned agent, use that
       if (user?.role !== 'admin' && user?.cod_agent) {
-        setSelectedAgent(String(user.cod_agent));
-      } else {
+        const userAgentCode = String(user.cod_agent);
+        // Only set if different to avoid infinite loops
+        if (selectedAgent !== userAgentCode) {
+          setSelectedAgent(userAgentCode);
+        }
+      } else if (!selectedAgent) {
+        // Admin or no assigned agent: select first available
         setSelectedAgent(agents[0].cod_agent);
       }
     }
-  }, [agents, selectedAgent, user]);
+  }, [agents, user?.role, user?.cod_agent]);
 
   // Update agentCodes when selectedAgent changes
   useEffect(() => {
