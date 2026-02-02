@@ -1467,12 +1467,28 @@ serve(async (req) => {
 
       case 'get_modules': {
         // Get all modules (for admin UI)
-        result = await sql.unsafe(`
-          SELECT id, code, name, description, category, is_active, display_order,
-                 icon, route, parent_module_id, menu_group, is_menu_visible
-          FROM modules
-          ORDER BY display_order
+        // Check if new columns exist
+        const modColumnCheck = await sql.unsafe(`
+          SELECT column_name FROM information_schema.columns 
+          WHERE table_name = 'modules' AND column_name = 'icon'
         `);
+        
+        if (modColumnCheck.length > 0) {
+          result = await sql.unsafe(`
+            SELECT id, code, name, description, category, is_active, display_order,
+                   icon, route, parent_module_id, menu_group, is_menu_visible
+            FROM modules
+            ORDER BY display_order
+          `);
+        } else {
+          result = await sql.unsafe(`
+            SELECT id, code, name, description, category, is_active, display_order,
+                   NULL as icon, NULL as route, NULL as parent_module_id, 
+                   category as menu_group, TRUE as is_menu_visible
+            FROM modules
+            ORDER BY display_order
+          `);
+        }
         break;
       }
 
