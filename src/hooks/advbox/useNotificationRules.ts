@@ -49,7 +49,7 @@ export function useNotificationRules(): UseNotificationRulesReturn {
   }, [toast]);
 
   const saveRule = useCallback(async (
-    agentId: number,
+    codAgent: string,
     integrationId: string,
     data: AdvboxNotificationRuleFormData,
     ruleId?: string
