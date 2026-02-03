@@ -38,6 +38,7 @@ import {
   Wallet,
   Zap,
   Scale,
+  Kanban,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -81,6 +82,7 @@ export const iconMap: Record<string, LucideIcon> = {
   Wallet,
   Zap,
   Scale,
+  Kanban,
 };
 
 export const availableIcons = Object.keys(iconMap);
