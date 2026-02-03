@@ -222,7 +222,7 @@ serve(async (req) => {
                    cached_at = NOW(),
                    updated_at = NOW()`,
                 [
-                  agentId,
+                  codAgent,
                   integration.id,
                   process.id,
                   process.numero,
