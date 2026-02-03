@@ -46,7 +46,7 @@ import type { NotificationStatus } from '@/types/advbox';
 
 export default function AdvboxLogsPage() {
   const { logs, total, isLoading, isResending, loadLogs, resendNotification } = useNotificationLogs();
-  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
+  const [selectedCodAgent, setSelectedCodAgent] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<NotificationLogsFilters>({
     page: 1,
