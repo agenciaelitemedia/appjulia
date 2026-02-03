@@ -145,7 +145,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { action, agentId, integrationId } = body;
+    const { action, codAgent, integrationId } = body;
 
     sql = createConnection(caCerts);
     await sql`SET timezone = 'America/Sao_Paulo'`;
@@ -154,8 +154,8 @@ serve(async (req) => {
       case 'sync': {
         // Get integration details
         const integrations = await sql.unsafe(
-          `SELECT * FROM advbox_integrations WHERE agent_id = $1 AND is_active = true`,
-          [agentId]
+          `SELECT * FROM advbox_integrations WHERE cod_agent = $1 AND is_active = true`,
+          [codAgent]
         );
 
         if (integrations.length === 0) {
