@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { CRMDeal, CRMDealFormData, DropResult } from '../types';
+import type { Json } from '@/integrations/supabase/types';
 
 interface UseCRMDealsOptions {
   boardId: string | null;
@@ -67,24 +68,27 @@ export function useCRMDeals({ boardId, codAgent }: UseCRMDealsOptions) {
         ? Math.max(...pipelineDeals.map(d => d.position)) + 1 
         : 0;
 
+      const insertPayload = {
+        pipeline_id: pipelineId,
+        board_id: boardId,
+        cod_agent: codAgent,
+        title: data.title,
+        description: data.description || null,
+        value: data.value || 0,
+        contact_name: data.contact_name || null,
+        contact_phone: data.contact_phone || null,
+        contact_email: data.contact_email || null,
+        priority: data.priority || 'medium',
+        expected_close_date: data.expected_close_date || null,
+        tags: data.tags || [],
+        assigned_to: data.assigned_to || null,
+        position: maxPosition,
+        custom_fields: JSON.parse(JSON.stringify((data as unknown as Record<string, unknown>).custom_fields || {})) as Json,
+      };
+
       const { data: newDeal, error: insertError } = await supabase
         .from('crm_deals')
-        .insert({
-          pipeline_id: pipelineId,
-          board_id: boardId,
-          cod_agent: codAgent,
-          title: data.title,
-          description: data.description || null,
-          value: data.value || 0,
-          contact_name: data.contact_name || null,
-          contact_phone: data.contact_phone || null,
-          contact_email: data.contact_email || null,
-          priority: data.priority || 'medium',
-          expected_close_date: data.expected_close_date || null,
-          tags: data.tags || [],
-          assigned_to: data.assigned_to || null,
-          position: maxPosition,
-        })
+        .insert([insertPayload])
         .select()
         .single();
 
@@ -116,20 +120,28 @@ export function useCRMDeals({ boardId, codAgent }: UseCRMDealsOptions) {
   // Update a deal
   const updateDeal = useCallback(async (dealId: string, data: Partial<CRMDealFormData>): Promise<boolean> => {
     try {
+      const updatePayload: Record<string, unknown> = {
+        title: data.title,
+        description: data.description,
+        value: data.value,
+        contact_name: data.contact_name,
+        contact_phone: data.contact_phone,
+        contact_email: data.contact_email,
+        priority: data.priority,
+        expected_close_date: data.expected_close_date,
+        tags: data.tags,
+        assigned_to: data.assigned_to,
+      };
+
+      // Add custom fields if present
+      const dataAsRecord = data as unknown as Record<string, unknown>;
+      if (dataAsRecord.custom_fields) {
+        updatePayload.custom_fields = dataAsRecord.custom_fields;
+      }
+
       const { error: updateError } = await supabase
         .from('crm_deals')
-        .update({
-          title: data.title,
-          description: data.description,
-          value: data.value,
-          contact_name: data.contact_name,
-          contact_phone: data.contact_phone,
-          contact_email: data.contact_email,
-          priority: data.priority,
-          expected_close_date: data.expected_close_date,
-          tags: data.tags,
-          assigned_to: data.assigned_to,
-        })
+        .update(updatePayload)
         .eq('id', dealId);
 
       if (updateError) throw updateError;
