@@ -336,6 +336,7 @@ export default function FollowupPage() {
           showQuickPeriods
           showStateFilter={activeTab === 'queue'}
           stateOptions={QUEUE_STATES}
+          periodTooltip="Filtra pela data da última atividade do lead"
         />
       )}
 

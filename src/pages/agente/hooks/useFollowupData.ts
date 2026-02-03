@@ -221,13 +221,13 @@ export function useFollowupQueue(filters: FollowupFiltersState) {
 
       let whereClause = `cod_agent IN (${agentPlaceholders})`;
 
-      // Date filters
+      // Date filters based on send_date (last activity) to include active leads from previous days
       if (filters.dateFrom) {
-        whereClause += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
+        whereClause += ` AND (send_date AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
         params.push(filters.dateFrom);
       }
       if (filters.dateTo) {
-        whereClause += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
+        whereClause += ` AND (send_date AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
         params.push(filters.dateTo);
       }
 
@@ -269,13 +269,13 @@ export function useFollowupQueueStats(filters: FollowupFiltersState) {
 
       let whereClause = `cod_agent IN (${agentPlaceholders})`;
 
-      // Date filters
+      // Date filters based on send_date (last activity) to include active leads from previous days
       if (filters.dateFrom) {
-        whereClause += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
+        whereClause += ` AND (send_date AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
         params.push(filters.dateFrom);
       }
       if (filters.dateTo) {
-        whereClause += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
+        whereClause += ` AND (send_date AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
         params.push(filters.dateTo);
       }
 
@@ -604,13 +604,14 @@ export function useFollowupQueueTotals(filters: FollowupFiltersState) {
       const agentPlaceholders = filters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
       const params: (string | number)[] = [...filters.agentCodes];
 
+      // Use send_date (last activity) instead of created_at to include active leads from previous days
       let dateFilter = '';
       if (filters.dateFrom) {
-        dateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
+        dateFilter += ` AND (send_date AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
         params.push(filters.dateFrom);
       }
       if (filters.dateTo) {
-        dateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
+        dateFilter += ` AND (send_date AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
         params.push(filters.dateTo);
       }
 
@@ -667,16 +668,17 @@ export function useFollowupReturnRate(filters: FollowupFiltersState) {
       const agentPlaceholders = filters.agentCodes.map((_, i) => `$${i + 1}`).join(', ');
       const params: (string | number)[] = [...filters.agentCodes];
 
+      // Use send_date (last activity) instead of created_at to include active leads from previous days
       let dateFilter = '';
       let fqDateFilter = ''; // With fq. prefix for leads_with_response CTE
       if (filters.dateFrom) {
-        dateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
-        fqDateFilter += ` AND (fq.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
+        dateFilter += ` AND (send_date AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
+        fqDateFilter += ` AND (fq.send_date AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length + 1}`;
         params.push(filters.dateFrom);
       }
       if (filters.dateTo) {
-        dateFilter += ` AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
-        fqDateFilter += ` AND (fq.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
+        dateFilter += ` AND (send_date AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
+        fqDateFilter += ` AND (fq.send_date AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length + 1}`;
         params.push(filters.dateTo);
       }
 
