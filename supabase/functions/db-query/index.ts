@@ -1845,6 +1845,431 @@ serve(async (req) => {
         result = [{ success: true }];
         break;
       }
+
+      // ================== ADVBOX INTEGRATION ACTIONS ==================
+
+      case 'advbox_get_integration': {
+        // Get Advbox integration for an agent
+        const { agentId } = data;
+        
+        const rows = await sql.unsafe(
+          `SELECT 
+            ai.*,
+            (SELECT COUNT(*) FROM advbox_processes_cache apc WHERE apc.agent_id = ai.agent_id) as total_processes_cached,
+            (SELECT COUNT(*) FROM advbox_notification_logs anl WHERE anl.agent_id = ai.agent_id AND anl.created_at >= NOW() - INTERVAL '24 hours') as notifications_sent_24h,
+            (SELECT COUNT(*) FROM advbox_client_queries acq WHERE acq.agent_id = ai.agent_id AND acq.created_at >= NOW() - INTERVAL '24 hours') as queries_answered_24h
+          FROM advbox_integrations ai
+          WHERE ai.agent_id = $1
+          LIMIT 1`,
+          [agentId]
+        );
+        result = rows;
+        break;
+      }
+
+      case 'advbox_save_integration': {
+        // Create or update Advbox integration
+        const { agentId, apiEndpoint, apiToken, isActive, settings, connectionStatus, lastError } = data;
+        
+        const rows = await sql.unsafe(
+          `INSERT INTO advbox_integrations (agent_id, api_endpoint, api_token, is_active, settings, connection_status, last_error, updated_at)
+           VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, NOW())
+           ON CONFLICT (agent_id) DO UPDATE SET
+             api_endpoint = EXCLUDED.api_endpoint,
+             api_token = EXCLUDED.api_token,
+             is_active = EXCLUDED.is_active,
+             settings = EXCLUDED.settings,
+             connection_status = EXCLUDED.connection_status,
+             last_error = EXCLUDED.last_error,
+             updated_at = NOW()
+           RETURNING *`,
+          [agentId, apiEndpoint, apiToken, isActive, JSON.stringify(settings || {}), connectionStatus || 'pending', lastError]
+        );
+        result = rows;
+        break;
+      }
+
+      case 'advbox_update_connection_status': {
+        // Update connection status after test
+        const { agentId, connectionStatus, lastError, lastSyncAt } = data;
+        
+        let query = `UPDATE advbox_integrations SET connection_status = $1, last_error = $2, updated_at = NOW()`;
+        const params: any[] = [connectionStatus, lastError];
+        
+        if (lastSyncAt) {
+          query += `, last_sync_at = $3 WHERE agent_id = $4 RETURNING *`;
+          params.push(lastSyncAt, agentId);
+        } else {
+          query += ` WHERE agent_id = $3 RETURNING *`;
+          params.push(agentId);
+        }
+        
+        const rows = await sql.unsafe(query, params);
+        result = rows;
+        break;
+      }
+
+      case 'advbox_delete_integration': {
+        // Delete Advbox integration (cascades to rules, processes, logs)
+        const { integrationId } = data;
+        
+        await sql.unsafe(
+          `DELETE FROM advbox_integrations WHERE id = $1`,
+          [integrationId]
+        );
+        result = [{ success: true }];
+        break;
+      }
+
+      case 'advbox_get_rules': {
+        // Get notification rules for an agent
+        const { agentId, integrationId } = data;
+        
+        let query = `
+          SELECT 
+            anr.*,
+            (SELECT COUNT(*) FROM advbox_notification_logs anl WHERE anl.rule_id = anr.id) as notifications_sent,
+            (SELECT MAX(created_at) FROM advbox_notification_logs anl WHERE anl.rule_id = anr.id) as last_triggered
+          FROM advbox_notification_rules anr
+          WHERE 1=1
+        `;
+        const params: any[] = [];
+        
+        if (agentId) {
+          params.push(agentId);
+          query += ` AND anr.agent_id = $${params.length}`;
+        }
+        if (integrationId) {
+          params.push(integrationId);
+          query += ` AND anr.integration_id = $${params.length}`;
+        }
+        
+        query += ` ORDER BY anr.created_at DESC`;
+        
+        result = await sql.unsafe(query, params);
+        break;
+      }
+
+      case 'advbox_save_rule': {
+        // Create or update notification rule
+        const { id, agentId, integrationId, ruleName, isActive, processPhases, eventTypes, keywords, messageTemplate, sendTo, cooldownMinutes } = data;
+        
+        if (id) {
+          // Update existing rule
+          const rows = await sql.unsafe(
+            `UPDATE advbox_notification_rules SET
+              rule_name = $1,
+              is_active = $2,
+              process_phases = $3,
+              event_types = $4,
+              keywords = $5,
+              message_template = $6,
+              send_to = $7,
+              cooldown_minutes = $8,
+              updated_at = NOW()
+            WHERE id = $9
+            RETURNING *`,
+            [ruleName, isActive, processPhases || [], eventTypes || [], keywords || [], messageTemplate, sendTo || 'cliente', cooldownMinutes || 60, id]
+          );
+          result = rows;
+        } else {
+          // Create new rule
+          const rows = await sql.unsafe(
+            `INSERT INTO advbox_notification_rules (agent_id, integration_id, rule_name, is_active, process_phases, event_types, keywords, message_template, send_to, cooldown_minutes)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             RETURNING *`,
+            [agentId, integrationId, ruleName, isActive ?? true, processPhases || [], eventTypes || [], keywords || [], messageTemplate, sendTo || 'cliente', cooldownMinutes || 60]
+          );
+          result = rows;
+        }
+        break;
+      }
+
+      case 'advbox_toggle_rule': {
+        // Toggle rule active status
+        const { ruleId, isActive } = data;
+        
+        const rows = await sql.unsafe(
+          `UPDATE advbox_notification_rules SET is_active = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+          [isActive, ruleId]
+        );
+        result = rows;
+        break;
+      }
+
+      case 'advbox_delete_rule': {
+        // Delete notification rule
+        const { ruleId } = data;
+        
+        await sql.unsafe(
+          `DELETE FROM advbox_notification_rules WHERE id = $1`,
+          [ruleId]
+        );
+        result = [{ success: true }];
+        break;
+      }
+
+      case 'advbox_get_processes': {
+        // Get cached processes for an agent
+        const { agentId, search, phase, limit: processLimit, offset: processOffset } = data;
+        
+        let query = `
+          SELECT *
+          FROM advbox_processes_cache
+          WHERE agent_id = $1
+        `;
+        const params: any[] = [agentId];
+        
+        if (search) {
+          params.push(`%${search}%`);
+          query += ` AND (client_name ILIKE $${params.length} OR process_number ILIKE $${params.length} OR client_phone ILIKE $${params.length})`;
+        }
+        if (phase) {
+          params.push(phase);
+          query += ` AND phase = $${params.length}`;
+        }
+        
+        query += ` ORDER BY last_movement_date DESC NULLS LAST`;
+        
+        if (processLimit) {
+          params.push(processLimit);
+          query += ` LIMIT $${params.length}`;
+        }
+        if (processOffset) {
+          params.push(processOffset);
+          query += ` OFFSET $${params.length}`;
+        }
+        
+        result = await sql.unsafe(query, params);
+        break;
+      }
+
+      case 'advbox_upsert_process': {
+        // Insert or update a process in cache
+        const { agentId, integrationId, processId, processNumber, clientId, clientName, clientPhone, phase, status, responsible, lastMovementId, lastMovementDate, lastMovementText, fullData } = data;
+        
+        const rows = await sql.unsafe(
+          `INSERT INTO advbox_processes_cache (agent_id, integration_id, process_id, process_number, client_id, client_name, client_phone, phase, status, responsible, last_movement_id, last_movement_date, last_movement_text, full_data, cached_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, NOW(), NOW())
+           ON CONFLICT (agent_id, process_id) DO UPDATE SET
+             process_number = EXCLUDED.process_number,
+             client_id = EXCLUDED.client_id,
+             client_name = EXCLUDED.client_name,
+             client_phone = EXCLUDED.client_phone,
+             phase = EXCLUDED.phase,
+             status = EXCLUDED.status,
+             responsible = EXCLUDED.responsible,
+             last_movement_id = EXCLUDED.last_movement_id,
+             last_movement_date = EXCLUDED.last_movement_date,
+             last_movement_text = EXCLUDED.last_movement_text,
+             full_data = EXCLUDED.full_data,
+             cached_at = NOW(),
+             updated_at = NOW()
+           RETURNING *`,
+          [agentId, integrationId, processId, processNumber, clientId, clientName, clientPhone, phase, status, responsible, lastMovementId, lastMovementDate, lastMovementText, JSON.stringify(fullData || {})]
+        );
+        result = rows;
+        break;
+      }
+
+      case 'advbox_get_notification_logs': {
+        // Get notification logs for an agent
+        const { agentId, status: logStatus, ruleId, limit: logLimit, offset: logOffset } = data;
+        
+        let query = `
+          SELECT 
+            anl.*,
+            anr.rule_name,
+            apc.process_number
+          FROM advbox_notification_logs anl
+          LEFT JOIN advbox_notification_rules anr ON anr.id = anl.rule_id
+          LEFT JOIN advbox_processes_cache apc ON apc.process_id = anl.process_id AND apc.agent_id = anl.agent_id
+          WHERE anl.agent_id = $1
+        `;
+        const params: any[] = [agentId];
+        
+        if (logStatus) {
+          params.push(logStatus);
+          query += ` AND anl.status = $${params.length}`;
+        }
+        if (ruleId) {
+          params.push(ruleId);
+          query += ` AND anl.rule_id = $${params.length}`;
+        }
+        
+        query += ` ORDER BY anl.created_at DESC`;
+        
+        if (logLimit) {
+          params.push(logLimit);
+          query += ` LIMIT $${params.length}`;
+        }
+        if (logOffset) {
+          params.push(logOffset);
+          query += ` OFFSET $${params.length}`;
+        }
+        
+        result = await sql.unsafe(query, params);
+        break;
+      }
+
+      case 'advbox_save_notification_log': {
+        // Save notification log entry
+        const { agentId, integrationId, ruleId, processId, recipientPhone, messageText, status: notifStatus, sentAt, errorMessage, whatsappMessageId, whatsappResponse } = data;
+        
+        const rows = await sql.unsafe(
+          `INSERT INTO advbox_notification_logs (agent_id, integration_id, rule_id, process_id, recipient_phone, message_text, status, sent_at, error_message, whatsapp_message_id, whatsapp_response)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
+           RETURNING *`,
+          [agentId, integrationId, ruleId, processId, recipientPhone, messageText, notifStatus || 'pending', sentAt, errorMessage, whatsappMessageId, JSON.stringify(whatsappResponse || null)]
+        );
+        result = rows;
+        break;
+      }
+
+      case 'advbox_update_notification_status': {
+        // Update notification log status
+        const { logId, status: newStatus, sentAt, errorMessage, whatsappMessageId, whatsappResponse } = data;
+        
+        const rows = await sql.unsafe(
+          `UPDATE advbox_notification_logs SET
+            status = $1,
+            sent_at = $2,
+            error_message = $3,
+            whatsapp_message_id = $4,
+            whatsapp_response = $5::jsonb
+          WHERE id = $6
+          RETURNING *`,
+          [newStatus, sentAt, errorMessage, whatsappMessageId, JSON.stringify(whatsappResponse || null), logId]
+        );
+        result = rows;
+        break;
+      }
+
+      case 'advbox_get_client_queries': {
+        // Get client query logs for an agent
+        const { agentId, limit: queryLimit, offset: queryOffset } = data;
+        
+        let query = `
+          SELECT *
+          FROM advbox_client_queries
+          WHERE agent_id = $1
+          ORDER BY created_at DESC
+        `;
+        const params: any[] = [agentId];
+        
+        if (queryLimit) {
+          params.push(queryLimit);
+          query += ` LIMIT $${params.length}`;
+        }
+        if (queryOffset) {
+          params.push(queryOffset);
+          query += ` OFFSET $${params.length}`;
+        }
+        
+        result = await sql.unsafe(query, params);
+        break;
+      }
+
+      case 'advbox_save_client_query': {
+        // Save client query log
+        const { agentId, integrationId, clientPhone, clientName, queryText, queryType, foundProcesses, responseText, responseSent, queryTimeMs } = data;
+        
+        const rows = await sql.unsafe(
+          `INSERT INTO advbox_client_queries (agent_id, integration_id, client_phone, client_name, query_text, query_type, found_processes, response_text, response_sent, query_time_ms)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           RETURNING *`,
+          [agentId, integrationId, clientPhone, clientName, queryText, queryType, foundProcesses || 0, responseText, responseSent ?? false, queryTimeMs]
+        );
+        result = rows;
+        break;
+      }
+
+      case 'advbox_get_lead_syncs': {
+        // Get lead sync logs for an agent
+        const { agentId, status: syncStatus, limit: syncLimit, offset: syncOffset } = data;
+        
+        let query = `
+          SELECT *
+          FROM advbox_lead_sync
+          WHERE agent_id = $1
+        `;
+        const params: any[] = [agentId];
+        
+        if (syncStatus) {
+          params.push(syncStatus);
+          query += ` AND sync_status = $${params.length}`;
+        }
+        
+        query += ` ORDER BY created_at DESC`;
+        
+        if (syncLimit) {
+          params.push(syncLimit);
+          query += ` LIMIT $${params.length}`;
+        }
+        if (syncOffset) {
+          params.push(syncOffset);
+          query += ` OFFSET $${params.length}`;
+        }
+        
+        result = await sql.unsafe(query, params);
+        break;
+      }
+
+      case 'advbox_save_lead_sync': {
+        // Save lead sync entry
+        const { agentId, integrationId, whatsappNumber, leadName, leadEmail, leadSource, leadNotes, syncStatus, advboxClientId, syncedAt, errorMessage, retryCount, fullLeadData, advboxResponse } = data;
+        
+        const rows = await sql.unsafe(
+          `INSERT INTO advbox_lead_sync (agent_id, integration_id, whatsapp_number, lead_name, lead_email, lead_source, lead_notes, sync_status, advbox_client_id, synced_at, error_message, retry_count, full_lead_data, advbox_response)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb)
+           RETURNING *`,
+          [agentId, integrationId, whatsappNumber, leadName, leadEmail, leadSource || 'whatsapp_chat', leadNotes, syncStatus || 'pending', advboxClientId, syncedAt, errorMessage, retryCount || 0, JSON.stringify(fullLeadData || null), JSON.stringify(advboxResponse || null)]
+        );
+        result = rows;
+        break;
+      }
+
+      case 'advbox_update_lead_sync': {
+        // Update lead sync status
+        const { leadSyncId, syncStatus, advboxClientId, syncedAt, errorMessage, retryCount, advboxResponse } = data;
+        
+        const rows = await sql.unsafe(
+          `UPDATE advbox_lead_sync SET
+            sync_status = $1,
+            advbox_client_id = $2,
+            synced_at = $3,
+            error_message = $4,
+            retry_count = $5,
+            advbox_response = $6::jsonb,
+            updated_at = NOW()
+          WHERE id = $7
+          RETURNING *`,
+          [syncStatus, advboxClientId, syncedAt, errorMessage, retryCount, JSON.stringify(advboxResponse || null), leadSyncId]
+        );
+        result = rows;
+        break;
+      }
+
+      case 'advbox_search_processes_by_phone': {
+        // Search processes by client phone (used by Julia IA)
+        const { agentId, clientPhone } = data;
+        
+        // Clean phone number
+        const cleanPhone = clientPhone.replace(/\D/g, '');
+        
+        const rows = await sql.unsafe(
+          `SELECT *
+           FROM advbox_processes_cache
+           WHERE agent_id = $1
+             AND (client_phone = $2 OR client_phone LIKE $3 OR client_phone LIKE $4)
+           ORDER BY last_movement_date DESC NULLS LAST`,
+          [agentId, cleanPhone, `%${cleanPhone}`, `${cleanPhone}%`]
+        );
+        result = rows;
+        break;
+      }
+
+      default:
         throw new Error(`Unknown action: ${action}`);
     }
 
