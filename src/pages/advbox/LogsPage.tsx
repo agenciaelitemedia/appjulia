@@ -218,7 +218,7 @@ export default function AdvboxLogsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => selectedAgentId && loadLogs(selectedAgentId, filters)}
+                onClick={() => selectedCodAgent && loadLogs(selectedCodAgent, filters)}
                 disabled={isLoading}
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
