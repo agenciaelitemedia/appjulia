@@ -3,7 +3,11 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 // Environment detection
 export const isDevEnvironment = 
   typeof window !== 'undefined' && 
-  (window.location.hostname.includes('lovable.app') || window.location.hostname === 'localhost');
+  (
+    window.location.hostname.includes('lovable.app') || 
+    window.location.hostname.includes('lovableproject.com') || 
+    window.location.hostname === 'localhost'
+  );
 
 // Types
 export interface QueryLog {
