@@ -70,12 +70,12 @@ export function useProcessesCache(): UseProcessesCacheReturn {
     }
   }, [toast]);
 
-  const loadStats = useCallback(async (agentId: number) => {
+  const loadStats = useCallback(async (codAgent: string) => {
     try {
       const { data, error } = await supabase.functions.invoke('advbox-sync', {
         body: {
           action: 'get_stats',
-          agentId,
+          codAgent,
         },
       });
 
