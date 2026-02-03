@@ -1,113 +1,82 @@
 
-# Plano: DebugBar Visível para Admin e Colaborador em Qualquer Ambiente
+# Plano: Corrigir Seleção de Agente no FollowUp
 
-## Objetivo
+## Problema Identificado
 
-Permitir que usuários com role `admin` ou `colaborador` vejam e utilizem a DebugBar em **qualquer ambiente** (produção ou desenvolvimento), enquanto outros usuários só terão acesso em ambientes de desenvolvimento.
+A lógica de seleção de agente no `FollowupPage.tsx` está usando o campo **legado** `user.cod_agent` da tabela `users` em vez de usar os agentes vinculados na tabela `user_agents`.
 
-## Lógica Atual vs Nova
-
-### Atual
-```typescript
-// Visibilidade baseada APENAS no domínio
-if (!isDevEnvironment) {
-  return null;
-}
+### Fluxo Atual (Incorreto)
+```
+useJuliaAgents() → busca user_agents → retorna [202602001]
+↓
+user.cod_agent → 202512001 (tabela users - legado)
+↓
+Para não-admin: selectedAgent = user.cod_agent = 202512001 ← SOBRESCREVE!
 ```
 
-### Nova
-```typescript
-// Visibilidade baseada no domínio OU no role do usuário
-const canShowDebugTools = isDevEnvironment || user?.role === 'admin' || user?.role === 'colaborador';
+### Dados do Usuário Atual
+| Fonte | Campo | Valor |
+|-------|-------|-------|
+| `users` (legado) | `cod_agent` | 202512001 |
+| `user_agents` (correto) | `cod_agent` | 202602001 |
 
-if (!canShowDebugTools) {
-  return null;
-}
-```
+O sistema deveria usar **apenas** os agentes da tabela `user_agents`, ignorando o campo legado.
 
 ---
 
-## Arquivos a Modificar
+## Solução
 
-### 1. `src/components/debug/DebugBarToggle.tsx`
+Remover a lógica que prioriza `user.cod_agent` e sempre usar o primeiro agente da lista `agents` (que já vem filtrado pela tabela `user_agents`).
 
-**Mudanças:**
-- Importar `useAuth` do contexto de autenticação
-- Adicionar lógica que verifica o role do usuário
-- Mostrar o toggle se: `isDevEnvironment` **OU** `user.role === 'admin'` **OU** `user.role === 'colaborador'`
+---
 
+## Arquivo a Modificar
+
+**`src/pages/agente/followup/FollowupPage.tsx`**
+
+### Código Atual (linhas 99-114):
 ```typescript
-import { useAuth } from '@/contexts/AuthContext';
-
-export function DebugBarToggle({ isCollapsed = false }: DebugBarToggleProps) {
-  const { enabled, setEnabled } = useDebug();
-  const { user } = useAuth();
-  const [isOpen, setIsOpen] = useState(false);
-
-  // Mostrar para: ambiente dev OU admin OU colaborador
-  const isPrivilegedUser = user?.role === 'admin' || user?.role === 'colaborador';
-  const canShowDebugTools = isDevEnvironment || isPrivilegedUser;
-
-  if (!canShowDebugTools) {
-    return null;
+useEffect(() => {
+  if (agents.length > 0) {
+    // If non-admin user has assigned agent, use that
+    if (user?.role !== 'admin' && user?.cod_agent) {
+      const userAgentCode = String(user.cod_agent);
+      if (selectedAgent !== userAgentCode) {
+        setSelectedAgent(userAgentCode);
+      }
+    } else if (!selectedAgent) {
+      // Admin or no assigned agent: select first available
+      setSelectedAgent(agents[0].cod_agent);
+    }
   }
-  // ... resto do componente
-}
+}, [agents, user?.role, user?.cod_agent]);
 ```
 
-### 2. `src/contexts/DebugContext.tsx`
-
-**Mudanças:**
-- O `DebugProvider` não tem acesso ao `AuthContext` diretamente (pode causar dependência circular)
-- Exportar uma função auxiliar `canUseDebugTools(userRole)` para verificação
-- Ajustar a inicialização do estado `enabled` para considerar também usuários privilegiados
-
+### Código Corrigido:
 ```typescript
-// Função auxiliar para verificar se pode usar debug tools
-export function canUseDebugTools(userRole?: string): boolean {
-  const isPrivilegedUser = userRole === 'admin' || userRole === 'colaborador';
-  return isDevEnvironment || isPrivilegedUser;
-}
+useEffect(() => {
+  if (agents.length > 0 && !selectedAgent) {
+    // Sempre usar o primeiro agente da lista (já vem filtrado pela tabela user_agents)
+    setSelectedAgent(agents[0].cod_agent);
+  }
+}, [agents, selectedAgent]);
 ```
-
-**Nota:** O `DebugProvider` é inicializado antes do `AuthProvider`, então a verificação de role será feita no componente `DebugBarToggle` que já tem acesso ao usuário autenticado.
 
 ---
 
-## Fluxo de Visibilidade
+## Justificativa
 
-| Ambiente | Role | DebugBar Visível? |
-|----------|------|-------------------|
-| Desenvolvimento (localhost, lovable.app) | Qualquer | Sim |
-| Produção (domínio customizado) | admin | Sim |
-| Produção (domínio customizado) | colaborador | Sim |
-| Produção (domínio customizado) | user | Não |
-| Produção (domínio customizado) | time | Não |
+1. **Fonte Única de Verdade**: A tabela `user_agents` é a fonte correta para determinar quais agentes o usuário pode acessar
+2. **Consistência**: O hook `useJuliaAgents()` já faz a query correta via `get_crm_agents_for_user`
+3. **Elimina Campo Legado**: O campo `users.cod_agent` é legado e pode estar desatualizado
+4. **Simplicidade**: Código mais simples e fácil de manter
 
 ---
 
-## Detalhes Técnicos
+## Impacto
 
-### Ordem dos Providers no App.tsx
-```
-QueryClientProvider
-  └── TooltipProvider
-       └── DebugProvider        ← Inicializado antes do Auth
-            └── BrowserRouter
-                 └── AuthProvider   ← Usuário disponível aqui
-                      └── UaZapiProvider
-                           └── Routes
-                           └── DebugBar
-```
-
-A verificação de role será feita no `DebugBarToggle` e `DebugBar`, que são renderizados dentro do `AuthProvider` e têm acesso ao contexto de autenticação.
-
----
-
-## Resumo das Mudanças
-
-| Arquivo | Mudança |
-|---------|---------|
-| `src/components/debug/DebugBarToggle.tsx` | Adicionar verificação de role (`admin`/`colaborador`) para exibir o toggle |
-| `src/contexts/DebugContext.tsx` | Exportar função auxiliar `canUseDebugTools` |
-| `src/components/debug/DebugBar.tsx` | Adicionar mesma verificação de role para exibir a barra |
+| Antes | Depois |
+|-------|--------|
+| Não-admin usa `user.cod_agent` (legado) | Todos usam `agents[0]` |
+| Admin usa `agents[0]` | Todos usam `agents[0]` |
+| Possível inconsistência entre tabelas | Fonte única: `user_agents` |
