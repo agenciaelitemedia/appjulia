@@ -109,8 +109,8 @@ export function useProcessesCache(): UseProcessesCacheReturn {
 
         // Reload data
         await Promise.all([
-          loadProcesses(agentId),
-          loadStats(agentId),
+          loadProcesses(codAgent),
+          loadStats(codAgent),
         ]);
 
         return {

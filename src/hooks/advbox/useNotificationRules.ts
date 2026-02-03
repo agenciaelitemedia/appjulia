@@ -113,7 +113,7 @@ export function useNotificationRules(): UseNotificationRulesReturn {
       });
 
       // Reload rules
-      await loadRules(agentId);
+      await loadRules(codAgent);
       return true;
     } catch (error) {
       console.error('Error saving rule:', error);

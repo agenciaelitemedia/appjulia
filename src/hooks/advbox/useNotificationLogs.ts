@@ -66,13 +66,13 @@ export function useNotificationLogs() {
     }
   }, []);
 
-  const resendNotification = useCallback(async (logId: string, agentId: number) => {
+  const resendNotification = useCallback(async (logId: string, codAgent: string) => {
     setState(prev => ({ ...prev, isResending: true }));
 
     try {
       const { data, error } = await supabase.functions.invoke('advbox-notify', {
         body: {
-          agent_id: agentId,
+          cod_agent: codAgent,
           log_id: logId,
         },
       });
