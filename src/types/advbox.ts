@@ -91,7 +91,7 @@ export interface AdvboxNotificationLog {
 
 export interface AdvboxClientQuery {
   id: string;
-  agent_id: number;
+  cod_agent: string;
   integration_id: string;
   client_phone: string;
   client_name: string | null;
