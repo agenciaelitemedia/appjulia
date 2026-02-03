@@ -1,161 +1,162 @@
 
-# Plano: Dashboard de Analytics para o CRM Builder
+# Plano: Customização Visual do CRM Builder (Estilo CRM Julia)
 
 ## Objetivo
-Criar um dashboard de Analytics completo para o CRM Builder que exiba métricas de performance do board, incluindo funil de conversão, tempo médio por etapa, distribuição de valores e evolução temporal.
+Aplicar ao CRM Builder o mesmo visual do CRM da Julia, incluindo:
+1. Barra de rolagem horizontal customizada (draggable)
+2. Estilo visual das etapas (colunas do pipeline)
+3. Estilo visual dos cards (deals)
 
 ---
 
-## Arquitetura Proposta
+## Comparativo Atual
 
-O dashboard será implementado como uma nova aba no **BoardSettingsSheet** (seguindo o padrão existente), mantendo a organização centralizada das configurações e análises do board.
+### CRM Julia (Referência)
+- **Scroll**: Barra customizada com thumb arrastável no rodapé (`CRMScrollNavigation`)
+- **Colunas**: `min-w-[280px]`, `bg-muted/30`, header com cor 20% opacidade, círculo colorido + badge de contagem
+- **Cards**: Borda esquerda colorida (`border-l-4`), botões de ação no header, datas formatadas com timezone
 
-### Componentes a Criar
+### CRM Builder (Atual)
+- **Scroll**: Overflow nativo do navegador
+- **Colunas**: `w-80` (320px), `rounded-xl border`, header com `border-bottom`
+- **Cards**: Sem borda lateral colorida, menos botões de ação
+
+---
+
+## Alterações Planejadas
+
+### 1. Barra de Rolagem Customizada
+
+**Arquivo**: `src/pages/crm-builder/BoardPage.tsx`
+
+Adicionar o componente `CRMScrollNavigation` (já existente no CRM Julia) ao CRM Builder:
+
+- Criar uma referência (`scrollRef`) para o container de pipelines
+- Ocultar a scrollbar nativa com `scrollbar-none` e estilos inline
+- Renderizar `CRMScrollNavigation` abaixo do container de pipelines
 
 ```text
-src/pages/crm-builder/
-├── components/
-│   └── analytics/
-│       ├── BoardAnalyticsDashboard.tsx    # Container principal do dashboard
-│       ├── PipelineFunnelChart.tsx        # Funil de conversão entre etapas
-│       ├── PipelineAvgTimeChart.tsx       # Tempo médio por etapa
-│       ├── DealsValueDistribution.tsx     # Distribuição de valores por etapa
-│       └── BoardSummaryCards.tsx          # Cards de resumo (KPIs)
-└── hooks/
-    └── useCRMBoardAnalytics.ts            # Hook para cálculo de métricas
+Antes:
+<div className="flex-1 overflow-x-auto p-4">
+  ...pipelines...
+</div>
+
+Depois:
+<div className="flex flex-col flex-1">
+  <div ref={scrollRef} className="flex-1 overflow-x-auto scrollbar-none p-4">
+    ...pipelines...
+  </div>
+  <CRMScrollNavigation scrollRef={scrollRef} />
+</div>
 ```
+
+### 2. Visual das Etapas (PipelineColumn)
+
+**Arquivo**: `src/pages/crm-builder/components/pipeline/PipelineColumn.tsx`
+
+Aplicar o estilo visual do CRM Julia:
+
+| Elemento | Atual | Novo (Estilo Julia) |
+|----------|-------|---------------------|
+| Largura | `w-80` (320px) | `min-w-[280px] max-w-[280px]` |
+| Container | `rounded-xl border` | `rounded-lg` (sem borda externa) |
+| Header | `border-b` na parte inferior | `backgroundColor: ${color}20` (fundo colorido 20%) |
+| Área de Cards | `overflow-y-auto max-h-[...]` | Sem scroll interno (página rola) |
+| Botão Adicionar | Fixo no rodapé | Integrado no final da lista de cards |
+
+**Mudanças específicas**:
+- Remover `border` da coluna
+- Header com `rounded-t-lg` e fundo usando a cor da etapa
+- Remover o scroll vertical interno (os cards rolam com a página)
+- Remover `border-t` do botão de adicionar e integrar no fluxo
+
+### 3. Visual dos Cards (DealCard)
+
+**Arquivo**: `src/pages/crm-builder/components/deals/DealCard.tsx`
+
+Aplicar a borda lateral colorida e ajustar layout:
+
+| Elemento | Atual | Novo (Estilo Julia) |
+|----------|-------|---------------------|
+| Borda | Sem borda lateral | `border-l-4` com cor do pipeline |
+| Ícone Contato | Ícone User cinza | Emoji 👤 + cor primary |
+| Ações | Menu dropdown (hover) | Botões visíveis + menu dropdown |
+| Footer | Priority + Tags + Time | Datas + Tempo na fase (layout mais detalhado) |
+
+**Nova estrutura do card**:
+```text
+┌─────────────────────────────────┐
+│ 👤 Título/Contato      [⋮] Menu │  <- Header com ações
+├─────────────────────────────────┤
+│ 💰 R$ 1.500                     │  <- Valor (se existir)
+├─────────────────────────────────┤
+│ 📞 Telefone                     │  <- Info contato
+│ ✉️ Email                        │
+├─────────────────────────────────┤
+│ Criado: 01/01/2026 10:00        │  <- Datas
+│ Atualizado: 02/01/2026 15:30    │
+│ 🕐 Na fase: 2 dias              │  <- Tempo na fase
+│           🇧🇷 Horário de Brasília │
+└─────────────────────────────────┘
+```
+
+**Nota**: O DealCard precisa receber a cor do pipeline como prop para aplicar a `border-l-4`.
 
 ---
 
-## Detalhamento Técnico
+## Fluxo de Dados para Cor do Pipeline
 
-### 1. Hook `useCRMBoardAnalytics.ts`
-
-Responsável por calcular todas as métricas de analytics baseado nos deals e pipelines existentes:
-
-**Métricas calculadas:**
-- **Total de deals** (abertos, ganhos, perdidos)
-- **Valor total** e valor por status
-- **Taxa de conversão** (ganhos / total finalizados)
-- **Distribuição por pipeline** (contagem e valor)
-- **Tempo médio por pipeline** (calculado via `stage_entered_at`)
-- **Funil de conversão** (percentual de deals em cada etapa)
-
-**Parâmetros:**
-- `deals: CRMDeal[]`
-- `pipelines: CRMPipeline[]`
-
-### 2. Componentes de Visualização
-
-#### `BoardSummaryCards.tsx`
-4 cards de KPI no topo:
-- **Total de Cards** (com breakdown abertos/ganhos/perdidos)
-- **Valor Total** (soma de todos os deals abertos)
-- **Taxa de Conversão** (ganhos ÷ (ganhos + perdidos) × 100)
-- **Tempo Médio Geral** (média de dias no pipeline atual)
-
-#### `PipelineFunnelChart.tsx`
-Gráfico de barras horizontais (padrão Recharts já utilizado) mostrando:
-- Contagem de deals por pipeline
-- Percentual do total
-- Cores específicas de cada pipeline
-- Taxa de conversão entre etapas adjacentes
-
-#### `PipelineAvgTimeChart.tsx`
-Gráfico de barras horizontais exibindo:
-- Tempo médio (em dias) que deals permanecem em cada pipeline
-- Destaque para pipelines com maior tempo (possíveis gargalos)
-
-#### `DealsValueDistribution.tsx`
-Gráfico de barras verticais ou PieChart mostrando:
-- Distribuição de valor (R$) por pipeline
-- Percentual do valor total em cada etapa
-
-### 3. Integração no `BoardSettingsSheet.tsx`
-
-Adicionar uma nova aba "Analytics" com ícone `BarChart3`:
-
-```tsx
-<TabsList className="grid w-full grid-cols-4">
-  <TabsTrigger value="analytics">Analytics</TabsTrigger>
-  <TabsTrigger value="custom-fields">Campos</TabsTrigger>
-  <TabsTrigger value="automations">Automações</TabsTrigger>
-  <TabsTrigger value="general">Geral</TabsTrigger>
-</TabsList>
-
-<TabsContent value="analytics">
-  <BoardAnalyticsDashboard 
-    deals={deals} 
-    pipelines={pipelines} 
-  />
-</TabsContent>
-```
-
-### 4. Atualização do `BoardPage.tsx`
-
-Passar a prop `deals` para o `BoardSettingsSheet` para que o dashboard tenha acesso aos dados:
-
-```tsx
-<BoardSettingsSheet
-  open={isSettingsOpen}
-  onOpenChange={setIsSettingsOpen}
-  boardId={boardId}
-  codAgent={codAgent}
-  boardName={board.name}
-  pipelines={pipelines}
-  deals={deals}  // Nova prop
-/>
-```
-
----
-
-## Fluxo de Dados
+Atualmente o `DealCard` não tem acesso à cor do pipeline. Precisamos passar essa informação:
 
 ```text
 BoardPage
-    │
-    ├── useCRMDeals() ──────────────┐
-    │                               │
-    ├── useCRMPipelines() ──────────┼───► BoardSettingsSheet
-    │                               │         │
-    │                               │         └── BoardAnalyticsDashboard
-    │                               │                  │
-    │                               └──────────────────┼─► useCRMBoardAnalytics()
-    │                                                  │
-    │                               ┌──────────────────┘
-    │                               │
-    │                               ├── BoardSummaryCards
-    │                               ├── PipelineFunnelChart
-    │                               ├── PipelineAvgTimeChart
-    │                               └── DealsValueDistribution
+    └── PipelineColumn (tem pipeline.color)
+            └── DealCard (precisa de pipelineColor)
 ```
 
+**Solução**: Passar `pipelineColor` como prop para o `DealCard`.
+
 ---
-
-## Arquivos a Criar
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/pages/crm-builder/hooks/useCRMBoardAnalytics.ts` | Hook com cálculos de métricas |
-| `src/pages/crm-builder/components/analytics/BoardAnalyticsDashboard.tsx` | Container do dashboard |
-| `src/pages/crm-builder/components/analytics/BoardSummaryCards.tsx` | Cards de KPI |
-| `src/pages/crm-builder/components/analytics/PipelineFunnelChart.tsx` | Funil de conversão |
-| `src/pages/crm-builder/components/analytics/PipelineAvgTimeChart.tsx` | Tempo médio por etapa |
-| `src/pages/crm-builder/components/analytics/DealsValueDistribution.tsx` | Distribuição de valores |
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `BoardSettingsSheet.tsx` | Adicionar aba Analytics e importar componente |
-| `BoardPage.tsx` | Passar prop `deals` para BoardSettingsSheet |
-| `types.ts` | Adicionar tipos para analytics (opcional) |
+| `src/pages/crm-builder/BoardPage.tsx` | Adicionar scrollRef e CRMScrollNavigation |
+| `src/pages/crm-builder/components/pipeline/PipelineColumn.tsx` | Aplicar estilo visual das colunas do CRM Julia |
+| `src/pages/crm-builder/components/deals/DealCard.tsx` | Adicionar border-l-4, layout de datas, prop pipelineColor |
 
 ---
 
-## Considerações
+## Detalhamento Técnico
 
-1. **Performance**: Os cálculos são feitos no cliente usando `useMemo` para evitar reprocessamento desnecessário
-2. **Recharts**: Reutiliza os padrões de gráficos já existentes no projeto (BarChart, AreaChart, PieChart)
-3. **Responsividade**: O dashboard se adapta ao tamanho do Sheet (sm:max-w-lg)
-4. **Sem banco de dados**: Todas as métricas são calculadas em tempo real a partir dos dados já carregados (deals e pipelines)
+### BoardPage.tsx
+1. Importar `CRMScrollNavigation` de `'@/pages/crm/components/CRMScrollNavigation'`
+2. Criar `useRef<HTMLDivElement>(null)` para o container
+3. Adicionar estilos para ocultar scrollbar nativa
+4. Renderizar `CRMScrollNavigation` após o container de pipelines
+
+### PipelineColumn.tsx
+1. Alterar classes do container:
+   - De: `w-80 flex-shrink-0 ... rounded-xl border`
+   - Para: `min-w-[280px] max-w-[280px] flex-shrink-0 bg-muted/30 rounded-lg`
+2. Header com `backgroundColor: ${pipeline.color}20` e `rounded-t-lg`
+3. Remover `overflow-y-auto` e `max-h-[...]` do container de cards
+4. Passar `pipelineColor` para cada DealCard
+
+### DealCard.tsx
+1. Adicionar prop `pipelineColor?: string`
+2. Aplicar `border-l-4` com `borderLeftColor: pipelineColor`
+3. Adicionar seção de datas formatadas (Criado/Atualizado)
+4. Manter o indicador de "tempo na fase"
+5. Adicionar indicador de timezone (🇧🇷 Horário de Brasília)
+
+---
+
+## Resultado Esperado
+
+Após as alterações:
+- A navegação horizontal terá uma barra customizada arrastável (igual ao CRM Julia)
+- As colunas de pipeline terão o mesmo estilo visual com header colorido
+- Os cards terão borda lateral colorida e exibirão datas detalhadas
+- A experiência visual será consistente entre os dois módulos de CRM
