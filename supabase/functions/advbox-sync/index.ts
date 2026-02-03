@@ -188,8 +188,8 @@ serve(async (req) => {
               // Check for existing process
               const existing = await sql.unsafe(
                 `SELECT id, last_movement_id FROM advbox_processes_cache 
-                 WHERE agent_id = $1 AND process_id = $2`,
-                [agentId, process.id]
+                 WHERE cod_agent = $1 AND process_id = $2`,
+                [codAgent, process.id]
               );
 
               const movementId = process.ultima_movimentacao?.id || null;
