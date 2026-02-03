@@ -74,10 +74,10 @@ const App = () => (
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              <DebugBar />
             </UaZapiProvider>
           </AuthProvider>
         </BrowserRouter>
-        <DebugBar />
       </DebugProvider>
     </TooltipProvider>
   </QueryClientProvider>
