@@ -46,7 +46,7 @@ const QUERY_TYPES = [
 
 export default function AdvboxQueriesPage() {
   const { queries, total, stats, isLoading, loadQueries } = useClientQueries();
-  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
+  const [selectedCodAgent, setSelectedCodAgent] = useState<string | null>(null);
   const [filters, setFilters] = useState<ClientQueriesFilters>({
     page: 1,
     limit: 20,
