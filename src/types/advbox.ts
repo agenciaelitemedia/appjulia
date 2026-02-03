@@ -33,7 +33,7 @@ export interface AdvboxIntegration {
 
 export interface AdvboxNotificationRule {
   id: string;
-  agent_id: number;
+  cod_agent: string;
   integration_id: string;
   rule_name: string;
   is_active: boolean;
