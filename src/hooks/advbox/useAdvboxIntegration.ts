@@ -26,21 +26,21 @@ export function useAdvboxIntegration(): UseAdvboxIntegrationReturn {
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
 
-  const loadIntegration = useCallback(async (agentId: number) => {
+  const loadIntegration = useCallback(async (codAgent: string) => {
     setIsLoading(true);
     try {
       const result = await externalDb.raw<AdvboxIntegration>({
         query: `
           SELECT 
             ai.*,
-            (SELECT COUNT(*) FROM advbox_processes_cache apc WHERE apc.agent_id = ai.agent_id) as total_processes_cached,
-            (SELECT COUNT(*) FROM advbox_notification_logs anl WHERE anl.agent_id = ai.agent_id AND anl.created_at >= NOW() - INTERVAL '24 hours') as notifications_sent_24h,
-            (SELECT COUNT(*) FROM advbox_client_queries acq WHERE acq.agent_id = ai.agent_id AND acq.created_at >= NOW() - INTERVAL '24 hours') as queries_answered_24h
+            (SELECT COUNT(*) FROM advbox_processes_cache apc WHERE apc.cod_agent = ai.cod_agent) as total_processes_cached,
+            (SELECT COUNT(*) FROM advbox_notification_logs anl WHERE anl.cod_agent = ai.cod_agent AND anl.created_at >= NOW() - INTERVAL '24 hours') as notifications_sent_24h,
+            (SELECT COUNT(*) FROM advbox_client_queries acq WHERE acq.cod_agent = ai.cod_agent AND acq.created_at >= NOW() - INTERVAL '24 hours') as queries_answered_24h
           FROM advbox_integrations ai
-          WHERE ai.agent_id = $1
+          WHERE ai.cod_agent = $1
           LIMIT 1
         `,
-        params: [agentId],
+        params: [codAgent],
       });
 
       setIntegration(result.length > 0 ? result[0] : null);
