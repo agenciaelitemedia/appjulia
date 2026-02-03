@@ -1,283 +1,472 @@
 
-# Plano: Migrar Advbox de agent_id para cod_agent
+# Plano: CRM Customizável de Classe Mundial
 
-## Resumo Executivo
+## Visão Geral
 
-Migrar o módulo Advbox para usar `cod_agent` (string) como identificador principal em vez de `agent_id` (integer), garantindo consistência com o restante do sistema (CRM, Dashboard, FollowUp) e permitindo que usuários com vínculos "monitorados" (que possuem apenas `cod_agent` sem `agent_id`) também possam configurar a integração.
-
-## Problema Atual
-
-| Situação | Descrição |
-|----------|-----------|
-| Advbox atual | Usa `agent_id` (integer) como chave primária/foreign key |
-| Outros módulos | CRM, Dashboard, FollowUp usam `cod_agent` (string) |
-| Impacto | Usuários com vínculo "monitorado" (apenas `cod_agent`, sem `agent_id`) não conseguem configurar Advbox |
-
-## Arquivos Afetados
-
-### 1. Tipos TypeScript
-- `src/types/advbox.ts`
-
-### 2. Edge Functions (4 arquivos)
-- `supabase/functions/advbox-integration/index.ts`
-- `supabase/functions/advbox-sync/index.ts`
-- `supabase/functions/advbox-notify/index.ts`
-- `supabase/functions/advbox-query/index.ts`
-
-### 3. Hooks (5 arquivos)
-- `src/hooks/advbox/useAdvboxIntegration.ts`
-- `src/hooks/advbox/useNotificationRules.ts`
-- `src/hooks/advbox/useProcessesCache.ts`
-- `src/hooks/advbox/useNotificationLogs.ts`
-- `src/hooks/advbox/useClientQueries.ts`
-
-### 4. Componentes UI
-- `src/components/advbox/AdvboxAgentSelect.tsx`
-
-### 5. Páginas (5 arquivos)
-- `src/pages/advbox/IntegrationPage.tsx`
-- `src/pages/advbox/NotificationRulesPage.tsx`
-- `src/pages/advbox/ProcessesPage.tsx`
-- `src/pages/advbox/LogsPage.tsx`
-- `src/pages/advbox/QueriesPage.tsx`
+Criar um sistema de CRM completamente customizável inspirado nos melhores do mercado (Salesforce, HubSpot, Pipedrive, Monday.com), combinando a simplicidade do Trello com a robustez do Salesforce. O sistema permitirá múltiplos boards, pipelines configuráveis, drag-and-drop fluido, campos customizáveis, automações e analytics em tempo real.
 
 ---
 
-## Detalhes Técnicos
+## Arquitetura de Funcionalidades
 
-### Fase 1: Atualizar Tipos TypeScript
+### Nível 1: Fundação (MVP)
+| Recurso | Inspiração |
+|---------|------------|
+| Multi-Boards | Monday.com, Notion |
+| Pipelines Customizáveis | Pipedrive |
+| Drag & Drop Fluido | Trello, Linear |
+| Cards com Campos Básicos | HubSpot |
 
-**Arquivo:** `src/types/advbox.ts`
+### Nível 2: Diferenciação
+| Recurso | Inspiração |
+|---------|------------|
+| Campos Customizáveis Dinâmicos | Salesforce, Airtable |
+| Filtros Avançados Salvos | HubSpot, Notion |
+| Automações/Regras | Pipedrive, Zapier |
+| Timeline de Atividades | Salesforce |
 
-Alterar todos os tipos que usam `agent_id: number` para `cod_agent: string`:
+### Nível 3: Excelência
+| Recurso | Inspiração |
+|---------|------------|
+| Analytics por Board/Pipeline | Pipedrive, Monday.com |
+| Importação/Exportação | HubSpot |
+| Templates de Board | Notion, Monday.com |
+| Histórico Completo | Salesforce |
 
+---
+
+## Modelo de Dados (Lovable Cloud)
+
+### Tabelas Principais
+
+```text
+crm_boards
+├── id (uuid, PK)
+├── cod_agent (text) - Multi-tenancy
+├── name (text)
+├── description (text)
+├── icon (text) - lucide icon name
+├── color (text) - hex color
+├── position (int) - ordenação
+├── is_archived (bool)
+├── settings (jsonb) - configurações extras
+├── created_at / updated_at
+└── created_by (uuid)
+
+crm_pipelines
+├── id (uuid, PK)
+├── board_id (uuid, FK → crm_boards)
+├── cod_agent (text)
+├── name (text)
+├── color (text)
+├── position (int)
+├── is_active (bool)
+├── win_probability (int) - % para forecasting
+└── created_at / updated_at
+
+crm_deals
+├── id (uuid, PK)
+├── pipeline_id (uuid, FK → crm_pipelines)
+├── board_id (uuid, FK → crm_boards)
+├── cod_agent (text)
+├── title (text)
+├── description (text)
+├── value (numeric) - valor monetário
+├── currency (text, default 'BRL')
+├── contact_name (text)
+├── contact_phone (text)
+├── contact_email (text)
+├── priority (enum: low/medium/high/urgent)
+├── status (enum: open/won/lost/archived)
+├── position (int) - ordenação no pipeline
+├── expected_close_date (date)
+├── custom_fields (jsonb) - campos dinâmicos
+├── tags (text[]) - etiquetas
+├── assigned_to (uuid)
+├── created_at / updated_at
+├── stage_entered_at (timestamptz)
+└── created_by (uuid)
+
+crm_deal_history
+├── id (uuid, PK)
+├── deal_id (uuid, FK → crm_deals)
+├── action (enum: created/moved/updated/note_added/won/lost)
+├── from_pipeline_id / to_pipeline_id
+├── changed_by (text)
+├── changed_at (timestamptz)
+├── changes (jsonb) - diff de campos
+└── notes (text)
+
+crm_custom_fields (Campos Dinâmicos)
+├── id (uuid, PK)
+├── board_id (uuid, FK)
+├── cod_agent (text)
+├── field_name (text) - nome interno
+├── field_label (text) - label exibido
+├── field_type (enum: text/number/date/select/multiselect/checkbox/url/phone/email/currency)
+├── options (jsonb) - para select/multiselect
+├── is_required (bool)
+├── position (int)
+├── default_value (text)
+└── created_at
+
+crm_saved_filters
+├── id (uuid, PK)
+├── board_id (uuid, FK)
+├── cod_agent (text)
+├── name (text)
+├── filter_config (jsonb)
+├── is_default (bool)
+└── created_at
+
+crm_automations
+├── id (uuid, PK)
+├── board_id (uuid, FK)
+├── cod_agent (text)
+├── name (text)
+├── trigger_type (enum: deal_created/deal_moved/field_changed/time_based)
+├── trigger_config (jsonb)
+├── action_type (enum: move_deal/update_field/send_notification/webhook)
+├── action_config (jsonb)
+├── is_active (bool)
+└── created_at
+
+crm_board_templates
+├── id (uuid, PK)
+├── name (text)
+├── description (text)
+├── pipelines_config (jsonb)
+├── custom_fields_config (jsonb)
+├── is_system (bool) - templates padrão
+└── created_at
+```
+
+---
+
+## Estrutura de Arquivos
+
+```text
+src/pages/crm-builder/
+├── CRMBuilderPage.tsx              # Página principal com lista de boards
+├── BoardPage.tsx                   # Página de um board específico
+├── types.ts                        # Tipos TypeScript
+│
+├── components/
+│   ├── boards/
+│   │   ├── BoardGrid.tsx           # Grid de boards
+│   │   ├── BoardCard.tsx           # Card de um board
+│   │   ├── CreateBoardDialog.tsx   # Criar board
+│   │   ├── BoardSettingsDialog.tsx # Configurações do board
+│   │   └── BoardTemplateSelector.tsx
+│   │
+│   ├── pipeline/
+│   │   ├── PipelineContainer.tsx   # Container com DnD
+│   │   ├── PipelineColumn.tsx      # Coluna de pipeline
+│   │   ├── CreatePipelineDialog.tsx
+│   │   ├── EditPipelineDialog.tsx
+│   │   └── PipelineHeader.tsx      # Header com contador e ações
+│   │
+│   ├── deals/
+│   │   ├── DealCard.tsx            # Card de deal (draggable)
+│   │   ├── DealCardCompact.tsx     # Versão compacta
+│   │   ├── CreateDealDialog.tsx
+│   │   ├── DealDetailsSheet.tsx    # Sheet lateral com detalhes
+│   │   ├── DealActivityTimeline.tsx
+│   │   ├── DealCustomFields.tsx    # Renderiza campos dinâmicos
+│   │   └── DealQuickActions.tsx
+│   │
+│   ├── filters/
+│   │   ├── BoardFilters.tsx        # Barra de filtros
+│   │   ├── SavedFiltersDropdown.tsx
+│   │   ├── FilterBuilder.tsx       # Construtor de filtros avançados
+│   │   └── SearchInput.tsx
+│   │
+│   ├── custom-fields/
+│   │   ├── CustomFieldsManager.tsx # CRUD de campos
+│   │   ├── FieldTypeSelector.tsx
+│   │   ├── DynamicFieldRenderer.tsx # Renderiza campo por tipo
+│   │   └── FieldOptionsEditor.tsx
+│   │
+│   ├── automations/
+│   │   ├── AutomationsManager.tsx
+│   │   ├── CreateAutomationDialog.tsx
+│   │   ├── TriggerSelector.tsx
+│   │   └── ActionConfigurator.tsx
+│   │
+│   └── analytics/
+│       ├── BoardAnalytics.tsx
+│       ├── ConversionFunnel.tsx
+│       ├── ValueByPipeline.tsx
+│       └── TimeInStageChart.tsx
+│
+├── hooks/
+│   ├── useCRMBoards.ts             # CRUD boards + realtime
+│   ├── useCRMPipelines.ts          # CRUD pipelines
+│   ├── useCRMDeals.ts              # CRUD deals + drag logic
+│   ├── useCRMDragDrop.ts           # Lógica de DnD com dnd-kit
+│   ├── useCRMCustomFields.ts
+│   ├── useCRMFilters.ts
+│   ├── useCRMAutomations.ts
+│   └── useCRMAnalytics.ts
+│
+└── utils/
+    ├── dndUtils.ts                 # Helpers para drag-and-drop
+    ├── fieldValidation.ts
+    └── exportUtils.ts
+```
+
+---
+
+## Dependências Necessárias
+
+| Pacote | Uso |
+|--------|-----|
+| `@dnd-kit/core` | Core do drag-and-drop |
+| `@dnd-kit/sortable` | Ordenação de items |
+| `@dnd-kit/utilities` | Helpers CSS |
+| `@dnd-kit/modifiers` | Modificadores de comportamento |
+
+---
+
+## Detalhes de Implementação
+
+### Fase 1: Fundação (Boards + Pipelines + Deals Básicos)
+
+**1.1 Tabelas no Lovable Cloud**
+- Criar 4 tabelas principais: `crm_boards`, `crm_pipelines`, `crm_deals`, `crm_deal_history`
+- Habilitar Realtime para atualizações em tempo real
+- RLS policies baseadas em `cod_agent`
+
+**1.2 Página de Boards (CRMBuilderPage)**
+- Grid responsivo de cards de boards
+- Criar/Editar/Arquivar boards
+- Cores e ícones customizáveis
+- Ordenação via drag-and-drop
+
+**1.3 Página de Board Individual (BoardPage)**
+- Header com nome, filtros e ações
+- Pipelines como colunas horizontais
+- Scroll horizontal suave
+- Contador de deals por pipeline
+
+**1.4 Drag & Drop com dnd-kit**
 ```typescript
-// ANTES
-export interface AdvboxIntegration {
-  agent_id: number;
-  // ...
+// Estrutura do DnD
+<DndContext
+  sensors={sensors}
+  collisionDetection={closestCenter}
+  onDragStart={handleDragStart}
+  onDragOver={handleDragOver}
+  onDragEnd={handleDragEnd}
+>
+  <SortableContext items={pipelines} strategy={horizontalListSortingStrategy}>
+    {pipelines.map((pipeline) => (
+      <PipelineColumn key={pipeline.id} pipeline={pipeline}>
+        <SortableContext items={dealIds} strategy={verticalListSortingStrategy}>
+          {deals.map((deal) => (
+            <SortableDealCard key={deal.id} deal={deal} />
+          ))}
+        </SortableContext>
+      </PipelineColumn>
+    ))}
+  </SortableContext>
+  <DragOverlay>{activeItem && <DealCard deal={activeItem} />}</DragOverlay>
+</DndContext>
+```
+
+**1.5 Deal Card**
+- Design compacto e legível
+- Informações essenciais: título, valor, contato
+- Badges de prioridade e tags
+- Quick actions (editar, mover, deletar)
+- Indicador de tempo na fase
+
+---
+
+### Fase 2: Campos Customizáveis
+
+**2.1 Tipos de Campo Suportados**
+| Tipo | Componente |
+|------|------------|
+| text | Input |
+| number | Input type=number |
+| currency | Input com formatação monetária |
+| date | DatePicker |
+| select | Select com options |
+| multiselect | Multi-select com tags |
+| checkbox | Switch |
+| url | Input com validação + link |
+| phone | Input com máscara |
+| email | Input com validação |
+
+**2.2 CustomFieldsManager**
+- Listar campos do board
+- Criar novo campo com tipo
+- Reordenar campos
+- Definir obrigatoriedade
+- Configurar opções (select/multiselect)
+
+**2.3 DynamicFieldRenderer**
+```typescript
+function DynamicFieldRenderer({ field, value, onChange }) {
+  switch (field.field_type) {
+    case 'text': return <Input value={value} onChange={onChange} />;
+    case 'currency': return <CurrencyInput value={value} onChange={onChange} />;
+    case 'select': return <Select options={field.options} value={value} onChange={onChange} />;
+    // ... outros tipos
+  }
 }
-
-// DEPOIS
-export interface AdvboxIntegration {
-  cod_agent: string;
-  // ...
-}
-```
-
-Tipos afetados:
-- `AdvboxIntegration`
-- `AdvboxNotificationRule`
-- `AdvboxProcess`
-- `AdvboxNotificationLog`
-- `AdvboxClientQuery`
-- `AdvboxLeadSync`
-
----
-
-### Fase 2: Atualizar Componente AdvboxAgentSelect
-
-**Arquivo:** `src/components/advbox/AdvboxAgentSelect.tsx`
-
-Alterações:
-1. Mudar `value` de `number | null` para `string | null`
-2. Mudar `onValueChange` de `(agentId: number | null)` para `(codAgent: string | null)`
-3. Usar `cod_agent` como chave de seleção (já disponível na query)
-
-```typescript
-// ANTES
-interface AdvboxAgentSelectProps {
-  value: number | null;
-  onValueChange: (agentId: number | null) => void;
-}
-
-// DEPOIS
-interface AdvboxAgentSelectProps {
-  value: string | null;
-  onValueChange: (codAgent: string | null) => void;
-}
 ```
 
 ---
 
-### Fase 3: Atualizar Edge Functions
+### Fase 3: Filtros e Busca
 
-#### 3.1 advbox-integration/index.ts
+**3.1 Filtros Rápidos**
+- Busca textual (título, contato, telefone)
+- Filtro por pipeline
+- Filtro por prioridade
+- Filtro por responsável
+- Filtro por tags
 
-Substituir todas as referências:
-- `agentId` (parâmetro) → `codAgent`
-- `agent_id = $1` → `cod_agent = $1`
-- Queries SQL: `WHERE agent_id = $1` → `WHERE cod_agent = $1`
-- UPSERT conflict: `ON CONFLICT (agent_id)` → `ON CONFLICT (cod_agent)`
+**3.2 Filtros Avançados (FilterBuilder)**
+- Construtor visual de filtros
+- Combinar condições (AND/OR)
+- Salvar filtros como favoritos
+- Compartilhar filtros
 
-#### 3.2 advbox-sync/index.ts
-
-Mesmas substituições:
-- Parâmetro de entrada: `agentId` → `codAgent`
-- Todas as queries SQL usando `agent_id` → `cod_agent`
-
-#### 3.3 advbox-notify/index.ts
-
-Substituições:
-- `agent_id` nos parâmetros → `cod_agent`
-- Queries de busca e insert
-
-#### 3.4 advbox-query/index.ts
-
-Substituições:
-- `agent_id` → `cod_agent` em todas as queries
+**3.3 Busca Global**
+- Command+K para busca rápida
+- Busca em todos os boards
+- Resultados agrupados por board
 
 ---
 
-### Fase 4: Atualizar Hooks
+### Fase 4: Automações
 
-#### 4.1 useAdvboxIntegration.ts
+**4.1 Triggers Disponíveis**
+| Trigger | Descrição |
+|---------|-----------|
+| deal_created | Quando um deal é criado |
+| deal_moved | Quando um deal muda de pipeline |
+| field_changed | Quando um campo específico muda |
+| time_based | X dias sem movimentação |
 
-```typescript
-// ANTES
-loadIntegration: (agentId: number) => Promise<void>;
-saveIntegration: (agentId: number, data: AdvboxIntegrationFormData) => Promise<boolean>;
+**4.2 Actions Disponíveis**
+| Action | Descrição |
+|--------|-----------|
+| move_deal | Mover para outro pipeline |
+| update_field | Atualizar campo do deal |
+| send_notification | Notificar via WhatsApp |
+| webhook | Chamar URL externa |
+| assign_to | Atribuir a usuário |
 
-// DEPOIS
-loadIntegration: (codAgent: string) => Promise<void>;
-saveIntegration: (codAgent: string, data: AdvboxIntegrationFormData) => Promise<boolean>;
-```
-
-#### 4.2 useNotificationRules.ts
-
-```typescript
-// ANTES
-loadRules: (agentId: number) => Promise<void>;
-saveRule: (agentId: number, integrationId: string, data, ruleId?) => Promise<boolean>;
-
-// DEPOIS
-loadRules: (codAgent: string) => Promise<void>;
-saveRule: (codAgent: string, integrationId: string, data, ruleId?) => Promise<boolean>;
-```
-
-#### 4.3 useProcessesCache.ts
-
-```typescript
-// ANTES
-loadProcesses: (agentId: number, filters?) => Promise<void>;
-syncProcesses: (agentId: number) => Promise<{...}>;
-
-// DEPOIS
-loadProcesses: (codAgent: string, filters?) => Promise<void>;
-syncProcesses: (codAgent: string) => Promise<{...}>;
-```
-
-#### 4.4 useNotificationLogs.ts
-
-```typescript
-// ANTES
-loadLogs: (agentId: number, filters) => Promise<void>;
-
-// DEPOIS
-loadLogs: (codAgent: string, filters) => Promise<void>;
-```
-
-#### 4.5 useClientQueries.ts
-
-```typescript
-// ANTES
-loadQueries: (agentId: number, filters) => Promise<void>;
-
-// DEPOIS
-loadQueries: (codAgent: string, filters) => Promise<void>;
-```
+**4.3 Interface de Automações**
+- Lista de automações do board
+- Ativar/Desativar com switch
+- Logs de execução
+- Teste de automação
 
 ---
 
-### Fase 5: Atualizar Páginas
+### Fase 5: Analytics e Dashboard
 
-Todas as 5 páginas seguem o mesmo padrão:
+**5.1 Métricas por Board**
+- Total de deals (abertos/ganhos/perdidos)
+- Valor total no pipeline
+- Taxa de conversão por pipeline
+- Tempo médio em cada fase
+- Deals estagnados
 
-```typescript
-// ANTES
-const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
-loadIntegration(selectedAgentId);
+**5.2 Gráficos**
+- Funil de conversão (Recharts)
+- Valor por pipeline (BarChart)
+- Evolução temporal (LineChart)
+- Distribuição por responsável
 
-// DEPOIS
-const [selectedCodAgent, setSelectedCodAgent] = useState<string | null>(null);
-loadIntegration(selectedCodAgent);
-```
-
-Páginas afetadas:
-- `IntegrationPage.tsx`
-- `NotificationRulesPage.tsx`
-- `ProcessesPage.tsx`
-- `LogsPage.tsx`
-- `QueriesPage.tsx`
+**5.3 Board Analytics Page**
+- Dashboard com cards de KPIs
+- Gráficos interativos
+- Filtros de período
+- Export para PDF/Excel
 
 ---
 
-### Fase 6: Atualizar Tabelas do Banco Externo
+### Fase 6: Templates e Extras
 
-**Importante:** As tabelas Advbox estão no banco externo PostgreSQL.
+**6.1 Templates de Board**
+| Template | Pipelines Padrão |
+|----------|------------------|
+| Vendas | Lead → Qualificado → Proposta → Negociação → Fechado |
+| Suporte | Novo → Em Análise → Aguardando → Resolvido |
+| Recrutamento | Aplicado → Triagem → Entrevista → Proposta → Contratado |
+| Jurídico | Entrada → Análise → Documentação → Audiência → Encerrado |
 
-Script SQL de migração a ser executado manualmente:
+**6.2 Importação/Exportação**
+- Importar deals via CSV
+- Exportar board para Excel
+- Backup de configurações
 
-```sql
--- 1. Adicionar coluna cod_agent às tabelas
-ALTER TABLE advbox_integrations 
-  ADD COLUMN IF NOT EXISTS cod_agent TEXT;
+**6.3 Realtime**
+- Sync instantâneo entre usuários
+- Indicador de "usuário editando"
+- Notificações de mudanças
 
--- 2. Popular cod_agent usando a tabela agents
-UPDATE advbox_integrations ai
-SET cod_agent = a.cod_agent::text
-FROM agents a
-WHERE ai.agent_id = a.id;
+---
 
--- 3. Tornar cod_agent NOT NULL e criar índice único
-ALTER TABLE advbox_integrations 
-  ALTER COLUMN cod_agent SET NOT NULL;
+## Rota e Menu
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_advbox_integrations_cod_agent 
-  ON advbox_integrations(cod_agent);
-
--- 4. Remover constraint antiga e criar nova
-ALTER TABLE advbox_integrations 
-  DROP CONSTRAINT IF EXISTS advbox_integrations_agent_id_key;
-
--- Repetir para as outras 5 tabelas:
--- advbox_notification_rules
--- advbox_processes_cache
--- advbox_notification_logs
--- advbox_client_queries
--- advbox_lead_sync
+```typescript
+// App.tsx
+<Route path="/crm-builder" element={<CRMBuilderPage />} />
+<Route path="/crm-builder/:boardId" element={<BoardPage />} />
 ```
+
+Menu lateral com ícone de Kanban ou LayoutDashboard.
+
+---
+
+## Diferenciais Competitivos
+
+| Diferencial | Descrição |
+|-------------|-----------|
+| **Performance** | Virtualização para 1000+ cards, lazy loading |
+| **UX Fluida** | Animações suaves, feedback háptico, atalhos de teclado |
+| **Flexibilidade** | Campos 100% customizáveis por board |
+| **Inteligência** | Sugestões de automações baseadas em padrões |
+| **Integração** | Conectar com WhatsApp, Email, Calendário |
+| **Mobile-First** | Touch drag-and-drop, responsive design |
+| **Multi-Tenancy** | Isolamento total por cod_agent |
 
 ---
 
 ## Ordem de Implementação
 
-| # | Etapa | Tipo |
-|---|-------|------|
-| 1 | Atualizar `src/types/advbox.ts` | Tipos |
-| 2 | Atualizar `AdvboxAgentSelect.tsx` | Componente |
-| 3 | Atualizar 4 Edge Functions | Backend |
-| 4 | Atualizar 5 Hooks | Lógica |
-| 5 | Atualizar 5 Páginas | UI |
-| 6 | Executar SQL no banco externo (manual) | Banco |
-| 7 | Testar fluxo completo | Validação |
+| # | Etapa | Estimativa |
+|---|-------|------------|
+| 1 | Criar tabelas no Lovable Cloud | 30min |
+| 2 | Instalar @dnd-kit e criar tipos | 15min |
+| 3 | BoardGrid + BoardCard + CreateBoardDialog | 2h |
+| 4 | PipelineColumn + CreatePipelineDialog | 2h |
+| 5 | DealCard + CreateDealDialog + DnD básico | 3h |
+| 6 | DealDetailsSheet com timeline | 2h |
+| 7 | CustomFieldsManager + DynamicFieldRenderer | 3h |
+| 8 | Filtros e busca | 2h |
+| 9 | Automações (básico) | 3h |
+| 10 | Analytics dashboard | 2h |
+| 11 | Templates e polish | 2h |
 
----
-
-## Riscos e Mitigações
-
-| Risco | Mitigação |
-|-------|-----------|
-| Dados existentes com agent_id | Script SQL popula cod_agent antes de remover agent_id |
-| Incompatibilidade de tipos | Migrar tipos primeiro, depois código |
-| Downtime durante migração | Manter ambas colunas temporariamente até validação |
+**Total estimado: 21-25 horas**
 
 ---
 
 ## Resultado Esperado
 
-Após a migração:
-- Usuários com vínculo completo (`agent_id` + `cod_agent`) funcionam normalmente
-- Usuários com vínculo monitorado (apenas `cod_agent`) podem configurar Advbox
-- Consistência com CRM, Dashboard, FollowUp e outros módulos
-- Queries unificadas usando `cod_agent` como identificador único
+Um CRM customizável de nível enterprise que combina:
+- **Simplicidade do Trello** - Interface intuitiva
+- **Poder do Salesforce** - Campos e automações customizáveis
+- **Visual do Pipedrive** - Foco em pipeline visual
+- **Flexibilidade do Airtable** - Dados estruturados dinamicamente
+- **Colaboração do Monday.com** - Realtime e multi-usuário
+
+O sistema será escalável, performático e totalmente integrado ao ecossistema existente (WhatsApp, Contratos, Julia IA).
