@@ -31,6 +31,7 @@ import ModulosPage from "./pages/admin/modulos/ModulosPage";
 import VideoQueuePage from "./pages/video/VideoQueuePage";
 import JoinCallPage from "./pages/video/JoinCallPage";
 import ChatPage from "./pages/chat/ChatPage";
+import AdvboxIntegrationPage from "./pages/advbox/IntegrationPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -62,6 +63,7 @@ const App = () => (
                   <Route path="/biblioteca" element={<CriativosPage />} />
                   <Route path="/equipe" element={<EquipePage />} />
                   <Route path="/perfil" element={<ProfileSettingsPage />} />
+                  <Route path="/advbox" element={<AdvboxIntegrationPage />} />
                   
                   {/* Admin-only routes */}
                   <Route element={<AdminRoute />}>
