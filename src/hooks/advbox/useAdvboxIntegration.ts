@@ -98,7 +98,7 @@ export function useAdvboxIntegration(): UseAdvboxIntegrationReturn {
   }, []);
 
   const saveIntegration = useCallback(async (
-    agentId: number, 
+    codAgent: string, 
     data: AdvboxIntegrationFormData
   ): Promise<boolean> => {
     setIsSaving(true);
@@ -113,7 +113,7 @@ export function useAdvboxIntegration(): UseAdvboxIntegrationReturn {
       const { data: saveResult, error } = await supabase.functions.invoke('advbox-integration', {
         body: {
           action: 'save',
-          agentId,
+          codAgent,
           apiEndpoint: data.api_endpoint,
           apiToken: data.api_token,
           isActive: data.is_active,
