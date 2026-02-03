@@ -26,8 +26,8 @@ interface AgentOption {
 }
 
 interface AdvboxAgentSelectProps {
-  value: number | null;
-  onValueChange: (agentId: number | null) => void;
+  value: string | null;
+  onValueChange: (codAgent: string | null) => void;
   disabled?: boolean;
   placeholder?: string;
   className?: string;
