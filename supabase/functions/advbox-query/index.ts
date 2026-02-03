@@ -180,7 +180,7 @@ serve(async (req) => {
           id, process_number, client_name, phase, status, 
           responsible, last_movement_date, last_movement_text
          FROM advbox_processes_cache 
-         WHERE agent_id = $1 
+         WHERE cod_agent = $1 
            AND (
              client_phone = $2 
              OR client_phone LIKE '%' || $2 
@@ -188,7 +188,7 @@ serve(async (req) => {
            )
          ORDER BY last_movement_date DESC
          LIMIT 10`,
-        [agent_id, normalizedPhone]
+        [cod_agent, normalizedPhone]
       );
 
       const processes = processesResult.rows;
