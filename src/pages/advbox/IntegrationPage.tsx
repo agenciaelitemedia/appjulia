@@ -417,6 +417,15 @@ export default function AdvboxIntegrationPage() {
                     <ChevronRight className="w-4 h-4" />
                   </Link>
                 </Button>
+                <Button variant="outline" className="w-full justify-between" asChild>
+                  <Link to="/advbox/processos">
+                    <div className="flex items-center gap-2">
+                      <Database className="w-4 h-4" />
+                      <span>Processos em Cache</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4" />
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
           )}
