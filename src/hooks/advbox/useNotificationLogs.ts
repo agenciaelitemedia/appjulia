@@ -28,14 +28,14 @@ export function useNotificationLogs() {
     isResending: false,
   });
 
-  const loadLogs = useCallback(async (agentId: number, filters: NotificationLogsFilters = {}) => {
+  const loadLogs = useCallback(async (codAgent: string, filters: NotificationLogsFilters = {}) => {
     setState(prev => ({ ...prev, isLoading: true }));
 
     try {
       const { data, error } = await supabase.functions.invoke('db-query', {
         body: {
           action: 'advbox_load_notification_logs',
-          agent_id: agentId,
+          cod_agent: codAgent,
           filters: {
             status: filters.status,
             rule_id: filters.rule_id,
