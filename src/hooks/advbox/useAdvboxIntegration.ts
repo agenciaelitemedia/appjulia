@@ -13,8 +13,8 @@ interface UseAdvboxIntegrationReturn {
   isLoading: boolean;
   isSaving: boolean;
   isTesting: boolean;
-  loadIntegration: (agentId: number) => Promise<void>;
-  saveIntegration: (agentId: number, data: AdvboxIntegrationFormData) => Promise<boolean>;
+  loadIntegration: (codAgent: string) => Promise<void>;
+  saveIntegration: (codAgent: string, data: AdvboxIntegrationFormData) => Promise<boolean>;
   testConnection: (apiEndpoint: string, apiToken: string) => Promise<AdvboxTestConnectionResult>;
   deleteIntegration: (integrationId: string) => Promise<boolean>;
 }
