@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdvboxIntegration } from '@/hooks/advbox/useAdvboxIntegration';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +25,7 @@ import {
   EyeOff,
   Trash2,
   AlertTriangle,
+  ChevronRight,
 } from 'lucide-react';
 import { AdvboxAgentSelect } from '@/components/advbox/AdvboxAgentSelect';
 import type { AdvboxIntegrationFormData, AdvboxSettings } from '@/types/advbox';
@@ -395,6 +397,26 @@ export default function AdvboxIntegrationPage() {
                     <p className="text-sm text-muted-foreground">Consultas Respondidas</p>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Quick Links */}
+          {integration && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Gerenciamento</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Button variant="outline" className="w-full justify-between" asChild>
+                  <Link to="/advbox/regras">
+                    <div className="flex items-center gap-2">
+                      <Bell className="w-4 h-4" />
+                      <span>Regras de Notificação</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4" />
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
           )}

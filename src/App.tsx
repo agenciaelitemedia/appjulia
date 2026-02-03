@@ -32,6 +32,7 @@ import VideoQueuePage from "./pages/video/VideoQueuePage";
 import JoinCallPage from "./pages/video/JoinCallPage";
 import ChatPage from "./pages/chat/ChatPage";
 import AdvboxIntegrationPage from "./pages/advbox/IntegrationPage";
+import AdvboxNotificationRulesPage from "./pages/advbox/NotificationRulesPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -64,6 +65,7 @@ const App = () => (
                   <Route path="/equipe" element={<EquipePage />} />
                   <Route path="/perfil" element={<ProfileSettingsPage />} />
                   <Route path="/advbox" element={<AdvboxIntegrationPage />} />
+                  <Route path="/advbox/regras" element={<AdvboxNotificationRulesPage />} />
                   
                   {/* Admin-only routes */}
                   <Route element={<AdminRoute />}>
