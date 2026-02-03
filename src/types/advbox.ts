@@ -15,7 +15,7 @@ export interface AdvboxSettings {
 
 export interface AdvboxIntegration {
   id: string;
-  agent_id: number;
+  cod_agent: string;
   api_endpoint: string;
   api_token: string; // criptografado no banco
   is_active: boolean;
