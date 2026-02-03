@@ -204,11 +204,11 @@ serve(async (req) => {
               // Upsert process
               await sql.unsafe(
                 `INSERT INTO advbox_processes_cache 
-                  (agent_id, integration_id, process_id, process_number, client_id, client_name, 
+                  (cod_agent, integration_id, process_id, process_number, client_id, client_name, 
                    client_phone, phase, status, responsible, last_movement_id, last_movement_date, 
                    last_movement_text, full_data, cached_at, updated_at)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
-                 ON CONFLICT (agent_id, process_id) DO UPDATE SET
+                 ON CONFLICT (cod_agent, process_id) DO UPDATE SET
                    process_number = EXCLUDED.process_number,
                    client_name = EXCLUDED.client_name,
                    client_phone = EXCLUDED.client_phone,
