@@ -401,6 +401,26 @@ export default function AdvboxIntegrationPage() {
             </Card>
           )}
 
+          {/* Quick Links */}
+          {integration && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Gerenciamento</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Button variant="outline" className="w-full justify-between" asChild>
+                  <Link to="/advbox/regras">
+                    <div className="flex items-center gap-2">
+                      <Bell className="w-4 h-4" />
+                      <span>Regras de Notificação</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4" />
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Error Alert */}
           {integration?.last_error && (
             <Alert variant="destructive">
