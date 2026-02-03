@@ -15,8 +15,15 @@ import type {
   DownloadMediaRequest,
   DownloadMediaResponse,
 } from '../types';
+import type { FindMessagesRequest, FindMessagesResponse } from '@/types/chat';
 
 export interface MessageEndpoints {
+  /**
+   * Find messages for a chat
+   * POST /message/find
+   */
+  find: (data: FindMessagesRequest) => Promise<FindMessagesResponse>;
+  
   /**
    * Send a text message
    * POST /send/text
@@ -105,6 +112,10 @@ export function createMessageEndpoints(client: UaZapiClient | null): MessageEndp
   };
 
   return {
+    async find(data: FindMessagesRequest): Promise<FindMessagesResponse> {
+      return assertClient().post<FindMessagesResponse>('/message/find', data);
+    },
+
     async sendText(data: SendTextRequest): Promise<MessageResponse> {
       return assertClient().post<MessageResponse>('/send/text', data);
     },
