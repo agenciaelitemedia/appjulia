@@ -153,7 +153,7 @@ export default function AdvboxLogsPage() {
         </CardContent>
       </Card>
 
-      {selectedAgentId && (
+      {selectedCodAgent && (
         <>
           {/* Filters */}
           <Card>
