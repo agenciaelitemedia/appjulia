@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { WhatsAppDataProvider, useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { ChatContainer } from '@/components/chat';
 
