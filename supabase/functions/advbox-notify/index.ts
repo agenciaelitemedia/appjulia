@@ -75,7 +75,7 @@ serve(async (req) => {
   try {
     const body = await req.json();
     const {
-      agent_id,
+      cod_agent,
       rule_id,
       process_id,
       recipient_phone,
@@ -83,9 +83,9 @@ serve(async (req) => {
       log_id, // For resending failed notifications
     } = body;
 
-    if (!agent_id || !recipient_phone) {
+    if (!cod_agent || !recipient_phone) {
       return new Response(
-        JSON.stringify({ error: "agent_id and recipient_phone are required" }),
+        JSON.stringify({ error: "cod_agent and recipient_phone are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
