@@ -114,17 +114,20 @@ async function fetchAdvboxProcesses(
   const data = await response.json();
   
   // Adapt to Advbox API response structure
-  const processes = (data.data || data.processos || []).map((p: Record<string, unknown>) => ({
-    id: p.id || p.processo_id,
-    numero: p.numero || p.numero_processo,
-    cliente_id: p.cliente_id || p.cliente?.id,
-    cliente_nome: p.cliente_nome || p.cliente?.nome,
-    cliente_telefone: p.cliente_telefone || p.cliente?.telefone,
-    fase: p.fase || p.fase_atual,
-    status: p.status,
-    responsavel: p.responsavel || p.advogado_responsavel,
-    ultima_movimentacao: p.ultima_movimentacao || p.movimentacao_recente,
-  }));
+  const processes = (data.data || data.processos || []).map((p: Record<string, unknown>) => {
+    const cliente = p.cliente as Record<string, unknown> | undefined;
+    return {
+      id: p.id || p.processo_id,
+      numero: p.numero || p.numero_processo,
+      cliente_id: p.cliente_id || cliente?.id,
+      cliente_nome: p.cliente_nome || cliente?.nome,
+      cliente_telefone: p.cliente_telefone || cliente?.telefone,
+      fase: p.fase || p.fase_atual,
+      status: p.status,
+      responsavel: p.responsavel || p.advogado_responsavel,
+      ultima_movimentacao: p.ultima_movimentacao || p.movimentacao_recente,
+    };
+  });
 
   return {
     processes,

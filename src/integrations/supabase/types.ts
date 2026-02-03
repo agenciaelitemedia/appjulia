@@ -127,6 +127,246 @@ export type Database = {
           },
         ]
       }
+      crm_boards: {
+        Row: {
+          cod_agent: string
+          color: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          icon: string | null
+          id: string
+          is_archived: boolean
+          name: string
+          position: number
+          settings: Json | null
+          updated_at: string
+        }
+        Insert: {
+          cod_agent: string
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_archived?: boolean
+          name: string
+          position?: number
+          settings?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          cod_agent?: string
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_archived?: boolean
+          name?: string
+          position?: number
+          settings?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      crm_deal_history: {
+        Row: {
+          action: string
+          changed_at: string
+          changed_by: string | null
+          changes: Json | null
+          deal_id: string
+          from_pipeline_id: string | null
+          id: string
+          notes: string | null
+          to_pipeline_id: string | null
+        }
+        Insert: {
+          action: string
+          changed_at?: string
+          changed_by?: string | null
+          changes?: Json | null
+          deal_id: string
+          from_pipeline_id?: string | null
+          id?: string
+          notes?: string | null
+          to_pipeline_id?: string | null
+        }
+        Update: {
+          action?: string
+          changed_at?: string
+          changed_by?: string | null
+          changes?: Json | null
+          deal_id?: string
+          from_pipeline_id?: string | null
+          id?: string
+          notes?: string | null
+          to_pipeline_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_deal_history_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "crm_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_deal_history_from_pipeline_id_fkey"
+            columns: ["from_pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "crm_pipelines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_deal_history_to_pipeline_id_fkey"
+            columns: ["to_pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "crm_pipelines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_deals: {
+        Row: {
+          assigned_to: string | null
+          board_id: string
+          cod_agent: string
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          custom_fields: Json | null
+          description: string | null
+          expected_close_date: string | null
+          id: string
+          pipeline_id: string
+          position: number
+          priority: string | null
+          stage_entered_at: string
+          status: string | null
+          tags: string[] | null
+          title: string
+          updated_at: string
+          value: number | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          board_id: string
+          cod_agent: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          custom_fields?: Json | null
+          description?: string | null
+          expected_close_date?: string | null
+          id?: string
+          pipeline_id: string
+          position?: number
+          priority?: string | null
+          stage_entered_at?: string
+          status?: string | null
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+          value?: number | null
+        }
+        Update: {
+          assigned_to?: string | null
+          board_id?: string
+          cod_agent?: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          custom_fields?: Json | null
+          description?: string | null
+          expected_close_date?: string | null
+          id?: string
+          pipeline_id?: string
+          position?: number
+          priority?: string | null
+          stage_entered_at?: string
+          status?: string | null
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_deals_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "crm_boards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_deals_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "crm_pipelines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_pipelines: {
+        Row: {
+          board_id: string
+          cod_agent: string
+          color: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          position: number
+          updated_at: string
+          win_probability: number | null
+        }
+        Insert: {
+          board_id: string
+          cod_agent: string
+          color?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          position?: number
+          updated_at?: string
+          win_probability?: number | null
+        }
+        Update: {
+          board_id?: string
+          cod_agent?: string
+          color?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          position?: number
+          updated_at?: string
+          win_probability?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_pipelines_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "crm_boards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       video_call_records: {
         Row: {
           cod_agent: string

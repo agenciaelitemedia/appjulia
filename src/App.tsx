@@ -15,6 +15,8 @@ import Dashboard from "./pages/Dashboard";
 import CRMPage from "./pages/crm/CRMPage";
 import CRMStatisticsPage from "./pages/crm/statistics/CRMStatisticsPage";
 import CRMMonitoringPage from "./pages/crm/monitoring/CRMMonitoringPage";
+import CRMBuilderPage from "./pages/crm-builder/CRMBuilderPage";
+import BoardPage from "./pages/crm-builder/BoardPage";
 import AgentsList from "./pages/agents/AgentsList";
 import CreateAgentPage from "./pages/agents/CreateAgentPage";
 import AgentDetailsPage from "./pages/agents/AgentDetailsPage";
@@ -73,6 +75,8 @@ const App = () => (
                   <Route path="/advbox/processos" element={<AdvboxProcessesPage />} />
                   <Route path="/advbox/logs" element={<AdvboxLogsPage />} />
                   <Route path="/advbox/consultas" element={<AdvboxQueriesPage />} />
+                  <Route path="/crm-builder" element={<CRMBuilderPage />} />
+                  <Route path="/crm-builder/:boardId" element={<BoardPage />} />
                   
                   {/* Admin-only routes */}
                   <Route element={<AdminRoute />}>
