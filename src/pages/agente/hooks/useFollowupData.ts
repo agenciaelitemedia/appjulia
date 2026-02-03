@@ -86,9 +86,9 @@ export function useSaveFollowupConfig() {
         return externalDb.raw({
           query: `
             UPDATE followup_config SET
-              step_cadence = $2,
-              msg_cadence = $3,
-              title_cadence = $4,
+              step_cadence = $2::jsonb,
+              msg_cadence = $3::jsonb,
+              title_cadence = $4::jsonb,
               start_hours = $5,
               end_hours = $6,
               auto_message = $7,
@@ -117,7 +117,7 @@ export function useSaveFollowupConfig() {
             INSERT INTO followup_config (
               cod_agent, step_cadence, msg_cadence, title_cadence,
               start_hours, end_hours, auto_message, followup_from, followup_to
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ) VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5, $6, $7, $8, $9)
             RETURNING *
           `,
           params: [
