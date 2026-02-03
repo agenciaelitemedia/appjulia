@@ -53,10 +53,10 @@ export default function AdvboxQueriesPage() {
   });
 
   useEffect(() => {
-    if (selectedAgentId) {
-      loadQueries(selectedAgentId, filters);
+    if (selectedCodAgent) {
+      loadQueries(selectedCodAgent, filters);
     }
-  }, [selectedAgentId, filters, loadQueries]);
+  }, [selectedCodAgent, filters, loadQueries]);
 
   const handleFilterChange = (key: keyof ClientQueriesFilters, value: string | undefined) => {
     setFilters(prev => ({
