@@ -71,6 +71,8 @@ const App = () => (
                   <Route path="/advbox" element={<AdvboxIntegrationPage />} />
                   <Route path="/advbox/regras" element={<AdvboxNotificationRulesPage />} />
                   <Route path="/advbox/processos" element={<AdvboxProcessesPage />} />
+                  <Route path="/advbox/logs" element={<AdvboxLogsPage />} />
+                  <Route path="/advbox/consultas" element={<AdvboxQueriesPage />} />
                   
                   {/* Admin-only routes */}
                   <Route element={<AdminRoute />}>

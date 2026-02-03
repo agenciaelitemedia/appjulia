@@ -426,6 +426,24 @@ export default function AdvboxIntegrationPage() {
                     <ChevronRight className="w-4 h-4" />
                   </Link>
                 </Button>
+                <Button variant="outline" className="w-full justify-between" asChild>
+                  <Link to="/advbox/logs">
+                    <div className="flex items-center gap-2">
+                      <Bell className="w-4 h-4" />
+                      <span>Histórico de Notificações</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4" />
+                  </Link>
+                </Button>
+                <Button variant="outline" className="w-full justify-between" asChild>
+                  <Link to="/advbox/consultas">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4" />
+                      <span>Consultas de Clientes</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4" />
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
           )}
