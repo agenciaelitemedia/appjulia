@@ -15,11 +15,11 @@ export function ChatContainer({ className }: ChatContainerProps) {
   const { selectedContact, selectContact, selectedContactId } = useWhatsAppData();
 
   return (
-    <div className={cn('flex h-full bg-background', className)}>
+    <div className={cn('flex h-full bg-background min-w-0 overflow-hidden', className)}>
       {/* Contact list - always visible on desktop, hidden on mobile when chat is open */}
       <div className={cn(
-        'w-full lg:w-80 lg:min-w-80 border-r flex-shrink-0',
-        selectedContact && 'hidden lg:block'
+        'w-full lg:w-80 lg:max-w-80 lg:flex-shrink-0 flex-shrink-0',
+        selectedContact && 'hidden lg:flex lg:flex-col'
       )}>
         <ChatList />
       </div>

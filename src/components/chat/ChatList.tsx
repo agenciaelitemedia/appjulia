@@ -27,7 +27,7 @@ export function ChatList() {
   } = useWhatsAppData();
 
   return (
-    <div className="h-full flex flex-col border-r bg-background">
+    <div className="h-full flex flex-col bg-background overflow-hidden">
       {/* Header */}
       <div className="p-4 border-b space-y-3">
         <div className="flex items-center justify-between">
