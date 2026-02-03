@@ -52,7 +52,7 @@ export interface AdvboxNotificationRule {
 
 export interface AdvboxProcess {
   id: string;
-  agent_id: number;
+  cod_agent: string;
   integration_id: string;
   process_id: string;
   process_number: string;
