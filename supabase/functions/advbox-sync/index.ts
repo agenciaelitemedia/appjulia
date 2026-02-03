@@ -278,7 +278,7 @@ serve(async (req) => {
         const { page = 1, limit = 50, phase, status, search } = body;
         const offset = (page - 1) * limit;
 
-        let whereClause = 'WHERE agent_id = $1';
+        let whereClause = 'WHERE cod_agent = $1';
         const params: (string | number)[] = [agentId];
         let paramIndex = 2;
 
