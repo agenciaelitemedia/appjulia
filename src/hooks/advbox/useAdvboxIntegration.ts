@@ -133,6 +133,8 @@ export function useAdvboxIntegration(): UseAdvboxIntegrationReturn {
 
       // Reload integration data
       await loadIntegration(codAgent);
+
+      toast({
         title: testResult.success ? 'Integração salva' : 'Integração salva com erros',
         description: testResult.success 
           ? 'Configuração do Advbox salva com sucesso!'
