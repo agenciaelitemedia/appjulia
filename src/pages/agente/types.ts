@@ -1,3 +1,5 @@
+import { parseDbTimestamp } from '@/lib/dateUtils';
+
 // FollowUp Configuration Types
 export interface FollowupConfig {
   id: number;
@@ -75,7 +77,9 @@ export function calculateNextSendDate(
   if (!interval) return null;
 
   const { value, unit } = parseInterval(interval);
-  const date = new Date(sendDate);
+  // Use parseDbTimestamp to handle external DB timestamps correctly
+  // External system saves Brasília time with 'Z' suffix
+  const date = parseDbTimestamp(sendDate);
 
   switch (unit) {
     case 'minutes':
