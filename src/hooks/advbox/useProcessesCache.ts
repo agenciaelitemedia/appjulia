@@ -17,9 +17,9 @@ interface UseProcessesCacheReturn {
   page: number;
   isLoading: boolean;
   isSyncing: boolean;
-  loadProcesses: (agentId: number, filters?: { page?: number; phase?: string; status?: string; search?: string }) => Promise<void>;
-  loadStats: (agentId: number) => Promise<void>;
-  syncProcesses: (agentId: number) => Promise<{ success: boolean; synced?: number; newMovements?: number }>;
+  loadProcesses: (codAgent: string, filters?: { page?: number; phase?: string; status?: string; search?: string }) => Promise<void>;
+  loadStats: (codAgent: string) => Promise<void>;
+  syncProcesses: (codAgent: string) => Promise<{ success: boolean; synced?: number; newMovements?: number }>;
 }
 
 export function useProcessesCache(): UseProcessesCacheReturn {
