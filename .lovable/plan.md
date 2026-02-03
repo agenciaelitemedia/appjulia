@@ -1,82 +1,143 @@
 
-# Plano: Corrigir Seleção de Agente no FollowUp
+# Plano: Corrigir Campos JSONB da Configuração de FollowUp
 
 ## Problema Identificado
 
-A lógica de seleção de agente no `FollowupPage.tsx` está usando o campo **legado** `user.cod_agent` da tabela `users` em vez de usar os agentes vinculados na tabela `user_agents`.
+Os campos JSONB (`step_cadence`, `msg_cadence`, `title_cadence`) da tabela `followup_config` estão sendo salvos como **strings de texto** em vez de **objetos JSON nativos**.
 
-### Fluxo Atual (Incorreto)
+### Causa Raiz
+
+No arquivo `src/pages/agente/hooks/useFollowupData.ts` (linhas 86-135), a query SQL recebe os valores como `JSON.stringify()`, mas **não aplica o cast `::jsonb`** explícito, fazendo o PostgreSQL interpretar como texto literal.
+
+### Formato Incorreto (Atual)
+```sql
+step_cadence = $2  -- recebe: '{"cadence_1":"5 minutes"}'
+                   -- PostgreSQL salva como: TEXT "{\"cadence_1\":\"5 minutes\"}"
 ```
-useJuliaAgents() → busca user_agents → retorna [202602001]
-↓
-user.cod_agent → 202512001 (tabela users - legado)
-↓
-Para não-admin: selectedAgent = user.cod_agent = 202512001 ← SOBRESCREVE!
+
+### Formato Correto (Esperado)
+```sql
+step_cadence = $2::jsonb  -- recebe: '{"cadence_1":"5 minutes"}'
+                          -- PostgreSQL salva como: JSONB {"cadence_1":"5 minutes"}
 ```
-
-### Dados do Usuário Atual
-| Fonte | Campo | Valor |
-|-------|-------|-------|
-| `users` (legado) | `cod_agent` | 202512001 |
-| `user_agents` (correto) | `cod_agent` | 202602001 |
-
-O sistema deveria usar **apenas** os agentes da tabela `user_agents`, ignorando o campo legado.
 
 ---
 
 ## Solução
 
-Remover a lógica que prioriza `user.cod_agent` e sempre usar o primeiro agente da lista `agents` (que já vem filtrado pela tabela `user_agents`).
+Aplicar o cast `::jsonb` explícito em todas as queries que manipulam os campos JSONB da tabela `followup_config`.
 
 ---
 
 ## Arquivo a Modificar
 
-**`src/pages/agente/followup/FollowupPage.tsx`**
+**`src/pages/agente/hooks/useFollowupData.ts`**
 
-### Código Atual (linhas 99-114):
+### Mudanças na Query de UPDATE (linhas 86-112)
+
 ```typescript
-useEffect(() => {
-  if (agents.length > 0) {
-    // If non-admin user has assigned agent, use that
-    if (user?.role !== 'admin' && user?.cod_agent) {
-      const userAgentCode = String(user.cod_agent);
-      if (selectedAgent !== userAgentCode) {
-        setSelectedAgent(userAgentCode);
-      }
-    } else if (!selectedAgent) {
-      // Admin or no assigned agent: select first available
-      setSelectedAgent(agents[0].cod_agent);
-    }
-  }
-}, [agents, user?.role, user?.cod_agent]);
+// ANTES (incorreto):
+return externalDb.raw({
+  query: `
+    UPDATE followup_config SET
+      step_cadence = $2,
+      msg_cadence = $3,
+      title_cadence = $4,
+      ...
+  `,
+  params: [
+    config.cod_agent,
+    JSON.stringify(config.step_cadence || {}),
+    JSON.stringify(config.msg_cadence || {}),
+    JSON.stringify(config.title_cadence || {}),
+    ...
+  ],
+});
+
+// DEPOIS (correto):
+return externalDb.raw({
+  query: `
+    UPDATE followup_config SET
+      step_cadence = $2::jsonb,
+      msg_cadence = $3::jsonb,
+      title_cadence = $4::jsonb,
+      ...
+  `,
+  params: [
+    config.cod_agent,
+    JSON.stringify(config.step_cadence || {}),
+    JSON.stringify(config.msg_cadence || {}),
+    JSON.stringify(config.title_cadence || {}),
+    ...
+  ],
+});
 ```
 
-### Código Corrigido:
+### Mudanças na Query de INSERT (linhas 115-134)
+
 ```typescript
-useEffect(() => {
-  if (agents.length > 0 && !selectedAgent) {
-    // Sempre usar o primeiro agente da lista (já vem filtrado pela tabela user_agents)
-    setSelectedAgent(agents[0].cod_agent);
-  }
-}, [agents, selectedAgent]);
+// ANTES (incorreto):
+return externalDb.raw({
+  query: `
+    INSERT INTO followup_config (
+      cod_agent, step_cadence, msg_cadence, title_cadence, ...
+    ) VALUES ($1, $2, $3, $4, ...)
+  `,
+  ...
+});
+
+// DEPOIS (correto):
+return externalDb.raw({
+  query: `
+    INSERT INTO followup_config (
+      cod_agent, step_cadence, msg_cadence, title_cadence, ...
+    ) VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, ...)
+  `,
+  ...
+});
 ```
 
 ---
 
-## Justificativa
+## Resumo das Mudanças
 
-1. **Fonte Única de Verdade**: A tabela `user_agents` é a fonte correta para determinar quais agentes o usuário pode acessar
-2. **Consistência**: O hook `useJuliaAgents()` já faz a query correta via `get_crm_agents_for_user`
-3. **Elimina Campo Legado**: O campo `users.cod_agent` é legado e pode estar desatualizado
-4. **Simplicidade**: Código mais simples e fácil de manter
+| Query | Campo | Antes | Depois |
+|-------|-------|-------|--------|
+| UPDATE | step_cadence | `= $2` | `= $2::jsonb` |
+| UPDATE | msg_cadence | `= $3` | `= $3::jsonb` |
+| UPDATE | title_cadence | `= $4` | `= $4::jsonb` |
+| INSERT | step_cadence | `$2` | `$2::jsonb` |
+| INSERT | msg_cadence | `$3` | `$3::jsonb` |
+| INSERT | title_cadence | `$4` | `$4::jsonb` |
 
 ---
 
-## Impacto
+## Prevenção Futura
 
-| Antes | Depois |
-|-------|--------|
-| Não-admin usa `user.cod_agent` (legado) | Todos usam `agents[0]` |
-| Admin usa `agents[0]` | Todos usam `agents[0]` |
-| Possível inconsistência entre tabelas | Fonte única: `user_agents` |
+O padrão estabelecido no código é:
+
+1. **Frontend**: Sempre usar `JSON.stringify()` para converter objetos em strings JSON
+2. **Query SQL**: Sempre usar `::jsonb` cast explícito para campos JSONB
+3. **Edge Function**: O `db-query` já tem esse padrão para a tabela `agents` com o campo `settings`
+
+Este padrão garante que o PostgreSQL interprete corretamente o valor como JSONB nativo, evitando que seja armazenado como texto literal.
+
+---
+
+## Ação Adicional Recomendada
+
+Após a correção, pode ser necessário corrigir os dados já corrompidos no banco:
+
+```sql
+-- Query para corrigir dados existentes (executar no banco externo)
+UPDATE followup_config
+SET 
+  step_cadence = (step_cadence #>> '{}')::jsonb,
+  msg_cadence = (msg_cadence #>> '{}')::jsonb,
+  title_cadence = (title_cadence #>> '{}')::jsonb
+WHERE jsonb_typeof(step_cadence) = 'string'
+   OR jsonb_typeof(msg_cadence) = 'string'
+   OR jsonb_typeof(title_cadence) = 'string';
+```
+
+Essa query converte os valores que estão como strings de volta para objetos JSON nativos.
