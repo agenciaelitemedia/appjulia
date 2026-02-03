@@ -167,10 +167,10 @@ serve(async (req) => {
       // Create notification log (pending status)
       const insertResult = await client.queryObject<{ id: string }>(
         `INSERT INTO advbox_notification_logs 
-         (agent_id, integration_id, rule_id, process_id, recipient_phone, message_text, status)
+         (cod_agent, integration_id, rule_id, process_id, recipient_phone, message_text, status)
          VALUES ($1, $2, $3, $4, $5, $6, 'pending')
          RETURNING id`,
-        [agent_id, integrationId, rule_id || null, process_id || null, recipient_phone, messageText]
+        [cod_agent, integrationId, rule_id || null, process_id || null, recipient_phone, messageText]
       );
 
       const notificationLogId = insertResult.rows[0].id;
