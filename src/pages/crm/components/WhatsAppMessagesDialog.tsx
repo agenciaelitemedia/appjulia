@@ -1223,11 +1223,6 @@ export function WhatsAppMessagesDialog({
               )}
             </Button>
           </div>
-          {!isConfigured && (
-            <p className="text-[10px] text-destructive mt-1">
-              Configure as credenciais da UaZapi para enviar mensagens
-            </p>
-          )}
         </div>
       </DialogContent>
     </Dialog>
