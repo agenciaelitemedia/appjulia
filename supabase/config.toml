@@ -2,3 +2,9 @@ project_id = "zenizgyrwlonmufxnjqt"
 
 [functions.uazapi-proxy]
 verify_jwt = false
+
+[functions.advbox-notify]
+verify_jwt = false
+
+[functions.advbox-query]
+verify_jwt = false

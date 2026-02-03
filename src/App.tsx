@@ -35,6 +35,8 @@ import ChatPage from "./pages/chat/ChatPage";
 import AdvboxIntegrationPage from "./pages/advbox/IntegrationPage";
 import AdvboxNotificationRulesPage from "./pages/advbox/NotificationRulesPage";
 import AdvboxProcessesPage from "./pages/advbox/ProcessesPage";
+import AdvboxLogsPage from "./pages/advbox/LogsPage";
+import AdvboxQueriesPage from "./pages/advbox/QueriesPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -69,6 +71,8 @@ const App = () => (
                   <Route path="/advbox" element={<AdvboxIntegrationPage />} />
                   <Route path="/advbox/regras" element={<AdvboxNotificationRulesPage />} />
                   <Route path="/advbox/processos" element={<AdvboxProcessesPage />} />
+                  <Route path="/advbox/logs" element={<AdvboxLogsPage />} />
+                  <Route path="/advbox/consultas" element={<AdvboxQueriesPage />} />
                   
                   {/* Admin-only routes */}
                   <Route element={<AdminRoute />}>
