@@ -103,7 +103,7 @@ export default function ProcessesPage() {
         {isAdmin && (
           <AdvboxAgentSelect
             value={selectedAgentId}
-            onChange={setSelectedAgentId}
+            onValueChange={setSelectedAgentId}
           />
         )}
       </div>
