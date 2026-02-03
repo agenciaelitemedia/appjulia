@@ -154,8 +154,8 @@ serve(async (req) => {
           
           // Get integration
           const intResult = await client.queryObject<{ id: string }>(
-            `SELECT id FROM advbox_integrations WHERE agent_id = $1 AND is_active = true`,
-            [agent_id]
+            `SELECT id FROM advbox_integrations WHERE cod_agent = $1 AND is_active = true`,
+            [cod_agent]
           );
           
           if (intResult.rows.length > 0) {
