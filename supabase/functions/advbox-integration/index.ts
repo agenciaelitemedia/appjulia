@@ -265,14 +265,14 @@ serve(async (req) => {
 
       case 'get': {
         // Get integration with decrypted token (for internal use)
-        const { agentId } = body;
+        const { codAgent } = body;
         
         sql = createConnection(caCerts);
         await sql`SET timezone = 'America/Sao_Paulo'`;
 
         const result = await sql.unsafe(
-          `SELECT * FROM advbox_integrations WHERE agent_id = $1 LIMIT 1`,
-          [agentId]
+          `SELECT * FROM advbox_integrations WHERE cod_agent = $1 LIMIT 1`,
+          [codAgent]
         );
 
         await sql.end();

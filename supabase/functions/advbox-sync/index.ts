@@ -341,10 +341,10 @@ serve(async (req) => {
         const phaseStats = await sql.unsafe(
           `SELECT phase, COUNT(*) as count 
            FROM advbox_processes_cache 
-           WHERE agent_id = $1 AND phase IS NOT NULL
+           WHERE cod_agent = $1 AND phase IS NOT NULL
            GROUP BY phase 
            ORDER BY count DESC`,
-          [agentId]
+          [codAgent]
         );
 
         await sql.end();

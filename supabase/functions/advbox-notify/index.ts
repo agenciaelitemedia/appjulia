@@ -188,7 +188,7 @@ serve(async (req) => {
           body: JSON.stringify({
             phone: recipient_phone,
             message: messageText,
-            agent_id: agent_id,
+            cod_agent: cod_agent,
             source: "advbox_notify",
           }),
         });

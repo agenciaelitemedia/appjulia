@@ -205,11 +205,11 @@ serve(async (req) => {
       // Log the query
       await client.queryObject(
         `INSERT INTO advbox_client_queries 
-         (agent_id, integration_id, client_phone, client_name, query_text, query_type, 
+         (cod_agent, integration_id, client_phone, client_name, query_text, query_type, 
           found_processes, response_text, response_sent, query_time_ms)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9)`,
         [
-          agent_id,
+          cod_agent,
           integration.id,
           normalizedPhone,
           clientName,
