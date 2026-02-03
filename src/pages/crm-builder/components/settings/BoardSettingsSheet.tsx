@@ -5,8 +5,10 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings2, Layers } from 'lucide-react';
+import { Settings2, Layers, Zap } from 'lucide-react';
 import { CustomFieldsManager } from '../custom-fields/CustomFieldsManager';
+import { AutomationsManager } from '../automations/AutomationsManager';
+import type { CRMPipeline } from '../../types';
 
 interface BoardSettingsSheetProps {
   open: boolean;
@@ -14,6 +16,7 @@ interface BoardSettingsSheetProps {
   boardId: string;
   codAgent: string;
   boardName: string;
+  pipelines: CRMPipeline[];
 }
 
 export function BoardSettingsSheet({
@@ -22,6 +25,7 @@ export function BoardSettingsSheet({
   boardId,
   codAgent,
   boardName,
+  pipelines,
 }: BoardSettingsSheetProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -34,10 +38,14 @@ export function BoardSettingsSheet({
         </SheetHeader>
 
         <Tabs defaultValue="custom-fields" className="mt-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="custom-fields" className="gap-2">
               <Layers className="h-4 w-4" />
               Campos
+            </TabsTrigger>
+            <TabsTrigger value="automations" className="gap-2">
+              <Zap className="h-4 w-4" />
+              Automações
             </TabsTrigger>
             <TabsTrigger value="general" className="gap-2">
               <Settings2 className="h-4 w-4" />
@@ -47,6 +55,10 @@ export function BoardSettingsSheet({
 
           <TabsContent value="custom-fields" className="mt-4">
             <CustomFieldsManager boardId={boardId} codAgent={codAgent} />
+          </TabsContent>
+
+          <TabsContent value="automations" className="mt-4">
+            <AutomationsManager boardId={boardId} codAgent={codAgent} pipelines={pipelines} />
           </TabsContent>
 
           <TabsContent value="general" className="mt-4">

@@ -127,6 +127,159 @@ export type Database = {
           },
         ]
       }
+      crm_automation_logs: {
+        Row: {
+          deal_id: string
+          details: Json | null
+          executed_at: string
+          from_pipeline_id: string | null
+          id: string
+          rule_id: string
+          success: boolean
+          to_pipeline_id: string | null
+        }
+        Insert: {
+          deal_id: string
+          details?: Json | null
+          executed_at?: string
+          from_pipeline_id?: string | null
+          id?: string
+          rule_id: string
+          success?: boolean
+          to_pipeline_id?: string | null
+        }
+        Update: {
+          deal_id?: string
+          details?: Json | null
+          executed_at?: string
+          from_pipeline_id?: string | null
+          id?: string
+          rule_id?: string
+          success?: boolean
+          to_pipeline_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_automation_logs_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "crm_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_automation_logs_from_pipeline_id_fkey"
+            columns: ["from_pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "crm_pipelines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_automation_logs_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "crm_automation_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_automation_logs_to_pipeline_id_fkey"
+            columns: ["to_pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "crm_pipelines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_automation_rules: {
+        Row: {
+          action_data: Json | null
+          action_type: string
+          board_id: string
+          cod_agent: string
+          conditions: Json | null
+          created_at: string
+          description: string | null
+          execution_count: number
+          from_pipeline_id: string | null
+          id: string
+          is_active: boolean
+          last_executed_at: string | null
+          name: string
+          position: number
+          to_pipeline_id: string | null
+          trigger_field: string | null
+          trigger_operator: string | null
+          trigger_type: string
+          trigger_value: string | null
+          updated_at: string
+        }
+        Insert: {
+          action_data?: Json | null
+          action_type?: string
+          board_id: string
+          cod_agent: string
+          conditions?: Json | null
+          created_at?: string
+          description?: string | null
+          execution_count?: number
+          from_pipeline_id?: string | null
+          id?: string
+          is_active?: boolean
+          last_executed_at?: string | null
+          name: string
+          position?: number
+          to_pipeline_id?: string | null
+          trigger_field?: string | null
+          trigger_operator?: string | null
+          trigger_type?: string
+          trigger_value?: string | null
+          updated_at?: string
+        }
+        Update: {
+          action_data?: Json | null
+          action_type?: string
+          board_id?: string
+          cod_agent?: string
+          conditions?: Json | null
+          created_at?: string
+          description?: string | null
+          execution_count?: number
+          from_pipeline_id?: string | null
+          id?: string
+          is_active?: boolean
+          last_executed_at?: string | null
+          name?: string
+          position?: number
+          to_pipeline_id?: string | null
+          trigger_field?: string | null
+          trigger_operator?: string | null
+          trigger_type?: string
+          trigger_value?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_automation_rules_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "crm_boards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_automation_rules_from_pipeline_id_fkey"
+            columns: ["from_pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "crm_pipelines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_automation_rules_to_pipeline_id_fkey"
+            columns: ["to_pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "crm_pipelines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_boards: {
         Row: {
           cod_agent: string
