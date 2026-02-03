@@ -27,11 +27,10 @@ import { Link } from 'react-router-dom';
 import { PROCESS_PHASES } from '@/types/advbox';
 
 export default function ProcessesPage() {
-  const { user } = useAuth();
-  const isAdmin = user?.cargo === 'admin';
+  const { user, isAdmin } = useAuth();
   
   const [selectedAgentId, setSelectedAgentId] = useState<number | null>(
-    isAdmin ? null : user?.cod_agent ? parseInt(user.cod_agent) : null
+    isAdmin ? null : user?.cod_agent ?? null
   );
   
   const [searchQuery, setSearchQuery] = useState('');
