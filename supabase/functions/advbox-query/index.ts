@@ -148,8 +148,8 @@ serve(async (req) => {
       }>(
         `SELECT id, settings 
          FROM advbox_integrations 
-         WHERE agent_id = $1 AND is_active = true`,
-        [agent_id]
+         WHERE cod_agent = $1 AND is_active = true`,
+        [cod_agent]
       );
 
       if (integrationResult.rows.length === 0) {
