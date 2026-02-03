@@ -74,7 +74,7 @@ export function AdvboxAgentSelect({
     loadAgents();
   }, [user?.id]);
 
-  const selectedAgent = agents.find((agent) => agent.agent_id === value);
+  const selectedAgent = agents.find((agent) => agent.cod_agent === value);
 
   const displayValue = selectedAgent
     ? `[${selectedAgent.cod_agent}] - ${selectedAgent.client_name}`
