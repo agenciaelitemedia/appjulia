@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -25,13 +25,15 @@ import {
   ArrowLeft,
   Plus,
   RefreshCw,
-  Settings,
+  Settings2,
 } from 'lucide-react';
 import { PipelineColumn } from './components/pipeline/PipelineColumn';
 import { CreatePipelineDialog } from './components/pipeline/CreatePipelineDialog';
 import { DealCard } from './components/deals/DealCard';
 import { CreateDealDialog } from './components/deals/CreateDealDialog';
 import { DealDetailsSheet } from './components/deals/DealDetailsSheet';
+import { BoardFilters, type BoardFiltersState } from './components/filters/BoardFilters';
+import { BoardSettingsSheet } from './components/settings/BoardSettingsSheet';
 import { useCRMPipelines } from './hooks/useCRMPipelines';
 import { useCRMDeals } from './hooks/useCRMDeals';
 import { useCRMCustomFields } from './hooks/useCRMCustomFields';
@@ -72,6 +74,16 @@ export default function BoardPage() {
 
   // Custom Fields
   const { fields: customFields } = useCRMCustomFields({ boardId: boardId || null, codAgent });
+
+  // Filters state
+  const [filters, setFilters] = useState<BoardFiltersState>({
+    search: '',
+    priorities: [],
+    statuses: [],
+    pipelineIds: [],
+  });
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   // Dialog states
   const [isCreatePipelineOpen, setIsCreatePipelineOpen] = useState(false);
   const [editingPipeline, setEditingPipeline] = useState<CRMPipeline | null>(null);
@@ -83,6 +95,46 @@ export default function BoardPage() {
   // DnD state
   const [activeDeal, setActiveDeal] = useState<CRMDeal | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Filter deals
+  const filteredDeals = useMemo(() => {
+    return deals.filter(deal => {
+      // Search filter
+      if (filters.search) {
+        const searchLower = filters.search.toLowerCase();
+        const matchesSearch = 
+          deal.title.toLowerCase().includes(searchLower) ||
+          deal.contact_name?.toLowerCase().includes(searchLower) ||
+          deal.contact_phone?.toLowerCase().includes(searchLower) ||
+          deal.contact_email?.toLowerCase().includes(searchLower);
+        if (!matchesSearch) return false;
+      }
+
+      // Priority filter
+      if (filters.priorities.length > 0 && !filters.priorities.includes(deal.priority)) {
+        return false;
+      }
+
+      // Status filter
+      if (filters.statuses.length > 0 && !filters.statuses.includes(deal.status)) {
+        return false;
+      }
+
+      // Pipeline filter
+      if (filters.pipelineIds.length > 0 && !filters.pipelineIds.includes(deal.pipeline_id)) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [deals, filters]);
+
+  // Get filtered deals by pipeline
+  const getFilteredDealsByPipeline = useCallback((pipelineId: string) => {
+    return filteredDeals
+      .filter(deal => deal.pipeline_id === pipelineId)
+      .sort((a, b) => a.position - b.position);
+  }, [filteredDeals]);
 
   // Sensors for DnD
   const sensors = useSensors(
@@ -300,10 +352,27 @@ export default function BoardPage() {
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </Button>
 
-          <Button variant="ghost" size="icon">
-            <Settings className="h-4 w-4" />
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => setIsSettingsOpen(true)}
+            className="gap-2"
+          >
+            <Settings2 className="h-4 w-4" />
+            Configurações
           </Button>
         </div>
+      </div>
+
+      {/* Filters Bar */}
+      <div className="px-4 py-3 border-b bg-muted/20">
+        <BoardFilters
+          filters={filters}
+          onFiltersChange={setFilters}
+          pipelines={pipelines.map(p => ({ id: p.id, name: p.name, color: p.color }))}
+          totalDeals={deals.length}
+          filteredDeals={filteredDeals.length}
+        />
       </div>
 
       {/* Pipeline Container */}
@@ -327,7 +396,7 @@ export default function BoardPage() {
               ) : (
                 <>
                   {pipelines.map((pipeline) => {
-                    const pipelineDeals = getDealsByPipeline(pipeline.id);
+                    const pipelineDeals = getFilteredDealsByPipeline(pipeline.id);
                     return (
                       <PipelineColumn
                         key={pipeline.id}
@@ -433,6 +502,15 @@ export default function BoardPage() {
         onArchive={() => viewingDeal && archiveDeal(viewingDeal.id)}
         onWon={() => viewingDeal && setDealStatus(viewingDeal.id, 'won')}
         onLost={() => viewingDeal && setDealStatus(viewingDeal.id, 'lost')}
+      />
+
+      {/* Settings Sheet */}
+      <BoardSettingsSheet
+        open={isSettingsOpen}
+        onOpenChange={setIsSettingsOpen}
+        boardId={boardId || ''}
+        codAgent={codAgent}
+        boardName={board.name}
       />
     </div>
   );
