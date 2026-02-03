@@ -41,17 +41,39 @@ const QUEUE_STATES = [
   { value: 'STOP', label: 'Parados' },
 ];
 
-// Helper to parse JSON fields that might be strings or objects
-function parseJsonField<T>(field: string | T | null | undefined, defaultValue: T): T {
-  if (!field) return defaultValue;
-  if (typeof field === 'string') {
-    try {
-      return JSON.parse(field) as T;
-    } catch {
-      return defaultValue;
+/**
+ * Parse JSONB fields from database with multi-parse support.
+ * Handles double-encoded strings (e.g., "\"{...}\"") by parsing recursively.
+ * This prevents corrupted data from causing issues in the UI.
+ */
+function parseJsonField<T extends Record<string, unknown>>(
+  value: unknown,
+  defaultValue: T
+): T {
+  if (value === null || value === undefined) return defaultValue;
+  
+  // Already an object (and not array)
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    return value as T;
+  }
+  
+  // String - try to parse recursively (handles single and double-encoded)
+  if (typeof value === 'string') {
+    let parsed: unknown = value;
+    for (let i = 0; i < 3; i++) {
+      if (typeof parsed !== 'string') break;
+      try {
+        parsed = JSON.parse(parsed);
+      } catch {
+        return defaultValue;
+      }
+    }
+    if (typeof parsed === 'object' && !Array.isArray(parsed) && parsed !== null) {
+      return parsed as T;
     }
   }
-  return field as T;
+  
+  return defaultValue;
 }
 
 // Derive status based on current step, total steps, original state, and infinite mode
