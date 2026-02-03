@@ -18,17 +18,39 @@ interface FollowupConfigProps {
   onSave: (config: Partial<FollowupConfigType>) => void;
 }
 
-// Parse JSONB fields from database (they may be strings or objects)
-function parseJsonField<T>(value: T | string | null | undefined, defaultValue: T): T {
+/**
+ * Parse JSONB fields from database with multi-parse support.
+ * Handles double-encoded strings (e.g., "\"{...}\"") by parsing recursively.
+ * This prevents corrupted data from re-contaminating saves.
+ */
+function parseJsonField<T extends Record<string, unknown>>(
+  value: unknown,
+  defaultValue: T
+): T {
   if (value === null || value === undefined) return defaultValue;
+  
+  // Already an object (and not array)
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    return value as T;
+  }
+  
+  // String - try to parse recursively (handles single and double-encoded)
   if (typeof value === 'string') {
-    try {
-      return JSON.parse(value) as T;
-    } catch {
-      return defaultValue;
+    let parsed: unknown = value;
+    for (let i = 0; i < 3; i++) {
+      if (typeof parsed !== 'string') break;
+      try {
+        parsed = JSON.parse(parsed);
+      } catch {
+        return defaultValue;
+      }
+    }
+    if (typeof parsed === 'object' && !Array.isArray(parsed) && parsed !== null) {
+      return parsed as T;
     }
   }
-  return value as T;
+  
+  return defaultValue;
 }
 
 export function FollowupConfig({ config, isLoading, isSaving, onSave }: FollowupConfigProps) {

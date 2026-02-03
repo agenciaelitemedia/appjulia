@@ -7,6 +7,46 @@ import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getPreviousPeriod } from '@/lib/dateUtils';
 
+/**
+ * Coerce any value to a plain JS object for JSONB storage.
+ * Handles:
+ * - Already an object: returns as-is
+ * - String (single or double-encoded JSON): parses recursively up to 3 times
+ * - Null/undefined: returns defaultValue
+ * 
+ * This prevents the driver from sending stringified JSON which would be stored
+ * as JSONB type "string" instead of "object".
+ */
+function coerceJsonbObject<T extends Record<string, unknown>>(
+  value: unknown,
+  defaultValue: T
+): T {
+  if (value === null || value === undefined) return defaultValue;
+  
+  // Already an object (and not array)
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    return value as T;
+  }
+  
+  // String - try to parse (handles single and double-encoded JSON)
+  if (typeof value === 'string') {
+    let parsed: unknown = value;
+    for (let i = 0; i < 3; i++) {
+      if (typeof parsed !== 'string') break;
+      try {
+        parsed = JSON.parse(parsed);
+      } catch {
+        return defaultValue;
+      }
+    }
+    if (typeof parsed === 'object' && !Array.isArray(parsed) && parsed !== null) {
+      return parsed as T;
+    }
+  }
+  
+  return defaultValue;
+}
+
 // Fetch total sent messages count from followup_history
 // Each record in followup_history represents one sent message
 export function useFollowupSentCount(filters: FollowupFiltersState) {
@@ -69,26 +109,38 @@ export function useFollowupConfig(codAgent: string | null) {
 }
 
 // Save followup configuration
+// IMPORTANT: Uses coerceJsonbObject to ensure objects are passed to driver (not strings)
+// Also uses SQL CASE to auto-unwrap if string somehow arrives (belt-and-suspenders)
 export function useSaveFollowupConfig() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   return useMutation({
     mutationFn: async (config: Partial<FollowupConfig> & { cod_agent: string }) => {
+      // Normalize JSONB fields to plain objects (never stringified)
+      const stepCadence = coerceJsonbObject(config.step_cadence, {});
+      const msgCadence = coerceJsonbObject(config.msg_cadence, {});
+      const titleCadence = coerceJsonbObject(config.title_cadence, {});
+
       // Check if config exists
       const existing = await externalDb.raw<FollowupConfig[]>({
         query: `SELECT id FROM followup_config WHERE cod_agent = $1`,
         params: [config.cod_agent],
       });
 
+      // SQL with CASE WHEN to auto-unwrap if param arrives as JSONB string
+      // This is a safety net in case something upstream sends a string
+      const jsonbUnwrap = (paramNum: number) =>
+        `CASE WHEN jsonb_typeof($${paramNum}::jsonb) = 'string' THEN ($${paramNum}::jsonb #>> '{}')::jsonb ELSE $${paramNum}::jsonb END`;
+
       if (existing.length > 0) {
         // Update existing
         return externalDb.raw({
           query: `
             UPDATE followup_config SET
-              step_cadence = $2::jsonb,
-              msg_cadence = $3::jsonb,
-              title_cadence = $4::jsonb,
+              step_cadence = ${jsonbUnwrap(2)},
+              msg_cadence = ${jsonbUnwrap(3)},
+              title_cadence = ${jsonbUnwrap(4)},
               start_hours = $5,
               end_hours = $6,
               auto_message = $7,
@@ -100,9 +152,9 @@ export function useSaveFollowupConfig() {
           `,
           params: [
             config.cod_agent,
-            JSON.stringify(config.step_cadence || {}),
-            JSON.stringify(config.msg_cadence || {}),
-            JSON.stringify(config.title_cadence || {}),
+            stepCadence,
+            msgCadence,
+            titleCadence,
             config.start_hours ?? 9,
             config.end_hours ?? 19,
             config.auto_message ?? true,
@@ -117,14 +169,20 @@ export function useSaveFollowupConfig() {
             INSERT INTO followup_config (
               cod_agent, step_cadence, msg_cadence, title_cadence,
               start_hours, end_hours, auto_message, followup_from, followup_to
-            ) VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5, $6, $7, $8, $9)
+            ) VALUES (
+              $1, 
+              ${jsonbUnwrap(2)}, 
+              ${jsonbUnwrap(3)}, 
+              ${jsonbUnwrap(4)}, 
+              $5, $6, $7, $8, $9
+            )
             RETURNING *
           `,
           params: [
             config.cod_agent,
-            JSON.stringify(config.step_cadence || {}),
-            JSON.stringify(config.msg_cadence || {}),
-            JSON.stringify(config.title_cadence || {}),
+            stepCadence,
+            msgCadence,
+            titleCadence,
             config.start_hours ?? 9,
             config.end_hours ?? 19,
             config.auto_message ?? true,
