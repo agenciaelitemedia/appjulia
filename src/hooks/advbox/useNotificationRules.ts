@@ -19,7 +19,7 @@ export function useNotificationRules(): UseNotificationRulesReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const loadRules = useCallback(async (agentId: number) => {
+  const loadRules = useCallback(async (codAgent: string) => {
     setIsLoading(true);
     try {
       const result = await externalDb.raw<AdvboxNotificationRule>({
@@ -29,10 +29,10 @@ export function useNotificationRules(): UseNotificationRulesReturn {
             (SELECT COUNT(*) FROM advbox_notification_logs anl WHERE anl.rule_id = anr.id) as notifications_sent,
             (SELECT MAX(created_at) FROM advbox_notification_logs anl WHERE anl.rule_id = anr.id) as last_triggered
           FROM advbox_notification_rules anr
-          WHERE anr.agent_id = $1
+          WHERE anr.cod_agent = $1
           ORDER BY anr.created_at DESC
         `,
-        params: [agentId],
+        params: [codAgent],
       });
 
       setRules(result);
