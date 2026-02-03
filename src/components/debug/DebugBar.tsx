@@ -1,4 +1,5 @@
-import { useDebug, isDevEnvironment, DebugTab } from '@/contexts/DebugContext';
+import { useDebug, canUseDebugTools, DebugTab } from '@/contexts/DebugContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { 
@@ -66,6 +67,7 @@ const tabs: TabConfig[] = [
 
 export function DebugBar() {
   const state = useDebug();
+  const { user } = useAuth();
   const { enabled, expanded, activeTab, setExpanded, setActiveTab, setEnabled } = state;
   const [height, setHeight] = useState(250);
   const [isResizing, setIsResizing] = useState(false);
@@ -93,8 +95,8 @@ export function DebugBar() {
     document.addEventListener('mouseup', handleMouseUp);
   }, [height]);
 
-  // Don't render in production
-  if (!isDevEnvironment || !enabled) {
+  // Don't render if user doesn't have access or it's disabled
+  if (!canUseDebugTools(user?.role) || !enabled) {
     return null;
   }
 
