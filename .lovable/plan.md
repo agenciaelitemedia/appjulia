@@ -1,209 +1,283 @@
 
+# Plano: Migrar Advbox de agent_id para cod_agent
 
-# Próximo Passo: Fase 5 - Edge Functions + Páginas Pendentes
+## Resumo Executivo
 
-## Visão Geral
+Migrar o módulo Advbox para usar `cod_agent` (string) como identificador principal em vez de `agent_id` (integer), garantindo consistência com o restante do sistema (CRM, Dashboard, FollowUp) e permitindo que usuários com vínculos "monitorados" (que possuem apenas `cod_agent` sem `agent_id`) também possam configurar a integração.
 
-Esta fase implementa as funcionalidades restantes do módulo Advbox:
-1. **Edge Function `advbox-notify`** - Envio de notificações via WhatsApp
-2. **Edge Function `advbox-query`** - Consultas de processos via Julia IA
-3. **Páginas `LogsPage` e `QueriesPage`** - Histórico de notificações e consultas
-4. **Hooks `useNotificationLogs` e `useClientQueries`**
-5. **Configuração de Secrets** - `ADVBOX_ENCRYPTION_KEY` e `N8N_HUB_SEND_URL`
+## Problema Atual
 
----
+| Situação | Descrição |
+|----------|-----------|
+| Advbox atual | Usa `agent_id` (integer) como chave primária/foreign key |
+| Outros módulos | CRM, Dashboard, FollowUp usam `cod_agent` (string) |
+| Impacto | Usuários com vínculo "monitorado" (apenas `cod_agent`, sem `agent_id`) não conseguem configurar Advbox |
 
-## Parte 1: Edge Function `advbox-notify`
+## Arquivos Afetados
 
-### Arquivo: `supabase/functions/advbox-notify/index.ts`
+### 1. Tipos TypeScript
+- `src/types/advbox.ts`
 
-**Responsabilidades:**
-- Enviar notificação de movimentação processual via WhatsApp (através do n8n Hub)
-- Renderizar template substituindo variáveis (`{client_name}`, `{process_number}`, etc.)
-- Registrar log de envio na tabela `advbox_notification_logs`
-- Suportar reenvio de notificações que falharam
+### 2. Edge Functions (4 arquivos)
+- `supabase/functions/advbox-integration/index.ts`
+- `supabase/functions/advbox-sync/index.ts`
+- `supabase/functions/advbox-notify/index.ts`
+- `supabase/functions/advbox-query/index.ts`
 
-**Endpoint:**
-```
-POST /advbox-notify
-{
-  "agent_id": 123,
-  "rule_id": "uuid",
-  "process_id": "abc",
-  "recipient_phone": "5534988860163",
-  "variables": {
-    "client_name": "João Silva",
-    "process_number": "0001234-56.2024.8.13.0000",
-    "movement_text": "Sentença proferida",
-    "movement_date": "2024-01-15",
-    "phase": "Judicial",
-    "responsible": "Dr. Carlos"
-  }
-}
-```
+### 3. Hooks (5 arquivos)
+- `src/hooks/advbox/useAdvboxIntegration.ts`
+- `src/hooks/advbox/useNotificationRules.ts`
+- `src/hooks/advbox/useProcessesCache.ts`
+- `src/hooks/advbox/useNotificationLogs.ts`
+- `src/hooks/advbox/useClientQueries.ts`
 
----
+### 4. Componentes UI
+- `src/components/advbox/AdvboxAgentSelect.tsx`
 
-## Parte 2: Edge Function `advbox-query`
-
-### Arquivo: `supabase/functions/advbox-query/index.ts`
-
-**Responsabilidades:**
-- Buscar processos do cliente pelo telefone no cache local
-- Chamado pelo n8n/Julia IA como ferramenta (tool)
-- Retornar dados formatados para resposta via WhatsApp
-- Registrar log de consulta na tabela `advbox_client_queries`
-
-**Endpoint:**
-```
-POST /advbox-query
-{
-  "agent_id": 123,
-  "client_phone": "5534988860163",
-  "query_type": "status_processo",
-  "query_text": "Qual o status do meu processo?"
-}
-```
-
-**Resposta:**
-```json
-{
-  "success": true,
-  "found_processes": 2,
-  "processes": [
-    {
-      "process_number": "0001234-56.2024.8.13.0000",
-      "phase": "Judicial",
-      "status": "Em andamento",
-      "last_movement": "Sentença proferida em 15/01/2024"
-    }
-  ],
-  "formatted_response": "Olá João! Encontrei 2 processos vinculados ao seu cadastro..."
-}
-```
+### 5. Páginas (5 arquivos)
+- `src/pages/advbox/IntegrationPage.tsx`
+- `src/pages/advbox/NotificationRulesPage.tsx`
+- `src/pages/advbox/ProcessesPage.tsx`
+- `src/pages/advbox/LogsPage.tsx`
+- `src/pages/advbox/QueriesPage.tsx`
 
 ---
 
-## Parte 3: Hook `useNotificationLogs`
+## Detalhes Técnicos
 
-### Arquivo: `src/hooks/advbox/useNotificationLogs.ts`
+### Fase 1: Atualizar Tipos TypeScript
 
-**Funções:**
-- `loadLogs(agentId, filters)` - Carregar logs com paginação
-- `resendNotification(logId)` - Reenviar notificação que falhou
-- Filtros: status, período, regra, telefone
+**Arquivo:** `src/types/advbox.ts`
 
----
+Alterar todos os tipos que usam `agent_id: number` para `cod_agent: string`:
 
-## Parte 4: Hook `useClientQueries`
-
-### Arquivo: `src/hooks/advbox/useClientQueries.ts`
-
-**Funções:**
-- `loadQueries(agentId, filters)` - Carregar histórico de consultas
-- Filtros: período, tipo de consulta, telefone
-- Estatísticas: tempo médio de resposta, processos encontrados
-
----
-
-## Parte 5: Página `LogsPage`
-
-### Arquivo: `src/pages/advbox/LogsPage.tsx`
-
-**Funcionalidades:**
-- Tabela paginada de logs de notificações
-- Filtros por status (enviada/pendente/falha), período, regra
-- Badge visual de status com cores (verde/amarelo/vermelho)
-- Botão "Reenviar" para notificações com falha
-- Detalhes expandíveis com mensagem completa e erro
-
----
-
-## Parte 6: Página `QueriesPage`
-
-### Arquivo: `src/pages/advbox/QueriesPage.tsx`
-
-**Funcionalidades:**
-- Tabela de histórico de consultas de clientes
-- Colunas: Data, Cliente, Telefone, Tipo, Processos Encontrados, Tempo
-- Filtros por período e tipo de consulta
-- Estatísticas agregadas (total consultas, média de processos)
-
----
-
-## Parte 7: Atualização de Rotas
-
-### Arquivo: `src/App.tsx`
-
-Adicionar rotas:
 ```typescript
-import AdvboxLogsPage from "./pages/advbox/LogsPage";
-import AdvboxQueriesPage from "./pages/advbox/QueriesPage";
+// ANTES
+export interface AdvboxIntegration {
+  agent_id: number;
+  // ...
+}
 
-<Route path="/advbox/logs" element={<AdvboxLogsPage />} />
-<Route path="/advbox/consultas" element={<AdvboxQueriesPage />} />
+// DEPOIS
+export interface AdvboxIntegration {
+  cod_agent: string;
+  // ...
+}
+```
+
+Tipos afetados:
+- `AdvboxIntegration`
+- `AdvboxNotificationRule`
+- `AdvboxProcess`
+- `AdvboxNotificationLog`
+- `AdvboxClientQuery`
+- `AdvboxLeadSync`
+
+---
+
+### Fase 2: Atualizar Componente AdvboxAgentSelect
+
+**Arquivo:** `src/components/advbox/AdvboxAgentSelect.tsx`
+
+Alterações:
+1. Mudar `value` de `number | null` para `string | null`
+2. Mudar `onValueChange` de `(agentId: number | null)` para `(codAgent: string | null)`
+3. Usar `cod_agent` como chave de seleção (já disponível na query)
+
+```typescript
+// ANTES
+interface AdvboxAgentSelectProps {
+  value: number | null;
+  onValueChange: (agentId: number | null) => void;
+}
+
+// DEPOIS
+interface AdvboxAgentSelectProps {
+  value: string | null;
+  onValueChange: (codAgent: string | null) => void;
+}
 ```
 
 ---
 
-## Parte 8: Atualização da IntegrationPage
+### Fase 3: Atualizar Edge Functions
 
-Adicionar links rápidos para as novas páginas:
-- Histórico de Notificações (`/advbox/logs`)
-- Consultas de Clientes (`/advbox/consultas`)
+#### 3.1 advbox-integration/index.ts
+
+Substituir todas as referências:
+- `agentId` (parâmetro) → `codAgent`
+- `agent_id = $1` → `cod_agent = $1`
+- Queries SQL: `WHERE agent_id = $1` → `WHERE cod_agent = $1`
+- UPSERT conflict: `ON CONFLICT (agent_id)` → `ON CONFLICT (cod_agent)`
+
+#### 3.2 advbox-sync/index.ts
+
+Mesmas substituições:
+- Parâmetro de entrada: `agentId` → `codAgent`
+- Todas as queries SQL usando `agent_id` → `cod_agent`
+
+#### 3.3 advbox-notify/index.ts
+
+Substituições:
+- `agent_id` nos parâmetros → `cod_agent`
+- Queries de busca e insert
+
+#### 3.4 advbox-query/index.ts
+
+Substituições:
+- `agent_id` → `cod_agent` em todas as queries
 
 ---
 
-## Parte 9: Secrets Necessários
+### Fase 4: Atualizar Hooks
 
-| Secret | Descrição | Ação |
-|--------|-----------|------|
-| `ADVBOX_ENCRYPTION_KEY` | Chave 32 caracteres para criptografia XOR dos tokens | Solicitar ao usuário |
-| `N8N_HUB_SEND_URL` | URL do webhook n8n para envio de WhatsApp | Solicitar ao usuário |
+#### 4.1 useAdvboxIntegration.ts
+
+```typescript
+// ANTES
+loadIntegration: (agentId: number) => Promise<void>;
+saveIntegration: (agentId: number, data: AdvboxIntegrationFormData) => Promise<boolean>;
+
+// DEPOIS
+loadIntegration: (codAgent: string) => Promise<void>;
+saveIntegration: (codAgent: string, data: AdvboxIntegrationFormData) => Promise<boolean>;
+```
+
+#### 4.2 useNotificationRules.ts
+
+```typescript
+// ANTES
+loadRules: (agentId: number) => Promise<void>;
+saveRule: (agentId: number, integrationId: string, data, ruleId?) => Promise<boolean>;
+
+// DEPOIS
+loadRules: (codAgent: string) => Promise<void>;
+saveRule: (codAgent: string, integrationId: string, data, ruleId?) => Promise<boolean>;
+```
+
+#### 4.3 useProcessesCache.ts
+
+```typescript
+// ANTES
+loadProcesses: (agentId: number, filters?) => Promise<void>;
+syncProcesses: (agentId: number) => Promise<{...}>;
+
+// DEPOIS
+loadProcesses: (codAgent: string, filters?) => Promise<void>;
+syncProcesses: (codAgent: string) => Promise<{...}>;
+```
+
+#### 4.4 useNotificationLogs.ts
+
+```typescript
+// ANTES
+loadLogs: (agentId: number, filters) => Promise<void>;
+
+// DEPOIS
+loadLogs: (codAgent: string, filters) => Promise<void>;
+```
+
+#### 4.5 useClientQueries.ts
+
+```typescript
+// ANTES
+loadQueries: (agentId: number, filters) => Promise<void>;
+
+// DEPOIS
+loadQueries: (codAgent: string, filters) => Promise<void>;
+```
 
 ---
 
-## Parte 10: Verificação das Tabelas (Banco Externo)
+### Fase 5: Atualizar Páginas
 
-As 6 tabelas do Advbox precisam existir no banco externo:
-- `advbox_integrations`
-- `advbox_notification_rules`
-- `advbox_processes_cache`
-- `advbox_notification_logs`
-- `advbox_client_queries`
-- `advbox_lead_sync`
+Todas as 5 páginas seguem o mesmo padrão:
 
-**Nota:** As tabelas são criadas no banco externo (não no Supabase) e o SQL foi especificado no plano original. Se ainda não foram criadas, será necessário executá-las manualmente.
+```typescript
+// ANTES
+const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
+loadIntegration(selectedAgentId);
+
+// DEPOIS
+const [selectedCodAgent, setSelectedCodAgent] = useState<string | null>(null);
+loadIntegration(selectedCodAgent);
+```
+
+Páginas afetadas:
+- `IntegrationPage.tsx`
+- `NotificationRulesPage.tsx`
+- `ProcessesPage.tsx`
+- `LogsPage.tsx`
+- `QueriesPage.tsx`
+
+---
+
+### Fase 6: Atualizar Tabelas do Banco Externo
+
+**Importante:** As tabelas Advbox estão no banco externo PostgreSQL.
+
+Script SQL de migração a ser executado manualmente:
+
+```sql
+-- 1. Adicionar coluna cod_agent às tabelas
+ALTER TABLE advbox_integrations 
+  ADD COLUMN IF NOT EXISTS cod_agent TEXT;
+
+-- 2. Popular cod_agent usando a tabela agents
+UPDATE advbox_integrations ai
+SET cod_agent = a.cod_agent::text
+FROM agents a
+WHERE ai.agent_id = a.id;
+
+-- 3. Tornar cod_agent NOT NULL e criar índice único
+ALTER TABLE advbox_integrations 
+  ALTER COLUMN cod_agent SET NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_advbox_integrations_cod_agent 
+  ON advbox_integrations(cod_agent);
+
+-- 4. Remover constraint antiga e criar nova
+ALTER TABLE advbox_integrations 
+  DROP CONSTRAINT IF EXISTS advbox_integrations_agent_id_key;
+
+-- Repetir para as outras 5 tabelas:
+-- advbox_notification_rules
+-- advbox_processes_cache
+-- advbox_notification_logs
+-- advbox_client_queries
+-- advbox_lead_sync
+```
 
 ---
 
 ## Ordem de Implementação
 
-| # | Arquivo | Tipo |
-|---|---------|------|
-| 1 | `supabase/functions/advbox-notify/index.ts` | Edge Function |
-| 2 | `supabase/functions/advbox-query/index.ts` | Edge Function |
-| 3 | `src/hooks/advbox/useNotificationLogs.ts` | Hook |
-| 4 | `src/hooks/advbox/useClientQueries.ts` | Hook |
-| 5 | `src/pages/advbox/LogsPage.tsx` | Página |
-| 6 | `src/pages/advbox/QueriesPage.tsx` | Página |
-| 7 | `src/App.tsx` | Rotas |
-| 8 | `src/pages/advbox/IntegrationPage.tsx` | Atualizar links |
-| 9 | Solicitar Secrets ao usuário | Configuração |
+| # | Etapa | Tipo |
+|---|-------|------|
+| 1 | Atualizar `src/types/advbox.ts` | Tipos |
+| 2 | Atualizar `AdvboxAgentSelect.tsx` | Componente |
+| 3 | Atualizar 4 Edge Functions | Backend |
+| 4 | Atualizar 5 Hooks | Lógica |
+| 5 | Atualizar 5 Páginas | UI |
+| 6 | Executar SQL no banco externo (manual) | Banco |
+| 7 | Testar fluxo completo | Validação |
 
 ---
 
-## Resumo de Arquivos
+## Riscos e Mitigações
 
-### Novos Arquivos (6):
-- `supabase/functions/advbox-notify/index.ts`
-- `supabase/functions/advbox-query/index.ts`
-- `src/hooks/advbox/useNotificationLogs.ts`
-- `src/hooks/advbox/useClientQueries.ts`
-- `src/pages/advbox/LogsPage.tsx`
-- `src/pages/advbox/QueriesPage.tsx`
+| Risco | Mitigação |
+|-------|-----------|
+| Dados existentes com agent_id | Script SQL popula cod_agent antes de remover agent_id |
+| Incompatibilidade de tipos | Migrar tipos primeiro, depois código |
+| Downtime durante migração | Manter ambas colunas temporariamente até validação |
 
-### Arquivos Atualizados (2):
-- `src/App.tsx` - Adicionar rotas `/advbox/logs` e `/advbox/consultas`
-- `src/pages/advbox/IntegrationPage.tsx` - Adicionar links rápidos
+---
 
+## Resultado Esperado
+
+Após a migração:
+- Usuários com vínculo completo (`agent_id` + `cod_agent`) funcionam normalmente
+- Usuários com vínculo monitorado (apenas `cod_agent`) podem configurar Advbox
+- Consistência com CRM, Dashboard, FollowUp e outros módulos
+- Queries unificadas usando `cod_agent` como identificador único
