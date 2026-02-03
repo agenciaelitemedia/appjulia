@@ -227,12 +227,15 @@ export function CreateAutomationDialog({
 
               <div className="space-y-2">
                 <Label htmlFor="fromPipeline">Etapa de origem (opcional)</Label>
-                <Select value={fromPipelineId} onValueChange={setFromPipelineId}>
+                <Select 
+                  value={fromPipelineId || "_any"} 
+                  onValueChange={(v) => setFromPipelineId(v === "_any" ? "" : v)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Qualquer etapa" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Qualquer etapa</SelectItem>
+                    <SelectItem value="_any">Qualquer etapa</SelectItem>
                     {pipelines.map((pipeline) => (
                       <SelectItem key={pipeline.id} value={pipeline.id}>
                         <div className="flex items-center gap-2">
