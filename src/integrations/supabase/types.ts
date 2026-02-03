@@ -14,6 +14,119 @@ export type Database = {
   }
   public: {
     Tables: {
+      chat_contacts: {
+        Row: {
+          avatar: string | null
+          client_id: string
+          cod_agent: string | null
+          created_at: string | null
+          id: string
+          is_archived: boolean | null
+          is_group: boolean | null
+          is_muted: boolean | null
+          last_message_at: string | null
+          last_message_text: string | null
+          name: string
+          phone: string
+          unread_count: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          avatar?: string | null
+          client_id: string
+          cod_agent?: string | null
+          created_at?: string | null
+          id?: string
+          is_archived?: boolean | null
+          is_group?: boolean | null
+          is_muted?: boolean | null
+          last_message_at?: string | null
+          last_message_text?: string | null
+          name: string
+          phone: string
+          unread_count?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          avatar?: string | null
+          client_id?: string
+          cod_agent?: string | null
+          created_at?: string | null
+          id?: string
+          is_archived?: boolean | null
+          is_group?: boolean | null
+          is_muted?: boolean | null
+          last_message_at?: string | null
+          last_message_text?: string | null
+          name?: string
+          phone?: string
+          unread_count?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      chat_messages: {
+        Row: {
+          caption: string | null
+          client_id: string
+          contact_id: string
+          created_at: string | null
+          file_name: string | null
+          from_me: boolean | null
+          id: string
+          media_url: string | null
+          message_id: string | null
+          metadata: Json | null
+          reply_to: string | null
+          status: string | null
+          text: string | null
+          timestamp: string | null
+          type: string | null
+        }
+        Insert: {
+          caption?: string | null
+          client_id: string
+          contact_id: string
+          created_at?: string | null
+          file_name?: string | null
+          from_me?: boolean | null
+          id?: string
+          media_url?: string | null
+          message_id?: string | null
+          metadata?: Json | null
+          reply_to?: string | null
+          status?: string | null
+          text?: string | null
+          timestamp?: string | null
+          type?: string | null
+        }
+        Update: {
+          caption?: string | null
+          client_id?: string
+          contact_id?: string
+          created_at?: string | null
+          file_name?: string | null
+          from_me?: boolean | null
+          id?: string
+          media_url?: string | null
+          message_id?: string | null
+          metadata?: Json | null
+          reply_to?: string | null
+          status?: string | null
+          text?: string | null
+          timestamp?: string | null
+          type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "chat_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       video_call_records: {
         Row: {
           cod_agent: string

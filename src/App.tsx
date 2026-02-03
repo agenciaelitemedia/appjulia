@@ -30,6 +30,7 @@ import MetaTestPage from "./pages/admin/meta-test/MetaTestPage";
 import ModulosPage from "./pages/admin/modulos/ModulosPage";
 import VideoQueuePage from "./pages/video/VideoQueuePage";
 import JoinCallPage from "./pages/video/JoinCallPage";
+import ChatPage from "./pages/chat/ChatPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -57,6 +58,7 @@ const App = () => (
                   <Route path="/agente/meus-agentes" element={<MyAgentsPage />} />
                   <Route path="/agente/followup" element={<FollowupPage />} />
                   <Route path="/video/queue" element={<VideoQueuePage />} />
+                  <Route path="/chat" element={<ChatPage />} />
                   <Route path="/biblioteca" element={<CriativosPage />} />
                   <Route path="/equipe" element={<EquipePage />} />
                   <Route path="/perfil" element={<ProfileSettingsPage />} />
