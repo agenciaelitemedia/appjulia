@@ -1,12 +1,16 @@
 // ============================================
 // UaZapi HTTP Client
 // Base client for all API requests
+// Supports both direct calls and proxy transport
 // ============================================
+
+import { supabase } from '@/integrations/supabase/client';
 
 export interface UaZapiConfig {
   baseUrl: string;
   token: string;
   instance?: string;
+  transport?: 'direct' | 'proxy';
 }
 
 export interface RequestOptions {
@@ -25,13 +29,23 @@ export class UaZapiError extends Error {
   }
 }
 
+interface ProxyResponse {
+  status: number;
+  ok: boolean;
+  data: unknown;
+  error?: string;
+}
+
 export class UaZapiClient {
   private config: UaZapiConfig;
   private defaultTimeout = 30000;
   private defaultRetries = 2;
 
   constructor(config: UaZapiConfig) {
-    this.config = config;
+    this.config = {
+      ...config,
+      transport: config.transport ?? 'proxy', // Default to proxy
+    };
   }
 
   get baseUrl(): string {
@@ -50,7 +64,66 @@ export class UaZapiClient {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  async request<T>(
+  private async requestViaProxy<T>(
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+    endpoint: string,
+    body?: object,
+    options?: RequestOptions
+  ): Promise<T> {
+    const { retries = this.defaultRetries } = options || {};
+    
+    let lastError: Error | null = null;
+    
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const { data, error } = await supabase.functions.invoke<ProxyResponse>('uazapi-proxy', {
+          body: {
+            method,
+            endpoint,
+            body,
+            token: this.config.token,
+            baseUrl: this.config.baseUrl,
+          },
+        });
+
+        if (error) {
+          throw new UaZapiError(error.message, 500);
+        }
+
+        if (!data) {
+          throw new UaZapiError('Empty response from proxy');
+        }
+
+        // Check if the proxied request failed
+        if (!data.ok) {
+          const errorData = data.data as Record<string, unknown> || {};
+          throw new UaZapiError(
+            (errorData.error as string) || data.error || `HTTP Error ${data.status}`,
+            data.status,
+            errorData
+          );
+        }
+
+        return data.data as T;
+      } catch (error) {
+        lastError = error as Error;
+        
+        // Don't retry on client errors (4xx)
+        if (error instanceof UaZapiError && error.statusCode && error.statusCode >= 400 && error.statusCode < 500) {
+          throw error;
+        }
+        
+        // Wait before retry with exponential backoff
+        if (attempt < retries) {
+          await this.delay(Math.pow(2, attempt) * 1000);
+        }
+      }
+    }
+    
+    throw lastError || new UaZapiError('Unknown error');
+  }
+
+  private async requestDirect<T>(
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     endpoint: string,
     body?: object,
@@ -126,6 +199,18 @@ export class UaZapiClient {
     }
     
     throw lastError || new UaZapiError('Unknown error');
+  }
+
+  async request<T>(
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+    endpoint: string,
+    body?: object,
+    options?: RequestOptions
+  ): Promise<T> {
+    if (this.config.transport === 'proxy') {
+      return this.requestViaProxy<T>(method, endpoint, body, options);
+    }
+    return this.requestDirect<T>(method, endpoint, body, options);
   }
 
   async get<T>(endpoint: string, options?: RequestOptions): Promise<T> {

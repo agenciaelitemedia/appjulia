@@ -10,8 +10,8 @@ function ChatPageContent() {
   }, [loadContacts]);
 
   return (
-    <div className="h-[calc(100vh-4rem)] -m-4 sm:-m-6">
-      <ChatContainer className="h-full" />
+    <div className="h-[calc(100vh-4rem)] w-full overflow-hidden -mx-4 sm:-mx-6 -mb-4 sm:-mb-6">
+      <ChatContainer className="h-full w-full" />
     </div>
   );
 }
