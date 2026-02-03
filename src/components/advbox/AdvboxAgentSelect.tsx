@@ -62,7 +62,7 @@ export function AdvboxAgentSelect({
         
         // Auto-select first agent if only one exists
         if (result.length === 1 && !value) {
-          onValueChange(result[0].agent_id);
+          onValueChange(result[0].cod_agent);
         }
       } catch (error) {
         console.error('Error loading agents:', error);
