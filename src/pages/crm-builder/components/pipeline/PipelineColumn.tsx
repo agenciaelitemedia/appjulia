@@ -1,7 +1,6 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -17,9 +16,12 @@ import {
   Pencil, 
   Trash2,
   GripVertical,
+  ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CRMPipeline, CRMDeal } from '../../types';
+
+const ITEMS_PER_PAGE = 30;
 
 interface PipelineColumnProps {
   pipeline: CRMPipeline;
@@ -39,6 +41,12 @@ export function PipelineColumn({
   onAddDeal,
 }: PipelineColumnProps) {
   const [isHovering, setIsHovering] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
+
+  // Reset pagination when deals change
+  useEffect(() => {
+    setVisibleCount(ITEMS_PER_PAGE);
+  }, [deals.length]);
 
   const {
     attributes,
@@ -77,6 +85,17 @@ export function PipelineColumn({
       maximumFractionDigits: 0,
     }).format(value);
   };
+
+  const hasMore = deals.length > visibleCount;
+  const remaining = Math.min(ITEMS_PER_PAGE, deals.length - visibleCount);
+
+  const handleLoadMore = () => {
+    setVisibleCount((prev) => Math.min(prev + ITEMS_PER_PAGE, deals.length));
+  };
+
+  // Get only the visible children
+  const childrenArray = React.Children.toArray(children);
+  const visibleChildren = childrenArray.slice(0, visibleCount);
 
   return (
     <div
@@ -148,14 +167,41 @@ export function PipelineColumn({
       )}
 
       {/* Deals container */}
-      <div className="flex-1 p-2 space-y-2">
-        {children}
+      <div className="flex-1 p-2">
+        <div className="space-y-2">
+          {deals.length === 0 ? (
+            <div className="p-4 text-center text-sm text-muted-foreground">
+              Nenhum card neste estágio
+            </div>
+          ) : (
+            <>
+              {visibleChildren}
+              
+              {hasMore && (
+                <div className="pt-2 border-t border-border/50 text-center space-y-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleLoadMore}
+                    className="w-full gap-1 text-muted-foreground hover:text-foreground"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                    Ver mais ({remaining})
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Exibindo {visibleCount} de {deals.length}
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
         
         {/* Add deal button integrated */}
         <Button
           variant="ghost"
           size="sm"
-          className="w-full justify-start text-muted-foreground hover:text-foreground"
+          className="w-full justify-start text-muted-foreground hover:text-foreground mt-2"
           onClick={onAddDeal}
         >
           <Plus className="h-4 w-4 mr-2" />

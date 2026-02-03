@@ -380,10 +380,10 @@ export default function BoardPage() {
       </div>
 
       {/* Pipeline Container */}
-      <div className="flex flex-col flex-1">
+      <div className="flex flex-col flex-1 min-h-0 relative">
         <div 
           ref={scrollRef}
-          className="flex-1 overflow-x-auto p-4 scrollbar-none"
+          className="flex-1 overflow-x-auto overflow-y-auto p-4 pb-16 scrollbar-none"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           <DndContext
@@ -464,7 +464,9 @@ export default function BoardPage() {
             </DragOverlay>
           </DndContext>
         </div>
-        <CRMScrollNavigation scrollRef={scrollRef} />
+        <div className="absolute bottom-0 left-0 right-0">
+          <CRMScrollNavigation scrollRef={scrollRef} />
+        </div>
       </div>
 
       {/* Dialogs */}
