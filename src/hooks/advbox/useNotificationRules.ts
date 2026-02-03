@@ -89,11 +89,11 @@ export function useNotificationRules(): UseNotificationRulesReturn {
         await externalDb.raw({
           query: `
             INSERT INTO advbox_notification_rules 
-              (agent_id, integration_id, rule_name, is_active, process_phases, event_types, keywords, message_template, send_to, cooldown_minutes)
+              (cod_agent, integration_id, rule_name, is_active, process_phases, event_types, keywords, message_template, send_to, cooldown_minutes)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           `,
           params: [
-            agentId,
+            codAgent,
             integrationId,
             data.rule_name,
             data.is_active ?? true,
