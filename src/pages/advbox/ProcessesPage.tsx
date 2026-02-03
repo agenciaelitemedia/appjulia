@@ -49,11 +49,11 @@ export default function ProcessesPage() {
   } = useProcessesCache();
 
   useEffect(() => {
-    if (selectedAgentId) {
-      loadProcesses(selectedAgentId, { page: currentPage, phase: phaseFilter || undefined, search: searchQuery || undefined });
-      loadStats(selectedAgentId);
+    if (selectedCodAgent) {
+      loadProcesses(selectedCodAgent, { page: currentPage, phase: phaseFilter || undefined, search: searchQuery || undefined });
+      loadStats(selectedCodAgent);
     }
-  }, [selectedAgentId, currentPage, phaseFilter, loadProcesses, loadStats]);
+  }, [selectedCodAgent, currentPage, phaseFilter, loadProcesses, loadStats]);
 
   const handleSearch = () => {
     if (selectedAgentId) {
