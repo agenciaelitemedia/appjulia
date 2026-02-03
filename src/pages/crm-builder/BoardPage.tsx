@@ -512,6 +512,7 @@ export default function BoardPage() {
         codAgent={codAgent}
         boardName={board.name}
         pipelines={pipelines}
+        deals={deals}
       />
     </div>
   );

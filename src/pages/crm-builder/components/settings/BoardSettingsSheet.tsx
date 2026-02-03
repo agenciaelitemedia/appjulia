@@ -5,10 +5,11 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings2, Layers, Zap } from 'lucide-react';
+import { Settings2, Layers, Zap, BarChart3 } from 'lucide-react';
 import { CustomFieldsManager } from '../custom-fields/CustomFieldsManager';
 import { AutomationsManager } from '../automations/AutomationsManager';
-import type { CRMPipeline } from '../../types';
+import { BoardAnalyticsDashboard } from '../analytics/BoardAnalyticsDashboard';
+import type { CRMPipeline, CRMDeal } from '../../types';
 
 interface BoardSettingsSheetProps {
   open: boolean;
@@ -17,6 +18,7 @@ interface BoardSettingsSheetProps {
   codAgent: string;
   boardName: string;
   pipelines: CRMPipeline[];
+  deals: CRMDeal[];
 }
 
 export function BoardSettingsSheet({
@@ -26,6 +28,7 @@ export function BoardSettingsSheet({
   codAgent,
   boardName,
   pipelines,
+  deals,
 }: BoardSettingsSheetProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -37,21 +40,29 @@ export function BoardSettingsSheet({
           </SheetTitle>
         </SheetHeader>
 
-        <Tabs defaultValue="custom-fields" className="mt-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="custom-fields" className="gap-2">
-              <Layers className="h-4 w-4" />
+        <Tabs defaultValue="analytics" className="mt-6">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="analytics" className="gap-1 text-xs px-2">
+              <BarChart3 className="h-3.5 w-3.5" />
+              Analytics
+            </TabsTrigger>
+            <TabsTrigger value="custom-fields" className="gap-1 text-xs px-2">
+              <Layers className="h-3.5 w-3.5" />
               Campos
             </TabsTrigger>
-            <TabsTrigger value="automations" className="gap-2">
-              <Zap className="h-4 w-4" />
+            <TabsTrigger value="automations" className="gap-1 text-xs px-2">
+              <Zap className="h-3.5 w-3.5" />
               Automações
             </TabsTrigger>
-            <TabsTrigger value="general" className="gap-2">
-              <Settings2 className="h-4 w-4" />
+            <TabsTrigger value="general" className="gap-1 text-xs px-2">
+              <Settings2 className="h-3.5 w-3.5" />
               Geral
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="analytics" className="mt-4">
+            <BoardAnalyticsDashboard deals={deals} pipelines={pipelines} />
+          </TabsContent>
 
           <TabsContent value="custom-fields" className="mt-4">
             <CustomFieldsManager boardId={boardId} codAgent={codAgent} />
