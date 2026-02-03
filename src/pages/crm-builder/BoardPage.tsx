@@ -31,6 +31,7 @@ import { PipelineColumn } from './components/pipeline/PipelineColumn';
 import { CreatePipelineDialog } from './components/pipeline/CreatePipelineDialog';
 import { DealCard } from './components/deals/DealCard';
 import { CreateDealDialog } from './components/deals/CreateDealDialog';
+import { DealDetailsSheet } from './components/deals/DealDetailsSheet';
 import { useCRMPipelines } from './hooks/useCRMPipelines';
 import { useCRMDeals } from './hooks/useCRMDeals';
 import type { CRMBoard, CRMPipeline, CRMDeal, CRMPipelineFormData, CRMDealFormData } from './types';
@@ -74,6 +75,7 @@ export default function BoardPage() {
   const [isCreateDealOpen, setIsCreateDealOpen] = useState(false);
   const [selectedPipelineForDeal, setSelectedPipelineForDeal] = useState<CRMPipeline | null>(null);
   const [editingDeal, setEditingDeal] = useState<CRMDeal | null>(null);
+  const [viewingDeal, setViewingDeal] = useState<CRMDeal | null>(null);
 
   // DnD state
   const [activeDeal, setActiveDeal] = useState<CRMDeal | null>(null);
@@ -339,6 +341,7 @@ export default function BoardPage() {
                             <DealCard
                               key={deal.id}
                               deal={deal}
+                              onClick={() => setViewingDeal(deal)}
                               onEdit={() => setEditingDeal(deal)}
                               onArchive={() => archiveDeal(deal.id)}
                               onWon={() => setDealStatus(deal.id, 'won')}
@@ -409,6 +412,22 @@ export default function BoardPage() {
         onOpenChange={(open) => !open && setEditingDeal(null)}
         onSubmit={handleEditDeal}
         editDeal={editingDeal}
+      />
+
+      <DealDetailsSheet
+        deal={viewingDeal}
+        pipeline={viewingDeal ? pipelines.find(p => p.id === viewingDeal.pipeline_id) : null}
+        open={!!viewingDeal}
+        onOpenChange={(open) => !open && setViewingDeal(null)}
+        onEdit={() => {
+          if (viewingDeal) {
+            setEditingDeal(viewingDeal);
+            setViewingDeal(null);
+          }
+        }}
+        onArchive={() => viewingDeal && archiveDeal(viewingDeal.id)}
+        onWon={() => viewingDeal && setDealStatus(viewingDeal.id, 'won')}
+        onLost={() => viewingDeal && setDealStatus(viewingDeal.id, 'lost')}
       />
     </div>
   );
