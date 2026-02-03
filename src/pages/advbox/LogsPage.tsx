@@ -72,9 +72,9 @@ export default function AdvboxLogsPage() {
   };
 
   const handleResend = async (logId: string) => {
-    if (!selectedAgentId) return;
-    await resendNotification(logId, selectedAgentId);
-    await loadLogs(selectedAgentId, filters);
+    if (!selectedCodAgent) return;
+    await resendNotification(logId, selectedCodAgent);
+    await loadLogs(selectedCodAgent, filters);
   };
 
   const toggleRowExpanded = (logId: string) => {
