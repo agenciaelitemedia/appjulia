@@ -161,7 +161,7 @@ export function PipelineColumn({
           onClick={onAddDeal}
         >
           <Plus className="h-4 w-4 mr-2" />
-          Adicionar Deal
+          Adicionar Card
         </Button>
       </div>
     </div>
