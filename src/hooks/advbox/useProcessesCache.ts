@@ -89,13 +89,13 @@ export function useProcessesCache(): UseProcessesCacheReturn {
     }
   }, []);
 
-  const syncProcesses = useCallback(async (agentId: number) => {
+  const syncProcesses = useCallback(async (codAgent: string) => {
     setIsSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke('advbox-sync', {
         body: {
           action: 'sync',
-          agentId,
+          codAgent,
         },
       });
 
