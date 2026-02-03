@@ -121,15 +121,15 @@ serve(async (req) => {
   try {
     const body = await req.json();
     const {
-      agent_id,
+      cod_agent,
       client_phone,
       query_type = 'status_processo',
       query_text = '',
     } = body;
 
-    if (!agent_id || !client_phone) {
+    if (!cod_agent || !client_phone) {
       return new Response(
-        JSON.stringify({ error: "agent_id and client_phone are required" }),
+        JSON.stringify({ error: "cod_agent and client_phone are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
