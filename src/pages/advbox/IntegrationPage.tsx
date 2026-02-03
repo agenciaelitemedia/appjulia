@@ -467,7 +467,7 @@ export default function AdvboxIntegrationPage() {
               </Button>
             )}
             <div className="flex gap-2 ml-auto">
-              <Button variant="outline" onClick={() => selectedAgentId && loadIntegration(selectedAgentId)}>
+              <Button variant="outline" onClick={() => selectedCodAgent && loadIntegration(selectedCodAgent)}>
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Recarregar
               </Button>

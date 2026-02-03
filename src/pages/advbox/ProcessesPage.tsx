@@ -102,13 +102,13 @@ export default function ProcessesPage() {
         
         {isAdmin && (
           <AdvboxAgentSelect
-            value={selectedAgentId}
-            onValueChange={setSelectedAgentId}
+            value={selectedCodAgent}
+            onValueChange={setSelectedCodAgent}
           />
         )}
       </div>
 
-      {!selectedAgentId ? (
+      {!selectedCodAgent ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Database className="h-12 w-12 text-muted-foreground mb-4" />

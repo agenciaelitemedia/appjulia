@@ -149,7 +149,7 @@ export default function NotificationRulesPage() {
       )}
 
       {/* No Integration */}
-      {selectedAgentId && !isLoading && !integration && (
+      {selectedCodAgent && !isLoading && !integration && (
         <Card>
           <CardContent className="p-12 text-center">
             <AlertTriangle className="w-12 h-12 mx-auto text-destructive mb-4" />
@@ -165,7 +165,7 @@ export default function NotificationRulesPage() {
       )}
 
       {/* Rules List */}
-      {selectedAgentId && !isLoading && integration && (
+      {selectedCodAgent && !isLoading && integration && (
         <>
           {/* Create Button */}
           <div className="flex justify-between items-center">

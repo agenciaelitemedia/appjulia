@@ -362,7 +362,7 @@ export default function AdvboxLogsPage() {
       )}
 
       {/* No Agent Selected */}
-      {!selectedAgentId && (
+      {!selectedCodAgent && (
         <Card>
           <CardContent className="p-12 text-center">
             <Bell className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
