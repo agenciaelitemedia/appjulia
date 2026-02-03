@@ -73,7 +73,7 @@ export interface AdvboxProcess {
 
 export interface AdvboxNotificationLog {
   id: string;
-  agent_id: number;
+  cod_agent: string;
   integration_id: string;
   rule_id: string | null;
   rule_name?: string;
