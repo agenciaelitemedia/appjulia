@@ -244,7 +244,7 @@ export default function AdvboxQueriesPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => selectedAgentId && loadQueries(selectedAgentId, filters)}
+                onClick={() => selectedCodAgent && loadQueries(selectedCodAgent, filters)}
                 disabled={isLoading}
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
