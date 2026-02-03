@@ -7,8 +7,8 @@ interface UseNotificationRulesReturn {
   rules: AdvboxNotificationRule[];
   isLoading: boolean;
   isSaving: boolean;
-  loadRules: (agentId: number) => Promise<void>;
-  saveRule: (agentId: number, integrationId: string, data: AdvboxNotificationRuleFormData, ruleId?: string) => Promise<boolean>;
+  loadRules: (codAgent: string) => Promise<void>;
+  saveRule: (codAgent: string, integrationId: string, data: AdvboxNotificationRuleFormData, ruleId?: string) => Promise<boolean>;
   toggleRule: (ruleId: string, isActive: boolean) => Promise<boolean>;
   deleteRule: (ruleId: string) => Promise<boolean>;
 }
