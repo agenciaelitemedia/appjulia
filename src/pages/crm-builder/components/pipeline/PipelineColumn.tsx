@@ -83,7 +83,7 @@ export function PipelineColumn({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'flex-shrink-0 w-80 flex flex-col bg-muted/30 rounded-xl border',
+        'flex-shrink-0 min-w-[280px] max-w-[280px] flex flex-col bg-muted/30 rounded-lg',
         isDragging && 'opacity-50'
       )}
       onMouseEnter={() => setIsHovering(true)}
@@ -91,8 +91,8 @@ export function PipelineColumn({
     >
       {/* Header */}
       <div 
-        className="p-3 border-b flex items-center justify-between gap-2"
-        style={{ borderBottomColor: `${pipeline.color}40` }}
+        className="p-3 rounded-t-lg flex items-center justify-between gap-2"
+        style={{ backgroundColor: `${pipeline.color}20` }}
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <button
@@ -148,12 +148,10 @@ export function PipelineColumn({
       )}
 
       {/* Deals container */}
-      <div className="flex-1 p-2 space-y-2 overflow-y-auto min-h-[200px] max-h-[calc(100vh-300px)]">
+      <div className="flex-1 p-2 space-y-2">
         {children}
-      </div>
-
-      {/* Add deal button */}
-      <div className="p-2 border-t">
+        
+        {/* Add deal button integrated */}
         <Button
           variant="ghost"
           size="sm"

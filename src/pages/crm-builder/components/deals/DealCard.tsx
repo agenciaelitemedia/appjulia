@@ -29,6 +29,7 @@ import { PRIORITY_CONFIG } from '../../types';
 
 interface DealCardProps {
   deal: CRMDeal;
+  pipelineColor?: string;
   onEdit: () => void;
   onArchive: () => void;
   onWon: () => void;
@@ -38,6 +39,7 @@ interface DealCardProps {
 
 export function DealCard({
   deal,
+  pipelineColor,
   onEdit,
   onArchive,
   onWon,
@@ -80,17 +82,33 @@ export function DealCard({
     locale: ptBR,
   });
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Sao_Paulo',
+    });
+  };
+
   return (
     <Card
       ref={setNodeRef}
-      style={style}
+      style={{
+        ...style,
+        borderLeftColor: pipelineColor || 'transparent',
+        borderLeftWidth: pipelineColor ? '4px' : undefined,
+      }}
       {...attributes}
       {...listeners}
       className={cn(
-        'cursor-grab active:cursor-grabbing transition-all hover:shadow-md group',
+        'cursor-grab active:cursor-grabbing transition-all hover:shadow-md group border-l-4',
         isDragging && 'opacity-50 shadow-lg rotate-2',
-        deal.status === 'won' && 'border-primary/50 bg-primary/5',
-        deal.status === 'lost' && 'border-destructive/50 bg-destructive/5'
+        deal.status === 'won' && 'border-l-primary bg-primary/5',
+        deal.status === 'lost' && 'border-l-destructive bg-destructive/5'
       )}
       onClick={onClick}
     >
@@ -162,7 +180,19 @@ export function DealCard({
           )}
         </div>
 
-        {/* Footer with priority, tags and time */}
+        {/* Dates section */}
+        <div className="space-y-0.5 pt-1 border-t border-border/50 text-[10px] text-muted-foreground">
+          <div className="flex items-center gap-1">
+            <span className="font-medium">Criado:</span>
+            <span>{formatDate(deal.created_at)}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="font-medium">Atualizado:</span>
+            <span>{formatDate(deal.updated_at)}</span>
+          </div>
+        </div>
+
+        {/* Footer with priority, time and timezone */}
         <div className="flex items-center justify-between gap-2 pt-1">
           <div className="flex items-center gap-1.5 flex-wrap">
             <Badge 
@@ -191,11 +221,14 @@ export function DealCard({
               </Badge>
             )}
           </div>
-          
-          <div className="flex items-center gap-1 text-[10px] text-muted-foreground flex-shrink-0">
+        </div>
+
+        <div className="flex items-center justify-between pt-1 text-[10px] text-muted-foreground">
+          <div className="flex items-center gap-1">
             <Clock className="h-3 w-3" />
-            {timeInStage}
+            <span>Na fase: {timeInStage}</span>
           </div>
+          <span className="text-[9px]">🇧🇷 Brasília</span>
         </div>
       </CardContent>
     </Card>

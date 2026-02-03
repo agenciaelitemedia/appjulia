@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -38,6 +38,7 @@ import { useCRMPipelines } from './hooks/useCRMPipelines';
 import { useCRMDeals } from './hooks/useCRMDeals';
 import { useCRMCustomFields } from './hooks/useCRMCustomFields';
 import type { CRMBoard, CRMPipeline, CRMDeal, CRMPipelineFormData, CRMDealFormData } from './types';
+import { CRMScrollNavigation } from '@/pages/crm/components/CRMScrollNavigation';
 
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
@@ -95,6 +96,9 @@ export default function BoardPage() {
   // DnD state
   const [activeDeal, setActiveDeal] = useState<CRMDeal | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Scroll ref for custom navigation
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // Filter deals
   const filteredDeals = useMemo(() => {
@@ -376,83 +380,91 @@ export default function BoardPage() {
       </div>
 
       {/* Pipeline Container */}
-      <div className="flex-1 overflow-x-auto p-4">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCorners}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
+      <div className="flex flex-col flex-1">
+        <div 
+          ref={scrollRef}
+          className="flex-1 overflow-x-auto p-4 scrollbar-none"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
-          <SortableContext
-            items={pipelines.map(p => `pipeline-${p.id}`)}
-            strategy={horizontalListSortingStrategy}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
           >
-            <div className="flex gap-4 h-full">
-              {isLoadingPipelines ? (
-                [...Array(3)].map((_, i) => (
-                  <Skeleton key={i} className="h-96 w-80 flex-shrink-0" />
-                ))
-              ) : (
-                <>
-                  {pipelines.map((pipeline) => {
-                    const pipelineDeals = getFilteredDealsByPipeline(pipeline.id);
-                    return (
-                      <PipelineColumn
-                        key={pipeline.id}
-                        pipeline={pipeline}
-                        deals={pipelineDeals}
-                        onEdit={() => setEditingPipeline(pipeline)}
-                        onDelete={() => deletePipeline(pipeline.id)}
-                        onAddDeal={() => handleAddDeal(pipeline)}
-                      >
-                        <SortableContext
-                          items={pipelineDeals.map(d => `deal-${d.id}`)}
+            <SortableContext
+              items={pipelines.map(p => `pipeline-${p.id}`)}
+              strategy={horizontalListSortingStrategy}
+            >
+              <div className="flex gap-4 h-full">
+                {isLoadingPipelines ? (
+                  [...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-96 min-w-[280px] max-w-[280px] flex-shrink-0" />
+                  ))
+                ) : (
+                  <>
+                    {pipelines.map((pipeline) => {
+                      const pipelineDeals = getFilteredDealsByPipeline(pipeline.id);
+                      return (
+                        <PipelineColumn
+                          key={pipeline.id}
+                          pipeline={pipeline}
+                          deals={pipelineDeals}
+                          onEdit={() => setEditingPipeline(pipeline)}
+                          onDelete={() => deletePipeline(pipeline.id)}
+                          onAddDeal={() => handleAddDeal(pipeline)}
                         >
-                          {pipelineDeals.map((deal) => (
-                            <DealCard
-                              key={deal.id}
-                              deal={deal}
-                              onClick={() => setViewingDeal(deal)}
-                              onEdit={() => setEditingDeal(deal)}
-                              onArchive={() => archiveDeal(deal.id)}
-                              onWon={() => setDealStatus(deal.id, 'won')}
-                              onLost={() => setDealStatus(deal.id, 'lost')}
-                            />
-                          ))}
-                        </SortableContext>
-                      </PipelineColumn>
-                    );
-                  })}
-                  
-                  {/* Add pipeline button */}
-                  <Button
-                    variant="outline"
-                    className="h-auto min-h-[200px] w-80 flex-shrink-0 border-2 border-dashed hover:border-primary hover:bg-primary/5"
-                    onClick={() => setIsCreatePipelineOpen(true)}
-                  >
-                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                      <Plus className="h-6 w-6" />
-                      <span>Nova Etapa</span>
-                    </div>
-                  </Button>
-                </>
-              )}
-            </div>
-          </SortableContext>
+                          <SortableContext
+                            items={pipelineDeals.map(d => `deal-${d.id}`)}
+                          >
+                            {pipelineDeals.map((deal) => (
+                              <DealCard
+                                key={deal.id}
+                                deal={deal}
+                                pipelineColor={pipeline.color}
+                                onClick={() => setViewingDeal(deal)}
+                                onEdit={() => setEditingDeal(deal)}
+                                onArchive={() => archiveDeal(deal.id)}
+                                onWon={() => setDealStatus(deal.id, 'won')}
+                                onLost={() => setDealStatus(deal.id, 'lost')}
+                              />
+                            ))}
+                          </SortableContext>
+                        </PipelineColumn>
+                      );
+                    })}
+                    
+                    {/* Add pipeline button */}
+                    <Button
+                      variant="outline"
+                      className="h-auto min-h-[200px] min-w-[280px] max-w-[280px] flex-shrink-0 border-2 border-dashed hover:border-primary hover:bg-primary/5"
+                      onClick={() => setIsCreatePipelineOpen(true)}
+                    >
+                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                        <Plus className="h-6 w-6" />
+                        <span>Nova Etapa</span>
+                      </div>
+                    </Button>
+                  </>
+                )}
+              </div>
+            </SortableContext>
 
-          <DragOverlay>
-            {activeDeal && (
-              <DealCard
-                deal={activeDeal}
-                onEdit={() => {}}
-                onArchive={() => {}}
-                onWon={() => {}}
-                onLost={() => {}}
-              />
-            )}
-          </DragOverlay>
-        </DndContext>
+            <DragOverlay>
+              {activeDeal && (
+                <DealCard
+                  deal={activeDeal}
+                  onEdit={() => {}}
+                  onArchive={() => {}}
+                  onWon={() => {}}
+                  onLost={() => {}}
+                />
+              )}
+            </DragOverlay>
+          </DndContext>
+        </div>
+        <CRMScrollNavigation scrollRef={scrollRef} />
       </div>
 
       {/* Dialogs */}
