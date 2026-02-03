@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdvboxIntegration } from '@/hooks/advbox/useAdvboxIntegration';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +25,7 @@ import {
   EyeOff,
   Trash2,
   AlertTriangle,
+  ChevronRight,
 } from 'lucide-react';
 import { AdvboxAgentSelect } from '@/components/advbox/AdvboxAgentSelect';
 import type { AdvboxIntegrationFormData, AdvboxSettings } from '@/types/advbox';
