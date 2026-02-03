@@ -208,7 +208,7 @@ export default function AdvboxIntegrationPage() {
       )}
 
       {/* Configuration Form */}
-      {selectedAgentId && !isLoading && (
+      {selectedCodAgent && !isLoading && (
         <>
           {/* Credentials Card */}
           <Card>
