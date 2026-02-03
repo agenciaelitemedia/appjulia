@@ -1,4 +1,5 @@
-import { useDebug, isDevEnvironment } from '@/contexts/DebugContext';
+import { useDebug, isDevEnvironment, canUseDebugTools } from '@/contexts/DebugContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Switch } from '@/components/ui/switch';
 import { 
   Collapsible, 
@@ -15,10 +16,11 @@ interface DebugBarToggleProps {
 
 export function DebugBarToggle({ isCollapsed = false }: DebugBarToggleProps) {
   const { enabled, setEnabled } = useDebug();
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
 
-  // Only show in dev environment
-  if (!isDevEnvironment) {
+  // Show for: dev environment OR admin OR colaborador
+  if (!canUseDebugTools(user?.role)) {
     return null;
   }
 

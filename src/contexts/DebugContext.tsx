@@ -9,6 +9,12 @@ export const isDevEnvironment =
     window.location.hostname === 'localhost'
   );
 
+// Helper function to check if user can use debug tools
+export function canUseDebugTools(userRole?: string): boolean {
+  const isPrivilegedUser = userRole === 'admin' || userRole === 'colaborador';
+  return isDevEnvironment || isPrivilegedUser;
+}
+
 // Types
 export interface QueryLog {
   id: string;
