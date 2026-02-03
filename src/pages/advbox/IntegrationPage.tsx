@@ -62,11 +62,11 @@ export default function AdvboxIntegrationPage() {
 
   // Load integration when agent changes
   useEffect(() => {
-    if (selectedAgentId) {
-      loadIntegration(selectedAgentId);
+    if (selectedCodAgent) {
+      loadIntegration(selectedCodAgent);
       setTestResult(null);
     }
-  }, [selectedAgentId, loadIntegration]);
+  }, [selectedCodAgent, loadIntegration]);
 
   // Populate form when integration loads
   useEffect(() => {
