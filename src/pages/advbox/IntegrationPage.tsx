@@ -107,14 +107,14 @@ export default function AdvboxIntegrationPage() {
   };
 
   const handleSave = async () => {
-    if (!selectedAgentId) return;
+    if (!selectedCodAgent) return;
     
     if (!formData.api_endpoint || !formData.api_token) {
       setTestResult({ success: false, message: 'Preencha o endpoint e o token' });
       return;
     }
 
-    await saveIntegration(selectedAgentId, formData);
+    await saveIntegration(selectedCodAgent, formData);
   };
 
   const handleDelete = async () => {
