@@ -60,8 +60,8 @@ export default function NotificationRulesPage() {
   };
 
   const handleSaveRule = async (data: AdvboxNotificationRuleFormData) => {
-    if (!selectedAgentId || !integration?.id) return false;
-    const success = await saveRule(selectedAgentId, integration.id, data, editingRule?.id);
+    if (!selectedCodAgent || !integration?.id) return false;
+    const success = await saveRule(selectedCodAgent, integration.id, data, editingRule?.id);
     if (success) {
       setIsEditorOpen(false);
       setEditingRule(null);
