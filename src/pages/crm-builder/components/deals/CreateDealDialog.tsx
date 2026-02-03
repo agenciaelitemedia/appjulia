@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -18,8 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import type { CRMDealFormData, CRMDeal, DealPriority } from '../../types';
 import { PRIORITY_CONFIG } from '../../types';
+import type { CRMCustomField } from '../../hooks/useCRMCustomFields';
+import { DynamicFieldRenderer } from '../custom-fields/DynamicFieldRenderer';
 
 interface CreateDealDialogProps {
   open: boolean;
@@ -27,6 +30,7 @@ interface CreateDealDialogProps {
   onSubmit: (data: CRMDealFormData) => Promise<CRMDeal | null>;
   pipelineName?: string;
   editDeal?: CRMDeal | null;
+  customFields?: CRMCustomField[];
 }
 
 export function CreateDealDialog({
@@ -35,6 +39,7 @@ export function CreateDealDialog({
   onSubmit,
   pipelineName,
   editDeal,
+  customFields = [],
 }: CreateDealDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [title, setTitle] = useState(editDeal?.title || '');
@@ -45,6 +50,41 @@ export function CreateDealDialog({
   const [contactEmail, setContactEmail] = useState(editDeal?.contact_email || '');
   const [priority, setPriority] = useState<DealPriority>(editDeal?.priority || 'medium');
   const [tagsInput, setTagsInput] = useState(editDeal?.tags?.join(', ') || '');
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>(
+    (editDeal?.custom_fields as Record<string, unknown>) || {}
+  );
+
+  // Reset form when editDeal changes
+  useEffect(() => {
+    if (editDeal) {
+      setTitle(editDeal.title);
+      setDescription(editDeal.description || '');
+      setValue(editDeal.value?.toString() || '');
+      setContactName(editDeal.contact_name || '');
+      setContactPhone(editDeal.contact_phone || '');
+      setContactEmail(editDeal.contact_email || '');
+      setPriority(editDeal.priority);
+      setTagsInput(editDeal.tags?.join(', ') || '');
+      setCustomFieldValues((editDeal.custom_fields as Record<string, unknown>) || {});
+    } else {
+      setTitle('');
+      setDescription('');
+      setValue('');
+      setContactName('');
+      setContactPhone('');
+      setContactEmail('');
+      setPriority('medium');
+      setTagsInput('');
+      setCustomFieldValues({});
+    }
+  }, [editDeal]);
+
+  const handleCustomFieldChange = (fieldName: string, value: unknown) => {
+    setCustomFieldValues(prev => ({
+      ...prev,
+      [fieldName]: value,
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +97,8 @@ export function CreateDealDialog({
         .map(t => t.trim())
         .filter(t => t.length > 0);
 
-      const result = await onSubmit({
+      // Merge custom fields into deal form data
+      const formData: CRMDealFormData = {
         title: title.trim(),
         description: description.trim() || undefined,
         value: parseFloat(value) || 0,
@@ -66,7 +107,15 @@ export function CreateDealDialog({
         contact_email: contactEmail.trim() || undefined,
         priority,
         tags,
-      });
+      };
+
+      // Add custom fields to the formData object for passing to parent
+      const formDataWithCustom = {
+        ...formData,
+        custom_fields: Object.keys(customFieldValues).length > 0 ? customFieldValues : undefined,
+      };
+
+      const result = await onSubmit(formDataWithCustom as CRMDealFormData);
 
       if (result) {
         onOpenChange(false);
@@ -79,6 +128,7 @@ export function CreateDealDialog({
         setContactEmail('');
         setPriority('medium');
         setTagsInput('');
+        setCustomFieldValues({});
       }
     } finally {
       setIsSubmitting(false);
@@ -193,6 +243,26 @@ export function CreateDealDialog({
                 </div>
               </div>
             </div>
+
+            {/* Custom Fields */}
+            {customFields.length > 0 && (
+              <>
+                <Separator />
+                <div>
+                  <h4 className="text-sm font-medium mb-3">Campos Adicionais</h4>
+                  <div className="space-y-4">
+                    {customFields.filter(f => f.is_visible).map((field) => (
+                      <DynamicFieldRenderer
+                        key={field.id}
+                        field={field}
+                        value={customFieldValues[field.field_name]}
+                        onChange={(value) => handleCustomFieldChange(field.field_name, value)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="tags">Tags (separadas por vírgula)</Label>

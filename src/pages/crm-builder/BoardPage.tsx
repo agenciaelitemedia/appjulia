@@ -34,6 +34,7 @@ import { CreateDealDialog } from './components/deals/CreateDealDialog';
 import { DealDetailsSheet } from './components/deals/DealDetailsSheet';
 import { useCRMPipelines } from './hooks/useCRMPipelines';
 import { useCRMDeals } from './hooks/useCRMDeals';
+import { useCRMCustomFields } from './hooks/useCRMCustomFields';
 import type { CRMBoard, CRMPipeline, CRMDeal, CRMPipelineFormData, CRMDealFormData } from './types';
 
 export default function BoardPage() {
@@ -69,6 +70,8 @@ export default function BoardPage() {
     fetchDeals,
   } = useCRMDeals({ boardId: boardId || null, codAgent });
 
+  // Custom Fields
+  const { fields: customFields } = useCRMCustomFields({ boardId: boardId || null, codAgent });
   // Dialog states
   const [isCreatePipelineOpen, setIsCreatePipelineOpen] = useState(false);
   const [editingPipeline, setEditingPipeline] = useState<CRMPipeline | null>(null);
@@ -405,6 +408,7 @@ export default function BoardPage() {
         }}
         onSubmit={handleCreateDeal}
         pipelineName={selectedPipelineForDeal?.name}
+        customFields={customFields}
       />
 
       <CreateDealDialog
@@ -412,6 +416,7 @@ export default function BoardPage() {
         onOpenChange={(open) => !open && setEditingDeal(null)}
         onSubmit={handleEditDeal}
         editDeal={editingDeal}
+        customFields={customFields}
       />
 
       <DealDetailsSheet

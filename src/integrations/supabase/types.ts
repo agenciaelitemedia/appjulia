@@ -172,6 +172,62 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_custom_fields: {
+        Row: {
+          board_id: string
+          cod_agent: string
+          created_at: string
+          default_value: string | null
+          field_label: string
+          field_name: string
+          field_type: string
+          id: string
+          is_required: boolean
+          is_visible: boolean
+          options: Json | null
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          board_id: string
+          cod_agent: string
+          created_at?: string
+          default_value?: string | null
+          field_label: string
+          field_name: string
+          field_type?: string
+          id?: string
+          is_required?: boolean
+          is_visible?: boolean
+          options?: Json | null
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          board_id?: string
+          cod_agent?: string
+          created_at?: string
+          default_value?: string | null
+          field_label?: string
+          field_name?: string
+          field_type?: string
+          id?: string
+          is_required?: boolean
+          is_visible?: boolean
+          options?: Json | null
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_custom_fields_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "crm_boards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_deal_history: {
         Row: {
           action: string
