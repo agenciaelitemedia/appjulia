@@ -56,15 +56,15 @@ export default function ProcessesPage() {
   }, [selectedCodAgent, currentPage, phaseFilter, loadProcesses, loadStats]);
 
   const handleSearch = () => {
-    if (selectedAgentId) {
+    if (selectedCodAgent) {
       setCurrentPage(1);
-      loadProcesses(selectedAgentId, { page: 1, phase: phaseFilter || undefined, search: searchQuery || undefined });
+      loadProcesses(selectedCodAgent, { page: 1, phase: phaseFilter || undefined, search: searchQuery || undefined });
     }
   };
 
   const handleSync = async () => {
-    if (selectedAgentId) {
-      await syncProcesses(selectedAgentId);
+    if (selectedCodAgent) {
+      await syncProcesses(selectedCodAgent);
     }
   };
 
