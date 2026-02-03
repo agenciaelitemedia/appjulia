@@ -43,7 +43,7 @@ export default function AdvboxIntegrationPage() {
     deleteIntegration,
   } = useAdvboxIntegration();
 
-  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
+  const [selectedCodAgent, setSelectedCodAgent] = useState<string | null>(null);
   const [showToken, setShowToken] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
