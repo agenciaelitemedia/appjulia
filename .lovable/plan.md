@@ -1,172 +1,331 @@
 
-## Diagnóstico (confirmado com evidência)
 
-O problema **não é “só visual”**: no banco externo, os campos `step_cadence`, `msg_cadence`, `title_cadence` estão **armazenados como JSONB do tipo `string`** (ou seja, um JSONB que contém uma string com JSON dentro).
+# Plano: Sistema de Chat WhatsApp Completo
 
-Eu confirmei isso executando no backend:
+## Análise do Sistema de Referência (painel-helena)
 
-- `jsonb_typeof(step_cadence)` retornou **"string"** para `cod_agent = 202602001`
-- E também ficou claro que **`$1::jsonb` com parâmetro string vira `jsonb` do tipo string**, enquanto o literal `'{...}'::jsonb` vira **object**.
+Após analisar o repositório `painel-julia-php/painel-helena`, identifiquei as seguintes características:
 
-Isso acontece porque o driver usado no backend (`postgresjs`) trata **strings enviadas como parâmetro** como **“string JSON”** quando você faz `::jsonb`, então o Postgres recebe algo equivalente a `"{"cadence_1":"5 minutes"}"` (com aspas externas), e isso vira `jsonb_typeof = 'string'`.
+### Resposta à sua pergunta: Trabalha direto com WhatsApp ou guarda em banco?
 
-Em resumo: **mesmo com `::jsonb`, se você passar string no parâmetro, ele vira JSONB string**. Para virar JSONB object, o parâmetro precisa ser um **objeto JS** (ou um mecanismo que force “raw JSON”).
+**O sistema usa AMBOS - híbrido:**
 
----
+1. **Banco de dados local (Supabase)** para:
+   - Armazenar contatos (`contacts`)
+   - Armazenar mensagens (`messages`)
+   - Gerenciar contadores de não lidas
+   - Persistir histórico
+   - Realtime via Postgres Changes
 
-## Objetivo da correção “de uma vez por todas”
+2. **UaZapi (direto do WhatsApp)** para:
+   - Buscar mensagens novas (`syncNewMessages`)
+   - Enviar mensagens (texto, mídia, localização)
+   - Marcar como lido
+   - Download de mídias pesadas
 
-1) Garantir que **novos saves** nunca mais gravem JSONB string  
-2) Garantir que mesmo se chegar dado corrompido (string/double-string), o app **normalize e salve como objeto**  
-3) Criar um caminho para **corrigir dados já corrompidos** no banco externo (massa)
+### Arquitetura do Chat no painel-helena
 
----
+| Componente | Função |
+|------------|--------|
+| `WhatsAppDataContext` | Provider central que gerencia estado de contatos e mensagens |
+| `Chat.tsx` | Página principal do chat |
+| `ChatList.tsx` | Lista de conversas com busca e filtros |
+| `ChatMessages.tsx` | Área de mensagens com scroll infinito |
+| `ChatInput.tsx` | Input com emoji, anexos, gravação de áudio |
+| `MessageBubble.tsx` | Renderização de cada mensagem |
+| `ContactDetailsPanel.tsx` | Painel lateral com detalhes do contato |
 
-## Mudanças propostas (código)
+### Funcionalidades Implementadas
 
-### 1) Parar de usar `JSON.stringify()` para enviar JSONB no save
-**Arquivo:** `src/pages/agente/hooks/useFollowupData.ts`
-
-- Trocar os params dos campos JSONB de:
-  - `JSON.stringify(config.step_cadence || {})`
-  para:
-  - `coerceJsonbObject(config.step_cadence, {})` (retornando um objeto JS)
-- E manter o SQL usando `::jsonb` (pode manter como redundância de tipagem)
-
-**Por quê:** passando **objeto JS** no parâmetro, o driver envia como JSON real e o Postgres armazena como **JSONB object**.
-
----
-
-### 2) Criar uma função de normalização “anti-regressão”
-**Arquivo:** `src/pages/agente/hooks/useFollowupData.ts` (local, para não espalhar lógica)
-
-Implementar helper tipo:
-
-- Entrada: `unknown`
-- Se for `object` e não-array: retorna como objeto
-- Se for `string`: tenta `JSON.parse` em loop até 2–3 vezes:
-  - Caso `JSON.parse` resulte em string novamente (caso `"\"{...}\""`), tenta de novo
-  - Se resultar em objeto, ok
-- Se falhar: retorna default `{}` (ou lança erro dependendo da estratégia)
-
-Isso cobre:
-- objeto correto `{ cadence_1: "5 minutes" }`
-- string de objeto `'{"cadence_1":"5 minutes"}'`
-- double-string `'"{\\"cadence_1\\":\\"5 minutes\\"}"'`
+- Lista de conversas com abas (Individual/Grupos)
+- Contadores de não lidas
+- Scroll infinito nas mensagens
+- Envio de: texto, imagens, vídeos, documentos, áudio/PTT, localização
+- Formatação WhatsApp (*negrito*, _itálico_, ~tachado~, `código`)
+- Links clicáveis
+- Responder mensagens (quote)
+- Marcar como lido (individual e em massa)
+- Sincronização com WhatsApp
+- Realtime updates via Supabase
 
 ---
 
-### 3) “Cinto e suspensório”: SQL que se auto-corrige se ainda chegar string
-Mesmo após parar o stringify, eu vou deixar o SQL mais robusto para nunca mais cair nisso.
+## Comparação com o Projeto Atual (Julia)
 
-**UPDATE**:
-- Substituir `step_cadence = $2::jsonb` por:
-  - `step_cadence = CASE WHEN jsonb_typeof($2::jsonb) = 'string' THEN ($2::jsonb #>> '{}')::jsonb ELSE $2::jsonb END`
-(e o mesmo para `msg_cadence` e `title_cadence`)
+### O que já existe no projeto Julia:
 
-**INSERT**:
-- Fazer o mesmo dentro do `VALUES (...)` usando `CASE WHEN ...`
+| Componente | Status |
+|------------|--------|
+| `UaZapiContext` / `useUaZapi` | Existe - Provider com todos os endpoints |
+| `UaZapiClient` | Existe - Cliente HTTP completo |
+| `WhatsAppMessagesDialog` | Existe - Popup de mensagens no CRM (1230 linhas) |
 
-Isso garante que:
-- Se por algum motivo o parâmetro vier como string JSON, ele é “desembrulhado” e gravado como objeto.
+### O que **NÃO existe** no projeto Julia:
+
+| Componente | Status |
+|------------|--------|
+| Página de Chat dedicada (`/chat`) | Não existe |
+| Tabela `contacts` no Supabase | Não existe (usa banco externo) |
+| Tabela `messages` no Supabase | Não existe (usa banco externo) |
+| `WhatsAppDataContext` | Não existe |
+| Realtime para mensagens | Não existe |
+| Download de mídias persistente | Parcial (sob demanda) |
+
+### Diferença Arquitetural Chave:
+
+- **painel-helena**: Usa **Supabase interno** para contacts/messages
+- **Julia**: Usa **banco externo** (`externalDb`) para tudo relacionado a leads/agentes
 
 ---
 
-### 4) Ajustar o parse no frontend para não “recontaminar” o save
-Hoje o `parseJsonField()` (em `FollowupConfig.tsx` e `FollowupPage.tsx`) faz apenas 1 `JSON.parse`.  
-Se o banco estiver corrompido como JSONB string, **um parse pode virar string novamente**.
+## Plano de Implementação
 
-Vamos melhorar a função para:
-- tentar parse múltiplas vezes (máximo 2–3)
-- garantir que retorna objeto (senão default)
+### Fase 1: Infraestrutura de Dados (Backend)
 
-Assim, mesmo lendo lixo, a UI sempre trabalha com objeto correto e o save não volta a contaminar.
+Criar tabelas no Supabase para armazenar dados do chat:
+
+1. **Tabela `chat_contacts`**:
+   - `id` (uuid, PK)
+   - `client_id` (uuid, FK profiles)
+   - `cod_agent` (text) - vínculo com agente
+   - `phone` (text)
+   - `name` (text)
+   - `avatar` (text, nullable)
+   - `is_group` (boolean, default false)
+   - `is_archived` (boolean, default false)
+   - `is_muted` (boolean, default false)
+   - `unread_count` (integer, default 0)
+   - `last_message_at` (timestamptz)
+   - `created_at`, `updated_at`
+
+2. **Tabela `chat_messages`**:
+   - `id` (uuid, PK)
+   - `contact_id` (uuid, FK chat_contacts)
+   - `client_id` (uuid, FK profiles)
+   - `message_id` (text) - ID do WhatsApp
+   - `text` (text)
+   - `type` (text) - text, image, audio, video, document, sticker, location, contact
+   - `from_me` (boolean)
+   - `status` (text) - sending, sent, delivered, read
+   - `media_url` (text, nullable)
+   - `file_name` (text, nullable)
+   - `caption` (text, nullable)
+   - `reply_to` (text, nullable)
+   - `metadata` (jsonb, nullable)
+   - `timestamp` (timestamptz)
+   - `created_at`
+
+3. **RLS Policies**: Filtrar por `client_id` do usuário autenticado
+
+4. **Realtime**: Habilitar para ambas as tabelas
 
 ---
 
-## Correção dos dados já corrompidos (banco externo)
+### Fase 2: Context Provider (`WhatsAppDataContext`)
 
-Mesmo com a correção no app, os registros antigos continuarão quebrando outros sistemas até serem corrigidos.
+Criar um provider similar ao painel-helena em:
 
-Vou te passar uma query de “repair” para rodar no banco externo (uma vez):
+**Arquivo**: `src/contexts/WhatsAppDataContext.tsx`
 
-```sql
-UPDATE followup_config
-SET
-  step_cadence  = CASE WHEN jsonb_typeof(step_cadence)  = 'string' THEN (step_cadence  #>> '{}')::jsonb ELSE step_cadence  END,
-  msg_cadence   = CASE WHEN jsonb_typeof(msg_cadence)   = 'string' THEN (msg_cadence   #>> '{}')::jsonb ELSE msg_cadence   END,
-  title_cadence = CASE WHEN jsonb_typeof(title_cadence) = 'string' THEN (title_cadence #>> '{}')::jsonb ELSE title_cadence END
-WHERE
-  jsonb_typeof(step_cadence)  = 'string'
-  OR jsonb_typeof(msg_cadence) = 'string'
-  OR jsonb_typeof(title_cadence) = 'string';
+Funcionalidades:
+- Estado global de contatos e mensagens
+- `loadContacts()` - Carrega do Supabase
+- `loadMessages(contactId, limit, offset)` - Com paginação
+- `syncWithWhatsApp()` - Sincroniza com UaZapi
+- Contadores de não lidas (total, individual, grupos)
+- Subscriptions Realtime
+
+---
+
+### Fase 3: Componentes do Chat
+
+Criar a estrutura de componentes:
+
+```text
+src/
+  components/
+    chat/
+      ChatContainer.tsx      # Container principal
+      ChatList.tsx           # Lista de conversas
+      ChatContactItem.tsx    # Item de contato
+      ChatHeader.tsx         # Header da conversa ativa
+      ChatMessages.tsx       # Área de mensagens
+      MessageBubble.tsx      # Bolha de mensagem
+      QuotedMessage.tsx      # Mensagem citada
+      ChatInput.tsx          # Input de mensagem
+      ContactDetailsPanel.tsx # Painel de detalhes
+      MediaViewer.tsx        # Visualizador de mídia
 ```
 
-Depois disso, validar:
+---
+
+### Fase 4: Página do Chat
+
+**Arquivo**: `src/pages/chat/ChatPage.tsx`
+
+Layout:
+- Sidebar esquerda (320px): Lista de conversas com abas
+- Área central: Mensagens e input
+- Painel direito (opcional): Detalhes do contato
+
+---
+
+### Fase 5: Integração com UaZapi
+
+Utilizar os endpoints já existentes:
+
+| Endpoint | Uso |
+|----------|-----|
+| `chat.find()` | Buscar conversas |
+| `chat.getDetails()` | Detalhes do contato |
+| `chat.markRead()` | Marcar como lido |
+| `message.sendText()` | Enviar texto |
+| `message.sendImage()` | Enviar imagem |
+| `message.sendAudio()` | Enviar áudio |
+| `message.download()` | Download de mídia |
+| `/message/find` (POST) | Buscar mensagens (adicionar) |
+
+---
+
+### Fase 6: Rota e Menu
+
+1. Adicionar rota `/chat` no `App.tsx`
+2. Adicionar item no menu (sidebar)
+3. Integrar com permissões existentes
+
+---
+
+## Arquivos a Criar/Modificar
+
+| Arquivo | Ação |
+|---------|------|
+| `src/contexts/WhatsAppDataContext.tsx` | Criar |
+| `src/components/chat/ChatContainer.tsx` | Criar |
+| `src/components/chat/ChatList.tsx` | Criar |
+| `src/components/chat/ChatContactItem.tsx` | Criar |
+| `src/components/chat/ChatHeader.tsx` | Criar |
+| `src/components/chat/ChatMessages.tsx` | Criar |
+| `src/components/chat/MessageBubble.tsx` | Criar |
+| `src/components/chat/QuotedMessage.tsx` | Criar |
+| `src/components/chat/ChatInput.tsx` | Criar |
+| `src/components/chat/ContactDetailsPanel.tsx` | Criar |
+| `src/pages/chat/ChatPage.tsx` | Criar |
+| `src/types/chat.ts` | Criar |
+| `src/lib/uazapi/endpoints/message.ts` | Modificar (adicionar find) |
+| `src/App.tsx` | Modificar (adicionar rota) |
+| Migration SQL | Criar tabelas |
+
+---
+
+## Decisões de Arquitetura
+
+### Pergunta: Usar banco externo ou Supabase para mensagens?
+
+**Opções:**
+
+1. **Supabase local** (como painel-helena)
+   - Vantagem: Realtime nativo, RLS, queries rápidas
+   - Desvantagem: Duplicação de dados
+
+2. **Banco externo** (como resto do Julia)
+   - Vantagem: Dados centralizados
+   - Desvantagem: Sem realtime, mais complexo
+
+3. **Híbrido** (recomendado)
+   - Supabase para cache/realtime
+   - Sync periódico com UaZapi
+   - Webhook para receber novas mensagens
+
+**Recomendação**: Opção 3 (Híbrido) - similar ao painel-helena.
+
+---
+
+## Estimativa de Esforço
+
+| Fase | Complexidade | Componentes |
+|------|--------------|-------------|
+| Fase 1 | Média | 2 tabelas, RLS, realtime |
+| Fase 2 | Alta | Context provider completo |
+| Fase 3 | Alta | ~10 componentes |
+| Fase 4 | Média | 1 página |
+| Fase 5 | Média | Integração endpoints |
+| Fase 6 | Baixa | Rota + menu |
+
+**Total estimado**: Implementação robusta
+
+---
+
+## Seção Técnica
+
+### Schema SQL Proposto
 
 ```sql
-SELECT
-  cod_agent,
-  jsonb_typeof(step_cadence)  AS step_type,
-  jsonb_typeof(msg_cadence)   AS msg_type,
-  jsonb_typeof(title_cadence) AS title_type
-FROM followup_config
-WHERE cod_agent = '202602001';
+-- Tabela de contatos do chat
+CREATE TABLE public.chat_contacts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id UUID NOT NULL,
+  cod_agent TEXT,
+  phone TEXT NOT NULL,
+  name TEXT NOT NULL,
+  avatar TEXT,
+  is_group BOOLEAN DEFAULT FALSE,
+  is_archived BOOLEAN DEFAULT FALSE,
+  is_muted BOOLEAN DEFAULT FALSE,
+  unread_count INTEGER DEFAULT 0,
+  last_message_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Tabela de mensagens
+CREATE TABLE public.chat_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  contact_id UUID NOT NULL REFERENCES chat_contacts(id) ON DELETE CASCADE,
+  client_id UUID NOT NULL,
+  message_id TEXT,
+  text TEXT,
+  type TEXT DEFAULT 'text',
+  from_me BOOLEAN DEFAULT FALSE,
+  status TEXT DEFAULT 'sent',
+  media_url TEXT,
+  file_name TEXT,
+  caption TEXT,
+  reply_to TEXT,
+  metadata JSONB,
+  timestamp TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Índices
+CREATE INDEX idx_chat_contacts_client ON chat_contacts(client_id);
+CREATE INDEX idx_chat_contacts_phone ON chat_contacts(phone);
+CREATE INDEX idx_chat_messages_contact ON chat_messages(contact_id);
+CREATE INDEX idx_chat_messages_timestamp ON chat_messages(timestamp DESC);
+
+-- Realtime
+ALTER PUBLICATION supabase_realtime ADD TABLE chat_contacts;
+ALTER PUBLICATION supabase_realtime ADD TABLE chat_messages;
 ```
 
-Esperado: tudo **object**.
+### Estrutura do WhatsAppDataContext
 
----
-
-## Prevenção extra (opcional, nível banco — “nunca mais entra lixo”)
-
-Se você tiver governança do schema do banco externo, dá para bloquear isso para sempre adicionando constraints:
-
-1) Primeiro roda a query de repair acima (senão vai falhar)
-2) Depois cria constraints:
-
-```sql
-ALTER TABLE followup_config
-  ADD CONSTRAINT followup_config_step_cadence_is_object
-  CHECK (jsonb_typeof(step_cadence) = 'object');
-
-ALTER TABLE followup_config
-  ADD CONSTRAINT followup_config_msg_cadence_is_object
-  CHECK (jsonb_typeof(msg_cadence) = 'object');
-
-ALTER TABLE followup_config
-  ADD CONSTRAINT followup_config_title_cadence_is_object
-  CHECK (jsonb_typeof(title_cadence) = 'object');
+```typescript
+interface WhatsAppDataContextValue {
+  contacts: ChatContact[];
+  messages: Record<string, ChatMessage[]>;
+  loading: boolean;
+  loadContacts: () => Promise<void>;
+  loadMessages: (contactId: string, limit?: number, offset?: number) 
+    => Promise<{ messages: ChatMessage[]; hasMore: boolean }>;
+  sendMessage: (contactId: string, text: string, replyToId?: string) 
+    => Promise<void>;
+  sendMedia: (contactId: string, file: File, type: MediaType) 
+    => Promise<void>;
+  markAsRead: (contactId: string) => Promise<void>;
+  syncContacts: () => Promise<void>;
+  totalUnreadCount: number;
+  individualUnreadCount: number;
+  groupUnreadCount: number;
+}
 ```
 
-Isso faz qualquer tentativa de gravar JSONB string falhar imediatamente, protegendo todos os sistemas.
-
----
-
-## Testes / validação após implementar
-
-1) Na tela `/agente/followup` → aba Configurações → Salvar
-2) Verificar via query:
-   - `jsonb_typeof(step_cadence)` deve ser `object`
-3) Verificar que o payload de save (DebugBar/Network) agora envia **objeto** (não string) nos params do `db-query`
-
----
-
-## Arquivos envolvidos
-
-- `src/pages/agente/hooks/useFollowupData.ts`
-  - parar `JSON.stringify` nos params JSONB
-  - adicionar normalização
-  - reforçar SQL com `CASE WHEN jsonb_typeof(...) = 'string' ...`
-- `src/pages/agente/followup/components/FollowupConfig.tsx`
-  - parse robusto (multi-parse)
-- `src/pages/agente/followup/FollowupPage.tsx`
-  - parse robusto (multi-parse) para consistência
-
----
-
-## Resultado esperado
-
-- A partir do deploy, **não grava mais JSONB string** mesmo que venha input “estranho”
-- Ao salvar uma vez uma configuração corrompida, ela passa a ser gravada como **objeto**
-- Com a query de repair, todos os registros antigos ficam consistentes e os “outros sistemas” param de quebrar
