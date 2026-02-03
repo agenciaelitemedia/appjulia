@@ -29,8 +29,8 @@ import { PROCESS_PHASES } from '@/types/advbox';
 export default function ProcessesPage() {
   const { user, isAdmin } = useAuth();
   
-  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(
-    isAdmin ? null : user?.cod_agent ?? null
+  const [selectedCodAgent, setSelectedCodAgent] = useState<string | null>(
+    isAdmin ? null : (user?.cod_agent?.toString() ?? null)
   );
   
   const [searchQuery, setSearchQuery] = useState('');
