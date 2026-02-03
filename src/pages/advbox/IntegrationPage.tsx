@@ -195,7 +195,7 @@ export default function AdvboxIntegrationPage() {
       </Card>
 
       {/* Loading State */}
-      {isLoading && selectedAgentId && (
+      {isLoading && selectedCodAgent && (
         <Card>
           <CardContent className="p-6">
             <div className="space-y-4">
