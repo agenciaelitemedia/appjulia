@@ -125,10 +125,10 @@ export function AdvboxAgentSelect({
             <CommandGroup>
               {agents.map((agent) => (
                 <CommandItem
-                  key={agent.agent_id}
+                  key={agent.cod_agent}
                   value={`${agent.cod_agent} ${agent.client_name} ${agent.business_name || ''}`}
                   onSelect={() => {
-                    onValueChange(agent.agent_id);
+                    onValueChange(agent.cod_agent);
                     setOpen(false);
                   }}
                   className="cursor-pointer"
@@ -136,7 +136,7 @@ export function AdvboxAgentSelect({
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      value === agent.agent_id ? "opacity-100" : "opacity-0"
+                      value === agent.cod_agent ? "opacity-100" : "opacity-0"
                     )}
                   />
                   <div className="flex flex-col gap-0.5 overflow-hidden">
