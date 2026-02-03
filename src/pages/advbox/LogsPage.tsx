@@ -54,10 +54,10 @@ export default function AdvboxLogsPage() {
   });
 
   useEffect(() => {
-    if (selectedAgentId) {
-      loadLogs(selectedAgentId, filters);
+    if (selectedCodAgent) {
+      loadLogs(selectedCodAgent, filters);
     }
-  }, [selectedAgentId, filters, loadLogs]);
+  }, [selectedCodAgent, filters, loadLogs]);
 
   const handleFilterChange = (key: keyof NotificationLogsFilters, value: string | undefined) => {
     setFilters(prev => ({
