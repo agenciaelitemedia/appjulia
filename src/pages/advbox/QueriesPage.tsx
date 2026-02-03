@@ -115,7 +115,7 @@ export default function AdvboxQueriesPage() {
         </CardContent>
       </Card>
 
-      {selectedAgentId && (
+      {selectedCodAgent && (
         <>
           {/* Statistics */}
           {stats && (
