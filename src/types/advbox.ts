@@ -106,7 +106,7 @@ export interface AdvboxClientQuery {
 
 export interface AdvboxLeadSync {
   id: string;
-  agent_id: number;
+  cod_agent: string;
   integration_id: string;
   whatsapp_number: string;
   lead_name: string;
