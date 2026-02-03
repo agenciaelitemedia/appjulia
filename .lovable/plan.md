@@ -1,71 +1,113 @@
 
-# Plano: Corrigir Detecção de Ambiente para DebugBar
+# Plano: DebugBar Visível para Admin e Colaborador em Qualquer Ambiente
 
-## Problema Identificado
+## Objetivo
 
-A verificação de ambiente (`isDevEnvironment`) está incorreta:
+Permitir que usuários com role `admin` ou `colaborador` vejam e utilizem a DebugBar em **qualquer ambiente** (produção ou desenvolvimento), enquanto outros usuários só terão acesso em ambientes de desenvolvimento.
 
+## Lógica Atual vs Nova
+
+### Atual
 ```typescript
-// Codigo atual - NAO FUNCIONA
-export const isDevEnvironment = 
-  typeof window !== 'undefined' && 
-  (window.location.hostname.includes('lovable.app') || window.location.hostname === 'localhost');
+// Visibilidade baseada APENAS no domínio
+if (!isDevEnvironment) {
+  return null;
+}
 ```
 
-**Motivo do problema:** O preview do Lovable usa o dominio `lovableproject.com`, nao `lovable.app`:
-- URL nos logs: `1f00a8d6-377c-43ef-98e1-d21707c37bc8.lovableproject.com`
-- A verificacao procura por `lovable.app`, mas deveria procurar por `lovableproject.com`
-
-## Solucao
-
-Atualizar a verificacao de ambiente para incluir `lovableproject.com`:
-
+### Nova
 ```typescript
-// Codigo corrigido
-export const isDevEnvironment = 
-  typeof window !== 'undefined' && 
-  (
-    window.location.hostname.includes('lovable.app') || 
-    window.location.hostname.includes('lovableproject.com') ||  // ADICIONAR ESTA LINHA
-    window.location.hostname === 'localhost'
-  );
+// Visibilidade baseada no domínio OU no role do usuário
+const canShowDebugTools = isDevEnvironment || user?.role === 'admin' || user?.role === 'colaborador';
+
+if (!canShowDebugTools) {
+  return null;
+}
 ```
 
 ---
 
-## Arquivo a Modificar
+## Arquivos a Modificar
 
-| Arquivo | Mudanca |
+### 1. `src/components/debug/DebugBarToggle.tsx`
+
+**Mudanças:**
+- Importar `useAuth` do contexto de autenticação
+- Adicionar lógica que verifica o role do usuário
+- Mostrar o toggle se: `isDevEnvironment` **OU** `user.role === 'admin'` **OU** `user.role === 'colaborador'`
+
+```typescript
+import { useAuth } from '@/contexts/AuthContext';
+
+export function DebugBarToggle({ isCollapsed = false }: DebugBarToggleProps) {
+  const { enabled, setEnabled } = useDebug();
+  const { user } = useAuth();
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Mostrar para: ambiente dev OU admin OU colaborador
+  const isPrivilegedUser = user?.role === 'admin' || user?.role === 'colaborador';
+  const canShowDebugTools = isDevEnvironment || isPrivilegedUser;
+
+  if (!canShowDebugTools) {
+    return null;
+  }
+  // ... resto do componente
+}
+```
+
+### 2. `src/contexts/DebugContext.tsx`
+
+**Mudanças:**
+- O `DebugProvider` não tem acesso ao `AuthContext` diretamente (pode causar dependência circular)
+- Exportar uma função auxiliar `canUseDebugTools(userRole)` para verificação
+- Ajustar a inicialização do estado `enabled` para considerar também usuários privilegiados
+
+```typescript
+// Função auxiliar para verificar se pode usar debug tools
+export function canUseDebugTools(userRole?: string): boolean {
+  const isPrivilegedUser = userRole === 'admin' || userRole === 'colaborador';
+  return isDevEnvironment || isPrivilegedUser;
+}
+```
+
+**Nota:** O `DebugProvider` é inicializado antes do `AuthProvider`, então a verificação de role será feita no componente `DebugBarToggle` que já tem acesso ao usuário autenticado.
+
+---
+
+## Fluxo de Visibilidade
+
+| Ambiente | Role | DebugBar Visível? |
+|----------|------|-------------------|
+| Desenvolvimento (localhost, lovable.app) | Qualquer | Sim |
+| Produção (domínio customizado) | admin | Sim |
+| Produção (domínio customizado) | colaborador | Sim |
+| Produção (domínio customizado) | user | Não |
+| Produção (domínio customizado) | time | Não |
+
+---
+
+## Detalhes Técnicos
+
+### Ordem dos Providers no App.tsx
+```
+QueryClientProvider
+  └── TooltipProvider
+       └── DebugProvider        ← Inicializado antes do Auth
+            └── BrowserRouter
+                 └── AuthProvider   ← Usuário disponível aqui
+                      └── UaZapiProvider
+                           └── Routes
+                           └── DebugBar
+```
+
+A verificação de role será feita no `DebugBarToggle` e `DebugBar`, que são renderizados dentro do `AuthProvider` e têm acesso ao contexto de autenticação.
+
+---
+
+## Resumo das Mudanças
+
+| Arquivo | Mudança |
 |---------|---------|
-| `src/contexts/DebugContext.tsx` | Adicionar `lovableproject.com` na verificacao de ambiente (linha 4-6) |
-
----
-
-## Codigo Atual vs Corrigido
-
-### Antes (linha 4-6):
-```typescript
-export const isDevEnvironment = 
-  typeof window !== 'undefined' && 
-  (window.location.hostname.includes('lovable.app') || window.location.hostname === 'localhost');
-```
-
-### Depois:
-```typescript
-export const isDevEnvironment = 
-  typeof window !== 'undefined' && 
-  (
-    window.location.hostname.includes('lovable.app') || 
-    window.location.hostname.includes('lovableproject.com') || 
-    window.location.hostname === 'localhost'
-  );
-```
-
----
-
-## Resultado Esperado
-
-1. O `DebugBarToggle` aparecera no sidebar quando acessado via `*.lovableproject.com`
-2. A `DebugBar` sera exibida na parte inferior da tela quando ativada
-3. Continuara funcionando em `localhost` e `*.lovable.app`
-4. NAO aparecera em dominios customizados de producao
+| `src/components/debug/DebugBarToggle.tsx` | Adicionar verificação de role (`admin`/`colaborador`) para exibir o toggle |
+| `src/contexts/DebugContext.tsx` | Exportar função auxiliar `canUseDebugTools` |
+| `src/components/debug/DebugBar.tsx` | Adicionar mesma verificação de role para exibir a barra |
