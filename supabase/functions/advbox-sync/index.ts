@@ -334,8 +334,8 @@ serve(async (req) => {
              COUNT(DISTINCT client_id) as total_clients,
              MAX(cached_at) as last_cached_at
            FROM advbox_processes_cache 
-           WHERE agent_id = $1`,
-          [agentId]
+           WHERE cod_agent = $1`,
+          [codAgent]
         );
 
         const phaseStats = await sql.unsafe(
