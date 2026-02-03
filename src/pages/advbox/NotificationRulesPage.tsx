@@ -36,7 +36,7 @@ export default function NotificationRulesPage() {
   const { integration, loadIntegration, isLoading: isLoadingIntegration } = useAdvboxIntegration();
   const { rules, isLoading: isLoadingRules, isSaving, loadRules, saveRule, toggleRule, deleteRule } = useNotificationRules();
 
-  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
+  const [selectedCodAgent, setSelectedCodAgent] = useState<string | null>(null);
   const [editingRule, setEditingRule] = useState<AdvboxNotificationRule | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [deleteConfirmRule, setDeleteConfirmRule] = useState<AdvboxNotificationRule | null>(null);
