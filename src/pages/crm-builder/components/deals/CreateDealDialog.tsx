@@ -141,14 +141,14 @@ export function CreateDealDialog({
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>
-              {editDeal ? 'Editar Deal' : 'Novo Deal'}
+              {editDeal ? 'Editar Card' : 'Novo Card'}
             </DialogTitle>
             <DialogDescription>
               {editDeal 
-                ? 'Atualize as informações do deal.'
+                ? 'Atualize as informações do card.'
                 : pipelineName 
-                  ? `Adicionar novo deal em "${pipelineName}"`
-                  : 'Adicione um novo deal ao pipeline.'}
+                  ? `Adicionar novo card em "${pipelineName}"`
+                  : 'Adicione um novo card ao pipeline.'}
             </DialogDescription>
           </DialogHeader>
 
