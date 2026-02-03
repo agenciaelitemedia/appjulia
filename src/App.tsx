@@ -1,4 +1,5 @@
 import { Toaster } from "@/components/ui/toaster";
+import { lazy } from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -33,6 +34,7 @@ import JoinCallPage from "./pages/video/JoinCallPage";
 import ChatPage from "./pages/chat/ChatPage";
 import AdvboxIntegrationPage from "./pages/advbox/IntegrationPage";
 import AdvboxNotificationRulesPage from "./pages/advbox/NotificationRulesPage";
+import AdvboxProcessesPage from "./pages/advbox/ProcessesPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -66,6 +68,7 @@ const App = () => (
                   <Route path="/perfil" element={<ProfileSettingsPage />} />
                   <Route path="/advbox" element={<AdvboxIntegrationPage />} />
                   <Route path="/advbox/regras" element={<AdvboxNotificationRulesPage />} />
+                  <Route path="/advbox/processos" element={<AdvboxProcessesPage />} />
                   
                   {/* Admin-only routes */}
                   <Route element={<AdminRoute />}>
