@@ -485,7 +485,7 @@ export default function AdvboxIntegrationPage() {
       )}
 
       {/* No Agent Selected */}
-      {!selectedAgentId && (
+      {!selectedCodAgent && (
         <Card>
           <CardContent className="p-12 text-center">
             <Scale className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
