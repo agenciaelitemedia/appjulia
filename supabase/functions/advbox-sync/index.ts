@@ -279,7 +279,7 @@ serve(async (req) => {
         const offset = (page - 1) * limit;
 
         let whereClause = 'WHERE cod_agent = $1';
-        const params: (string | number)[] = [agentId];
+        const params: (string | number)[] = [codAgent];
         let paramIndex = 2;
 
         if (phase) {
