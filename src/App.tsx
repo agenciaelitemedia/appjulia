@@ -5,8 +5,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { UaZapiProvider } from "@/contexts/UaZapiContext";
+import { DebugProvider } from "@/contexts/DebugContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { AdminRoute } from "@/components/guards/AdminRoute";
+import { DebugBar } from "@/components/debug/DebugBar";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import CRMPage from "./pages/crm/CRMPage";
@@ -35,45 +37,48 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <UaZapiProvider>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/call/:roomName" element={<JoinCallPage />} />
-              <Route element={<MainLayout />}>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/crm/leads" element={<CRMPage />} />
-                <Route path="/crm/lead-estatisticas" element={<CRMStatisticsPage />} />
-                <Route path="/crm/lead-monitoramento" element={<CRMMonitoringPage />} />
-                <Route path="/estrategico/desempenho" element={<DesempenhoPage />} />
-                <Route path="/estrategico/contratos" element={<ContratosPage />} />
-                <Route path="/agente/meus-agentes" element={<MyAgentsPage />} />
-                <Route path="/agente/followup" element={<FollowupPage />} />
-                <Route path="/video/queue" element={<VideoQueuePage />} />
-                <Route path="/biblioteca" element={<CriativosPage />} />
-                <Route path="/equipe" element={<EquipePage />} />
-                <Route path="/perfil" element={<ProfileSettingsPage />} />
-                
-                {/* Admin-only routes */}
-                <Route element={<AdminRoute />}>
-                  <Route path="/admin/agentes" element={<AgentsList />} />
-                  <Route path="/admin/agentes-novo" element={<CreateAgentPage />} />
-                  <Route path="/admin/agentes/:id/editar" element={<EditAgentPage />} />
-                  <Route path="/admin/agentes/:id/detalhes" element={<AgentDetailsPage />} />
-                  <Route path="/admin/modulos" element={<ModulosPage />} />
-                  <Route path="/admin/permissoes" element={<PermissoesPage />} />
-                  <Route path="/admin/meta-test" element={<MetaTestPage />} />
+      <DebugProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <UaZapiProvider>
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/call/:roomName" element={<JoinCallPage />} />
+                <Route element={<MainLayout />}>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/crm/leads" element={<CRMPage />} />
+                  <Route path="/crm/lead-estatisticas" element={<CRMStatisticsPage />} />
+                  <Route path="/crm/lead-monitoramento" element={<CRMMonitoringPage />} />
+                  <Route path="/estrategico/desempenho" element={<DesempenhoPage />} />
+                  <Route path="/estrategico/contratos" element={<ContratosPage />} />
+                  <Route path="/agente/meus-agentes" element={<MyAgentsPage />} />
+                  <Route path="/agente/followup" element={<FollowupPage />} />
+                  <Route path="/video/queue" element={<VideoQueuePage />} />
+                  <Route path="/biblioteca" element={<CriativosPage />} />
+                  <Route path="/equipe" element={<EquipePage />} />
+                  <Route path="/perfil" element={<ProfileSettingsPage />} />
+                  
+                  {/* Admin-only routes */}
+                  <Route element={<AdminRoute />}>
+                    <Route path="/admin/agentes" element={<AgentsList />} />
+                    <Route path="/admin/agentes-novo" element={<CreateAgentPage />} />
+                    <Route path="/admin/agentes/:id/editar" element={<EditAgentPage />} />
+                    <Route path="/admin/agentes/:id/detalhes" element={<AgentDetailsPage />} />
+                    <Route path="/admin/modulos" element={<ModulosPage />} />
+                    <Route path="/admin/permissoes" element={<PermissoesPage />} />
+                    <Route path="/admin/meta-test" element={<MetaTestPage />} />
+                  </Route>
                 </Route>
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </UaZapiProvider>
-        </AuthProvider>
-      </BrowserRouter>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </UaZapiProvider>
+          </AuthProvider>
+        </BrowserRouter>
+        <DebugBar />
+      </DebugProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

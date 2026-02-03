@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMenuModules, getSortedGroups } from "@/hooks/useMenuModules";
 import { getIcon } from "@/lib/iconMap";
+import { DebugBarToggle } from "@/components/debug/DebugBarToggle";
 import {
   Tooltip,
   TooltipContent,
@@ -159,6 +160,9 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
                   </div>
                 ))
               )}
+              
+              {/* Developer Tools Toggle */}
+              <DebugBarToggle isCollapsed={isCollapsed} />
             </nav>
           </ScrollArea>
         </aside>

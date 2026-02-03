@@ -23,14 +23,51 @@ interface RawQueryOptions {
 
 class ExternalDatabase {
   private async invoke(payload: Record<string, any>) {
-    const { data, error } = await supabase.functions.invoke('db-query', {
-      body: payload,
-    });
-
-    if (error) throw error;
-    if (data.error) throw new Error(data.error);
+    const startTime = performance.now();
     
-    return data.data;
+    try {
+      const { data, error } = await supabase.functions.invoke('db-query', {
+        body: payload,
+      });
+
+      const duration = performance.now() - startTime;
+      
+      // Emit debug event if debugbar is enabled
+      if ((window as any).__DEBUG_ENABLED__) {
+        window.dispatchEvent(new CustomEvent('debug:query', {
+          detail: {
+            action: payload.action,
+            query: payload.data?.query,
+            params: payload.data?.params || Object.values(payload.data || {}),
+            duration,
+            result: data?.data,
+            error: error?.message || data?.error
+          }
+        }));
+      }
+
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+      
+      return data.data;
+    } catch (err) {
+      const duration = performance.now() - startTime;
+      
+      // Emit debug event for errors
+      if ((window as any).__DEBUG_ENABLED__) {
+        window.dispatchEvent(new CustomEvent('debug:query', {
+          detail: {
+            action: payload.action,
+            query: payload.data?.query,
+            params: payload.data?.params || Object.values(payload.data || {}),
+            duration,
+            error: err instanceof Error ? err.message : String(err)
+          }
+        }));
+      }
+      
+      throw err;
+    }
   }
 
   async select<T = any>(options: QueryOptions): Promise<T[]> {
