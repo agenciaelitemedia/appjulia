@@ -62,6 +62,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
         <aside
           className={cn(
             "fixed top-0 left-0 z-50 h-full bg-sidebar transition-all duration-300 ease-in-out lg:translate-x-0",
+            "flex flex-col",
             isOpen ? "translate-x-0" : "-translate-x-full",
             sidebarWidth,
             "border-r border-sidebar-border",
@@ -69,7 +70,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
         >
           {/* Logo Header */}
           <div className={cn(
-            "flex items-center h-16 border-b border-sidebar-border",
+            "flex items-center h-16 border-b border-sidebar-border shrink-0",
             isCollapsed ? "justify-center px-2" : "justify-between px-4"
           )}>
             <div className="flex items-center gap-2">
@@ -89,7 +90,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
           </div>
 
           {/* Menu */}
-          <ScrollArea className="h-[calc(100vh-4rem)]">
+          <ScrollArea className="flex-1 min-h-0">
             <nav className={cn("p-4 space-y-6", isCollapsed && "px-2 py-4 space-y-4")}>
               {isLoading ? (
                 <div className="flex items-center justify-center py-8">
@@ -160,11 +161,11 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
                   </div>
                 ))
               )}
-              
-              {/* Developer Tools Toggle */}
-              <DebugBarToggle isCollapsed={isCollapsed} />
             </nav>
           </ScrollArea>
+          
+          {/* Developer Tools Toggle - Fixed at bottom */}
+          <DebugBarToggle isCollapsed={isCollapsed} />
         </aside>
       </>
     </TooltipProvider>
