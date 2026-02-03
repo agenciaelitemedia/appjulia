@@ -43,11 +43,11 @@ export default function NotificationRulesPage() {
 
   // Load integration and rules when agent changes
   useEffect(() => {
-    if (selectedAgentId) {
-      loadIntegration(selectedAgentId);
-      loadRules(selectedAgentId);
+    if (selectedCodAgent) {
+      loadIntegration(selectedCodAgent);
+      loadRules(selectedCodAgent);
     }
-  }, [selectedAgentId, loadIntegration, loadRules]);
+  }, [selectedCodAgent, loadIntegration, loadRules]);
 
   const handleCreateRule = () => {
     setEditingRule(null);
