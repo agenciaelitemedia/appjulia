@@ -141,7 +141,7 @@ export default function NotificationRulesPage() {
       )}
 
       {/* Loading State */}
-      {selectedAgentId && isLoading && (
+      {selectedCodAgent && isLoading && (
         <div className="space-y-4">
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-24 w-full" />
