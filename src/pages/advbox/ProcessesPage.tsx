@@ -29,8 +29,8 @@ import { PROCESS_PHASES } from '@/types/advbox';
 export default function ProcessesPage() {
   const { user, isAdmin } = useAuth();
   
-  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(
-    isAdmin ? null : user?.cod_agent ?? null
+  const [selectedCodAgent, setSelectedCodAgent] = useState<string | null>(
+    isAdmin ? null : (user?.cod_agent?.toString() ?? null)
   );
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -49,22 +49,22 @@ export default function ProcessesPage() {
   } = useProcessesCache();
 
   useEffect(() => {
-    if (selectedAgentId) {
-      loadProcesses(selectedAgentId, { page: currentPage, phase: phaseFilter || undefined, search: searchQuery || undefined });
-      loadStats(selectedAgentId);
+    if (selectedCodAgent) {
+      loadProcesses(selectedCodAgent, { page: currentPage, phase: phaseFilter || undefined, search: searchQuery || undefined });
+      loadStats(selectedCodAgent);
     }
-  }, [selectedAgentId, currentPage, phaseFilter, loadProcesses, loadStats]);
+  }, [selectedCodAgent, currentPage, phaseFilter, loadProcesses, loadStats]);
 
   const handleSearch = () => {
-    if (selectedAgentId) {
+    if (selectedCodAgent) {
       setCurrentPage(1);
-      loadProcesses(selectedAgentId, { page: 1, phase: phaseFilter || undefined, search: searchQuery || undefined });
+      loadProcesses(selectedCodAgent, { page: 1, phase: phaseFilter || undefined, search: searchQuery || undefined });
     }
   };
 
   const handleSync = async () => {
-    if (selectedAgentId) {
-      await syncProcesses(selectedAgentId);
+    if (selectedCodAgent) {
+      await syncProcesses(selectedCodAgent);
     }
   };
 
@@ -102,13 +102,13 @@ export default function ProcessesPage() {
         
         {isAdmin && (
           <AdvboxAgentSelect
-            value={selectedAgentId}
-            onValueChange={setSelectedAgentId}
+            value={selectedCodAgent}
+            onValueChange={setSelectedCodAgent}
           />
         )}
       </div>
 
-      {!selectedAgentId ? (
+      {!selectedCodAgent ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Database className="h-12 w-12 text-muted-foreground mb-4" />

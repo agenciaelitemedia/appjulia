@@ -46,17 +46,17 @@ const QUERY_TYPES = [
 
 export default function AdvboxQueriesPage() {
   const { queries, total, stats, isLoading, loadQueries } = useClientQueries();
-  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
+  const [selectedCodAgent, setSelectedCodAgent] = useState<string | null>(null);
   const [filters, setFilters] = useState<ClientQueriesFilters>({
     page: 1,
     limit: 20,
   });
 
   useEffect(() => {
-    if (selectedAgentId) {
-      loadQueries(selectedAgentId, filters);
+    if (selectedCodAgent) {
+      loadQueries(selectedCodAgent, filters);
     }
-  }, [selectedAgentId, filters, loadQueries]);
+  }, [selectedCodAgent, filters, loadQueries]);
 
   const handleFilterChange = (key: keyof ClientQueriesFilters, value: string | undefined) => {
     setFilters(prev => ({
@@ -108,14 +108,14 @@ export default function AdvboxQueriesPage() {
         </CardHeader>
         <CardContent>
           <AdvboxAgentSelect
-            value={selectedAgentId}
-            onValueChange={setSelectedAgentId}
+            value={selectedCodAgent}
+            onValueChange={setSelectedCodAgent}
             placeholder="Selecione um agente..."
           />
         </CardContent>
       </Card>
 
-      {selectedAgentId && (
+      {selectedCodAgent && (
         <>
           {/* Statistics */}
           {stats && (
@@ -244,7 +244,7 @@ export default function AdvboxQueriesPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => selectedAgentId && loadQueries(selectedAgentId, filters)}
+                onClick={() => selectedCodAgent && loadQueries(selectedCodAgent, filters)}
                 disabled={isLoading}
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
@@ -332,7 +332,7 @@ export default function AdvboxQueriesPage() {
       )}
 
       {/* No Agent Selected */}
-      {!selectedAgentId && (
+      {!selectedCodAgent && (
         <Card>
           <CardContent className="p-12 text-center">
             <MessageSquare className="w-12 h-12 mx-auto text-muted-foreground mb-4" />

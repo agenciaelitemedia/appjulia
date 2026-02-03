@@ -26,8 +26,8 @@ interface AgentOption {
 }
 
 interface AdvboxAgentSelectProps {
-  value: number | null;
-  onValueChange: (agentId: number | null) => void;
+  value: string | null;
+  onValueChange: (codAgent: string | null) => void;
   disabled?: boolean;
   placeholder?: string;
   className?: string;
@@ -62,7 +62,7 @@ export function AdvboxAgentSelect({
         
         // Auto-select first agent if only one exists
         if (result.length === 1 && !value) {
-          onValueChange(result[0].agent_id);
+          onValueChange(result[0].cod_agent);
         }
       } catch (error) {
         console.error('Error loading agents:', error);
@@ -74,7 +74,7 @@ export function AdvboxAgentSelect({
     loadAgents();
   }, [user?.id]);
 
-  const selectedAgent = agents.find((agent) => agent.agent_id === value);
+  const selectedAgent = agents.find((agent) => agent.cod_agent === value);
 
   const displayValue = selectedAgent
     ? `[${selectedAgent.cod_agent}] - ${selectedAgent.client_name}`
@@ -125,10 +125,10 @@ export function AdvboxAgentSelect({
             <CommandGroup>
               {agents.map((agent) => (
                 <CommandItem
-                  key={agent.agent_id}
+                  key={agent.cod_agent}
                   value={`${agent.cod_agent} ${agent.client_name} ${agent.business_name || ''}`}
                   onSelect={() => {
-                    onValueChange(agent.agent_id);
+                    onValueChange(agent.cod_agent);
                     setOpen(false);
                   }}
                   className="cursor-pointer"
@@ -136,7 +136,7 @@ export function AdvboxAgentSelect({
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      value === agent.agent_id ? "opacity-100" : "opacity-0"
+                      value === agent.cod_agent ? "opacity-100" : "opacity-0"
                     )}
                   />
                   <div className="flex flex-col gap-0.5 overflow-hidden">

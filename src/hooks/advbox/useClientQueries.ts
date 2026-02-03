@@ -35,14 +35,14 @@ export function useClientQueries() {
     isLoading: false,
   });
 
-  const loadQueries = useCallback(async (agentId: number, filters: ClientQueriesFilters = {}) => {
+  const loadQueries = useCallback(async (codAgent: string, filters: ClientQueriesFilters = {}) => {
     setState(prev => ({ ...prev, isLoading: true }));
 
     try {
       const { data, error } = await supabase.functions.invoke('db-query', {
         body: {
           action: 'advbox_load_client_queries',
-          agent_id: agentId,
+          cod_agent: codAgent,
           filters: {
             query_type: filters.query_type,
             client_phone: filters.client_phone,

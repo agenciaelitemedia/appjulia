@@ -15,7 +15,7 @@ export interface AdvboxSettings {
 
 export interface AdvboxIntegration {
   id: string;
-  agent_id: number;
+  cod_agent: string;
   api_endpoint: string;
   api_token: string; // criptografado no banco
   is_active: boolean;
@@ -33,7 +33,7 @@ export interface AdvboxIntegration {
 
 export interface AdvboxNotificationRule {
   id: string;
-  agent_id: number;
+  cod_agent: string;
   integration_id: string;
   rule_name: string;
   is_active: boolean;
@@ -52,7 +52,7 @@ export interface AdvboxNotificationRule {
 
 export interface AdvboxProcess {
   id: string;
-  agent_id: number;
+  cod_agent: string;
   integration_id: string;
   process_id: string;
   process_number: string;
@@ -73,7 +73,7 @@ export interface AdvboxProcess {
 
 export interface AdvboxNotificationLog {
   id: string;
-  agent_id: number;
+  cod_agent: string;
   integration_id: string;
   rule_id: string | null;
   rule_name?: string;
@@ -91,7 +91,7 @@ export interface AdvboxNotificationLog {
 
 export interface AdvboxClientQuery {
   id: string;
-  agent_id: number;
+  cod_agent: string;
   integration_id: string;
   client_phone: string;
   client_name: string | null;
@@ -106,7 +106,7 @@ export interface AdvboxClientQuery {
 
 export interface AdvboxLeadSync {
   id: string;
-  agent_id: number;
+  cod_agent: string;
   integration_id: string;
   whatsapp_number: string;
   lead_name: string;

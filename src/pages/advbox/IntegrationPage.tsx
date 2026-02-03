@@ -43,7 +43,7 @@ export default function AdvboxIntegrationPage() {
     deleteIntegration,
   } = useAdvboxIntegration();
 
-  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
+  const [selectedCodAgent, setSelectedCodAgent] = useState<string | null>(null);
   const [showToken, setShowToken] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -62,11 +62,11 @@ export default function AdvboxIntegrationPage() {
 
   // Load integration when agent changes
   useEffect(() => {
-    if (selectedAgentId) {
-      loadIntegration(selectedAgentId);
+    if (selectedCodAgent) {
+      loadIntegration(selectedCodAgent);
       setTestResult(null);
     }
-  }, [selectedAgentId, loadIntegration]);
+  }, [selectedCodAgent, loadIntegration]);
 
   // Populate form when integration loads
   useEffect(() => {
@@ -107,14 +107,14 @@ export default function AdvboxIntegrationPage() {
   };
 
   const handleSave = async () => {
-    if (!selectedAgentId) return;
+    if (!selectedCodAgent) return;
     
     if (!formData.api_endpoint || !formData.api_token) {
       setTestResult({ success: false, message: 'Preencha o endpoint e o token' });
       return;
     }
 
-    await saveIntegration(selectedAgentId, formData);
+    await saveIntegration(selectedCodAgent, formData);
   };
 
   const handleDelete = async () => {
@@ -187,15 +187,15 @@ export default function AdvboxIntegrationPage() {
         </CardHeader>
         <CardContent>
           <AdvboxAgentSelect
-            value={selectedAgentId}
-            onValueChange={setSelectedAgentId}
+            value={selectedCodAgent}
+            onValueChange={setSelectedCodAgent}
             placeholder="Selecione um agente..."
           />
         </CardContent>
       </Card>
 
       {/* Loading State */}
-      {isLoading && selectedAgentId && (
+      {isLoading && selectedCodAgent && (
         <Card>
           <CardContent className="p-6">
             <div className="space-y-4">
@@ -208,7 +208,7 @@ export default function AdvboxIntegrationPage() {
       )}
 
       {/* Configuration Form */}
-      {selectedAgentId && !isLoading && (
+      {selectedCodAgent && !isLoading && (
         <>
           {/* Credentials Card */}
           <Card>
@@ -467,7 +467,7 @@ export default function AdvboxIntegrationPage() {
               </Button>
             )}
             <div className="flex gap-2 ml-auto">
-              <Button variant="outline" onClick={() => selectedAgentId && loadIntegration(selectedAgentId)}>
+              <Button variant="outline" onClick={() => selectedCodAgent && loadIntegration(selectedCodAgent)}>
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Recarregar
               </Button>
@@ -485,7 +485,7 @@ export default function AdvboxIntegrationPage() {
       )}
 
       {/* No Agent Selected */}
-      {!selectedAgentId && (
+      {!selectedCodAgent && (
         <Card>
           <CardContent className="p-12 text-center">
             <Scale className="w-12 h-12 mx-auto text-muted-foreground mb-4" />

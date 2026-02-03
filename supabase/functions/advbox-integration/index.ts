@@ -224,9 +224,9 @@ serve(async (req) => {
 
       case 'save': {
         // Save integration with encrypted token
-        const { agentId, apiEndpoint, apiToken, isActive, settings, connectionStatus, lastError } = body;
+        const { codAgent, apiEndpoint, apiToken, isActive, settings, connectionStatus, lastError } = body;
         
-        if (!agentId || !apiEndpoint || !apiToken) {
+        if (!codAgent || !apiEndpoint || !apiToken) {
           return new Response(
             JSON.stringify({ success: false, error: 'Dados incompletos' }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
@@ -241,9 +241,9 @@ serve(async (req) => {
 
         // Upsert integration
         const result = await sql.unsafe(
-          `INSERT INTO advbox_integrations (agent_id, api_endpoint, api_token, is_active, settings, connection_status, last_error, updated_at)
+          `INSERT INTO advbox_integrations (cod_agent, api_endpoint, api_token, is_active, settings, connection_status, last_error, updated_at)
            VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, NOW())
-           ON CONFLICT (agent_id) DO UPDATE SET
+           ON CONFLICT (cod_agent) DO UPDATE SET
              api_endpoint = EXCLUDED.api_endpoint,
              api_token = EXCLUDED.api_token,
              is_active = EXCLUDED.is_active,
@@ -251,8 +251,8 @@ serve(async (req) => {
              connection_status = EXCLUDED.connection_status,
              last_error = EXCLUDED.last_error,
              updated_at = NOW()
-           RETURNING id, agent_id, is_active, connection_status`,
-          [agentId, apiEndpoint, encryptedToken, isActive ?? false, JSON.stringify(settings || {}), connectionStatus || 'pending', lastError]
+           RETURNING id, cod_agent, is_active, connection_status`,
+          [codAgent, apiEndpoint, encryptedToken, isActive ?? false, JSON.stringify(settings || {}), connectionStatus || 'pending', lastError]
         );
 
         await sql.end();
@@ -265,14 +265,14 @@ serve(async (req) => {
 
       case 'get': {
         // Get integration with decrypted token (for internal use)
-        const { agentId } = body;
+        const { codAgent } = body;
         
         sql = createConnection(caCerts);
         await sql`SET timezone = 'America/Sao_Paulo'`;
 
         const result = await sql.unsafe(
-          `SELECT * FROM advbox_integrations WHERE agent_id = $1 LIMIT 1`,
-          [agentId]
+          `SELECT * FROM advbox_integrations WHERE cod_agent = $1 LIMIT 1`,
+          [codAgent]
         );
 
         await sql.end();

@@ -13,8 +13,8 @@ interface UseAdvboxIntegrationReturn {
   isLoading: boolean;
   isSaving: boolean;
   isTesting: boolean;
-  loadIntegration: (agentId: number) => Promise<void>;
-  saveIntegration: (agentId: number, data: AdvboxIntegrationFormData) => Promise<boolean>;
+  loadIntegration: (codAgent: string) => Promise<void>;
+  saveIntegration: (codAgent: string, data: AdvboxIntegrationFormData) => Promise<boolean>;
   testConnection: (apiEndpoint: string, apiToken: string) => Promise<AdvboxTestConnectionResult>;
   deleteIntegration: (integrationId: string) => Promise<boolean>;
 }
@@ -26,21 +26,21 @@ export function useAdvboxIntegration(): UseAdvboxIntegrationReturn {
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
 
-  const loadIntegration = useCallback(async (agentId: number) => {
+  const loadIntegration = useCallback(async (codAgent: string) => {
     setIsLoading(true);
     try {
       const result = await externalDb.raw<AdvboxIntegration>({
         query: `
           SELECT 
             ai.*,
-            (SELECT COUNT(*) FROM advbox_processes_cache apc WHERE apc.agent_id = ai.agent_id) as total_processes_cached,
-            (SELECT COUNT(*) FROM advbox_notification_logs anl WHERE anl.agent_id = ai.agent_id AND anl.created_at >= NOW() - INTERVAL '24 hours') as notifications_sent_24h,
-            (SELECT COUNT(*) FROM advbox_client_queries acq WHERE acq.agent_id = ai.agent_id AND acq.created_at >= NOW() - INTERVAL '24 hours') as queries_answered_24h
+            (SELECT COUNT(*) FROM advbox_processes_cache apc WHERE apc.cod_agent = ai.cod_agent) as total_processes_cached,
+            (SELECT COUNT(*) FROM advbox_notification_logs anl WHERE anl.cod_agent = ai.cod_agent AND anl.created_at >= NOW() - INTERVAL '24 hours') as notifications_sent_24h,
+            (SELECT COUNT(*) FROM advbox_client_queries acq WHERE acq.cod_agent = ai.cod_agent AND acq.created_at >= NOW() - INTERVAL '24 hours') as queries_answered_24h
           FROM advbox_integrations ai
-          WHERE ai.agent_id = $1
+          WHERE ai.cod_agent = $1
           LIMIT 1
         `,
-        params: [agentId],
+        params: [codAgent],
       });
 
       setIntegration(result.length > 0 ? result[0] : null);
@@ -98,7 +98,7 @@ export function useAdvboxIntegration(): UseAdvboxIntegrationReturn {
   }, []);
 
   const saveIntegration = useCallback(async (
-    agentId: number, 
+    codAgent: string, 
     data: AdvboxIntegrationFormData
   ): Promise<boolean> => {
     setIsSaving(true);
@@ -113,7 +113,7 @@ export function useAdvboxIntegration(): UseAdvboxIntegrationReturn {
       const { data: saveResult, error } = await supabase.functions.invoke('advbox-integration', {
         body: {
           action: 'save',
-          agentId,
+          codAgent,
           apiEndpoint: data.api_endpoint,
           apiToken: data.api_token,
           isActive: data.is_active,
@@ -132,7 +132,7 @@ export function useAdvboxIntegration(): UseAdvboxIntegrationReturn {
       }
 
       // Reload integration data
-      await loadIntegration(agentId);
+      await loadIntegration(codAgent);
 
       toast({
         title: testResult.success ? 'Integração salva' : 'Integração salva com erros',

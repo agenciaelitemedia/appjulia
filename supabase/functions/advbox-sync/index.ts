@@ -145,7 +145,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { action, agentId, integrationId } = body;
+    const { action, codAgent, integrationId } = body;
 
     sql = createConnection(caCerts);
     await sql`SET timezone = 'America/Sao_Paulo'`;
@@ -154,8 +154,8 @@ serve(async (req) => {
       case 'sync': {
         // Get integration details
         const integrations = await sql.unsafe(
-          `SELECT * FROM advbox_integrations WHERE agent_id = $1 AND is_active = true`,
-          [agentId]
+          `SELECT * FROM advbox_integrations WHERE cod_agent = $1 AND is_active = true`,
+          [codAgent]
         );
 
         if (integrations.length === 0) {
@@ -188,8 +188,8 @@ serve(async (req) => {
               // Check for existing process
               const existing = await sql.unsafe(
                 `SELECT id, last_movement_id FROM advbox_processes_cache 
-                 WHERE agent_id = $1 AND process_id = $2`,
-                [agentId, process.id]
+                 WHERE cod_agent = $1 AND process_id = $2`,
+                [codAgent, process.id]
               );
 
               const movementId = process.ultima_movimentacao?.id || null;
@@ -204,11 +204,11 @@ serve(async (req) => {
               // Upsert process
               await sql.unsafe(
                 `INSERT INTO advbox_processes_cache 
-                  (agent_id, integration_id, process_id, process_number, client_id, client_name, 
+                  (cod_agent, integration_id, process_id, process_number, client_id, client_name, 
                    client_phone, phase, status, responsible, last_movement_id, last_movement_date, 
                    last_movement_text, full_data, cached_at, updated_at)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
-                 ON CONFLICT (agent_id, process_id) DO UPDATE SET
+                 ON CONFLICT (cod_agent, process_id) DO UPDATE SET
                    process_number = EXCLUDED.process_number,
                    client_name = EXCLUDED.client_name,
                    client_phone = EXCLUDED.client_phone,
@@ -222,7 +222,7 @@ serve(async (req) => {
                    cached_at = NOW(),
                    updated_at = NOW()`,
                 [
-                  agentId,
+                  codAgent,
                   integration.id,
                   process.id,
                   process.numero,
@@ -278,8 +278,8 @@ serve(async (req) => {
         const { page = 1, limit = 50, phase, status, search } = body;
         const offset = (page - 1) * limit;
 
-        let whereClause = 'WHERE agent_id = $1';
-        const params: (string | number)[] = [agentId];
+        let whereClause = 'WHERE cod_agent = $1';
+        const params: (string | number)[] = [codAgent];
         let paramIndex = 2;
 
         if (phase) {
@@ -334,17 +334,17 @@ serve(async (req) => {
              COUNT(DISTINCT client_id) as total_clients,
              MAX(cached_at) as last_cached_at
            FROM advbox_processes_cache 
-           WHERE agent_id = $1`,
-          [agentId]
+           WHERE cod_agent = $1`,
+          [codAgent]
         );
 
         const phaseStats = await sql.unsafe(
           `SELECT phase, COUNT(*) as count 
            FROM advbox_processes_cache 
-           WHERE agent_id = $1 AND phase IS NOT NULL
+           WHERE cod_agent = $1 AND phase IS NOT NULL
            GROUP BY phase 
            ORDER BY count DESC`,
-          [agentId]
+          [codAgent]
         );
 
         await sql.end();

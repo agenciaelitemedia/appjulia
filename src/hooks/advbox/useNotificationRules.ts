@@ -7,8 +7,8 @@ interface UseNotificationRulesReturn {
   rules: AdvboxNotificationRule[];
   isLoading: boolean;
   isSaving: boolean;
-  loadRules: (agentId: number) => Promise<void>;
-  saveRule: (agentId: number, integrationId: string, data: AdvboxNotificationRuleFormData, ruleId?: string) => Promise<boolean>;
+  loadRules: (codAgent: string) => Promise<void>;
+  saveRule: (codAgent: string, integrationId: string, data: AdvboxNotificationRuleFormData, ruleId?: string) => Promise<boolean>;
   toggleRule: (ruleId: string, isActive: boolean) => Promise<boolean>;
   deleteRule: (ruleId: string) => Promise<boolean>;
 }
@@ -19,7 +19,7 @@ export function useNotificationRules(): UseNotificationRulesReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const loadRules = useCallback(async (agentId: number) => {
+  const loadRules = useCallback(async (codAgent: string) => {
     setIsLoading(true);
     try {
       const result = await externalDb.raw<AdvboxNotificationRule>({
@@ -29,10 +29,10 @@ export function useNotificationRules(): UseNotificationRulesReturn {
             (SELECT COUNT(*) FROM advbox_notification_logs anl WHERE anl.rule_id = anr.id) as notifications_sent,
             (SELECT MAX(created_at) FROM advbox_notification_logs anl WHERE anl.rule_id = anr.id) as last_triggered
           FROM advbox_notification_rules anr
-          WHERE anr.agent_id = $1
+          WHERE anr.cod_agent = $1
           ORDER BY anr.created_at DESC
         `,
-        params: [agentId],
+        params: [codAgent],
       });
 
       setRules(result);
@@ -49,7 +49,7 @@ export function useNotificationRules(): UseNotificationRulesReturn {
   }, [toast]);
 
   const saveRule = useCallback(async (
-    agentId: number,
+    codAgent: string,
     integrationId: string,
     data: AdvboxNotificationRuleFormData,
     ruleId?: string
@@ -89,11 +89,11 @@ export function useNotificationRules(): UseNotificationRulesReturn {
         await externalDb.raw({
           query: `
             INSERT INTO advbox_notification_rules 
-              (agent_id, integration_id, rule_name, is_active, process_phases, event_types, keywords, message_template, send_to, cooldown_minutes)
+              (cod_agent, integration_id, rule_name, is_active, process_phases, event_types, keywords, message_template, send_to, cooldown_minutes)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           `,
           params: [
-            agentId,
+            codAgent,
             integrationId,
             data.rule_name,
             data.is_active ?? true,
@@ -113,7 +113,7 @@ export function useNotificationRules(): UseNotificationRulesReturn {
       });
 
       // Reload rules
-      await loadRules(agentId);
+      await loadRules(codAgent);
       return true;
     } catch (error) {
       console.error('Error saving rule:', error);

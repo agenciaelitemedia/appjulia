@@ -36,18 +36,18 @@ export default function NotificationRulesPage() {
   const { integration, loadIntegration, isLoading: isLoadingIntegration } = useAdvboxIntegration();
   const { rules, isLoading: isLoadingRules, isSaving, loadRules, saveRule, toggleRule, deleteRule } = useNotificationRules();
 
-  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
+  const [selectedCodAgent, setSelectedCodAgent] = useState<string | null>(null);
   const [editingRule, setEditingRule] = useState<AdvboxNotificationRule | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [deleteConfirmRule, setDeleteConfirmRule] = useState<AdvboxNotificationRule | null>(null);
 
   // Load integration and rules when agent changes
   useEffect(() => {
-    if (selectedAgentId) {
-      loadIntegration(selectedAgentId);
-      loadRules(selectedAgentId);
+    if (selectedCodAgent) {
+      loadIntegration(selectedCodAgent);
+      loadRules(selectedCodAgent);
     }
-  }, [selectedAgentId, loadIntegration, loadRules]);
+  }, [selectedCodAgent, loadIntegration, loadRules]);
 
   const handleCreateRule = () => {
     setEditingRule(null);
@@ -60,8 +60,8 @@ export default function NotificationRulesPage() {
   };
 
   const handleSaveRule = async (data: AdvboxNotificationRuleFormData) => {
-    if (!selectedAgentId || !integration?.id) return false;
-    const success = await saveRule(selectedAgentId, integration.id, data, editingRule?.id);
+    if (!selectedCodAgent || !integration?.id) return false;
+    const success = await saveRule(selectedCodAgent, integration.id, data, editingRule?.id);
     if (success) {
       setIsEditorOpen(false);
       setEditingRule(null);
@@ -120,15 +120,15 @@ export default function NotificationRulesPage() {
         </CardHeader>
         <CardContent>
           <AdvboxAgentSelect
-            value={selectedAgentId}
-            onValueChange={setSelectedAgentId}
+            value={selectedCodAgent}
+            onValueChange={setSelectedCodAgent}
             placeholder="Selecione um agente..."
           />
         </CardContent>
       </Card>
 
       {/* No Agent Selected */}
-      {!selectedAgentId && (
+      {!selectedCodAgent && (
         <Card>
           <CardContent className="p-12 text-center">
             <Scale className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
@@ -141,7 +141,7 @@ export default function NotificationRulesPage() {
       )}
 
       {/* Loading State */}
-      {selectedAgentId && isLoading && (
+      {selectedCodAgent && isLoading && (
         <div className="space-y-4">
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-24 w-full" />
@@ -149,7 +149,7 @@ export default function NotificationRulesPage() {
       )}
 
       {/* No Integration */}
-      {selectedAgentId && !isLoading && !integration && (
+      {selectedCodAgent && !isLoading && !integration && (
         <Card>
           <CardContent className="p-12 text-center">
             <AlertTriangle className="w-12 h-12 mx-auto text-destructive mb-4" />
@@ -165,7 +165,7 @@ export default function NotificationRulesPage() {
       )}
 
       {/* Rules List */}
-      {selectedAgentId && !isLoading && integration && (
+      {selectedCodAgent && !isLoading && integration && (
         <>
           {/* Create Button */}
           <div className="flex justify-between items-center">

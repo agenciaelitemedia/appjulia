@@ -75,7 +75,7 @@ serve(async (req) => {
   try {
     const body = await req.json();
     const {
-      agent_id,
+      cod_agent,
       rule_id,
       process_id,
       recipient_phone,
@@ -83,9 +83,9 @@ serve(async (req) => {
       log_id, // For resending failed notifications
     } = body;
 
-    if (!agent_id || !recipient_phone) {
+    if (!cod_agent || !recipient_phone) {
       return new Response(
-        JSON.stringify({ error: "agent_id and recipient_phone are required" }),
+        JSON.stringify({ error: "cod_agent and recipient_phone are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -154,8 +154,8 @@ serve(async (req) => {
           
           // Get integration
           const intResult = await client.queryObject<{ id: string }>(
-            `SELECT id FROM advbox_integrations WHERE agent_id = $1 AND is_active = true`,
-            [agent_id]
+            `SELECT id FROM advbox_integrations WHERE cod_agent = $1 AND is_active = true`,
+            [cod_agent]
           );
           
           if (intResult.rows.length > 0) {
@@ -167,10 +167,10 @@ serve(async (req) => {
       // Create notification log (pending status)
       const insertResult = await client.queryObject<{ id: string }>(
         `INSERT INTO advbox_notification_logs 
-         (agent_id, integration_id, rule_id, process_id, recipient_phone, message_text, status)
+         (cod_agent, integration_id, rule_id, process_id, recipient_phone, message_text, status)
          VALUES ($1, $2, $3, $4, $5, $6, 'pending')
          RETURNING id`,
-        [agent_id, integrationId, rule_id || null, process_id || null, recipient_phone, messageText]
+        [cod_agent, integrationId, rule_id || null, process_id || null, recipient_phone, messageText]
       );
 
       const notificationLogId = insertResult.rows[0].id;
@@ -188,7 +188,7 @@ serve(async (req) => {
           body: JSON.stringify({
             phone: recipient_phone,
             message: messageText,
-            agent_id: agent_id,
+            cod_agent: cod_agent,
             source: "advbox_notify",
           }),
         });

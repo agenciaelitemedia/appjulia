@@ -17,9 +17,9 @@ interface UseProcessesCacheReturn {
   page: number;
   isLoading: boolean;
   isSyncing: boolean;
-  loadProcesses: (agentId: number, filters?: { page?: number; phase?: string; status?: string; search?: string }) => Promise<void>;
-  loadStats: (agentId: number) => Promise<void>;
-  syncProcesses: (agentId: number) => Promise<{ success: boolean; synced?: number; newMovements?: number }>;
+  loadProcesses: (codAgent: string, filters?: { page?: number; phase?: string; status?: string; search?: string }) => Promise<void>;
+  loadStats: (codAgent: string) => Promise<void>;
+  syncProcesses: (codAgent: string) => Promise<{ success: boolean; synced?: number; newMovements?: number }>;
 }
 
 export function useProcessesCache(): UseProcessesCacheReturn {
@@ -32,7 +32,7 @@ export function useProcessesCache(): UseProcessesCacheReturn {
   const [isSyncing, setIsSyncing] = useState(false);
 
   const loadProcesses = useCallback(async (
-    agentId: number,
+    codAgent: string,
     filters?: { page?: number; phase?: string; status?: string; search?: string }
   ) => {
     setIsLoading(true);
@@ -40,7 +40,7 @@ export function useProcessesCache(): UseProcessesCacheReturn {
       const { data, error } = await supabase.functions.invoke('advbox-sync', {
         body: {
           action: 'get_processes',
-          agentId,
+          codAgent,
           page: filters?.page || 1,
           limit: 50,
           phase: filters?.phase,
@@ -70,12 +70,12 @@ export function useProcessesCache(): UseProcessesCacheReturn {
     }
   }, [toast]);
 
-  const loadStats = useCallback(async (agentId: number) => {
+  const loadStats = useCallback(async (codAgent: string) => {
     try {
       const { data, error } = await supabase.functions.invoke('advbox-sync', {
         body: {
           action: 'get_stats',
-          agentId,
+          codAgent,
         },
       });
 
@@ -89,13 +89,13 @@ export function useProcessesCache(): UseProcessesCacheReturn {
     }
   }, []);
 
-  const syncProcesses = useCallback(async (agentId: number) => {
+  const syncProcesses = useCallback(async (codAgent: string) => {
     setIsSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke('advbox-sync', {
         body: {
           action: 'sync',
-          agentId,
+          codAgent,
         },
       });
 
@@ -109,8 +109,8 @@ export function useProcessesCache(): UseProcessesCacheReturn {
 
         // Reload data
         await Promise.all([
-          loadProcesses(agentId),
-          loadStats(agentId),
+          loadProcesses(codAgent),
+          loadStats(codAgent),
         ]);
 
         return {

@@ -121,15 +121,15 @@ serve(async (req) => {
   try {
     const body = await req.json();
     const {
-      agent_id,
+      cod_agent,
       client_phone,
       query_type = 'status_processo',
       query_text = '',
     } = body;
 
-    if (!agent_id || !client_phone) {
+    if (!cod_agent || !client_phone) {
       return new Response(
-        JSON.stringify({ error: "agent_id and client_phone are required" }),
+        JSON.stringify({ error: "cod_agent and client_phone are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -148,8 +148,8 @@ serve(async (req) => {
       }>(
         `SELECT id, settings 
          FROM advbox_integrations 
-         WHERE agent_id = $1 AND is_active = true`,
-        [agent_id]
+         WHERE cod_agent = $1 AND is_active = true`,
+        [cod_agent]
       );
 
       if (integrationResult.rows.length === 0) {
@@ -180,7 +180,7 @@ serve(async (req) => {
           id, process_number, client_name, phase, status, 
           responsible, last_movement_date, last_movement_text
          FROM advbox_processes_cache 
-         WHERE agent_id = $1 
+         WHERE cod_agent = $1 
            AND (
              client_phone = $2 
              OR client_phone LIKE '%' || $2 
@@ -188,7 +188,7 @@ serve(async (req) => {
            )
          ORDER BY last_movement_date DESC
          LIMIT 10`,
-        [agent_id, normalizedPhone]
+        [cod_agent, normalizedPhone]
       );
 
       const processes = processesResult.rows;
@@ -205,11 +205,11 @@ serve(async (req) => {
       // Log the query
       await client.queryObject(
         `INSERT INTO advbox_client_queries 
-         (agent_id, integration_id, client_phone, client_name, query_text, query_type, 
+         (cod_agent, integration_id, client_phone, client_name, query_text, query_type, 
           found_processes, response_text, response_sent, query_time_ms)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9)`,
         [
-          agent_id,
+          cod_agent,
           integration.id,
           normalizedPhone,
           clientName,

@@ -46,7 +46,7 @@ import type { NotificationStatus } from '@/types/advbox';
 
 export default function AdvboxLogsPage() {
   const { logs, total, isLoading, isResending, loadLogs, resendNotification } = useNotificationLogs();
-  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
+  const [selectedCodAgent, setSelectedCodAgent] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<NotificationLogsFilters>({
     page: 1,
@@ -54,10 +54,10 @@ export default function AdvboxLogsPage() {
   });
 
   useEffect(() => {
-    if (selectedAgentId) {
-      loadLogs(selectedAgentId, filters);
+    if (selectedCodAgent) {
+      loadLogs(selectedCodAgent, filters);
     }
-  }, [selectedAgentId, filters, loadLogs]);
+  }, [selectedCodAgent, filters, loadLogs]);
 
   const handleFilterChange = (key: keyof NotificationLogsFilters, value: string | undefined) => {
     setFilters(prev => ({
@@ -72,9 +72,9 @@ export default function AdvboxLogsPage() {
   };
 
   const handleResend = async (logId: string) => {
-    if (!selectedAgentId) return;
-    await resendNotification(logId, selectedAgentId);
-    await loadLogs(selectedAgentId, filters);
+    if (!selectedCodAgent) return;
+    await resendNotification(logId, selectedCodAgent);
+    await loadLogs(selectedCodAgent, filters);
   };
 
   const toggleRowExpanded = (logId: string) => {
@@ -146,14 +146,14 @@ export default function AdvboxLogsPage() {
         </CardHeader>
         <CardContent>
           <AdvboxAgentSelect
-            value={selectedAgentId}
-            onValueChange={setSelectedAgentId}
+            value={selectedCodAgent}
+            onValueChange={setSelectedCodAgent}
             placeholder="Selecione um agente..."
           />
         </CardContent>
       </Card>
 
-      {selectedAgentId && (
+      {selectedCodAgent && (
         <>
           {/* Filters */}
           <Card>
@@ -218,7 +218,7 @@ export default function AdvboxLogsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => selectedAgentId && loadLogs(selectedAgentId, filters)}
+                onClick={() => selectedCodAgent && loadLogs(selectedCodAgent, filters)}
                 disabled={isLoading}
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
@@ -362,7 +362,7 @@ export default function AdvboxLogsPage() {
       )}
 
       {/* No Agent Selected */}
-      {!selectedAgentId && (
+      {!selectedCodAgent && (
         <Card>
           <CardContent className="p-12 text-center">
             <Bell className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
