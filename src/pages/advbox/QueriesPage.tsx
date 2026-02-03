@@ -108,8 +108,8 @@ export default function AdvboxQueriesPage() {
         </CardHeader>
         <CardContent>
           <AdvboxAgentSelect
-            value={selectedAgentId}
-            onValueChange={setSelectedAgentId}
+            value={selectedCodAgent}
+            onValueChange={setSelectedCodAgent}
             placeholder="Selecione um agente..."
           />
         </CardContent>
