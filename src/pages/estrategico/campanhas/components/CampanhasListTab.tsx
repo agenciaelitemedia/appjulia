@@ -13,7 +13,8 @@ import {
 import { Toggle } from '@/components/ui/toggle';
 import { CampaignDetailCard } from './CampaignDetailCard';
 import { useCampanhasDetails } from '../hooks/useCampanhasDetails';
-import { CampanhasFiltersState, CampaignDetailGrouped } from '../types';
+import { useCampaignsFunnelByGroup } from '../hooks/useCampaignsFunnelByGroup';
+import { CampanhasFiltersState, CampaignDetailGrouped, CampaignFunnelData } from '../types';
 
 interface CampanhasListTabProps {
   filters: CampanhasFiltersState;
@@ -30,6 +31,14 @@ export function CampanhasListTab({ filters }: CampanhasListTabProps) {
   const [page, setPage] = useState(1);
 
   const { data: campaigns = [], isLoading } = useCampanhasDetails(filters);
+  const { data: funnelData = [], isLoading: funnelLoading } = useCampaignsFunnelByGroup(filters);
+
+  // Create Map for O(1) lookup of funnel data by group_key
+  const funnelMap = useMemo(() => {
+    const map = new Map<string, CampaignFunnelData>();
+    funnelData.forEach(f => map.set(f.group_key, f));
+    return map;
+  }, [funnelData]);
 
   // Filter and sort campaigns
   const filteredCampaigns = useMemo(() => {
@@ -167,6 +176,8 @@ export function CampanhasListTab({ filters }: CampanhasListTabProps) {
             <CampaignDetailCard
               key={`${campaign.campaign_id}-${index}`}
               campaign={campaign}
+              funnelData={funnelMap.get(`${campaign.campaign_id}::${campaign.campaign_title}`)}
+              funnelLoading={funnelLoading}
             />
           ))}
         </div>

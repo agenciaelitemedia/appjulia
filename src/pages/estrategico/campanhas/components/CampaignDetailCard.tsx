@@ -22,16 +22,19 @@ import {
 } from '@/components/ui/tooltip';
 import { getExternalLink } from '@/lib/externalLink';
 import { ExpandableText } from '@/components/ExpandableText';
-import { CampaignDetailGrouped } from '../types';
+import { CampaignDetailGrouped, CampaignFunnelData } from '../types';
 import { PlatformBadges } from './PlatformBadges';
 import { DeviceBadges } from './DeviceBadges';
 import { ExpandableSources } from './ExpandableSources';
+import { CampaignMiniFunnel } from './CampaignMiniFunnel';
 
 interface CampaignDetailCardProps {
   campaign: CampaignDetailGrouped;
+  funnelData?: CampaignFunnelData;
+  funnelLoading?: boolean;
 }
 
-export function CampaignDetailCard({ campaign }: CampaignDetailCardProps) {
+export function CampaignDetailCard({ campaign, funnelData, funnelLoading }: CampaignDetailCardProps) {
   const [imageError, setImageError] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -190,6 +193,9 @@ export function CampaignDetailCard({ campaign }: CampaignDetailCardProps) {
 
         {/* Expandable Sources List */}
         <ExpandableSources sources={campaign.sources} />
+
+        {/* Mini Funnel */}
+        {funnelData && <CampaignMiniFunnel data={funnelData} />}
       </CardContent>
     </Card>
   );
