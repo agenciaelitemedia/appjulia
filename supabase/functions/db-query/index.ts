@@ -510,6 +510,10 @@ serve(async (req) => {
 
       case 'get_agents_list': {
         // Optimized query with pre-aggregated leads count and settings for business hours
+        // Supports showLegacy parameter to filter legacy agents (without used_agents link)
+        const { showLegacy } = data || {};
+        const legacyFilter = showLegacy ? '' : 'AND ua.agent_id IS NOT NULL';
+        
         result = await sql.unsafe(`
           SELECT 
             a.id,
@@ -522,10 +526,12 @@ serve(async (req) => {
             COALESCE(ap."limit", 0) AS plan_limit,
             COALESCE(leads.count, 0) AS leads_received,
             a.last_used,
-            a.due_date
+            a.due_date,
+            ua.agent_id AS user_agent_id
           FROM agents a
           JOIN clients c ON c.id = a.client_id
           LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
+          LEFT JOIN used_agents ua ON ua.agent_id = a.id AND ua.cod_agent = a.cod_agent
           LEFT JOIN (
             SELECT s.agent_id, COUNT(DISTINCT s.id) as count
             FROM sessions s
@@ -535,6 +541,7 @@ serve(async (req) => {
             GROUP BY s.agent_id
           ) leads ON leads.agent_id = a.id
           WHERE a.is_visibilided = true
+            ${legacyFilter}
           ORDER BY c.business_name
         `);
         break;
