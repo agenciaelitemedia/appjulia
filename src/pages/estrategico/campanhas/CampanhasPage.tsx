@@ -71,8 +71,8 @@ export default function CampanhasPage() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['campanhas-leads'] }),
       queryClient.invalidateQueries({ queryKey: ['campanhas-raw'] }),
-      queryClient.invalidateQueries({ queryKey: ['campanhas-previous'] }),
       queryClient.invalidateQueries({ queryKey: ['campanhas-funnel'] }),
+      queryClient.invalidateQueries({ queryKey: ['campanhas-funnel-previous'] }),
       queryClient.invalidateQueries({ queryKey: ['campanhas-by-platform'] }),
       queryClient.invalidateQueries({ queryKey: ['campanhas-evolution'] }),
       queryClient.invalidateQueries({ queryKey: ['campanhas-conversion-evolution'] }),
