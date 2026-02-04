@@ -136,6 +136,10 @@ export default function CampanhasPage() {
             <List className="h-4 w-4" />
             Campanhas
           </TabsTrigger>
+          <TabsTrigger value="leads" className="gap-2">
+            <Users className="h-4 w-4" />
+            Leads
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard" className="space-y-6 mt-0">
