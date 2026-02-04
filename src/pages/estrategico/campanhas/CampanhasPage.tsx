@@ -12,6 +12,7 @@ import {
   useCampanhasLeads,
   useCampanhasRaw,
   useCampanhasFunnel,
+  useCampanhasFunnelPrevious,
   useCampanhasByPlatform,
   useCampanhasEvolution,
   useCampanhasHeatmap,
