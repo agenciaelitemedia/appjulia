@@ -121,12 +121,34 @@ const getUsageVariant = (used: number, limit: number): 'default' | 'secondary' |
   return 'default';
 };
 
+const STORAGE_KEY = 'agents-list-filters';
+
+interface StoredFilters {
+  showLegacy: boolean;
+  statusFilter: 'all' | 'active' | 'inactive';
+  planFilter: string;
+}
+
+function loadStoredFilters(): StoredFilters {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error('Failed to load stored filters:', e);
+  }
+  return { showLegacy: false, statusFilter: 'all', planFilter: 'all' };
+}
+
 export default function AgentsList() {
+  const storedFilters = loadStoredFilters();
+  
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showLegacy, setShowLegacy] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [planFilter, setPlanFilter] = useState<string>('all');
+  const [showLegacy, setShowLegacy] = useState(storedFilters.showLegacy);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>(storedFilters.statusFilter);
+  const [planFilter, setPlanFilter] = useState<string>(storedFilters.planFilter);
   const [agentToToggle, setAgentToToggle] = useState<AgentListItem | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({
     key: 'business_name',
@@ -134,6 +156,12 @@ export default function AgentsList() {
   });
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  // Persist filters to localStorage
+  useEffect(() => {
+    const filters: StoredFilters = { showLegacy, statusFilter, planFilter };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(filters));
+  }, [showLegacy, statusFilter, planFilter]);
   
   // React Query for optimized data fetching with caching
   const { data: agents = [], isLoading, refetch } = useAgentsList(showLegacy);
