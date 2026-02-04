@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/select';
 import { Toggle } from '@/components/ui/toggle';
 import { CampaignDetailCard } from './CampaignDetailCard';
-import { useCampanhasDetails } from '../hooks/useCampanhasData';
+import { useCampanhasDetails } from '../hooks/useCampanhasDetails';
 import { CampanhasFiltersState, CampaignDetail } from '../types';
 
 interface CampanhasListTabProps {
