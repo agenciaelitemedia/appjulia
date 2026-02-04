@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { ArrowDown, Filter, Database, Bot, ClipboardCheck, Handshake, UserCheck } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowDownRight, Filter, Database, Bot, ClipboardCheck, Handshake, UserCheck, Minus } from 'lucide-react';
 import { CampaignFunnelStage } from '../types';
 
 // Descrições detalhadas de cada etapa do funil
@@ -28,8 +28,15 @@ const stageDescriptions: Record<string, { description: string; icon: React.React
   },
 };
 
+interface PreviousFunnelData {
+  stage_name: string;
+  position: number;
+  count: number;
+}
+
 interface CampanhasFunnelChartProps {
   data: CampaignFunnelStage[];
+  previousData?: PreviousFunnelData[];
   isLoading: boolean;
 }
 
@@ -41,9 +48,23 @@ const defaultStages: CampaignFunnelStage[] = [
   { stage_name: 'Cliente', stage_color: '#8b5cf6', position: 4, count: 0, percentage: 0, conversionRate: 0 },
 ];
 
-export function CampanhasFunnelChart({ data, isLoading }: CampanhasFunnelChartProps) {
+// Calcular variação percentual
+function calculateTrend(current: number, previous: number): { value: number; direction: 'up' | 'down' | 'neutral' } {
+  if (previous === 0) {
+    if (current === 0) return { value: 0, direction: 'neutral' };
+    return { value: 100, direction: 'up' };
+  }
+  const change = ((current - previous) / previous) * 100;
+  if (Math.abs(change) < 0.5) return { value: 0, direction: 'neutral' };
+  return { value: Math.abs(change), direction: change > 0 ? 'up' : 'down' };
+}
+
+export function CampanhasFunnelChart({ data, previousData = [], isLoading }: CampanhasFunnelChartProps) {
   const stages = data.length > 0 ? data : defaultStages;
   const maxCount = Math.max(...stages.map(s => s.count), 1);
+  
+  // Criar mapa de dados anteriores por posição
+  const previousMap = new Map(previousData.map(p => [p.position, p.count]));
   
   if (isLoading) {
     return (
@@ -56,7 +77,7 @@ export function CampanhasFunnelChart({ data, isLoading }: CampanhasFunnelChartPr
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {Array.from({ length: 4 }).map((_, i) => (
+            {Array.from({ length: 5 }).map((_, i) => (
               <Skeleton key={i} className="h-16" />
             ))}
           </div>
@@ -78,6 +99,11 @@ export function CampanhasFunnelChart({ data, isLoading }: CampanhasFunnelChartPr
           {stages.map((stage, index) => {
             const widthPercent = Math.max(30, (stage.count / maxCount) * 100);
             const isLast = index === stages.length - 1;
+            
+            // Calcular tendência comparativa
+            const previousCount = previousMap.get(stage.position) ?? 0;
+            const trend = calculateTrend(stage.count, previousCount);
+            const hasPreviousData = previousData.length > 0;
             
             return (
               <div key={stage.position} className="w-full flex flex-col items-center">
@@ -106,14 +132,33 @@ export function CampanhasFunnelChart({ data, isLoading }: CampanhasFunnelChartPr
                           </span>
                         </div>
                         
-                        {/* Right content - Count */}
-                        <div className="flex flex-col items-end">
-                          <span className="text-white text-2xl md:text-3xl font-bold">
-                            {stage.count}
-                          </span>
-                          <span className="text-white/70 text-xs">
-                            leads
-                          </span>
+                        {/* Right content - Count + Trend */}
+                        <div className="flex items-center gap-3">
+                          {/* Trend indicator */}
+                          {hasPreviousData && (
+                            <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                              trend.direction === 'up' 
+                                ? 'bg-emerald-500/30 text-emerald-100' 
+                                : trend.direction === 'down'
+                                  ? 'bg-red-500/30 text-red-100'
+                                  : 'bg-white/20 text-white/80'
+                            }`}>
+                              {trend.direction === 'up' && <ArrowUp className="h-3 w-3" />}
+                              {trend.direction === 'down' && <ArrowDownRight className="h-3 w-3" />}
+                              {trend.direction === 'neutral' && <Minus className="h-3 w-3" />}
+                              <span>{trend.value.toFixed(0)}%</span>
+                            </div>
+                          )}
+                          
+                          {/* Count */}
+                          <div className="flex flex-col items-end">
+                            <span className="text-white text-2xl md:text-3xl font-bold">
+                              {stage.count}
+                            </span>
+                            <span className="text-white/70 text-xs">
+                              leads
+                            </span>
+                          </div>
                         </div>
                         
                         {/* Progress bar inside */}
@@ -141,6 +186,27 @@ export function CampanhasFunnelChart({ data, isLoading }: CampanhasFunnelChartPr
                           </p>
                         )}
                       </div>
+                      {hasPreviousData && (
+                        <div className="pt-1 border-t border-border/50">
+                          <p className="text-muted-foreground text-xs flex items-center gap-1">
+                            vs período anterior: 
+                            <span className={
+                              trend.direction === 'up' 
+                                ? 'text-emerald-500' 
+                                : trend.direction === 'down'
+                                  ? 'text-red-500'
+                                  : ''
+                            }>
+                              {trend.direction === 'up' && '+'}
+                              {trend.direction === 'down' && '-'}
+                              {trend.value.toFixed(1)}%
+                            </span>
+                            <span className="text-muted-foreground/70">
+                              ({previousCount} leads)
+                            </span>
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </TooltipContent>
                 </Tooltip>

@@ -245,6 +245,106 @@ export function useCampanhasFunnel(filters: CampanhasFiltersState) {
   });
 }
 
+// Hook para buscar dados do funil do período anterior (para comparação)
+export function useCampanhasFunnelPrevious(filters: CampanhasFiltersState) {
+  const { previousDateFrom, previousDateTo } = getPreviousPeriod(filters.dateFrom, filters.dateTo);
+  
+  return useQuery({
+    queryKey: ['campanhas-funnel-previous', filters.agentCodes, previousDateFrom, previousDateTo],
+    queryFn: async () => {
+      const { agentCodes } = filters;
+      
+      if (agentCodes.length === 0) return [];
+      
+      // Mesma query do funil, mas com datas do período anterior
+      const query = `
+        WITH campaign_leads AS (
+          SELECT DISTINCT
+            ca.id,
+            ca.cod_agent::text,
+            COALESCE(
+              NULLIF(campaign_data->>'phone', ''),
+              s.whatsapp_number::text
+            ) as whatsapp
+          FROM campaing_ads ca
+          LEFT JOIN sessions s ON s.id = ca.session_id::int
+          WHERE ca.cod_agent::text = ANY($1::varchar[])
+            AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+            AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+        ),
+        entrada AS (
+          SELECT COUNT(*)::int as count FROM campaign_leads
+        ),
+        atendidos AS (
+          SELECT COUNT(DISTINCT cl.id)::int as count
+          FROM campaign_leads cl
+          WHERE EXISTS (
+            SELECT 1 FROM log_first_messages lfm
+            WHERE lfm.cod_agent::text = cl.cod_agent
+              AND lfm.whatsapp::text = cl.whatsapp
+          )
+        ),
+        em_qualificacao AS (
+          SELECT COUNT(DISTINCT c.id)::int as count
+          FROM campaign_leads cl
+          JOIN crm_atendimento_cards c 
+            ON c.cod_agent = cl.cod_agent 
+            AND c.whatsapp_number = cl.whatsapp
+          JOIN crm_atendimento_history h ON h.card_id = c.id
+          JOIN crm_atendimento_stages s ON s.id = h.to_stage_id
+          WHERE LOWER(s.name) LIKE '%analise%caso%' 
+             OR LOWER(s.name) LIKE '%análise%caso%'
+        ),
+        qualified_stage_ids AS (
+          SELECT id FROM crm_atendimento_stages 
+          WHERE name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
+        ),
+        qualificado AS (
+          SELECT COUNT(DISTINCT c.id)::int as count
+          FROM campaign_leads cl
+          JOIN crm_atendimento_cards c 
+            ON c.cod_agent = cl.cod_agent 
+            AND c.whatsapp_number = cl.whatsapp
+          WHERE c.stage_id IN (SELECT id FROM qualified_stage_ids)
+        ),
+        cliente_stage_id AS (
+          SELECT id FROM crm_atendimento_stages 
+          WHERE name = 'Contrato Assinado'
+        ),
+        cliente AS (
+          SELECT COUNT(DISTINCT c.id)::int as count
+          FROM campaign_leads cl
+          JOIN crm_atendimento_cards c 
+            ON c.cod_agent = cl.cod_agent 
+            AND c.whatsapp_number = cl.whatsapp
+          WHERE c.stage_id IN (SELECT id FROM cliente_stage_id)
+        )
+        SELECT 'Entrada' as stage_name, 0 as position, (SELECT count FROM entrada) as count
+        UNION ALL
+        SELECT 'Atendidos por JulIA', 1, (SELECT count FROM atendidos)
+        UNION ALL
+        SELECT 'Em Qualificação', 2, (SELECT count FROM em_qualificacao)
+        UNION ALL
+        SELECT 'Qualificado', 3, (SELECT count FROM qualificado)
+        UNION ALL
+        SELECT 'Cliente', 4, (SELECT count FROM cliente)
+        ORDER BY position
+      `;
+      
+      const params = [agentCodes, previousDateFrom, previousDateTo];
+      
+      try {
+        const result = await externalDb.raw<{ stage_name: string; position: number; count: number }>({ query, params });
+        return result;
+      } catch (error) {
+        console.error('Error fetching previous funnel data:', error);
+        return [];
+      }
+    },
+    enabled: filters.agentCodes.length > 0,
+  });
+}
+
 export function useCampanhasByPlatform(filters: CampanhasFiltersState) {
   return useQuery({
     queryKey: ['campanhas-by-platform', filters],

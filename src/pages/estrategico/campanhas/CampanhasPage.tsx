@@ -12,6 +12,7 @@ import {
   useCampanhasLeads,
   useCampanhasRaw,
   useCampanhasFunnel,
+  useCampanhasFunnelPrevious,
   useCampanhasByPlatform,
   useCampanhasEvolution,
   useCampanhasHeatmap,
@@ -45,6 +46,7 @@ export default function CampanhasPage() {
   const { data: leadsData = [], isLoading: leadsLoading } = useCampanhasLeads(filters);
   const { data: rawData = [], isLoading: rawLoading } = useCampanhasRaw(filters);
   const { data: funnelData = [], isLoading: funnelLoading } = useCampanhasFunnel(filters);
+  const { data: funnelPreviousData = [] } = useCampanhasFunnelPrevious(filters);
   const { data: platformData = [], isLoading: platformLoading } = useCampanhasByPlatform(filters);
   const { data: evolutionData = [], isLoading: evolutionLoading } = useCampanhasEvolution(filters);
   const { data: conversionEvolutionData = [], isLoading: conversionEvolutionLoading } = useCampanhasConversionEvolution(filters);
@@ -69,8 +71,8 @@ export default function CampanhasPage() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['campanhas-leads'] }),
       queryClient.invalidateQueries({ queryKey: ['campanhas-raw'] }),
-      queryClient.invalidateQueries({ queryKey: ['campanhas-previous'] }),
       queryClient.invalidateQueries({ queryKey: ['campanhas-funnel'] }),
+      queryClient.invalidateQueries({ queryKey: ['campanhas-funnel-previous'] }),
       queryClient.invalidateQueries({ queryKey: ['campanhas-by-platform'] }),
       queryClient.invalidateQueries({ queryKey: ['campanhas-evolution'] }),
       queryClient.invalidateQueries({ queryKey: ['campanhas-conversion-evolution'] }),
@@ -143,7 +145,7 @@ export default function CampanhasPage() {
           {/* Main Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Funnel Chart - Highlight */}
-            <CampanhasFunnelChart data={funnelData} isLoading={funnelLoading} />
+            <CampanhasFunnelChart data={funnelData} previousData={funnelPreviousData} isLoading={funnelLoading} />
             
             {/* Platform Distribution */}
             <CampanhasByPlatform data={platformData} isLoading={platformLoading} />
