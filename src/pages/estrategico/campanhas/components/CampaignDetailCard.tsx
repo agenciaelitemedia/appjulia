@@ -63,18 +63,9 @@ export function CampaignDetailCard({ campaign }: CampaignDetailCardProps) {
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="text-sm font-medium truncate">
-                    {campaign.office_name || 'Escritório'}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Cód: {campaign.cod_agent}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <span className="text-sm font-medium truncate" title={`[${campaign.cod_agent}] - ${campaign.office_name}`}>
+              [{campaign.cod_agent}] - {campaign.office_name || 'Escritório'}
+            </span>
           </div>
           <Badge variant="secondary" className="shrink-0">
             <Users className="h-3 w-3 mr-1" />
