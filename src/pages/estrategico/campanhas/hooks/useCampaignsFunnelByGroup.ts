@@ -11,10 +11,10 @@ export function useCampaignsFunnelByGroup(filters: CampanhasFiltersState) {
       const query = `
         WITH campaign_leads AS (
           SELECT 
-            campaign_data->>'sourceID' || '::' || campaign_data->>'title' as group_key,
+            (campaign_data::jsonb)->>'sourceID' || '::' || (campaign_data::jsonb)->>'title' as group_key,
             ca.cod_agent::text,
             COALESCE(
-              NULLIF(campaign_data->>'phone', ''),
+              NULLIF((campaign_data::jsonb)->>'phone', ''),
               s.whatsapp_number::text
             ) as whatsapp
           FROM campaing_ads ca
@@ -22,7 +22,7 @@ export function useCampaignsFunnelByGroup(filters: CampanhasFiltersState) {
           WHERE ca.cod_agent::text = ANY($1)
             AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2
             AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3
-            AND campaign_data->>'sourceID' IS NOT NULL
+            AND (campaign_data::jsonb)->>'sourceID' IS NOT NULL
         ),
         
         unique_leads AS (
