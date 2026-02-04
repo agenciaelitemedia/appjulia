@@ -129,15 +129,28 @@ export function CampanhasFunnelChart({ data, isLoading }: CampanhasFunnelChartPr
                       </div>
                     </div>
                   </TooltipTrigger>
-                  <TooltipContent>
-                    <div className="text-sm space-y-1">
-                      <p className="font-semibold">{stage.stage_name}</p>
-                      <p>{stage.count} leads ({stage.percentage.toFixed(1)}%)</p>
-                      {index > 0 && (
-                        <p className="text-muted-foreground">
-                          Taxa de conversão: {stage.conversionRate?.toFixed(1)}%
+                  <TooltipContent className="max-w-xs">
+                    <div className="text-sm space-y-2">
+                      <div className="flex items-center gap-2">
+                        {stageDescriptions[stage.stage_name]?.icon}
+                        <p className="font-semibold">{stage.stage_name}</p>
+                      </div>
+                      <p className="text-muted-foreground text-xs">
+                        {stageDescriptions[stage.stage_name]?.description}
+                      </p>
+                      <div className="pt-1 border-t border-border/50">
+                        <p className="font-medium">{stage.count} leads ({stage.percentage.toFixed(1)}%)</p>
+                        {index > 0 && (
+                          <p className="text-muted-foreground text-xs">
+                            Taxa de conversão: {stage.conversionRate?.toFixed(1)}%
+                          </p>
+                        )}
+                      </div>
+                      <div className="pt-1 border-t border-border/50">
+                        <p className="text-muted-foreground text-xs italic">
+                          {stageDescriptions[stage.stage_name]?.source}
                         </p>
-                      )}
+                      </div>
                     </div>
                   </TooltipContent>
                 </Tooltip>
