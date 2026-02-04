@@ -34,7 +34,7 @@ interface CampaignDetailCardProps {
   funnelLoading?: boolean;
 }
 
-export function CampaignDetailCard({ campaign }: CampaignDetailCardProps) {
+export function CampaignDetailCard({ campaign, funnelData, funnelLoading }: CampaignDetailCardProps) {
   const [imageError, setImageError] = useState(false);
   const [copied, setCopied] = useState(false);
 
