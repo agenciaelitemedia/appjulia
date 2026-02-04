@@ -10,7 +10,7 @@ import type { UserWithPermissions } from './types';
 
 export default function PermissoesPage() {
   const [selectedUser, setSelectedUser] = useState<UserWithPermissions | null>(null);
-  const [roleFilter, setRoleFilter] = useState('all');
+  const [roleFilter, setRoleFilter] = useState('colaborador');
   const [showDefaultsDialog, setShowDefaultsDialog] = useState(false);
 
   const { data: users = [], isLoading } = useUsersWithPermissions(
