@@ -116,7 +116,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-muted-foreground font-medium">Atendimentos</p>
-              <p className="text-2xl font-bold text-foreground">{(juliaSessions?.dailyAverage ?? 0).toFixed(1)}</p>
+              <p className="text-2xl font-bold text-foreground">{Math.round(juliaSessions?.dailyAverage ?? 0)}</p>
               <p className="text-xs text-muted-foreground">{stats.totalSessions} sessões Julia</p>
             </div>
             <div className="p-2 bg-chart-4/10 rounded-full">
