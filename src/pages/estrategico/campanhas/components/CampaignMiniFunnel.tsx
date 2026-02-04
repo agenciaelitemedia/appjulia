@@ -15,21 +15,21 @@ const stages = [
   { 
     key: 'total_leads' as const, 
     label: 'Total', 
-    color: 'bg-blue-500',
+    colorClass: 'bg-primary',
     icon: Users,
     tooltip: 'Total de leads da campanha'
   },
   { 
     key: 'qualified' as const, 
     label: 'Qualificados', 
-    color: 'bg-orange-500',
+    colorClass: 'bg-chart-2',
     icon: TrendingUp,
     tooltip: 'Leads em Negociação, Contrato em Curso ou Contrato Assinado'
   },
   { 
     key: 'clients' as const, 
     label: 'Clientes', 
-    color: 'bg-purple-500',
+    colorClass: 'bg-chart-5',
     icon: UserCheck,
     tooltip: 'Leads com Contrato Assinado'
   },
