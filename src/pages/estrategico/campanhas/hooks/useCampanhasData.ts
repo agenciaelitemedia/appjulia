@@ -129,32 +129,45 @@ export function useCampanhasFunnel(filters: CampanhasFiltersState) {
       
       if (agentCodes.length === 0) return [];
       
-      // Query para buscar leads de campanhas por estágio do CRM
+      // Funil simplificado baseado apenas nos dados de campanhas
+      // Agrupa por tipo de entrada para criar um funil de aquisição
       const query = `
-        WITH campaign_sessions AS (
-          SELECT DISTINCT session_id
+        WITH campaign_data AS (
+          SELECT 
+            id,
+            cod_agent,
+            session_id,
+            campaign_data->>'sourceApp' as source_app,
+            campaign_data->>'entryPointConversionSource' as conversion_source,
+            created_at
           FROM campaing_ads
           WHERE cod_agent::text = ANY($1::varchar[])
             AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
             AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
-        ),
-        funnel_data AS (
-          SELECT 
-            s.name as stage_name,
-            s.color as stage_color,
-            s.position,
-            COUNT(DISTINCT c.id) as count
-          FROM crm_atendimento_stages s
-          LEFT JOIN crm_atendimento_cards c ON s.id = c.stage_id
-            AND c.cod_agent::text = ANY($1::varchar[])
-            AND EXISTS (
-              SELECT 1 FROM campaign_sessions cs 
-              WHERE cs.session_id::text = c.session_id::text
-            )
-          GROUP BY s.id, s.name, s.color, s.position
-          ORDER BY s.position
         )
-        SELECT * FROM funnel_data WHERE count > 0
+        SELECT 
+          'Leads Captados' as stage_name,
+          '#3b82f6' as stage_color,
+          0 as position,
+          COUNT(*)::int as count
+        FROM campaign_data
+        UNION ALL
+        SELECT 
+          'Com Sessão' as stage_name,
+          '#22c55e' as stage_color,
+          1 as position,
+          COUNT(DISTINCT session_id)::int as count
+        FROM campaign_data
+        WHERE session_id IS NOT NULL
+        UNION ALL
+        SELECT 
+          'Ads Diretos' as stage_name,
+          '#eab308' as stage_color,
+          2 as position,
+          COUNT(*)::int as count
+        FROM campaign_data
+        WHERE conversion_source = 'ctwa_ad'
+        ORDER BY position
       `;
       
       const params = [agentCodes, dateFrom, dateTo];
