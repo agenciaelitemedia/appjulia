@@ -157,6 +157,14 @@ export default function CampanhasPage() {
             dateTo={filters.dateTo}
           />
 
+          {/* Conversion Evolution Chart - Full Width */}
+          <CampanhasConversionEvolutionChart 
+            data={conversionEvolutionData} 
+            isLoading={conversionEvolutionLoading}
+            dateFrom={filters.dateFrom}
+            dateTo={filters.dateTo}
+          />
+
           {/* Secondary Row */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Heatmap */}
