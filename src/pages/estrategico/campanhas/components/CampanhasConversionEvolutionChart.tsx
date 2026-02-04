@@ -127,9 +127,10 @@ export function CampanhasConversionEvolutionChart({
                   borderRadius: '8px',
                 }}
                 labelFormatter={(label) => isSingleDay ? `Hora: ${label}` : `Data: ${label}`}
-                formatter={(value: number, name: string) => {
-                  if (name === 'Taxa de Conversão') return [`${value.toFixed(1)}%`, name];
-                  return [value, name];
+                formatter={(value: number | string, name: string) => {
+                  const numValue = typeof value === 'number' ? value : parseFloat(String(value)) || 0;
+                  if (name === 'Taxa de Conversão') return [`${numValue.toFixed(1)}%`, name];
+                  return [numValue, name];
                 }}
               />
               <Legend />
