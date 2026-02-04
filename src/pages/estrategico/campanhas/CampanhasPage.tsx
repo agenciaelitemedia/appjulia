@@ -110,7 +110,7 @@ export default function CampanhasPage() {
         </Button>
       </div>
 
-      {/* Filters */}
+      {/* Filters - shared between tabs */}
       <UnifiedFilters
         agents={agents}
         filters={filters}
@@ -119,42 +119,62 @@ export default function CampanhasPage() {
         searchPlaceholder="Buscar campanhas..."
       />
 
-      {/* Summary Cards */}
-      <CampanhasSummary summary={summary} isLoading={isLoading} />
+      {/* Tabs */}
+      <Tabs defaultValue="dashboard" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="dashboard" className="gap-2">
+            <LayoutDashboard className="h-4 w-4" />
+            Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="campanhas" className="gap-2">
+            <List className="h-4 w-4" />
+            Campanhas
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Main Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Funnel Chart - Highlight */}
-        <CampanhasFunnelChart data={funnelData} isLoading={funnelLoading} />
-        
-        {/* Platform Distribution */}
-        <CampanhasByPlatform data={platformData} isLoading={platformLoading} />
-      </div>
+        <TabsContent value="dashboard" className="space-y-6 mt-0">
+          {/* Summary Cards */}
+          <CampanhasSummary summary={summary} isLoading={isLoading} />
 
-      {/* Evolution Chart - Full Width */}
-      <CampanhasEvolutionChart 
-        data={evolutionData} 
-        isLoading={evolutionLoading}
-        dateFrom={filters.dateFrom}
-        dateTo={filters.dateTo}
-      />
+          {/* Main Charts Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Funnel Chart - Highlight */}
+            <CampanhasFunnelChart data={funnelData} isLoading={funnelLoading} />
+            
+            {/* Platform Distribution */}
+            <CampanhasByPlatform data={platformData} isLoading={platformLoading} />
+          </div>
 
-      {/* Secondary Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Heatmap */}
-        <div className="lg:col-span-1">
-          <CampanhasHeatmap data={heatmapData} isLoading={heatmapLoading} />
-        </div>
-        
-        {/* Top Campaigns Table */}
-        <div className="lg:col-span-2">
-          <CampanhasTopTable 
-            data={leadsData} 
-            isLoading={leadsLoading}
-            searchTerm={filters.search}
+          {/* Evolution Chart - Full Width */}
+          <CampanhasEvolutionChart 
+            data={evolutionData} 
+            isLoading={evolutionLoading}
+            dateFrom={filters.dateFrom}
+            dateTo={filters.dateTo}
           />
-        </div>
-      </div>
+
+          {/* Secondary Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Heatmap */}
+            <div className="lg:col-span-1">
+              <CampanhasHeatmap data={heatmapData} isLoading={heatmapLoading} />
+            </div>
+            
+            {/* Top Campaigns Table */}
+            <div className="lg:col-span-2">
+              <CampanhasTopTable 
+                data={leadsData} 
+                isLoading={leadsLoading}
+                searchTerm={filters.search}
+              />
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="campanhas" className="mt-0">
+          <CampanhasListTab filters={filters} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

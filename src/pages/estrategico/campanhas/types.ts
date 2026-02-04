@@ -84,3 +84,18 @@ export interface CampanhasFiltersState {
   dateFrom: string;
   dateTo: string;
 }
+
+export interface CampaignDetail {
+  campaign_id: string;
+  campaign_title: string;
+  campaign_body: string;
+  platform: string;
+  source_url: string;
+  media_url: string;
+  thumbnail_url: string;
+  conversion_source: string;
+  total_leads: number;
+  first_lead: string;
+  last_lead: string;
+  greeting_message: string;
+}
