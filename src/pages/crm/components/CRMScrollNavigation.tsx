@@ -90,7 +90,7 @@ export function CRMScrollNavigation({ scrollRef }: CRMScrollNavigationProps) {
   }, [isDragging, handleDrag]);
 
   return (
-    <div className="flex items-center justify-center py-3 px-4 border-t bg-background sticky bottom-0 z-10">
+    <div className="fixed bottom-0 left-0 right-0 lg:left-64 flex items-center justify-center py-3 px-4 border-t bg-background z-50 transition-all duration-300">
       <div 
         ref={trackRef}
         className="flex-1 max-w-md h-1 bg-border rounded-full cursor-pointer relative"

@@ -20,7 +20,7 @@ export function CRMPipeline({ stages, cards, onCardClick }: CRMPipelineProps) {
     <div className="flex flex-col flex-1">
       <div
         ref={scrollRef}
-        className="flex gap-4 pb-2 overflow-x-auto scrollbar-none"
+        className="flex gap-4 pb-16 overflow-x-auto scrollbar-none"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {stages.map((stage) => (
