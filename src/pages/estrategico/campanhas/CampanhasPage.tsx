@@ -17,10 +17,12 @@ import {
   useCampanhasHeatmap,
   useCampanhasSummary,
 } from './hooks/useCampanhasData';
+import { useCampanhasConversionEvolution } from './hooks/useCampanhasConversionEvolution';
 import { CampanhasSummary } from './components/CampanhasSummary';
 import { CampanhasFunnelChart } from './components/CampanhasFunnelChart';
 import { CampanhasByPlatform } from './components/CampanhasByPlatform';
 import { CampanhasEvolutionChart } from './components/CampanhasEvolutionChart';
+import { CampanhasConversionEvolutionChart } from './components/CampanhasConversionEvolutionChart';
 import { CampanhasHeatmap } from './components/CampanhasHeatmap';
 import { CampanhasTopTable } from './components/CampanhasTopTable';
 import { CampanhasListTab } from './components/CampanhasListTab';
@@ -45,6 +47,7 @@ export default function CampanhasPage() {
   const { data: funnelData = [], isLoading: funnelLoading } = useCampanhasFunnel(filters);
   const { data: platformData = [], isLoading: platformLoading } = useCampanhasByPlatform(filters);
   const { data: evolutionData = [], isLoading: evolutionLoading } = useCampanhasEvolution(filters);
+  const { data: conversionEvolutionData = [], isLoading: conversionEvolutionLoading } = useCampanhasConversionEvolution(filters);
   const { data: heatmapData = [], isLoading: heatmapLoading } = useCampanhasHeatmap(filters);
   const summary = useCampanhasSummary(filters);
 
@@ -70,6 +73,7 @@ export default function CampanhasPage() {
       queryClient.invalidateQueries({ queryKey: ['campanhas-funnel'] }),
       queryClient.invalidateQueries({ queryKey: ['campanhas-by-platform'] }),
       queryClient.invalidateQueries({ queryKey: ['campanhas-evolution'] }),
+      queryClient.invalidateQueries({ queryKey: ['campanhas-conversion-evolution'] }),
       queryClient.invalidateQueries({ queryKey: ['campanhas-heatmap'] }),
     ]);
     setIsRefreshing(false);
@@ -149,6 +153,14 @@ export default function CampanhasPage() {
           <CampanhasEvolutionChart 
             data={evolutionData} 
             isLoading={evolutionLoading}
+            dateFrom={filters.dateFrom}
+            dateTo={filters.dateTo}
+          />
+
+          {/* Conversion Evolution Chart - Full Width */}
+          <CampanhasConversionEvolutionChart 
+            data={conversionEvolutionData} 
+            isLoading={conversionEvolutionLoading}
             dateFrom={filters.dateFrom}
             dateTo={filters.dateTo}
           />
