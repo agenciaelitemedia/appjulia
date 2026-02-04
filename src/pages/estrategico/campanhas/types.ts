@@ -71,11 +71,13 @@ export interface CampaignSummary {
   totalLeads: number;
   leadsPerCampaign: number;
   conversionRate: number;
+  qualifiedLeads: number;
   topPlatform: string;
   topPlatformLeads: number;
   // Comparativos
   previousTotalCampaigns?: number;
   previousTotalLeads?: number;
+  previousQualifiedLeads?: number;
 }
 
 export interface CampanhasFiltersState {

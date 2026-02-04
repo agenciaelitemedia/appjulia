@@ -353,25 +353,5 @@ export function useCampanhasHeatmap(filters: CampanhasFiltersState) {
   });
 }
 
-// Hook para calcular o resumo/summary
-export function useCampanhasSummary(filters: CampanhasFiltersState) {
-  const { data: rawData = [] } = useCampanhasRaw(filters);
-  const { data: previousData = [] } = useCampanhasPrevious(filters);
-  const { data: platformData = [] } = useCampanhasByPlatform(filters);
-  const { data: leadsData = [] } = useCampanhasLeads(filters);
-  
-  const summary: CampaignSummary = {
-    totalCampaigns: new Set(leadsData.map(l => l.campaign_id)).size,
-    totalLeads: rawData.length,
-    leadsPerCampaign: leadsData.length > 0 
-      ? Math.round(rawData.length / new Set(leadsData.map(l => l.campaign_id)).size) || 0
-      : 0,
-    conversionRate: 0, // Será calculado quando tivermos dados do CRM
-    topPlatform: platformData[0]?.platform || '-',
-    topPlatformLeads: platformData[0]?.total_leads || 0,
-    previousTotalCampaigns: new Set(previousData.map(p => p.campaign_id)).size,
-    previousTotalLeads: previousData.length,
-  };
-  
-  return summary;
-}
+// Hook para calcular o resumo/summary - agora importado de useCampanhasSummary.ts
+export { useCampanhasSummaryData as useCampanhasSummary } from './useCampanhasSummary';
