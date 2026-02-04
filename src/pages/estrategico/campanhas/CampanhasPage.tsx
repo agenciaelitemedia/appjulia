@@ -145,7 +145,7 @@ export default function CampanhasPage() {
           {/* Main Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Funnel Chart - Highlight */}
-            <CampanhasFunnelChart data={funnelData} isLoading={funnelLoading} />
+            <CampanhasFunnelChart data={funnelData} previousData={funnelPreviousData} isLoading={funnelLoading} />
             
             {/* Platform Distribution */}
             <CampanhasByPlatform data={platformData} isLoading={platformLoading} />
