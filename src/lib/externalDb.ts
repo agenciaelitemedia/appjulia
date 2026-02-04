@@ -155,6 +155,13 @@ class ExternalDatabase {
     });
   }
 
+  async searchAgents<T = any>(term: string): Promise<T[]> {
+    return this.invoke({
+      action: 'search_agents',
+      data: { term },
+    });
+  }
+
   async getNextAgentCode(): Promise<string> {
     const result = await this.invoke({
       action: 'get_next_agent_code',
