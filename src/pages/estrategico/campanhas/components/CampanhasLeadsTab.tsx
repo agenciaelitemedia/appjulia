@@ -143,15 +143,35 @@ export function CampanhasLeadsTab({ filters }: CampanhasLeadsTabProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Busca local */}
-          <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nome, WhatsApp, campanha..."
-              value={localSearch}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-9"
-            />
+          {/* Filtros: Busca local + Select de Campanha */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome, WhatsApp..."
+                value={localSearch}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            
+            <div className="w-full sm:w-[280px]">
+              <Select value={selectedCampaign} onValueChange={handleCampaignChange}>
+                <SelectTrigger>
+                  <Filter className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Filtrar por campanha" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as campanhas</SelectItem>
+                  {campaignOptions.map((option) => (
+                    <SelectItem key={option.campaign_id} value={option.campaign_id}>
+                      <span className="truncate">{option.campaign_title || 'Sem título'}</span>
+                      <span className="ml-2 text-muted-foreground">({option.lead_count})</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Tabela */}
