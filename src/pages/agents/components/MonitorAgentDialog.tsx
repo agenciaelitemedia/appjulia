@@ -8,6 +8,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -30,6 +40,7 @@ export function MonitorAgentDialog({ open, onOpenChange, onSuccess }: MonitorAge
   const [selectedUser, setSelectedUser] = useState<SearchedUser | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<SearchedAgent | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   // User search hook
   const userSearch = useUserSearch();
@@ -117,6 +128,7 @@ export function MonitorAgentDialog({ open, onOpenChange, onSuccess }: MonitorAge
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
@@ -311,7 +323,7 @@ export function MonitorAgentDialog({ open, onOpenChange, onSuccess }: MonitorAge
           )}
           
           {step === 'confirm' ? (
-            <Button onClick={handleSubmit} disabled={isSubmitting}>
+            <Button onClick={() => setShowConfirmDialog(true)} disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -332,5 +344,34 @@ export function MonitorAgentDialog({ open, onOpenChange, onSuccess }: MonitorAge
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Confirmation AlertDialog */}
+    <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Confirmar vinculação</AlertDialogTitle>
+          <AlertDialogDescription>
+            Tem certeza que deseja vincular o usuário{' '}
+            <strong>{selectedUser?.name}</strong> ao agente{' '}
+            <strong>{selectedAgent?.business_name || selectedAgent?.client_name}</strong>
+            {' '}(Código: {selectedAgent?.cod_agent})?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isSubmitting}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction onClick={handleSubmit} disabled={isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Vinculando...
+              </>
+            ) : (
+              'Confirmar'
+            )}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </>
   );
 }
