@@ -11,6 +11,23 @@ interface CRMDashboardSummaryProps {
   juliaSessions?: { totalSessions: number; dailyAverage: number };
 }
 
+const formatAvgTime = (days: number): string => {
+  const totalHours = days * 24;
+  
+  if (totalHours < 24) {
+    return `${Math.round(totalHours)}h`;
+  }
+  
+  const fullDays = Math.floor(totalHours / 24);
+  const remainingHours = Math.round(totalHours % 24);
+  
+  if (remainingHours === 0) {
+    return `${fullDays}d`;
+  }
+  
+  return `${fullDays}d ${remainingHours}h`;
+};
+
 export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }: CRMDashboardSummaryProps) {
   const stats = useMemo(() => {
     const total = cards.length;
@@ -132,7 +149,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-muted-foreground font-medium">Tempo Médio</p>
-              <p className="text-2xl font-bold text-foreground">{stats.avgTime.toFixed(1)}d</p>
+              <p className="text-2xl font-bold text-foreground">{formatAvgTime(stats.avgTime)}</p>
               <p className="text-xs text-muted-foreground">na fase atual</p>
             </div>
             <div className="p-2 bg-chart-3/10 rounded-full">
