@@ -132,11 +132,12 @@ export function CampanhasHeatmap({ data, isLoading }: CampanhasHeatmapProps) {
             <div className="flex items-center justify-center gap-4 pt-2 border-t">
               <span className="text-xs text-muted-foreground">Menos</span>
               <div className="flex gap-1">
-                <div className="w-4 h-4 rounded bg-muted/30" />
-                <div className="w-4 h-4 rounded bg-chart-2/40" />
-                <div className="w-4 h-4 rounded bg-chart-2/60" />
-                <div className="w-4 h-4 rounded bg-chart-2/80" />
-                <div className="w-4 h-4 rounded bg-chart-2" />
+                <div className="w-4 h-4 rounded bg-slate-100 dark:bg-slate-800 border border-border/50" />
+                <div className="w-4 h-4 rounded bg-blue-400" />
+                <div className="w-4 h-4 rounded bg-green-500" />
+                <div className="w-4 h-4 rounded bg-yellow-500" />
+                <div className="w-4 h-4 rounded bg-orange-500" />
+                <div className="w-4 h-4 rounded bg-red-500" />
               </div>
               <span className="text-xs text-muted-foreground">Mais</span>
             </div>
