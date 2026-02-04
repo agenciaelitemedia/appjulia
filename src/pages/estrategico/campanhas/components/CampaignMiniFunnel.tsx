@@ -34,7 +34,7 @@ export function CampaignMiniFunnel({ data }: CampaignMiniFunnelProps) {
               <div className="flex items-center gap-2 cursor-help">
                 <Users className="h-3 w-3 text-muted-foreground shrink-0" />
                 <span className="text-xs text-muted-foreground w-20 truncate">
-                  Entrada
+                  Total da campanha
                 </span>
                 <div className="flex-1 h-4 bg-muted/50 rounded overflow-hidden">
                   <div
