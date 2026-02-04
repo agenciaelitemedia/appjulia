@@ -1,65 +1,179 @@
 
-# Plano: Resolver Bloqueio de Links Externos no Iframe
 
-## Problema Identificado
+# Plano: Ajustar Funil de Conversao de Campanhas Ads
 
-O erro `ERR_BLOCKED_BY_RESPONSE` ocorre porque:
-1. O aplicativo roda dentro de um **iframe de preview** do Lovable
-2. Links externos com `target="_blank"` tentam abrir dentro do contexto do iframe
-3. Sites como Instagram/Facebook bloqueiam isso com headers `X-Frame-Options: DENY`
+## Visao Geral
+
+Reconfigurar o funil de conversao da pagina de Campanhas Ads com 5 etapas claramente definidas, cada uma com sua regra de quantitativo baseada em tabelas especificas do banco externo.
 
 ---
 
-## Solução: Usar `window.top` para Navegar Fora do Iframe
+## Novas Etapas do Funil
 
-A solução mais simples e eficaz é modificar a página de redirecionamento para usar `window.top.location` ao invés de `window.location`. Isso faz a navegação acontecer no contexto da janela principal, escapando do iframe.
+| Etapa | Nome | Regra de Contagem |
+|-------|------|-------------------|
+| 1 | **Entrada** | Total de leads que entraram pelas campanhas (`campaing_ads`) |
+| 2 | **Atendidos por JulIA** | Leads com referencia na tabela `log_first_messages` (ligacao por `cod_agent` e `whatsapp`) |
+| 3 | **Em Qualificacao** | Leads na `crm_atendimento_cards` que passaram pela fase "Analise de Caso" (verificar em `crm_atendimento_history`) |
+| 4 | **Qualificado** | Leads em `crm_atendimento_cards` nas fases: Negociacao + Contrato em Curso + Contrato Assinado |
+| 5 | **Cliente** | Leads em `crm_atendimento_cards` na fase: Contrato Assinado |
 
 ---
 
 ## Modificacoes Necessarias
 
-### 1. Atualizar `RedirectPage.tsx`
+### 1. Atualizar `useCampanhasData.ts` - Hook `useCampanhasFunnel`
 
-```typescript
-// Antes
-window.location.href = decodedUrl;
+Nova query SQL com as 5 etapas definidas:
 
-// Depois - Escapa do iframe
-const targetWindow = window.top || window;
-targetWindow.location.href = decodedUrl;
+```sql
+WITH campaign_leads AS (
+  -- Todos os leads de campanhas no periodo
+  SELECT DISTINCT
+    ca.id,
+    ca.cod_agent::text,
+    COALESCE(
+      NULLIF(campaign_data->>'phone', ''),
+      s.whatsapp_number::text
+    ) as whatsapp
+  FROM campaing_ads ca
+  LEFT JOIN sessions s ON s.id = ca.session_id::int
+  WHERE ca.cod_agent::text = ANY($1::varchar[])
+    AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+    AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+),
+
+-- Etapa 1: Entrada (total de leads de campanhas)
+entrada AS (
+  SELECT COUNT(*)::int as count FROM campaign_leads
+),
+
+-- Etapa 2: Atendidos por JulIA (leads com registro em log_first_messages)
+atendidos AS (
+  SELECT COUNT(DISTINCT cl.id)::int as count
+  FROM campaign_leads cl
+  WHERE EXISTS (
+    SELECT 1 FROM log_first_messages lfm
+    WHERE lfm.cod_agent::text = cl.cod_agent
+      AND lfm.whatsapp::text = cl.whatsapp
+  )
+),
+
+-- Etapa 3: Em Qualificacao (leads que passaram por "Analise de Caso")
+em_qualificacao AS (
+  SELECT COUNT(DISTINCT c.id)::int as count
+  FROM campaign_leads cl
+  JOIN crm_atendimento_cards c 
+    ON c.cod_agent = cl.cod_agent 
+    AND c.whatsapp_number = cl.whatsapp
+  JOIN crm_atendimento_history h ON h.card_id = c.id
+  JOIN crm_atendimento_stages s ON s.id = h.to_stage_id
+  WHERE LOWER(s.name) LIKE '%analise%caso%' 
+     OR LOWER(s.name) LIKE '%análise%caso%'
+),
+
+-- IDs dos estagios de qualificacao
+qualified_stage_ids AS (
+  SELECT id FROM crm_atendimento_stages 
+  WHERE name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
+),
+
+-- Etapa 4: Qualificado (Negociacao + Contrato em Curso + Contrato Assinado)
+qualificado AS (
+  SELECT COUNT(DISTINCT c.id)::int as count
+  FROM campaign_leads cl
+  JOIN crm_atendimento_cards c 
+    ON c.cod_agent = cl.cod_agent 
+    AND c.whatsapp_number = cl.whatsapp
+  WHERE c.stage_id IN (SELECT id FROM qualified_stage_ids)
+),
+
+-- ID do estagio "Contrato Assinado"
+cliente_stage_id AS (
+  SELECT id FROM crm_atendimento_stages 
+  WHERE name = 'Contrato Assinado'
+),
+
+-- Etapa 5: Cliente (apenas Contrato Assinado)
+cliente AS (
+  SELECT COUNT(DISTINCT c.id)::int as count
+  FROM campaign_leads cl
+  JOIN crm_atendimento_cards c 
+    ON c.cod_agent = cl.cod_agent 
+    AND c.whatsapp_number = cl.whatsapp
+  WHERE c.stage_id IN (SELECT id FROM cliente_stage_id)
+)
+
+-- Resultado final do funil
+SELECT 'Entrada' as stage_name, '#3b82f6' as stage_color, 0 as position, (SELECT count FROM entrada) as count
+UNION ALL
+SELECT 'Atendidos por JulIA', '#22c55e', 1, (SELECT count FROM atendidos)
+UNION ALL
+SELECT 'Em Qualificação', '#eab308', 2, (SELECT count FROM em_qualificacao)
+UNION ALL
+SELECT 'Qualificado', '#f97316', 3, (SELECT count FROM qualificado)
+UNION ALL
+SELECT 'Cliente', '#8b5cf6', 4, (SELECT count FROM cliente)
+ORDER BY position
 ```
 
-### 2. Atualizar `externalLink.ts` - Funcao `openExternalLink`
+### 2. Atualizar `CampanhasFunnelChart.tsx` - Valores Default
+
+Ajustar os `defaultStages` para refletir as 5 novas etapas:
 
 ```typescript
-export function openExternalLink(url: string): void {
-  if (!url) return;
-  
-  // Tenta usar window.top para escapar do iframe
-  const targetWindow = window.top || window;
-  
-  // Abre em nova aba usando window.open do contexto principal
-  try {
-    targetWindow.open(url, '_blank', 'noopener,noreferrer');
-  } catch {
-    // Fallback se cross-origin bloquear
-    window.open(getExternalLink(url), '_blank', 'noopener,noreferrer');
-  }
-}
+const defaultStages: CampaignFunnelStage[] = [
+  { stage_name: 'Entrada', stage_color: '#3b82f6', position: 0, count: 0, percentage: 100, conversionRate: 100 },
+  { stage_name: 'Atendidos por JulIA', stage_color: '#22c55e', position: 1, count: 0, percentage: 0, conversionRate: 0 },
+  { stage_name: 'Em Qualificação', stage_color: '#eab308', position: 2, count: 0, percentage: 0, conversionRate: 0 },
+  { stage_name: 'Qualificado', stage_color: '#f97316', position: 3, count: 0, percentage: 0, conversionRate: 0 },
+  { stage_name: 'Cliente', stage_color: '#8b5cf6', position: 4, count: 0, percentage: 0, conversionRate: 0 },
+];
 ```
 
-### 3. Adicionar Deteccao de Iframe
+### 3. Remover Fallback Antigo
 
-Adicionar logica para detectar se estamos em um iframe e aplicar a estrategia correta:
+Remover a funcao `getFallbackFunnel` que usava logica simplificada, pois agora o funil tera etapas fixas e claras.
 
-```typescript
-function isInIframe(): boolean {
-  try {
-    return window.self !== window.top;
-  } catch {
-    return true; // Cross-origin iframe
-  }
-}
+---
+
+## Fluxo de Dados Visual
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                       FUNIL DE CONVERSAO                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────┐     │
+│  │ ENTRADA                                    1.250 leads │     │
+│  │ Total de leads que entraram via campanhas             │     │
+│  │ (tabela: campaing_ads)                                │     │
+│  └───────────────────────────────────────────────────────┘     │
+│                           ↓ 72%                                 │
+│  ┌────────────────────────────────────────────────────┐        │
+│  │ ATENDIDOS POR JULIA                       900 leads │        │
+│  │ Leads com registro em log_first_messages           │        │
+│  │ (tabela: log_first_messages)                       │        │
+│  └────────────────────────────────────────────────────┘        │
+│                           ↓ 56%                                 │
+│  ┌─────────────────────────────────────────────┐               │
+│  │ EM QUALIFICACAO                   500 leads │               │
+│  │ Leads que passaram por Analise de Caso     │               │
+│  │ (tabela: crm_atendimento_history)          │               │
+│  └─────────────────────────────────────────────┘               │
+│                           ↓ 40%                                 │
+│  ┌──────────────────────────────────────┐                      │
+│  │ QUALIFICADO              200 leads   │                      │
+│  │ Negociacao + Contrato em Curso +     │                      │
+│  │ Contrato Assinado                    │                      │
+│  └──────────────────────────────────────┘                      │
+│                           ↓ 25%                                 │
+│  ┌──────────────────────────────┐                              │
+│  │ CLIENTE           50 leads   │                              │
+│  │ Contrato Assinado            │                              │
+│  └──────────────────────────────┘                              │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -68,102 +182,45 @@ function isInIframe(): boolean {
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/pages/RedirectPage.tsx` | Usar `window.top.location.href` para navegar |
-| `src/lib/externalLink.ts` | Atualizar `openExternalLink()` para usar `window.top` |
+| `src/pages/estrategico/campanhas/hooks/useCampanhasData.ts` | Reescrever `useCampanhasFunnel` com nova query e remover `getFallbackFunnel` |
+| `src/pages/estrategico/campanhas/components/CampanhasFunnelChart.tsx` | Atualizar `defaultStages` com as 5 novas etapas |
 
 ---
 
-## Comportamento Esperado
+## Detalhes das Regras de Join
 
-### Quando em Iframe (Preview Lovable)
-1. Usuario clica no link "Acessar"
-2. Link direciona para `/redirect?url=...`
-3. RedirectPage usa `window.top.location.href = url`
-4. Navegacao acontece na janela principal, nao no iframe
-5. Site externo carrega normalmente
+### Ligacao Campanhas -> Log First Messages
+- `campaing_ads.cod_agent` = `log_first_messages.cod_agent`
+- `campaing_ads.whatsapp` (via session ou campo phone) = `log_first_messages.whatsapp`
 
-### Quando em Janela Normal (App Publicado)
-1. `window.top === window.self`
-2. Comportamento identico, funciona normalmente
+### Ligacao Campanhas -> CRM Cards
+- `campaing_ads.cod_agent` = `crm_atendimento_cards.cod_agent`
+- `campaing_ads.whatsapp` = `crm_atendimento_cards.whatsapp_number`
+
+### Verificacao de "Analise de Caso"
+- Join `crm_atendimento_cards` com `crm_atendimento_history` via `card_id`
+- Join `crm_atendimento_history` com `crm_atendimento_stages` via `to_stage_id`
+- Filtrar onde `stage.name` contem "Analise" e "Caso" (case insensitive)
 
 ---
 
-## Codigo Detalhado
+## Cores do Funil
 
-### RedirectPage.tsx (atualizado)
-
-```tsx
-useEffect(() => {
-  // ... validacoes ...
-
-  const interval = setInterval(() => {
-    setCountdown((prev) => {
-      if (prev <= 1) {
-        clearInterval(interval);
-        // Escapa do iframe se necessario
-        try {
-          const targetWindow = window.top || window;
-          targetWindow.location.href = decodedUrl;
-        } catch {
-          // Fallback para cross-origin
-          window.location.href = decodedUrl;
-        }
-        return 0;
-      }
-      return prev - 1;
-    });
-  }, 1000);
-
-  return () => clearInterval(interval);
-}, [decodedUrl]);
-
-const handleManualRedirect = () => {
-  if (decodedUrl) {
-    try {
-      const targetWindow = window.top || window;
-      targetWindow.location.href = decodedUrl;
-    } catch {
-      window.location.href = decodedUrl;
-    }
-  }
-};
-```
-
-### externalLink.ts (atualizado)
-
-```typescript
-export function getExternalLink(url: string): string {
-  if (!url) return '#';
-  return `/redirect?url=${encodeURIComponent(url)}`;
-}
-
-export function openExternalLink(url: string): void {
-  if (!url) return;
-  
-  try {
-    // Tenta abrir diretamente via window.top
-    const targetWindow = window.top || window;
-    targetWindow.open(url, '_blank', 'noopener,noreferrer');
-  } catch {
-    // Fallback: usa pagina de redirect
-    window.open(getExternalLink(url), '_blank', 'noopener,noreferrer');
-  }
-}
-
-export function isInIframe(): boolean {
-  try {
-    return window.self !== window.top;
-  } catch {
-    return true;
-  }
-}
-```
+| Etapa | Cor | Hex |
+|-------|-----|-----|
+| Entrada | Azul | `#3b82f6` |
+| Atendidos por JulIA | Verde | `#22c55e` |
+| Em Qualificacao | Amarelo | `#eab308` |
+| Qualificado | Laranja | `#f97316` |
+| Cliente | Roxo | `#8b5cf6` |
 
 ---
 
 ## Resultado Esperado
 
-1. Links externos funcionarao corretamente tanto no preview quanto no app publicado
-2. A navegacao escapara do iframe quando necessario
-3. Fallback automatico caso `window.top` nao seja acessivel (cross-origin)
-4. Sem mudancas na experiencia do usuario - apenas o bloqueio sera resolvido
+1. Funil exibira exatamente 5 etapas com nomes e cores claras
+2. Cada etapa tera contagem precisa baseada nas regras definidas
+3. Taxa de conversao entre etapas calculada automaticamente
+4. Percentual relativo ao total (primeira etapa) exibido em cada barra
+5. Tooltips detalhados com contagem, percentual e taxa de conversao
+
