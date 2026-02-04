@@ -58,7 +58,7 @@ export function CampanhasListTab({ filters }: CampanhasListTabProps) {
         result.sort((a, b) => new Date(a.first_lead).getTime() - new Date(b.first_lead).getTime());
         break;
       case 'platform':
-        result.sort((a, b) => (a.platform || '').localeCompare(b.platform || ''));
+        result.sort((a, b) => (a.platforms?.[0] || '').localeCompare(b.platforms?.[0] || ''));
         break;
     }
 
