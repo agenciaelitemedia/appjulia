@@ -39,6 +39,7 @@ import {
   Zap,
   Scale,
   Kanban,
+  Megaphone,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -83,6 +84,7 @@ export const iconMap: Record<string, LucideIcon> = {
   Zap,
   Scale,
   Kanban,
+  Megaphone,
 };
 
 export const availableIcons = Object.keys(iconMap);

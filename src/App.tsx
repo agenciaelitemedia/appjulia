@@ -23,6 +23,7 @@ import AgentDetailsPage from "./pages/agents/AgentDetailsPage";
 import EditAgentPage from "./pages/agents/EditAgentPage";
 import DesempenhoPage from "./pages/estrategico/desempenho/DesempenhoPage";
 import ContratosPage from "./pages/estrategico/contratos/ContratosPage";
+import CampanhasPage from "./pages/estrategico/campanhas/CampanhasPage";
 import FollowupPage from "./pages/agente/followup/FollowupPage";
 import MyAgentsPage from "./pages/agente/meus-agentes/MyAgentsPage";
 import CriativosPage from "./pages/criativos/CriativosPage";
@@ -63,6 +64,7 @@ const App = () => (
                   <Route path="/crm/lead-monitoramento" element={<CRMMonitoringPage />} />
                   <Route path="/estrategico/desempenho" element={<DesempenhoPage />} />
                   <Route path="/estrategico/contratos" element={<ContratosPage />} />
+                  <Route path="/estrategico/campanhas" element={<CampanhasPage />} />
                   <Route path="/agente/meus-agentes" element={<MyAgentsPage />} />
                   <Route path="/agente/followup" element={<FollowupPage />} />
                   <Route path="/video/queue" element={<VideoQueuePage />} />
