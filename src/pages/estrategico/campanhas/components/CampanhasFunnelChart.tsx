@@ -1,8 +1,37 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { ArrowDown, Filter } from 'lucide-react';
+import { ArrowDown, Filter, Database, Bot, ClipboardCheck, Handshake, UserCheck } from 'lucide-react';
 import { CampaignFunnelStage } from '../types';
+
+// Descrições detalhadas de cada etapa do funil
+const stageDescriptions: Record<string, { description: string; source: string; icon: React.ReactNode }> = {
+  'Entrada': {
+    description: 'Total de leads captados através de campanhas de anúncios',
+    source: 'Tabela: campaing_ads',
+    icon: <Database className="h-3.5 w-3.5" />,
+  },
+  'Atendidos por JulIA': {
+    description: 'Leads que receberam primeira mensagem automatizada pela JulIA',
+    source: 'Tabela: log_first_messages',
+    icon: <Bot className="h-3.5 w-3.5" />,
+  },
+  'Em Qualificação': {
+    description: 'Leads que passaram pela etapa de Análise de Caso no CRM',
+    source: 'Tabela: crm_atendimento_history (etapa: Análise de Caso)',
+    icon: <ClipboardCheck className="h-3.5 w-3.5" />,
+  },
+  'Qualificado': {
+    description: 'Leads em fase avançada: Negociação, Contrato em Curso ou Contrato Assinado',
+    source: 'Tabela: crm_atendimento_cards (stage_id)',
+    icon: <Handshake className="h-3.5 w-3.5" />,
+  },
+  'Cliente': {
+    description: 'Leads que assinaram contrato e se tornaram clientes',
+    source: 'Tabela: crm_atendimento_cards (Contrato Assinado)',
+    icon: <UserCheck className="h-3.5 w-3.5" />,
+  },
+};
 
 interface CampanhasFunnelChartProps {
   data: CampaignFunnelStage[];
