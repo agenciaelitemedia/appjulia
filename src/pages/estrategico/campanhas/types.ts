@@ -152,9 +152,12 @@ export interface CampaignStageFunnelItem {
   count: number;
 }
 
-// Dados do mini-funil por campanha
+// Dados do funil de conversão por campanha (5 etapas fixas)
 export interface CampaignFunnelData {
   group_key: string;
   total_leads: number;
-  stages: CampaignStageFunnelItem[];
+  atendidos: number;
+  em_qualificacao: number;
+  qualificado: number;
+  cliente: number;
 }

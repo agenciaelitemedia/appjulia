@@ -10,9 +10,10 @@ export function useCampaignsFunnelByGroup(filters: CampanhasFiltersState) {
 
       const query = `
         WITH campaign_leads AS (
-          SELECT DISTINCT
+          SELECT 
             ((campaign_data::jsonb)->>'sourceID') || '::' || 
             ((campaign_data::jsonb)->>'title') as group_key,
+            ca.id,
             ca.cod_agent::text,
             COALESCE(
               NULLIF((campaign_data::jsonb)->>'phone', ''),
@@ -26,67 +27,86 @@ export function useCampaignsFunnelByGroup(filters: CampanhasFiltersState) {
             AND (campaign_data::jsonb)->>'sourceID' IS NOT NULL
         ),
 
-        lead_counts AS (
-          SELECT 
-            ((campaign_data::jsonb)->>'sourceID') || '::' || 
-            ((campaign_data::jsonb)->>'title') as group_key,
-            COUNT(*)::int as total_leads
-          FROM campaing_ads
-          WHERE cod_agent::text = ANY($1::text[])
-            AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2
-            AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3
-            AND (campaign_data::jsonb)->>'sourceID' IS NOT NULL
+        entrada AS (
+          SELECT group_key, COUNT(*)::int as count
+          FROM campaign_leads
           GROUP BY group_key
         ),
 
-        crm_cards AS (
+        atendidos AS (
           SELECT 
             cl.group_key,
-            c.id as card_id,
-            c.stage_id
+            COUNT(DISTINCT cl.id)::int as count
           FROM campaign_leads cl
-          INNER JOIN crm_atendimento_cards c 
+          WHERE EXISTS (
+            SELECT 1 FROM log_first_messages lfm
+            WHERE lfm.cod_agent::text = cl.cod_agent
+              AND lfm.whatsapp::text = cl.whatsapp
+          )
+          GROUP BY cl.group_key
+        ),
+
+        em_qualificacao AS (
+          SELECT 
+            cl.group_key,
+            COUNT(DISTINCT c.id)::int as count
+          FROM campaign_leads cl
+          JOIN crm_atendimento_cards c 
             ON c.cod_agent = cl.cod_agent 
             AND c.whatsapp_number = cl.whatsapp
+          JOIN crm_atendimento_history h ON h.card_id = c.id
+          JOIN crm_atendimento_stages s ON s.id = h.to_stage_id
+          WHERE LOWER(s.name) LIKE '%analise%caso%' 
+             OR LOWER(s.name) LIKE '%análise%caso%'
+          GROUP BY cl.group_key
         ),
 
-        stages AS (
-          SELECT id, name, color, position
-          FROM crm_atendimento_stages
-          WHERE is_active = true
+        qualified_stage_ids AS (
+          SELECT id FROM crm_atendimento_stages 
+          WHERE name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
         ),
 
-        stage_counts AS (
+        qualificado AS (
           SELECT 
-            cc.group_key,
-            s.id as stage_id,
-            s.name as stage_name,
-            s.color as stage_color,
-            s.position,
-            COUNT(DISTINCT cc.card_id)::int as count
-          FROM crm_cards cc
-          JOIN stages s ON s.id = cc.stage_id
-          GROUP BY cc.group_key, s.id, s.name, s.color, s.position
+            cl.group_key,
+            COUNT(DISTINCT c.id)::int as count
+          FROM campaign_leads cl
+          JOIN crm_atendimento_cards c 
+            ON c.cod_agent = cl.cod_agent 
+            AND c.whatsapp_number = cl.whatsapp
+          WHERE c.stage_id IN (SELECT id FROM qualified_stage_ids)
+          GROUP BY cl.group_key
+        ),
+
+        cliente_stage_id AS (
+          SELECT id FROM crm_atendimento_stages 
+          WHERE name = 'Contrato Assinado'
+        ),
+
+        cliente AS (
+          SELECT 
+            cl.group_key,
+            COUNT(DISTINCT c.id)::int as count
+          FROM campaign_leads cl
+          JOIN crm_atendimento_cards c 
+            ON c.cod_agent = cl.cod_agent 
+            AND c.whatsapp_number = cl.whatsapp
+          WHERE c.stage_id IN (SELECT id FROM cliente_stage_id)
+          GROUP BY cl.group_key
         )
 
         SELECT 
-          lc.group_key,
-          lc.total_leads,
-          COALESCE(
-            json_agg(
-              json_build_object(
-                'stage_id', sc.stage_id,
-                'stage_name', sc.stage_name,
-                'stage_color', sc.stage_color,
-                'position', sc.position,
-                'count', sc.count
-              ) ORDER BY sc.position
-            ) FILTER (WHERE sc.stage_id IS NOT NULL),
-            '[]'::json
-          ) as stages
-        FROM lead_counts lc
-        LEFT JOIN stage_counts sc ON sc.group_key = lc.group_key
-        GROUP BY lc.group_key, lc.total_leads
+          e.group_key,
+          e.count as total_leads,
+          COALESCE(a.count, 0)::int as atendidos,
+          COALESCE(eq.count, 0)::int as em_qualificacao,
+          COALESCE(q.count, 0)::int as qualificado,
+          COALESCE(c.count, 0)::int as cliente
+        FROM entrada e
+        LEFT JOIN atendidos a ON a.group_key = e.group_key
+        LEFT JOIN em_qualificacao eq ON eq.group_key = e.group_key
+        LEFT JOIN qualificado q ON q.group_key = e.group_key
+        LEFT JOIN cliente c ON c.group_key = e.group_key
       `;
 
       const result = await externalDb.raw<CampaignFunnelData>({
