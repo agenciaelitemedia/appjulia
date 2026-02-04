@@ -1,181 +1,296 @@
 
-# Plano: Adicionar Filtros por Plano e Status na Listagem de Agentes
+# Plano: Adicionar Funcionalidade "Monitorar Agentes"
 
 ## Objetivo
-Adicionar dois filtros Select na página `/admin/agentes`:
-1. **Filtro por Plano**: Dropdown com todos os planos disponíveis
-2. **Filtro por Status**: Dropdown com opções "Todos", "Ativo" e "Inativo"
+Adicionar um botão "Monitorar Agentes" na página de listagem de agentes (`/admin/agentes`) que abre um popup para vincular um usuário a um agente específico na tabela `user_agents`. Esta funcionalidade será restrita a administradores.
 
 ---
 
-## Layout dos Filtros
+## Visão Geral da Funcionalidade
 
-A barra de filtros ficará organizada assim:
+O popup terá duas etapas:
+1. **Selecionar Usuário**: Busca de usuário existente por nome ou email
+2. **Selecionar Agente**: Busca de agente por `cod_agent` ou nome do escritório
+
+Ao confirmar, o sistema cria um vínculo na tabela `user_agents` com o `user_id`, `agent_id` e `cod_agent`.
+
+---
+
+## Layout do Botão
+
+O botão ficará ao lado do botão "Novo Agente":
 
 ```text
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│ [🔍 Buscar por nome ou código...]  [Status ▼]  [Plano ▼]  ☑ Mostrar Legado      │
-└──────────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                                     [Monitorar] [+ Novo Agente]│
+└────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Alterações Planejadas
+## Arquivos a Criar/Modificar
 
-### Arquivo: `src/pages/agents/AgentsList.tsx`
-
-1. **Importar componentes Select e o hook usePlans**:
-   - Adicionar imports do `Select`, `SelectContent`, `SelectItem`, `SelectTrigger`, `SelectValue`
-   - Importar `usePlans` para obter a lista de planos
-
-2. **Adicionar novos estados**:
-   - `statusFilter`: string com valores `'all'` | `'active'` | `'inactive'` (padrão: `'all'`)
-   - `planFilter`: string com valor do ID do plano ou `'all'` (padrão: `'all'`)
-
-3. **Carregar planos**:
-   - Usar o hook `usePlans()` já existente para obter a lista de planos
-
-4. **Modificar a lógica de filtragem**:
-   - O `filteredAgents` useMemo passará a aplicar também os filtros de status e plano além da busca textual
-
-5. **Adicionar os Selects na UI**:
-   - Entre o campo de busca e o checkbox "Mostrar Legado"
+| Arquivo | Ação | Descrição |
+|---------|------|-----------|
+| `src/pages/agents/components/MonitorAgentDialog.tsx` | Criar | Componente do popup com busca de usuário e agente |
+| `src/pages/agents/hooks/useAgentSearch.ts` | Criar | Hook para buscar agentes por nome ou cod_agent |
+| `src/pages/agents/AgentsList.tsx` | Modificar | Adicionar botão e integrar o dialog |
+| `src/lib/externalDb.ts` | Modificar | Adicionar método `searchAgents` |
+| `supabase/functions/db-query/index.ts` | Modificar | Adicionar ação `search_agents` |
+| `src/types/permissions.ts` | Modificar | Adicionar `admin_agent_monitoring` ao tipo `ModuleCode` |
 
 ---
 
 ## Detalhamento Técnico
 
-### Novos Estados
+### 1. Nova Ação na Edge Function (`db-query`)
 
 ```typescript
-const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-const [planFilter, setPlanFilter] = useState<string>('all');
+case 'search_agents': {
+  const { term } = data;
+  const searchTerm = `%${term.toLowerCase()}%`;
+  result = await sql.unsafe(
+    `SELECT 
+       a.id,
+       a.cod_agent,
+       c.name AS client_name,
+       c.business_name
+     FROM agents a
+     JOIN clients c ON c.id = a.client_id
+     WHERE a.is_visibilided = true
+       AND (
+         LOWER(a.cod_agent) LIKE $1 
+         OR LOWER(c.name) LIKE $1 
+         OR LOWER(c.business_name) LIKE $1
+       )
+     ORDER BY c.business_name ASC
+     LIMIT 20`,
+    [searchTerm]
+  );
+  break;
+}
 ```
 
-### Hook para Planos
+### 2. Método no ExternalDb
 
 ```typescript
-const { plans, isLoading: plansLoading } = usePlans();
+async searchAgents<T = any>(term: string): Promise<T[]> {
+  return this.invoke({
+    action: 'search_agents',
+    data: { term },
+  });
+}
 ```
 
-### Lógica de Filtragem Atualizada
+### 3. Hook `useAgentSearch`
 
 ```typescript
-const filteredAgents = useMemo(() => {
-  let result = agents;
+export interface SearchedAgent {
+  id: number;
+  cod_agent: string;
+  client_name: string;
+  business_name: string | null;
+}
+
+export function useAgentSearch() {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [results, setResults] = useState<SearchedAgent[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   
-  // Filtro por busca textual
-  if (debouncedSearch.trim()) {
-    const term = debouncedSearch.toLowerCase();
-    result = result.filter(agent =>
-      agent.business_name?.toLowerCase().includes(term) ||
-      agent.client_name?.toLowerCase().includes(term) ||
-      agent.cod_agent?.toLowerCase().includes(term)
-    );
-  }
-  
-  // Filtro por status
-  if (statusFilter !== 'all') {
-    const isActive = statusFilter === 'active';
-    result = result.filter(agent => agent.status === isActive);
-  }
-  
-  // Filtro por plano
-  if (planFilter !== 'all') {
-    result = result.filter(agent => agent.plan_name === planFilter);
-  }
-  
-  return result;
-}, [agents, debouncedSearch, statusFilter, planFilter]);
+  const debouncedTerm = useDebounce(searchTerm, 300);
+
+  const search = useCallback(async (term: string) => {
+    if (term.length < 2) {
+      setResults([]);
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const data = await externalDb.searchAgents<SearchedAgent>(term);
+      setResults(data);
+    } catch (err) {
+      console.error('Error searching agents:', err);
+      setResults([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    search(debouncedTerm);
+  }, [debouncedTerm, search]);
+
+  const clearSearch = useCallback(() => {
+    setSearchTerm('');
+    setResults([]);
+  }, []);
+
+  return { searchTerm, setSearchTerm, results, isLoading, clearSearch };
+}
 ```
 
-### UI dos Filtros
+### 4. Componente `MonitorAgentDialog`
+
+O dialog terá 3 estados de visualização:
+
+1. **Seleção de Usuário**: Campo de busca + lista de resultados
+2. **Seleção de Agente**: Campo de busca + lista de agentes
+3. **Confirmação**: Exibe usuário e agente selecionados com botão "Vincular"
+
+**Estrutura do Dialog**:
 
 ```tsx
-{/* Search Field and Filters */}
-<div className="flex flex-wrap items-center gap-4">
-  {/* Campo de Busca */}
-  <div className="relative flex-1 min-w-[200px] max-w-sm">
-    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-    <Input
-      placeholder="Buscar por nome ou código..."
-      value={searchTerm}
-      onChange={(e) => setSearchTerm(e.target.value)}
-      className="pl-9"
-    />
-  </div>
+interface MonitorAgentDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
+}
+
+type DialogStep = 'user' | 'agent' | 'confirm';
+
+export function MonitorAgentDialog({ open, onOpenChange, onSuccess }: MonitorAgentDialogProps) {
+  const [step, setStep] = useState<DialogStep>('user');
+  const [selectedUser, setSelectedUser] = useState<SearchedUser | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<SearchedAgent | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
-  {/* Filtro por Status */}
-  <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'inactive')}>
-    <SelectTrigger className="w-[140px]">
-      <SelectValue placeholder="Status" />
-    </SelectTrigger>
-    <SelectContent>
-      <SelectItem value="all">Todos</SelectItem>
-      <SelectItem value="active">Ativo</SelectItem>
-      <SelectItem value="inactive">Inativo</SelectItem>
-    </SelectContent>
-  </Select>
+  // User search
+  const userSearch = useUserSearch();
   
-  {/* Filtro por Plano */}
-  <Select value={planFilter} onValueChange={setPlanFilter}>
-    <SelectTrigger className="w-[180px]">
-      <SelectValue placeholder="Plano" />
-    </SelectTrigger>
-    <SelectContent>
-      <SelectItem value="all">Todos os Planos</SelectItem>
-      {plans.map((plan) => (
-        <SelectItem key={plan.id} value={plan.name}>
-          {plan.name}
-        </SelectItem>
-      ))}
-    </SelectContent>
-  </Select>
+  // Agent search
+  const agentSearch = useAgentSearch();
+
+  const handleSubmit = async () => {
+    if (!selectedUser || !selectedAgent) return;
+    
+    setIsSubmitting(true);
+    try {
+      await externalDb.insertUserAgent(
+        selectedUser.id,
+        selectedAgent.id,
+        selectedAgent.cod_agent
+      );
+      toast.success('Agente vinculado com sucesso!');
+      onSuccess();
+      onOpenChange(false);
+      resetForm();
+    } catch (error) {
+      toast.error('Erro ao vincular agente');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
   
-  {/* Toggle Mostrar Legado */}
-  <div className="flex items-center gap-2">
-    <Checkbox
-      id="show-legacy"
-      checked={showLegacy}
-      onCheckedChange={(checked) => setShowLegacy(checked === true)}
-    />
-    <label 
-      htmlFor="show-legacy" 
-      className="text-sm text-muted-foreground cursor-pointer select-none"
-    >
-      Mostrar Legado
-    </label>
-  </div>
-</div>
+  // ... UI para cada step
+}
 ```
 
----
+### 5. Integração no AgentsList
 
-## Arquivo a Modificar
+```tsx
+// Imports
+import { MonitorAgentDialog } from './components/MonitorAgentDialog';
+import { usePermission } from '@/hooks/usePermission';
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/pages/agents/AgentsList.tsx` | Adicionar imports, estados, lógica de filtragem e componentes Select |
+// No componente
+const { canView } = usePermission();
+const canMonitorAgents = canView('admin_agents');
+const [showMonitorDialog, setShowMonitorDialog] = useState(false);
 
----
+// Header com botões
+<div className="flex gap-2">
+  {canMonitorAgents && (
+    <Button variant="outline" onClick={() => setShowMonitorDialog(true)}>
+      <Users className="mr-2 h-4 w-4" />
+      Monitorar Agentes
+    </Button>
+  )}
+  <Button onClick={() => navigate('/admin/agentes-novo')}>
+    <Plus className="mr-2 h-4 w-4" />
+    Novo Agente
+  </Button>
+</div>
 
-## Reset de Página
+// Dialog
+{canMonitorAgents && (
+  <MonitorAgentDialog
+    open={showMonitorDialog}
+    onOpenChange={setShowMonitorDialog}
+    onSuccess={() => refetch()}
+  />
+)}
+```
 
-Quando qualquer filtro mudar, a página deve ser resetada para 1:
+### 6. Atualização do Tipo ModuleCode
 
 ```typescript
-// Reset page when filters change
-useEffect(() => {
-  setCurrentPage(1);
-}, [debouncedSearch, statusFilter, planFilter]);
+export type ModuleCode =
+  | 'dashboard'
+  | 'crm_leads'
+  // ... outros
+  | 'admin_agents'
+  | 'admin_agent_monitoring'  // Nova permissão
+  | 'admin_products'
+  // ...
 ```
+
+**Nota**: Alternativa é reutilizar `admin_agents` sem criar nova permissão, já que é uma funcionalidade administrativa de agentes.
+
+---
+
+## Fluxo de Uso
+
+1. Admin clica em "Monitorar Agentes"
+2. Dialog abre no step "Seleção de Usuário"
+3. Admin busca e seleciona um usuário
+4. Dialog avança para "Seleção de Agente"
+5. Admin busca e seleciona um agente (por código ou nome)
+6. Dialog mostra resumo da vinculação
+7. Admin confirma e o vínculo é criado na tabela `user_agents`
+8. Toast de sucesso e dialog fecha
+
+---
+
+## UI do Dialog
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│  Monitorar Agente                                      [X]  │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Etapa 1 de 3: Selecionar Usuário                          │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ 🔍 Buscar usuário por nome ou email...              │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ 👤 João Silva                                        │   │
+│  │    joao@empresa.com                              [>] │   │
+│  ├─────────────────────────────────────────────────────┤   │
+│  │ 👤 Maria Santos                                      │   │
+│  │    maria@empresa.com                             [>] │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│                                              [Cancelar]     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Validações
+
+1. **Usuário obrigatório**: Não pode avançar sem selecionar usuário
+2. **Agente obrigatório**: Não pode confirmar sem selecionar agente
+3. **Duplicidade**: A tabela `user_agents` deve ter constraint UNIQUE em (user_id, agent_id) - verificar se já existe
 
 ---
 
 ## Resultado Esperado
 
-1. Dois Selects aparecem na barra de filtros: "Status" e "Plano"
-2. O filtro de Status permite escolher entre "Todos", "Ativo" e "Inativo"
-3. O filtro de Plano lista todos os planos disponíveis + opção "Todos os Planos"
-4. Os filtros funcionam em conjunto com a busca textual e ordenação
-5. A paginação é resetada quando qualquer filtro é alterado
+1. Botão "Monitorar Agentes" visível apenas para admins
+2. Dialog com fluxo intuitivo em 3 etapas
+3. Busca eficiente de usuários e agentes
+4. Vínculo criado corretamente na tabela `user_agents`
+5. Lista de agentes atualizada após sucesso (refetch)
