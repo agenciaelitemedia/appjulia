@@ -17,10 +17,12 @@ import {
   useCampanhasHeatmap,
   useCampanhasSummary,
 } from './hooks/useCampanhasData';
+import { useCampanhasConversionEvolution } from './hooks/useCampanhasConversionEvolution';
 import { CampanhasSummary } from './components/CampanhasSummary';
 import { CampanhasFunnelChart } from './components/CampanhasFunnelChart';
 import { CampanhasByPlatform } from './components/CampanhasByPlatform';
 import { CampanhasEvolutionChart } from './components/CampanhasEvolutionChart';
+import { CampanhasConversionEvolutionChart } from './components/CampanhasConversionEvolutionChart';
 import { CampanhasHeatmap } from './components/CampanhasHeatmap';
 import { CampanhasTopTable } from './components/CampanhasTopTable';
 import { CampanhasListTab } from './components/CampanhasListTab';
