@@ -73,6 +73,7 @@ export default function CampanhasPage() {
       queryClient.invalidateQueries({ queryKey: ['campanhas-funnel'] }),
       queryClient.invalidateQueries({ queryKey: ['campanhas-by-platform'] }),
       queryClient.invalidateQueries({ queryKey: ['campanhas-evolution'] }),
+      queryClient.invalidateQueries({ queryKey: ['campanhas-conversion-evolution'] }),
       queryClient.invalidateQueries({ queryKey: ['campanhas-heatmap'] }),
     ]);
     setIsRefreshing(false);
