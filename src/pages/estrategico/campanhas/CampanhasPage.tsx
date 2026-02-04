@@ -139,9 +139,6 @@ export default function CampanhasPage() {
         </TabsList>
 
         <TabsContent value="dashboard" className="space-y-6 mt-0">
-          {/* Summary Cards */}
-          <CampanhasSummary summary={summary} isLoading={isLoading} />
-
           {/* Main Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Funnel Chart - Highlight */}
