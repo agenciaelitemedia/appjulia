@@ -18,19 +18,42 @@ export function useCampanhasSummaryData(filters: CampanhasFiltersState): Campaig
     ? (qualifiedLeads / totalLeads) * 100 
     : 0;
   
+  // Calcular métricas do período atual
+  const currentCampaignIds = new Set(leadsData.map(l => l.campaign_id));
+  const totalCampaigns = currentCampaignIds.size;
+  const leadsPerCampaign = totalCampaigns > 0 ? Math.round(totalLeads / totalCampaigns) : 0;
+  
+  // Calcular métricas do período anterior para comparação
+  const previousCampaignIds = new Set(previousData.map(p => p.campaign_id));
+  const previousTotalCampaigns = previousCampaignIds.size;
+  const previousTotalLeads = previousData.length;
+  const previousLeadsPerCampaign = previousTotalCampaigns > 0 
+    ? Math.round(previousTotalLeads / previousTotalCampaigns) 
+    : 0;
+  
+  // Calcular leads da plataforma top no período anterior
+  const previousPlatformCounts = previousData.reduce((acc, p) => {
+    const platform = p.platform || 'outros';
+    acc[platform] = (acc[platform] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  
+  const topPlatform = platformData[0]?.platform || '-';
+  const previousTopPlatformLeads = previousPlatformCounts[topPlatform] || 0;
+  
   const summary: CampaignSummary = {
-    totalCampaigns: new Set(leadsData.map(l => l.campaign_id)).size,
+    totalCampaigns,
     totalLeads,
-    leadsPerCampaign: leadsData.length > 0 
-      ? Math.round(totalLeads / new Set(leadsData.map(l => l.campaign_id)).size) || 0
-      : 0,
+    leadsPerCampaign,
     conversionRate,
     qualifiedLeads,
-    topPlatform: platformData[0]?.platform || '-',
+    topPlatform,
     topPlatformLeads: platformData[0]?.total_leads || 0,
-    previousTotalCampaigns: new Set(previousData.map(p => p.campaign_id)).size,
-    previousTotalLeads: previousData.length,
+    previousTotalCampaigns,
+    previousTotalLeads,
     previousQualifiedLeads,
+    previousLeadsPerCampaign,
+    previousTopPlatformLeads,
   };
   
   return summary;

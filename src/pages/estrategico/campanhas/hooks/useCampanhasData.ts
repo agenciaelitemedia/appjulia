@@ -380,31 +380,55 @@ export function useCampanhasByPlatform(filters: CampanhasFiltersState) {
 }
 
 export function useCampanhasEvolution(filters: CampanhasFiltersState) {
+  // Verificar se é um único dia para usar granularidade por hora
+  const isSingleDay = filters.dateFrom === filters.dateTo;
+  
   return useQuery({
-    queryKey: ['campanhas-evolution', filters],
+    queryKey: ['campanhas-evolution', filters, isSingleDay],
     queryFn: async () => {
       const { agentCodes, dateFrom, dateTo } = filters;
       
       if (agentCodes.length === 0) return [];
       
-      const query = `
-        SELECT 
-          (created_at AT TIME ZONE 'America/Sao_Paulo')::date::text as date,
-          COUNT(*)::int as total,
-          COUNT(*) FILTER (WHERE LOWER(campaign_data->>'sourceApp') = 'facebook')::int as facebook,
-          COUNT(*) FILTER (WHERE LOWER(campaign_data->>'sourceApp') = 'instagram')::int as instagram,
-          COUNT(*) FILTER (WHERE LOWER(campaign_data->>'sourceApp') = 'google')::int as google,
-          COUNT(*) FILTER (WHERE LOWER(COALESCE(campaign_data->>'sourceApp', 'outros')) NOT IN ('facebook', 'instagram', 'google'))::int as outros
-        FROM campaing_ads
-        WHERE cod_agent::text = ANY($1::varchar[])
-          AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-          AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
-        GROUP BY date
-        ORDER BY date ASC
-      `;
+      // Query diferente para período de 1 dia (por hora) vs múltiplos dias (por data)
+      const query = isSingleDay 
+        ? `
+          SELECT 
+            EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Sao_Paulo')::int as hour,
+            NULL as date,
+            COUNT(*)::int as total,
+            COUNT(*) FILTER (WHERE LOWER(campaign_data->>'sourceApp') = 'facebook')::int as facebook,
+            COUNT(*) FILTER (WHERE LOWER(campaign_data->>'sourceApp') = 'instagram')::int as instagram,
+            COUNT(*) FILTER (WHERE LOWER(campaign_data->>'sourceApp') = 'google')::int as google,
+            COUNT(*) FILTER (WHERE LOWER(COALESCE(campaign_data->>'sourceApp', 'outros')) NOT IN ('facebook', 'instagram', 'google'))::int as outros
+          FROM campaing_ads
+          WHERE cod_agent::text = ANY($1::varchar[])
+            AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date = $2::date
+          GROUP BY hour
+          ORDER BY hour ASC
+        `
+        : `
+          SELECT 
+            NULL as hour,
+            (created_at AT TIME ZONE 'America/Sao_Paulo')::date::text as date,
+            COUNT(*)::int as total,
+            COUNT(*) FILTER (WHERE LOWER(campaign_data->>'sourceApp') = 'facebook')::int as facebook,
+            COUNT(*) FILTER (WHERE LOWER(campaign_data->>'sourceApp') = 'instagram')::int as instagram,
+            COUNT(*) FILTER (WHERE LOWER(campaign_data->>'sourceApp') = 'google')::int as google,
+            COUNT(*) FILTER (WHERE LOWER(COALESCE(campaign_data->>'sourceApp', 'outros')) NOT IN ('facebook', 'instagram', 'google'))::int as outros
+          FROM campaing_ads
+          WHERE cod_agent::text = ANY($1::varchar[])
+            AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+            AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          GROUP BY date
+          ORDER BY date ASC
+        `;
       
-      const params = [agentCodes, dateFrom, dateTo];
-      const result = await externalDb.raw<CampaignEvolutionPoint>({ query, params });
+      const params = isSingleDay 
+        ? [agentCodes, dateFrom] 
+        : [agentCodes, dateFrom, dateTo];
+        
+      const result = await externalDb.raw<CampaignEvolutionPoint & { hour?: number }>({ query, params });
       return result;
     },
     enabled: filters.agentCodes.length > 0,

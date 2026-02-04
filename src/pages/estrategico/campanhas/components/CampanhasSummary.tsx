@@ -46,6 +46,9 @@ export function CampanhasSummary({ summary, isLoading }: CampanhasSummaryProps) 
 
   const campaignsVar = getVariation(summary.totalCampaigns, summary.previousTotalCampaigns || 0);
   const leadsVar = getVariation(summary.totalLeads, summary.previousTotalLeads || 0);
+  const leadsPerCampaignVar = getVariation(summary.leadsPerCampaign, summary.previousLeadsPerCampaign || 0);
+  const qualifiedVar = getVariation(summary.qualifiedLeads, summary.previousQualifiedLeads || 0);
+  const topPlatformVar = getVariation(summary.topPlatformLeads, summary.previousTopPlatformLeads || 0);
   
   // Calcular taxa de conversão do período anterior para comparação
   const previousConversionRate = summary.previousTotalLeads && summary.previousTotalLeads > 0 && summary.previousQualifiedLeads
@@ -73,6 +76,7 @@ export function CampanhasSummary({ summary, isLoading }: CampanhasSummaryProps) 
       value: summary.leadsPerCampaign,
       icon: Target,
       color: 'chart-3',
+      variation: leadsPerCampaignVar,
     },
     {
       title: 'Taxa de Conversão',
@@ -90,6 +94,7 @@ export function CampanhasSummary({ summary, isLoading }: CampanhasSummaryProps) 
       subtitle: `${summary.topPlatformLeads} leads`,
       icon: Star,
       color: 'chart-5',
+      variation: topPlatformVar,
     },
     {
       title: 'Qualificados',
@@ -98,6 +103,7 @@ export function CampanhasSummary({ summary, isLoading }: CampanhasSummaryProps) 
       icon: CheckCircle2,
       color: 'primary',
       tooltip: 'Leads nos estágios: Negociação, Contrato em Curso ou Contrato Assinado',
+      variation: qualifiedVar,
     },
   ];
 

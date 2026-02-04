@@ -10,19 +10,21 @@ import {
   ResponsiveContainer, 
   Legend 
 } from 'recharts';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, Clock, Calendar } from 'lucide-react';
 import { CampaignEvolutionPoint } from '../types';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface CampanhasEvolutionChartProps {
-  data: CampaignEvolutionPoint[];
+  data: (CampaignEvolutionPoint & { hour?: number })[];
   isLoading: boolean;
   dateFrom: string;
   dateTo: string;
 }
 
 export function CampanhasEvolutionChart({ data, isLoading, dateFrom, dateTo }: CampanhasEvolutionChartProps) {
+  const isSingleDay = dateFrom === dateTo;
+
   if (isLoading) {
     return (
       <Card>
@@ -39,10 +41,16 @@ export function CampanhasEvolutionChart({ data, isLoading, dateFrom, dateTo }: C
     );
   }
 
-  const chartData = data.map(item => ({
-    ...item,
-    dateFormatted: format(parseISO(item.date), 'dd/MM', { locale: ptBR }),
-  }));
+  // Para período de 1 dia, formatar como hora; caso contrário, como data
+  const chartData = isSingleDay
+    ? data.map(item => ({
+        ...item,
+        dateFormatted: `${String(item.hour ?? 0).padStart(2, '0')}:00`,
+      }))
+    : data.map(item => ({
+        ...item,
+        dateFormatted: item.date ? format(parseISO(item.date), 'dd/MM', { locale: ptBR }) : '',
+      }));
 
   // Check if we have platform-specific data
   const hasPlatformData = data.some(d => (d.facebook || 0) > 0 || (d.instagram || 0) > 0 || (d.google || 0) > 0);
@@ -51,11 +59,24 @@ export function CampanhasEvolutionChart({ data, isLoading, dateFrom, dateTo }: C
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2">
-          <TrendingUp className="h-5 w-5 text-primary" />
-          Evolução de Leads
+          {isSingleDay ? (
+            <Clock className="h-5 w-5 text-primary" />
+          ) : (
+            <TrendingUp className="h-5 w-5 text-primary" />
+          )}
+          {isSingleDay ? 'Evolução de Leads por Hora' : 'Evolução de Leads'}
         </CardTitle>
-        <p className="text-sm text-muted-foreground">
-          {format(parseISO(dateFrom), "dd 'de' MMMM", { locale: ptBR })} - {format(parseISO(dateTo), "dd 'de' MMMM", { locale: ptBR })}
+        <p className="text-sm text-muted-foreground flex items-center gap-1">
+          {isSingleDay ? (
+            <>
+              <Calendar className="h-3.5 w-3.5" />
+              {format(parseISO(dateFrom), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+            </>
+          ) : (
+            <>
+              {format(parseISO(dateFrom), "dd 'de' MMMM", { locale: ptBR })} - {format(parseISO(dateTo), "dd 'de' MMMM", { locale: ptBR })}
+            </>
+          )}
         </p>
       </CardHeader>
       <CardContent>
@@ -103,7 +124,7 @@ export function CampanhasEvolutionChart({ data, isLoading, dateFrom, dateTo }: C
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '8px',
                 }}
-                labelFormatter={(label) => `Data: ${label}`}
+                labelFormatter={(label) => isSingleDay ? `Horário: ${label}` : `Data: ${label}`}
               />
               <Legend />
               

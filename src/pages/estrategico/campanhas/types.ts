@@ -78,6 +78,8 @@ export interface CampaignSummary {
   previousTotalCampaigns?: number;
   previousTotalLeads?: number;
   previousQualifiedLeads?: number;
+  previousLeadsPerCampaign?: number;
+  previousTopPlatformLeads?: number;
 }
 
 export interface CampanhasFiltersState {
