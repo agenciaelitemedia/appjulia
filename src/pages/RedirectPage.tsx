@@ -31,7 +31,14 @@ export default function RedirectPage() {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          window.location.href = decodedUrl;
+          // Escape iframe if needed
+          try {
+            const targetWindow = window.top || window;
+            targetWindow.location.href = decodedUrl;
+          } catch {
+            // Fallback for cross-origin
+            window.location.href = decodedUrl;
+          }
           return 0;
         }
         return prev - 1;
@@ -43,7 +50,12 @@ export default function RedirectPage() {
 
   const handleManualRedirect = () => {
     if (decodedUrl) {
-      window.location.href = decodedUrl;
+      try {
+        const targetWindow = window.top || window;
+        targetWindow.location.href = decodedUrl;
+      } catch {
+        window.location.href = decodedUrl;
+      }
     }
   };
 
