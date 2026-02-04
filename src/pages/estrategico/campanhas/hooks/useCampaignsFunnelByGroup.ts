@@ -11,8 +11,8 @@ export function useCampaignsFunnelByGroup(filters: CampanhasFiltersState) {
       const query = `
         WITH campaign_leads AS (
           SELECT DISTINCT
-            (campaign_data::jsonb)->>'sourceID' || '::' || 
-            (campaign_data::jsonb)->>'title' as group_key,
+            ((campaign_data::jsonb)->>'sourceID') || '::' || 
+            ((campaign_data::jsonb)->>'title') as group_key,
             ca.cod_agent::text,
             COALESCE(
               NULLIF((campaign_data::jsonb)->>'phone', ''),
@@ -20,7 +20,7 @@ export function useCampaignsFunnelByGroup(filters: CampanhasFiltersState) {
             ) as whatsapp
           FROM campaing_ads ca
           LEFT JOIN sessions s ON s.id = ca.session_id::int
-          WHERE ca.cod_agent::text = ANY($1)
+          WHERE ca.cod_agent::text = ANY($1::text[])
             AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2
             AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3
             AND (campaign_data::jsonb)->>'sourceID' IS NOT NULL
@@ -28,11 +28,11 @@ export function useCampaignsFunnelByGroup(filters: CampanhasFiltersState) {
 
         lead_counts AS (
           SELECT 
-            (campaign_data::jsonb)->>'sourceID' || '::' || 
-            (campaign_data::jsonb)->>'title' as group_key,
+            ((campaign_data::jsonb)->>'sourceID') || '::' || 
+            ((campaign_data::jsonb)->>'title') as group_key,
             COUNT(*)::int as total_leads
           FROM campaing_ads
-          WHERE cod_agent::text = ANY($1)
+          WHERE cod_agent::text = ANY($1::text[])
             AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2
             AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3
             AND (campaign_data::jsonb)->>'sourceID' IS NOT NULL
