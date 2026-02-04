@@ -58,6 +58,31 @@ export function CampaignDetailCard({ campaign }: CampaignDetailCardProps) {
 
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow">
+      {/* Header with Agent Info */}
+      <CardHeader className="p-3 pb-2 border-b bg-muted/30">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-sm font-medium truncate">
+                    {campaign.office_name || 'Escritório'}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Cód: {campaign.cod_agent}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <Badge variant="secondary" className="shrink-0">
+            <Users className="h-3 w-3 mr-1" />
+            {campaign.total_leads}
+          </Badge>
+        </div>
+      </CardHeader>
+
       {/* Thumbnail */}
       <div className="relative aspect-video bg-muted">
         {!imageError && campaign.thumbnail_url ? (
@@ -76,12 +101,6 @@ export function CampaignDetailCard({ campaign }: CampaignDetailCardProps) {
         {/* Platform Badge Overlay */}
         <Badge className={`absolute top-2 left-2 ${platform.bg} text-white border-0`}>
           {platform.label}
-        </Badge>
-        
-        {/* Leads Badge Overlay */}
-        <Badge className="absolute top-2 right-2 bg-background/90 text-foreground">
-          <Users className="h-3 w-3 mr-1" />
-          {campaign.total_leads} leads
         </Badge>
 
         {/* Play button for media */}
