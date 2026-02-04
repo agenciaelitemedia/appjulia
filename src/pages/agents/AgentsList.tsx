@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bot,
@@ -35,6 +35,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -56,6 +63,7 @@ import { externalDb } from '@/lib/externalDb';
 import { useToast } from '@/hooks/use-toast';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useAgentsList, AgentListItem } from './hooks/useAgentsList';
+import { usePlans } from './hooks/usePlans';
 import { BusinessHoursBadge } from '@/components/BusinessHoursBadge';
 
 type SortKey = 'status' | 'cod_agent' | 'business_name' | 'plan_name' | 'leads_received' | 'last_used' | 'due_date';
@@ -117,6 +125,8 @@ export default function AgentsList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [showLegacy, setShowLegacy] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [planFilter, setPlanFilter] = useState<string>('all');
   const [agentToToggle, setAgentToToggle] = useState<AgentListItem | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({
     key: 'business_name',
@@ -127,6 +137,7 @@ export default function AgentsList() {
   
   // React Query for optimized data fetching with caching
   const { data: agents = [], isLoading, refetch } = useAgentsList(showLegacy);
+  const { plans } = usePlans();
   
   // Debounced search for better performance
   const debouncedSearch = useDebounce(searchTerm, 300);
@@ -173,16 +184,33 @@ export default function AgentsList() {
       : <ArrowDown className="ml-1 h-3 w-3" />;
   };
 
-  // Filter by debounced search term
+  // Filter by debounced search term, status, and plan
   const filteredAgents = useMemo(() => {
-    if (!debouncedSearch.trim()) return agents;
-    const term = debouncedSearch.toLowerCase();
-    return agents.filter(agent =>
-      agent.business_name?.toLowerCase().includes(term) ||
-      agent.client_name?.toLowerCase().includes(term) ||
-      agent.cod_agent?.toLowerCase().includes(term)
-    );
-  }, [agents, debouncedSearch]);
+    let result = agents;
+    
+    // Filtro por busca textual
+    if (debouncedSearch.trim()) {
+      const term = debouncedSearch.toLowerCase();
+      result = result.filter(agent =>
+        agent.business_name?.toLowerCase().includes(term) ||
+        agent.client_name?.toLowerCase().includes(term) ||
+        agent.cod_agent?.toLowerCase().includes(term)
+      );
+    }
+    
+    // Filtro por status
+    if (statusFilter !== 'all') {
+      const isActive = statusFilter === 'active';
+      result = result.filter(agent => agent.status === isActive);
+    }
+    
+    // Filtro por plano
+    if (planFilter !== 'all') {
+      result = result.filter(agent => agent.plan_name === planFilter);
+    }
+    
+    return result;
+  }, [agents, debouncedSearch, statusFilter, planFilter]);
 
   // Sort agents
   const sortedAgents = useMemo(() => {
@@ -257,11 +285,10 @@ export default function AgentsList() {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
 
-  // Reset page when debounced search changes
-  const resetPageOnSearchChange = useMemo(() => {
+  // Reset page when filters change
+  useEffect(() => {
     setCurrentPage(1);
-    return null;
-  }, [debouncedSearch]);
+  }, [debouncedSearch, statusFilter, planFilter]);
 
   // Loading skeleton
   if (isLoading) {
@@ -359,9 +386,10 @@ export default function AgentsList() {
         </Button>
       </div>
 
-      {/* Search Field and Legacy Toggle */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
+      {/* Search Field and Filters */}
+      <div className="flex flex-wrap items-center gap-4">
+        {/* Campo de Busca */}
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar por nome ou código..."
@@ -370,6 +398,33 @@ export default function AgentsList() {
             className="pl-9"
           />
         </div>
+        
+        {/* Filtro por Status */}
+        <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'inactive')}>
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="active">Ativo</SelectItem>
+            <SelectItem value="inactive">Inativo</SelectItem>
+          </SelectContent>
+        </Select>
+        
+        {/* Filtro por Plano */}
+        <Select value={planFilter} onValueChange={setPlanFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Plano" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os Planos</SelectItem>
+            {plans.map((plan) => (
+              <SelectItem key={plan.id} value={plan.name}>
+                {plan.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         
         {/* Toggle Mostrar Legado */}
         <div className="flex items-center gap-2">
