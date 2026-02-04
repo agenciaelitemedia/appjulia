@@ -189,6 +189,10 @@ export default function CampanhasPage() {
         <TabsContent value="campanhas" className="mt-0">
           <CampanhasListTab filters={filters} />
         </TabsContent>
+
+        <TabsContent value="leads" className="mt-0">
+          <CampanhasLeadsTab filters={filters} />
+        </TabsContent>
       </Tabs>
     </div>
   );

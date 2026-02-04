@@ -161,3 +161,17 @@ export interface CampaignFunnelData {
   qualificado: number;
   cliente: number;
 }
+
+// Lead individual de campanha para listagem
+export interface CampaignLeadItem {
+  id: string;
+  cod_agent: string;
+  office_name: string;
+  whatsapp: string;
+  contact_name: string;
+  campaign_id: string;
+  campaign_title: string;
+  platform: string;
+  greeting_message: string;
+  created_at: string;
+}
