@@ -1,8 +1,37 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { ArrowDown, Filter } from 'lucide-react';
+import { ArrowDown, Filter, Database, Bot, ClipboardCheck, Handshake, UserCheck } from 'lucide-react';
 import { CampaignFunnelStage } from '../types';
+
+// Descrições detalhadas de cada etapa do funil
+const stageDescriptions: Record<string, { description: string; source: string; icon: React.ReactNode }> = {
+  'Entrada': {
+    description: 'Total de leads captados através de campanhas de anúncios',
+    source: 'Tabela: campaing_ads',
+    icon: <Database className="h-3.5 w-3.5" />,
+  },
+  'Atendidos por JulIA': {
+    description: 'Leads que receberam primeira mensagem automatizada pela JulIA',
+    source: 'Tabela: log_first_messages',
+    icon: <Bot className="h-3.5 w-3.5" />,
+  },
+  'Em Qualificação': {
+    description: 'Leads que passaram pela etapa de Análise de Caso no CRM',
+    source: 'Tabela: crm_atendimento_history (etapa: Análise de Caso)',
+    icon: <ClipboardCheck className="h-3.5 w-3.5" />,
+  },
+  'Qualificado': {
+    description: 'Leads em fase avançada: Negociação, Contrato em Curso ou Contrato Assinado',
+    source: 'Tabela: crm_atendimento_cards (stage_id)',
+    icon: <Handshake className="h-3.5 w-3.5" />,
+  },
+  'Cliente': {
+    description: 'Leads que assinaram contrato e se tornaram clientes',
+    source: 'Tabela: crm_atendimento_cards (Contrato Assinado)',
+    icon: <UserCheck className="h-3.5 w-3.5" />,
+  },
+};
 
 interface CampanhasFunnelChartProps {
   data: CampaignFunnelStage[];
@@ -100,15 +129,28 @@ export function CampanhasFunnelChart({ data, isLoading }: CampanhasFunnelChartPr
                       </div>
                     </div>
                   </TooltipTrigger>
-                  <TooltipContent>
-                    <div className="text-sm space-y-1">
-                      <p className="font-semibold">{stage.stage_name}</p>
-                      <p>{stage.count} leads ({stage.percentage.toFixed(1)}%)</p>
-                      {index > 0 && (
-                        <p className="text-muted-foreground">
-                          Taxa de conversão: {stage.conversionRate?.toFixed(1)}%
+                  <TooltipContent className="max-w-xs">
+                    <div className="text-sm space-y-2">
+                      <div className="flex items-center gap-2">
+                        {stageDescriptions[stage.stage_name]?.icon}
+                        <p className="font-semibold">{stage.stage_name}</p>
+                      </div>
+                      <p className="text-muted-foreground text-xs">
+                        {stageDescriptions[stage.stage_name]?.description}
+                      </p>
+                      <div className="pt-1 border-t border-border/50">
+                        <p className="font-medium">{stage.count} leads ({stage.percentage.toFixed(1)}%)</p>
+                        {index > 0 && (
+                          <p className="text-muted-foreground text-xs">
+                            Taxa de conversão: {stage.conversionRate?.toFixed(1)}%
+                          </p>
+                        )}
+                      </div>
+                      <div className="pt-1 border-t border-border/50">
+                        <p className="text-muted-foreground text-xs italic">
+                          {stageDescriptions[stage.stage_name]?.source}
                         </p>
-                      )}
+                      </div>
                     </div>
                   </TooltipContent>
                 </Tooltip>
