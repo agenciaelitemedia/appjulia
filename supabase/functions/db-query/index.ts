@@ -510,7 +510,7 @@ serve(async (req) => {
 
       case 'get_agents_list': {
         // Optimized query with pre-aggregated leads count and settings for business hours
-        // Supports showLegacy parameter to filter legacy agents (without used_agents link)
+        // Supports showLegacy parameter to filter legacy agents (without user_agents link)
         const { showLegacy } = data || {};
         const legacyFilter = showLegacy ? '' : 'AND ua.agent_id IS NOT NULL';
         
@@ -531,7 +531,7 @@ serve(async (req) => {
           FROM agents a
           JOIN clients c ON c.id = a.client_id
           LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
-          LEFT JOIN used_agents ua ON ua.agent_id = a.id AND ua.cod_agent = a.cod_agent
+          LEFT JOIN user_agents ua ON ua.agent_id = a.id AND ua.cod_agent = a.cod_agent
           LEFT JOIN (
             SELECT s.agent_id, COUNT(DISTINCT s.id) as count
             FROM sessions s
