@@ -10,10 +10,11 @@ interface CampanhasFunnelChartProps {
 }
 
 const defaultStages: CampaignFunnelStage[] = [
-  { stage_name: 'Leads Captados', stage_color: '#3b82f6', position: 0, count: 0, percentage: 100, conversionRate: 100 },
-  { stage_name: 'Contactados', stage_color: '#22c55e', position: 1, count: 0, percentage: 0, conversionRate: 0 },
-  { stage_name: 'Qualificados', stage_color: '#eab308', position: 2, count: 0, percentage: 0, conversionRate: 0 },
-  { stage_name: 'Contratos', stage_color: '#f97316', position: 3, count: 0, percentage: 0, conversionRate: 0 },
+  { stage_name: 'Entrada', stage_color: '#3b82f6', position: 0, count: 0, percentage: 100, conversionRate: 100 },
+  { stage_name: 'Atendidos por JulIA', stage_color: '#22c55e', position: 1, count: 0, percentage: 0, conversionRate: 0 },
+  { stage_name: 'Em Qualificação', stage_color: '#eab308', position: 2, count: 0, percentage: 0, conversionRate: 0 },
+  { stage_name: 'Qualificado', stage_color: '#f97316', position: 3, count: 0, percentage: 0, conversionRate: 0 },
+  { stage_name: 'Cliente', stage_color: '#8b5cf6', position: 4, count: 0, percentage: 0, conversionRate: 0 },
 ];
 
 export function CampanhasFunnelChart({ data, isLoading }: CampanhasFunnelChartProps) {

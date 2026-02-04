@@ -129,49 +129,96 @@ export function useCampanhasFunnel(filters: CampanhasFiltersState) {
       
       if (agentCodes.length === 0) return [];
       
-      // Query com JOINs via sessions para relacionar campanhas com CRM
+      // Query com 5 etapas definidas do funil de campanhas
       const query = `
-        WITH campaign_sessions AS (
-          -- Relacionar campanhas com sessions via session_id
-          SELECT DISTINCT 
-            s.whatsapp_number::text,
-            a.cod_agent::text
+        WITH campaign_leads AS (
+          -- Todos os leads de campanhas no periodo
+          SELECT DISTINCT
+            ca.id,
+            ca.cod_agent::text,
+            COALESCE(
+              NULLIF(campaign_data->>'phone', ''),
+              s.whatsapp_number::text
+            ) as whatsapp
           FROM campaing_ads ca
-          JOIN sessions s ON s.id = ca.session_id::int
-          JOIN agents a ON a.id = s.agent_id
+          LEFT JOIN sessions s ON s.id = ca.session_id::int
           WHERE ca.cod_agent::text = ANY($1::varchar[])
             AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
             AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
         ),
-        campaign_leads_in_crm AS (
-          -- Encontrar cards do CRM que vieram de campanhas
-          SELECT 
-            c.id,
-            c.stage_id,
-            c.whatsapp_number,
-            c.cod_agent
-          FROM crm_atendimento_cards c
+
+        -- Etapa 1: Entrada (total de leads de campanhas)
+        entrada AS (
+          SELECT COUNT(*)::int as count FROM campaign_leads
+        ),
+
+        -- Etapa 2: Atendidos por JulIA (leads com registro em log_first_messages)
+        atendidos AS (
+          SELECT COUNT(DISTINCT cl.id)::int as count
+          FROM campaign_leads cl
           WHERE EXISTS (
-            SELECT 1 FROM campaign_sessions cs 
-            WHERE cs.whatsapp_number = c.whatsapp_number::text
-              AND cs.cod_agent = c.cod_agent
+            SELECT 1 FROM log_first_messages lfm
+            WHERE lfm.cod_agent::text = cl.cod_agent
+              AND lfm.whatsapp::text = cl.whatsapp
           )
         ),
-        funnel_stages AS (
-          -- Agregar por estágio
-          SELECT 
-            s.name as stage_name,
-            s.color as stage_color,
-            s.position,
-            COUNT(cl.id)::int as count
-          FROM crm_atendimento_stages s
-          LEFT JOIN campaign_leads_in_crm cl ON cl.stage_id = s.id
-          WHERE s.is_active = true
-          GROUP BY s.id, s.name, s.color, s.position
+
+        -- Etapa 3: Em Qualificacao (leads que passaram por "Analise de Caso")
+        em_qualificacao AS (
+          SELECT COUNT(DISTINCT c.id)::int as count
+          FROM campaign_leads cl
+          JOIN crm_atendimento_cards c 
+            ON c.cod_agent = cl.cod_agent 
+            AND c.whatsapp_number = cl.whatsapp
+          JOIN crm_atendimento_history h ON h.card_id = c.id
+          JOIN crm_atendimento_stages s ON s.id = h.to_stage_id
+          WHERE LOWER(s.name) LIKE '%analise%caso%' 
+             OR LOWER(s.name) LIKE '%análise%caso%'
+        ),
+
+        -- IDs dos estagios de qualificacao
+        qualified_stage_ids AS (
+          SELECT id FROM crm_atendimento_stages 
+          WHERE name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
+        ),
+
+        -- Etapa 4: Qualificado (Negociacao + Contrato em Curso + Contrato Assinado)
+        qualificado AS (
+          SELECT COUNT(DISTINCT c.id)::int as count
+          FROM campaign_leads cl
+          JOIN crm_atendimento_cards c 
+            ON c.cod_agent = cl.cod_agent 
+            AND c.whatsapp_number = cl.whatsapp
+          WHERE c.stage_id IN (SELECT id FROM qualified_stage_ids)
+        ),
+
+        -- ID do estagio "Contrato Assinado"
+        cliente_stage_id AS (
+          SELECT id FROM crm_atendimento_stages 
+          WHERE name = 'Contrato Assinado'
+        ),
+
+        -- Etapa 5: Cliente (apenas Contrato Assinado)
+        cliente AS (
+          SELECT COUNT(DISTINCT c.id)::int as count
+          FROM campaign_leads cl
+          JOIN crm_atendimento_cards c 
+            ON c.cod_agent = cl.cod_agent 
+            AND c.whatsapp_number = cl.whatsapp
+          WHERE c.stage_id IN (SELECT id FROM cliente_stage_id)
         )
-        SELECT * FROM funnel_stages
-        WHERE count > 0
-        ORDER BY position ASC
+
+        -- Resultado final do funil
+        SELECT 'Entrada' as stage_name, '#3b82f6' as stage_color, 0 as position, (SELECT count FROM entrada) as count
+        UNION ALL
+        SELECT 'Atendidos por JulIA', '#22c55e', 1, (SELECT count FROM atendidos)
+        UNION ALL
+        SELECT 'Em Qualificação', '#eab308', 2, (SELECT count FROM em_qualificacao)
+        UNION ALL
+        SELECT 'Qualificado', '#f97316', 3, (SELECT count FROM qualificado)
+        UNION ALL
+        SELECT 'Cliente', '#8b5cf6', 4, (SELECT count FROM cliente)
+        ORDER BY position
       `;
       
       const params = [agentCodes, dateFrom, dateTo];
@@ -179,83 +226,23 @@ export function useCampanhasFunnel(filters: CampanhasFiltersState) {
       try {
         const result = await externalDb.raw<{ stage_name: string; stage_color: string; position: number; count: number }>({ query, params });
         
-        // Se a query principal retornar vazio, usar fallback simplificado
-        if (result.length === 0) {
-          return await getFallbackFunnel(agentCodes, dateFrom, dateTo);
-        }
-        
         // Calcular percentuais e taxas de conversão
-        const maxCount = result.length > 0 ? Math.max(...result.map(r => r.count)) : 0;
+        const firstCount = result.length > 0 ? result[0].count : 0;
         
         return result.map((stage, index) => ({
           ...stage,
-          percentage: maxCount > 0 ? (stage.count / maxCount) * 100 : 0,
+          percentage: firstCount > 0 ? (stage.count / firstCount) * 100 : 0,
           conversionRate: index > 0 && result[index - 1].count > 0 
             ? (stage.count / result[index - 1].count) * 100 
             : 100,
         })) as CampaignFunnelStage[];
       } catch (error) {
         console.error('Error fetching funnel data:', error);
-        // Em caso de erro, usar fallback
-        return await getFallbackFunnel(agentCodes, dateFrom, dateTo);
+        return [];
       }
     },
     enabled: filters.agentCodes.length > 0,
   });
-}
-
-// Fallback simplificado baseado apenas em campaing_ads
-async function getFallbackFunnel(agentCodes: string[], dateFrom: string, dateTo: string): Promise<CampaignFunnelStage[]> {
-  const query = `
-    WITH campaign_data AS (
-      SELECT 
-        id,
-        session_id,
-        campaign_data->>'entryPointConversionSource' as conversion_source
-      FROM campaing_ads
-      WHERE cod_agent::text = ANY($1::varchar[])
-        AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-        AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
-    )
-    SELECT 
-      'Leads Captados' as stage_name,
-      '#3b82f6' as stage_color,
-      0 as position,
-      COUNT(*)::int as count
-    FROM campaign_data
-    UNION ALL
-    SELECT 
-      'Com Sessão' as stage_name,
-      '#22c55e' as stage_color,
-      1 as position,
-      COUNT(DISTINCT session_id)::int as count
-    FROM campaign_data
-    WHERE session_id IS NOT NULL
-    UNION ALL
-    SELECT 
-      'Ads Diretos' as stage_name,
-      '#eab308' as stage_color,
-      2 as position,
-      COUNT(*)::int as count
-    FROM campaign_data
-    WHERE conversion_source = 'ctwa_ad'
-    ORDER BY position
-  `;
-  
-  try {
-    const result = await externalDb.raw<{ stage_name: string; stage_color: string; position: number; count: number }>({ query, params: [agentCodes, dateFrom, dateTo] });
-    const maxCount = result.length > 0 ? Math.max(...result.map(r => r.count)) : 0;
-    
-    return result.map((stage, index) => ({
-      ...stage,
-      percentage: maxCount > 0 ? (stage.count / maxCount) * 100 : 0,
-      conversionRate: index > 0 && result[index - 1].count > 0 
-        ? (stage.count / result[index - 1].count) * 100 
-        : 100,
-    })) as CampaignFunnelStage[];
-  } catch {
-    return [];
-  }
 }
 
 export function useCampanhasByPlatform(filters: CampanhasFiltersState) {
