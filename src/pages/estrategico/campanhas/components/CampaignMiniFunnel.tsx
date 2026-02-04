@@ -63,7 +63,7 @@ export function CampaignMiniFunnel({ data }: CampaignMiniFunnelProps) {
                     <Icon className="h-3 w-3 text-muted-foreground shrink-0" />
                     <div className="flex-1 h-4 bg-muted/50 rounded overflow-hidden">
                       <div
-                        className={`h-full ${stage.color} transition-all duration-300`}
+                        className={`h-full ${stage.colorClass} transition-all duration-300`}
                         style={{ width: `${widthPercent}%` }}
                       />
                     </div>

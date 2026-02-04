@@ -70,11 +70,14 @@ export function useCampaignsFunnelByGroup(filters: CampanhasFiltersState) {
         GROUP BY lc.group_key, lc.total_leads
       `;
 
-      const result = await queryExternalDb<CampaignFunnelData>(query, [
-        filters.agentCodes,
-        filters.dateFrom,
-        filters.dateTo
-      ]);
+      const result = await externalDb.raw<CampaignFunnelData>({
+        query,
+        params: [
+          filters.agentCodes,
+          filters.dateFrom,
+          filters.dateTo
+        ]
+      });
 
       return result;
     },
