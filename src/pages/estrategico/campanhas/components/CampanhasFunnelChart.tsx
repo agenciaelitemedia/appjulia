@@ -141,11 +141,6 @@ export function CampanhasFunnelChart({ data, isLoading }: CampanhasFunnelChartPr
                           </p>
                         )}
                       </div>
-                      <div className="pt-1 border-t border-border/50">
-                        <p className="text-muted-foreground text-xs italic">
-                          {stageDescriptions[stage.stage_name]?.source}
-                        </p>
-                      </div>
                     </div>
                   </TooltipContent>
                 </Tooltip>
