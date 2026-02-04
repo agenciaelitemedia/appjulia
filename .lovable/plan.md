@@ -1,271 +1,156 @@
 
 
-# Plano: Aba de Listagem Detalhada de Campanhas
+# Plano: Card de Taxa de Conversão Geral no Módulo Campanhas
 
 ## Objetivo
 
-Adicionar uma nova aba "Campanhas" ao modulo Campanhas Ads que exibe uma lista detalhada de todas as campanhas com:
-- Thumbnail do anuncio
-- Titulo e corpo/frase da campanha
-- Total de leads por campanha
-- Link para acessar o anuncio original
-- Plataforma de origem
-- Periodo de atividade
+Adicionar um card de resumo que mostre a **Taxa de Conversão Geral** calculada como:
 
-Os filtros existentes (agente, periodo, busca) serao compartilhados entre as abas.
+**Taxa = (Leads Qualificados de Campanhas / Total de Leads Captados) × 100**
 
----
-
-## Estrutura de Abas
-
-| Aba | Conteudo |
-|-----|----------|
-| **Dashboard** | Graficos, funil, heatmap (conteudo atual) |
-| **Campanhas** | Grid/lista detalhada de campanhas com thumbnails |
+Onde **Leads Qualificados** são aqueles que estão nos estágios:
+- Negociação
+- Contrato em Curso
+- Contrato Assinado
 
 ---
 
-## Arquitetura de Arquivos
+## Modificações Necessárias
 
-| Arquivo | Acao | Descricao |
-|---------|------|-----------|
-| `CampanhasPage.tsx` | Modificar | Adicionar sistema de abas (Tabs) |
-| `CampanhasListTab.tsx` | Criar | Novo componente para aba de listagem |
-| `CampaignDetailCard.tsx` | Criar | Card individual de campanha com thumbnail |
-| `useCampanhasData.ts` | Modificar | Adicionar hook para detalhes agregados |
-| `types.ts` | Modificar | Adicionar tipo CampaignDetail |
+| Arquivo | Alteração |
+|---------|-----------|
+| `useCampanhasData.ts` | Criar hook `useCampanhasQualified` para buscar leads qualificados de campanhas |
+| `useCampanhasData.ts` | Atualizar `useCampanhasSummary` para incluir taxa de conversão real |
+| `CampanhasSummary.tsx` | Substituir card "Engajamento" por card de "Taxa de Conversão" com dados reais |
+| `types.ts` | Adicionar campos `qualifiedLeads` e `previousQualifiedLeads` ao tipo `CampaignSummary` |
 
 ---
 
-## Novo Tipo: CampaignDetail
+## Novo Hook: `useCampanhasQualified`
+
+Query SQL que relaciona leads de campanhas com estágios qualificados do CRM:
+
+```sql
+WITH campaign_sessions AS (
+  -- Relacionar campanhas com sessions via session_id
+  SELECT DISTINCT 
+    s.whatsapp_number::text,
+    a.cod_agent::text
+  FROM campaing_ads ca
+  JOIN sessions s ON s.id = ca.session_id::int
+  JOIN agents a ON a.id = s.agent_id
+  WHERE ca.cod_agent::text = ANY($1::varchar[])
+    AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+    AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+),
+qualified_stages AS (
+  -- IDs dos estágios qualificados
+  SELECT id FROM crm_atendimento_stages 
+  WHERE name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
+)
+SELECT COUNT(DISTINCT c.id)::int as qualified_count
+FROM crm_atendimento_cards c
+WHERE c.stage_id IN (SELECT id FROM qualified_stages)
+  AND EXISTS (
+    SELECT 1 FROM campaign_sessions cs 
+    WHERE cs.whatsapp_number = c.whatsapp_number::text
+      AND cs.cod_agent = c.cod_agent
+  )
+```
+
+---
+
+## Atualização do `CampaignSummary`
+
+Adicionar campos ao tipo:
 
 ```typescript
-export interface CampaignDetail {
-  campaign_id: string;
-  campaign_title: string;
-  campaign_body: string;
-  platform: string;
-  source_url: string;
-  media_url: string;
-  thumbnail_url: string;
-  conversion_source: string;
-  total_leads: number;
-  first_lead: string;
-  last_lead: string;
-  greeting_message: string;
+export interface CampaignSummary {
+  totalCampaigns: number;
+  totalLeads: number;
+  leadsPerCampaign: number;
+  conversionRate: number;       // Agora calculado: (qualified / total) * 100
+  qualifiedLeads: number;       // NOVO: Leads nos estágios qualificados
+  topPlatform: string;
+  topPlatformLeads: number;
+  previousTotalCampaigns?: number;
+  previousTotalLeads?: number;
+  previousQualifiedLeads?: number; // NOVO: Para comparação
 }
 ```
 
 ---
 
-## Hook: useCampanhasDetails
+## Atualização do Card "Taxa de Conversão"
 
-Query SQL para agregar campanhas com detalhes:
+O card atual exibe `0.0%` porque `conversionRate` não estava sendo calculado. A atualização vai:
 
-```sql
-SELECT 
-  campaign_data->>'sourceID' as campaign_id,
-  campaign_data->>'title' as campaign_title,
-  campaign_data->>'body' as campaign_body,
-  COALESCE(campaign_data->>'sourceApp', 'outros') as platform,
-  campaign_data->>'sourceURL' as source_url,
-  campaign_data->>'mediaURL' as media_url,
-  campaign_data->>'thumbnailURL' as thumbnail_url,
-  campaign_data->>'conversionSource' as conversion_source,
-  campaign_data->>'greetingMessageBody' as greeting_message,
-  COUNT(*)::int as total_leads,
-  MIN(created_at) as first_lead,
-  MAX(created_at) as last_lead
-FROM campaing_ads
-WHERE cod_agent::text = ANY($1::varchar[])
-  AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-  AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
-  AND campaign_data->>'sourceID' IS NOT NULL
-GROUP BY 
-  campaign_id, campaign_title, campaign_body, platform,
-  source_url, media_url, thumbnail_url, conversion_source, greeting_message
-ORDER BY total_leads DESC
-```
+1. Buscar `qualifiedLeads` usando o novo hook
+2. Calcular `conversionRate = (qualifiedLeads / totalLeads) * 100`
+3. Adicionar tooltip explicativo
+4. Exibir comparação com período anterior (quando disponível)
 
----
-
-## Componente: CampanhasListTab
-
-### Layout
-
-Grid responsivo de cards com:
-- **Mobile**: 1 coluna
-- **Tablet**: 2 colunas
-- **Desktop**: 3-4 colunas
-
-### Funcionalidades
-
-1. **Busca em tempo real** - Filtra por titulo ou corpo
-2. **Ordenacao** - Por leads, data, plataforma
-3. **Paginacao** - 20 itens por pagina
-4. **Vista Grid/Lista** - Toggle de visualizacao
-
----
-
-## Componente: CampaignDetailCard
-
-### Estrutura Visual
+### Visual do Card
 
 ```text
-+----------------------------------+
-|  [THUMBNAIL]                     |
-|  aspect-video, object-cover      |
-|  Fallback: placeholder ou icone  |
-+----------------------------------+
-|  [Platform Badge] [Leads Badge]  |
-|  "Converse conosco"  <- Titulo   |
-|  "Muitos trabalhadores..."       |
-|  <- Corpo truncado (2 linhas)    |
-+----------------------------------+
-|  Frase de Boas-vindas:           |
-|  "Desejo receber meus direitos"  |
-+----------------------------------+
-|  [Acessar Anuncio] [Ver Leads]   |
-+----------------------------------+
-```
-
-### Elementos
-
-1. **Thumbnail**: Carrega `thumbnailURL` com fallback para placeholder
-2. **Badge Plataforma**: Facebook/Instagram/Google com cores
-3. **Badge Leads**: Total de leads com destaque
-4. **Titulo**: Truncado em 1 linha
-5. **Corpo**: Truncado em 2 linhas
-6. **Frase de boas-vindas**: Texto que o lead envia
-7. **Acoes**:
-   - Botao "Acessar" - Abre `sourceURL` em nova aba
-   - Botao "Media" - Abre `mediaURL` (video/imagem)
-   - Tooltip com datas (primeiro/ultimo lead)
-
----
-
-## Modificacao: CampanhasPage.tsx
-
-Adicionar sistema de abas mantendo filtros compartilhados:
-
-```tsx
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LayoutDashboard, List } from 'lucide-react';
-
-// No render:
-<Tabs defaultValue="dashboard" className="space-y-6">
-  <div className="flex items-center justify-between">
-    <TabsList>
-      <TabsTrigger value="dashboard">
-        <LayoutDashboard className="h-4 w-4 mr-2" />
-        Dashboard
-      </TabsTrigger>
-      <TabsTrigger value="campanhas">
-        <List className="h-4 w-4 mr-2" />
-        Campanhas
-      </TabsTrigger>
-    </TabsList>
-    {/* Botao Atualizar */}
-  </div>
-  
-  {/* Filtros - compartilhados entre abas */}
-  <UnifiedFilters ... />
-  
-  <TabsContent value="dashboard">
-    {/* Conteudo atual: Summary, Funnel, Charts, etc */}
-  </TabsContent>
-  
-  <TabsContent value="campanhas">
-    <CampanhasListTab 
-      filters={filters}
-      searchTerm={filters.search}
-    />
-  </TabsContent>
-</Tabs>
+┌─────────────────────────────┐
+│ Taxa de Conversão           │
+│ ▲ 12.5%                     │  ← Valor calculado
+│ 15 qualificados             │  ← Subtítulo com total
+│ +2.3% vs anterior           │  ← Variação (verde/vermelho)
+└─────────────────────────────┘
 ```
 
 ---
 
-## Detalhes de UI/UX
+## Implementação Detalhada
 
-### Thumbnail com Fallback
+### 1. Atualizar `types.ts`
 
-```tsx
-const ThumbnailImage = ({ url, title }) => {
-  const [error, setError] = useState(false);
-  
-  if (error || !url) {
-    return (
-      <div className="aspect-video bg-muted flex items-center justify-center">
-        <ImageOff className="h-8 w-8 text-muted-foreground" />
-      </div>
-    );
-  }
-  
-  return (
-    <img 
-      src={url}
-      alt={title}
-      className="aspect-video object-cover w-full"
-      onError={() => setError(true)}
-    />
-  );
-};
-```
+Adicionar `qualifiedLeads` e `previousQualifiedLeads` ao tipo `CampaignSummary`.
 
-### Cores por Plataforma
+### 2. Criar `useCampanhasQualified` em `useCampanhasData.ts`
+
+Hook que executa a query para contar leads qualificados vindos de campanhas.
+
+### 3. Atualizar `useCampanhasSummary`
+
+Integrar o hook de qualificados e calcular a taxa de conversão real:
 
 ```typescript
-const platformConfig = {
-  facebook: { bg: 'bg-blue-500', icon: Facebook },
-  instagram: { bg: 'bg-gradient-to-r from-purple-500 to-pink-500', icon: Instagram },
-  google: { bg: 'bg-red-500', icon: Search },
-  outros: { bg: 'bg-gray-500', icon: Globe },
-};
+export function useCampanhasSummary(filters: CampanhasFiltersState) {
+  const { data: rawData = [] } = useCampanhasRaw(filters);
+  const { data: qualifiedData } = useCampanhasQualified(filters);
+  const { data: previousQualified } = useCampanhasQualifiedPrevious(filters);
+  
+  const qualifiedLeads = qualifiedData?.qualified_count || 0;
+  const conversionRate = rawData.length > 0 
+    ? (qualifiedLeads / rawData.length) * 100 
+    : 0;
+  
+  return {
+    ...existingFields,
+    qualifiedLeads,
+    conversionRate,
+    previousQualifiedLeads: previousQualified?.qualified_count || 0,
+  };
+}
 ```
 
-### Acoes do Card
+### 4. Atualizar `CampanhasSummary.tsx`
 
-1. **Acessar Anuncio**: Link externo para `sourceURL`
-2. **Ver Media**: Abre `mediaURL` (video/imagem do anuncio)
-3. **Copiar Frase**: Copia `greetingMessageBody` para clipboard
-
----
-
-## Ordem de Implementacao
-
-### Fase 1: Tipos e Hook
-1. Adicionar `CampaignDetail` em `types.ts`
-2. Criar `useCampanhasDetails` em `useCampanhasData.ts`
-
-### Fase 2: Componentes
-3. Criar `CampaignDetailCard.tsx`
-4. Criar `CampanhasListTab.tsx`
-
-### Fase 3: Integracao
-5. Modificar `CampanhasPage.tsx` com sistema de abas
-6. Testar funcionamento completo
-
----
-
-## Responsividade
-
-| Viewport | Grid | Cards |
-|----------|------|-------|
-| < 640px | 1 coluna | Compactos |
-| 640-1024px | 2 colunas | Medios |
-| 1024-1280px | 3 colunas | Normais |
-| > 1280px | 4 colunas | Expandidos |
+Modificar o card de "Taxa de Conversão" para:
+- Usar o valor real de `conversionRate`
+- Exibir subtítulo com total de qualificados
+- Adicionar variação comparativa
 
 ---
 
 ## Resultado Esperado
 
-1. Navegacao por abas entre Dashboard e Campanhas
-2. Filtros compartilhados funcionando em ambas abas
-3. Grid de cards com thumbnails das campanhas
-4. Informacoes detalhadas: titulo, corpo, frase, leads
-5. Links funcionais para acessar anuncios originais
-6. Busca e ordenacao na listagem
-7. Paginacao para grandes volumes de dados
+1. Card de "Taxa de Conversão" exibindo valor real baseado em leads qualificados
+2. Tooltip explicando quais estágios são considerados "qualificados"
+3. Comparação percentual com período anterior
+4. Subtítulo mostrando quantidade absoluta de leads qualificados
+5. Cores indicativas (verde = melhoria, vermelho = queda)
 
