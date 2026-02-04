@@ -13,12 +13,13 @@ export interface AgentListItem {
   leads_received: number;
   last_used: number | string | null;
   due_date: number | string | null;
+  user_agent_id: number | null;
 }
 
-export function useAgentsList() {
+export function useAgentsList(showLegacy: boolean = false) {
   return useQuery({
-    queryKey: ['agents-list'],
-    queryFn: () => externalDb.getAgentsList<AgentListItem>(),
+    queryKey: ['agents-list', showLegacy],
+    queryFn: () => externalDb.getAgentsList<AgentListItem>(showLegacy),
     staleTime: 60000, // 1 minute cache
     refetchOnWindowFocus: false,
   });

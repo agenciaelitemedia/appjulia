@@ -33,6 +33,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -115,6 +116,7 @@ const getUsageVariant = (used: number, limit: number): 'default' | 'secondary' |
 export default function AgentsList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showLegacy, setShowLegacy] = useState(false);
   const [agentToToggle, setAgentToToggle] = useState<AgentListItem | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({
     key: 'business_name',
@@ -124,7 +126,7 @@ export default function AgentsList() {
   const { toast } = useToast();
   
   // React Query for optimized data fetching with caching
-  const { data: agents = [], isLoading, refetch } = useAgentsList();
+  const { data: agents = [], isLoading, refetch } = useAgentsList(showLegacy);
   
   // Debounced search for better performance
   const debouncedSearch = useDebounce(searchTerm, 300);
@@ -357,7 +359,7 @@ export default function AgentsList() {
         </Button>
       </div>
 
-      {/* Search Field */}
+      {/* Search Field and Legacy Toggle */}
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -367,6 +369,21 @@ export default function AgentsList() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9"
           />
+        </div>
+        
+        {/* Toggle Mostrar Legado */}
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="show-legacy"
+            checked={showLegacy}
+            onCheckedChange={(checked) => setShowLegacy(checked === true)}
+          />
+          <label 
+            htmlFor="show-legacy" 
+            className="text-sm text-muted-foreground cursor-pointer select-none"
+          >
+            Mostrar Legado
+          </label>
         </div>
       </div>
 
