@@ -40,6 +40,7 @@ import AdvboxNotificationRulesPage from "./pages/advbox/NotificationRulesPage";
 import AdvboxProcessesPage from "./pages/advbox/ProcessesPage";
 import AdvboxLogsPage from "./pages/advbox/LogsPage";
 import AdvboxQueriesPage from "./pages/advbox/QueriesPage";
+import RedirectPage from "./pages/RedirectPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
