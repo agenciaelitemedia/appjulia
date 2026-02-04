@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { queryExternalDb } from '@/lib/externalDb';
+import { externalDb } from '@/lib/externalDb';
 import { CampanhasFiltersState, CampaignFunnelData } from '../types';
 
 export function useCampaignsFunnelByGroup(filters: CampanhasFiltersState) {
