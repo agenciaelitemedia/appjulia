@@ -142,3 +142,11 @@ export interface CampaignDetail {
   cod_agent: string;
   office_name: string;
 }
+
+// Dados do mini-funil por campanha
+export interface CampaignFunnelData {
+  group_key: string;
+  total_leads: number;
+  qualified: number;
+  clients: number;
+}

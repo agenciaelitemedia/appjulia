@@ -193,6 +193,9 @@ export function CampaignDetailCard({ campaign, funnelData, funnelLoading }: Camp
 
         {/* Expandable Sources List */}
         <ExpandableSources sources={campaign.sources} />
+
+        {/* Mini Funnel */}
+        {funnelData && <CampaignMiniFunnel data={funnelData} />}
       </CardContent>
     </Card>
   );

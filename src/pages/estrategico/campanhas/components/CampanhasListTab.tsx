@@ -176,6 +176,8 @@ export function CampanhasListTab({ filters }: CampanhasListTabProps) {
             <CampaignDetailCard
               key={`${campaign.campaign_id}-${index}`}
               campaign={campaign}
+              funnelData={funnelMap.get(`${campaign.campaign_id}::${campaign.campaign_title}`)}
+              funnelLoading={funnelLoading}
             />
           ))}
         </div>
