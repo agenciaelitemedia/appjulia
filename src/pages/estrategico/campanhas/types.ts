@@ -143,10 +143,18 @@ export interface CampaignDetail {
   office_name: string;
 }
 
+// Item de estágio do mini-funil
+export interface CampaignStageFunnelItem {
+  stage_id: number;
+  stage_name: string;
+  stage_color: string;
+  position: number;
+  count: number;
+}
+
 // Dados do mini-funil por campanha
 export interface CampaignFunnelData {
   group_key: string;
   total_leads: number;
-  qualified: number;
-  clients: number;
+  stages: CampaignStageFunnelItem[];
 }
