@@ -40,6 +40,7 @@ import AdvboxNotificationRulesPage from "./pages/advbox/NotificationRulesPage";
 import AdvboxProcessesPage from "./pages/advbox/ProcessesPage";
 import AdvboxLogsPage from "./pages/advbox/LogsPage";
 import AdvboxQueriesPage from "./pages/advbox/QueriesPage";
+import RedirectPage from "./pages/RedirectPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -55,6 +56,7 @@ const App = () => (
             <UaZapiProvider>
               <Routes>
                 <Route path="/login" element={<Login />} />
+                <Route path="/redirect" element={<RedirectPage />} />
                 <Route path="/call/:roomName" element={<JoinCallPage />} />
                 <Route element={<MainLayout />}>
                   <Route path="/" element={<Dashboard />} />

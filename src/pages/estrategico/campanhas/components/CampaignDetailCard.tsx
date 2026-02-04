@@ -20,28 +20,24 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { CampaignDetail } from '../types';
+import { getExternalLink } from '@/lib/externalLink';
+import { ExpandableText } from '@/components/ExpandableText';
+import { CampaignDetailGrouped } from '../types';
+import { PlatformBadges } from './PlatformBadges';
+import { DeviceBadges } from './DeviceBadges';
+import { ExpandableSources } from './ExpandableSources';
 
 interface CampaignDetailCardProps {
-  campaign: CampaignDetail;
+  campaign: CampaignDetailGrouped;
 }
-
-const platformConfig: Record<string, { bg: string; label: string }> = {
-  facebook: { bg: 'bg-blue-600', label: 'Facebook' },
-  instagram: { bg: 'bg-gradient-to-r from-purple-500 to-pink-500', label: 'Instagram' },
-  google: { bg: 'bg-red-500', label: 'Google' },
-  outros: { bg: 'bg-muted-foreground', label: 'Outros' },
-};
 
 export function CampaignDetailCard({ campaign }: CampaignDetailCardProps) {
   const [imageError, setImageError] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const platform = platformConfig[campaign.platform?.toLowerCase()] || platformConfig.outros;
-
   const handleCopyPhrase = async () => {
-    if (campaign.greeting_message) {
-      await navigator.clipboard.writeText(campaign.greeting_message);
+    if (campaign.last_greeting_message) {
+      await navigator.clipboard.writeText(campaign.last_greeting_message);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -89,20 +85,25 @@ export function CampaignDetailCard({ campaign }: CampaignDetailCardProps) {
           </div>
         )}
         
-        {/* Platform Badge Overlay */}
-        <Badge className={`absolute top-2 left-2 ${platform.bg} text-white border-0`}>
-          {platform.label}
-        </Badge>
+        {/* Platform Badges - Stacked on left */}
+        <div className="absolute top-2 left-2 flex flex-col gap-1">
+          <PlatformBadges platforms={campaign.platforms} stacked />
+        </div>
+
+        {/* Device Badges - Stacked on right */}
+        <div className="absolute top-2 right-2">
+          <DeviceBadges devices={campaign.devices} stacked />
+        </div>
 
         {/* Play button for media */}
         {campaign.media_url && (
           <a
-            href={campaign.media_url}
+            href={getExternalLink(campaign.media_url)}
             target="_blank"
             rel="noopener noreferrer"
             className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 hover:opacity-100 transition-opacity"
           >
-            <div className="bg-white/90 rounded-full p-3">
+            <div className="bg-background/90 rounded-full p-3">
               <Play className="h-6 w-6 text-foreground fill-current" />
             </div>
           </a>
@@ -115,23 +116,26 @@ export function CampaignDetailCard({ campaign }: CampaignDetailCardProps) {
           {campaign.campaign_title || 'Sem título'}
         </h3>
 
-        {/* Body */}
+        {/* Body - Expandable */}
         {campaign.campaign_body && (
-          <p className="text-xs text-muted-foreground line-clamp-2" title={campaign.campaign_body}>
-            {campaign.campaign_body}
-          </p>
+          <ExpandableText 
+            text={campaign.campaign_body} 
+            maxLines={2}
+          />
         )}
 
-        {/* Greeting Message */}
-        {campaign.greeting_message && (
+        {/* Greeting Message - Expandable */}
+        {campaign.last_greeting_message && (
           <div className="bg-muted/50 rounded-md p-2 space-y-1">
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <MessageSquareQuote className="h-3 w-3" />
               <span>Frase do lead:</span>
             </div>
-            <p className="text-xs line-clamp-2 italic" title={campaign.greeting_message}>
-              "{campaign.greeting_message}"
-            </p>
+            <ExpandableText 
+              text={`"${campaign.last_greeting_message}"`}
+              maxLines={2}
+              textClassName="italic"
+            />
           </div>
         )}
 
@@ -154,21 +158,21 @@ export function CampaignDetailCard({ campaign }: CampaignDetailCardProps) {
 
         {/* Actions */}
         <div className="flex gap-2 pt-2">
-          {campaign.source_url && (
+          {campaign.last_source_url && (
             <Button
               variant="outline"
               size="sm"
               className="flex-1"
               asChild
             >
-              <a href={campaign.source_url} target="_blank" rel="noopener noreferrer">
+              <a href={getExternalLink(campaign.last_source_url)} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-3 w-3 mr-1" />
                 Acessar
               </a>
             </Button>
           )}
           
-          {campaign.greeting_message && (
+          {campaign.last_greeting_message && (
             <Button
               variant="ghost"
               size="sm"
@@ -183,6 +187,9 @@ export function CampaignDetailCard({ campaign }: CampaignDetailCardProps) {
             </Button>
           )}
         </div>
+
+        {/* Expandable Sources List */}
+        <ExpandableSources sources={campaign.sources} />
       </CardContent>
     </Card>
   );

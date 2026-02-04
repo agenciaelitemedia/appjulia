@@ -13,7 +13,7 @@ import {
 import { Toggle } from '@/components/ui/toggle';
 import { CampaignDetailCard } from './CampaignDetailCard';
 import { useCampanhasDetails } from '../hooks/useCampanhasDetails';
-import { CampanhasFiltersState, CampaignDetail } from '../types';
+import { CampanhasFiltersState, CampaignDetailGrouped } from '../types';
 
 interface CampanhasListTabProps {
   filters: CampanhasFiltersState;
@@ -42,7 +42,7 @@ export function CampanhasListTab({ filters }: CampanhasListTabProps) {
         (c) =>
           c.campaign_title?.toLowerCase().includes(searchLower) ||
           c.campaign_body?.toLowerCase().includes(searchLower) ||
-          c.greeting_message?.toLowerCase().includes(searchLower)
+          c.last_greeting_message?.toLowerCase().includes(searchLower)
       );
     }
 
@@ -58,7 +58,7 @@ export function CampanhasListTab({ filters }: CampanhasListTabProps) {
         result.sort((a, b) => new Date(a.first_lead).getTime() - new Date(b.first_lead).getTime());
         break;
       case 'platform':
-        result.sort((a, b) => (a.platform || '').localeCompare(b.platform || ''));
+        result.sort((a, b) => (a.platforms?.[0] || '').localeCompare(b.platforms?.[0] || ''));
         break;
     }
 
