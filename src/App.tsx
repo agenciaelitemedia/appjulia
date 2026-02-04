@@ -56,6 +56,7 @@ const App = () => (
             <UaZapiProvider>
               <Routes>
                 <Route path="/login" element={<Login />} />
+                <Route path="/redirect" element={<RedirectPage />} />
                 <Route path="/call/:roomName" element={<JoinCallPage />} />
                 <Route element={<MainLayout />}>
                   <Route path="/" element={<Dashboard />} />

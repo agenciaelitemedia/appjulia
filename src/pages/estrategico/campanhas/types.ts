@@ -87,6 +87,43 @@ export interface CampanhasFiltersState {
   dateTo: string;
 }
 
+// Informação de cada fonte/URL da campanha (agrupada)
+export interface CampaignSource {
+  source_url: string;
+  platform: string;
+  greeting_message: string;
+  device: string;
+  created_at: string;
+}
+
+// Campanha agrupada por sourceID + title
+export interface CampaignDetailGrouped {
+  campaign_id: string;
+  campaign_title: string;
+  campaign_body: string;
+  thumbnail_url: string;
+  media_url: string;
+  
+  // Agregados
+  total_leads: number;
+  first_lead: string;
+  last_lead: string;
+  
+  // Múltiplas fontes
+  platforms: string[];
+  devices: string[];
+  sources: CampaignSource[];
+  
+  // Última frase (mais recente)
+  last_greeting_message: string;
+  last_source_url: string;
+  
+  // Agente
+  cod_agent: string;
+  office_name: string;
+}
+
+// Mantido para compatibilidade (deprecated)
 export interface CampaignDetail {
   campaign_id: string;
   campaign_title: string;
