@@ -42,7 +42,7 @@ export function CampanhasListTab({ filters }: CampanhasListTabProps) {
         (c) =>
           c.campaign_title?.toLowerCase().includes(searchLower) ||
           c.campaign_body?.toLowerCase().includes(searchLower) ||
-          c.greeting_message?.toLowerCase().includes(searchLower)
+          c.last_greeting_message?.toLowerCase().includes(searchLower)
       );
     }
 
