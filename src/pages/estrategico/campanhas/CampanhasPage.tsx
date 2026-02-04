@@ -47,6 +47,7 @@ export default function CampanhasPage() {
   const { data: funnelData = [], isLoading: funnelLoading } = useCampanhasFunnel(filters);
   const { data: platformData = [], isLoading: platformLoading } = useCampanhasByPlatform(filters);
   const { data: evolutionData = [], isLoading: evolutionLoading } = useCampanhasEvolution(filters);
+  const { data: conversionEvolutionData = [], isLoading: conversionEvolutionLoading } = useCampanhasConversionEvolution(filters);
   const { data: heatmapData = [], isLoading: heatmapLoading } = useCampanhasHeatmap(filters);
   const summary = useCampanhasSummary(filters);
 
