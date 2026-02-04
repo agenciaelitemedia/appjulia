@@ -1,10 +1,17 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageCircle, ExternalLink, Search, Users } from 'lucide-react';
+import { MessageCircle, ExternalLink, Search, Users, Filter } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -30,6 +37,7 @@ import {
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
 import { PlatformBadges } from './PlatformBadges';
 import { useCampanhasLeadsList } from '../hooks/useCampanhasLeadsList';
+import { useCampanhasOptions } from '../hooks/useCampanhasOptions';
 import { UnifiedFiltersState } from '@/components/filters/types';
 import { formatDateShortSaoPaulo } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
@@ -42,8 +50,8 @@ const ITEMS_PER_PAGE = 20;
 
 export function CampanhasLeadsTab({ filters }: CampanhasLeadsTabProps) {
   const navigate = useNavigate();
-  const { data: leads = [], isLoading } = useCampanhasLeadsList(filters);
   
+  const [selectedCampaign, setSelectedCampaign] = useState<string>('all');
   const [localSearch, setLocalSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [messagesDialog, setMessagesDialog] = useState<{
@@ -52,6 +60,15 @@ export function CampanhasLeadsTab({ filters }: CampanhasLeadsTabProps) {
     name: string;
     codAgent: string;
   }>({ open: false, whatsapp: '', name: '', codAgent: '' });
+
+  // Hook para listar campanhas disponíveis
+  const { data: campaignOptions = [], isLoading: isLoadingOptions } = useCampanhasOptions(filters);
+  
+  // Hook para listar leads com filtro de campanha
+  const { data: leads = [], isLoading } = useCampanhasLeadsList({
+    ...filters,
+    campaignId: selectedCampaign === 'all' ? undefined : selectedCampaign,
+  });
 
   // Filtrar leads localmente
   const filteredLeads = useMemo(() => {
