@@ -1,4 +1,4 @@
-import { Users } from 'lucide-react';
+import { Users, Bot, ClipboardCheck, Star, Trophy } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -11,97 +11,117 @@ interface CampaignMiniFunnelProps {
   data: CampaignFunnelData;
 }
 
+const FUNNEL_STAGES = [
+  {
+    key: 'total_leads',
+    label: 'Entrada',
+    color: '#3b82f6', // blue
+    icon: Users,
+    description: 'Total de leads captados pela campanha',
+  },
+  {
+    key: 'atendidos',
+    label: 'Atendidos JulIA',
+    color: '#22c55e', // green
+    icon: Bot,
+    description: 'Leads que foram atendidos pela JulIA',
+  },
+  {
+    key: 'em_qualificacao',
+    label: 'Em Qualificação',
+    color: '#eab308', // yellow
+    icon: ClipboardCheck,
+    description: 'Leads que passaram pela análise de caso',
+  },
+  {
+    key: 'qualificado',
+    label: 'Qualificado',
+    color: '#f97316', // orange
+    icon: Star,
+    description: 'Leads em negociação ou com contrato',
+  },
+  {
+    key: 'cliente',
+    label: 'Cliente',
+    color: '#8b5cf6', // purple
+    icon: Trophy,
+    description: 'Leads que assinaram contrato',
+  },
+] as const;
+
 export function CampaignMiniFunnel({ data }: CampaignMiniFunnelProps) {
   const totalLeads = data.total_leads || 0;
-  const stages = data.stages || [];
   
   // Don't render if no leads
   if (totalLeads === 0) return null;
 
-  // Find max count for bar width calculation
-  const maxCount = Math.max(totalLeads, ...stages.map(s => s.count));
+  const getCount = (key: string): number => {
+    switch (key) {
+      case 'total_leads': return data.total_leads || 0;
+      case 'atendidos': return data.atendidos || 0;
+      case 'em_qualificacao': return data.em_qualificacao || 0;
+      case 'qualificado': return data.qualificado || 0;
+      case 'cliente': return data.cliente || 0;
+      default: return 0;
+    }
+  };
 
   return (
     <TooltipProvider>
       <div className="mt-3 pt-3 border-t border-border/50">
         <p className="text-xs font-medium text-muted-foreground mb-2">
-          Funil CRM ({totalLeads} leads)
+          Funil de Conversão
         </p>
         <div className="space-y-1.5">
-          {/* Total de leads da campanha */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center gap-2 cursor-help">
-                <Users className="h-3 w-3 text-muted-foreground shrink-0" />
-                <span className="text-xs text-muted-foreground w-20 truncate">
-                  Total da campanha
-                </span>
-                <div className="flex-1 h-4 bg-muted/50 rounded overflow-hidden">
-                  <div
-                    className="h-full bg-primary transition-all duration-300"
-                    style={{ width: `${(totalLeads / maxCount) * 100}%` }}
-                  />
-                </div>
-                <span className="text-xs font-medium min-w-[40px] text-right">
-                  {totalLeads}
-                </span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="left">
-              <p className="text-xs">Total de leads desta campanha</p>
-            </TooltipContent>
-          </Tooltip>
-
-          {/* Stages do CRM */}
-          {stages.map((stage) => {
+          {FUNNEL_STAGES.map((stage, index) => {
+            const count = getCount(stage.key);
             const percentage = totalLeads > 0 
-              ? ((stage.count / totalLeads) * 100).toFixed(0) 
+              ? ((count / totalLeads) * 100).toFixed(0) 
               : '0';
-            const widthPercent = (stage.count / maxCount) * 100;
+            const widthPercent = totalLeads > 0 
+              ? (count / totalLeads) * 100 
+              : 0;
+            const Icon = stage.icon;
 
             return (
-              <Tooltip key={stage.stage_id}>
+              <Tooltip key={stage.key}>
                 <TooltipTrigger asChild>
                   <div className="flex items-center gap-2 cursor-help">
-                    <div 
-                      className="h-3 w-3 rounded-full shrink-0"
-                      style={{ backgroundColor: stage.stage_color }}
+                    <Icon 
+                      className="h-3 w-3 shrink-0" 
+                      style={{ color: stage.color }}
                     />
-                    <span className="text-xs text-muted-foreground w-20 truncate" title={stage.stage_name}>
-                      {stage.stage_name}
+                    <span className="text-xs text-muted-foreground w-24 truncate" title={stage.label}>
+                      {stage.label}
                     </span>
                     <div className="flex-1 h-4 bg-muted/50 rounded overflow-hidden">
                       <div
                         className="h-full transition-all duration-300"
                         style={{ 
-                          width: `${Math.max(widthPercent, stage.count > 0 ? 8 : 0)}%`,
-                          backgroundColor: stage.stage_color 
+                          width: `${Math.max(widthPercent, count > 0 ? 8 : 0)}%`,
+                          backgroundColor: stage.color 
                         }}
                       />
                     </div>
-                    <span className="text-xs font-medium min-w-[40px] text-right">
-                      {stage.count}
-                      <span className="text-muted-foreground ml-1">
-                        ({percentage}%)
-                      </span>
+                    <span className="text-xs font-medium min-w-[50px] text-right">
+                      {count}
+                      {index > 0 && (
+                        <span className="text-muted-foreground ml-1">
+                          ({percentage}%)
+                        </span>
+                      )}
                     </span>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="left">
                   <p className="text-xs">
-                    {stage.count} leads em "{stage.stage_name}" ({percentage}% do total)
+                    {stage.description}
+                    {index > 0 && ` — ${count} leads (${percentage}% do total)`}
                   </p>
                 </TooltipContent>
               </Tooltip>
             );
           })}
-
-          {/* Empty state quando não há cards no CRM */}
-          {stages.length === 0 && (
-            <p className="text-xs text-muted-foreground italic pl-5">
-              Nenhum lead correlacionado no CRM
-            </p>
-          )}
         </div>
       </div>
     </TooltipProvider>
