@@ -90,9 +90,14 @@ export function CampanhasLeadsTab({ filters }: CampanhasLeadsTabProps) {
     return filteredLeads.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredLeads, currentPage]);
 
-  // Reset página quando mudar busca
+  // Reset página quando mudar busca ou campanha
   const handleSearchChange = (value: string) => {
     setLocalSearch(value);
+    setCurrentPage(1);
+  };
+
+  const handleCampaignChange = (value: string) => {
+    setSelectedCampaign(value);
     setCurrentPage(1);
   };
 
