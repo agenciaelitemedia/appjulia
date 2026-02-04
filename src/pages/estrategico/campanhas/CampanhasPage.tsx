@@ -23,6 +23,7 @@ import { CampanhasByPlatform } from './components/CampanhasByPlatform';
 import { CampanhasEvolutionChart } from './components/CampanhasEvolutionChart';
 import { CampanhasHeatmap } from './components/CampanhasHeatmap';
 import { CampanhasTopTable } from './components/CampanhasTopTable';
+import { CampanhasListTab } from './components/CampanhasListTab';
 
 export default function CampanhasPage() {
   const queryClient = useQueryClient();
