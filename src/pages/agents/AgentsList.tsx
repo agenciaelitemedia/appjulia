@@ -15,7 +15,10 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Users,
 } from 'lucide-react';
+import { usePermission } from '@/hooks/usePermission';
+import { MonitorAgentDialog } from './components/MonitorAgentDialog';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -154,8 +157,10 @@ export default function AgentsList() {
     key: 'business_name',
     direction: 'asc',
   });
+  const [showMonitorDialog, setShowMonitorDialog] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isAdmin } = usePermission();
   
   // Persist filters to localStorage
   useEffect(() => {
@@ -408,11 +413,28 @@ export default function AgentsList() {
             Gerencie seus agentes Julia e instâncias do WhatsApp
           </p>
         </div>
-        <Button onClick={() => navigate('/admin/agentes-novo')}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Agente
-        </Button>
+        <div className="flex gap-2">
+          {isAdmin && (
+            <Button variant="outline" onClick={() => setShowMonitorDialog(true)}>
+              <Users className="mr-2 h-4 w-4" />
+              Monitorar
+            </Button>
+          )}
+          <Button onClick={() => navigate('/admin/agentes-novo')}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Agente
+          </Button>
+        </div>
       </div>
+
+      {/* Monitor Agent Dialog */}
+      {isAdmin && (
+        <MonitorAgentDialog
+          open={showMonitorDialog}
+          onOpenChange={setShowMonitorDialog}
+          onSuccess={() => refetch()}
+        />
+      )}
 
       {/* Search Field and Filters */}
       <div className="flex flex-wrap items-center gap-4">

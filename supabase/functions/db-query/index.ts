@@ -577,6 +577,30 @@ serve(async (req) => {
         break;
       }
 
+      case 'search_agents': {
+        const { term } = data;
+        const searchTerm = `%${term.toLowerCase()}%`;
+        result = await sql.unsafe(
+          `SELECT 
+             a.id,
+             a.cod_agent::text as cod_agent,
+             c.name AS client_name,
+             c.business_name
+           FROM agents a
+           JOIN clients c ON c.id = a.client_id
+           WHERE a.is_visibilided = true
+             AND (
+               LOWER(a.cod_agent::text) LIKE $1 
+               OR LOWER(c.name) LIKE $1 
+               OR LOWER(c.business_name) LIKE $1
+             )
+           ORDER BY c.business_name ASC
+           LIMIT 20`,
+          [searchTerm]
+        );
+        break;
+      }
+
       case 'get_next_agent_code': {
         const now = new Date();
         const year = now.getFullYear();
