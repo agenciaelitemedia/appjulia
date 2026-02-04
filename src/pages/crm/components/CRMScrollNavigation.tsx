@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSidebarState } from '@/contexts/SidebarContext';
+import { cn } from '@/lib/utils';
 
 interface CRMScrollNavigationProps {
   scrollRef: React.RefObject<HTMLDivElement>;
@@ -8,6 +10,7 @@ export function CRMScrollNavigation({ scrollRef }: CRMScrollNavigationProps) {
   const [scrollProgress, setScrollProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
+  const { isCollapsed } = useSidebarState();
 
   const updateScrollState = useCallback(() => {
     const container = scrollRef.current;
@@ -90,7 +93,10 @@ export function CRMScrollNavigation({ scrollRef }: CRMScrollNavigationProps) {
   }, [isDragging, handleDrag]);
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 lg:left-64 flex items-center justify-center py-3 px-4 border-t bg-background z-50 transition-all duration-300">
+    <div className={cn(
+      "fixed bottom-0 left-0 right-0 flex items-center justify-center py-3 px-4 border-t bg-background z-50 transition-all duration-300",
+      isCollapsed ? "lg:left-16" : "lg:left-64"
+    )}>
       <div 
         ref={trackRef}
         className="flex-1 max-w-md h-1 bg-border rounded-full cursor-pointer relative"
