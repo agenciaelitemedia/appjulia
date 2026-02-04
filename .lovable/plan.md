@@ -1,15 +1,13 @@
 
-# Plano: Funil de Conversão de 5 Etapas por Campanha
+# Plano: Aba de Leads das Campanhas
 
 ## Objetivo
 
-Trazer para o card de campanha o mesmo **Funil de Conversão** do dashboard principal, mantendo as 5 etapas definidas:
-
-1. **Entrada** - Total de leads da campanha
-2. **Atendidos por JulIA** - Leads com registro em `log_first_messages`
-3. **Em Qualificação** - Leads que passaram por "Análise de Caso"
-4. **Qualificado** - Negociação + Contrato em Curso + Contrato Assinado
-5. **Cliente** - Contrato Assinado
+Criar uma terceira aba no módulo de Campanhas chamada **"Leads"** que lista todos os leads individuais vindos de campanhas, mostrando:
+- Número do WhatsApp
+- De onde veio (campanha/plataforma)
+- Ícone para acessar o popup da conversa (WhatsAppMessagesDialog)
+- Ícone para navegar ao CRM filtrado pelo WhatsApp do lead
 
 ---
 
@@ -17,213 +15,169 @@ Trazer para o card de campanha o mesmo **Funil de Conversão** do dashboard prin
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│  CampanhasListTab                                           │
-│  └── useCampaignsFunnelByGroup (5 etapas por campanha)      │
-│      └── CampaignDetailCard                                 │
-│          └── CampaignMiniFunnel (5 etapas visuais)          │
+│  CampanhasPage.tsx                                          │
+│  ├── TabsTrigger "Dashboard"                                │
+│  ├── TabsTrigger "Campanhas"                                │
+│  └── TabsTrigger "Leads" (NOVO)                             │
+│      └── CampanhasLeadsTab.tsx (NOVO)                       │
+│          ├── useCampanhasLeadsList (NOVO) - hook de dados   │
+│          ├── Tabela com paginação e ordenação               │
+│          ├── WhatsAppMessagesDialog (existente)             │
+│          └── Link para CRM com filtro                       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Etapa 1: Atualizar Types
+## Dados Necessários
 
-**Arquivo: `src/pages/estrategico/campanhas/types.ts`**
+A query buscará cada lead individual com os dados da campanha:
 
-Atualizar a interface `CampaignFunnelData` para refletir as 5 etapas fixas:
+```sql
+SELECT 
+  ca.id,
+  ca.cod_agent::text as cod_agent,
+  ca.created_at,
+  COALESCE(
+    NULLIF(campaign_data->>'phone', ''),
+    s.whatsapp_number::text
+  ) as whatsapp,
+  s.name as contact_name,
+  campaign_data->>'title' as campaign_title,
+  campaign_data->>'sourceID' as campaign_id,
+  COALESCE(campaign_data->>'sourceApp', 'outros') as platform,
+  campaign_data->>'greetingMessageBody' as greeting_message,
+  COALESCE(c.name, 'Escritório') as office_name
+FROM campaing_ads ca
+LEFT JOIN sessions s ON s.id = ca.session_id::int
+LEFT JOIN agents a ON a.cod_agent = ca.cod_agent
+LEFT JOIN clients c ON c.id = a.client_id
+WHERE ca.cod_agent::text = ANY($1::varchar[])
+  AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2
+  AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3
+ORDER BY ca.created_at DESC
+```
+
+---
+
+## Interface do Usuário
+
+### Layout da Tabela
+
+| WhatsApp | Nome | Campanha | Plataforma | Frase | Data | Ações |
+|----------|------|----------|------------|-------|------|-------|
+| +55 11 99999-9999 | João Silva | Campanha X | Facebook | "Olá..." | 01/02/26 | 💬 📋 |
+
+- **💬** Abre o WhatsAppMessagesDialog com as mensagens do lead
+- **📋** Navega para `/crm/leads?search={whatsapp}` filtrando pelo número
+
+### Funcionalidades
+- Busca local por nome, whatsapp, campanha
+- Ordenação por data, campanha, plataforma
+- Paginação (20 itens por página)
+- Badge de plataforma colorido
+- Exportar CSV (opcional)
+
+---
+
+## Novos Arquivos
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/pages/estrategico/campanhas/components/CampanhasLeadsTab.tsx` | Componente da aba com tabela de leads |
+| `src/pages/estrategico/campanhas/hooks/useCampanhasLeadsList.ts` | Hook para buscar leads individuais |
+
+---
+
+## Arquivos Modificados
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/pages/estrategico/campanhas/types.ts` | Adicionar interface `CampaignLeadItem` |
+| `src/pages/estrategico/campanhas/CampanhasPage.tsx` | Adicionar nova aba "Leads" |
+
+---
+
+## Nova Interface TypeScript
 
 ```typescript
-export interface CampaignFunnelData {
-  group_key: string;
-  total_leads: number;
-  atendidos: number;
-  em_qualificacao: number;
-  qualificado: number;
-  cliente: number;
+// types.ts
+export interface CampaignLeadItem {
+  id: string;
+  cod_agent: string;
+  office_name: string;
+  whatsapp: string;
+  contact_name: string;
+  campaign_id: string;
+  campaign_title: string;
+  platform: string;
+  greeting_message: string;
+  created_at: string;
 }
 ```
 
 ---
 
-## Etapa 2: Reescrever Hook do Funil por Campanha
+## Detalhes da Implementação
 
-**Arquivo: `src/pages/estrategico/campanhas/hooks/useCampaignsFunnelByGroup.ts`**
+### 1. Hook useCampanhasLeadsList
 
-Usar a mesma lógica do `useCampanhasFunnel`, mas agrupada por `group_key` (sourceID::title):
-
-```sql
-WITH campaign_leads AS (
-  -- Leads por campanha com whatsapp para correlação
-  SELECT 
-    ((campaign_data::jsonb)->>'sourceID') || '::' || 
-    ((campaign_data::jsonb)->>'title') as group_key,
-    ca.id,
-    ca.cod_agent::text,
-    COALESCE(
-      NULLIF((campaign_data::jsonb)->>'phone', ''),
-      s.whatsapp_number::text
-    ) as whatsapp
-  FROM campaing_ads ca
-  LEFT JOIN sessions s ON s.id = ca.session_id::int
-  WHERE ca.cod_agent::text = ANY($1::text[])
-    AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2
-    AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3
-    AND (campaign_data::jsonb)->>'sourceID' IS NOT NULL
-),
-
--- Total de leads por campanha (Entrada)
-entrada AS (
-  SELECT group_key, COUNT(*)::int as count
-  FROM campaign_leads
-  GROUP BY group_key
-),
-
--- Atendidos por JulIA
-atendidos AS (
-  SELECT 
-    cl.group_key,
-    COUNT(DISTINCT cl.id)::int as count
-  FROM campaign_leads cl
-  WHERE EXISTS (
-    SELECT 1 FROM log_first_messages lfm
-    WHERE lfm.cod_agent::text = cl.cod_agent
-      AND lfm.whatsapp::text = cl.whatsapp
-  )
-  GROUP BY cl.group_key
-),
-
--- Em Qualificação (passaram por Análise de Caso)
-em_qualificacao AS (
-  SELECT 
-    cl.group_key,
-    COUNT(DISTINCT c.id)::int as count
-  FROM campaign_leads cl
-  JOIN crm_atendimento_cards c 
-    ON c.cod_agent = cl.cod_agent 
-    AND c.whatsapp_number = cl.whatsapp
-  JOIN crm_atendimento_history h ON h.card_id = c.id
-  JOIN crm_atendimento_stages s ON s.id = h.to_stage_id
-  WHERE LOWER(s.name) LIKE '%analise%caso%' 
-     OR LOWER(s.name) LIKE '%análise%caso%'
-  GROUP BY cl.group_key
-),
-
--- IDs dos estágios de qualificação
-qualified_stage_ids AS (
-  SELECT id FROM crm_atendimento_stages 
-  WHERE name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
-),
-
--- Qualificado
-qualificado AS (
-  SELECT 
-    cl.group_key,
-    COUNT(DISTINCT c.id)::int as count
-  FROM campaign_leads cl
-  JOIN crm_atendimento_cards c 
-    ON c.cod_agent = cl.cod_agent 
-    AND c.whatsapp_number = cl.whatsapp
-  WHERE c.stage_id IN (SELECT id FROM qualified_stage_ids)
-  GROUP BY cl.group_key
-),
-
--- Cliente (Contrato Assinado)
-cliente_stage_id AS (
-  SELECT id FROM crm_atendimento_stages 
-  WHERE name = 'Contrato Assinado'
-),
-
-cliente AS (
-  SELECT 
-    cl.group_key,
-    COUNT(DISTINCT c.id)::int as count
-  FROM campaign_leads cl
-  JOIN crm_atendimento_cards c 
-    ON c.cod_agent = cl.cod_agent 
-    AND c.whatsapp_number = cl.whatsapp
-  WHERE c.stage_id IN (SELECT id FROM cliente_stage_id)
-  GROUP BY cl.group_key
-)
-
-SELECT 
-  e.group_key,
-  e.count as total_leads,
-  COALESCE(a.count, 0)::int as atendidos,
-  COALESCE(eq.count, 0)::int as em_qualificacao,
-  COALESCE(q.count, 0)::int as qualificado,
-  COALESCE(c.count, 0)::int as cliente
-FROM entrada e
-LEFT JOIN atendidos a ON a.group_key = e.group_key
-LEFT JOIN em_qualificacao eq ON eq.group_key = e.group_key
-LEFT JOIN qualificado q ON q.group_key = e.group_key
-LEFT JOIN cliente c ON c.group_key = e.group_key
+```typescript
+export function useCampanhasLeadsList(filters: CampanhasFiltersState) {
+  return useQuery({
+    queryKey: ['campanhas-leads-list', filters],
+    queryFn: async () => {
+      // Query SQL acima
+    },
+    enabled: filters.agentCodes.length > 0,
+  });
+}
 ```
 
----
+### 2. Componente CampanhasLeadsTab
 
-## Etapa 3: Atualizar CampaignMiniFunnel
+- Recebe `filters` como prop
+- Usa o hook para buscar dados
+- Renderiza tabela com colunas definidas
+- Estado para controlar o dialog de mensagens
+- Navegação para CRM usando `useNavigate`
 
-**Arquivo: `src/pages/estrategico/campanhas/components/CampaignMiniFunnel.tsx`**
+### 3. Integração com CRM
 
-Renderizar as 5 etapas fixas com as mesmas cores do funil principal:
-
-```text
-┌──────────────────────────────────────────┐
-│  Funil de Conversão                      │
-├──────────────────────────────────────────┤
-│  Entrada         ████████████████   150  │  #3b82f6 (azul)
-│  Atendidos JulIA ██████████   85 (57%)   │  #22c55e (verde)
-│  Em Qualificação ██████   35 (23%)       │  #eab308 (amarelo)
-│  Qualificado     ███   18 (12%)          │  #f97316 (laranja)
-│  Cliente         █   4 (3%)              │  #8b5cf6 (roxo)
-└──────────────────────────────────────────┘
+O botão de "ir para CRM" usará:
+```typescript
+const navigate = useNavigate();
+navigate(`/crm/leads?search=${encodeURIComponent(lead.whatsapp)}`);
 ```
 
-Características:
-- Cores idênticas ao funil do dashboard
-- Largura proporcional ao total de leads
-- Percentual calculado sobre o total (Entrada)
-- Tooltips com descrições das etapas
-
----
-
-## Etapa 4: Atualizar CampaignDetailCard
-
-**Arquivo: `src/pages/estrategico/campanhas/components/CampaignDetailCard.tsx`**
-
-Manter a integração existente - o componente já recebe e renderiza o `CampaignMiniFunnel`.
-
----
-
-## Arquivos a Modificar
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `types.ts` | Atualizar `CampaignFunnelData` com 5 campos numéricos |
-| `useCampaignsFunnelByGroup.ts` | Reescrever query com lógica de 5 etapas |
-| `CampaignMiniFunnel.tsx` | Renderizar 5 barras fixas com cores do dashboard |
+O CRMPage já suporta busca via URL params através do `UnifiedFilters`.
 
 ---
 
 ## Visual Final
 
 ```text
-┌─────────────────────────────────────────┐
-│ [123] - Escritório ABC          👥 150  │
-├─────────────────────────────────────────┤
-│  [Thumbnail da Campanha]                │
-├─────────────────────────────────────────┤
-│  Título da Campanha                     │
-│  Descrição...                           │
-│  [Acessar] [📋]                         │
-│  ▼ 5 fontes                             │
-├─────────────────────────────────────────┤
-│  Funil de Conversão                     │
-│  ────────────────────────────────────   │
-│  Entrada          ██████████████  150   │
-│  Atendidos JulIA  █████████   85 (57%)  │
-│  Em Qualificação  █████   35 (23%)      │
-│  Qualificado      ██   18 (12%)         │
-│  Cliente          █   4 (3%)            │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  Campanhas Ads                                              │
+│  [Dashboard] [Campanhas] [Leads] ← NOVA ABA                 │
+├─────────────────────────────────────────────────────────────┤
+│  🔍 Buscar leads...                    [Ordenar ▼]          │
+├─────────────────────────────────────────────────────────────┤
+│  WhatsApp        │ Nome    │ Campanha    │ Plataforma │ ... │
+│──────────────────┼─────────┼─────────────┼────────────┼─────│
+│ +55 11 99999-9999│ João S. │ Campanha X  │ 🔵 FB      │ 💬📋│
+│ +55 21 88888-8888│ Maria P.│ Campanha Y  │ 🟣 IG      │ 💬📋│
+│ ...              │         │             │            │     │
+├─────────────────────────────────────────────────────────────┤
+│  ◀ Anterior     Página 1 de 15           Próxima ▶          │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Considerações Técnicas
+
+1. **Performance**: Query pode retornar muitos registros; paginação do lado do cliente é aceitável para volumes moderados
+2. **WhatsApp nulo**: Alguns leads podem não ter WhatsApp - serão exibidos com "-" e os botões de ação desabilitados
+3. **Reuso**: Usa o mesmo `WhatsAppMessagesDialog` já existente no sistema
+4. **Navegação CRM**: O parâmetro de busca na URL será lido pelo `UnifiedFilters` do CRM
