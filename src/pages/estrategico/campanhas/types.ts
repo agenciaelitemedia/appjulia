@@ -100,4 +100,6 @@ export interface CampaignDetail {
   first_lead: string;
   last_lead: string;
   greeting_message: string;
+  cod_agent: string;
+  office_name: string;
 }

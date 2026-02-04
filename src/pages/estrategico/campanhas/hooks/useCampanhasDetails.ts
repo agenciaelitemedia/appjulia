@@ -22,16 +22,21 @@ export function useCampanhasDetails(filters: CampanhasFiltersState) {
           campaign_data->>'conversionSource' as conversion_source,
           campaign_data->>'greetingMessageBody' as greeting_message,
           COUNT(*)::int as total_leads,
-          MIN(created_at) as first_lead,
-          MAX(created_at) as last_lead
-        FROM campaing_ads
-        WHERE cod_agent::text = ANY($1::varchar[])
-          AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-          AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          MIN(ca.created_at) as first_lead,
+          MAX(ca.created_at) as last_lead,
+          ca.cod_agent::text as cod_agent,
+          COALESCE(c.name, 'Escritório') as office_name
+        FROM campaing_ads ca
+        LEFT JOIN agents a ON a.cod_agent = ca.cod_agent
+        LEFT JOIN clients c ON c.id = a.client_id
+        WHERE ca.cod_agent::text = ANY($1::varchar[])
+          AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+          AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           AND campaign_data->>'sourceID' IS NOT NULL
         GROUP BY 
           campaign_id, campaign_title, campaign_body, platform,
-          source_url, media_url, thumbnail_url, conversion_source, greeting_message
+          source_url, media_url, thumbnail_url, conversion_source, greeting_message,
+          ca.cod_agent, c.name
         ORDER BY total_leads DESC
       `;
       
