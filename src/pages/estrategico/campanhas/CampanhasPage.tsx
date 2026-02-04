@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, LayoutDashboard, List } from 'lucide-react';
+import { RefreshCw, LayoutDashboard, List, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -19,7 +19,6 @@ import {
   useCampanhasSummary,
 } from './hooks/useCampanhasData';
 import { useCampanhasConversionEvolution } from './hooks/useCampanhasConversionEvolution';
-import { CampanhasSummary } from './components/CampanhasSummary';
 import { CampanhasFunnelChart } from './components/CampanhasFunnelChart';
 import { CampanhasByPlatform } from './components/CampanhasByPlatform';
 import { CampanhasEvolutionChart } from './components/CampanhasEvolutionChart';
@@ -27,6 +26,7 @@ import { CampanhasConversionEvolutionChart } from './components/CampanhasConvers
 import { CampanhasHeatmap } from './components/CampanhasHeatmap';
 import { CampanhasTopTable } from './components/CampanhasTopTable';
 import { CampanhasListTab } from './components/CampanhasListTab';
+import { CampanhasLeadsTab } from './components/CampanhasLeadsTab';
 
 export default function CampanhasPage() {
   const queryClient = useQueryClient();
