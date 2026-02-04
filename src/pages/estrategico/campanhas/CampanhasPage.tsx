@@ -46,6 +46,7 @@ export default function CampanhasPage() {
   const { data: leadsData = [], isLoading: leadsLoading } = useCampanhasLeads(filters);
   const { data: rawData = [], isLoading: rawLoading } = useCampanhasRaw(filters);
   const { data: funnelData = [], isLoading: funnelLoading } = useCampanhasFunnel(filters);
+  const { data: funnelPreviousData = [] } = useCampanhasFunnelPrevious(filters);
   const { data: platformData = [], isLoading: platformLoading } = useCampanhasByPlatform(filters);
   const { data: evolutionData = [], isLoading: evolutionLoading } = useCampanhasEvolution(filters);
   const { data: conversionEvolutionData = [], isLoading: conversionEvolutionLoading } = useCampanhasConversionEvolution(filters);
