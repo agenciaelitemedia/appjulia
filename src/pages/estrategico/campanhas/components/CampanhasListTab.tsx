@@ -13,7 +13,8 @@ import {
 import { Toggle } from '@/components/ui/toggle';
 import { CampaignDetailCard } from './CampaignDetailCard';
 import { useCampanhasDetails } from '../hooks/useCampanhasDetails';
-import { CampanhasFiltersState, CampaignDetailGrouped } from '../types';
+import { useCampaignsFunnelByGroup } from '../hooks/useCampaignsFunnelByGroup';
+import { CampanhasFiltersState, CampaignDetailGrouped, CampaignFunnelData } from '../types';
 
 interface CampanhasListTabProps {
   filters: CampanhasFiltersState;
