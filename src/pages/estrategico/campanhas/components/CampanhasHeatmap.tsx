@@ -37,12 +37,14 @@ export function CampanhasHeatmap({ data, isLoading }: CampanhasHeatmapProps) {
   }, [heatmapData]);
 
   const getColor = (count: number) => {
-    if (count === 0) return 'bg-muted/30';
+    if (count === 0) return 'bg-slate-100 dark:bg-slate-800';
     const intensity = count / maxCount;
-    if (intensity > 0.75) return 'bg-chart-2';
-    if (intensity > 0.5) return 'bg-chart-2/80';
-    if (intensity > 0.25) return 'bg-chart-2/60';
-    return 'bg-chart-2/40';
+    // Gradiente vibrante: azul -> verde -> amarelo -> laranja -> vermelho
+    if (intensity > 0.8) return 'bg-red-500';
+    if (intensity > 0.6) return 'bg-orange-500';
+    if (intensity > 0.4) return 'bg-yellow-500';
+    if (intensity > 0.2) return 'bg-green-500';
+    return 'bg-blue-400';
   };
 
   if (isLoading) {
