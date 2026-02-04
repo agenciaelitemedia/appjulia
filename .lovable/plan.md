@@ -1,48 +1,63 @@
 
-# Plano: Mini-Funil por Campanha usando Lógica do Dashboard
+# Plano: Funil de Conversão de 5 Etapas por Campanha
 
-## Análise do Pedido
+## Objetivo
 
-O usuário quer que o mini-funil use a **mesma lógica do funil do Dashboard principal**, que:
-- Mostra a distribuição de cards por **cada estágio do CRM** (todos os estágios ativos)
-- Filtra por `stage_entered_at` no período selecionado
-- Conta cards em cada estágio
+Trazer para o card de campanha o mesmo **Funil de Conversão** do dashboard principal, mantendo as 5 etapas definidas:
 
-A diferença é que será **filtrado por campanha** (sourceID + title).
+1. **Entrada** - Total de leads da campanha
+2. **Atendidos por JulIA** - Leads com registro em `log_first_messages`
+3. **Em Qualificação** - Leads que passaram por "Análise de Caso"
+4. **Qualificado** - Negociação + Contrato em Curso + Contrato Assinado
+5. **Cliente** - Contrato Assinado
 
 ---
 
-## Lógica Atual do Dashboard
+## Arquitetura
 
-```sql
-SELECT 
-  s.id, s.name, s.color, s.position,
-  COUNT(c.id)::int as count
-FROM crm_atendimento_stages s
-LEFT JOIN crm_atendimento_cards c ON s.id = c.stage_id
-  AND c.cod_agent = ANY($1)
-  AND (c.stage_entered_at)::date >= $2
-  AND (c.stage_entered_at)::date <= $3
-WHERE s.is_active = true
-GROUP BY s.id, s.name, s.color, s.position
-ORDER BY s.position
+```text
+┌─────────────────────────────────────────────────────────────┐
+│  CampanhasListTab                                           │
+│  └── useCampaignsFunnelByGroup (5 etapas por campanha)      │
+│      └── CampaignDetailCard                                 │
+│          └── CampaignMiniFunnel (5 etapas visuais)          │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Nova Lógica para Mini-Funil por Campanha
+## Etapa 1: Atualizar Types
 
-A query precisa:
-1. Identificar os leads de cada campanha (sourceID + title)
-2. Correlacionar esses leads com cards do CRM via (cod_agent, whatsapp)
-3. Contar quantos cards estão em cada estágio do CRM
+**Arquivo: `src/pages/estrategico/campanhas/types.ts`**
+
+Atualizar a interface `CampaignFunnelData` para refletir as 5 etapas fixas:
+
+```typescript
+export interface CampaignFunnelData {
+  group_key: string;
+  total_leads: number;
+  atendidos: number;
+  em_qualificacao: number;
+  qualificado: number;
+  cliente: number;
+}
+```
+
+---
+
+## Etapa 2: Reescrever Hook do Funil por Campanha
+
+**Arquivo: `src/pages/estrategico/campanhas/hooks/useCampaignsFunnelByGroup.ts`**
+
+Usar a mesma lógica do `useCampanhasFunnel`, mas agrupada por `group_key` (sourceID::title):
 
 ```sql
 WITH campaign_leads AS (
-  -- Leads únicos por campanha com whatsapp
-  SELECT DISTINCT
-    (campaign_data::jsonb)->>'sourceID' || '::' || 
-    (campaign_data::jsonb)->>'title' as group_key,
+  -- Leads por campanha com whatsapp para correlação
+  SELECT 
+    ((campaign_data::jsonb)->>'sourceID') || '::' || 
+    ((campaign_data::jsonb)->>'title') as group_key,
+    ca.id,
     ca.cod_agent::text,
     COALESCE(
       NULLIF((campaign_data::jsonb)->>'phone', ''),
@@ -50,78 +65,133 @@ WITH campaign_leads AS (
     ) as whatsapp
   FROM campaing_ads ca
   LEFT JOIN sessions s ON s.id = ca.session_id::int
-  WHERE ca.cod_agent::text = ANY($1)
+  WHERE ca.cod_agent::text = ANY($1::text[])
     AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2
     AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3
     AND (campaign_data::jsonb)->>'sourceID' IS NOT NULL
 ),
 
-lead_counts AS (
-  -- Total de leads por campanha (inclui duplicados)
-  SELECT 
-    (campaign_data::jsonb)->>'sourceID' || '::' || 
-    (campaign_data::jsonb)->>'title' as group_key,
-    COUNT(*)::int as total_leads
-  FROM campaing_ads
-  WHERE cod_agent::text = ANY($1)
-    AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2
-    AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3
-    AND (campaign_data::jsonb)->>'sourceID' IS NOT NULL
+-- Total de leads por campanha (Entrada)
+entrada AS (
+  SELECT group_key, COUNT(*)::int as count
+  FROM campaign_leads
   GROUP BY group_key
 ),
 
--- Cards do CRM que correspondem aos leads de campanhas
-crm_cards AS (
+-- Atendidos por JulIA
+atendidos AS (
   SELECT 
     cl.group_key,
-    c.id as card_id,
-    c.stage_id
+    COUNT(DISTINCT cl.id)::int as count
   FROM campaign_leads cl
-  INNER JOIN crm_atendimento_cards c 
+  WHERE EXISTS (
+    SELECT 1 FROM log_first_messages lfm
+    WHERE lfm.cod_agent::text = cl.cod_agent
+      AND lfm.whatsapp::text = cl.whatsapp
+  )
+  GROUP BY cl.group_key
+),
+
+-- Em Qualificação (passaram por Análise de Caso)
+em_qualificacao AS (
+  SELECT 
+    cl.group_key,
+    COUNT(DISTINCT c.id)::int as count
+  FROM campaign_leads cl
+  JOIN crm_atendimento_cards c 
     ON c.cod_agent = cl.cod_agent 
     AND c.whatsapp_number = cl.whatsapp
+  JOIN crm_atendimento_history h ON h.card_id = c.id
+  JOIN crm_atendimento_stages s ON s.id = h.to_stage_id
+  WHERE LOWER(s.name) LIKE '%analise%caso%' 
+     OR LOWER(s.name) LIKE '%análise%caso%'
+  GROUP BY cl.group_key
 ),
 
--- Estágios ativos do CRM
-stages AS (
-  SELECT id, name, color, position
-  FROM crm_atendimento_stages
-  WHERE is_active = true
+-- IDs dos estágios de qualificação
+qualified_stage_ids AS (
+  SELECT id FROM crm_atendimento_stages 
+  WHERE name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
 ),
 
--- Contagem por estágio por campanha
-stage_counts AS (
+-- Qualificado
+qualificado AS (
   SELECT 
-    cc.group_key,
-    s.id as stage_id,
-    s.name as stage_name,
-    s.color as stage_color,
-    s.position,
-    COUNT(DISTINCT cc.card_id)::int as count
-  FROM crm_cards cc
-  JOIN stages s ON s.id = cc.stage_id
-  GROUP BY cc.group_key, s.id, s.name, s.color, s.position
+    cl.group_key,
+    COUNT(DISTINCT c.id)::int as count
+  FROM campaign_leads cl
+  JOIN crm_atendimento_cards c 
+    ON c.cod_agent = cl.cod_agent 
+    AND c.whatsapp_number = cl.whatsapp
+  WHERE c.stage_id IN (SELECT id FROM qualified_stage_ids)
+  GROUP BY cl.group_key
+),
+
+-- Cliente (Contrato Assinado)
+cliente_stage_id AS (
+  SELECT id FROM crm_atendimento_stages 
+  WHERE name = 'Contrato Assinado'
+),
+
+cliente AS (
+  SELECT 
+    cl.group_key,
+    COUNT(DISTINCT c.id)::int as count
+  FROM campaign_leads cl
+  JOIN crm_atendimento_cards c 
+    ON c.cod_agent = cl.cod_agent 
+    AND c.whatsapp_number = cl.whatsapp
+  WHERE c.stage_id IN (SELECT id FROM cliente_stage_id)
+  GROUP BY cl.group_key
 )
 
 SELECT 
-  lc.group_key,
-  lc.total_leads,
-  COALESCE(
-    json_agg(
-      json_build_object(
-        'stage_id', sc.stage_id,
-        'stage_name', sc.stage_name,
-        'stage_color', sc.stage_color,
-        'position', sc.position,
-        'count', sc.count
-      ) ORDER BY sc.position
-    ) FILTER (WHERE sc.stage_id IS NOT NULL),
-    '[]'::json
-  ) as stages
-FROM lead_counts lc
-LEFT JOIN stage_counts sc ON sc.group_key = lc.group_key
-GROUP BY lc.group_key, lc.total_leads
+  e.group_key,
+  e.count as total_leads,
+  COALESCE(a.count, 0)::int as atendidos,
+  COALESCE(eq.count, 0)::int as em_qualificacao,
+  COALESCE(q.count, 0)::int as qualificado,
+  COALESCE(c.count, 0)::int as cliente
+FROM entrada e
+LEFT JOIN atendidos a ON a.group_key = e.group_key
+LEFT JOIN em_qualificacao eq ON eq.group_key = e.group_key
+LEFT JOIN qualificado q ON q.group_key = e.group_key
+LEFT JOIN cliente c ON c.group_key = e.group_key
 ```
+
+---
+
+## Etapa 3: Atualizar CampaignMiniFunnel
+
+**Arquivo: `src/pages/estrategico/campanhas/components/CampaignMiniFunnel.tsx`**
+
+Renderizar as 5 etapas fixas com as mesmas cores do funil principal:
+
+```text
+┌──────────────────────────────────────────┐
+│  Funil de Conversão                      │
+├──────────────────────────────────────────┤
+│  Entrada         ████████████████   150  │  #3b82f6 (azul)
+│  Atendidos JulIA ██████████   85 (57%)   │  #22c55e (verde)
+│  Em Qualificação ██████   35 (23%)       │  #eab308 (amarelo)
+│  Qualificado     ███   18 (12%)          │  #f97316 (laranja)
+│  Cliente         █   4 (3%)              │  #8b5cf6 (roxo)
+└──────────────────────────────────────────┘
+```
+
+Características:
+- Cores idênticas ao funil do dashboard
+- Largura proporcional ao total de leads
+- Percentual calculado sobre o total (Entrada)
+- Tooltips com descrições das etapas
+
+---
+
+## Etapa 4: Atualizar CampaignDetailCard
+
+**Arquivo: `src/pages/estrategico/campanhas/components/CampaignDetailCard.tsx`**
+
+Manter a integração existente - o componente já recebe e renderiza o `CampaignMiniFunnel`.
 
 ---
 
@@ -129,57 +199,31 @@ GROUP BY lc.group_key, lc.total_leads
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/estrategico/campanhas/types.ts` | Atualizar interface `CampaignFunnelData` para incluir array de estágios |
-| `src/pages/estrategico/campanhas/hooks/useCampaignsFunnelByGroup.ts` | Reescrever query para usar lógica do dashboard |
-| `src/pages/estrategico/campanhas/components/CampaignMiniFunnel.tsx` | Atualizar para exibir barras de todos os estágios |
+| `types.ts` | Atualizar `CampaignFunnelData` com 5 campos numéricos |
+| `useCampaignsFunnelByGroup.ts` | Reescrever query com lógica de 5 etapas |
+| `CampaignMiniFunnel.tsx` | Renderizar 5 barras fixas com cores do dashboard |
 
 ---
 
-## Nova Interface TypeScript
-
-```typescript
-interface CampaignStageFunnelItem {
-  stage_id: number;
-  stage_name: string;
-  stage_color: string;
-  position: number;
-  count: number;
-}
-
-interface CampaignFunnelData {
-  group_key: string;
-  total_leads: number;
-  stages: CampaignStageFunnelItem[];
-}
-```
-
----
-
-## Novo Visual do Mini-Funil
+## Visual Final
 
 ```text
-┌──────────────────────────────────────────┐
-│  Funil CRM (150 leads)                   │
-├──────────────────────────────────────────┤
-│  Novo Lead       ████████████████   85   │  azul
-│  Análise         ██████████   35         │  verde
-│  Negociação      ██████   18             │  amarelo
-│  Contrato Curso  ███   8                 │  laranja
-│  Assinado        █   4                   │  roxo
-└──────────────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│ [123] - Escritório ABC          👥 150  │
+├─────────────────────────────────────────┤
+│  [Thumbnail da Campanha]                │
+├─────────────────────────────────────────┤
+│  Título da Campanha                     │
+│  Descrição...                           │
+│  [Acessar] [📋]                         │
+│  ▼ 5 fontes                             │
+├─────────────────────────────────────────┤
+│  Funil de Conversão                     │
+│  ────────────────────────────────────   │
+│  Entrada          ██████████████  150   │
+│  Atendidos JulIA  █████████   85 (57%)  │
+│  Em Qualificação  █████   35 (23%)      │
+│  Qualificado      ██   18 (12%)         │
+│  Cliente          █   4 (3%)            │
+└─────────────────────────────────────────┘
 ```
-
-Cada barra:
-- Cor correspondente ao estágio
-- Largura proporcional ao count
-- Número ao lado
-- Tooltip com porcentagem
-
----
-
-## Considerações Técnicas
-
-1. **JSON Aggregation**: A query retorna os estágios como um array JSON para cada campanha, evitando múltiplas linhas por campanha
-2. **Performance**: Uma única query para todas as campanhas, mantendo o padrão de evitar N+1
-3. **Compatibilidade**: O componente `CampaignMiniFunnel` será atualizado para receber a nova estrutura
-4. **Fallback**: Se não houver cards no CRM para uma campanha, mostra apenas o total de leads
