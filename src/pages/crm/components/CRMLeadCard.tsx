@@ -216,10 +216,13 @@ function truncateText(text: string | undefined, maxLength: number): string {
                {/* FollowUp indicator */}
                {followupInfo && (
                  <div className="flex items-center gap-1.5 pt-1">
-                   <span className="text-red-500 animate-pulse">⏳</span>
+                   <span className={followupInfo.step_number === 0 ? "text-red-500 animate-pulse" : "text-green-500 animate-pulse"}>⏳</span>
                    <Badge 
                      variant="outline" 
-                     className="text-[10px] font-medium px-1.5 py-0 bg-red-500/10 text-red-600 border-red-500/30"
+                    className={followupInfo.step_number === 0 
+                      ? "text-[10px] font-medium px-1.5 py-0 bg-red-500/10 text-red-600 border-red-500/30"
+                      : "text-[10px] font-medium px-1.5 py-0 bg-green-500/10 text-green-600 border-green-500/30"
+                    }
                    >
                      Etapa {followupInfo.stage_label}
                    </Badge>
