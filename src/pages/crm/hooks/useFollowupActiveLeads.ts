@@ -21,14 +21,14 @@
          WITH ranked_followup AS (
            SELECT 
              fq.cod_agent::text as cod_agent,
-             s.whatsapp_number::text as whatsapp,
+          fq.whatsapp::text as whatsapp,
              fq.step_number,
              fq.node_count,
              fq.followup_from,
              fq.followup_to,
              fq.created_at,
              ROW_NUMBER() OVER (
-               PARTITION BY fq.cod_agent, s.whatsapp_number 
+            PARTITION BY fq.cod_agent, fq.whatsapp 
                ORDER BY fq.created_at DESC
              ) as rn
         FROM vw_send_followup_queue_card fq
