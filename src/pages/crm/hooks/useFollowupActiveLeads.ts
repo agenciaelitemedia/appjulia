@@ -32,7 +32,7 @@
                ORDER BY fq.created_at DESC
              ) as rn
            FROM vw_send_followup_queue fq
-           INNER JOIN sessions s ON s.id = fq.session_id::int
+          INNER JOIN sessions s ON s.id = fq.session_id::bigint
            WHERE fq.cod_agent::text = ANY($1::varchar[])
              AND fq.state = 'SEND'
          )
