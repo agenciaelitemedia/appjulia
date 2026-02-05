@@ -40,6 +40,7 @@ import AdvboxNotificationRulesPage from "./pages/advbox/NotificationRulesPage";
 import AdvboxProcessesPage from "./pages/advbox/ProcessesPage";
 import AdvboxLogsPage from "./pages/advbox/LogsPage";
 import AdvboxQueriesPage from "./pages/advbox/QueriesPage";
+import MetaAdsTestPage from "./pages/admin/meta-ads/MetaAdsTestPage";
 import RedirectPage from "./pages/RedirectPage";
 import NotFound from "./pages/NotFound";
 
@@ -91,6 +92,7 @@ const App = () => (
                     <Route path="/admin/modulos" element={<ModulosPage />} />
                     <Route path="/admin/permissoes" element={<PermissoesPage />} />
                     <Route path="/admin/meta-test" element={<MetaTestPage />} />
+                    <Route path="/admin/meta-ads" element={<MetaAdsTestPage />} />
                   </Route>
                 </Route>
                 <Route path="*" element={<NotFound />} />

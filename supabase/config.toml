@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.advbox-query]
 verify_jwt = false
+
+[functions.meta-ads]
+verify_jwt = false
+
+[functions.meta-conversions]
+verify_jwt = false
