@@ -31,10 +31,8 @@
                PARTITION BY fq.cod_agent, s.whatsapp_number 
                ORDER BY fq.created_at DESC
              ) as rn
-           FROM vw_send_followup_queue fq
-          INNER JOIN sessions s ON s.id = fq.session_id::bigint
-           WHERE fq.cod_agent::text = ANY($1::varchar[])
-             AND fq.state = 'SEND'
+        FROM vw_send_followup_queue_card fq
+        WHERE fq.cod_agent::text = ANY($1::varchar[])
          )
          SELECT cod_agent, whatsapp, step_number, node_count, followup_from, followup_to
          FROM ranked_followup
