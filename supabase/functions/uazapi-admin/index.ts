@@ -198,7 +198,7 @@ serve(async (req) => {
       }
 
       case 'delete_instance': {
-        const { instanceName, agentId } = params;
+        const { instanceName, agentId, instanceToken } = params;
         
         if (!instanceName) {
           throw new Error('Missing required parameter: instanceName');
@@ -206,11 +206,11 @@ serve(async (req) => {
 
         console.log('Deleting instance:', instanceName);
         
-        // Delete instance from UaZapi
-        const deleteResponse = await fetch(`${UAZAPI_BASE_URL}/admin/instance/${encodeURIComponent(instanceName)}`, {
+        // Delete instance from UaZapi using the correct endpoint
+        const deleteResponse = await fetch(`${UAZAPI_BASE_URL}/instance/delete/${encodeURIComponent(instanceName)}`, {
           method: 'DELETE',
           headers: {
-            'admintoken': UAZAPI_ADMIN_TOKEN,
+            'apikey': instanceToken || UAZAPI_ADMIN_TOKEN,
           },
         });
 
