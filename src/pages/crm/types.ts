@@ -121,25 +121,37 @@ export interface CRMStageBottleneck {
 }
 
 export interface ContractInfo {
-  zapsing_doctoken?: string;
-  status_document: string;
-  signer_name?: string;
-  signer_cpf?: string;
-  signer_uf?: string;
-  signer_cidade?: string;
-  signer_bairro?: string;
-  signer_endereco?: string;
-  signer_cep?: string;
-  data_contrato?: string;
-  data_assinatura?: string;
-  cod_document?: string;
-  situacao?: string;
-  resumo_do_caso?: string;
-  case_title?: string;
-  case_category_name?: string;
-  case_category_color?: string;
-  cod_agent?: string;
-  agent_name?: string;
-  business_name?: string;
-  whatsapp?: string;
-}
+   zapsing_doctoken?: string;
+   status_document: string;
+   signer_name?: string;
+   signer_cpf?: string;
+   signer_uf?: string;
+   signer_cidade?: string;
+   signer_bairro?: string;
+   signer_endereco?: string;
+   signer_cep?: string;
+   data_contrato?: string;
+   data_assinatura?: string;
+   cod_document?: string;
+   situacao?: string;
+   resumo_do_caso?: string;
+   case_title?: string;
+   case_category_name?: string;
+   case_category_color?: string;
+   cod_agent?: string;
+   agent_name?: string;
+   business_name?: string;
+   whatsapp?: string;
+ }
+ 
+ // FollowUp active lead info
+ export interface CRMFollowupInfo {
+   cod_agent: string;
+   whatsapp: string;
+   step_number: number;
+   node_count: number;
+   followup_from: number | null;
+   followup_to: number | null;
+   is_infinite: boolean;
+   stage_label: string; // "1/4", "∞/∞", "2/∞"
+ }

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { CRMCard } from '../types';
+ import { CRMFollowupInfo } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { WhatsAppMessagesDialog } from './WhatsAppMessagesDialog';
@@ -22,6 +23,7 @@ interface CRMLeadCardProps {
     apiKey: string;
     apiInstance: string;
   };
+   followupInfo?: CRMFollowupInfo;
 }
 
 function truncateText(text: string | undefined, maxLength: number): string {
@@ -29,7 +31,7 @@ function truncateText(text: string | undefined, maxLength: number): string {
   return text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
 }
 
-export function CRMLeadCard({ card, onClick, apiCredentials }: CRMLeadCardProps) {
+ export function CRMLeadCard({ card, onClick, apiCredentials, followupInfo }: CRMLeadCardProps) {
   const { user } = useAuth();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
@@ -211,6 +213,18 @@ export function CRMLeadCard({ card, onClick, apiCredentials }: CRMLeadCardProps)
                 <Clock className="h-3 w-3" />
                 <span>Na fase: {timeInStage}</span>
               </div>
+               {/* FollowUp indicator */}
+               {followupInfo && (
+                 <div className="flex items-center gap-1.5 pt-1">
+                   <span className="text-red-500 animate-pulse">⏳</span>
+                   <Badge 
+                     variant="outline" 
+                     className="text-[10px] font-medium px-1.5 py-0 bg-red-500/10 text-red-600 border-red-500/30"
+                   >
+                     Etapa {followupInfo.stage_label}
+                   </Badge>
+                 </div>
+               )}
               {/* Indicador de timezone */}
               <div className="text-[10px] text-muted-foreground/50 text-right pt-0.5">
                 🇧🇷 Horário de Brasília

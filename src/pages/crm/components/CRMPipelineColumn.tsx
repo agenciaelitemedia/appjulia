@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CRMCard, CRMStage } from '../types';
+ import { CRMCard, CRMStage, CRMFollowupInfo } from '../types';
 import { CRMLeadCard } from './CRMLeadCard';
 
 const ITEMS_PER_PAGE = 30;
@@ -11,9 +11,10 @@ interface CRMPipelineColumnProps {
   stage: CRMStage;
   cards: CRMCard[];
   onCardClick: (card: CRMCard) => void;
+   followupMap?: Map<string, CRMFollowupInfo>;
 }
 
-export function CRMPipelineColumn({ stage, cards, onCardClick }: CRMPipelineColumnProps) {
+ export function CRMPipelineColumn({ stage, cards, onCardClick, followupMap }: CRMPipelineColumnProps) {
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
 
   // Reset pagination when cards change
@@ -62,6 +63,7 @@ export function CRMPipelineColumn({ stage, cards, onCardClick }: CRMPipelineColu
                   key={card.id}
                   card={card}
                   onClick={() => onCardClick(card)}
+                   followupInfo={followupMap?.get(`${card.cod_agent}::${card.whatsapp_number}`)}
                 />
               ))}
 

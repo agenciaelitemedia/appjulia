@@ -6,6 +6,7 @@ import { CRMTotalizers } from './components/CRMTotalizers';
 import { CRMPipeline } from './components/CRMPipeline';
 import { CRMLeadDetailsDialog } from './components/CRMLeadDetailsDialog';
 import { useCRMStages, useCRMCards, useCRMAgents, useCRMJuliaSessions } from './hooks/useCRMData';
+ import { useFollowupActiveLeads } from './hooks/useFollowupActiveLeads';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState } from '@/components/filters/types';
 import { CRMCard } from './types';
@@ -31,6 +32,7 @@ export default function CRMPage() {
   const { data: agents = [], isLoading: agentsLoading } = useCRMAgents();
   const { data: cards = [], isLoading: cardsLoading, refetch } = useCRMCards(filters);
   const { data: juliaSessions } = useCRMJuliaSessions(filters);
+   const { data: followupMap = new Map() } = useFollowupActiveLeads(filters.agentCodes);
 
   // Initialize agentCodes when agents load
   useEffect(() => {
@@ -122,6 +124,7 @@ export default function CRMPage() {
         stages={stages}
         cards={filteredCards}
         onCardClick={handleCardClick}
+         followupMap={followupMap}
       />
 
       <CRMLeadDetailsDialog
