@@ -251,7 +251,10 @@ function truncateText(text: string | undefined, maxLength: number): string {
                          </div>
                        </TooltipTrigger>
                        <TooltipContent side="top" className="max-w-[250px] text-center">
-                         <p className="text-xs">{followupInfo.tooltip_text}</p>
+                         <div className="space-y-1">
+                           <p className="text-xs font-bold">Indicador de Follow-up</p>
+                           <p className="text-xs">{followupInfo.tooltip_text}</p>
+                         </div>
                        </TooltipContent>
                      </Tooltip>
                    </TooltipProvider>
