@@ -1,299 +1,126 @@
 
+# Plano: Correção do Erro 405 ao Excluir Instância
 
-# Plano: Indicador de FollowUp nos Cards do CRM
+## Diagnóstico
 
-## Objetivo
+O erro **500 Internal Server Error** ocorre porque a API UaZapi retorna **405 Method Not Allowed**. A causa é que o endpoint usado está incorreto:
 
-Adicionar ao card do CRM um indicador visual mostrando que o lead está em FollowUp ativo, exibindo:
-- Ícone ⏳ em vermelho com efeito de fade (pulse)
-- Badge com etapa atual no formato `[Etapa X/Y]`
-- Para FollowUp infinito: `[Etapa ∞/∞]` ou `[Etapa X/∞]`
+| Atual (incorreto) | Correto (Evolution API) |
+|-------------------|------------------------|
+| `DELETE /admin/instance/{instance}` | `DELETE /instance/delete/{instance}` |
+| Header: `admintoken` | Header: `apikey` (token da instância) |
 
----
+## Problema Identificado
 
-## Análise da View vw_send_followup_queue
+A UaZapi/Evolution API utiliza dois tipos de autenticação:
+1. **`admintoken`** - Para criar instâncias (`/instance/init`)
+2. **`apikey`** - Para operações específicas de uma instância (deletar, logout, etc.)
 
-Campos disponíveis:
-- `cod_agent` - Código do agente
-- `session_id` - ID da sessão (vinculada ao WhatsApp na tabela sessions)
-- `step_number` - Etapa atual do followup
-- `node_count` - Total de etapas configuradas
-- `state` - Status ('SEND', 'QUEUE', 'STOP')
-- `followup_from` - Etapa inicial do loop infinito (null se não configurado)
-- `followup_to` - Etapa final do loop infinito (null se não configurado)
-- `created_at` - Data de criação do registro
+Para deletar uma instância, precisamos usar o token específico daquela instância (`apikey`), não o token admin.
 
----
+## Solução
 
-## Estratégia de Performance
+### Modificação 1: Edge Function `uazapi-admin/index.ts`
 
-### Opção Escolhida: Query Batch com LEFT JOIN
+Atualizar o case `delete_instance` para:
 
-Em vez de fazer N queries (uma por card), faremos **uma única query** que busca todos os leads em FollowUp para os agentes filtrados, depois fazemos o match no cliente.
+1. Usar o endpoint correto: `/instance/delete/{instance}`
+2. Passar o `apikey` da instância como header (precisamos recebê-lo do frontend)
+3. Adicionar fallback: se não tiver apikey, tentar via endpoint admin
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│  CRMPage                                                    │
-│  └── useFollowupActiveLeads(agentCodes) ← NOVA QUERY        │
-│      └── Retorna Map<whatsapp+cod_agent, FollowupInfo>      │
-│  └── CRMPipeline                                            │
-│      └── CRMPipelineColumn                                  │
-│          └── CRMLeadCard                                    │
-│              └── followupInfo = map.get(key) ← LOOKUP O(1)  │
-└─────────────────────────────────────────────────────────────┘
+Antes:
+  DELETE /admin/instance/{instanceName}
+  Header: admintoken
+
+Depois:
+  DELETE /instance/delete/{instanceName}
+  Header: apikey (token da instância)
 ```
 
-Vantagens:
-- **Uma única query** no carregamento (não importa quantos cards)
-- Lookup O(1) para cada card via Map
-- Dados cacheados pelo React Query
-- Não bloqueia o render dos cards
+### Modificação 2: Hook `useDeleteInstance.ts`
 
----
-
-## Dados Necessários
-
-A query buscará todos os leads em FollowUp ativo (state = 'SEND'):
-
-```sql
-WITH ranked_followup AS (
-  SELECT 
-    fq.cod_agent::text as cod_agent,
-    s.whatsapp_number::text as whatsapp,
-    fq.step_number,
-    fq.node_count,
-    fq.followup_from,
-    fq.followup_to,
-    fq.created_at,
-    ROW_NUMBER() OVER (
-      PARTITION BY fq.cod_agent, s.whatsapp_number 
-      ORDER BY fq.created_at DESC
-    ) as rn
-  FROM vw_send_followup_queue fq
-  INNER JOIN sessions s ON s.id = fq.session_id::int
-  WHERE fq.cod_agent::text = ANY($1::varchar[])
-    AND fq.state = 'SEND'
-)
-SELECT cod_agent, whatsapp, step_number, node_count, followup_from, followup_to
-FROM ranked_followup
-WHERE rn = 1
-```
-
----
-
-## Interface TypeScript
-
-### Novo tipo para dados de FollowUp
+Incluir o `evo_apikey` da instância na requisição:
 
 ```typescript
-// types.ts
-export interface CRMFollowupInfo {
-  cod_agent: string;
-  whatsapp: string;
-  step_number: number;
-  node_count: number;
-  followup_from: number | null;
-  followup_to: number | null;
-  is_infinite: boolean;
-  stage_label: string; // "1/4", "∞/∞", "2/∞"
-}
+body: {
+  action: 'delete_instance',
+  instanceName: agent.evo_instancia,
+  agentId: agent.agent_id_from_agents,
+  instanceToken: agent.evo_apikey, // Adicionar token da instância
+},
 ```
 
----
-
-## Novo Hook
-
-### Arquivo: `src/pages/crm/hooks/useFollowupActiveLeads.ts`
-
-```typescript
-export function useFollowupActiveLeads(agentCodes: string[]) {
-  return useQuery({
-    queryKey: ['crm-followup-active', agentCodes],
-    queryFn: async () => {
-      if (!agentCodes.length) return new Map();
-      
-      const result = await externalDb.raw<FollowupActiveRow>({
-        query: `...`, // Query SQL acima
-        params: [agentCodes],
-      });
-      
-      // Transformar em Map para lookup O(1)
-      const map = new Map<string, CRMFollowupInfo>();
-      result.forEach(row => {
-        const key = `${row.cod_agent}::${row.whatsapp}`;
-        const isInfinite = row.followup_from !== null && 
-                          row.followup_to !== null;
-        const hasReachedInfinite = isInfinite && 
-                                   row.step_number >= row.followup_to;
-        
-        let stageLabel: string;
-        if (hasReachedInfinite) {
-          stageLabel = '∞/∞';
-        } else if (isInfinite) {
-          stageLabel = `${row.step_number}/∞`;
-        } else {
-          stageLabel = `${row.step_number}/${row.node_count}`;
-        }
-        
-        map.set(key, {
-          ...row,
-          is_infinite: isInfinite,
-          stage_label: stageLabel,
-        });
-      });
-      
-      return map;
-    },
-    enabled: agentCodes.length > 0,
-    staleTime: 1000 * 60, // Cache por 1 minuto
-  });
-}
-```
-
----
-
-## Alterações no Componente
-
-### CRMPage.tsx
-
-Adicionar chamada do novo hook e passar para o Pipeline:
-
-```tsx
-const { data: followupMap = new Map() } = useFollowupActiveLeads(filters.agentCodes);
-
-<CRMPipeline
-  stages={stages}
-  cards={filteredCards}
-  onCardClick={handleCardClick}
-  followupMap={followupMap}  // Passar o map
-/>
-```
-
-### CRMPipeline.tsx
-
-Propagar o map para as colunas:
-
-```tsx
-interface CRMPipelineProps {
-  stages: CRMStage[];
-  cards: CRMCard[];
-  onCardClick: (card: CRMCard) => void;
-  followupMap?: Map<string, CRMFollowupInfo>;  // Adicionar prop
-}
-```
-
-### CRMPipelineColumn.tsx
-
-Propagar para os cards:
-
-```tsx
-<CRMLeadCard
-  key={card.id}
-  card={card}
-  onClick={() => onCardClick(card)}
-  followupInfo={followupMap?.get(`${card.cod_agent}::${card.whatsapp_number}`)}
-/>
-```
-
-### CRMLeadCard.tsx
-
-Exibir o indicador abaixo do tempo na fase:
-
-```tsx
-interface CRMLeadCardProps {
-  card: CRMCard;
-  onClick: () => void;
-  apiCredentials?: {...};
-  followupInfo?: CRMFollowupInfo;  // Adicionar prop
-}
-
-// No JSX, após o "Na fase:"
-{followupInfo && (
-  <div className="flex items-center gap-1.5 pt-1">
-    <span className="text-red-500 animate-pulse">⏳</span>
-    <Badge 
-      variant="outline" 
-      className="text-[10px] font-medium px-1.5 py-0 bg-red-500/10 text-red-600 border-red-500/30"
-    >
-      Etapa {followupInfo.stage_label}
-    </Badge>
-  </div>
-)}
-```
-
----
-
-## Visual Final
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  👤 Maria Silva                         [📹][💬][📋][👁]    │
-│     +55 11 99999-9999                                       │
-│  # [ABC123] - Escritório X                                  │
-│─────────────────────────────────────────────────────────────│
-│  Criado: 01/02/26 14:30                                     │
-│  Atualizado: 05/02/26 09:15                                 │
-│  ⏰ Na fase: 3 dias                                          │
-│  ⏳ [Etapa 2/4]              ← INDICADOR FOLLOWUP           │
-│                                   🇧🇷 Horário de Brasília    │
-└─────────────────────────────────────────────────────────────┘
-```
-
-Variações do badge:
-- `[Etapa 1/4]` - FollowUp normal, etapa 1 de 4
-- `[Etapa 2/∞]` - FollowUp infinito, ainda não chegou no loop
-- `[Etapa ∞/∞]` - FollowUp infinito, já está no loop
-
----
-
-## Arquivos a Criar/Modificar
+## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/crm/hooks/useFollowupActiveLeads.ts` | **NOVO** - Hook para buscar leads em FollowUp ativo |
-| `src/pages/crm/types.ts` | Adicionar interface `CRMFollowupInfo` |
-| `src/pages/crm/CRMPage.tsx` | Chamar novo hook e passar map |
-| `src/pages/crm/components/CRMPipeline.tsx` | Propagar followupMap |
-| `src/pages/crm/components/CRMPipelineColumn.tsx` | Propagar para cards |
-| `src/pages/crm/components/CRMLeadCard.tsx` | Exibir indicador visual |
+| `supabase/functions/uazapi-admin/index.ts` | Corrigir endpoint e headers no `delete_instance` |
+| `src/pages/agente/meus-agentes/hooks/useDeleteInstance.ts` | Enviar `evo_apikey` junto com a requisição |
 
----
+## Detalhes Técnicos
 
-## Estilo do Ícone
-
-O ícone ⏳ terá efeito de fade via `animate-pulse` do Tailwind:
-- Cor vermelha (`text-red-500`)
-- Animação de pulse para chamar atenção
-- Badge com fundo vermelho translúcido (`bg-red-500/10`)
-
----
-
-## Considerações de Performance
-
-1. **Uma query para todos os cards**: Evita N+1 queries
-2. **Map para lookup**: O(1) por card em vez de O(n) com filter
-3. **React Query cache**: Dados ficam em cache por 1 minuto
-4. **Query independente**: Não bloqueia o carregamento dos cards (paralelo)
-5. **Enabled condition**: Query só executa se houver agentCodes
-
----
-
-## Lógica de Exibição
+### Edge Function - Novo código para delete_instance:
 
 ```typescript
-// Determinar se está em followup infinito
-const isInfinite = followup_from !== null && followup_to !== null;
+case 'delete_instance': {
+  const { instanceName, agentId, instanceToken } = params;
+  
+  if (!instanceName) {
+    throw new Error('Missing required parameter: instanceName');
+  }
 
-// Determinar se já chegou na etapa do loop infinito
-const hasReachedInfinite = isInfinite && step_number >= followup_to;
+  console.log('Deleting instance:', instanceName);
+  
+  // Delete instance from UaZapi usando o endpoint correto
+  const deleteResponse = await fetch(
+    `${UAZAPI_BASE_URL}/instance/delete/${encodeURIComponent(instanceName)}`, 
+    {
+      method: 'DELETE',
+      headers: {
+        'apikey': instanceToken || UAZAPI_ADMIN_TOKEN,
+      },
+    }
+  );
 
-// Formatar label
-if (hasReachedInfinite) {
-  return '∞/∞';
-} else if (isInfinite) {
-  return `${step_number}/∞`;
-} else {
-  return `${step_number}/${node_count}`;
+  // ... resto do código permanece igual
 }
 ```
 
+### Hook - Incluir token:
+
+```typescript
+const { data, error } = await supabase.functions.invoke('uazapi-admin', {
+  body: {
+    action: 'delete_instance',
+    instanceName: agent.evo_instancia,
+    agentId: agent.agent_id_from_agents,
+    instanceToken: agent.evo_apikey, // Token da instância
+  },
+});
+```
+
+## Fluxo Atualizado
+
+```text
+Frontend (useDeleteInstance)
+    │
+    ▼
+Edge Function (uazapi-admin)
+    │
+    ├─► DELETE /instance/delete/{name}
+    │   Header: apikey = instanceToken
+    │
+    ▼
+UaZapi API
+    │
+    ▼
+Limpa credenciais no banco de dados
+```
+
+## Verificação
+
+Após implementação, testar:
+1. Clicar em "Excluir Instância" no card de um agente
+2. Verificar se a exclusão é concluída com sucesso
+3. Confirmar que os campos `hub`, `evo_url`, `evo_apikey`, `evo_instance` são limpos no banco
