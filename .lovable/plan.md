@@ -1,126 +1,199 @@
 
-# Plano: Correção do Erro 405 ao Excluir Instância
+# Plano: Integração Meta Marketing API para Campanhas Ads
 
-## Diagnóstico
+## Visão Geral
 
-O erro **500 Internal Server Error** ocorre porque a API UaZapi retorna **405 Method Not Allowed**. A causa é que o endpoint usado está incorreto:
+Criar uma página de teste/demo para integrar com a **Meta Marketing API** (Facebook/Instagram Ads), permitindo:
+1. **Autenticar** com OAuth e obter token de acesso
+2. **Buscar campanhas e anúncios** do Ads Manager
+3. **Retroalimentar o Pixel** (Conversions API) com eventos de conversão do CRM
+4. **Sincronizar dados** para enriquecer a tabela `campaing_ads`
 
-| Atual (incorreto) | Correto (Evolution API) |
-|-------------------|------------------------|
-| `DELETE /admin/instance/{instance}` | `DELETE /instance/delete/{instance}` |
-| Header: `admintoken` | Header: `apikey` (token da instância) |
-
-## Problema Identificado
-
-A UaZapi/Evolution API utiliza dois tipos de autenticação:
-1. **`admintoken`** - Para criar instâncias (`/instance/init`)
-2. **`apikey`** - Para operações específicas de uma instância (deletar, logout, etc.)
-
-Para deletar uma instância, precisamos usar o token específico daquela instância (`apikey`), não o token admin.
-
-## Solução
-
-### Modificação 1: Edge Function `uazapi-admin/index.ts`
-
-Atualizar o case `delete_instance` para:
-
-1. Usar o endpoint correto: `/instance/delete/{instance}`
-2. Passar o `apikey` da instância como header (precisamos recebê-lo do frontend)
-3. Adicionar fallback: se não tiver apikey, tentar via endpoint admin
+## Arquitetura Proposta
 
 ```text
-Antes:
-  DELETE /admin/instance/{instanceName}
-  Header: admintoken
-
-Depois:
-  DELETE /instance/delete/{instanceName}
-  Header: apikey (token da instância)
+┌─────────────────────────────────────────────────────────────────┐
+│                         Frontend                                 │
+│  /admin/meta-ads-test                                           │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌────────────┐│
+│  │ OAuth Flow  │ │ Listar Ads  │ │ Insights    │ │ Conversions││
+│  │ (Login FB)  │ │ Campanhas   │ │ por Campanha│ │ API Test   ││
+│  └─────────────┘ └─────────────┘ └─────────────┘ └────────────┘│
+└────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Edge Functions                                │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────────┐ │
+│  │ meta-auth    │  │ meta-ads     │  │ meta-conversions       │ │
+│  │ (existente)  │  │ (novo)       │  │ (novo)                 │ │
+│  └──────────────┘  └──────────────┘  └────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Meta Graph API                                │
+│  • Marketing API v24.0                                          │
+│  • Insights API                                                  │
+│  • Conversions API                                              │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Modificação 2: Hook `useDeleteInstance.ts`
+## Funcionalidades da Página Demo
 
-Incluir o `evo_apikey` da instância na requisição:
+### 1. Autenticação OAuth (Reutilizando `meta-auth`)
+- Login com Facebook
+- Seleção de Ad Account
+- Obtenção de token com permissões `ads_read`, `ads_management`
 
-```typescript
-body: {
-  action: 'delete_instance',
-  instanceName: agent.evo_instancia,
-  agentId: agent.agent_id_from_agents,
-  instanceToken: agent.evo_apikey, // Adicionar token da instância
-},
-```
+### 2. Listagem de Campanhas
+- Buscar campanhas ativas do Ad Account
+- Exibir: nome, status, objetivo, orçamento
+- Filtrar por status (ACTIVE, PAUSED, etc)
 
-## Arquivos a Modificar
+### 3. Insights de Campanhas
+- Métricas: impressões, cliques, CTR, CPM, CPC, gastos
+- Breakdown por período
+- Visualização comparativa
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `supabase/functions/uazapi-admin/index.ts` | Corrigir endpoint e headers no `delete_instance` |
-| `src/pages/agente/meus-agentes/hooks/useDeleteInstance.ts` | Enviar `evo_apikey` junto com a requisição |
+### 4. Conversions API (Retroalimentação do Pixel)
+- Enviar eventos de conversão do CRM
+- Tipos: Lead, ViewContent, Purchase
+- Mapear leads qualificados → eventos Meta
 
 ## Detalhes Técnicos
 
-### Edge Function - Novo código para delete_instance:
+### Nova Edge Function: `meta-ads`
+
+Ações disponíveis:
+- `get_ad_accounts` - Listar contas de anúncios do usuário
+- `get_campaigns` - Listar campanhas de uma conta
+- `get_adsets` - Listar conjuntos de anúncios
+- `get_ads` - Listar anúncios individuais
+- `get_insights` - Obter métricas de performance
 
 ```typescript
-case 'delete_instance': {
-  const { instanceName, agentId, instanceToken } = params;
-  
-  if (!instanceName) {
-    throw new Error('Missing required parameter: instanceName');
-  }
+// Exemplo de chamada para obter campanhas
+GET /act_{AD_ACCOUNT_ID}/campaigns
+  ?fields=name,status,objective,daily_budget,lifetime_budget,start_time,stop_time
+  &effective_status=["ACTIVE","PAUSED"]
+  &access_token={TOKEN}
+```
 
-  console.log('Deleting instance:', instanceName);
-  
-  // Delete instance from UaZapi usando o endpoint correto
-  const deleteResponse = await fetch(
-    `${UAZAPI_BASE_URL}/instance/delete/${encodeURIComponent(instanceName)}`, 
-    {
-      method: 'DELETE',
-      headers: {
-        'apikey': instanceToken || UAZAPI_ADMIN_TOKEN,
-      },
+### Nova Edge Function: `meta-conversions`
+
+Enviar eventos para o Pixel via Conversions API:
+- `send_lead_event` - Quando lead é qualificado
+- `send_purchase_event` - Quando contrato é assinado
+
+```typescript
+// Exemplo de payload para Conversions API
+POST /{PIXEL_ID}/events
+{
+  "data": [{
+    "event_name": "Lead",
+    "event_time": 1643723400,
+    "action_source": "website",
+    "user_data": {
+      "em": ["hashed_email"],
+      "ph": ["hashed_phone"]
+    },
+    "custom_data": {
+      "lead_source": "whatsapp",
+      "campaign_id": "123456"
     }
-  );
-
-  // ... resto do código permanece igual
+  }]
 }
 ```
 
-### Hook - Incluir token:
+### Componentes da Página Demo
 
-```typescript
-const { data, error } = await supabase.functions.invoke('uazapi-admin', {
-  body: {
-    action: 'delete_instance',
-    instanceName: agent.evo_instancia,
-    agentId: agent.agent_id_from_agents,
-    instanceToken: agent.evo_apikey, // Token da instância
-  },
-});
-```
+| Componente | Descrição |
+|------------|-----------|
+| `MetaAdsAuth` | Login OAuth + seleção de Ad Account |
+| `MetaAdsCampaignsList` | Tabela de campanhas com filtros |
+| `MetaAdsInsightsPanel` | Métricas e gráficos de performance |
+| `MetaConversionsTest` | Formulário para testar envio de eventos |
+| `MetaAdsSyncPreview` | Preview de dados a sincronizar com CRM |
 
-## Fluxo Atualizado
+## Secrets Necessários (Já Configurados)
+
+| Secret | Status |
+|--------|--------|
+| `META_APP_ID` | Configurado |
+| `META_APP_SECRET` | Configurado |
+
+## Permissões do App Meta Necessárias
+
+Para acessar a Marketing API, o app precisa das permissões:
+- `ads_read` - Leitura de campanhas e insights
+- `ads_management` - Gerenciamento de campanhas (opcional)
+- `business_management` - Acesso a Business Manager
+
+## Arquivos a Criar/Modificar
+
+### Novos Arquivos
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/pages/admin/meta-ads/MetaAdsTestPage.tsx` | Página principal |
+| `src/pages/admin/meta-ads/types.ts` | Tipos TypeScript |
+| `src/pages/admin/meta-ads/components/MetaAdsAuth.tsx` | Autenticação |
+| `src/pages/admin/meta-ads/components/AdAccountSelector.tsx` | Seletor de conta |
+| `src/pages/admin/meta-ads/components/CampaignsList.tsx` | Lista de campanhas |
+| `src/pages/admin/meta-ads/components/InsightsPanel.tsx` | Painel de insights |
+| `src/pages/admin/meta-ads/components/ConversionsTest.tsx` | Teste de conversões |
+| `src/pages/admin/meta-ads/hooks/useMetaAds.ts` | Hook de dados |
+| `supabase/functions/meta-ads/index.ts` | Edge function para Ads |
+| `supabase/functions/meta-conversions/index.ts` | Edge function para Conversions API |
+
+### Modificações
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/App.tsx` | Adicionar rota `/admin/meta-ads` |
+| `supabase/config.toml` | Registrar novas functions |
+
+## Fluxo de Uso
 
 ```text
-Frontend (useDeleteInstance)
-    │
-    ▼
-Edge Function (uazapi-admin)
-    │
-    ├─► DELETE /instance/delete/{name}
-    │   Header: apikey = instanceToken
-    │
-    ▼
-UaZapi API
-    │
-    ▼
-Limpa credenciais no banco de dados
+1. Usuário acessa /admin/meta-ads
+       │
+       ▼
+2. Clica "Conectar com Facebook"
+       │
+       ▼
+3. Autoriza permissões (ads_read)
+       │
+       ▼
+4. Seleciona Ad Account
+       │
+       ▼
+5. Visualiza campanhas e métricas
+       │
+       ▼
+6. Testa Conversions API com lead do CRM
+       │
+       ▼
+7. Configura sincronização automática (futuro)
 ```
 
-## Verificação
+## Próximos Passos Após Demo
 
-Após implementação, testar:
-1. Clicar em "Excluir Instância" no card de um agente
-2. Verificar se a exclusão é concluída com sucesso
-3. Confirmar que os campos `hub`, `evo_url`, `evo_apikey`, `evo_instance` são limpos no banco
+1. **Sincronização Automática**: Correlacionar `sourceID` do WhatsApp com `ad_id` da Meta
+2. **Retroalimentação em Tempo Real**: Webhook para enviar conversões automaticamente
+3. **Dashboard Enriquecido**: Combinar dados internos com insights da Meta
+4. **Otimização de Público**: Criar audiences customizadas baseadas em leads qualificados
+
+## Estimativa de Implementação
+
+| Fase | Descrição | Complexidade |
+|------|-----------|--------------|
+| 1 | Edge Functions (meta-ads, meta-conversions) | Média |
+| 2 | Componentes de UI (Auth, Lista, Insights) | Média |
+| 3 | Teste de Conversions API | Baixa |
+| 4 | Integração com dados existentes | Alta |
+
+---
+
+Esta implementação criará uma base sólida para a integração completa com Meta Ads, permitindo validar o fluxo antes de automatizar a sincronização.
