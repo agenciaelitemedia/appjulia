@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { CRMCard, CRMStage } from '../types';
+ import { CRMCard, CRMStage, CRMFollowupInfo } from '../types';
 import { CRMPipelineColumn } from './CRMPipelineColumn';
 import { CRMScrollNavigation } from './CRMScrollNavigation';
 
@@ -7,9 +7,10 @@ interface CRMPipelineProps {
   stages: CRMStage[];
   cards: CRMCard[];
   onCardClick: (card: CRMCard) => void;
+   followupMap?: Map<string, CRMFollowupInfo>;
 }
 
-export function CRMPipeline({ stages, cards, onCardClick }: CRMPipelineProps) {
+ export function CRMPipeline({ stages, cards, onCardClick, followupMap }: CRMPipelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const getCardsForStage = (stageId: number) => {
@@ -29,6 +30,7 @@ export function CRMPipeline({ stages, cards, onCardClick }: CRMPipelineProps) {
             stage={stage}
             cards={getCardsForStage(stage.id)}
             onCardClick={onCardClick}
+             followupMap={followupMap}
           />
         ))}
       </div>
