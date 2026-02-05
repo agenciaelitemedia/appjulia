@@ -52,26 +52,6 @@
          const isInfinite = row.followup_from !== null && row.followup_to !== null;
          const hasReachedInfinite = isInfinite && row.step_number >= (row.followup_to ?? 0);
  
-         let stageLabel: string;
-         if (hasReachedInfinite) {
-           stageLabel = '∞/∞';
-         } else if (isInfinite) {
-           stageLabel = `${row.step_number}/∞`;
-         } else {
-           stageLabel = `${row.step_number}/${row.node_count}`;
-         }
- 
-         map.set(key, {
-           cod_agent: row.cod_agent,
-           whatsapp: row.whatsapp,
-           step_number: row.step_number,
-           node_count: row.node_count,
-           followup_from: row.followup_from,
-           followup_to: row.followup_to,
-           is_infinite: isInfinite,
-           stage_label: stageLabel,
-         });
-
       let stageLabel: string;
       let tooltipText: string;
       
