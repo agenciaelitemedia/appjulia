@@ -84,9 +84,12 @@ export function CRMLeadCard({ card, onClick, apiCredentials }: CRMLeadCardProps)
 
             {/* Header with name and actions */}
             <div className="flex items-start justify-between gap-2">
-              <div className="flex items-center gap-1.5 text-sm font-medium">
-                <span className="text-primary">👤</span>
-                <span className="line-clamp-1">{card.whatsapp_number}</span>
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-1.5 text-sm font-medium">
+                  <span className="text-primary">👤</span>
+                  <span className="line-clamp-1">{card.contact_name || 'Sem nome'}</span>
+                </div>
+                <span className="text-xs text-muted-foreground pl-5">{card.whatsapp_number}</span>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 {/* Contract Icon - only for leads with contract history */}
