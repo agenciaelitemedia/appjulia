@@ -13,8 +13,6 @@ interface MetaAdsAuthProps {
   accessToken: string | null;
 }
 
-const META_APP_ID = '1182041896682498'; // Same as used in meta-test
-
 export function MetaAdsAuth({ onTokenReceived, accessToken }: MetaAdsAuthProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [manualCode, setManualCode] = useState('');
@@ -28,7 +26,6 @@ export function MetaAdsAuth({ onTokenReceived, accessToken }: MetaAdsAuthProps) 
     setIsLoading(true);
 
     // Use standard FB.login for Marketing API permissions
-    // Note: Marketing API requires specific permissions that are requested via scope
     const loginOptions = {
       response_type: 'token',
     } as Parameters<typeof window.FB.login>[1];
@@ -41,7 +38,6 @@ export function MetaAdsAuth({ onTokenReceived, accessToken }: MetaAdsAuthProps) 
           onTokenReceived(response.authResponse.accessToken);
           toast.success('Autenticado com sucesso!');
         } else if (response.authResponse?.code) {
-          // Exchange code for token
           exchangeCodeForToken(response.authResponse.code);
         } else {
           toast.error('Login cancelado ou falhou');
@@ -76,11 +72,9 @@ export function MetaAdsAuth({ onTokenReceived, accessToken }: MetaAdsAuthProps) 
   const handleManualToken = () => {
     if (manualCode.trim()) {
       if (manualCode.startsWith('EAA')) {
-        // It's already a token
         onTokenReceived(manualCode.trim());
         toast.success('Token aplicado!');
       } else {
-        // It's a code, exchange it
         exchangeCodeForToken(manualCode.trim());
       }
       setManualCode('');
@@ -100,10 +94,10 @@ export function MetaAdsAuth({ onTokenReceived, accessToken }: MetaAdsAuthProps) 
       </CardHeader>
       <CardContent className="space-y-4">
         {accessToken ? (
-          <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-            <CheckCircle2 className="h-5 w-5 text-green-500" />
+          <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/20 rounded-lg">
+            <CheckCircle2 className="h-5 w-5 text-primary" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-green-700 dark:text-green-400">Autenticado</p>
+              <p className="text-sm font-medium text-primary">Autenticado</p>
               <p className="text-xs text-muted-foreground font-mono">
                 {accessToken.substring(0, 20)}...{accessToken.substring(accessToken.length - 10)}
               </p>
@@ -115,7 +109,8 @@ export function MetaAdsAuth({ onTokenReceived, accessToken }: MetaAdsAuthProps) 
             <Button
               onClick={handleFacebookLogin}
               disabled={isLoading}
-              className="w-full bg-[#1877F2] hover:bg-[#166FE5]"
+              className="w-full"
+              variant="default"
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -163,9 +158,9 @@ export function MetaAdsAuth({ onTokenReceived, accessToken }: MetaAdsAuthProps) 
         )}
 
         {!window.FB && !accessToken && (
-          <div className="flex items-center gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-            <AlertCircle className="h-5 w-5 text-yellow-500" />
-            <p className="text-sm text-yellow-700 dark:text-yellow-400">
+          <div className="flex items-center gap-2 p-3 bg-secondary/50 border border-border rounded-lg">
+            <AlertCircle className="h-5 w-5 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
               Carregando Facebook SDK...
             </p>
           </div>

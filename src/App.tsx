@@ -92,6 +92,7 @@ const App = () => (
                     <Route path="/admin/modulos" element={<ModulosPage />} />
                     <Route path="/admin/permissoes" element={<PermissoesPage />} />
                     <Route path="/admin/meta-test" element={<MetaTestPage />} />
+                    <Route path="/admin/meta-ads" element={<MetaAdsTestPage />} />
                   </Route>
                 </Route>
                 <Route path="*" element={<NotFound />} />
