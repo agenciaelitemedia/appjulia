@@ -213,41 +213,44 @@ function truncateText(text: string | undefined, maxLength: number): string {
                 <Clock className="h-3 w-3" />
                 <span>Na fase: {timeInStage}</span>
               </div>
-               {/* FollowUp indicator */}
-               {followupInfo && (
-                 <div className="flex items-center gap-1.5 pt-1">
-                   <span 
-                     className={cn(
-                       "relative transition-all duration-300",
-                       followupInfo.step_number === 0 
-                         ? "text-red-500" 
-                         : "text-green-500",
-                       "before:absolute before:inset-0 before:rounded-full before:animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite]",
-                       followupInfo.step_number === 0
-                         ? "before:bg-red-400/40"
-                         : "before:bg-green-400/40",
-                       "after:absolute after:inset-[-4px] after:rounded-full after:animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite_0.5s]",
-                       followupInfo.step_number === 0
-                         ? "after:bg-red-300/20"
-                         : "after:bg-green-300/20"
-                     )}
-                   >
-                     <span className="relative z-10 animate-pulse">⏳</span>
-                   </span>
-                   <Badge 
-                     variant="outline" 
-                    className={followupInfo.step_number === 0 
-                      ? "text-[10px] font-medium px-1.5 py-0 bg-red-500/10 text-red-600 border-red-500/30"
-                      : "text-[10px] font-medium px-1.5 py-0 bg-green-500/10 text-green-600 border-green-500/30"
-                    }
-                   >
-                     Etapa {followupInfo.stage_label}
-                   </Badge>
-                 </div>
-               )}
-              {/* Indicador de timezone */}
-              <div className="text-[10px] text-muted-foreground/50 text-right pt-0.5">
-                🇧🇷 Horário de Brasília
+              {/* FollowUp indicator + Timezone indicator */}
+              <div className="flex items-center justify-between pt-1">
+                {followupInfo ? (
+                  <div className="flex items-center gap-1.5">
+                    <span 
+                      className={cn(
+                        "relative transition-all duration-300",
+                        followupInfo.step_number === 0 
+                          ? "text-red-500" 
+                          : "text-green-500",
+                        "before:absolute before:inset-0 before:rounded-full before:animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite]",
+                        followupInfo.step_number === 0
+                          ? "before:bg-red-400/40"
+                          : "before:bg-green-400/40",
+                        "after:absolute after:inset-[-4px] after:rounded-full after:animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite_0.5s]",
+                        followupInfo.step_number === 0
+                          ? "after:bg-red-300/20"
+                          : "after:bg-green-300/20"
+                      )}
+                    >
+                      <span className="relative z-10 animate-pulse">⏳</span>
+                    </span>
+                    <Badge 
+                      variant="outline" 
+                      className={followupInfo.step_number === 0 
+                        ? "text-[10px] font-medium px-1.5 py-0 bg-red-500/10 text-red-600 border-red-500/30"
+                        : "text-[10px] font-medium px-1.5 py-0 bg-green-500/10 text-green-600 border-green-500/30"
+                      }
+                    >
+                      Etapa {followupInfo.stage_label}
+                    </Badge>
+                  </div>
+                ) : (
+                  <div />
+                )}
+                <span className="text-[10px] text-muted-foreground/50">
+                  🇧🇷 Horário de Brasília
+                </span>
               </div>
             </div>
           </div>
