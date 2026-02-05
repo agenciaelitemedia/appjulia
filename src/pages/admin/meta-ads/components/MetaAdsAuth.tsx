@@ -27,6 +27,12 @@ export function MetaAdsAuth({ onTokenReceived, accessToken }: MetaAdsAuthProps) 
 
     setIsLoading(true);
 
+    // Use standard FB.login for Marketing API permissions
+    // Note: Marketing API requires specific permissions that are requested via scope
+    const loginOptions = {
+      response_type: 'token',
+    } as Parameters<typeof window.FB.login>[1];
+    
     window.FB.login(
       (response) => {
         setIsLoading(false);
