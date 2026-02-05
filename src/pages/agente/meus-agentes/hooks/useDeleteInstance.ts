@@ -21,6 +21,7 @@ export function useDeleteInstance() {
           action: 'delete_instance',
           instanceName: agent.evo_instancia,
           agentId: agent.agent_id_from_agents,
+          instanceToken: agent.evo_apikey,
         },
       });
 
