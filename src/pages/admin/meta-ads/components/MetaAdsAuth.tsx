@@ -47,10 +47,7 @@ export function MetaAdsAuth({ onTokenReceived, accessToken }: MetaAdsAuthProps) 
           toast.error('Login cancelado ou falhou');
         }
       },
-      {
-        scope: 'ads_read,ads_management,business_management',
-        response_type: 'token',
-      }
+      loginOptions
     );
   };
 
