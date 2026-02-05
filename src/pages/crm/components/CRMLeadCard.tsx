@@ -216,7 +216,24 @@ function truncateText(text: string | undefined, maxLength: number): string {
                {/* FollowUp indicator */}
                {followupInfo && (
                  <div className="flex items-center gap-1.5 pt-1">
-                   <span className={followupInfo.step_number === 0 ? "text-red-500 animate-pulse" : "text-green-500 animate-pulse"}>⏳</span>
+                   <span 
+                     className={cn(
+                       "relative transition-all duration-300",
+                       followupInfo.step_number === 0 
+                         ? "text-red-500" 
+                         : "text-green-500",
+                       "before:absolute before:inset-0 before:rounded-full before:animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite]",
+                       followupInfo.step_number === 0
+                         ? "before:bg-red-400/40"
+                         : "before:bg-green-400/40",
+                       "after:absolute after:inset-[-4px] after:rounded-full after:animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite_0.5s]",
+                       followupInfo.step_number === 0
+                         ? "after:bg-red-300/20"
+                         : "after:bg-green-300/20"
+                     )}
+                   >
+                     <span className="relative z-10 animate-pulse">⏳</span>
+                   </span>
                    <Badge 
                      variant="outline" 
                     className={followupInfo.step_number === 0 
