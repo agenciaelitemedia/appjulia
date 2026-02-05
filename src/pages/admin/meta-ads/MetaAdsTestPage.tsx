@@ -6,7 +6,7 @@ import { CampaignsList } from './components/CampaignsList';
 import { ConversionsTest } from './components/ConversionsTest';
 import { useMetaAds } from './hooks/useMetaAds';
 
-const META_APP_ID = '1182041896682498';
+const META_APP_ID = '848563184591665';
 
 export default function MetaAdsTestPage() {
   const {
