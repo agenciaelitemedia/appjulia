@@ -154,4 +154,5 @@ export interface ContractInfo {
    followup_to: number | null;
    is_infinite: boolean;
    stage_label: string; // "1/4", "∞/∞", "2/∞"
+  tooltip_text: string;
  }

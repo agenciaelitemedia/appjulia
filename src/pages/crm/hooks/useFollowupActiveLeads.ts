@@ -52,25 +52,34 @@
          const isInfinite = row.followup_from !== null && row.followup_to !== null;
          const hasReachedInfinite = isInfinite && row.step_number >= (row.followup_to ?? 0);
  
-         let stageLabel: string;
-         if (hasReachedInfinite) {
-           stageLabel = '∞/∞';
-         } else if (isInfinite) {
-           stageLabel = `${row.step_number}/∞`;
-         } else {
-           stageLabel = `${row.step_number}/${row.node_count}`;
-         }
- 
-         map.set(key, {
-           cod_agent: row.cod_agent,
-           whatsapp: row.whatsapp,
-           step_number: row.step_number,
-           node_count: row.node_count,
-           followup_from: row.followup_from,
-           followup_to: row.followup_to,
-           is_infinite: isInfinite,
-           stage_label: stageLabel,
-         });
+      let stageLabel: string;
+      let tooltipText: string;
+      
+      if (row.step_number === 0) {
+        stageLabel = 'Finalizado';
+        tooltipText = 'O FollowUp foi concluído. Todas as etapas foram executadas ou o lead respondeu.';
+      } else if (hasReachedInfinite) {
+        stageLabel = '∞/∞';
+        tooltipText = `FollowUp Infinito ativo. O lead está no loop contínuo de mensagens (etapas ${row.followup_from} a ${row.followup_to}).`;
+      } else if (isInfinite) {
+        stageLabel = `${row.step_number}/∞`;
+        tooltipText = `Etapa ${row.step_number} de ${row.node_count}. Ao atingir a etapa ${row.followup_to}, entrará em loop infinito.`;
+      } else {
+        stageLabel = `${row.step_number}/${row.node_count}`;
+        tooltipText = `Etapa ${row.step_number} de ${row.node_count}. O lead está aguardando resposta e receberá mensagens automáticas.`;
+      }
+
+      map.set(key, {
+        cod_agent: row.cod_agent,
+        whatsapp: row.whatsapp,
+        step_number: row.step_number,
+        node_count: row.node_count,
+        followup_from: row.followup_from,
+        followup_to: row.followup_to,
+        is_infinite: isInfinite,
+        stage_label: stageLabel,
+        tooltip_text: tooltipText,
+      });
        });
  
        return map;

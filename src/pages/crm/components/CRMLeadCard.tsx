@@ -217,6 +217,10 @@ function truncateText(text: string | undefined, maxLength: number): string {
               <div className="flex items-center justify-between pt-1">
                 {followupInfo ? (
                   <div className="flex items-center gap-1.5">
+                   <TooltipProvider>
+                     <Tooltip>
+                       <TooltipTrigger asChild>
+                         <div className="flex items-center gap-1.5 cursor-help">
                     <span 
                       className={cn(
                         "relative transition-all duration-300",
@@ -242,8 +246,15 @@ function truncateText(text: string | undefined, maxLength: number): string {
                         : "text-[10px] font-medium px-1.5 py-0 bg-green-500/10 text-green-600 border-green-500/30"
                       }
                     >
-                      Etapa {followupInfo.stage_label}
+                     {followupInfo.step_number === 0 ? followupInfo.stage_label : `Etapa ${followupInfo.stage_label}`}
                     </Badge>
+                         </div>
+                       </TooltipTrigger>
+                       <TooltipContent side="top" className="max-w-[250px] text-center">
+                         <p className="text-xs">{followupInfo.tooltip_text}</p>
+                       </TooltipContent>
+                     </Tooltip>
+                   </TooltipProvider>
                   </div>
                 ) : (
                   <div />
