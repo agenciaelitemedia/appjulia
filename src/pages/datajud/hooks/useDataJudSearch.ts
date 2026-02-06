@@ -173,7 +173,7 @@ export function useDataJudSearch() {
   };
 }
 
-// Hook for getting process movements
+// Hook for getting process movements with caching
 export function useProcessMovements() {
   return useMutation({
     mutationFn: async ({ processNumber, tribunal }: { processNumber: string; tribunal: string }) => {
@@ -189,4 +189,10 @@ export function useProcessMovements() {
       return data as { movements: ProcessData['movimentos']; process: ProcessData | null };
     },
   });
+}
+
+// Hook to restore search from history
+export function useRestoreSearchFromHistory(historyId: string) {
+  const history = loadSearchHistory();
+  return history.find((h) => h.id === historyId) || null;
 }
