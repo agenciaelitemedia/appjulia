@@ -41,6 +41,7 @@ import AdvboxProcessesPage from "./pages/advbox/ProcessesPage";
 import AdvboxLogsPage from "./pages/advbox/LogsPage";
 import AdvboxQueriesPage from "./pages/advbox/QueriesPage";
 import MetaAdsTestPage from "./pages/admin/meta-ads/MetaAdsTestPage";
+import DataJudSearchPage from "./pages/datajud/DataJudSearchPage";
 import RedirectPage from "./pages/RedirectPage";
 import NotFound from "./pages/NotFound";
 
