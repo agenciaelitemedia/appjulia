@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useState, useCallback, useEffect } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { SearchType, TribunalResult, ProcessData } from '../types';
 import { toast } from 'sonner';
@@ -18,11 +18,70 @@ interface SearchResponse {
   responseTime: number;
 }
 
+interface SearchHistory {
+  id: string;
+  type: SearchType;
+  query: string;
+  tribunals?: string[];
+  results: TribunalResult[];
+  totalResults: number;
+  timestamp: number;
+}
+
+const STORAGE_KEY = 'datajud_search_history';
+const MAX_HISTORY = 20;
+
+// Helper functions for localStorage
+function loadSearchHistory(): SearchHistory[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSearchHistory(history: SearchHistory[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(0, MAX_HISTORY)));
+  } catch (error) {
+    console.error('Error saving search history:', error);
+  }
+}
+
+function addToSearchHistory(search: SearchParams, results: TribunalResult[], totalResults: number): void {
+  const history = loadSearchHistory();
+  const newEntry: SearchHistory = {
+    id: `${Date.now()}-${Math.random()}`,
+    type: search.type,
+    query: search.query,
+    tribunals: search.tribunals,
+    results,
+    totalResults,
+    timestamp: Date.now(),
+  };
+  
+  // Remove duplicates (same query, type, tribunals)
+  const filtered = history.filter(
+    (h) => !(h.type === search.type && h.query === search.query && 
+      JSON.stringify(h.tribunals) === JSON.stringify(search.tribunals))
+  );
+  
+  saveSearchHistory([newEntry, ...filtered]);
+}
+
 export function useDataJudSearch() {
   const [results, setResults] = useState<TribunalResult[]>([]);
   const [totalResults, setTotalResults] = useState(0);
   const [searchedTribunals, setSearchedTribunals] = useState(0);
   const [responseTime, setResponseTime] = useState(0);
+
+  // Load search history
+  const { data: searchHistory = [] } = useQuery({
+    queryKey: ['datajud', 'search-history'],
+    queryFn: () => loadSearchHistory(),
+    staleTime: Infinity,
+  });
 
   const searchMutation = useMutation({
     mutationFn: async ({ type, query, tribunals, size = 10 }: SearchParams): Promise<SearchResponse> => {
@@ -44,11 +103,14 @@ export function useDataJudSearch() {
       if (error) throw error;
       return data as SearchResponse;
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       setResults(data.results);
       setTotalResults(data.totalResults);
       setSearchedTribunals(data.searchedTribunals);
       setResponseTime(data.responseTime);
+      
+      // Add to search history
+      addToSearchHistory(variables, data.results, data.totalResults);
       
       if (data.totalResults === 0) {
         toast.info('Nenhum processo encontrado', {
@@ -86,19 +148,32 @@ export function useDataJudSearch() {
     setResponseTime(0);
   }, []);
 
+  const clearHistory = useCallback(() => {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      // Refetch history
+      window.dispatchEvent(new Event('storage'));
+      toast.success('Histórico limpo');
+    } catch (error) {
+      console.error('Error clearing history:', error);
+    }
+  }, []);
+
   return {
     search,
     clearResults,
+    clearHistory,
     results,
     totalResults,
     searchedTribunals,
     responseTime,
     isSearching: searchMutation.isPending,
     error: searchMutation.error,
+    searchHistory,
   };
 }
 
-// Hook for getting process movements
+// Hook for getting process movements with caching
 export function useProcessMovements() {
   return useMutation({
     mutationFn: async ({ processNumber, tribunal }: { processNumber: string; tribunal: string }) => {
@@ -114,4 +189,10 @@ export function useProcessMovements() {
       return data as { movements: ProcessData['movimentos']; process: ProcessData | null };
     },
   });
+}
+
+// Hook to restore search from history
+export function useRestoreSearchFromHistory(historyId: string) {
+  const history = loadSearchHistory();
+  return history.find((h) => h.id === historyId) || null;
 }

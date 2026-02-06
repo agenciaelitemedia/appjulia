@@ -21,6 +21,7 @@ export type ModuleCode =
   | 'finance_billing'
   | 'finance_clients'
   | 'finance_reports'
+  | 'datajud'
   | 'settings';
 
 export interface Module {
