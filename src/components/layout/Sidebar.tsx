@@ -29,6 +29,9 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   const { user } = useAuth();
   const { groupedModules, isLoading } = useMenuModules();
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
+  
+  // Ensure DataJud module exists for admins
+  useEnsureDataJudModule();
 
   const isTimeUser = user?.role === "time";
   
