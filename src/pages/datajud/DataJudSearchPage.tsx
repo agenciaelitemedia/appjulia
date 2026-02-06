@@ -1,8 +1,14 @@
 import { useState, useCallback } from 'react';
-import { Scale, Search, History, Info } from 'lucide-react';
+import { Scale, Search, History, Info, Clock, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import type { SearchType, ProcessHit, ProcessData } from './types';
 import { SearchTypeSelector } from './components/SearchTypeSelector';
@@ -13,6 +19,8 @@ import { ProcessCard } from './components/ProcessCard';
 import { ProcessDetailsSheet } from './components/ProcessDetailsSheet';
 import { useDataJudSearch } from './hooks/useDataJudSearch';
 import { useTribunalList } from './hooks/useTribunalList';
+import { useEnsureDataJudModule } from './hooks/useEnsureDataJudModule';
+import { formatDate } from './utils';
 
 export default function DataJudSearchPage() {
   const [searchType, setSearchType] = useState<SearchType>('process_number');
