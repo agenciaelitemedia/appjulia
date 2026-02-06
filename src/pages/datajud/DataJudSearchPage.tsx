@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Scale, Search, History, Info, Clock, Trash2 } from 'lucide-react';
+import { Scale, Search, History, Info, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -20,7 +20,6 @@ import { ProcessDetailsSheet } from './components/ProcessDetailsSheet';
 import { useDataJudSearch } from './hooks/useDataJudSearch';
 import { useTribunalList } from './hooks/useTribunalList';
 import { useEnsureDataJudModule } from './hooks/useEnsureDataJudModule';
-import { formatDate } from './utils';
 
 export default function DataJudSearchPage() {
   // Ensure DataJud module is registered in the system
