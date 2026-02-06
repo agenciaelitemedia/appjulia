@@ -83,6 +83,7 @@ const App = () => (
                   <Route path="/advbox/consultas" element={<AdvboxQueriesPage />} />
                   <Route path="/crm-builder" element={<CRMBuilderPage />} />
                   <Route path="/crm-builder/:boardId" element={<BoardPage />} />
+                  <Route path="/datajud" element={<DataJudSearchPage />} />
                   
                   {/* Admin-only routes */}
                   <Route element={<AdminRoute />}>
