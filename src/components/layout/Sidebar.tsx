@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useMenuModules, getSortedGroups } from "@/hooks/useMenuModules";
 import { getIcon } from "@/lib/iconMap";
 import { DebugBarToggle } from "@/components/debug/DebugBarToggle";
+import { useEnsureDataJudModule } from "@/pages/datajud/hooks/useEnsureDataJudModule";
 import {
   Tooltip,
   TooltipContent,
