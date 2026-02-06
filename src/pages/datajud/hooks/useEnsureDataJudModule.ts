@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { externalDb } from '@/lib/externalDb';
 
@@ -7,6 +8,7 @@ import { externalDb } from '@/lib/externalDb';
  */
 export function useEnsureDataJudModule() {
   const { isAdmin } = useAuth();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -25,6 +27,8 @@ export function useEnsureDataJudModule() {
               is_menu_visible: true,
               menu_group: 'SISTEMA',
             });
+            // Invalidate menu modules cache
+            queryClient.invalidateQueries({ queryKey: ['menu-modules'] });
           }
           return;
         }
@@ -38,14 +42,19 @@ export function useEnsureDataJudModule() {
           route: '/datajud',
           menu_group: 'SISTEMA',
           is_menu_visible: true,
-          display_order: 999,
+          display_order: 32,
           is_active: true,
+          category: 'sistema',
         });
+        
+        // Invalidate menu modules cache to show new item
+        queryClient.invalidateQueries({ queryKey: ['menu-modules'] });
+        queryClient.invalidateQueries({ queryKey: ['admin-modules'] });
       } catch (error) {
         console.error('Erro ao configurar módulo DataJud:', error);
       }
     };
 
     ensureModule();
-  }, [isAdmin]);
+  }, [isAdmin, queryClient]);
 }

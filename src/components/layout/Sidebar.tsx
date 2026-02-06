@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useMenuModules, getSortedGroups } from "@/hooks/useMenuModules";
 import { getIcon } from "@/lib/iconMap";
 import { DebugBarToggle } from "@/components/debug/DebugBarToggle";
+import { useEnsureDataJudModule } from "@/pages/datajud/hooks/useEnsureDataJudModule";
 import {
   Tooltip,
   TooltipContent,
@@ -28,6 +29,9 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   const { user } = useAuth();
   const { groupedModules, isLoading } = useMenuModules();
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
+  
+  // Ensure DataJud module exists for admins
+  useEnsureDataJudModule();
 
   const isTimeUser = user?.role === "time";
   
