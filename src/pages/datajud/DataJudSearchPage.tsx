@@ -121,6 +121,70 @@ export default function DataJudSearchPage() {
                 </span>
               )}
             </div>
+
+            {/* Search History Button */}
+            {searchHistory.length > 0 && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto"
+                    disabled={isSearching}
+                  >
+                    <History className="h-4 w-4 mr-2" />
+                    Histórico ({searchHistory.length})
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-3" align="start">
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {searchHistory.map((item) => (
+                      <div
+                        key={item.id}
+                        className="p-2 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer transition-colors group"
+                        onClick={() => {
+                          setSearchType(item.type);
+                          setSelectedTribunals(item.tribunals || []);
+                          search({
+                            type: item.type,
+                            query: item.query,
+                            tribunals: item.tribunals,
+                          });
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{item.query}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.totalResults} resultado{item.totalResults !== 1 ? 's' : ''}
+                            </p>
+                          </div>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            {new Date(item.timestamp).toLocaleDateString('pt-BR', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                    {searchHistory.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full h-7 text-xs text-destructive hover:text-destructive"
+                        onClick={clearHistory}
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Limpar histórico
+                      </Button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
           </CardContent>
         </Card>
 
