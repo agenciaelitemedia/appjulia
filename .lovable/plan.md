@@ -1,199 +1,228 @@
 
-# Plano: Integração Meta Marketing API para Campanhas Ads
+
+# Plano: Busca Processual Nacional via API DataJud
 
 ## Visão Geral
 
-Criar uma página de teste/demo para integrar com a **Meta Marketing API** (Facebook/Instagram Ads), permitindo:
-1. **Autenticar** com OAuth e obter token de acesso
-2. **Buscar campanhas e anúncios** do Ads Manager
-3. **Retroalimentar o Pixel** (Conversions API) com eventos de conversão do CRM
-4. **Sincronizar dados** para enriquecer a tabela `campaing_ads`
+Criar um módulo de busca processual em todos os tribunais do Brasil utilizando a API pública DataJud do CNJ. O sistema permitira buscas por:
+- **Numero do Processo** (formato CNJ: NNNNNNN-DD.AAAA.J.TR.OOOO)
+- **CNPJ** da parte envolvida
+- **OAB** do advogado
 
-## Arquitetura Proposta
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                         Frontend                                 │
-│  /admin/meta-ads-test                                           │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌────────────┐│
-│  │ OAuth Flow  │ │ Listar Ads  │ │ Insights    │ │ Conversions││
-│  │ (Login FB)  │ │ Campanhas   │ │ por Campanha│ │ API Test   ││
-│  └─────────────┘ └─────────────┘ └─────────────┘ └────────────┘│
-└────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Edge Functions                                │
-│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────────┐ │
-│  │ meta-auth    │  │ meta-ads     │  │ meta-conversions       │ │
-│  │ (existente)  │  │ (novo)       │  │ (novo)                 │ │
-│  └──────────────┘  └──────────────┘  └────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Meta Graph API                                │
-│  • Marketing API v24.0                                          │
-│  • Insights API                                                  │
-│  • Conversions API                                              │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## Funcionalidades da Página Demo
-
-### 1. Autenticação OAuth (Reutilizando `meta-auth`)
-- Login com Facebook
-- Seleção de Ad Account
-- Obtenção de token com permissões `ads_read`, `ads_management`
-
-### 2. Listagem de Campanhas
-- Buscar campanhas ativas do Ad Account
-- Exibir: nome, status, objetivo, orçamento
-- Filtrar por status (ACTIVE, PAUSED, etc)
-
-### 3. Insights de Campanhas
-- Métricas: impressões, cliques, CTR, CPM, CPC, gastos
-- Breakdown por período
-- Visualização comparativa
-
-### 4. Conversions API (Retroalimentação do Pixel)
-- Enviar eventos de conversão do CRM
-- Tipos: Lead, ViewContent, Purchase
-- Mapear leads qualificados → eventos Meta
-
-## Detalhes Técnicos
-
-### Nova Edge Function: `meta-ads`
-
-Ações disponíveis:
-- `get_ad_accounts` - Listar contas de anúncios do usuário
-- `get_campaigns` - Listar campanhas de uma conta
-- `get_adsets` - Listar conjuntos de anúncios
-- `get_ads` - Listar anúncios individuais
-- `get_insights` - Obter métricas de performance
-
-```typescript
-// Exemplo de chamada para obter campanhas
-GET /act_{AD_ACCOUNT_ID}/campaigns
-  ?fields=name,status,objective,daily_budget,lifetime_budget,start_time,stop_time
-  &effective_status=["ACTIVE","PAUSED"]
-  &access_token={TOKEN}
-```
-
-### Nova Edge Function: `meta-conversions`
-
-Enviar eventos para o Pixel via Conversions API:
-- `send_lead_event` - Quando lead é qualificado
-- `send_purchase_event` - Quando contrato é assinado
-
-```typescript
-// Exemplo de payload para Conversions API
-POST /{PIXEL_ID}/events
-{
-  "data": [{
-    "event_name": "Lead",
-    "event_time": 1643723400,
-    "action_source": "website",
-    "user_data": {
-      "em": ["hashed_email"],
-      "ph": ["hashed_phone"]
-    },
-    "custom_data": {
-      "lead_source": "whatsapp",
-      "campaign_id": "123456"
-    }
-  }]
-}
-```
-
-### Componentes da Página Demo
-
-| Componente | Descrição |
-|------------|-----------|
-| `MetaAdsAuth` | Login OAuth + seleção de Ad Account |
-| `MetaAdsCampaignsList` | Tabela de campanhas com filtros |
-| `MetaAdsInsightsPanel` | Métricas e gráficos de performance |
-| `MetaConversionsTest` | Formulário para testar envio de eventos |
-| `MetaAdsSyncPreview` | Preview de dados a sincronizar com CRM |
-
-## Secrets Necessários (Já Configurados)
-
-| Secret | Status |
-|--------|--------|
-| `META_APP_ID` | Configurado |
-| `META_APP_SECRET` | Configurado |
-
-## Permissões do App Meta Necessárias
-
-Para acessar a Marketing API, o app precisa das permissões:
-- `ads_read` - Leitura de campanhas e insights
-- `ads_management` - Gerenciamento de campanhas (opcional)
-- `business_management` - Acesso a Business Manager
-
-## Arquivos a Criar/Modificar
-
-### Novos Arquivos
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/pages/admin/meta-ads/MetaAdsTestPage.tsx` | Página principal |
-| `src/pages/admin/meta-ads/types.ts` | Tipos TypeScript |
-| `src/pages/admin/meta-ads/components/MetaAdsAuth.tsx` | Autenticação |
-| `src/pages/admin/meta-ads/components/AdAccountSelector.tsx` | Seletor de conta |
-| `src/pages/admin/meta-ads/components/CampaignsList.tsx` | Lista de campanhas |
-| `src/pages/admin/meta-ads/components/InsightsPanel.tsx` | Painel de insights |
-| `src/pages/admin/meta-ads/components/ConversionsTest.tsx` | Teste de conversões |
-| `src/pages/admin/meta-ads/hooks/useMetaAds.ts` | Hook de dados |
-| `supabase/functions/meta-ads/index.ts` | Edge function para Ads |
-| `supabase/functions/meta-conversions/index.ts` | Edge function para Conversions API |
-
-### Modificações
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/App.tsx` | Adicionar rota `/admin/meta-ads` |
-| `supabase/config.toml` | Registrar novas functions |
-
-## Fluxo de Uso
+## Arquitetura da Solucao
 
 ```text
-1. Usuário acessa /admin/meta-ads
-       │
-       ▼
-2. Clica "Conectar com Facebook"
-       │
-       ▼
-3. Autoriza permissões (ads_read)
-       │
-       ▼
-4. Seleciona Ad Account
-       │
-       ▼
-5. Visualiza campanhas e métricas
-       │
-       ▼
-6. Testa Conversions API com lead do CRM
-       │
-       ▼
-7. Configura sincronização automática (futuro)
++------------------+      +----------------------+      +------------------+
+|   Frontend       | ---> |   Edge Function      | ---> |   DataJud API    |
+|   React/TS       |      |   datajud-search     |      |   (CNJ)          |
++------------------+      +----------------------+      +------------------+
+        |                         |
+        v                         v
+  [Cache Local]           [Logs de Busca]
+  (React Query)           (Supabase DB)
 ```
 
-## Próximos Passos Após Demo
+## Funcionalidades Principais
 
-1. **Sincronização Automática**: Correlacionar `sourceID` do WhatsApp com `ad_id` da Meta
-2. **Retroalimentação em Tempo Real**: Webhook para enviar conversões automaticamente
-3. **Dashboard Enriquecido**: Combinar dados internos com insights da Meta
-4. **Otimização de Público**: Criar audiences customizadas baseadas em leads qualificados
+### 1. Pagina de Busca Processual
+- Campo de busca inteligente com deteccao automatica do tipo (CPF/CNPJ, OAB, numero processo)
+- Filtro de tribunal especifico (opcional - se nao selecionado, busca em todos)
+- Indicador visual de progresso durante busca em multiplos tribunais
+- Resultados agrupados por tribunal
 
-## Estimativa de Implementação
+### 2. Tipos de Busca Suportados
+| Tipo | Formato | Exemplo |
+|------|---------|---------|
+| Numero CNJ | NNNNNNN-DD.AAAA.J.TR.OOOO | 0001234-56.2024.8.26.0100 |
+| CNPJ | XX.XXX.XXX/XXXX-XX | 12.345.678/0001-99 |
+| OAB | UF + numero | SP123456 ou OAB/SP 123.456 |
 
-| Fase | Descrição | Complexidade |
-|------|-----------|--------------|
-| 1 | Edge Functions (meta-ads, meta-conversions) | Média |
-| 2 | Componentes de UI (Auth, Lista, Insights) | Média |
-| 3 | Teste de Conversions API | Baixa |
-| 4 | Integração com dados existentes | Alta |
+### 3. Detalhes do Processo
+- Classe e assunto processual
+- Orgao julgador e tribunal
+- Movimentacoes recentes (timeline interativa)
+- Partes envolvidas (com protecao LGPD)
+- Valor da causa (quando disponivel)
 
 ---
 
-Esta implementação criará uma base sólida para a integração completa com Meta Ads, permitindo validar o fluxo antes de automatizar a sincronização.
+## Componentes de Interface (UI/UX)
+
+### Header da Pagina
+- Titulo com icone representativo (Scale/Gavel)
+- Subtitulo descritivo
+- Acesso rapido a historico de buscas
+
+### Barra de Busca Principal
+- Input grande e centralizado com visual destacado
+- Placeholder dinamico conforme tipo selecionado
+- Botoes de tipo de busca (chips selecionaveis)
+- Dropdown de selecao de tribunal (opcional)
+- Botao de busca com feedback de loading
+
+### Cards de Resultado
+- Design moderno com badges coloridos por status
+- Numero do processo destacado
+- Tribunal e classe processual
+- Ultima movimentacao com data
+- Botao para expandir detalhes
+
+### Painel de Detalhes
+- Sheet lateral (slide-in) com informacoes completas
+- Timeline de movimentacoes
+- Secoes colapsaveis para organizacao
+- Botao para exportar/compartilhar
+
+### Estados da Interface
+- Loading: Skeleton animado + indicador de tribunais sendo consultados
+- Vazio: Ilustracao + texto orientativo
+- Erro: Mensagem amigavel + opcao de retry
+- Sem resultados: Sugestoes de ajuste na busca
+
+---
+
+## Detalhes Tecnicos
+
+### Edge Function: datajud-search
+
+**Endpoint**: POST /functions/v1/datajud-search
+
+**Acoes**:
+- `search_by_number`: Busca por numero do processo
+- `search_by_document`: Busca por CNPJ/CPF
+- `search_by_lawyer`: Busca por numero OAB
+- `get_movements`: Obtem movimentacoes detalhadas
+
+**Headers DataJud**:
+```text
+Authorization: APIKey [chave publica CNJ]
+Content-Type: application/json
+```
+
+**Endpoints dos Tribunais** (91 endpoints):
+- Superiores: STF, STJ, TST, TSE, STM
+- Federais: TRF1 a TRF6
+- Estaduais: TJ + sigla do estado (ex: TJSP, TJRJ)
+- Trabalhistas: TRT1 a TRT24
+- Eleitorais: TRE + sigla do estado
+- Militares: TJM estaduais
+
+### Banco de Dados
+
+**Tabela: datajud_search_logs**
+```text
+- id (uuid)
+- user_id (referencia profiles)
+- search_type (enum: process_number, document, lawyer)
+- search_query (texto)
+- tribunals_searched (array)
+- results_count (integer)
+- response_time_ms (integer)
+- created_at (timestamp)
+```
+
+### Frontend
+
+**Arquivos a criar**:
+```text
+src/pages/datajud/
+  DataJudSearchPage.tsx         # Pagina principal
+  components/
+    SearchBar.tsx               # Barra de busca inteligente
+    TribunalSelector.tsx        # Seletor de tribunais
+    ProcessCard.tsx             # Card de resultado
+    ProcessDetailsSheet.tsx     # Detalhes do processo
+    MovementTimeline.tsx        # Timeline de movimentacoes
+    SearchTypeSelector.tsx      # Seletor de tipo de busca
+    SearchProgress.tsx          # Indicador de progresso
+  hooks/
+    useDataJudSearch.ts         # Hook principal de busca
+    useTribunalList.ts          # Lista de tribunais disponiveis
+  types.ts                      # Tipos TypeScript
+  utils.ts                      # Utilitarios (formatacao, validacao)
+```
+
+---
+
+## Lista de Tribunais DataJud
+
+### Tribunais Superiores
+- api_publica_stf, api_publica_stj, api_publica_tst, api_publica_tse, api_publica_stm
+
+### Justica Federal (TRFs)
+- api_publica_trf1 a api_publica_trf6
+
+### Justica Estadual (TJs)
+- api_publica_tjac, tjal, tjam, tjap, tjba, tjce, tjdft, tjes, tjgo, tjma, tjmg, tjms, tjmt, tjpa, tjpb, tjpe, tjpi, tjpr, tjrj, tjrn, tjro, tjrr, tjrs, tjsc, tjse, tjsp, tjto
+
+### Justica do Trabalho (TRTs)
+- api_publica_trt1 a api_publica_trt24
+
+### Justica Eleitoral (TREs)
+- api_publica_tre + sigla
+
+### Justica Militar
+- api_publica_tjmmg, tjmrs, tjmsp
+
+---
+
+## Etapas de Implementacao
+
+### Etapa 1: Backend (Edge Function)
+1. Criar `supabase/functions/datajud-search/index.ts`
+2. Implementar logica de busca por numero do processo
+3. Implementar busca por CNPJ
+4. Implementar busca por OAB
+5. Adicionar busca paralela em multiplos tribunais
+6. Tratamento de erros e timeouts
+
+### Etapa 2: Banco de Dados
+1. Criar tabela `datajud_search_logs` para historico
+2. Configurar RLS policies
+
+### Etapa 3: Frontend - Estrutura Base
+1. Criar pagina `DataJudSearchPage.tsx`
+2. Implementar componente `SearchBar.tsx`
+3. Implementar `SearchTypeSelector.tsx`
+4. Implementar `TribunalSelector.tsx`
+
+### Etapa 4: Frontend - Resultados
+1. Implementar `ProcessCard.tsx`
+2. Implementar `ProcessDetailsSheet.tsx`
+3. Implementar `MovementTimeline.tsx`
+4. Implementar `SearchProgress.tsx`
+
+### Etapa 5: Hooks e Integracao
+1. Criar `useDataJudSearch.ts`
+2. Criar `useTribunalList.ts`
+3. Integrar com React Query
+
+### Etapa 6: Roteamento
+1. Adicionar rota em `App.tsx`
+2. Adicionar item no menu lateral (se aplicavel)
+
+---
+
+## Destaques de UX
+
+### Busca Inteligente
+- Deteccao automatica do tipo de documento digitado
+- Mascara automatica para CNPJ e numero CNJ
+- Sugestoes de tribunais baseadas no numero do processo
+
+### Feedback Visual
+- Animacao de loading por tribunal
+- Contagem regressiva de tribunais restantes
+- Toast de sucesso/erro
+- Highlight do termo buscado nos resultados
+
+### Responsividade
+- Layout adaptado para mobile
+- Cards empilhados em telas pequenas
+- Bottom sheet para detalhes em mobile
+
+### Acessibilidade
+- Labels adequados para screen readers
+- Navegacao por teclado
+- Contraste adequado de cores
+
