@@ -23,6 +23,9 @@ import { useEnsureDataJudModule } from './hooks/useEnsureDataJudModule';
 import { formatDate } from './utils';
 
 export default function DataJudSearchPage() {
+  // Ensure DataJud module is registered in the system
+  useEnsureDataJudModule();
+
   const [searchType, setSearchType] = useState<SearchType>('process_number');
   const [selectedTribunals, setSelectedTribunals] = useState<string[]>([]);
   const [selectedProcess, setSelectedProcess] = useState<{ process: ProcessData; tribunal: string } | null>(null);
@@ -32,11 +35,13 @@ export default function DataJudSearchPage() {
   const {
     search,
     clearResults,
+    clearHistory,
     results,
     totalResults,
     searchedTribunals,
     responseTime,
     isSearching,
+    searchHistory,
   } = useDataJudSearch();
 
   const handleSearch = useCallback(
