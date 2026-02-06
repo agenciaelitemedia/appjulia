@@ -41,6 +41,7 @@ import AdvboxProcessesPage from "./pages/advbox/ProcessesPage";
 import AdvboxLogsPage from "./pages/advbox/LogsPage";
 import AdvboxQueriesPage from "./pages/advbox/QueriesPage";
 import MetaAdsTestPage from "./pages/admin/meta-ads/MetaAdsTestPage";
+import DataJudSearchPage from "./pages/datajud/DataJudSearchPage";
 import RedirectPage from "./pages/RedirectPage";
 import NotFound from "./pages/NotFound";
 
@@ -82,6 +83,7 @@ const App = () => (
                   <Route path="/advbox/consultas" element={<AdvboxQueriesPage />} />
                   <Route path="/crm-builder" element={<CRMBuilderPage />} />
                   <Route path="/crm-builder/:boardId" element={<BoardPage />} />
+                  <Route path="/datajud" element={<DataJudSearchPage />} />
                   
                   {/* Admin-only routes */}
                   <Route element={<AdminRoute />}>

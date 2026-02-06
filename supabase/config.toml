@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.meta-conversions]
 verify_jwt = false
+
+[functions.datajud-search]
+verify_jwt = false
