@@ -32,7 +32,7 @@ export function useEnsureDataJudModule() {
         // Módulo não existe, criar
         await externalDb.createModule({
           name: 'Busca Processual',
-          code: 'datajud',
+          code: 'datajud' as any,
           description: 'Busca de processos em todos os tribunais do Brasil via DataJud',
           icon: 'Scale',
           route: '/datajud',
