@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -164,7 +163,7 @@ async function searchTribunal(
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout (increased from 15s)
 
     const response = await fetch(url, {
       method: "POST",
@@ -231,59 +230,14 @@ async function searchAllTribunals(
   };
 }
 
+// Corrected query function - uses simple match as per CNJ DataJud documentation
 function buildProcessNumberQuery(processNumber: string) {
-  // Remove formatting and search by exact number
+  // Remove all formatting - API expects digits only
   const cleanNumber = processNumber.replace(/\D/g, "");
   return {
-    bool: {
-      should: [
-        { match: { numeroProcesso: processNumber } },
-        { match: { numeroProcesso: cleanNumber } },
-        { wildcard: { numeroProcesso: `*${cleanNumber}*` } },
-      ],
-      minimum_should_match: 1,
+    match: {
+      numeroProcesso: cleanNumber,
     },
-  };
-}
-
-function buildDocumentQuery(document: string) {
-  // Search in party documents (CNPJ/CPF)
-  const cleanDoc = document.replace(/\D/g, "");
-  return {
-    bool: {
-      should: [
-        { match: { "dadosBasicos.polo.parte.pessoa.documento": cleanDoc } },
-        { match: { "dadosBasicos.polo.parte.pessoa.numeroDocumentoPrincipal": cleanDoc } },
-        { wildcard: { "dadosBasicos.polo.parte.pessoa.documento": `*${cleanDoc}*` } },
-      ],
-      minimum_should_match: 1,
-    },
-  };
-}
-
-function buildLawyerQuery(oab: string) {
-  // Parse OAB format: SP123456 or OAB/SP 123.456
-  const cleanOab = oab.replace(/[^\w]/g, "").toUpperCase();
-  const ufMatch = cleanOab.match(/^([A-Z]{2})(\d+)$/);
-  
-  if (ufMatch) {
-    const [, uf, numero] = ufMatch;
-    return {
-      bool: {
-        must: [
-          { match: { "dadosBasicos.polo.parte.advogado.inscricao.numero": numero } },
-        ],
-        should: [
-          { match: { "dadosBasicos.polo.parte.advogado.inscricao.uf": uf } },
-        ],
-      },
-    };
-  }
-  
-  // Fallback: search by number only
-  const numeroOnly = cleanOab.replace(/\D/g, "");
-  return {
-    match: { "dadosBasicos.polo.parte.advogado.inscricao.numero": numeroOnly },
   };
 }
 
@@ -326,32 +280,24 @@ serve(async (req) => {
         break;
 
       case "search_by_document":
-        if (!query) {
-          return new Response(
-            JSON.stringify({ error: "Query is required" }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-        response = await searchAllTribunals(
-          buildDocumentQuery(query),
-          tribunals,
-          size
+        // LGPD restriction - party data (CPF/CNPJ) is not exposed in public API
+        return new Response(
+          JSON.stringify({ 
+            error: "not_supported",
+            message: "A busca por CPF/CNPJ não está disponível na API pública do DataJud devido às restrições da LGPD. Apenas busca por número do processo é suportada."
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
-        break;
 
       case "search_by_lawyer":
-        if (!query) {
-          return new Response(
-            JSON.stringify({ error: "Query is required" }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-        response = await searchAllTribunals(
-          buildLawyerQuery(query),
-          tribunals,
-          size
+        // LGPD restriction - lawyer data is not exposed in public API
+        return new Response(
+          JSON.stringify({ 
+            error: "not_supported",
+            message: "A busca por OAB não está disponível na API pública do DataJud devido às restrições da LGPD. Apenas busca por número do processo é suportada."
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
-        break;
 
       case "get_movements":
         if (!processNumber || !tribunals || tribunals.length === 0) {
