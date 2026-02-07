@@ -122,11 +122,18 @@ export function useDataJudSearch() {
         });
       }
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Search error:', error);
-      toast.error('Erro na busca', {
-        description: error instanceof Error ? error.message : 'Tente novamente',
-      });
+      // Handle LGPD restriction errors
+      if (error?.message?.includes('not_supported') || error?.error === 'not_supported') {
+        toast.error('Busca não disponível', {
+          description: error.message || 'Este tipo de busca não está disponível na API pública.',
+        });
+      } else {
+        toast.error('Erro na busca', {
+          description: error instanceof Error ? error.message : 'Tente novamente',
+        });
+      }
     },
   });
 
