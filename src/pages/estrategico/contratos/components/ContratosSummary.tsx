@@ -157,7 +157,7 @@ export function ContratosSummary({ contratos, previousContratos, isLoading, date
         : null,
     },
     {
-      title: 'Taxa Assinatura',
+      title: 'Contratos Gerados x Assinados',
       value: `${summary.taxaAssinatura}%`,
       icon: TrendingUp,
       color: 'text-purple-600',
