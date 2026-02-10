@@ -170,7 +170,7 @@ export default function Dashboard() {
       sparklineColor: 'hsl(var(--chart-3))',
     },
     {
-      title: 'Total de Whatsapp',
+      title: 'Atendimentos',
       value: stats?.totalSessions ?? 0,
       displayValue: (stats?.totalSessions ?? 0).toLocaleString('pt-BR'),
       icon: Activity,
