@@ -374,7 +374,7 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Exibindo {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, sortedSessoes.length)} de {sortedSessoes.length} sessões
+            Exibindo {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, sortedSessoes.length)} de {sortedSessoes.length} atendimentos
           </p>
           <Pagination>
             <PaginationContent>

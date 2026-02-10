@@ -147,7 +147,7 @@ export function DesempenhoEvolutionChart({ sessoes, isLoading, dateFrom, dateTo 
               yAxisId="left"
               type="monotone"
               dataKey="sessoes"
-              name="Sessões"
+              name="Atendimentos"
               stroke="hsl(var(--primary))"
               fillOpacity={1}
               fill="url(#colorSessoes)"

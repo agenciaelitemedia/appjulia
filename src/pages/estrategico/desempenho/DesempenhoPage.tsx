@@ -76,7 +76,7 @@ export default function DesempenhoPage() {
         <div>
           <h1 className="text-2xl font-bold">Desempenho Julia</h1>
           <p className="text-muted-foreground">
-            Acompanhe as sessões de atendimento da IA Julia
+            Acompanhe os atendimentos da IA Julia
           </p>
         </div>
         <Button

@@ -159,7 +159,7 @@ export function DesempenhoSummary({ sessoes, previousSessoes, isLoading, dateFro
         : null,
     },
     {
-      title: 'Sessões Hoje',
+      title: 'Atendimentos Hoje',
       value: summary.sessoesHoje.toLocaleString('pt-BR'),
       icon: Calendar,
       color: 'text-orange-600',
