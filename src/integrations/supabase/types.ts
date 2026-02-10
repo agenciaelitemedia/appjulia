@@ -576,6 +576,122 @@ export type Database = {
           },
         ]
       }
+      datajud_alerts: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          movement_data: Json
+          process_id: string
+          user_id: number
+          whatsapp_error: string | null
+          whatsapp_sent: boolean
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          movement_data?: Json
+          process_id: string
+          user_id: number
+          whatsapp_error?: string | null
+          whatsapp_sent?: boolean
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          movement_data?: Json
+          process_id?: string
+          user_id?: number
+          whatsapp_error?: string | null
+          whatsapp_sent?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "datajud_alerts_process_id_fkey"
+            columns: ["process_id"]
+            isOneToOne: false
+            referencedRelation: "datajud_monitored_processes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      datajud_monitored_processes: {
+        Row: {
+          client_phone: string | null
+          created_at: string
+          id: string
+          last_check_at: string | null
+          last_known_movements: Json | null
+          name: string
+          process_number: string
+          process_number_formatted: string
+          status: string
+          tribunal: string | null
+          updated_at: string
+          user_id: number
+        }
+        Insert: {
+          client_phone?: string | null
+          created_at?: string
+          id?: string
+          last_check_at?: string | null
+          last_known_movements?: Json | null
+          name: string
+          process_number: string
+          process_number_formatted: string
+          status?: string
+          tribunal?: string | null
+          updated_at?: string
+          user_id: number
+        }
+        Update: {
+          client_phone?: string | null
+          created_at?: string
+          id?: string
+          last_check_at?: string | null
+          last_known_movements?: Json | null
+          name?: string
+          process_number?: string
+          process_number_formatted?: string
+          status?: string
+          tribunal?: string | null
+          updated_at?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
+      datajud_notification_config: {
+        Row: {
+          created_at: string
+          default_agent_cod: string | null
+          id: string
+          is_active: boolean
+          office_phones: string[] | null
+          updated_at: string
+          user_id: number
+        }
+        Insert: {
+          created_at?: string
+          default_agent_cod?: string | null
+          id?: string
+          is_active?: boolean
+          office_phones?: string[] | null
+          updated_at?: string
+          user_id: number
+        }
+        Update: {
+          created_at?: string
+          default_agent_cod?: string | null
+          id?: string
+          is_active?: boolean
+          office_phones?: string[] | null
+          updated_at?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
       video_call_records: {
         Row: {
           cod_agent: string
