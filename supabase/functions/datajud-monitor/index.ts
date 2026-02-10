@@ -93,11 +93,13 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get all active monitored processes
+    // Get active processes due for check (never checked OR last checked 7+ days ago)
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const { data: processes, error: procError } = await supabase
       .from("datajud_monitored_processes")
       .select("*")
-      .eq("status", "active");
+      .eq("status", "active")
+      .or(`last_check_at.is.null,last_check_at.lte.${sevenDaysAgo}`);
 
     if (procError) throw procError;
     if (!processes || processes.length === 0) {
