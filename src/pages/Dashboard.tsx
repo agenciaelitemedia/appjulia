@@ -152,7 +152,7 @@ export default function Dashboard() {
 
   const statCards = [
     {
-      title: 'Total de Leads',
+      title: 'Total de Whatsapp',
       value: stats?.totalLeads ?? 0,
       displayValue: (stats?.totalLeads ?? 0).toLocaleString('pt-BR'),
       icon: Users,
