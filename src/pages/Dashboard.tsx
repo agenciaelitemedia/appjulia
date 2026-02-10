@@ -161,15 +161,6 @@ export default function Dashboard() {
       sparklineColor: 'hsl(var(--chart-1))',
     },
     {
-      title: 'Mensagens Enviadas',
-      value: stats?.totalMessages ?? 0,
-      displayValue: (stats?.totalMessages ?? 0).toLocaleString('pt-BR'),
-      icon: MessageSquare,
-      change: changes?.messages,
-      sparklineData: sparklineData.leads, // Uses leads as proxy for messages trend
-      sparklineColor: 'hsl(var(--chart-3))',
-    },
-    {
       title: 'Atendimentos',
       value: stats?.totalSessions ?? 0,
       displayValue: (stats?.totalSessions ?? 0).toLocaleString('pt-BR'),
@@ -178,6 +169,15 @@ export default function Dashboard() {
       sparklineData: null,
       sparklineColor: '',
       description: 'Atendimentos de IA',
+    },
+    {
+      title: 'Mensagens Enviadas',
+      value: stats?.totalMessages ?? 0,
+      displayValue: (stats?.totalMessages ?? 0).toLocaleString('pt-BR'),
+      icon: MessageSquare,
+      change: changes?.messages,
+      sparklineData: sparklineData.leads,
+      sparklineColor: 'hsl(var(--chart-3))',
     },
     {
       title: 'Contratos Gerados/Assinados',
@@ -196,7 +196,7 @@ export default function Dashboard() {
       change: conversionRateChange,
       sparklineData: null,
       sparklineColor: '',
-      description: `${stats?.conversions ?? 0} de ${stats?.totalSessions ?? 0} sessões`,
+      description: `${stats?.conversions ?? 0} de ${stats?.totalSessions ?? 0} Atendimentos`,
     },
     {
       title: 'Agentes Selecionados',
