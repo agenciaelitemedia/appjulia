@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.datajud-search]
 verify_jwt = false
+
+[functions.datajud-monitor]
+verify_jwt = false
