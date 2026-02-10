@@ -189,7 +189,7 @@ export default function Dashboard() {
       sparklineColor: 'hsl(var(--chart-2))',
     },
     {
-      title: 'Taxa de Conversão',
+      title: 'Atendimentos x Contratos',
       value: conversionRate,
       displayValue: `${conversionRate.toFixed(1)}%`,
       icon: Percent,
