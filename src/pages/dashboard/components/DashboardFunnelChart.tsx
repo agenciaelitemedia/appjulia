@@ -89,7 +89,7 @@ export function DashboardFunnelChart({ data, isLoading }: DashboardFunnelChartPr
     return (
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base font-medium">Funil de Conversão</CardTitle>
+          <CardTitle className="text-base font-medium">Gráfico de Etapas</CardTitle>
         </CardHeader>
         <CardContent>
           <Skeleton className="h-[300px] w-full" />
@@ -102,7 +102,7 @@ export function DashboardFunnelChart({ data, isLoading }: DashboardFunnelChartPr
     return (
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base font-medium">Funil de Conversão</CardTitle>
+          <CardTitle className="text-base font-medium">Gráfico de Etapas</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-[200px] flex items-center justify-center text-muted-foreground">
@@ -118,7 +118,7 @@ export function DashboardFunnelChart({ data, isLoading }: DashboardFunnelChartPr
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base font-medium">Funil de Conversão</CardTitle>
+        <CardTitle className="text-base font-medium">Gráfico de Etapas</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={chartHeight}>

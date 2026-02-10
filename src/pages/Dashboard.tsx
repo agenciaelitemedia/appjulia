@@ -152,7 +152,7 @@ export default function Dashboard() {
 
   const statCards = [
     {
-      title: 'Total de Leads',
+      title: 'Total de Whatsapp',
       value: stats?.totalLeads ?? 0,
       displayValue: (stats?.totalLeads ?? 0).toLocaleString('pt-BR'),
       icon: Users,
@@ -170,7 +170,7 @@ export default function Dashboard() {
       sparklineColor: 'hsl(var(--chart-3))',
     },
     {
-      title: 'Total de Whatsapp',
+      title: 'Atendimentos',
       value: stats?.totalSessions ?? 0,
       displayValue: (stats?.totalSessions ?? 0).toLocaleString('pt-BR'),
       icon: Activity,
@@ -180,7 +180,7 @@ export default function Dashboard() {
       description: 'Atendimentos de IA',
     },
     {
-      title: 'Conversões',
+      title: 'Contratos Gerados/Assinados',
       value: stats?.conversions ?? 0,
       displayValue: (stats?.conversions ?? 0).toLocaleString('pt-BR'),
       icon: TrendingUp,
@@ -189,7 +189,7 @@ export default function Dashboard() {
       sparklineColor: 'hsl(var(--chart-2))',
     },
     {
-      title: 'Taxa de Conversão',
+      title: 'Atendimentos x Contratos',
       value: conversionRate,
       displayValue: `${conversionRate.toFixed(1)}%`,
       icon: Percent,
