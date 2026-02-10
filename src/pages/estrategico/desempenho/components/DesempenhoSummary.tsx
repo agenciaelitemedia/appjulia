@@ -149,7 +149,7 @@ export function DesempenhoSummary({ sessoes, previousSessoes, isLoading, dateFro
         : null,
     },
     {
-      title: 'Média/Sessão',
+      title: 'Média/Atendimento',
       value: summary.mediaMsg.toLocaleString('pt-BR'),
       icon: TrendingUp,
       color: 'text-purple-600',
