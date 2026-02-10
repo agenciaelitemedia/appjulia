@@ -180,7 +180,7 @@ export default function Dashboard() {
       description: 'Atendimentos de IA',
     },
     {
-      title: 'Conversões',
+      title: 'Contratos Gerados/Assinados',
       value: stats?.conversions ?? 0,
       displayValue: (stats?.conversions ?? 0).toLocaleString('pt-BR'),
       icon: TrendingUp,
