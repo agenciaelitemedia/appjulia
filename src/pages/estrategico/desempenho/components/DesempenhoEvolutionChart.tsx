@@ -84,7 +84,7 @@ export function DesempenhoEvolutionChart({ sessoes, isLoading, dateFrom, dateTo 
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Evolução de Sessões</CardTitle>
+          <CardTitle>Evolução de Atendimentos</CardTitle>
         </CardHeader>
         <CardContent className="h-[300px] flex items-center justify-center">
           <div className="animate-pulse text-muted-foreground">Carregando...</div>
