@@ -1,10 +1,6 @@
-import { X, Calendar, Building2, Scale, FileText, Users, DollarSign, Copy, ExternalLink } from 'lucide-react';
+import { X, Calendar, Building2, Scale, FileText, DollarSign, Copy, Eye } from 'lucide-react';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,14 +18,10 @@ interface ProcessDetailsSheetProps {
   onOpenChange: (open: boolean) => void;
   process: ProcessData | null;
   tribunal: string | null;
+  onMonitor?: (processNumber: string, tribunal: string) => void;
 }
 
-export function ProcessDetailsSheet({
-  open,
-  onOpenChange,
-  process,
-  tribunal,
-}: ProcessDetailsSheetProps) {
+export function ProcessDetailsSheet({ open, onOpenChange, process, tribunal, onMonitor }: ProcessDetailsSheetProps) {
   if (!process || !tribunal) return null;
 
   const copyProcessNumber = () => {
@@ -54,44 +46,26 @@ export function ProcessDetailsSheet({
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    'text-xs font-medium',
-                    getTribunalColor(getTribunalCategory(tribunal))
-                  )}
-                >
+                <Badge variant="outline" className={cn('text-xs font-medium', getTribunalColor(getTribunalCategory(tribunal)))}>
                   {tribunal}
                 </Badge>
-                {process.grau && (
-                  <Badge variant="secondary" className="text-xs">
-                    {process.grau}
-                  </Badge>
-                )}
+                {process.grau && <Badge variant="secondary" className="text-xs">{process.grau}</Badge>}
               </div>
               <SheetTitle className="text-left">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-lg">{process.numeroProcesso}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={copyProcessNumber}
-                  >
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={copyProcessNumber}>
                     <Copy className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </SheetTitle>
-              <SheetDescription className="text-left">
-                {process.classe?.nome || 'Classe não informada'}
-              </SheetDescription>
+              <SheetDescription className="text-left">{process.classe?.nome || 'Classe não informada'}</SheetDescription>
             </div>
           </div>
         </SheetHeader>
 
         <ScrollArea className="flex-1">
           <div className="p-6 space-y-6">
-            {/* Quick info cards */}
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3 rounded-lg bg-muted/50 border">
                 <div className="flex items-center gap-2 text-muted-foreground mb-1">
@@ -111,20 +85,16 @@ export function ProcessDetailsSheet({
               )}
             </div>
 
-            {/* Court info */}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold flex items-center gap-2">
                 <Building2 className="h-4 w-4 text-muted-foreground" />
                 Órgão Julgador
               </h3>
-              <p className="text-sm text-muted-foreground pl-6">
-                {process.orgaoJulgador?.nome || 'Não informado'}
-              </p>
+              <p className="text-sm text-muted-foreground pl-6">{process.orgaoJulgador?.nome || 'Não informado'}</p>
             </div>
 
             <Separator />
 
-            {/* Subjects */}
             {process.assuntos && process.assuntos.length > 0 && (
               <>
                 <div className="space-y-3">
@@ -134,9 +104,7 @@ export function ProcessDetailsSheet({
                   </h3>
                   <div className="flex flex-wrap gap-2 pl-6">
                     {process.assuntos.map((assunto, i) => (
-                      <Badge key={i} variant="secondary" className="text-xs">
-                        {assunto.nome}
-                      </Badge>
+                      <Badge key={i} variant="secondary" className="text-xs">{assunto.nome}</Badge>
                     ))}
                   </div>
                 </div>
@@ -144,7 +112,6 @@ export function ProcessDetailsSheet({
               </>
             )}
 
-            {/* Movements */}
             <Accordion type="single" collapsible defaultValue="movements">
               <AccordionItem value="movements" className="border-none">
                 <AccordionTrigger className="py-3 hover:no-underline">
@@ -154,21 +121,27 @@ export function ProcessDetailsSheet({
                   </h3>
                 </AccordionTrigger>
                 <AccordionContent>
-                  <MovementTimeline
-                    movements={process.movimentos || []}
-                    maxItems={15}
-                  />
+                  <MovementTimeline movements={process.movimentos || []} maxItems={15} />
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
           </div>
         </ScrollArea>
 
-        {/* Footer */}
         <div className="p-4 border-t bg-muted/30 flex justify-end gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Fechar
-          </Button>
+          {onMonitor && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                onMonitor(process.numeroProcesso, tribunal);
+                onOpenChange(false);
+              }}
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              Monitorar
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
         </div>
       </SheetContent>
     </Sheet>

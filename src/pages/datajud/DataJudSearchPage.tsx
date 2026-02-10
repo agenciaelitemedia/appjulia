@@ -1,15 +1,17 @@
 import { useState, useCallback } from 'react';
-import { Scale, Search, History, Info, Trash2 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Scale, Search, History, Trash2, Eye } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Info } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { SearchType, ProcessHit, ProcessData } from './types';
 import { SearchTypeSelector } from './components/SearchTypeSelector';
 import { SearchBar } from './components/SearchBar';
@@ -17,39 +19,36 @@ import { TribunalSelector } from './components/TribunalSelector';
 import { SearchProgress } from './components/SearchProgress';
 import { ProcessCard } from './components/ProcessCard';
 import { ProcessDetailsSheet } from './components/ProcessDetailsSheet';
+import { MonitoringTab } from './components/MonitoringTab';
+import { SettingsTab } from './components/SettingsTab';
+import { AddProcessDialog } from './components/AddProcessDialog';
 import { useDataJudSearch } from './hooks/useDataJudSearch';
 import { useTribunalList } from './hooks/useTribunalList';
 import { useEnsureDataJudModule } from './hooks/useEnsureDataJudModule';
+import { useProcessAlerts } from './hooks/useProcessAlerts';
 
 export default function DataJudSearchPage() {
-  // Ensure DataJud module is registered in the system
   useEnsureDataJudModule();
 
   const [searchType, setSearchType] = useState<SearchType>('process_number');
   const [selectedTribunals, setSelectedTribunals] = useState<string[]>([]);
   const [selectedProcess, setSelectedProcess] = useState<{ process: ProcessData; tribunal: string } | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [monitorDialogOpen, setMonitorDialogOpen] = useState(false);
+  const [monitorProcessNumber, setMonitorProcessNumber] = useState('');
+  const [monitorTribunal, setMonitorTribunal] = useState('');
 
   const { data: tribunals } = useTribunalList();
+  const { unreadCount } = useProcessAlerts();
   const {
-    search,
-    clearResults,
-    clearHistory,
-    results,
-    totalResults,
-    searchedTribunals,
-    responseTime,
-    isSearching,
-    searchHistory,
+    search, clearResults, clearHistory,
+    results, totalResults, searchedTribunals, responseTime,
+    isSearching, searchHistory,
   } = useDataJudSearch();
 
   const handleSearch = useCallback(
     (query: string) => {
-      search({
-        type: searchType,
-        query,
-        tribunals: selectedTribunals.length > 0 ? selectedTribunals : undefined,
-      });
+      search({ type: searchType, query, tribunals: selectedTribunals.length > 0 ? selectedTribunals : undefined });
     },
     [search, searchType, selectedTribunals]
   );
@@ -64,6 +63,12 @@ export default function DataJudSearchPage() {
     clearResults();
   }, [clearResults]);
 
+  const handleMonitorFromSearch = useCallback((processNumber: string, tribunal: string) => {
+    setMonitorProcessNumber(processNumber);
+    setMonitorTribunal(tribunal);
+    setMonitorDialogOpen(true);
+  }, []);
+
   const hasResults = results.length > 0;
   const hasSearched = searchedTribunals > 0;
 
@@ -75,217 +80,166 @@ export default function DataJudSearchPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 text-primary mb-4">
             <Scale className="h-8 w-8" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight mb-2">
-            Busca Processual Nacional
-          </h1>
+          <h1 className="text-3xl font-bold tracking-tight mb-2">Busca Processual Nacional</h1>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Consulte processos em todos os tribunais do Brasil através da base de dados
-            pública do CNJ (DataJud)
+            Consulte e monitore processos em todos os tribunais do Brasil através da base de dados pública do CNJ (DataJud)
           </p>
         </div>
 
-        {/* Search Card */}
-        <Card className="mb-8 border-2 shadow-xl shadow-primary/5">
-          <CardContent className="p-6 space-y-6">
-            {/* Search Type Selector */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">
-                Buscar por
-              </label>
-              <SearchTypeSelector
-                value={searchType}
-                onChange={handleSearchTypeChange}
-                disabled={isSearching}
-              />
-            </div>
-
-            {/* Search Bar */}
-            <SearchBar
-              searchType={searchType}
-              onSearchTypeChange={handleSearchTypeChange}
-              onSearch={handleSearch}
-              isSearching={isSearching}
-            />
-
-            {/* Tribunal Selector */}
-            <div className="flex flex-wrap items-center gap-4">
-              <TribunalSelector
-                value={selectedTribunals}
-                onChange={setSelectedTribunals}
-                disabled={isSearching}
-              />
-              {selectedTribunals.length === 0 && (
-                <span className="text-sm text-muted-foreground">
-                  Buscará em todos os {tribunals?.length || 91} tribunais
-                </span>
+        {/* Tabs */}
+        <Tabs defaultValue="search" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="search">
+              <Search className="h-4 w-4 mr-2" />
+              Busca
+            </TabsTrigger>
+            <TabsTrigger value="monitoring" className="relative">
+              <Eye className="h-4 w-4 mr-2" />
+              Monitoramento
+              {unreadCount > 0 && (
+                <Badge variant="destructive" className="ml-2 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                  {unreadCount}
+                </Badge>
               )}
-            </div>
+            </TabsTrigger>
+            <TabsTrigger value="settings">Configurações</TabsTrigger>
+          </TabsList>
 
-            {/* Search History Button */}
-            {searchHistory.length > 0 && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full sm:w-auto"
-                    disabled={isSearching}
-                  >
-                    <History className="h-4 w-4 mr-2" />
-                    Histórico ({searchHistory.length})
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80 p-3" align="start">
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {searchHistory.map((item) => (
-                      <div
-                        key={item.id}
-                        className="p-2 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer transition-colors group"
-                        onClick={() => {
-                          setSearchType(item.type);
-                          setSelectedTribunals(item.tribunals || []);
-                          search({
-                            type: item.type,
-                            query: item.query,
-                            tribunals: item.tribunals,
-                          });
-                        }}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{item.query}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {item.totalResults} resultado{item.totalResults !== 1 ? 's' : ''}
-                            </p>
-                          </div>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">
-                            {new Date(item.timestamp).toLocaleDateString('pt-BR', {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                    {searchHistory.length > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full h-7 text-xs text-destructive hover:text-destructive"
-                        onClick={clearHistory}
-                      >
-                        <Trash2 className="h-3 w-3 mr-1" />
-                        Limpar histórico
+          {/* Search Tab */}
+          <TabsContent value="search" className="space-y-6">
+            <Card className="border-2 shadow-xl shadow-primary/5">
+              <CardContent className="p-6 space-y-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-muted-foreground">Buscar por</label>
+                  <SearchTypeSelector value={searchType} onChange={handleSearchTypeChange} disabled={isSearching} />
+                </div>
+                <SearchBar searchType={searchType} onSearchTypeChange={handleSearchTypeChange} onSearch={handleSearch} isSearching={isSearching} />
+                <div className="flex flex-wrap items-center gap-4">
+                  <TribunalSelector value={selectedTribunals} onChange={setSelectedTribunals} disabled={isSearching} />
+                  {selectedTribunals.length === 0 && (
+                    <span className="text-sm text-muted-foreground">Buscará em todos os {tribunals?.length || 91} tribunais</span>
+                  )}
+                </div>
+                {searchHistory.length > 0 && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full sm:w-auto" disabled={isSearching}>
+                        <History className="h-4 w-4 mr-2" />
+                        Histórico ({searchHistory.length})
                       </Button>
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80 p-3" align="start">
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {searchHistory.map((item) => (
+                          <div key={item.id} className="p-2 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer transition-colors"
+                            onClick={() => { setSearchType(item.type); setSelectedTribunals(item.tribunals || []); search({ type: item.type, query: item.query, tribunals: item.tribunals }); }}>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{item.query}</p>
+                                <p className="text-xs text-muted-foreground">{item.totalResults} resultado{item.totalResults !== 1 ? 's' : ''}</p>
+                              </div>
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                {new Date(item.timestamp).toLocaleDateString('pt-BR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                        <Button variant="ghost" size="sm" className="w-full h-7 text-xs text-destructive hover:text-destructive" onClick={clearHistory}>
+                          <Trash2 className="h-3 w-3 mr-1" />
+                          Limpar histórico
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </CardContent>
+            </Card>
+
+            {(isSearching || hasSearched) && (
+              <SearchProgress isSearching={isSearching} searchedTribunals={searchedTribunals} totalTribunals={selectedTribunals.length || tribunals?.length || 91} responseTime={responseTime} resultsCount={totalResults} />
             )}
-          </CardContent>
-        </Card>
 
-        {/* Progress */}
-        {(isSearching || hasSearched) && (
-          <div className="mb-8">
-            <SearchProgress
-              isSearching={isSearching}
-              searchedTribunals={searchedTribunals}
-              totalTribunals={selectedTribunals.length || tribunals?.length || 91}
-              responseTime={responseTime}
-              resultsCount={totalResults}
-            />
-          </div>
-        )}
-
-        {/* Results */}
-        {isSearching ? (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {[1, 2, 3, 4].map((i) => (
-              <Card key={i} className="p-5">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="h-5 w-16" />
-                    <Skeleton className="h-5 w-12" />
+            {isSearching ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {[1, 2, 3, 4].map(i => (
+                  <Card key={i} className="p-5">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2"><Skeleton className="h-5 w-16" /><Skeleton className="h-5 w-12" /></div>
+                      <Skeleton className="h-6 w-3/4" />
+                      <div className="space-y-2"><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></div>
+                      <Skeleton className="h-4 w-1/2" />
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            ) : hasResults ? (
+              <div className="space-y-8">
+                {results.map((tribunalResult) => (
+                  <div key={tribunalResult.tribunal}>
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-lg font-semibold">
+                        {tribunalResult.tribunal}
+                        <span className="text-muted-foreground font-normal ml-2">({tribunalResult.total} processo{tribunalResult.total !== 1 && 's'})</span>
+                      </h2>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {tribunalResult.hits.map((hit) => (
+                        <ProcessCard key={hit._id} hit={hit} tribunalKey={tribunalResult.tribunal} onViewDetails={handleViewDetails} onMonitor={handleMonitorFromSearch} />
+                      ))}
+                    </div>
                   </div>
-                  <Skeleton className="h-6 w-3/4" />
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-2/3" />
-                  </div>
-                  <Skeleton className="h-4 w-1/2" />
-                </div>
+                ))}
+              </div>
+            ) : hasSearched ? (
+              <Card className="border-dashed">
+                <CardContent className="flex flex-col items-center justify-center py-16">
+                  <Search className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                  <h3 className="text-lg font-medium mb-2">Nenhum processo encontrado</h3>
+                  <p className="text-sm text-muted-foreground text-center max-w-md">Verifique se o número está correto. Alguns processos podem estar em segredo de justiça.</p>
+                </CardContent>
               </Card>
-            ))}
-          </div>
-        ) : hasResults ? (
-          <div className="space-y-8">
-            {results.map((tribunalResult) => (
-              <div key={tribunalResult.tribunal}>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold">
-                    {tribunalResult.tribunal}
-                    <span className="text-muted-foreground font-normal ml-2">
-                      ({tribunalResult.total} processo{tribunalResult.total !== 1 && 's'})
-                    </span>
-                  </h2>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {tribunalResult.hits.map((hit) => (
-                    <ProcessCard
-                      key={hit._id}
-                      hit={hit}
-                      tribunalKey={tribunalResult.tribunal}
-                      onViewDetails={handleViewDetails}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : hasSearched ? (
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center justify-center py-16">
-              <Search className="h-12 w-12 text-muted-foreground/50 mb-4" />
-              <h3 className="text-lg font-medium mb-2">Nenhum processo encontrado</h3>
-              <p className="text-sm text-muted-foreground text-center max-w-md">
-                Verifique se o número do processo, CNPJ ou OAB está correto.
-                Alguns processos podem estar em segredo de justiça.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="border-dashed bg-muted/30">
-            <CardContent className="flex flex-col items-center justify-center py-16">
-              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                <Scale className="h-10 w-10 text-primary/60" />
-              </div>
-              <h3 className="text-lg font-medium mb-2">Pronto para buscar</h3>
-              <p className="text-sm text-muted-foreground text-center max-w-md">
-                Digite o número do processo, CNPJ ou OAB para consultar
-                processos em todos os tribunais do Brasil.
-              </p>
-            </CardContent>
-          </Card>
-        )}
+            ) : (
+              <Card className="border-dashed bg-muted/30">
+                <CardContent className="flex flex-col items-center justify-center py-16">
+                  <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                    <Scale className="h-10 w-10 text-primary/60" />
+                  </div>
+                  <h3 className="text-lg font-medium mb-2">Pronto para buscar</h3>
+                  <p className="text-sm text-muted-foreground text-center max-w-md">Digite o número do processo para consultar em todos os tribunais do Brasil.</p>
+                </CardContent>
+              </Card>
+            )}
 
-        {/* Info Alert */}
-        <Alert className="mt-8">
-          <Info className="h-4 w-4" />
-          <AlertDescription>
-            Esta consulta utiliza a API pública DataJud do CNJ. Processos em segredo de
-            justiça e dados protegidos pela LGPD não são exibidos.
-          </AlertDescription>
-        </Alert>
+            <Alert className="mt-8">
+              <Info className="h-4 w-4" />
+              <AlertDescription>Esta consulta utiliza a API pública DataJud do CNJ. Processos em segredo de justiça e dados protegidos pela LGPD não são exibidos.</AlertDescription>
+            </Alert>
+          </TabsContent>
 
-        {/* Process Details Sheet */}
+          {/* Monitoring Tab */}
+          <TabsContent value="monitoring">
+            <MonitoringTab />
+          </TabsContent>
+
+          {/* Settings Tab */}
+          <TabsContent value="settings">
+            <SettingsTab />
+          </TabsContent>
+        </Tabs>
+
         <ProcessDetailsSheet
           open={detailsOpen}
           onOpenChange={setDetailsOpen}
           process={selectedProcess?.process || null}
           tribunal={selectedProcess?.tribunal || null}
+          onMonitor={handleMonitorFromSearch}
+        />
+
+        <AddProcessDialog
+          open={monitorDialogOpen}
+          onOpenChange={setMonitorDialogOpen}
+          initialProcessNumber={monitorProcessNumber}
+          initialTribunal={monitorTribunal}
         />
       </div>
     </div>
