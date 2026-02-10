@@ -78,7 +78,7 @@ export function DesempenhoEvolutionChart({ sessoes, isLoading, dateFrom, dateTo 
     }
   }, [sessoes, isSingleDay]);
 
-  const chartTitle = isSingleDay ? 'Evolução de Sessões por Hora' : 'Evolução de Sessões por Dia';
+  const chartTitle = isSingleDay ? 'Evolução de Atendimentos por Hora' : 'Evolução de Atendimentos por Dia';
 
   if (isLoading) {
     return (
