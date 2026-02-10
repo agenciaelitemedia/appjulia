@@ -78,13 +78,13 @@ export function DesempenhoEvolutionChart({ sessoes, isLoading, dateFrom, dateTo 
     }
   }, [sessoes, isSingleDay]);
 
-  const chartTitle = isSingleDay ? 'Evolução de Sessões por Hora' : 'Evolução de Sessões por Dia';
+  const chartTitle = isSingleDay ? 'Evolução de Atendimentos por Hora' : 'Evolução de Atendimentos por Dia';
 
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Evolução de Sessões</CardTitle>
+          <CardTitle>Evolução de Atendimentos</CardTitle>
         </CardHeader>
         <CardContent className="h-[300px] flex items-center justify-center">
           <div className="animate-pulse text-muted-foreground">Carregando...</div>
@@ -147,7 +147,7 @@ export function DesempenhoEvolutionChart({ sessoes, isLoading, dateFrom, dateTo 
               yAxisId="left"
               type="monotone"
               dataKey="sessoes"
-              name="Sessões"
+              name="Atendimentos"
               stroke="hsl(var(--primary))"
               fillOpacity={1}
               fill="url(#colorSessoes)"

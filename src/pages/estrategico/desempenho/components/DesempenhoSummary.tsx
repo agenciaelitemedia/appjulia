@@ -129,7 +129,7 @@ export function DesempenhoSummary({ sessoes, previousSessoes, isLoading, dateFro
 
   const cards: CardData[] = [
     {
-      title: 'Total Sessões',
+      title: 'Total Atendimentos',
       value: summary.totalSessoes.toLocaleString('pt-BR'),
       icon: BarChart3,
       color: 'text-blue-600',
@@ -149,7 +149,7 @@ export function DesempenhoSummary({ sessoes, previousSessoes, isLoading, dateFro
         : null,
     },
     {
-      title: 'Média/Sessão',
+      title: 'Média/Atendimento',
       value: summary.mediaMsg.toLocaleString('pt-BR'),
       icon: TrendingUp,
       color: 'text-purple-600',
@@ -159,7 +159,7 @@ export function DesempenhoSummary({ sessoes, previousSessoes, isLoading, dateFro
         : null,
     },
     {
-      title: 'Sessões Hoje',
+      title: 'Atendimentos Hoje',
       value: summary.sessoesHoje.toLocaleString('pt-BR'),
       icon: Calendar,
       color: 'text-orange-600',
