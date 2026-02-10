@@ -129,7 +129,7 @@ export function DesempenhoSummary({ sessoes, previousSessoes, isLoading, dateFro
 
   const cards: CardData[] = [
     {
-      title: 'Total Sessões',
+      title: 'Total Atendimentos',
       value: summary.totalSessoes.toLocaleString('pt-BR'),
       icon: BarChart3,
       color: 'text-blue-600',
