@@ -125,9 +125,13 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
             WHERE ca.cod_agent::text = ANY($1::text[])
               AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2
               AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3
+              AND COALESCE(
+                NULLIF((campaign_data::jsonb)->>'phone', ''),
+                s.whatsapp_number::text
+              ) IS NOT NULL
           ),
           entrada AS (
-            SELECT COUNT(*)::int as count FROM campaign_leads
+            SELECT COUNT(DISTINCT whatsapp)::int as count FROM campaign_leads
           ),
           atendidos AS (
             SELECT COUNT(DISTINCT cl.id)::int as count
@@ -182,8 +186,8 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
           SELECT 'Atendimentos' as stage_name, '#3b82f6' as stage_color, 0 as position, (SELECT count FROM entrada) as count
           UNION ALL SELECT 'Em Qualificação', '#22c55e', 1, (SELECT count FROM atendidos)
           UNION ALL SELECT 'Qualificados', '#eab308', 2, (SELECT count FROM em_qualificacao)
-          UNION ALL SELECT 'Contratos Gerados', '#f97316', 3, (SELECT count FROM qualificados)
-          UNION ALL SELECT 'Contratos Assinados', '#8b5cf6', 4, (SELECT count FROM contratos_gerados)
+          UNION ALL SELECT 'Contratos Gerados', '#f97316', 3, (SELECT count FROM contratos_gerados)
+          UNION ALL SELECT 'Contratos Assinados', '#8b5cf6', 4, (SELECT count FROM contratos_assinados)
           ORDER BY position
         `,
         params: [filters.agentCodes, filters.dateFrom, filters.dateTo],
