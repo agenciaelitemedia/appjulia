@@ -27,7 +27,8 @@ import {
   QuickPeriod, 
   detectQuickPeriod, 
   calculatePeriodDates, 
-  savePeriod 
+  savePeriod,
+  saveAgentCodes,
 } from '@/hooks/usePersistedPeriod';
 import { UnifiedFiltersProps } from './types';
 
@@ -99,14 +100,18 @@ export function UnifiedFilters({
     const newAgentCodes = filters.agentCodes.includes(codAgent)
       ? filters.agentCodes.filter((c) => c !== codAgent)
       : [...filters.agentCodes, codAgent];
+    saveAgentCodes(newAgentCodes);
     onFiltersChange({ ...filters, agentCodes: newAgentCodes });
   };
 
   const handleSelectAllAgents = () => {
     if (allSelected) {
+      saveAgentCodes([]);
       onFiltersChange({ ...filters, agentCodes: [] });
     } else {
-      onFiltersChange({ ...filters, agentCodes: agents.map((a) => a.cod_agent) });
+      const allCodes = agents.map((a) => a.cod_agent);
+      saveAgentCodes(allCodes);
+      onFiltersChange({ ...filters, agentCodes: allCodes });
     }
   };
 

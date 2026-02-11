@@ -108,6 +108,36 @@ export function getInitialDates(): PeriodDates {
   return calculatePeriodDates(savedPeriod);
 }
 
+const AGENT_CODES_KEY = 'lovable-agent-codes';
+
+/**
+ * Save selected agent codes to localStorage
+ */
+export function saveAgentCodes(codes: string[]): void {
+  try {
+    localStorage.setItem(AGENT_CODES_KEY, JSON.stringify(codes));
+  } catch {
+    // localStorage not available
+  }
+}
+
+/**
+ * Get saved agent codes from localStorage
+ * Returns null if never saved (first visit = select all)
+ */
+export function getSavedAgentCodes(): string[] | null {
+  try {
+    const saved = localStorage.getItem(AGENT_CODES_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {
+    // localStorage not available or invalid JSON
+  }
+  return null;
+}
+
 /**
  * Hook to persist the selected quick period in localStorage
  * Automatically saves when the period changes and provides initial dates

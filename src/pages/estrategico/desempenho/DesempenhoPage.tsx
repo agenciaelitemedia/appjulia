@@ -9,7 +9,7 @@ import { UnifiedFiltersState } from '@/components/filters/types';
 import { DesempenhoSummary } from './components/DesempenhoSummary';
 import { DesempenhoEvolutionChart } from './components/DesempenhoEvolutionChart';
 import { DesempenhoTable } from './components/DesempenhoTable';
-import { getInitialDates } from '@/hooks/usePersistedPeriod';
+import { getInitialDates, getSavedAgentCodes } from '@/hooks/usePersistedPeriod';
 
 export default function DesempenhoPage() {
   const queryClient = useQueryClient();
@@ -39,10 +39,11 @@ export default function DesempenhoPage() {
   useEffect(() => {
     if (agents.length > 0 && !hasInitializedFilters.current) {
       hasInitializedFilters.current = true;
-      setFilters((prev) => ({
-        ...prev,
-        agentCodes: agents.map((a) => a.cod_agent),
-      }));
+      const saved = getSavedAgentCodes();
+      const agentCodes = saved !== null
+        ? saved.filter(code => agents.some(a => a.cod_agent === code))
+        : agents.map((a) => a.cod_agent);
+      setFilters((prev) => ({ ...prev, agentCodes }));
     }
   }, [agents]);
 
