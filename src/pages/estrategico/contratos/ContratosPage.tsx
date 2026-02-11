@@ -11,7 +11,7 @@ import { ContratosTable } from './components/ContratosTable';
 import { ContratoDetailsDialog } from './components/ContratoDetailsDialog';
 import { ContratosEvolutionChart } from './components/ContratosEvolutionChart';
 import { JuliaContrato } from '../types';
-import { getInitialDates } from '@/hooks/usePersistedPeriod';
+import { getInitialDates, getSavedAgentCodes } from '@/hooks/usePersistedPeriod';
 
 export default function ContratosPage() {
   const queryClient = useQueryClient();
@@ -38,10 +38,11 @@ export default function ContratosPage() {
   useEffect(() => {
     if (agents.length > 0 && !hasInitializedFilters.current) {
       hasInitializedFilters.current = true;
-      setFilters((prev) => ({
-        ...prev,
-        agentCodes: agents.map((a) => a.cod_agent),
-      }));
+      const saved = getSavedAgentCodes();
+      const agentCodes = saved !== null
+        ? saved.filter(code => agents.some(a => a.cod_agent === code))
+        : agents.map((a) => a.cod_agent);
+      setFilters((prev) => ({ ...prev, agentCodes }));
     }
   }, [agents]);
 

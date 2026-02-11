@@ -32,8 +32,7 @@ import { FollowupConfig } from './components/FollowupConfig';
 import { FollowupQueue } from './components/FollowupQueue';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState } from '@/components/filters/types';
-import { getInitialDates } from '@/hooks/usePersistedPeriod';
-
+import { getInitialDates, getSavedAgentCodes, saveAgentCodes } from '@/hooks/usePersistedPeriod';
 // Queue states for the filter
 const QUEUE_STATES = [
   { value: 'all', label: 'Todos Estados' },
@@ -122,13 +121,20 @@ export default function FollowupPage() {
   // Uses agents from user_agents table (single source of truth)
   useEffect(() => {
     if (agents.length > 0 && !selectedAgent) {
-      setSelectedAgent(agents[0].cod_agent);
+      const saved = getSavedAgentCodes();
+      if (saved !== null && saved.length > 0) {
+        const validSaved = saved.find(code => agents.some(a => a.cod_agent === code));
+        setSelectedAgent(validSaved || agents[0].cod_agent);
+      } else {
+        setSelectedAgent(agents[0].cod_agent);
+      }
     }
   }, [agents, selectedAgent]);
 
-  // Update agentCodes when selectedAgent changes
+  // Update agentCodes when selectedAgent changes and persist
   useEffect(() => {
     if (selectedAgent) {
+      saveAgentCodes([selectedAgent]);
       setDashboardFilters(prev => ({ ...prev, agentCodes: [selectedAgent] }));
       setQueueFilters(prev => ({ ...prev, agentCodes: [selectedAgent] }));
     }

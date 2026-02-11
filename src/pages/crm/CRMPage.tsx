@@ -11,7 +11,7 @@ import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState } from '@/components/filters/types';
 import { CRMCard } from './types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getInitialDates } from '@/hooks/usePersistedPeriod';
+import { getInitialDates, getSavedAgentCodes } from '@/hooks/usePersistedPeriod';
 
 export default function CRMPage() {
   const queryClient = useQueryClient();
@@ -36,13 +36,12 @@ export default function CRMPage() {
 
   // Initialize agentCodes when agents load
   useEffect(() => {
-    // Importante: inicializa só uma vez.
-    // Se o usuário desmarcar tudo, NÃO devemos repopular automaticamente.
     if (!didInitAgentsRef.current && agents.length > 0 && filters.agentCodes.length === 0) {
-      setFilters((prev) => ({
-        ...prev,
-        agentCodes: agents.map((a) => a.cod_agent),
-      }));
+      const saved = getSavedAgentCodes();
+      const agentCodes = saved !== null
+        ? saved.filter(code => agents.some(a => a.cod_agent === code))
+        : agents.map((a) => a.cod_agent);
+      setFilters((prev) => ({ ...prev, agentCodes }));
       didInitAgentsRef.current = true;
     }
   }, [agents, filters.agentCodes.length]);

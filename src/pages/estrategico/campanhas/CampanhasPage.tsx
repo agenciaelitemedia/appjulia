@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState } from '@/components/filters/types';
-import { getInitialDates } from '@/hooks/usePersistedPeriod';
+import { getInitialDates, getSavedAgentCodes } from '@/hooks/usePersistedPeriod';
 import {
   useCampanhasAgents,
   useCampanhasLeads,
@@ -59,10 +59,11 @@ export default function CampanhasPage() {
   useEffect(() => {
     if (agents.length > 0 && !hasInitializedFilters.current) {
       hasInitializedFilters.current = true;
-      setFilters((prev) => ({
-        ...prev,
-        agentCodes: agents.map((a) => a.cod_agent),
-      }));
+      const saved = getSavedAgentCodes();
+      const agentCodes = saved !== null
+        ? saved.filter(code => agents.some(a => a.cod_agent === code))
+        : agents.map((a) => a.cod_agent);
+      setFilters((prev) => ({ ...prev, agentCodes }));
     }
   }, [agents]);
 
