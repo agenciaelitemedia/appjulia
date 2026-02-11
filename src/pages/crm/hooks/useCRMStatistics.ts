@@ -93,10 +93,13 @@ export function useCRMAgentPerformance(filters: CRMFiltersState) {
       
       if (agentCodes.length === 0) return [];
       
-      // Get the "Contrato Assinado" stage ID for conversion calculation
       const result = await externalDb.raw<CRMAgentPerformance>({
         query: `
-          WITH conversion_stages AS (
+          WITH qualified_stages AS (
+            SELECT id FROM crm_atendimento_stages 
+            WHERE name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
+          ),
+          contract_stages AS (
             SELECT id FROM crm_atendimento_stages 
             WHERE name IN ('Contrato em Curso', 'Contrato Assinado')
           )
@@ -104,12 +107,18 @@ export function useCRMAgentPerformance(filters: CRMFiltersState) {
             c.cod_agent,
             COALESCE(a.owner_name, c.cod_agent) as owner_name,
             COUNT(c.id)::int as total_leads,
-            COUNT(CASE WHEN c.stage_id IN (SELECT id FROM conversion_stages) THEN 1 END)::int as converted_leads,
+            COUNT(CASE WHEN c.stage_id IN (SELECT id FROM qualified_stages) THEN 1 END)::int as qualified_leads,
             CASE 
               WHEN COUNT(c.id) > 0 
-              THEN (COUNT(CASE WHEN c.stage_id IN (SELECT id FROM conversion_stages) THEN 1 END)::float / COUNT(c.id)) * 100
+              THEN (COUNT(CASE WHEN c.stage_id IN (SELECT id FROM qualified_stages) THEN 1 END)::float / COUNT(c.id)) * 100
               ELSE 0
-            END as conversion_rate,
+            END as qualified_rate,
+            COUNT(CASE WHEN c.stage_id IN (SELECT id FROM contract_stages) THEN 1 END)::int as contract_leads,
+            CASE 
+              WHEN COUNT(c.id) > 0 
+              THEN (COUNT(CASE WHEN c.stage_id IN (SELECT id FROM contract_stages) THEN 1 END)::float / COUNT(c.id)) * 100
+              ELSE 0
+            END as contract_rate,
             COALESCE(
               AVG(EXTRACT(EPOCH FROM (COALESCE(c.updated_at, NOW()) - c.created_at)) / 86400),
               0
@@ -128,8 +137,10 @@ export function useCRMAgentPerformance(filters: CRMFiltersState) {
       return result.map(item => ({
         ...item,
         total_leads: Number(item.total_leads),
-        converted_leads: Number(item.converted_leads),
-        conversion_rate: Number(item.conversion_rate),
+        qualified_leads: Number(item.qualified_leads),
+        qualified_rate: Number(item.qualified_rate),
+        contract_leads: Number(item.contract_leads),
+        contract_rate: Number(item.contract_rate),
         avg_time_days: Number(item.avg_time_days),
       }));
     },
