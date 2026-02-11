@@ -72,7 +72,7 @@ export function CampanhasFunnelChart({ data, previousData = [], isLoading }: Cam
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
-            Funil de Conversão
+            Funil de Conversão de Campanhas
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -91,7 +91,7 @@ export function CampanhasFunnelChart({ data, previousData = [], isLoading }: Cam
       <CardHeader className="pb-4">
         <CardTitle className="flex items-center gap-2">
           <Filter className="h-5 w-5 text-primary" />
-          Funil de Conversão
+           Funil de Conversão de Campanhas
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
