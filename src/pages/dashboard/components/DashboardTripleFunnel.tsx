@@ -36,7 +36,7 @@ function FunnelCard({ title, icon, stages, isLoading }: FunnelCardProps) {
   }
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden bg-gradient-to-b from-card to-muted/30">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           {icon}
