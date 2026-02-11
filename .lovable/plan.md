@@ -1,32 +1,40 @@
 
 
-## Ajustes visuais nos cards do CRM
+## Alterações na tabela Performance por Agente
 
-Arquivo: `src/pages/crm/components/CRMDashboardSummary.tsx`
+Arquivos afetados: `src/pages/crm/types.ts`, `src/pages/crm/hooks/useCRMStatistics.ts`, `src/pages/crm/statistics/components/AgentPerformanceTable.tsx`
 
-### 1. Diferenciar cores dos cards "Taxa Contratos" e "Qualificados"
+### 1. Atualizar tipo `CRMAgentPerformance`
 
-Atualmente ambos usam `chart-2` (verde). Mudanças:
-- **Taxa Contratos** (card 4): manter `chart-2` (verde)
-- **Qualificados** (card 5): mudar para `chart-4` (azul/roxo) para diferenciar visualmente -- borda, fundo do ícone e cor do ícone
+Adicionar campos e renomear:
+- `converted_leads` -> `qualified_leads` (Negociacao + Contrato em Curso + Contrato Assinado)
+- `conversion_rate` -> `qualified_rate` (qualified_leads / total * 100)
+- Novo: `contract_leads` (Contrato em Curso + Contrato Assinado)
+- Novo: `contract_rate` (contract_leads / total * 100)
+- `avg_time_days` permanece (armazenado em dias, formatado no front)
 
-### 2. Renomear "Taxa Desqualificados" para "Desqualificado"
+### 2. Atualizar query SQL em `useCRMAgentPerformance`
 
-- Trocar o texto de `"Taxa Desqualificados"` para `"Desqualificado"`
+A query atual calcula "conversion_stages" como Contrato em Curso + Contrato Assinado. Nova query:
 
-### 3. Substituir mini gráfico por ícone no card "Desqualificado"
+- **qualified_stages**: Negociacao + Contrato em Curso + Contrato Assinado
+- **contract_stages**: Contrato em Curso + Contrato Assinado
+- Retornar: `qualified_leads`, `qualified_rate`, `contract_leads`, `contract_rate`
 
-- Remover o `PieChart` / `ResponsiveContainer` do card 6
-- Substituir por um ícone `XCircle` com fundo `chart-5/10` e cor `chart-5`, no mesmo padrão dos demais cards
-- Remover imports não utilizados (`PieChart`, `Pie`, `Cell`) e a variável `pieData` do `useMemo`
+### 3. Atualizar tabela `AgentPerformanceTable`
 
-### Resultado visual final
+| Coluna atual | Nova coluna |
+|---|---|
+| **Leads** | **Atendimentos** (mesmo valor total_leads) |
+| **Conversao** (conversion_rate) | **Qualificados** (qualified_rate com badge) |
+| _(nova)_ | **Contratos** (contract_rate com badge) |
+| **Tempo Medio** (X.Xd) | **Tempo Medio** (formatado: horas se < 24h, dias+horas se >= 24h) |
 
-| Card | Cor da borda | Ícone |
-|---|---|---|
-| Whatsapp | chart-1 | sparkline |
-| Atendimentos | chart-4 | Headphones |
-| Tempo Médio | chart-3 | Clock |
-| Taxa Contratos | chart-2 | Target |
-| Qualificados | chart-4 | CheckCircle |
-| Desqualificado | chart-5 | XCircle |
+Formatacao do tempo medio:
+- < 1 hora: `Xmin`
+- 1h a 23h59: `Xh Ymin`
+- 24h+: `Xd Yh`
+
+SortKey atualizado para incluir `qualified_rate` e `contract_rate`.
+
+Subtexto da coluna Atendimentos: `(N qualificados)` em vez de `(N convertidos)`.
