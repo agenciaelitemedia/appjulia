@@ -104,7 +104,7 @@ export default function CRMStatisticsPage() {
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-muted-foreground" />
-            <h2 className="text-lg font-semibold">Funil de Conversão</h2>
+            <h2 className="text-lg font-semibold">Gráfico de Etapas</h2>
           </div>
           <ConversionFunnelChart data={funnelData} isLoading={funnelLoading} />
         </div>
