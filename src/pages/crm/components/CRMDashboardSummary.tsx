@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, Target, Headphones } from "lucide-react";
+import { Clock, Target, Headphones, CheckCircle, XCircle } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { CRMCard, CRMStage } from "../types";
 
@@ -32,23 +32,27 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
   const stats = useMemo(() => {
     const total = cards.length;
 
-    // Find conversion stages (generated + signed) and disqualified stage
     const contractInProgressStage = stages.find((s) => s.name === "Contrato em Curso");
     const contractSignedStage = stages.find((s) => s.name === "Contrato Assinado");
+    const negotiationStage = stages.find((s) => s.name === "Negociação");
     const disqualifiedStage = stages.find((s) => s.name === "Desqualificado");
 
     const converted = cards.filter(
       (c) => c.stage_id === contractInProgressStage?.id || c.stage_id === contractSignedStage?.id,
     ).length;
     const disqualified = cards.filter((c) => c.stage_id === disqualifiedStage?.id).length;
-    const active = total - disqualified;
+    const qualified = cards.filter(
+      (c) =>
+        c.stage_id === negotiationStage?.id ||
+        c.stage_id === contractInProgressStage?.id ||
+        c.stage_id === contractSignedStage?.id,
+    ).length;
 
-    // Conversion rate based on Julia sessions
     const totalSessions = juliaSessions?.totalSessions ?? 0;
     const conversionRate = totalSessions > 0 ? (converted / totalSessions) * 100 : 0;
-    const activeRate = total > 0 ? (active / total) * 100 : 0;
+    const qualifiedRate = totalSessions > 0 ? (qualified / totalSessions) * 100 : 0;
+    const disqualifiedRate = totalSessions > 0 ? (disqualified / totalSessions) * 100 : 0;
 
-    // Calculate average time in current stage (days)
     const avgTime =
       cards.length > 0
         ? cards.reduce((sum, card) => {
@@ -59,7 +63,6 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
           }, 0) / cards.length
         : 0;
 
-    // Daily trend data (last 7 days from the filtered cards)
     const dailyMap = new Map<string, number>();
     cards.forEach((card) => {
       const date = card.created_at.split("T")[0];
@@ -71,10 +74,9 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(-7);
 
-    // Pie chart data
     const pieData = [
-      { name: "Ativos", value: active, color: "hsl(var(--chart-2))" },
-      { name: "Perdidos", value: disqualified, color: "hsl(var(--chart-5))" },
+      { name: "Qualificados", value: qualified, color: "hsl(var(--chart-2))" },
+      { name: "Desqualificados", value: disqualified, color: "hsl(var(--chart-5))" },
     ];
 
     return {
@@ -82,9 +84,10 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
       converted,
       conversionRate,
       totalSessions,
-      active,
+      qualified,
+      qualifiedRate,
       disqualified,
-      activeRate,
+      disqualifiedRate,
       avgTime,
       dailyTrend,
       pieData,
@@ -93,8 +96,8 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        {[1, 2, 3, 4, 5].map((i) => (
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
           <Card key={i} className="animate-pulse">
             <CardContent className="p-4">
               <div className="h-16 bg-muted rounded" />
@@ -106,13 +109,13 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
   }
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-      {/* 1. Leads/Dia */}
+    <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+      {/* 1. Whatsapp */}
       <Card className="border-l-4 border-l-chart-1">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <p className="text-xs text-muted-foreground font-medium">Leads</p>
+              <p className="text-xs text-muted-foreground font-medium">Whatsapp</p>
               <p className="text-2xl font-bold text-foreground">{stats.total}</p>
               <p className="text-xs text-muted-foreground">total no período</p>
             </div>
@@ -127,14 +130,14 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
         </CardContent>
       </Card>
 
-      {/* 2. Atendimento/Dia (Julia Sessions) */}
+      {/* 2. Atendimentos */}
       <Card className="border-l-4 border-l-chart-4">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-muted-foreground font-medium">Atendimentos</p>
               <p className="text-2xl font-bold text-foreground">{Math.round(juliaSessions?.dailyAverage ?? 0)}</p>
-              <p className="text-xs text-muted-foreground">{stats.totalSessions} sessões Julia</p>
+              <p className="text-xs text-muted-foreground">{stats.totalSessions} atendimentos da Julia</p>
             </div>
             <div className="p-2 bg-chart-4/10 rounded-full">
               <Headphones className="h-5 w-5 text-chart-4" />
@@ -159,15 +162,15 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
         </CardContent>
       </Card>
 
-      {/* 4. Taxa de Conversão (based on Julia sessions) */}
+      {/* 4. Taxa Contratos */}
       <Card className="border-l-4 border-l-chart-2">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground font-medium">Taxa de Conversão</p>
+              <p className="text-xs text-muted-foreground font-medium">Taxa Contratos</p>
               <p className="text-2xl font-bold text-foreground">{stats.conversionRate.toFixed(1)}%</p>
               <p className="text-xs text-muted-foreground">
-                {stats.converted} de {stats.totalSessions} sessões
+                {stats.converted} de {stats.totalSessions} atendimentos
               </p>
             </div>
             <div className="p-2 bg-chart-2/10 rounded-full">
@@ -177,14 +180,34 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
         </CardContent>
       </Card>
 
-      {/* 5. Ativos x Perdidos */}
+      {/* 5. Qualificados */}
+      <Card className="border-l-4 border-l-chart-2">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground font-medium">Qualificados</p>
+              <p className="text-2xl font-bold text-foreground">{stats.qualifiedRate.toFixed(1)}%</p>
+              <p className="text-xs text-muted-foreground">
+                {stats.qualified} de {stats.totalSessions} atendimentos
+              </p>
+            </div>
+            <div className="p-2 bg-chart-2/10 rounded-full">
+              <CheckCircle className="h-5 w-5 text-chart-2" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 6. Taxa Desqualificados */}
       <Card className="border-l-4 border-l-chart-5">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground font-medium">Ativos x Perdidos</p>
-              <p className="text-2xl font-bold text-foreground">{stats.activeRate.toFixed(0)}%</p>
-              <p className="text-xs text-muted-foreground">{stats.active} ativos</p>
+              <p className="text-xs text-muted-foreground font-medium">Taxa Desqualificados</p>
+              <p className="text-2xl font-bold text-foreground">{stats.disqualifiedRate.toFixed(1)}%</p>
+              <p className="text-xs text-muted-foreground">
+                {stats.disqualified} de {stats.totalSessions} atendimentos
+              </p>
             </div>
             <div className="w-12 h-12">
               <ResponsiveContainer width="100%" height="100%">
