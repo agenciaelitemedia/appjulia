@@ -133,15 +133,6 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
           entrada AS (
             SELECT COUNT(DISTINCT whatsapp)::int as count FROM campaign_leads
           ),
-          atendidos AS (
-            SELECT COUNT(DISTINCT cl.id)::int as count
-            FROM campaign_leads cl
-            WHERE EXISTS (
-              SELECT 1 FROM log_first_messages lfm
-              WHERE lfm.cod_agent::text = cl.cod_agent
-                AND lfm.whatsapp::text = cl.whatsapp
-            )
-          ),
           em_qualificacao AS (
             SELECT COUNT(DISTINCT c.id)::int as count
             FROM campaign_leads cl
@@ -184,8 +175,8 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
             WHERE st.name = 'Contrato Assinado'
           )
           SELECT 'Atendimentos' as stage_name, '#22c55e' as stage_color, 0 as position, (SELECT count FROM entrada) as count
-          UNION ALL SELECT 'Em Qualificação', '#eab308', 1, (SELECT count FROM atendidos)
-          UNION ALL SELECT 'Qualificados', '#f97316', 2, (SELECT count FROM em_qualificacao)
+          UNION ALL SELECT 'Em Qualificação', '#eab308', 1, (SELECT count FROM em_qualificacao)
+          UNION ALL SELECT 'Qualificados', '#f97316', 2, (SELECT count FROM qualificados)
           UNION ALL SELECT 'Contratos Gerados', '#3b82f6', 3, (SELECT count FROM contratos_gerados)
           UNION ALL SELECT 'Contratos Assinados', '#8b5cf6', 4, (SELECT count FROM contratos_assinados)
           ORDER BY position
