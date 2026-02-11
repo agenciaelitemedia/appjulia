@@ -1,40 +1,20 @@
 
 
-## Correção dos Funis de Campanhas no Dashboard
+## Ajuste de cores dos estágios dos funis
 
-### Problema identificado
+Alterar as cores dos 5 estágios em dois arquivos para:
 
-A query do funil de campanhas (`useDashboardCampaignFunnel`) tem dois bugs:
+| Estágio | Cor atual | Nova cor |
+|---------|-----------|----------|
+| Atendimentos | #3b82f6 (azul) | #22c55e (verde) |
+| Em Qualificação | #22c55e (verde) | #eab308 (amarelo) |
+| Qualificados | #eab308 (amarelo) | #f97316 (laranja) |
+| Contratos Gerados | #f97316 (laranja) | #3b82f6 (azul) |
+| Contratos Assinados | #8b5cf6 (roxo) | #8b5cf6 (mantém) |
 
-### Bug 1 - Mapeamento trocado (causa principal dos dados errados)
+### Arquivos alterados
 
-No bloco final `UNION ALL` (linhas 182-187), os CTEs estao atribuidos as posicoes erradas:
+1. **`src/pages/dashboard/hooks/useDashboardFunnels.ts`** — Atualizar as cores nos dois blocos UNION ALL (Julia funnel linhas ~87-93 e Campaign funnel linhas ~186-190)
 
-- Posicao 3 ("Contratos Gerados") esta usando o CTE `qualificados` em vez de `contratos_gerados`
-- Posicao 4 ("Contratos Assinados") esta usando o CTE `contratos_gerados` em vez de `contratos_assinados`
-- O CTE `contratos_assinados` nunca e utilizado
-
-Isso faz com que o valor de "Qualificados" (maior) apareca como "Contratos Gerados", gerando numeros inflados e maiores que o total da Julia.
-
-### Bug 2 - Contagem inconsistente
-
-O funil Julia conta `COUNT(DISTINCT whatsapp)` para atendimentos, mas o de campanhas usa `COUNT(*)` sobre registros com DISTINCT por `ca.id`. Um mesmo whatsapp pode ter multiplos registros de campanha, inflando a entrada.
-
-### Correcao
-
-Arquivo: `src/pages/dashboard/hooks/useDashboardFunnels.ts`
-
-Alterar o bloco UNION ALL final (linhas 182-187) para mapear corretamente:
-
-```sql
-SELECT 'Atendimentos' ..., (SELECT count FROM entrada)
-UNION ALL SELECT 'Em Qualificação' ..., (SELECT count FROM atendidos)
-UNION ALL SELECT 'Qualificados' ..., (SELECT count FROM em_qualificacao)
-UNION ALL SELECT 'Contratos Gerados' ..., (SELECT count FROM contratos_gerados)    -- era qualificados
-UNION ALL SELECT 'Contratos Assinados' ..., (SELECT count FROM contratos_assinados) -- era contratos_gerados
-```
-
-Tambem alterar a CTE `entrada` para usar `COUNT(DISTINCT whatsapp)` em vez de `COUNT(*)`, garantindo consistencia com o funil Julia e evitando duplicatas por multiplos registros do mesmo whatsapp.
-
-Alem disso, adicionar filtro `WHERE whatsapp IS NOT NULL` na CTE `campaign_leads` para evitar que registros sem telefone inflem as contagens nos JOINs com CRM.
+2. **`src/pages/dashboard/components/DashboardTripleFunnel.tsx`** — Atualizar o array `STAGE_COLORS` usado pelo funil Orgânicos (linha ~119)
 
