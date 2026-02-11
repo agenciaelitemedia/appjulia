@@ -1,20 +1,42 @@
 
 
-## Ajuste de cores dos estágios dos funis
+## Correcao do Mapeamento dos Funis
 
-Alterar as cores dos 5 estágios em dois arquivos para:
+### Problema encontrado
 
-| Estágio | Cor atual | Nova cor |
-|---------|-----------|----------|
-| Atendimentos | #3b82f6 (azul) | #22c55e (verde) |
-| Em Qualificação | #22c55e (verde) | #eab308 (amarelo) |
-| Qualificados | #eab308 (amarelo) | #f97316 (laranja) |
-| Contratos Gerados | #f97316 (laranja) | #3b82f6 (azul) |
-| Contratos Assinados | #8b5cf6 (roxo) | #8b5cf6 (mantém) |
+No funil de campanhas do Dashboard, o bloco UNION ALL nas linhas 186-190 tem as posicoes 1 e 2 mapeadas para os CTEs errados:
 
-### Arquivos alterados
+| Posicao | Label | CTE atual (errado) | CTE correto |
+|---------|-------|---------------------|-------------|
+| 0 | Atendimentos | entrada | entrada (ok) |
+| 1 | Em Qualificacao | **atendidos** (log_first_messages) | **em_qualificacao** (Analise de Caso) |
+| 2 | Qualificados | **em_qualificacao** (Analise de Caso) | **qualificados** (Negociacao) |
+| 3 | Contratos Gerados | contratos_gerados | contratos_gerados (ok) |
+| 4 | Contratos Assinados | contratos_assinados | contratos_assinados (ok) |
 
-1. **`src/pages/dashboard/hooks/useDashboardFunnels.ts`** — Atualizar as cores nos dois blocos UNION ALL (Julia funnel linhas ~87-93 e Campaign funnel linhas ~186-190)
+O CTE `atendidos` (que conta leads com `log_first_messages`) nao tem equivalente no funil Julia, entao ele esta "sobrando" e empurrando as posicoes seguintes para o CTE errado.
 
-2. **`src/pages/dashboard/components/DashboardTripleFunnel.tsx`** — Atualizar o array `STAGE_COLORS` usado pelo funil Orgânicos (linha ~119)
+### Valores esperados (confirmados pelo usuario)
+
+Campanha: Atendimentos 53, Em Qualificacao 37, Qualificado 12, Contratos Gerados 5.
+
+### Correcao
+
+**Arquivo:** `src/pages/dashboard/hooks/useDashboardFunnels.ts`
+
+1. Remover o CTE `atendidos` (linhas 136-143) da query de campanhas, pois nao e usado em nenhuma posicao do funil e nao tem equivalente no funil Julia
+
+2. Corrigir o UNION ALL (linhas 186-190) para:
+
+```sql
+SELECT 'Atendimentos', '#22c55e', 0, (SELECT count FROM entrada)
+UNION ALL SELECT 'Em Qualificação', '#eab308', 1, (SELECT count FROM em_qualificacao)
+UNION ALL SELECT 'Qualificados', '#f97316', 2, (SELECT count FROM qualificados)
+UNION ALL SELECT 'Contratos Gerados', '#3b82f6', 3, (SELECT count FROM contratos_gerados)
+UNION ALL SELECT 'Contratos Assinados', '#8b5cf6', 4, (SELECT count FROM contratos_assinados)
+```
+
+Isso alinha o funil de campanhas com o funil Julia, garantindo que ambos usem as mesmas definicoes de estagio (Analise de Caso, Negociacao, Contrato em Curso, Contrato Assinado) e que o funil organico (Julia - Campanhas) seja calculado corretamente.
+
+O funil Julia nao precisa de alteracao - seu mapeamento ja esta correto.
 
