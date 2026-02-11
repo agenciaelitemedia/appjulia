@@ -95,7 +95,14 @@ export function useCRMAgentPerformance(filters: CRMFiltersState) {
       
       const result = await externalDb.raw<CRMAgentPerformance>({
         query: `
-          WITH qualified_stages AS (
+          WITH julia_sessions AS (
+            SELECT DISTINCT cod_agent::text as cod_agent, whatsapp::text as whatsapp
+            FROM vw_desempenho_julia
+            WHERE cod_agent::text = ANY($1::varchar[])
+              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          ),
+          qualified_stages AS (
             SELECT id FROM crm_atendimento_stages 
             WHERE name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
           ),
@@ -104,31 +111,29 @@ export function useCRMAgentPerformance(filters: CRMFiltersState) {
             WHERE name IN ('Contrato em Curso', 'Contrato Assinado')
           )
           SELECT 
-            c.cod_agent,
-            COALESCE(a.owner_name, c.cod_agent) as owner_name,
-            COUNT(c.id)::int as total_leads,
-            COUNT(CASE WHEN c.stage_id IN (SELECT id FROM qualified_stages) THEN 1 END)::int as qualified_leads,
+            j.cod_agent,
+            COALESCE(a.owner_name, j.cod_agent) as owner_name,
+            COUNT(DISTINCT j.whatsapp)::int as total_leads,
+            COUNT(DISTINCT CASE WHEN c.stage_id IN (SELECT id FROM qualified_stages) THEN j.whatsapp END)::int as qualified_leads,
             CASE 
-              WHEN COUNT(c.id) > 0 
-              THEN (COUNT(CASE WHEN c.stage_id IN (SELECT id FROM qualified_stages) THEN 1 END)::float / COUNT(c.id)) * 100
+              WHEN COUNT(DISTINCT j.whatsapp) > 0 
+              THEN (COUNT(DISTINCT CASE WHEN c.stage_id IN (SELECT id FROM qualified_stages) THEN j.whatsapp END)::float / COUNT(DISTINCT j.whatsapp)) * 100
               ELSE 0
             END as qualified_rate,
-            COUNT(CASE WHEN c.stage_id IN (SELECT id FROM contract_stages) THEN 1 END)::int as contract_leads,
+            COUNT(DISTINCT CASE WHEN c.stage_id IN (SELECT id FROM contract_stages) THEN j.whatsapp END)::int as contract_leads,
             CASE 
-              WHEN COUNT(c.id) > 0 
-              THEN (COUNT(CASE WHEN c.stage_id IN (SELECT id FROM contract_stages) THEN 1 END)::float / COUNT(c.id)) * 100
+              WHEN COUNT(DISTINCT j.whatsapp) > 0 
+              THEN (COUNT(DISTINCT CASE WHEN c.stage_id IN (SELECT id FROM contract_stages) THEN j.whatsapp END)::float / COUNT(DISTINCT j.whatsapp)) * 100
               ELSE 0
             END as contract_rate,
             COALESCE(
               AVG(EXTRACT(EPOCH FROM (COALESCE(c.updated_at, NOW()) - c.created_at)) / 86400),
               0
             ) as avg_time_days
-          FROM crm_atendimento_cards c
-          LEFT JOIN "vw_list_client-agents-users" a ON c.cod_agent = a.cod_agent::text
-          WHERE c.cod_agent = ANY($1::varchar[])
-            AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-            AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
-          GROUP BY c.cod_agent, a.owner_name
+          FROM julia_sessions j
+          LEFT JOIN crm_atendimento_cards c ON c.whatsapp_number = j.whatsapp AND c.cod_agent = j.cod_agent
+          LEFT JOIN "vw_list_client-agents-users" a ON j.cod_agent = a.cod_agent::text
+          GROUP BY j.cod_agent, a.owner_name
           ORDER BY total_leads DESC
         `,
         params: [agentCodes, dateFrom, dateTo],
