@@ -1,75 +1,56 @@
 
-# Plano: Configurar pg_cron com Verificacao a Cada 7 Dias por Processo
 
-## Contexto
+## Renomeações e novo card no CRM Atende Julia
 
-A cron roda a cada 6 horas, mas cada processo individual so deve ser verificado a cada 7 dias a partir da sua data de inclusao (ou ultima verificacao). Isso evita chamadas desnecessarias a API do DataJud.
+### Resumo das alterações
 
-## Alteracoes
+Todas as mudanças são no arquivo `src/pages/crm/components/CRMDashboardSummary.tsx`. O grid passará de 5 para 6 cards.
 
-### 1. Edge Function `datajud-monitor/index.ts`
+### 1. Renomeações de texto
 
-Adicionar filtro na query do Supabase para buscar apenas processos que estejam "prontos" para verificacao:
+| Card atual | Novo nome | Descrição (subtitle) |
+|---|---|---|
+| "Leads" | **"Whatsapp"** | mantém "total no período" |
+| "Atendimentos" + "sessões Julia" | **"Atendimentos"** + "atendimentos da Julia" | substitui "sessões Julia" no subtitle |
+| "Taxa de Conversão" + "de X sessões" | **"Taxa Contratos"** + "de X atendimentos" | substitui "sessões" no subtitle |
+| "Ativos x Perdidos" | **"Taxa Desqualificados"** | muda cálculo (ver item 3) |
 
-- Se `last_check_at` e NULL (nunca verificado), verificar imediatamente
-- Se `last_check_at` tem valor, so verificar se ja passaram 7 dias
+### 2. Novo card: "Qualificados"
 
-A query atual:
-```sql
-SELECT * FROM datajud_monitored_processes WHERE status = 'active'
-```
+Inserido como 5o card (antes de "Taxa Desqualificados"):
 
-Passa a ser:
-```sql
-SELECT * FROM datajud_monitored_processes
-WHERE status = 'active'
-AND (last_check_at IS NULL OR last_check_at <= now() - interval '7 days')
-```
+- **Titulo**: Qualificados
+- **Valor**: percentual = (qualificados / totalSessions) * 100, exibido como `X.X%`
+- **Qualificados** = cards nos estágios "Negociação" + "Contrato em Curso" + "Contrato Assinado"
+- **Subtitle**: `N de M atendimentos` (N = count qualificados, M = totalSessions)
+- **Icone**: `Star` ou `CheckCircle` com cor `chart-2` (verde)
 
-Isso e implementado no Supabase client usando `.or('last_check_at.is.null,last_check_at.lte.' + sevenDaysAgo)`.
+### 3. Alteração do cálculo "Taxa Desqualificados"
 
-### 2. Migracao SQL
+Atualmente mostra `activeRate` (% ativos sobre total de cards). Novo cálculo:
 
-Habilitar as extensoes `pg_cron` e `pg_net`, e criar o cron job:
+- **Valor**: `(desqualificados / totalSessions) * 100`, exibido como `X.X%`
+- **Subtitle**: `N de M atendimentos` (N = count desqualificados, M = totalSessions)
+- Mantém o mini PieChart existente (Qualificados vs Desqualificados)
 
-```sql
-CREATE EXTENSION IF NOT EXISTS pg_cron;
-CREATE EXTENSION IF NOT EXISTS pg_net;
+### 4. Ajuste de grid
 
-SELECT cron.schedule(
-  'datajud-monitor-check',
-  '0 */6 * * *',
-  $$ SELECT net.http_post(
-    url := 'https://zenizgyrwlonmufxnjqt.supabase.co/functions/v1/datajud-monitor',
-    headers := '{"Content-Type":"application/json","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."}'::jsonb,
-    body := '{}'::jsonb
-  ) AS request_id; $$
-);
-```
+O grid muda de `grid-cols-2 lg:grid-cols-5` para `grid-cols-2 lg:grid-cols-6`, e o skeleton loader também passa para 6 cards.
 
-### 3. Resumo dos Arquivos
+### Ordem final dos cards
 
-| Arquivo | Alteracao |
-|---------|-----------|
-| `supabase/functions/datajud-monitor/index.ts` | Filtrar processos por `last_check_at <= now() - 7 days` |
-| Migracao SQL (via ferramenta) | Habilitar pg_cron, pg_net e agendar o job |
+1. **Whatsapp** - total de leads no período (sparkline)
+2. **Atendimentos** - média diária + total atendimentos da Julia
+3. **Tempo Médio** - sem alteração
+4. **Taxa Contratos** - contratos / atendimentos
+5. **Qualificados** - (negociação + contratos) / atendimentos [NOVO]
+6. **Taxa Desqualificados** - desqualificados / atendimentos
 
-### Detalhes Tecnicos
+### Detalhes técnicos
 
-**Logica de filtragem na Edge Function:**
-
-```typescript
-const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-
-const { data: processes } = await supabase
-  .from("datajud_monitored_processes")
-  .select("*")
-  .eq("status", "active")
-  .or(`last_check_at.is.null,last_check_at.lte.${sevenDaysAgo}`);
-```
-
-- Processos recem-adicionados (`last_check_at = NULL`) sao verificados na proxima execucao da cron (maximo 6h apos inclusao)
-- Apos a primeira verificacao, so serao verificados novamente 7 dias depois
-- A cron roda a cada 6h, entao na pratica o intervalo real sera entre 7 e 7.25 dias
-
-**Cron schedule:** `0 */6 * * *` = a cada 6 horas (00:00, 06:00, 12:00, 18:00 UTC)
+No `useMemo` do `stats`, serão adicionadas:
+- Busca do stage "Negociação" via `stages.find(s => s.name === 'Negociação')`
+- Contagem de `qualified` = cards em Negociação + Contrato em Curso + Contrato Assinado
+- `qualifiedRate = totalSessions > 0 ? (qualified / totalSessions) * 100 : 0`
+- `disqualifiedRate = totalSessions > 0 ? (disqualified / totalSessions) * 100 : 0`
+- Atualização do `pieData` para refletir Qualificados vs Desqualificados
