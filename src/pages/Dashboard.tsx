@@ -41,6 +41,8 @@ import { DashboardEvolutionChart } from './dashboard/components/DashboardEvoluti
 import { DashboardActivityTimeline } from './dashboard/components/DashboardActivityTimeline';
 import { DashboardSparkline } from './dashboard/components/DashboardSparkline';
 import { DashboardFunnelChart } from './dashboard/components/DashboardFunnelChart';
+import { DashboardTripleFunnel } from './dashboard/components/DashboardTripleFunnel';
+import { useDashboardJuliaFunnel, useDashboardCampaignFunnel } from './dashboard/hooks/useDashboardFunnels';
 import { CRMLeadDetailsDialog } from './crm/components/CRMLeadDetailsDialog';
 
 export default function Dashboard() {
@@ -69,6 +71,8 @@ export default function Dashboard() {
   const { data: activityData = [], isLoading: activityLoading } = useDashboardActivity(filters);
   const { data: funnelData = [], isLoading: funnelLoading } = useDashboardFunnel(filters);
   const { data: stages = [] } = useDashboardStages();
+  const { data: juliaFunnel = [], isLoading: juliaFunnelLoading } = useDashboardJuliaFunnel(filters);
+  const { data: campaignFunnel = [], isLoading: campaignFunnelLoading } = useDashboardCampaignFunnel(filters);
   const { data: selectedCard } = useDashboardCardDetails(selectedLeadId);
 
   // Initialize agent codes when agents load
@@ -117,6 +121,8 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-evolution'] }),
       queryClient.invalidateQueries({ queryKey: ['dashboard-funnel'] }),
       queryClient.invalidateQueries({ queryKey: ['dashboard-activity'] }),
+      queryClient.invalidateQueries({ queryKey: ['dashboard-julia-funnel'] }),
+      queryClient.invalidateQueries({ queryKey: ['dashboard-campaign-funnel'] }),
     ]);
     setIsRefreshing(false);
   };
@@ -327,6 +333,14 @@ export default function Dashboard() {
             </Card>
           ))}
         </div>
+
+        {/* Triple Funnel */}
+        <DashboardTripleFunnel
+          juliaData={juliaFunnel}
+          campaignData={campaignFunnel}
+          juliaLoading={juliaFunnelLoading}
+          campaignLoading={campaignFunnelLoading}
+        />
 
         {/* Evolution Chart */}
         <DashboardEvolutionChart
