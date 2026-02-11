@@ -1,42 +1,54 @@
 
 
-## Correcao do Mapeamento dos Funis
+## Persistencia Global de Filtros (Periodo + Agentes)
 
-### Problema encontrado
+### Situacao Atual
 
-No funil de campanhas do Dashboard, o bloco UNION ALL nas linhas 186-190 tem as posicoes 1 e 2 mapeadas para os CTEs errados:
+- O **periodo** (dateFrom/dateTo) ja e persistido via `localStorage` (`lovable-quick-period`), mas apenas o nome do preset (ex: "last7days"), nao as datas exatas para periodos customizados.
+- Os **agentes selecionados** (`agentCodes`) NAO sao persistidos -- cada pagina inicializa com `[]` e depois preenche com todos os agentes quando o hook de agentes carrega.
+- Cada pagina (Dashboard, CRM, Campanhas, Desempenho, Contratos, FollowUp) gerencia seu proprio `useState<UnifiedFiltersState>` independentemente.
 
-| Posicao | Label | CTE atual (errado) | CTE correto |
-|---------|-------|---------------------|-------------|
-| 0 | Atendimentos | entrada | entrada (ok) |
-| 1 | Em Qualificacao | **atendidos** (log_first_messages) | **em_qualificacao** (Analise de Caso) |
-| 2 | Qualificados | **em_qualificacao** (Analise de Caso) | **qualificados** (Negociacao) |
-| 3 | Contratos Gerados | contratos_gerados | contratos_gerados (ok) |
-| 4 | Contratos Assinados | contratos_assinados | contratos_assinados (ok) |
+### Solucao
 
-O CTE `atendidos` (que conta leads com `log_first_messages`) nao tem equivalente no funil Julia, entao ele esta "sobrando" e empurrando as posicoes seguintes para o CTE errado.
+Criar um sistema de persistencia centralizado que salva e restaura `agentCodes` no `localStorage`, alem do periodo que ja funciona.
 
-### Valores esperados (confirmados pelo usuario)
+### Arquivos alterados
 
-Campanha: Atendimentos 53, Em Qualificacao 37, Qualificado 12, Contratos Gerados 5.
+1. **`src/hooks/usePersistedPeriod.ts`** -- Adicionar funcoes para persistir e recuperar `agentCodes`:
+   - `saveAgentCodes(codes: string[])` -- salva no localStorage
+   - `getSavedAgentCodes(): string[] | null` -- retorna os codigos salvos (null = nunca salvo, usar todos)
+   - Nova chave: `lovable-agent-codes`
 
-### Correcao
+2. **`src/components/filters/UnifiedFilters.tsx`** -- Chamar `saveAgentCodes` sempre que os agentes selecionados mudarem (nos handlers `handleAgentToggle`, `handleSelectAllAgents`)
 
-**Arquivo:** `src/pages/dashboard/hooks/useDashboardFunnels.ts`
+3. **Paginas que usam UnifiedFilters** (6 arquivos) -- Na logica de inicializacao de agentes (`useEffect` que roda quando agents carregam), verificar se ha agentes salvos no localStorage e usar esses ao inves de selecionar todos:
+   - `src/pages/Dashboard.tsx`
+   - `src/pages/crm/CRMPage.tsx`
+   - `src/pages/estrategico/campanhas/CampanhasPage.tsx`
+   - `src/pages/estrategico/desempenho/DesempenhoPage.tsx`
+   - `src/pages/estrategico/contratos/ContratosPage.tsx`
+   - `src/pages/agente/followup/FollowupPage.tsx`
 
-1. Remover o CTE `atendidos` (linhas 136-143) da query de campanhas, pois nao e usado em nenhuma posicao do funil e nao tem equivalente no funil Julia
+### Detalhes tecnicos
 
-2. Corrigir o UNION ALL (linhas 186-190) para:
-
-```sql
-SELECT 'Atendimentos', '#22c55e', 0, (SELECT count FROM entrada)
-UNION ALL SELECT 'Em Qualificação', '#eab308', 1, (SELECT count FROM em_qualificacao)
-UNION ALL SELECT 'Qualificados', '#f97316', 2, (SELECT count FROM qualificados)
-UNION ALL SELECT 'Contratos Gerados', '#3b82f6', 3, (SELECT count FROM contratos_gerados)
-UNION ALL SELECT 'Contratos Assinados', '#8b5cf6', 4, (SELECT count FROM contratos_assinados)
+```text
+localStorage
+  lovable-quick-period  -->  "last7days" (ja existe)
+  lovable-agent-codes   -->  ["123","456"] (novo)
 ```
 
-Isso alinha o funil de campanhas com o funil Julia, garantindo que ambos usem as mesmas definicoes de estagio (Analise de Caso, Negociacao, Contrato em Curso, Contrato Assinado) e que o funil organico (Julia - Campanhas) seja calculado corretamente.
+Logica de inicializacao em cada pagina:
+```text
+quando agents carregam:
+  saved = getSavedAgentCodes()
+  se saved != null:
+    filtrar apenas os codigos que existem na lista de agents disponíveis
+    usar os filtrados
+  senao:
+    usar todos (comportamento atual, primeira vez)
+```
 
-O funil Julia nao precisa de alteracao - seu mapeamento ja esta correto.
-
+Isso garante que:
+- Ao trocar de pagina, os mesmos agentes ficam selecionados
+- Se um agente for removido do sistema, ele e ignorado automaticamente
+- Na primeira visita (sem dados salvos), todos sao selecionados como hoje
