@@ -19,7 +19,23 @@ interface AgentPerformanceTableProps {
   isLoading?: boolean;
 }
 
-type SortKey = 'total_leads' | 'conversion_rate' | 'avg_time_days';
+type SortKey = 'total_leads' | 'qualified_rate' | 'contract_rate' | 'avg_time_days';
+
+function formatAvgTime(days: number): string {
+  const totalMinutes = Math.round(days * 24 * 60);
+  if (totalMinutes < 60) {
+    return `${totalMinutes}min`;
+  }
+  const totalHours = days * 24;
+  if (totalHours < 24) {
+    const h = Math.floor(totalHours);
+    const m = Math.round((totalHours - h) * 60);
+    return m > 0 ? `${h}h ${m}min` : `${h}h`;
+  }
+  const d = Math.floor(days);
+  const remainingHours = Math.round((days - d) * 24);
+  return remainingHours > 0 ? `${d}d ${remainingHours}h` : `${d}d`;
+}
 
 export function AgentPerformanceTable({ data, isLoading }: AgentPerformanceTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('total_leads');
@@ -52,7 +68,8 @@ export function AgentPerformanceTable({ data, isLoading }: AgentPerformanceTable
   });
 
   const maxLeads = Math.max(...data.map(d => d.total_leads), 1);
-  const avgConversion = data.reduce((sum, d) => sum + d.conversion_rate, 0) / data.length;
+  const avgQualified = data.reduce((sum, d) => sum + d.qualified_rate, 0) / data.length;
+  const avgContract = data.reduce((sum, d) => sum + d.contract_rate, 0) / data.length;
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -75,16 +92,25 @@ export function AgentPerformanceTable({ data, isLoading }: AgentPerformanceTable
                 onClick={() => handleSort('total_leads')}
               >
                 <div className="flex items-center gap-1">
-                  Leads
+                  Atendimentos
                   <ArrowUpDown className="h-3 w-3" />
                 </div>
               </TableHead>
               <TableHead 
                 className="cursor-pointer hover:bg-muted/50"
-                onClick={() => handleSort('conversion_rate')}
+                onClick={() => handleSort('qualified_rate')}
               >
                 <div className="flex items-center gap-1">
-                  Conversão
+                  Qualificados
+                  <ArrowUpDown className="h-3 w-3" />
+                </div>
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort('contract_rate')}
+              >
+                <div className="flex items-center gap-1">
+                  Contratos
                   <ArrowUpDown className="h-3 w-3" />
                 </div>
               </TableHead>
@@ -113,19 +139,34 @@ export function AgentPerformanceTable({ data, isLoading }: AgentPerformanceTable
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{agent.total_leads}</span>
                     <span className="text-xs text-muted-foreground">
-                      ({agent.converted_leads} convertidos)
+                      ({agent.qualified_leads} qualificados)
                     </span>
                   </div>
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <Badge 
-                      variant={agent.conversion_rate > avgConversion ? 'default' : 'secondary'}
+                      variant={agent.qualified_rate > avgQualified ? 'default' : 'secondary'}
                       className="font-mono"
                     >
-                      {agent.conversion_rate.toFixed(1)}%
+                      {agent.qualified_rate.toFixed(1)}%
                     </Badge>
-                    {agent.conversion_rate > avgConversion ? (
+                    {agent.qualified_rate > avgQualified ? (
+                      <TrendingUp className="h-4 w-4 text-chart-2" />
+                    ) : (
+                      <TrendingDown className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <Badge 
+                      variant={agent.contract_rate > avgContract ? 'default' : 'secondary'}
+                      className="font-mono"
+                    >
+                      {agent.contract_rate.toFixed(1)}%
+                    </Badge>
+                    {agent.contract_rate > avgContract ? (
                       <TrendingUp className="h-4 w-4 text-chart-2" />
                     ) : (
                       <TrendingDown className="h-4 w-4 text-muted-foreground" />
@@ -134,7 +175,7 @@ export function AgentPerformanceTable({ data, isLoading }: AgentPerformanceTable
                 </TableCell>
                 <TableCell>
                   <span className="font-mono text-sm">
-                    {agent.avg_time_days.toFixed(1)}d
+                    {formatAvgTime(agent.avg_time_days)}
                   </span>
                 </TableCell>
                 <TableCell>

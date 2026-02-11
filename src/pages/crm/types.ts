@@ -75,8 +75,10 @@ export interface CRMAgentPerformance {
   cod_agent: string;
   owner_name: string;
   total_leads: number;
-  converted_leads: number;
-  conversion_rate: number;
+  qualified_leads: number;
+  qualified_rate: number;
+  contract_leads: number;
+  contract_rate: number;
   avg_time_days: number;
 }
 
