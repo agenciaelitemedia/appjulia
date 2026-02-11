@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Clock, Target, Headphones, CheckCircle, XCircle } from "lucide-react";
-import { LineChart, Line, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { CRMCard, CRMStage } from "../types";
 
 interface CRMDashboardSummaryProps {
@@ -74,11 +74,6 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(-7);
 
-    const pieData = [
-      { name: "Qualificados", value: qualified, color: "hsl(var(--chart-2))" },
-      { name: "Desqualificados", value: disqualified, color: "hsl(var(--chart-5))" },
-    ];
-
     return {
       total,
       converted,
@@ -90,7 +85,6 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
       disqualifiedRate,
       avgTime,
       dailyTrend,
-      pieData,
     };
   }, [cards, stages, juliaSessions]);
 
@@ -181,7 +175,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
       </Card>
 
       {/* 5. Qualificados */}
-      <Card className="border-l-4 border-l-chart-2">
+      <Card className="border-l-4 border-l-chart-4">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -191,42 +185,26 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
                 {stats.qualified} de {stats.totalSessions} atendimentos
               </p>
             </div>
-            <div className="p-2 bg-chart-2/10 rounded-full">
-              <CheckCircle className="h-5 w-5 text-chart-2" />
+            <div className="p-2 bg-chart-4/10 rounded-full">
+              <CheckCircle className="h-5 w-5 text-chart-4" />
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* 6. Taxa Desqualificados */}
+      {/* 6. Desqualificado */}
       <Card className="border-l-4 border-l-chart-5">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground font-medium">Taxa Desqualificados</p>
+              <p className="text-xs text-muted-foreground font-medium">Desqualificado</p>
               <p className="text-2xl font-bold text-foreground">{stats.disqualifiedRate.toFixed(1)}%</p>
               <p className="text-xs text-muted-foreground">
                 {stats.disqualified} de {stats.totalSessions} atendimentos
               </p>
             </div>
-            <div className="w-12 h-12">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={stats.pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={12}
-                    outerRadius={20}
-                    dataKey="value"
-                    strokeWidth={0}
-                  >
-                    {stats.pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="p-2 bg-chart-5/10 rounded-full">
+              <XCircle className="h-5 w-5 text-chart-5" />
             </div>
           </div>
         </CardContent>
