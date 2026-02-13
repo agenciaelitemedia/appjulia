@@ -42,7 +42,7 @@ import { DashboardActivityTimeline } from './dashboard/components/DashboardActiv
 import { DashboardSparkline } from './dashboard/components/DashboardSparkline';
 import { DashboardFunnelChart } from './dashboard/components/DashboardFunnelChart';
 import { DashboardTripleFunnel } from './dashboard/components/DashboardTripleFunnel';
-import { useDashboardJuliaFunnel, useDashboardCampaignFunnel, useDashboardOrganicFunnel } from './dashboard/hooks/useDashboardFunnels';
+import { useDashboardJuliaFunnel, useDashboardCampaignFunnel } from './dashboard/hooks/useDashboardFunnels';
 import { CRMLeadDetailsDialog } from './crm/components/CRMLeadDetailsDialog';
 
 export default function Dashboard() {
@@ -73,7 +73,6 @@ export default function Dashboard() {
   const { data: stages = [] } = useDashboardStages();
   const { data: juliaFunnel = [], isLoading: juliaFunnelLoading } = useDashboardJuliaFunnel(filters);
   const { data: campaignFunnel = [], isLoading: campaignFunnelLoading } = useDashboardCampaignFunnel(filters);
-  const { data: organicFunnel = [], isLoading: organicFunnelLoading } = useDashboardOrganicFunnel(filters);
   const { data: selectedCard } = useDashboardCardDetails(selectedLeadId);
 
   // Initialize agent codes when agents load
@@ -125,7 +124,6 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-activity'] }),
       queryClient.invalidateQueries({ queryKey: ['dashboard-julia-funnel'] }),
       queryClient.invalidateQueries({ queryKey: ['dashboard-campaign-funnel'] }),
-      queryClient.invalidateQueries({ queryKey: ['dashboard-organic-funnel'] }),
     ]);
     setIsRefreshing(false);
   };
@@ -341,10 +339,8 @@ export default function Dashboard() {
         <DashboardTripleFunnel
           juliaData={juliaFunnel}
           campaignData={campaignFunnel}
-          organicData={organicFunnel}
           juliaLoading={juliaFunnelLoading}
           campaignLoading={campaignFunnelLoading}
-          organicLoading={organicFunnelLoading}
         />
 
         {/* Evolution Chart */}

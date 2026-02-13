@@ -59,46 +59,33 @@ export function useDashboardJuliaFunnel(filters: UnifiedFiltersState) {
             SELECT COUNT(DISTINCT c.id)::int as count
             FROM julia_leads jl
             JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
-            JOIN crm_atendimento_stages s ON s.id = c.stage_id
-            WHERE s.position >= (
-              SELECT MIN(position) FROM crm_atendimento_stages
-              WHERE LOWER(name) LIKE '%analise%caso%' OR LOWER(name) LIKE '%análise%caso%'
-            )
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+            JOIN crm_atendimento_history h ON h.card_id = c.id
+            JOIN crm_atendimento_stages s ON s.id = h.to_stage_id
+            WHERE LOWER(s.name) LIKE '%analise%caso%' OR LOWER(s.name) LIKE '%análise%caso%'
           ),
           qualificados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
             FROM julia_leads jl
             JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
-            JOIN crm_atendimento_stages s ON s.id = c.stage_id
-            WHERE s.position >= (
-              SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Negociação'
-            )
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+            JOIN crm_atendimento_history h ON h.card_id = c.id
+            JOIN crm_atendimento_stages s ON s.id = h.to_stage_id
+            WHERE s.name = 'Negociação'
           ),
           contratos_gerados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
             FROM julia_leads jl
             JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
-            JOIN crm_atendimento_stages s ON s.id = c.stage_id
-            WHERE s.position >= (
-              SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Contrato em Curso'
-            )
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+            JOIN crm_atendimento_history h ON h.card_id = c.id
+            JOIN crm_atendimento_stages s ON s.id = h.to_stage_id
+            WHERE s.name = 'Contrato em Curso'
           ),
           contratos_assinados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
             FROM julia_leads jl
             JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
-            JOIN crm_atendimento_stages s ON s.id = c.stage_id
-            WHERE s.position >= (
-              SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Contrato Assinado'
-            )
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+            JOIN crm_atendimento_history h ON h.card_id = c.id
+            JOIN crm_atendimento_stages s ON s.id = h.to_stage_id
+            WHERE s.name = 'Contrato Assinado'
           )
           SELECT 'Atendimentos' as stage_name, '#22c55e' as stage_color, 0 as position, (SELECT count FROM atendimentos) as count
           UNION ALL SELECT 'Em Qualificação', '#eab308', 1, (SELECT count FROM em_qualificacao)
@@ -149,149 +136,45 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
           em_qualificacao AS (
             SELECT COUNT(DISTINCT c.id)::int as count
             FROM campaign_leads cl
-            JOIN crm_atendimento_cards c ON c.cod_agent = cl.cod_agent AND c.whatsapp_number = cl.whatsapp
-            JOIN crm_atendimento_stages st ON st.id = c.stage_id
-            WHERE st.position >= (
-              SELECT MIN(position) FROM crm_atendimento_stages
-              WHERE LOWER(name) LIKE '%analise%caso%' OR LOWER(name) LIKE '%análise%caso%'
-            )
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+            JOIN crm_atendimento_cards c
+              ON c.cod_agent = cl.cod_agent
+              AND c.whatsapp_number = cl.whatsapp
+            JOIN crm_atendimento_history h ON h.card_id = c.id
+            JOIN crm_atendimento_stages st ON st.id = h.to_stage_id
+            WHERE LOWER(st.name) LIKE '%analise%caso%'
+               OR LOWER(st.name) LIKE '%análise%caso%'
           ),
           qualificados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
             FROM campaign_leads cl
-            JOIN crm_atendimento_cards c ON c.cod_agent = cl.cod_agent AND c.whatsapp_number = cl.whatsapp
-            JOIN crm_atendimento_stages st ON st.id = c.stage_id
-            WHERE st.position >= (
-              SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Negociação'
-            )
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+            JOIN crm_atendimento_cards c
+              ON c.cod_agent = cl.cod_agent
+              AND c.whatsapp_number = cl.whatsapp
+            JOIN crm_atendimento_history h ON h.card_id = c.id
+            JOIN crm_atendimento_stages st ON st.id = h.to_stage_id
+            WHERE st.name = 'Negociação'
           ),
           contratos_gerados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
             FROM campaign_leads cl
-            JOIN crm_atendimento_cards c ON c.cod_agent = cl.cod_agent AND c.whatsapp_number = cl.whatsapp
-            JOIN crm_atendimento_stages st ON st.id = c.stage_id
-            WHERE st.position >= (
-              SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Contrato em Curso'
-            )
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+            JOIN crm_atendimento_cards c
+              ON c.cod_agent = cl.cod_agent
+              AND c.whatsapp_number = cl.whatsapp
+            JOIN crm_atendimento_history h ON h.card_id = c.id
+            JOIN crm_atendimento_stages st ON st.id = h.to_stage_id
+            WHERE st.name = 'Contrato em Curso'
           ),
           contratos_assinados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
             FROM campaign_leads cl
-            JOIN crm_atendimento_cards c ON c.cod_agent = cl.cod_agent AND c.whatsapp_number = cl.whatsapp
-            JOIN crm_atendimento_stages st ON st.id = c.stage_id
-            WHERE st.position >= (
-              SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Contrato Assinado'
-            )
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+            JOIN crm_atendimento_cards c
+              ON c.cod_agent = cl.cod_agent
+              AND c.whatsapp_number = cl.whatsapp
+            JOIN crm_atendimento_history h ON h.card_id = c.id
+            JOIN crm_atendimento_stages st ON st.id = h.to_stage_id
+            WHERE st.name = 'Contrato Assinado'
           )
           SELECT 'Atendimentos' as stage_name, '#22c55e' as stage_color, 0 as position, (SELECT count FROM entrada) as count
-          UNION ALL SELECT 'Em Qualificação', '#eab308', 1, (SELECT count FROM em_qualificacao)
-          UNION ALL SELECT 'Qualificados', '#f97316', 2, (SELECT count FROM qualificados)
-          UNION ALL SELECT 'Contratos Gerados', '#3b82f6', 3, (SELECT count FROM contratos_gerados)
-          UNION ALL SELECT 'Contratos Assinados', '#8b5cf6', 4, (SELECT count FROM contratos_assinados)
-          ORDER BY position
-        `,
-        params: [filters.agentCodes, filters.dateFrom, filters.dateTo],
-      });
-
-      return toFunnelStages(result);
-    },
-    enabled: filters.agentCodes.length > 0,
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
-export function useDashboardOrganicFunnel(filters: UnifiedFiltersState) {
-  return useQuery({
-    queryKey: ['dashboard-organic-funnel', filters.agentCodes, filters.dateFrom, filters.dateTo],
-    queryFn: async () => {
-      if (!filters.agentCodes.length) return [];
-
-      const result = await externalDb.raw<RawFunnelRow>({
-        query: `
-          WITH julia_leads AS (
-            SELECT DISTINCT whatsapp::text as whatsapp, cod_agent::text as cod_agent
-            FROM vw_desempenho_julia
-            WHERE cod_agent::text = ANY($1::varchar[])
-              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
-          ),
-          campaign_whatsapp AS (
-            SELECT DISTINCT COALESCE(
-              NULLIF((campaign_data::jsonb)->>'phone', ''),
-              s.whatsapp_number::text
-            ) as whatsapp
-            FROM campaing_ads ca
-            LEFT JOIN sessions s ON s.id = ca.session_id::int
-            WHERE ca.cod_agent::text = ANY($1::text[])
-              AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2
-              AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3
-              AND COALESCE(
-                NULLIF((campaign_data::jsonb)->>'phone', ''),
-                s.whatsapp_number::text
-              ) IS NOT NULL
-          ),
-          organic_leads AS (
-            SELECT DISTINCT whatsapp, cod_agent
-            FROM julia_leads
-            WHERE whatsapp NOT IN (SELECT whatsapp FROM campaign_whatsapp)
-          ),
-          atendimentos AS (
-            SELECT COUNT(DISTINCT whatsapp)::int as count FROM organic_leads
-          ),
-          em_qualificacao AS (
-            SELECT COUNT(DISTINCT c.id)::int as count
-            FROM organic_leads ol
-            JOIN crm_atendimento_cards c ON c.cod_agent = ol.cod_agent AND c.whatsapp_number = ol.whatsapp
-            JOIN crm_atendimento_stages s ON s.id = c.stage_id
-            WHERE s.position >= (
-              SELECT MIN(position) FROM crm_atendimento_stages
-              WHERE LOWER(name) LIKE '%analise%caso%' OR LOWER(name) LIKE '%análise%caso%'
-            )
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
-          ),
-          qualificados AS (
-            SELECT COUNT(DISTINCT c.id)::int as count
-            FROM organic_leads ol
-            JOIN crm_atendimento_cards c ON c.cod_agent = ol.cod_agent AND c.whatsapp_number = ol.whatsapp
-            JOIN crm_atendimento_stages s ON s.id = c.stage_id
-            WHERE s.position >= (
-              SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Negociação'
-            )
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
-          ),
-          contratos_gerados AS (
-            SELECT COUNT(DISTINCT c.id)::int as count
-            FROM organic_leads ol
-            JOIN crm_atendimento_cards c ON c.cod_agent = ol.cod_agent AND c.whatsapp_number = ol.whatsapp
-            JOIN crm_atendimento_stages s ON s.id = c.stage_id
-            WHERE s.position >= (
-              SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Contrato em Curso'
-            )
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
-          ),
-          contratos_assinados AS (
-            SELECT COUNT(DISTINCT c.id)::int as count
-            FROM organic_leads ol
-            JOIN crm_atendimento_cards c ON c.cod_agent = ol.cod_agent AND c.whatsapp_number = ol.whatsapp
-            JOIN crm_atendimento_stages s ON s.id = c.stage_id
-            WHERE s.position >= (
-              SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Contrato Assinado'
-            )
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
-          )
-          SELECT 'Atendimentos' as stage_name, '#22c55e' as stage_color, 0 as position, (SELECT count FROM atendimentos) as count
           UNION ALL SELECT 'Em Qualificação', '#eab308', 1, (SELECT count FROM em_qualificacao)
           UNION ALL SELECT 'Qualificados', '#f97316', 2, (SELECT count FROM qualificados)
           UNION ALL SELECT 'Contratos Gerados', '#3b82f6', 3, (SELECT count FROM contratos_gerados)

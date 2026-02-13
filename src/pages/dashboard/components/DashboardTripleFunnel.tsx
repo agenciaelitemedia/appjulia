@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -122,13 +123,32 @@ function FunnelCard({ title, icon, stages, isLoading }: FunnelCardProps) {
 interface DashboardTripleFunnelProps {
   juliaData: DashboardFunnelStage[];
   campaignData: DashboardFunnelStage[];
-  organicData: DashboardFunnelStage[];
   juliaLoading: boolean;
   campaignLoading: boolean;
-  organicLoading: boolean;
 }
 
-export function DashboardTripleFunnel({ juliaData, campaignData, organicData, juliaLoading, campaignLoading, organicLoading }: DashboardTripleFunnelProps) {
+const STAGE_NAMES = ['Atendimentos', 'Em Qualificação', 'Qualificados', 'Contratos Gerados', 'Contratos Assinados'];
+const STAGE_COLORS = ['#22c55e', '#eab308', '#f97316', '#3b82f6', '#8b5cf6'];
+
+export function DashboardTripleFunnel({ juliaData, campaignData, juliaLoading, campaignLoading }: DashboardTripleFunnelProps) {
+  const organicData = useMemo<DashboardFunnelStage[]>(() => {
+    if (!juliaData.length || !campaignData.length) return [];
+
+    const stages = STAGE_NAMES.map((name, i) => {
+      const juliaCount = juliaData[i]?.count ?? 0;
+      const campaignCount = campaignData[i]?.count ?? 0;
+      const count = Math.max(0, juliaCount - campaignCount);
+      return { stage_name: name, stage_color: STAGE_COLORS[i], position: i, count };
+    });
+
+    const first = stages[0]?.count || 0;
+    return stages.map((s, i) => ({
+      ...s,
+      percentage: first > 0 ? (s.count / first) * 100 : 0,
+      conversionRate: i === 0 ? 100 : stages[i - 1].count > 0 ? (s.count / stages[i - 1].count) * 100 : 0,
+    }));
+  }, [juliaData, campaignData]);
+
   return (
     <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
       <FunnelCard
@@ -147,7 +167,7 @@ export function DashboardTripleFunnel({ juliaData, campaignData, organicData, ju
         title="Funil Orgânicos"
         icon={<Leaf className="h-5 w-5 text-primary" />}
         stages={organicData}
-        isLoading={organicLoading}
+        isLoading={juliaLoading || campaignLoading}
       />
     </div>
   );
