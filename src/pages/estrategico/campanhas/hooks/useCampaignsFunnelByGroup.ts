@@ -54,10 +54,8 @@ export function useCampaignsFunnelByGroup(filters: CampanhasFiltersState) {
           JOIN crm_atendimento_cards c 
             ON c.cod_agent = cl.cod_agent 
             AND c.whatsapp_number = cl.whatsapp
-          JOIN crm_atendimento_history h ON h.card_id = c.id
-          JOIN crm_atendimento_stages s ON s.id = h.to_stage_id
-          WHERE LOWER(s.name) LIKE '%analise%caso%' 
-             OR LOWER(s.name) LIKE '%análise%caso%'
+          JOIN crm_atendimento_stages s ON s.id = c.stage_id
+          WHERE s.position >= (SELECT MIN(position) FROM crm_atendimento_stages WHERE LOWER(name) LIKE '%analise%caso%' OR LOWER(name) LIKE '%análise%caso%')
           GROUP BY cl.group_key
         ),
 
