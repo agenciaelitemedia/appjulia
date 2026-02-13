@@ -64,6 +64,8 @@ export function useDashboardJuliaFunnel(filters: UnifiedFiltersState) {
               SELECT MIN(position) FROM crm_atendimento_stages
               WHERE LOWER(name) LIKE '%analise%caso%' OR LOWER(name) LIKE '%análise%caso%'
             )
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           ),
           qualificados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
@@ -73,6 +75,8 @@ export function useDashboardJuliaFunnel(filters: UnifiedFiltersState) {
             WHERE s.position >= (
               SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Negociação'
             )
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           ),
           contratos_gerados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
@@ -82,6 +86,8 @@ export function useDashboardJuliaFunnel(filters: UnifiedFiltersState) {
             WHERE s.position >= (
               SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Contrato em Curso'
             )
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           ),
           contratos_assinados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
@@ -91,6 +97,8 @@ export function useDashboardJuliaFunnel(filters: UnifiedFiltersState) {
             WHERE s.position >= (
               SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Contrato Assinado'
             )
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           )
           SELECT 'Atendimentos' as stage_name, '#22c55e' as stage_color, 0 as position, (SELECT count FROM atendimentos) as count
           UNION ALL SELECT 'Em Qualificação', '#eab308', 1, (SELECT count FROM em_qualificacao)
@@ -147,6 +155,8 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
               SELECT MIN(position) FROM crm_atendimento_stages
               WHERE LOWER(name) LIKE '%analise%caso%' OR LOWER(name) LIKE '%análise%caso%'
             )
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           ),
           qualificados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
@@ -156,6 +166,8 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
             WHERE st.position >= (
               SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Negociação'
             )
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           ),
           contratos_gerados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
@@ -165,6 +177,8 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
             WHERE st.position >= (
               SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Contrato em Curso'
             )
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           ),
           contratos_assinados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
@@ -174,6 +188,8 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
             WHERE st.position >= (
               SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Contrato Assinado'
             )
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           )
           SELECT 'Atendimentos' as stage_name, '#22c55e' as stage_color, 0 as position, (SELECT count FROM entrada) as count
           UNION ALL SELECT 'Em Qualificação', '#eab308', 1, (SELECT count FROM em_qualificacao)
@@ -239,6 +255,8 @@ export function useDashboardOrganicFunnel(filters: UnifiedFiltersState) {
               SELECT MIN(position) FROM crm_atendimento_stages
               WHERE LOWER(name) LIKE '%analise%caso%' OR LOWER(name) LIKE '%análise%caso%'
             )
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           ),
           qualificados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
@@ -248,6 +266,8 @@ export function useDashboardOrganicFunnel(filters: UnifiedFiltersState) {
             WHERE s.position >= (
               SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Negociação'
             )
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           ),
           contratos_gerados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
@@ -257,6 +277,8 @@ export function useDashboardOrganicFunnel(filters: UnifiedFiltersState) {
             WHERE s.position >= (
               SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Contrato em Curso'
             )
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           ),
           contratos_assinados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
@@ -266,6 +288,8 @@ export function useDashboardOrganicFunnel(filters: UnifiedFiltersState) {
             WHERE s.position >= (
               SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Contrato Assinado'
             )
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           )
           SELECT 'Atendimentos' as stage_name, '#22c55e' as stage_color, 0 as position, (SELECT count FROM atendimentos) as count
           UNION ALL SELECT 'Em Qualificação', '#eab308', 1, (SELECT count FROM em_qualificacao)
