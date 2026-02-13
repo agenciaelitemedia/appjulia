@@ -61,6 +61,8 @@ export function useDashboardJuliaFunnel(filters: UnifiedFiltersState) {
             JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
             JOIN crm_atendimento_stages s ON s.id = c.stage_id
             WHERE s.position >= (SELECT MIN(position) FROM crm_atendimento_stages WHERE LOWER(name) LIKE '%analise%caso%' OR LOWER(name) LIKE '%análise%caso%')
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           ),
           qualificados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
@@ -68,6 +70,8 @@ export function useDashboardJuliaFunnel(filters: UnifiedFiltersState) {
             JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
             JOIN crm_atendimento_stages s ON s.id = c.stage_id
             WHERE s.position >= (SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Negociação')
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           ),
           contratos_gerados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
@@ -75,6 +79,8 @@ export function useDashboardJuliaFunnel(filters: UnifiedFiltersState) {
             JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
             JOIN crm_atendimento_stages s ON s.id = c.stage_id
             WHERE s.position >= (SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Contrato em Curso')
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           ),
           contratos_assinados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
@@ -82,6 +88,8 @@ export function useDashboardJuliaFunnel(filters: UnifiedFiltersState) {
             JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
             JOIN crm_atendimento_stages s ON s.id = c.stage_id
             WHERE s.position >= (SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Contrato Assinado')
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           )
           SELECT 'Atendimentos' as stage_name, '#22c55e' as stage_color, 0 as position, (SELECT count FROM atendimentos) as count
           UNION ALL SELECT 'Em Qualificação', '#eab308', 1, (SELECT count FROM em_qualificacao)
@@ -137,6 +145,8 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
               AND c.whatsapp_number = cl.whatsapp
             JOIN crm_atendimento_stages st ON st.id = c.stage_id
             WHERE st.position >= (SELECT MIN(position) FROM crm_atendimento_stages WHERE LOWER(name) LIKE '%analise%caso%' OR LOWER(name) LIKE '%análise%caso%')
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3
           ),
           qualificados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
@@ -146,6 +156,8 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
               AND c.whatsapp_number = cl.whatsapp
             JOIN crm_atendimento_stages st ON st.id = c.stage_id
             WHERE st.position >= (SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Negociação')
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3
           ),
           contratos_gerados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
@@ -155,6 +167,8 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
               AND c.whatsapp_number = cl.whatsapp
             JOIN crm_atendimento_stages st ON st.id = c.stage_id
             WHERE st.position >= (SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Contrato em Curso')
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3
           ),
           contratos_assinados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
@@ -164,6 +178,8 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
               AND c.whatsapp_number = cl.whatsapp
             JOIN crm_atendimento_stages st ON st.id = c.stage_id
             WHERE st.position >= (SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Contrato Assinado')
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3
           )
           SELECT 'Atendimentos' as stage_name, '#22c55e' as stage_color, 0 as position, (SELECT count FROM entrada) as count
           UNION ALL SELECT 'Em Qualificação', '#eab308', 1, (SELECT count FROM em_qualificacao)
