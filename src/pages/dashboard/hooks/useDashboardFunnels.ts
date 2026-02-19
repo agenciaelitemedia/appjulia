@@ -47,7 +47,7 @@ export function useDashboardJuliaFunnel(filters: UnifiedFiltersState) {
         query: `
           WITH julia_leads AS (
             SELECT DISTINCT whatsapp::text as whatsapp, cod_agent::text as cod_agent
-            FROM vw_desempenho_julia
+            FROM vw_painelv2_desempenho_julia
             WHERE cod_agent::text = ANY($1::varchar[])
               AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
               AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date

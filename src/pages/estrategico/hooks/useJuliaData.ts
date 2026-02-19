@@ -31,7 +31,7 @@ export function useJuliaSessoes(filters: JuliaFiltersState) {
           cod_agent::text, agent_id, name, business_name, client_id,
           perfil_agent, session_id, total_msg::int, whatsapp::text,
           status_document, max_created_at, created_at
-        FROM vw_desempenho_julia
+        FROM vw_painelv2_desempenho_julia
         WHERE cod_agent::text = ANY($1::varchar[])
           AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
           AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
@@ -67,7 +67,7 @@ export function useJuliaSessoesPrevious(filters: JuliaFiltersState) {
       let query = `
         SELECT 
           cod_agent::text, session_id, total_msg::int
-        FROM vw_desempenho_julia
+        FROM vw_painelv2_desempenho_julia
         WHERE cod_agent::text = ANY($1::varchar[])
           AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
           AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
@@ -105,7 +105,7 @@ export function useJuliaContratos(filters: JuliaFiltersState) {
           resumo_do_caso, signer_name, signer_cpf, signer_uf,
           signer_cidade, signer_bairro, signer_endereco, signer_cep,
           case_title, case_category_name, case_category_color, is_confirm
-        FROM vw_desempenho_julia_contratos
+        FROM vw_painelv2_desempenho_julia_contratos
         WHERE cod_agent::text = ANY($1::varchar[])
           AND (data_contrato AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
           AND (data_contrato AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
@@ -141,7 +141,7 @@ export function useJuliaContratosPrevious(filters: JuliaFiltersState) {
       let query = `
         SELECT 
           cod_agent::text, status_document, situacao
-        FROM vw_desempenho_julia_contratos
+        FROM vw_painelv2_desempenho_julia_contratos
         WHERE cod_agent::text = ANY($1::varchar[])
           AND (data_contrato AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
           AND (data_contrato AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
