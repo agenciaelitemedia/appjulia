@@ -2,9 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Users,
-  MessageSquare,
   TrendingUp,
-  Bot,
   ArrowUpRight,
   ArrowDownRight,
   Minus,
@@ -12,6 +10,8 @@ import {
   User,
   Percent,
   Activity,
+  Filter,
+  Handshake,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -107,9 +107,9 @@ export default function Dashboard() {
     if (!statsPrevious) return null;
     return {
       leads: calculateChange(stats?.totalLeads ?? 0, statsPrevious.totalLeads),
-      messages: calculateChange(stats?.totalMessages ?? 0, statsPrevious.totalMessages),
       conversions: calculateChange(stats?.conversions ?? 0, statsPrevious.conversions),
       sessions: calculateChange(stats?.totalSessions ?? 0, statsPrevious.totalSessions),
+      mql: calculateChange(stats?.mqlCount ?? 0, statsPrevious.mqlCount),
     };
   }, [stats, statsPrevious]);
 
@@ -140,6 +140,22 @@ export default function Dashboard() {
     }
   };
 
+  // Calculate MQL rate (% of sessions)
+  const mqlRate = useMemo(() => {
+    const totalSessions = stats?.totalSessions ?? 0;
+    const mql = stats?.mqlCount ?? 0;
+    if (totalSessions === 0) return 0;
+    return (mql / totalSessions) * 100;
+  }, [stats?.totalSessions, stats?.mqlCount]);
+
+  // Calculate SQL rate (% of sessions)
+  const sqlRate = useMemo(() => {
+    const totalSessions = stats?.totalSessions ?? 0;
+    const sql = stats?.conversions ?? 0;
+    if (totalSessions === 0) return 0;
+    return (sql / totalSessions) * 100;
+  }, [stats?.totalSessions, stats?.conversions]);
+
   // Calculate conversion rate based on Julia sessions
   const conversionRate = useMemo(() => {
     const totalSessions = stats?.totalSessions ?? 0;
@@ -156,6 +172,24 @@ export default function Dashboard() {
     const prevRate = prevSessions > 0 ? (prevConversions / prevSessions) * 100 : 0;
     return calculateChange(conversionRate, prevRate);
   }, [conversionRate, statsPrevious]);
+
+  // MQL rate change
+  const mqlRateChange = useMemo(() => {
+    if (!statsPrevious) return null;
+    const prevSessions = statsPrevious.totalSessions;
+    const prevMql = statsPrevious.mqlCount;
+    const prevRate = prevSessions > 0 ? (prevMql / prevSessions) * 100 : 0;
+    return calculateChange(mqlRate, prevRate);
+  }, [mqlRate, statsPrevious]);
+
+  // SQL rate change
+  const sqlRateChange = useMemo(() => {
+    if (!statsPrevious) return null;
+    const prevSessions = statsPrevious.totalSessions;
+    const prevSql = statsPrevious.conversions;
+    const prevRate = prevSessions > 0 ? (prevSql / prevSessions) * 100 : 0;
+    return calculateChange(sqlRate, prevRate);
+  }, [sqlRate, statsPrevious]);
 
   const statCards = [
     {
@@ -178,13 +212,24 @@ export default function Dashboard() {
       description: 'Atendimentos de IA',
     },
     {
-      title: 'Mensagens Enviadas',
-      value: stats?.totalMessages ?? 0,
-      displayValue: (stats?.totalMessages ?? 0).toLocaleString('pt-BR'),
-      icon: MessageSquare,
-      change: changes?.messages,
-      sparklineData: sparklineData.leads,
-      sparklineColor: 'hsl(var(--chart-3))',
+      title: 'MQL',
+      value: stats?.mqlCount ?? 0,
+      displayValue: (stats?.mqlCount ?? 0).toLocaleString('pt-BR'),
+      icon: Filter,
+      change: changes?.mql,
+      sparklineData: null,
+      sparklineColor: '',
+      description: `${stats?.mqlCount ?? 0} de ${stats?.totalSessions ?? 0} atendimentos (${mqlRate.toFixed(1)}%)`,
+    },
+    {
+      title: 'SQL',
+      value: stats?.conversions ?? 0,
+      displayValue: (stats?.conversions ?? 0).toLocaleString('pt-BR'),
+      icon: Handshake,
+      change: changes?.conversions,
+      sparklineData: null,
+      sparklineColor: '',
+      description: `${stats?.conversions ?? 0} de ${stats?.totalSessions ?? 0} atendimentos (${sqlRate.toFixed(1)}%)`,
     },
     {
       title: 'Contratos Gerados/Assinados',
@@ -204,15 +249,6 @@ export default function Dashboard() {
       sparklineData: null,
       sparklineColor: '',
       description: `${stats?.conversions ?? 0} de ${stats?.totalSessions ?? 0} Atendimentos`,
-    },
-    {
-      title: 'Agentes Selecionados',
-      value: stats?.activeAgents ?? 0,
-      displayValue: (stats?.activeAgents ?? 0).toLocaleString('pt-BR'),
-      icon: Bot,
-      change: null,
-      sparklineData: null,
-      sparklineColor: '',
     },
   ];
 
