@@ -97,7 +97,7 @@ export function useCRMAgentPerformance(filters: CRMFiltersState) {
         query: `
           WITH julia_sessions AS (
             SELECT DISTINCT cod_agent::text as cod_agent, whatsapp::text as whatsapp
-            FROM vw_desempenho_julia
+            FROM vw_painelv2_desempenho_julia
             WHERE cod_agent::text = ANY($1::varchar[])
               AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
               AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date

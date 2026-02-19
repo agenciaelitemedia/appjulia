@@ -174,7 +174,7 @@ export function useDashboardStats(filters: DashboardFiltersState) {
         externalDb.raw<{ total: number }>({
           query: `
             SELECT COALESCE(SUM(total_msg::int), 0) as total
-            FROM vw_desempenho_julia
+            FROM vw_painelv2_desempenho_julia
             WHERE cod_agent::text = ANY($1::varchar[])
               AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
               AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
@@ -186,7 +186,7 @@ export function useDashboardStats(filters: DashboardFiltersState) {
         externalDb.raw<{ total: number }>({
           query: `
             SELECT COUNT(DISTINCT session_id) as total
-            FROM vw_desempenho_julia
+            FROM vw_painelv2_desempenho_julia
             WHERE cod_agent::text = ANY($1::varchar[])
               AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
               AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
@@ -255,7 +255,7 @@ export function useDashboardStatsPrevious(filters: DashboardFiltersState) {
         externalDb.raw<{ total: number }>({
           query: `
             SELECT COALESCE(SUM(total_msg::int), 0) as total
-            FROM vw_desempenho_julia
+            FROM vw_painelv2_desempenho_julia
             WHERE cod_agent::text = ANY($1::varchar[])
               AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
               AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
@@ -267,7 +267,7 @@ export function useDashboardStatsPrevious(filters: DashboardFiltersState) {
         externalDb.raw<{ total: number }>({
           query: `
             SELECT COUNT(DISTINCT session_id) as total
-            FROM vw_desempenho_julia
+            FROM vw_painelv2_desempenho_julia
             WHERE cod_agent::text = ANY($1::varchar[])
               AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
               AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
