@@ -217,9 +217,17 @@ export default function AgentsList() {
       : <ArrowDown className="ml-1 h-3 w-3" />;
   };
 
-  // Filter by debounced search term, status, and plan
+  // Filter by debounced search term, status, and plan + deduplicate by cod_agent
   const filteredAgents = useMemo(() => {
     let result = agents;
+
+    // Deduplicar por cod_agent (manter o primeiro de cada cod_agent)
+    const seen = new Set<string>();
+    result = result.filter(agent => {
+      if (!agent.cod_agent || seen.has(agent.cod_agent)) return false;
+      seen.add(agent.cod_agent);
+      return true;
+    });
     
     // Filtro por busca textual
     if (debouncedSearch.trim()) {
