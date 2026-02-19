@@ -45,44 +45,49 @@ export function useDashboardJuliaFunnel(filters: UnifiedFiltersState) {
 
       const result = await externalDb.raw<RawFunnelRow>({
         query: `
-          WITH julia_leads AS (
-            SELECT DISTINCT whatsapp::text as whatsapp, cod_agent::text as cod_agent
-            FROM vw_painelv2_desempenho_julia
-            WHERE cod_agent::text = ANY($1::varchar[])
-              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          WITH crm_leads AS (
+            SELECT c.id, c.cod_agent, c.whatsapp_number, c.stage_id
+            FROM crm_atendimento_cards c
+            WHERE c.cod_agent = ANY($1::varchar[])
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          ),
+          julia_leads AS (
+            SELECT DISTINCT cl.id, cl.stage_id
+            FROM crm_leads cl
+            WHERE EXISTS (
+              SELECT 1 FROM vw_painelv2_desempenho_julia v
+              WHERE v.cod_agent::text = cl.cod_agent
+                AND v.whatsapp::text = cl.whatsapp_number
+            )
           ),
           atendimentos AS (
-            SELECT COUNT(DISTINCT whatsapp)::int as count FROM julia_leads
+            SELECT COUNT(*)::int as count FROM julia_leads
           ),
           em_qualificacao AS (
-            SELECT COUNT(DISTINCT c.id)::int as count
+            SELECT COUNT(*)::int as count
             FROM julia_leads jl
-            JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
-            JOIN crm_atendimento_stages s ON s.id = c.stage_id
+            JOIN crm_atendimento_stages s ON s.id = jl.stage_id
             WHERE s.name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
                OR LOWER(s.name) LIKE '%analise%caso%'
                OR LOWER(s.name) LIKE '%análise%caso%'
           ),
           qualificados AS (
-            SELECT COUNT(DISTINCT c.id)::int as count
+            SELECT COUNT(*)::int as count
             FROM julia_leads jl
-            JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
-            JOIN crm_atendimento_stages s ON s.id = c.stage_id
+            JOIN crm_atendimento_stages s ON s.id = jl.stage_id
             WHERE s.name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
           ),
           contratos_gerados AS (
-            SELECT COUNT(DISTINCT c.id)::int as count
+            SELECT COUNT(*)::int as count
             FROM julia_leads jl
-            JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
-            JOIN crm_atendimento_stages s ON s.id = c.stage_id
+            JOIN crm_atendimento_stages s ON s.id = jl.stage_id
             WHERE s.name IN ('Contrato em Curso', 'Contrato Assinado')
           ),
           contratos_assinados AS (
-            SELECT COUNT(DISTINCT c.id)::int as count
+            SELECT COUNT(*)::int as count
             FROM julia_leads jl
-            JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
-            JOIN crm_atendimento_stages s ON s.id = c.stage_id
+            JOIN crm_atendimento_stages s ON s.id = jl.stage_id
             WHERE s.name = 'Contrato Assinado'
           )
           SELECT 'Atendimentos' as stage_name, '#22c55e' as stage_color, 0 as position, (SELECT count FROM atendimentos) as count
@@ -110,66 +115,53 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
 
       const result = await externalDb.raw<RawFunnelRow>({
         query: `
-          WITH campaign_leads AS (
-            SELECT DISTINCT
-              ca.id,
-              ca.cod_agent::text as cod_agent,
-              COALESCE(
-                NULLIF((campaign_data::jsonb)->>'phone', ''),
-                s.whatsapp_number::text
-              ) as whatsapp
-            FROM campaing_ads ca
-            LEFT JOIN sessions s ON s.id = ca.session_id::int
-            WHERE ca.cod_agent::text = ANY($1::text[])
-              AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2
-              AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3
-              AND COALESCE(
-                NULLIF((campaign_data::jsonb)->>'phone', ''),
-                s.whatsapp_number::text
-              ) IS NOT NULL
+          WITH crm_leads AS (
+            SELECT c.id, c.cod_agent, c.whatsapp_number, c.stage_id
+            FROM crm_atendimento_cards c
+            WHERE c.cod_agent = ANY($1::varchar[])
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           ),
-          entrada AS (
-            SELECT COUNT(DISTINCT whatsapp)::int as count FROM campaign_leads
+          campaign_leads AS (
+            SELECT DISTINCT cl.id, cl.stage_id
+            FROM crm_leads cl
+            WHERE EXISTS (
+              SELECT 1 FROM campaing_ads ca
+              LEFT JOIN sessions s ON s.id = ca.session_id::int
+              WHERE ca.cod_agent::text = cl.cod_agent
+                AND COALESCE(NULLIF((ca.campaign_data::jsonb)->>'phone', ''), s.whatsapp_number::text) = cl.whatsapp_number
+            )
+          ),
+          atendimentos AS (
+            SELECT COUNT(*)::int as count FROM campaign_leads
           ),
           em_qualificacao AS (
-            SELECT COUNT(DISTINCT c.id)::int as count
+            SELECT COUNT(*)::int as count
             FROM campaign_leads cl
-            JOIN crm_atendimento_cards c
-              ON c.cod_agent = cl.cod_agent
-              AND c.whatsapp_number = cl.whatsapp
-            JOIN crm_atendimento_stages st ON st.id = c.stage_id
-            WHERE st.name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
-               OR LOWER(st.name) LIKE '%analise%caso%'
-               OR LOWER(st.name) LIKE '%análise%caso%'
+            JOIN crm_atendimento_stages s ON s.id = cl.stage_id
+            WHERE s.name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
+               OR LOWER(s.name) LIKE '%analise%caso%'
+               OR LOWER(s.name) LIKE '%análise%caso%'
           ),
           qualificados AS (
-            SELECT COUNT(DISTINCT c.id)::int as count
+            SELECT COUNT(*)::int as count
             FROM campaign_leads cl
-            JOIN crm_atendimento_cards c
-              ON c.cod_agent = cl.cod_agent
-              AND c.whatsapp_number = cl.whatsapp
-            JOIN crm_atendimento_stages st ON st.id = c.stage_id
-            WHERE st.name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
+            JOIN crm_atendimento_stages s ON s.id = cl.stage_id
+            WHERE s.name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
           ),
           contratos_gerados AS (
-            SELECT COUNT(DISTINCT c.id)::int as count
+            SELECT COUNT(*)::int as count
             FROM campaign_leads cl
-            JOIN crm_atendimento_cards c
-              ON c.cod_agent = cl.cod_agent
-              AND c.whatsapp_number = cl.whatsapp
-            JOIN crm_atendimento_stages st ON st.id = c.stage_id
-            WHERE st.name IN ('Contrato em Curso', 'Contrato Assinado')
+            JOIN crm_atendimento_stages s ON s.id = cl.stage_id
+            WHERE s.name IN ('Contrato em Curso', 'Contrato Assinado')
           ),
           contratos_assinados AS (
-            SELECT COUNT(DISTINCT c.id)::int as count
+            SELECT COUNT(*)::int as count
             FROM campaign_leads cl
-            JOIN crm_atendimento_cards c
-              ON c.cod_agent = cl.cod_agent
-              AND c.whatsapp_number = cl.whatsapp
-            JOIN crm_atendimento_stages st ON st.id = c.stage_id
-            WHERE st.name = 'Contrato Assinado'
+            JOIN crm_atendimento_stages s ON s.id = cl.stage_id
+            WHERE s.name = 'Contrato Assinado'
           )
-          SELECT 'Atendimentos' as stage_name, '#22c55e' as stage_color, 0 as position, (SELECT count FROM entrada) as count
+          SELECT 'Atendimentos' as stage_name, '#22c55e' as stage_color, 0 as position, (SELECT count FROM atendimentos) as count
           UNION ALL SELECT 'Em Qualificação', '#eab308', 1, (SELECT count FROM em_qualificacao)
           UNION ALL SELECT 'Qualificados', '#f97316', 2, (SELECT count FROM qualificados)
           UNION ALL SELECT 'Contratos Gerados', '#3b82f6', 3, (SELECT count FROM contratos_gerados)
