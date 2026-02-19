@@ -148,13 +148,13 @@ export default function Dashboard() {
     return (mql / totalSessions) * 100;
   }, [stats?.totalSessions, stats?.mqlCount]);
 
-  // Calculate SQL rate (% of sessions)
-  const sqlRate = useMemo(() => {
-    const totalSessions = stats?.totalSessions ?? 0;
+  // Calculate SQL rate (% of MQL/qualificados)
+  const sqlOfMqlRate = useMemo(() => {
+    const mql = stats?.mqlCount ?? 0;
     const sql = stats?.conversions ?? 0;
-    if (totalSessions === 0) return 0;
-    return (sql / totalSessions) * 100;
-  }, [stats?.totalSessions, stats?.conversions]);
+    if (mql === 0) return 0;
+    return (sql / mql) * 100;
+  }, [stats?.mqlCount, stats?.conversions]);
 
   // Calculate conversion rate based on Julia sessions
   const conversionRate = useMemo(() => {
@@ -182,14 +182,14 @@ export default function Dashboard() {
     return calculateChange(mqlRate, prevRate);
   }, [mqlRate, statsPrevious]);
 
-  // SQL rate change
-  const sqlRateChange = useMemo(() => {
+  // SQL of MQL rate change
+  const sqlOfMqlRateChange = useMemo(() => {
     if (!statsPrevious) return null;
-    const prevSessions = statsPrevious.totalSessions;
+    const prevMql = statsPrevious.mqlCount;
     const prevSql = statsPrevious.conversions;
-    const prevRate = prevSessions > 0 ? (prevSql / prevSessions) * 100 : 0;
-    return calculateChange(sqlRate, prevRate);
-  }, [sqlRate, statsPrevious]);
+    const prevRate = prevMql > 0 ? (prevSql / prevMql) * 100 : 0;
+    return calculateChange(sqlOfMqlRate, prevRate);
+  }, [sqlOfMqlRate, statsPrevious]);
 
   const statCards = [
     {
@@ -213,23 +213,23 @@ export default function Dashboard() {
     },
     {
       title: 'MQL',
-      value: stats?.mqlCount ?? 0,
-      displayValue: (stats?.mqlCount ?? 0).toLocaleString('pt-BR'),
+      value: mqlRate,
+      displayValue: `${mqlRate.toFixed(1)}%`,
       icon: Filter,
-      change: changes?.mql,
+      change: mqlRateChange,
       sparklineData: null,
       sparklineColor: '',
-      description: `${stats?.mqlCount ?? 0} de ${stats?.totalSessions ?? 0} atendimentos (${mqlRate.toFixed(1)}%)`,
+      description: `${stats?.mqlCount ?? 0} de ${stats?.totalSessions ?? 0} atendimentos`,
     },
     {
       title: 'SQL',
-      value: stats?.conversions ?? 0,
-      displayValue: (stats?.conversions ?? 0).toLocaleString('pt-BR'),
+      value: sqlOfMqlRate,
+      displayValue: `${sqlOfMqlRate.toFixed(1)}%`,
       icon: Handshake,
-      change: changes?.conversions,
+      change: sqlOfMqlRateChange,
       sparklineData: null,
       sparklineColor: '',
-      description: `${stats?.conversions ?? 0} de ${stats?.totalSessions ?? 0} atendimentos (${sqlRate.toFixed(1)}%)`,
+      description: `${stats?.conversions ?? 0} de ${stats?.mqlCount ?? 0} qualificados`,
     },
     {
       title: 'Contratos Gerados/Assinados',
