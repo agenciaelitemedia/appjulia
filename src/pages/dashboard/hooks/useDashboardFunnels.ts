@@ -59,32 +59,35 @@ export function useDashboardJuliaFunnel(filters: UnifiedFiltersState) {
             SELECT COUNT(DISTINCT c.id)::int as count
             FROM julia_leads jl
             JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
-            JOIN crm_atendimento_history h ON h.card_id = c.id
-            JOIN crm_atendimento_stages s ON s.id = h.to_stage_id
-            WHERE LOWER(s.name) LIKE '%analise%caso%' OR LOWER(s.name) LIKE '%análise%caso%'
+            JOIN crm_atendimento_stages s ON s.id = c.stage_id
+            WHERE s.position >= (
+              SELECT MIN(position) FROM crm_atendimento_stages
+              WHERE LOWER(name) LIKE '%analise%caso%' OR LOWER(name) LIKE '%análise%caso%'
+            )
           ),
           qualificados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
             FROM julia_leads jl
             JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
-            JOIN crm_atendimento_history h ON h.card_id = c.id
-            JOIN crm_atendimento_stages s ON s.id = h.to_stage_id
-            WHERE s.name = 'Negociação'
+            JOIN crm_atendimento_stages s ON s.id = c.stage_id
+            WHERE s.position >= (
+              SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Negociação'
+            )
           ),
           contratos_gerados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
             FROM julia_leads jl
             JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
-            JOIN crm_atendimento_history h ON h.card_id = c.id
-            JOIN crm_atendimento_stages s ON s.id = h.to_stage_id
-            WHERE s.name = 'Contrato em Curso'
+            JOIN crm_atendimento_stages s ON s.id = c.stage_id
+            WHERE s.position >= (
+              SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Contrato em Curso'
+            )
           ),
           contratos_assinados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
             FROM julia_leads jl
             JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
-            JOIN crm_atendimento_history h ON h.card_id = c.id
-            JOIN crm_atendimento_stages s ON s.id = h.to_stage_id
+            JOIN crm_atendimento_stages s ON s.id = c.stage_id
             WHERE s.name = 'Contrato Assinado'
           )
           SELECT 'Atendimentos' as stage_name, '#22c55e' as stage_color, 0 as position, (SELECT count FROM atendimentos) as count
@@ -139,10 +142,11 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
             JOIN crm_atendimento_cards c
               ON c.cod_agent = cl.cod_agent
               AND c.whatsapp_number = cl.whatsapp
-            JOIN crm_atendimento_history h ON h.card_id = c.id
-            JOIN crm_atendimento_stages st ON st.id = h.to_stage_id
-            WHERE LOWER(st.name) LIKE '%analise%caso%'
-               OR LOWER(st.name) LIKE '%análise%caso%'
+            JOIN crm_atendimento_stages st ON st.id = c.stage_id
+            WHERE st.position >= (
+              SELECT MIN(position) FROM crm_atendimento_stages
+              WHERE LOWER(name) LIKE '%analise%caso%' OR LOWER(name) LIKE '%análise%caso%'
+            )
           ),
           qualificados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
@@ -150,9 +154,10 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
             JOIN crm_atendimento_cards c
               ON c.cod_agent = cl.cod_agent
               AND c.whatsapp_number = cl.whatsapp
-            JOIN crm_atendimento_history h ON h.card_id = c.id
-            JOIN crm_atendimento_stages st ON st.id = h.to_stage_id
-            WHERE st.name = 'Negociação'
+            JOIN crm_atendimento_stages st ON st.id = c.stage_id
+            WHERE st.position >= (
+              SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Negociação'
+            )
           ),
           contratos_gerados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
@@ -160,9 +165,10 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
             JOIN crm_atendimento_cards c
               ON c.cod_agent = cl.cod_agent
               AND c.whatsapp_number = cl.whatsapp
-            JOIN crm_atendimento_history h ON h.card_id = c.id
-            JOIN crm_atendimento_stages st ON st.id = h.to_stage_id
-            WHERE st.name = 'Contrato em Curso'
+            JOIN crm_atendimento_stages st ON st.id = c.stage_id
+            WHERE st.position >= (
+              SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Contrato em Curso'
+            )
           ),
           contratos_assinados AS (
             SELECT COUNT(DISTINCT c.id)::int as count
@@ -170,8 +176,7 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
             JOIN crm_atendimento_cards c
               ON c.cod_agent = cl.cod_agent
               AND c.whatsapp_number = cl.whatsapp
-            JOIN crm_atendimento_history h ON h.card_id = c.id
-            JOIN crm_atendimento_stages st ON st.id = h.to_stage_id
+            JOIN crm_atendimento_stages st ON st.id = c.stage_id
             WHERE st.name = 'Contrato Assinado'
           )
           SELECT 'Atendimentos' as stage_name, '#22c55e' as stage_color, 0 as position, (SELECT count FROM entrada) as count
