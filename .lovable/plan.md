@@ -1,55 +1,79 @@
 
 
-## Remover cards e adicionar MQL / SQL no Dashboard
+## Alinhar funis do Dashboard para usar estado atual (stage_id)
 
-### Resumo
+### Problema atual
 
-- **Remover**: "Mensagens Enviadas" e "Agentes Selecionados"
-- **Adicionar**: MQL e SQL logo apos "Atendimentos"
-- **MQL** = leads em "Negociacao" (Qualificados no funil)
-- **SQL** = leads em "Contrato em Curso" + "Contrato Assinado"
+Os funis (Julia e Campanhas) contam leads com base no **historico de movimentacao** (`crm_atendimento_history`), enquanto os cards MQL/SQL usam o **estado atual** (`crm_atendimento_cards.stage_id`). Isso causa discrepancia nos numeros.
 
-**Ordem final (6 cards):**
+### Solucao
 
-| # | Card | Valor |
-|---|------|-------|
-| 1 | Total de Whatsapp | totalLeads |
-| 2 | Atendimentos | totalSessions |
-| 3 | MQL | mqlCount + taxa % sobre atendimentos |
-| 4 | SQL | sqlCount + taxa % sobre atendimentos |
-| 5 | Contratos Gerados/Assinados | conversions |
-| 6 | Atendimentos x Contratos | rate % |
+Alterar as queries dos dois funis para usar `stage_id` atual com contagem **cumulativa por posicao** (leads na posicao >= X), em vez de buscar no historico.
 
-### Detalhes tecnicos
+### Arquivo: `src/pages/dashboard/hooks/useDashboardFunnels.ts`
 
-#### 1. `src/pages/dashboard/hooks/useDashboardData.ts`
+#### Funil Julia (`useDashboardJuliaFunnel`)
 
-**`useDashboardStats`** - adicionar 1 query para MQL (a query de SQL ja existe como `conversionsResult`):
+Manter o CTE `julia_leads` (fonte dos leads Julia via `vw_painelv2_desempenho_julia`), mas trocar as CTEs de cada etapa para consultar o `stage_id` atual com contagem cumulativa:
 
 ```sql
--- MQL: leads qualificados (Negociacao + Contrato em Curso + Contrato Assinado)
-SELECT COUNT(*) as count
-FROM crm_atendimento_cards c
-JOIN crm_atendimento_stages s ON c.stage_id = s.id
-WHERE s.name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
-  AND c.cod_agent = ANY($1::varchar[])
-  AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-  AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+WITH julia_leads AS (
+  SELECT DISTINCT whatsapp::text as whatsapp, cod_agent::text as cod_agent
+  FROM vw_painelv2_desempenho_julia
+  WHERE cod_agent::text = ANY($1::varchar[])
+    AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+    AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+),
+atendimentos AS (
+  SELECT COUNT(DISTINCT whatsapp)::int as count FROM julia_leads
+),
+-- Agora usa stage_id atual com position cumulativa
+em_qualificacao AS (
+  SELECT COUNT(DISTINCT c.id)::int as count
+  FROM julia_leads jl
+  JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
+  JOIN crm_atendimento_stages s ON s.id = c.stage_id
+  WHERE s.position >= (
+    SELECT MIN(position) FROM crm_atendimento_stages
+    WHERE LOWER(name) LIKE '%analise%caso%' OR LOWER(name) LIKE '%análise%caso%'
+  )
+),
+qualificados AS (
+  SELECT COUNT(DISTINCT c.id)::int as count
+  FROM julia_leads jl
+  JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
+  JOIN crm_atendimento_stages s ON s.id = c.stage_id
+  WHERE s.position >= (
+    SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Negociação'
+  )
+),
+contratos_gerados AS (
+  SELECT COUNT(DISTINCT c.id)::int as count
+  FROM julia_leads jl
+  JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
+  JOIN crm_atendimento_stages s ON s.id = c.stage_id
+  WHERE s.position >= (
+    SELECT MIN(position) FROM crm_atendimento_stages WHERE name = 'Contrato em Curso'
+  )
+),
+contratos_assinados AS (
+  SELECT COUNT(DISTINCT c.id)::int as count
+  FROM julia_leads jl
+  JOIN crm_atendimento_cards c ON c.cod_agent = jl.cod_agent AND c.whatsapp_number = jl.whatsapp
+  JOIN crm_atendimento_stages s ON s.id = c.stage_id
+  WHERE s.name = 'Contrato Assinado'
+)
 ```
 
-O SQL ja e contado pela query `conversionsResult` existente (Contrato em Curso + Contrato Assinado).
+Mudancas-chave:
+- Troca `h.to_stage_id` (historico) por `c.stage_id` (estado atual)
+- Remove JOINs com `crm_atendimento_history`
+- Usa `s.position >=` para contagem cumulativa (cada etapa inclui as posteriores)
 
-Retorno passa a incluir `mqlCount`.
+#### Funil Campanhas (`useDashboardCampaignFunnel`)
 
-**`useDashboardStatsPrevious`** - mesma query MQL adicional com datas do periodo anterior. Retorno inclui `mqlCount`.
+Mesma logica aplicada: manter CTE `campaign_leads` e trocar as CTEs de etapa para usar `c.stage_id` com contagem cumulativa, removendo os JOINs com `crm_atendimento_history`.
 
-#### 2. `src/pages/Dashboard.tsx`
+### Resultado esperado
 
-- Remover imports `MessageSquare` e `Bot`
-- Adicionar imports `Filter` (MQL) e `Handshake` (SQL) do lucide-react
-- Adicionar `mql` em `changes` usando `calculateChange(stats.mqlCount, statsPrevious.mqlCount)`
-- Calcular `mqlRate` e `sqlRate` (% sobre totalSessions) com `useMemo`
-- Calcular `mqlRateChange` e `sqlRateChange` comparando com periodo anterior
-- Atualizar array `statCards`: remover "Mensagens Enviadas" e "Agentes Selecionados", inserir MQL e SQL na posicao 3 e 4
-- Cards MQL e SQL mostram numero absoluto como valor principal e "X de Y atendimentos (XX.X%)" como descricao
-
+Os numeros dos funis passarao a ser consistentes com os cards MQL e SQL do dashboard, pois todos usarao o estado atual do lead no CRM.
