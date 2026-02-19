@@ -58,6 +58,7 @@ export interface DashboardStats {
   conversions: number;
   activeAgents: number;
   totalSessions: number;
+  mqlCount: number;
 }
 
 export interface DashboardStatsPrevious {
@@ -65,6 +66,7 @@ export interface DashboardStatsPrevious {
   totalMessages: number;
   conversions: number;
   totalSessions: number;
+  mqlCount: number;
 }
 
 export interface DashboardFunnelData {
@@ -143,7 +145,7 @@ export function useDashboardStats(filters: DashboardFiltersState) {
         };
       }
 
-      const [leadsResult, conversionsResult, messagesResult, sessionsResult] = await Promise.all([
+      const [leadsResult, conversionsResult, messagesResult, sessionsResult, mqlResult] = await Promise.all([
         // Total leads - filtered by stage_entered_at (same as CRM)
         externalDb.raw<{ count: number }>({
           query: `
@@ -156,7 +158,7 @@ export function useDashboardStats(filters: DashboardFiltersState) {
           params: [agentCodes, dateFrom, dateTo],
         }).catch(() => [{ count: 0 }]),
         
-        // Conversions - filtered by stage_entered_at
+        // Conversions (SQL) - filtered by stage_entered_at
         externalDb.raw<{ count: number }>({
           query: `
             SELECT COUNT(*) as count 
@@ -193,6 +195,20 @@ export function useDashboardStats(filters: DashboardFiltersState) {
           `,
           params: [agentCodes, dateFrom, dateTo],
         }).catch(() => [{ total: 0 }]),
+
+        // MQL: leads qualificados (Negociação + Contrato em Curso + Contrato Assinado)
+        externalDb.raw<{ count: number }>({
+          query: `
+            SELECT COUNT(*) as count 
+            FROM crm_atendimento_cards c 
+            JOIN crm_atendimento_stages s ON c.stage_id = s.id 
+            WHERE s.name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
+              AND c.cod_agent = ANY($1::varchar[])
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          `,
+          params: [agentCodes, dateFrom, dateTo],
+        }).catch(() => [{ count: 0 }]),
       ]);
 
       return {
@@ -201,6 +217,7 @@ export function useDashboardStats(filters: DashboardFiltersState) {
         conversions: Number(conversionsResult[0]?.count) || 0,
         activeAgents: agentCodes.length,
         totalSessions: Number(sessionsResult[0]?.total) || 0,
+        mqlCount: Number(mqlResult[0]?.count) || 0,
       };
     },
     enabled: filters.agentCodes.length > 0,
@@ -224,7 +241,7 @@ export function useDashboardStatsPrevious(filters: DashboardFiltersState) {
         };
       }
 
-      const [leadsResult, conversionsResult, messagesResult, sessionsResult] = await Promise.all([
+      const [leadsResult, conversionsResult, messagesResult, sessionsResult, mqlResult] = await Promise.all([
         // Total leads - filtered by stage_entered_at (same as CRM)
         externalDb.raw<{ count: number }>({
           query: `
@@ -237,7 +254,7 @@ export function useDashboardStatsPrevious(filters: DashboardFiltersState) {
           params: [agentCodes, previousDateFrom, previousDateTo],
         }).catch(() => [{ count: 0 }]),
         
-        // Conversions - filtered by stage_entered_at
+        // Conversions (SQL) - filtered by stage_entered_at
         externalDb.raw<{ count: number }>({
           query: `
             SELECT COUNT(*) as count 
@@ -274,6 +291,20 @@ export function useDashboardStatsPrevious(filters: DashboardFiltersState) {
           `,
           params: [agentCodes, previousDateFrom, previousDateTo],
         }).catch(() => [{ total: 0 }]),
+
+        // MQL: leads qualificados (Negociação + Contrato em Curso + Contrato Assinado)
+        externalDb.raw<{ count: number }>({
+          query: `
+            SELECT COUNT(*) as count 
+            FROM crm_atendimento_cards c 
+            JOIN crm_atendimento_stages s ON c.stage_id = s.id 
+            WHERE s.name IN ('Negociação', 'Contrato em Curso', 'Contrato Assinado')
+              AND c.cod_agent = ANY($1::varchar[])
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          `,
+          params: [agentCodes, previousDateFrom, previousDateTo],
+        }).catch(() => [{ count: 0 }]),
       ]);
 
       return {
@@ -281,6 +312,7 @@ export function useDashboardStatsPrevious(filters: DashboardFiltersState) {
         totalMessages: Number(messagesResult[0]?.total) || 0,
         conversions: Number(conversionsResult[0]?.count) || 0,
         totalSessions: Number(sessionsResult[0]?.total) || 0,
+        mqlCount: Number(mqlResult[0]?.count) || 0,
       };
     },
     enabled: filters.agentCodes.length > 0,
