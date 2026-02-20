@@ -1,85 +1,74 @@
 
-## Integrar status da Julia diretamente no header do popup de mensagens
 
-### Objetivo
+## Restaurar SessionStatusDialog ao clicar no icone do robo
 
-Remover a necessidade de abrir um dialogo separado para ver/controlar o status da Julia. O icone do robo no header do popup de mensagens ja deve refletir visualmente se a Julia esta ativa (verde) ou inativa (vermelha), e ao lado dele um Switch permite ativar/desativar diretamente, com confirmacao.
+### O que muda
 
-### Mudancas no arquivo `src/pages/crm/components/WhatsAppMessagesDialog.tsx`
+Manter tudo que foi implementado (icone colorido + Switch inline), mas adicionar a funcionalidade de abrir o `SessionStatusDialog` ao clicar no icone `Bot`.
 
-#### 1. Adicionar estado e logica de sessao diretamente no componente
+### Alteracoes no arquivo `src/pages/crm/components/WhatsAppMessagesDialog.tsx`
 
-- Importar `Switch` de `@/components/ui/switch`
-- Importar `AlertDialog` e seus subcomponentes
-- Criar estados: `sessionStatus` (active/inactive/unknown), `sessionLoading`, `sessionData`, `confirmToggle`, `updating`
-- Ao abrir o dialogo (quando `open` e `codAgent` e `whatsappNumber` mudam), chamar `externalDb.getSessionStatus(whatsappNumber, codAgent)` para obter o status atual
-- Reutilizar a mesma logica de toggle que ja existe no `SessionStatusDialog`
+1. **Re-importar o SessionStatusDialog**
+   - Adicionar `import { SessionStatusDialog } from './SessionStatusDialog';`
 
-#### 2. Alterar o header (linhas 1087-1116)
+2. **Adicionar estado para controlar o dialogo**
+   - `const [statusDialogOpen, setStatusDialogOpen] = useState(false);`
 
-Substituir o botao `Bot` estatico por:
+3. **Tornar o icone Bot clicavel**
+   - Envolver o `Bot` em um `button` com `onClick={() => setStatusDialogOpen(true)}`
+   - Adicionar `cursor-pointer hover:opacity-80 transition-opacity` para feedback visual
 
-```text
-+----------------------------------------------------------+
-| [Avatar]  Nome do Lead              [Bot] [Switch]   [X] |
-|           whatsapp number                                 |
-+----------------------------------------------------------+
-```
+4. **Renderizar o SessionStatusDialog**
+   - Adicionar o componente no JSX, passando `open={statusDialogOpen}`, `onOpenChange={setStatusDialogOpen}`, `whatsappNumber` e `codAgent`
 
-- O icone `Bot`: cor dinamica baseada no status
-  - Verde (`text-green-500`) quando `session.active === true`
-  - Vermelho (`text-red-500`) quando `session.active === false`
-  - `text-muted-foreground` quando carregando ou sem sessao
-- `Switch` ao lado do Bot: checked = session.active, dispara confirmacao
-- Ao clicar no Switch, abre AlertDialog de confirmacao (mesmo padrao atual)
-- Apos confirmar, chama `externalDb.updateSessionStatus` e atualiza o estado local
-
-#### 3. Remover dependencia do SessionStatusDialog
-
-- Remover o estado `statusDialogOpen` e o componente `<SessionStatusDialog>` do JSX
-- Remover o import de `SessionStatusDialog`
-- O dialogo separado deixa de ser necessario pois tudo fica inline no header
+5. **Sincronizar status apos fechar o dialogo**
+   - Quando o `SessionStatusDialog` fechar (`onOpenChange(false)`), re-buscar o status da sessao para atualizar o icone e o Switch inline, garantindo que mudancas feitas dentro do dialogo sejam refletidas no header
 
 ### Detalhes tecnicos
 
-**Novos imports:**
-- `Switch` de `@/components/ui/switch`
-- `AlertDialog`, `AlertDialogAction`, `AlertDialogCancel`, `AlertDialogContent`, `AlertDialogDescription`, `AlertDialogFooter`, `AlertDialogHeader`, `AlertDialogTitle` de `@/components/ui/alert-dialog`
-- `SessionStatus` de `@/lib/externalDb` (tipo)
-
-**Novos estados:**
+**Novo import:**
 ```typescript
-const [sessionData, setSessionData] = useState<SessionStatus | null>(null);
-const [sessionLoading, setSessionLoading] = useState(false);
-const [confirmToggle, setConfirmToggle] = useState(false);
-const [updatingSession, setUpdatingSession] = useState(false);
+import { SessionStatusDialog } from './SessionStatusDialog';
 ```
 
-**Funcao de fetch (dentro de useEffect ao abrir):**
+**Novo estado:**
 ```typescript
-const fetchSessionStatus = async () => {
-  setSessionLoading(true);
-  try {
-    const result = await externalDb.getSessionStatus(whatsappNumber, codAgent);
-    setSessionData(result);
-  } catch (err) {
-    console.error('Erro ao buscar status:', err);
-  } finally {
-    setSessionLoading(false);
-  }
-};
+const [statusDialogOpen, setStatusDialogOpen] = useState(false);
 ```
 
-**Funcao de toggle (com confirmacao):**
-Reutiliza a mesma logica do `SessionStatusDialog.handleToggleStatus`.
+**Icone Bot clicavel (linhas 1152-1159):**
+```typescript
+<button
+  type="button"
+  onClick={() => setStatusDialogOpen(true)}
+  className="hover:opacity-80 transition-opacity cursor-pointer"
+  title="Ver status do atendimento"
+>
+  <Bot className={cn(
+    "h-5 w-5",
+    sessionLoading ? "text-muted-foreground animate-pulse" :
+    sessionData?.active === true ? "text-green-500" :
+    sessionData?.active === false ? "text-red-500" :
+    "text-muted-foreground"
+  )} />
+</button>
+```
 
-**Header atualizado:**
-- Bot com cor condicional: `className={cn("h-5 w-5", sessionData?.active === true ? "text-green-500" : sessionData?.active === false ? "text-red-500" : "text-muted-foreground")}`
-- Switch inline: `<Switch checked={sessionData?.active ?? false} onCheckedChange={() => setConfirmToggle(true)} disabled={!sessionData || updatingSession || sessionLoading} className="scale-75" />`
-- AlertDialog de confirmacao renderizado fora do Dialog principal (mesmo padrao atual)
+**SessionStatusDialog no JSX (apos o AlertDialog existente):**
+```typescript
+<SessionStatusDialog
+  open={statusDialogOpen}
+  onOpenChange={(open) => {
+    setStatusDialogOpen(open);
+    if (!open && whatsappNumber && codAgent) {
+      // Re-fetch para sincronizar status
+      externalDb.getSessionStatus(whatsappNumber, codAgent)
+        .then(result => setSessionData(result))
+        .catch(console.error);
+    }
+  }}
+  whatsappNumber={whatsappNumber}
+  codAgent={codAgent}
+/>
+```
 
-**Remocoes:**
-- Import de `SessionStatusDialog`
-- Estado `statusDialogOpen`
-- Componente `<SessionStatusDialog>` do JSX
-- Botao ghost que abria o dialogo
