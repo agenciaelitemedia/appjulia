@@ -3,10 +3,20 @@ import {
   MessageCircle, Send, Loader2, 
   Mic, FileText, Download, MapPin, User, Image as ImageIcon, Video, Play, Bot
 } from 'lucide-react';
-import { SessionStatusDialog } from './SessionStatusDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
@@ -752,9 +762,45 @@ export function WhatsAppMessagesDialog({
   // Media download state
   const [downloadingMedia, setDownloadingMedia] = useState<Set<string>>(new Set());
   const [mediaUrls, setMediaUrls] = useState<Record<string, string>>({});
-  
-  // Session status dialog state
-  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+   
+  // Session status inline state
+  const [sessionData, setSessionData] = useState<import('@/lib/externalDb').SessionStatus | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const [confirmToggle, setConfirmToggle] = useState(false);
+  const [updatingSession, setUpdatingSession] = useState(false);
+
+  // Fetch session status when dialog opens
+  useEffect(() => {
+    if (open && whatsappNumber && codAgent) {
+      const fetchSessionStatus = async () => {
+        setSessionLoading(true);
+        try {
+          const result = await externalDb.getSessionStatus(whatsappNumber, codAgent);
+          setSessionData(result);
+        } catch (err) {
+          console.error('Erro ao buscar status da sessão:', err);
+        } finally {
+          setSessionLoading(false);
+        }
+      };
+      fetchSessionStatus();
+    }
+  }, [open, whatsappNumber, codAgent]);
+
+  const handleToggleSession = async () => {
+    if (!sessionData) return;
+    setUpdatingSession(true);
+    try {
+      const newStatus = !sessionData.active;
+      await externalDb.updateSessionStatus(sessionData.id, newStatus);
+      setSessionData({ ...sessionData, active: newStatus });
+    } catch (err) {
+      console.error('Erro ao atualizar status:', err);
+    } finally {
+      setUpdatingSession(false);
+      setConfirmToggle(false);
+    }
+  };
 
   // Format number to JID
   const formatToJid = (number: string): string => {
@@ -1102,26 +1148,47 @@ export function WhatsAppMessagesDialog({
                 {whatsappNumber}
               </p>
             </div>
-            {/* Session Status Button - positioned away from close button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setStatusDialogOpen(true)}
-              className="h-8 w-8 mr-6"
-              title="Ver status do atendimento"
-            >
-              <Bot className="h-5 w-5 text-muted-foreground hover:text-primary" />
-            </Button>
+            {/* Julia Status Inline */}
+            <div className="flex items-center gap-1.5 mr-6">
+              <Bot className={cn(
+                "h-5 w-5",
+                sessionLoading ? "text-muted-foreground animate-pulse" :
+                sessionData?.active === true ? "text-green-500" :
+                sessionData?.active === false ? "text-red-500" :
+                "text-muted-foreground"
+              )} />
+              <Switch
+                checked={sessionData?.active ?? false}
+                onCheckedChange={() => setConfirmToggle(true)}
+                disabled={!sessionData || updatingSession || sessionLoading}
+                className="scale-75"
+              />
+            </div>
           </div>
         </DialogHeader>
 
-        {/* Session Status Dialog */}
-        <SessionStatusDialog
-          open={statusDialogOpen}
-          onOpenChange={setStatusDialogOpen}
-          whatsappNumber={whatsappNumber}
-          codAgent={codAgent}
-        />
+        {/* Alert Dialog for Julia toggle confirmation */}
+        <AlertDialog open={confirmToggle} onOpenChange={setConfirmToggle}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {sessionData?.active ? 'Desativar atendimento?' : 'Ativar atendimento?'}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {sessionData?.active
+                  ? 'Ao desativar, o agente não responderá mais este contato até que seja ativado novamente.'
+                  : 'Ao ativar, o agente voltará a responder este contato.'}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={updatingSession}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleToggleSession} disabled={updatingSession}>
+                {updatingSession && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                {sessionData?.active ? 'Desativar' : 'Ativar'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Messages Area */}
         <ScrollArea className="flex-1 px-4" ref={scrollRef} onScrollCapture={handleScroll}>
