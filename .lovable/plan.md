@@ -1,82 +1,85 @@
 
+## Integrar status da Julia diretamente no header do popup de mensagens
 
-## Alinhar funis para usar `stage_entered_at` do CRM
+### Objetivo
 
-### Problema atual
+Remover a necessidade de abrir um dialogo separado para ver/controlar o status da Julia. O icone do robo no header do popup de mensagens ja deve refletir visualmente se a Julia esta ativa (verde) ou inativa (vermelha), e ao lado dele um Switch permite ativar/desativar diretamente, com confirmacao.
 
-Os funis filtram leads pela data de criacao da sessao Julia (`created_at` da view) ou da campanha (`ca.created_at`), e depois verificam o stage atual. Isso causa divergencia com os cards MQL/SQL que filtram por `stage_entered_at` do `crm_atendimento_cards`.
+### Mudancas no arquivo `src/pages/crm/components/WhatsAppMessagesDialog.tsx`
 
-### Solucao
+#### 1. Adicionar estado e logica de sessao diretamente no componente
 
-Inverter a logica: partir do `crm_atendimento_cards` filtrado por `stage_entered_at` no periodo, e depois verificar a origem (Julia ou Campanha) via JOIN.
+- Importar `Switch` de `@/components/ui/switch`
+- Importar `AlertDialog` e seus subcomponentes
+- Criar estados: `sessionStatus` (active/inactive/unknown), `sessionLoading`, `sessionData`, `confirmToggle`, `updating`
+- Ao abrir o dialogo (quando `open` e `codAgent` e `whatsappNumber` mudam), chamar `externalDb.getSessionStatus(whatsappNumber, codAgent)` para obter o status atual
+- Reutilizar a mesma logica de toggle que ja existe no `SessionStatusDialog`
 
-### Arquivo: `src/pages/dashboard/hooks/useDashboardFunnels.ts`
+#### 2. Alterar o header (linhas 1087-1116)
 
-#### Funil Julia (`useDashboardJuliaFunnel`)
+Substituir o botao `Bot` estatico por:
 
-Nova logica:
-
-```sql
-WITH crm_leads AS (
-  SELECT c.id, c.cod_agent, c.whatsapp_number, c.stage_id
-  FROM crm_atendimento_cards c
-  WHERE c.cod_agent = ANY($1::varchar[])
-    AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-    AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
-),
-julia_leads AS (
-  SELECT DISTINCT cl.id, cl.stage_id
-  FROM crm_leads cl
-  WHERE EXISTS (
-    SELECT 1 FROM vw_painelv2_desempenho_julia v
-    WHERE v.cod_agent::text = cl.cod_agent
-      AND v.whatsapp::text = cl.whatsapp_number
-  )
-),
-atendimentos AS (
-  SELECT COUNT(*)::int as count FROM julia_leads
-),
-em_qualificacao AS (
-  SELECT COUNT(*)::int as count FROM julia_leads jl
-  JOIN crm_atendimento_stages s ON s.id = jl.stage_id
-  WHERE s.name IN ('Negociação','Contrato em Curso','Contrato Assinado')
-     OR LOWER(s.name) LIKE '%analise%caso%'
-     OR LOWER(s.name) LIKE '%análise%caso%'
-),
--- qualificados, contratos_gerados, contratos_assinados: mesma estrutura
+```text
++----------------------------------------------------------+
+| [Avatar]  Nome do Lead              [Bot] [Switch]   [X] |
+|           whatsapp number                                 |
++----------------------------------------------------------+
 ```
 
-Mudancas-chave:
-- Filtro de data passa a ser `c.stage_entered_at` (igual aos cards)
-- A verificacao de origem Julia e feita via EXISTS na view, sem filtro de data na view
-- Contagem direta sem DISTINCT desnecessario (ja filtrado no CTE)
+- O icone `Bot`: cor dinamica baseada no status
+  - Verde (`text-green-500`) quando `session.active === true`
+  - Vermelho (`text-red-500`) quando `session.active === false`
+  - `text-muted-foreground` quando carregando ou sem sessao
+- `Switch` ao lado do Bot: checked = session.active, dispara confirmacao
+- Ao clicar no Switch, abre AlertDialog de confirmacao (mesmo padrao atual)
+- Apos confirmar, chama `externalDb.updateSessionStatus` e atualiza o estado local
 
-#### Funil Campanhas (`useDashboardCampaignFunnel`)
+#### 3. Remover dependencia do SessionStatusDialog
 
-Mesma inversao: partir do CRM com `stage_entered_at`, depois verificar origem via EXISTS em `campaing_ads`.
+- Remover o estado `statusDialogOpen` e o componente `<SessionStatusDialog>` do JSX
+- Remover o import de `SessionStatusDialog`
+- O dialogo separado deixa de ser necessario pois tudo fica inline no header
 
-```sql
-WITH crm_leads AS (
-  SELECT c.id, c.cod_agent, c.whatsapp_number, c.stage_id
-  FROM crm_atendimento_cards c
-  WHERE c.cod_agent = ANY($1::varchar[])
-    AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-    AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
-),
-campaign_leads AS (
-  SELECT DISTINCT cl.id, cl.stage_id
-  FROM crm_leads cl
-  WHERE EXISTS (
-    SELECT 1 FROM campaing_ads ca
-    LEFT JOIN sessions s ON s.id = ca.session_id::int
-    WHERE ca.cod_agent::text = cl.cod_agent
-      AND COALESCE(NULLIF((ca.campaign_data::jsonb)->>'phone',''), s.whatsapp_number::text) = cl.whatsapp_number
-  )
-)
--- mesmas CTEs de etapas
+### Detalhes tecnicos
+
+**Novos imports:**
+- `Switch` de `@/components/ui/switch`
+- `AlertDialog`, `AlertDialogAction`, `AlertDialogCancel`, `AlertDialogContent`, `AlertDialogDescription`, `AlertDialogFooter`, `AlertDialogHeader`, `AlertDialogTitle` de `@/components/ui/alert-dialog`
+- `SessionStatus` de `@/lib/externalDb` (tipo)
+
+**Novos estados:**
+```typescript
+const [sessionData, setSessionData] = useState<SessionStatus | null>(null);
+const [sessionLoading, setSessionLoading] = useState(false);
+const [confirmToggle, setConfirmToggle] = useState(false);
+const [updatingSession, setUpdatingSession] = useState(false);
 ```
 
-### Resultado esperado
+**Funcao de fetch (dentro de useEffect ao abrir):**
+```typescript
+const fetchSessionStatus = async () => {
+  setSessionLoading(true);
+  try {
+    const result = await externalDb.getSessionStatus(whatsappNumber, codAgent);
+    setSessionData(result);
+  } catch (err) {
+    console.error('Erro ao buscar status:', err);
+  } finally {
+    setSessionLoading(false);
+  }
+};
+```
 
-Os numeros dos funis passarao a coincidir com os cards MQL e SQL, pois todos usam `stage_entered_at` como base temporal.
+**Funcao de toggle (com confirmacao):**
+Reutiliza a mesma logica do `SessionStatusDialog.handleToggleStatus`.
 
+**Header atualizado:**
+- Bot com cor condicional: `className={cn("h-5 w-5", sessionData?.active === true ? "text-green-500" : sessionData?.active === false ? "text-red-500" : "text-muted-foreground")}`
+- Switch inline: `<Switch checked={sessionData?.active ?? false} onCheckedChange={() => setConfirmToggle(true)} disabled={!sessionData || updatingSession || sessionLoading} className="scale-75" />`
+- AlertDialog de confirmacao renderizado fora do Dialog principal (mesmo padrao atual)
+
+**Remocoes:**
+- Import de `SessionStatusDialog`
+- Estado `statusDialogOpen`
+- Componente `<SessionStatusDialog>` do JSX
+- Botao ghost que abria o dialogo
