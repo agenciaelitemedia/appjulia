@@ -22,6 +22,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { externalDb } from '@/lib/externalDb';
+import { SessionStatusDialog } from './SessionStatusDialog';
 import { UaZapiClient } from '@/lib/uazapi';
 import { formatTimeSaoPaulo, formatDateShortSaoPaulo } from '@/lib/dateUtils';
 
@@ -767,6 +768,7 @@ export function WhatsAppMessagesDialog({
   const [sessionData, setSessionData] = useState<import('@/lib/externalDb').SessionStatus | null>(null);
   const [sessionLoading, setSessionLoading] = useState(false);
   const [confirmToggle, setConfirmToggle] = useState(false);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [updatingSession, setUpdatingSession] = useState(false);
 
   // Fetch session status when dialog opens
@@ -1127,6 +1129,7 @@ export function WhatsAppMessagesDialog({
   }, {} as Record<string, Message[]>);
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] h-[600px] flex flex-col p-0 bg-card" aria-describedby={undefined}>
         {/* Header */}
@@ -1150,13 +1153,20 @@ export function WhatsAppMessagesDialog({
             </div>
             {/* Julia Status Inline */}
             <div className="flex items-center gap-1.5 mr-6">
-              <Bot className={cn(
-                "h-5 w-5",
-                sessionLoading ? "text-muted-foreground animate-pulse" :
-                sessionData?.active === true ? "text-green-500" :
-                sessionData?.active === false ? "text-red-500" :
-                "text-muted-foreground"
-              )} />
+              <button
+                type="button"
+                onClick={() => setStatusDialogOpen(true)}
+                className="hover:opacity-80 transition-opacity cursor-pointer"
+                title="Ver status do atendimento"
+              >
+                <Bot className={cn(
+                  "h-5 w-5",
+                  sessionLoading ? "text-muted-foreground animate-pulse" :
+                  sessionData?.active === true ? "text-green-500" :
+                  sessionData?.active === false ? "text-red-500" :
+                  "text-muted-foreground"
+                )} />
+              </button>
               <Switch
                 checked={sessionData?.active ?? false}
                 onCheckedChange={() => setConfirmToggle(true)}
@@ -1293,5 +1303,20 @@ export function WhatsAppMessagesDialog({
         </div>
       </DialogContent>
     </Dialog>
+
+    <SessionStatusDialog
+      open={statusDialogOpen}
+      onOpenChange={(open) => {
+        setStatusDialogOpen(open);
+        if (!open && whatsappNumber && codAgent) {
+          externalDb.getSessionStatus(whatsappNumber, codAgent)
+            .then(result => setSessionData(result))
+            .catch(console.error);
+        }
+      }}
+      whatsappNumber={whatsappNumber}
+      codAgent={codAgent}
+    />
+    </>
   );
 }
