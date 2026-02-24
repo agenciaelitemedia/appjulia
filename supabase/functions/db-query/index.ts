@@ -1790,7 +1790,7 @@ serve(async (req) => {
         
         let query = `
           SELECT u.id, u.name, u.email, u.role, u.use_custom_permissions, u.is_active,
-                 u.user_id as parent_user_id, u.created_at
+                 u.user_id as parent_user_id, u.created_at, u.remember_token
           FROM users u
           WHERE 1=1
         `;

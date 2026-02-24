@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, User, Star, Users } from 'lucide-react';
+import { Search, User, Star, Users, Key, Copy, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -10,6 +10,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { UserWithPermissions } from '../types';
 import { roleLabels } from '../types';
@@ -33,6 +39,13 @@ export function UserPermissionsList({
   isLoading,
 }: UserPermissionsListProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+
+  const handleCopyPassword = (userId: number, token: string) => {
+    navigator.clipboard.writeText(token);
+    setCopiedId(userId);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
@@ -126,6 +139,33 @@ export function UserPermissionsList({
                         <div className="text-xs text-muted-foreground truncate">
                           {user.email}
                         </div>
+                        {user.remember_token && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mt-0.5"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCopyPassword(user.id, user.remember_token!);
+                                  }}
+                                >
+                                  <Key className="h-3 w-3" />
+                                  <span className="font-mono">{user.remember_token}</span>
+                                  {copiedId === user.id ? (
+                                    <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                                  ) : (
+                                    <Copy className="h-3 w-3" />
+                                  )}
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">
+                                <p className="text-sm">Clique para copiar a senha</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
