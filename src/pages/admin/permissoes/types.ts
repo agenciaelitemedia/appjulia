@@ -20,7 +20,7 @@ export interface UserWithPermissions {
   is_active: boolean;
   parent_user_id: number | null;
   created_at: string;
-  remember_token: string | null;
+  remember_token?: string | null;
 }
 
 export const categoryLabels: Record<ModuleCategory, string> = {
