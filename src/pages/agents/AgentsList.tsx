@@ -166,9 +166,9 @@ export default function AgentsList() {
   
   // Persist filters to localStorage
   useEffect(() => {
-    const filters: StoredFilters = { showLegacy, statusFilter, planFilter };
+    const filters: StoredFilters = { showLegacy, showAll, statusFilter, planFilter };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(filters));
-  }, [showLegacy, statusFilter, planFilter]);
+  }, [showLegacy, showAll, statusFilter, planFilter]);
   
   // React Query for optimized data fetching with caching
   const { data: agents = [], isLoading, refetch } = useAgentsList(showLegacy);
