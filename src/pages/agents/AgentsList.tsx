@@ -128,6 +128,7 @@ const STORAGE_KEY = 'agents-list-filters';
 
 interface StoredFilters {
   showLegacy: boolean;
+  showAll: boolean;
   statusFilter: 'all' | 'active' | 'inactive';
   planFilter: string;
 }
@@ -141,7 +142,7 @@ function loadStoredFilters(): StoredFilters {
   } catch (e) {
     console.error('Failed to load stored filters:', e);
   }
-  return { showLegacy: false, statusFilter: 'all', planFilter: 'all' };
+  return { showLegacy: false, showAll: false, statusFilter: 'all', planFilter: 'all' };
 }
 
 export default function AgentsList() {
@@ -150,6 +151,7 @@ export default function AgentsList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [showLegacy, setShowLegacy] = useState(storedFilters.showLegacy);
+  const [showAll, setShowAll] = useState(storedFilters.showAll);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>(storedFilters.statusFilter);
   const [planFilter, setPlanFilter] = useState<string>(storedFilters.planFilter);
   const [agentToToggle, setAgentToToggle] = useState<AgentListItem | null>(null);
@@ -164,12 +166,12 @@ export default function AgentsList() {
   
   // Persist filters to localStorage
   useEffect(() => {
-    const filters: StoredFilters = { showLegacy, statusFilter, planFilter };
+    const filters: StoredFilters = { showLegacy, showAll, statusFilter, planFilter };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(filters));
-  }, [showLegacy, statusFilter, planFilter]);
+  }, [showLegacy, showAll, statusFilter, planFilter]);
   
   // React Query for optimized data fetching with caching
-  const { data: agents = [], isLoading, refetch } = useAgentsList(showLegacy);
+  const { data: agents = [], isLoading, refetch } = useAgentsList(showLegacy, showAll);
   const { plans } = usePlans();
   
   // Debounced search for better performance
@@ -498,6 +500,23 @@ export default function AgentsList() {
             Mostrar Legado
           </label>
         </div>
+
+        {/* Toggle Todos (admin only) */}
+        {isAdmin && (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="show-all"
+              checked={showAll}
+              onCheckedChange={(checked) => setShowAll(checked === true)}
+            />
+            <label 
+              htmlFor="show-all" 
+              className="text-sm text-muted-foreground cursor-pointer select-none"
+            >
+              Todos
+            </label>
+          </div>
+        )}
       </div>
 
       <Card>

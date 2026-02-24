@@ -177,10 +177,10 @@ class ExternalDatabase {
     });
   }
 
-  async getAgentsList<T = any>(showLegacy: boolean = false): Promise<T[]> {
+  async getAgentsList<T = any>(showLegacy: boolean = false, showAll: boolean = false): Promise<T[]> {
     return this.invoke({
       action: 'get_agents_list',
-      data: { showLegacy },
+      data: { showLegacy, showAll },
     });
   }
 

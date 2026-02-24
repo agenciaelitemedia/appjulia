@@ -16,10 +16,10 @@ export interface AgentListItem {
   user_agent_id: number | null;
 }
 
-export function useAgentsList(showLegacy: boolean = false) {
+export function useAgentsList(showLegacy: boolean = false, showAll: boolean = false) {
   return useQuery({
-    queryKey: ['agents-list', showLegacy],
-    queryFn: () => externalDb.getAgentsList<AgentListItem>(showLegacy),
+    queryKey: ['agents-list', showLegacy, showAll],
+    queryFn: () => externalDb.getAgentsList<AgentListItem>(showLegacy, showAll),
     staleTime: 60000, // 1 minute cache
     refetchOnWindowFocus: false,
   });
