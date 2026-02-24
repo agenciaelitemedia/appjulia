@@ -142,7 +142,7 @@ function loadStoredFilters(): StoredFilters {
   } catch (e) {
     console.error('Failed to load stored filters:', e);
   }
-  return { showLegacy: false, statusFilter: 'all', planFilter: 'all' };
+  return { showLegacy: false, showAll: false, statusFilter: 'all', planFilter: 'all' };
 }
 
 export default function AgentsList() {
