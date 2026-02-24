@@ -39,6 +39,13 @@ export function UserPermissionsList({
   isLoading,
 }: UserPermissionsListProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+
+  const handleCopyPassword = (userId: number, token: string) => {
+    navigator.clipboard.writeText(token);
+    setCopiedId(userId);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
