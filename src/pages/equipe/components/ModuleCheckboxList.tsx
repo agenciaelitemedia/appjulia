@@ -15,12 +15,12 @@ const categoryLabels: Record<string, string> = {
   crm: 'CRM',
   agente: 'Agente',
   sistema: 'Sistema',
+  admin: 'Administrativo',
+  financeiro: 'Financeiro',
 };
 
 // Modules not available for TIME role
 const excludedModules = ['team', 'settings'];
-// Only these categories are allowed
-const allowedCategories = ['principal', 'crm', 'agente', 'sistema'];
 
 export function ModuleCheckboxList({
   parentPermissions,
@@ -32,8 +32,7 @@ export function ModuleCheckboxList({
   const validModules = parentPermissions.filter(
     (m) =>
       m.can_view &&
-      !excludedModules.includes(m.module_code) &&
-      allowedCategories.includes(m.category)
+      !excludedModules.includes(m.module_code)
   );
 
   // Group by category
