@@ -128,6 +128,7 @@ const STORAGE_KEY = 'agents-list-filters';
 
 interface StoredFilters {
   showLegacy: boolean;
+  showAll: boolean;
   statusFilter: 'all' | 'active' | 'inactive';
   planFilter: string;
 }
