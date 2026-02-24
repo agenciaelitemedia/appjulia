@@ -151,6 +151,7 @@ export default function AgentsList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [showLegacy, setShowLegacy] = useState(storedFilters.showLegacy);
+  const [showAll, setShowAll] = useState(storedFilters.showAll);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>(storedFilters.statusFilter);
   const [planFilter, setPlanFilter] = useState<string>(storedFilters.planFilter);
   const [agentToToggle, setAgentToToggle] = useState<AgentListItem | null>(null);
