@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, User, Star, Users } from 'lucide-react';
+import { Search, User, Star, Users, Key, Copy, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -10,6 +10,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { UserWithPermissions } from '../types';
 import { roleLabels } from '../types';
