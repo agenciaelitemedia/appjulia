@@ -500,6 +500,23 @@ export default function AgentsList() {
             Mostrar Legado
           </label>
         </div>
+
+        {/* Toggle Todos (admin only) */}
+        {isAdmin && (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="show-all"
+              checked={showAll}
+              onCheckedChange={(checked) => setShowAll(checked === true)}
+            />
+            <label 
+              htmlFor="show-all" 
+              className="text-sm text-muted-foreground cursor-pointer select-none"
+            >
+              Todos
+            </label>
+          </div>
+        )}
       </div>
 
       <Card>

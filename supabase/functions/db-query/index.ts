@@ -511,8 +511,9 @@ serve(async (req) => {
       case 'get_agents_list': {
         // Optimized query with pre-aggregated leads count and settings for business hours
         // Supports showLegacy parameter to filter legacy agents (without user_agents link)
-        const { showLegacy } = data || {};
+        const { showLegacy, showAll } = data || {};
         const legacyFilter = showLegacy ? '' : 'AND ua.agent_id IS NOT NULL';
+        const visibilityFilter = showAll ? '' : 'AND a.is_visibilided = true';
         
         result = await sql.unsafe(`
           SELECT 
@@ -540,7 +541,8 @@ serve(async (req) => {
               AND lm.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
             GROUP BY s.agent_id
           ) leads ON leads.agent_id = a.id
-          WHERE a.is_visibilided = true
+          WHERE 1=1
+            ${visibilityFilter}
             ${legacyFilter}
           ORDER BY c.business_name
         `);
