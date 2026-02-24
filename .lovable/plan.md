@@ -1,74 +1,84 @@
 
 
-## Restaurar SessionStatusDialog ao clicar no icone do robo
+## Remover permissoes fixas e permitir delegacao do grupo Administrativo
 
-### O que muda
+### Problema atual
 
-Manter tudo que foi implementado (icone colorido + Switch inline), mas adicionar a funcionalidade de abrir o `SessionStatusDialog` ao clicar no icone `Bot`.
+1. **`ModuleCheckboxList.tsx`** (tela de Equipe) possui categorias permitidas fixas no codigo:
+   ```
+   const allowedCategories = ['principal', 'crm', 'agente', 'sistema'];
+   ```
+   Isso impede que modulos das categorias `admin` e `financeiro` sejam atribuidos a membros da equipe.
 
-### Alteracoes no arquivo `src/pages/crm/components/WhatsAppMessagesDialog.tsx`
+2. **`App.tsx`** usa `<AdminRoute />` que verifica `user.role === 'admin'` de forma fixa, bloqueando qualquer usuario nao-admin de acessar rotas `/admin/*`, mesmo que tenha permissao via sistema de permissoes.
 
-1. **Re-importar o SessionStatusDialog**
-   - Adicionar `import { SessionStatusDialog } from './SessionStatusDialog';`
+3. **`PermissionMatrix.tsx`** ja lista todas as categorias incluindo `admin` e `financeiro`, entao a tela de permissoes do admin ja funciona corretamente.
 
-2. **Adicionar estado para controlar o dialogo**
-   - `const [statusDialogOpen, setStatusDialogOpen] = useState(false);`
+### Alteracoes planejadas
 
-3. **Tornar o icone Bot clicavel**
-   - Envolver o `Bot` em um `button` com `onClick={() => setStatusDialogOpen(true)}`
-   - Adicionar `cursor-pointer hover:opacity-80 transition-opacity` para feedback visual
+#### 1. `src/pages/equipe/components/ModuleCheckboxList.tsx`
 
-4. **Renderizar o SessionStatusDialog**
-   - Adicionar o componente no JSX, passando `open={statusDialogOpen}`, `onOpenChange={setStatusDialogOpen}`, `whatsappNumber` e `codAgent`
+- Remover a constante `allowedCategories` e o filtro fixo por categoria
+- Manter apenas o filtro de `excludedModules` (team, settings) e a verificacao `can_view` do pai
+- Adicionar labels para as categorias `admin` e `financeiro` no `categoryLabels`
+- Resultado: se o usuario principal tem permissao a modulos administrativos, ele pode conceder esses mesmos modulos aos membros da sua equipe
 
-5. **Sincronizar status apos fechar o dialogo**
-   - Quando o `SessionStatusDialog` fechar (`onOpenChange(false)`), re-buscar o status da sessao para atualizar o icone e o Switch inline, garantindo que mudancas feitas dentro do dialogo sejam refletidas no header
-
-### Detalhes tecnicos
-
-**Novo import:**
+Antes:
 ```typescript
-import { SessionStatusDialog } from './SessionStatusDialog';
+const allowedCategories = ['principal', 'crm', 'agente', 'sistema'];
+
+const validModules = parentPermissions.filter(
+  (m) => m.can_view && !excludedModules.includes(m.module_code) && allowedCategories.includes(m.category)
+);
 ```
 
-**Novo estado:**
+Depois:
 ```typescript
-const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+const validModules = parentPermissions.filter(
+  (m) => m.can_view && !excludedModules.includes(m.module_code)
+);
 ```
 
-**Icone Bot clicavel (linhas 1152-1159):**
-```typescript
-<button
-  type="button"
-  onClick={() => setStatusDialogOpen(true)}
-  className="hover:opacity-80 transition-opacity cursor-pointer"
-  title="Ver status do atendimento"
->
-  <Bot className={cn(
-    "h-5 w-5",
-    sessionLoading ? "text-muted-foreground animate-pulse" :
-    sessionData?.active === true ? "text-green-500" :
-    sessionData?.active === false ? "text-red-500" :
-    "text-muted-foreground"
-  )} />
-</button>
-```
+#### 2. `src/App.tsx` - Substituir `AdminRoute` por `ProtectedRoute`
 
-**SessionStatusDialog no JSX (apos o AlertDialog existente):**
-```typescript
-<SessionStatusDialog
-  open={statusDialogOpen}
-  onOpenChange={(open) => {
-    setStatusDialogOpen(open);
-    if (!open && whatsappNumber && codAgent) {
-      // Re-fetch para sincronizar status
-      externalDb.getSessionStatus(whatsappNumber, codAgent)
-        .then(result => setSessionData(result))
-        .catch(console.error);
-    }
-  }}
-  whatsappNumber={whatsappNumber}
-  codAgent={codAgent}
-/>
-```
+- Trocar o `<AdminRoute />` wrapper por rotas individuais usando `<ProtectedRoute module="...">` que ja existe no projeto
+- Cada rota admin passa a verificar a permissao do modulo especifico em vez do role fixo
+- Exemplo:
+  ```typescript
+  <Route path="/admin/agentes" element={
+    <ProtectedRoute module="admin_agents">
+      <AgentsList />
+    </ProtectedRoute>
+  } />
+  ```
+- Rotas sem modulo definido (meta-test, meta-ads) continuam restritas a admin usando `module="admin_agents"` ou similar
+
+#### 3. `src/components/guards/AdminRoute.tsx`
+
+- Manter o arquivo para compatibilidade, mas nao sera mais usado nas rotas. Pode ser removido ou marcado como deprecated.
+
+### Mapeamento de rotas para modulos
+
+| Rota | Modulo |
+|------|--------|
+| `/admin/agentes` | `admin_agents` |
+| `/admin/agentes-novo` | `admin_agents` |
+| `/admin/agentes/:id/editar` | `admin_agents` |
+| `/admin/agentes/:id/detalhes` | `admin_agents` |
+| `/admin/modulos` | `admin_agents` (ou modulo dedicado se existir) |
+| `/admin/permissoes` | `admin_agents` (ou modulo dedicado se existir) |
+| `/admin/meta-test` | `admin_agents` |
+| `/admin/meta-ads` | `admin_agents` |
+
+### Fluxo apos a mudanca
+
+1. Admin concede permissao do grupo "Administrativo" a um usuario (tela Permissoes)
+2. O usuario agora ve os modulos admin no menu lateral (ja funciona via `useMenuModules`)
+3. As rotas `/admin/*` passam a ser acessiveis porque `ProtectedRoute` verifica permissao no modulo em vez do role
+4. Na tela de Equipe, se esse usuario criar membros, ele pode delegar os modulos admin que possui
+
+### Arquivos modificados
+
+- `src/pages/equipe/components/ModuleCheckboxList.tsx` - remover categorias fixas
+- `src/App.tsx` - trocar AdminRoute por ProtectedRoute em cada rota admin
 
