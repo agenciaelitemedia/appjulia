@@ -15,12 +15,12 @@ const categoryLabels: Record<string, string> = {
   crm: 'CRM',
   agente: 'Agente',
   sistema: 'Sistema',
+  admin: 'Administrativo',
+  financeiro: 'Financeiro',
 };
 
 // Modules not available for TIME role
 const excludedModules = ['team', 'settings'];
-// Only these categories are allowed
-const allowedCategories = ['principal', 'crm', 'agente', 'sistema'];
 
 export function ModuleCheckboxList({
   parentPermissions,
