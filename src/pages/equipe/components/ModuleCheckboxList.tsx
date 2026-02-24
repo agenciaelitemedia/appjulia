@@ -32,8 +32,7 @@ export function ModuleCheckboxList({
   const validModules = parentPermissions.filter(
     (m) =>
       m.can_view &&
-      !excludedModules.includes(m.module_code) &&
-      allowedCategories.includes(m.category)
+      !excludedModules.includes(m.module_code)
   );
 
   // Group by category

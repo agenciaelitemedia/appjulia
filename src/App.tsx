@@ -8,7 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { UaZapiProvider } from "@/contexts/UaZapiContext";
 import { DebugProvider } from "@/contexts/DebugContext";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { AdminRoute } from "@/components/guards/AdminRoute";
+import { ProtectedRoute } from "@/components/guards/ProtectedRoute";
 import { DebugBar } from "@/components/debug/DebugBar";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -85,17 +85,15 @@ const App = () => (
                   <Route path="/crm-builder/:boardId" element={<BoardPage />} />
                   <Route path="/datajud" element={<DataJudSearchPage />} />
                   
-                  {/* Admin-only routes */}
-                  <Route element={<AdminRoute />}>
-                    <Route path="/admin/agentes" element={<AgentsList />} />
-                    <Route path="/admin/agentes-novo" element={<CreateAgentPage />} />
-                    <Route path="/admin/agentes/:id/editar" element={<EditAgentPage />} />
-                    <Route path="/admin/agentes/:id/detalhes" element={<AgentDetailsPage />} />
-                    <Route path="/admin/modulos" element={<ModulosPage />} />
-                    <Route path="/admin/permissoes" element={<PermissoesPage />} />
-                    <Route path="/admin/meta-test" element={<MetaTestPage />} />
-                    <Route path="/admin/meta-ads" element={<MetaAdsTestPage />} />
-                  </Route>
+                  {/* Admin routes - protected by module permission */}
+                  <Route path="/admin/agentes" element={<ProtectedRoute module="admin_agents"><AgentsList /></ProtectedRoute>} />
+                  <Route path="/admin/agentes-novo" element={<ProtectedRoute module="admin_agents"><CreateAgentPage /></ProtectedRoute>} />
+                  <Route path="/admin/agentes/:id/editar" element={<ProtectedRoute module="admin_agents"><EditAgentPage /></ProtectedRoute>} />
+                  <Route path="/admin/agentes/:id/detalhes" element={<ProtectedRoute module="admin_agents"><AgentDetailsPage /></ProtectedRoute>} />
+                  <Route path="/admin/modulos" element={<ProtectedRoute module="admin_agents"><ModulosPage /></ProtectedRoute>} />
+                  <Route path="/admin/permissoes" element={<ProtectedRoute module="admin_agents"><PermissoesPage /></ProtectedRoute>} />
+                  <Route path="/admin/meta-test" element={<ProtectedRoute module="admin_agents"><MetaTestPage /></ProtectedRoute>} />
+                  <Route path="/admin/meta-ads" element={<ProtectedRoute module="admin_agents"><MetaAdsTestPage /></ProtectedRoute>} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>
