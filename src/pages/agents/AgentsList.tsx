@@ -171,7 +171,7 @@ export default function AgentsList() {
   }, [showLegacy, showAll, statusFilter, planFilter]);
   
   // React Query for optimized data fetching with caching
-  const { data: agents = [], isLoading, refetch } = useAgentsList(showLegacy);
+  const { data: agents = [], isLoading, refetch } = useAgentsList(showLegacy, showAll);
   const { plans } = usePlans();
   
   // Debounced search for better performance
