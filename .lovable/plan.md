@@ -1,44 +1,59 @@
 
-## Mostrar senha na lista de permissoes
 
-### O que muda
+## Gravar agent_id como NULL para agentes monitorados
 
-Exibir o `remember_token` (senha nao trocada) abaixo do email de cada usuario na lista lateral da tela de permissoes, usando o mesmo estilo da tela de equipe (icone de chave + texto monospace + botao copiar).
+### Problema
+
+O `MonitorAgentDialog` grava `agent_id` com o valor real do agente, mas o `useMyAgents` diferencia agentes proprios de monitorados verificando `agent_id === null`. Resultado: agentes monitorados aparecem como "Meus Agentes" em vez de "Agentes Monitorados".
 
 ### Alteracoes
 
-#### 1. `supabase/functions/db-query/index.ts` (case `get_users_with_permissions`)
+#### 1. `src/pages/agents/components/MonitorAgentDialog.tsx`
 
-Adicionar `u.remember_token` ao SELECT da query:
-
-```sql
-SELECT u.id, u.name, u.email, u.role, u.use_custom_permissions, u.is_active,
-       u.user_id as parent_user_id, u.created_at, u.remember_token
-FROM users u
-```
-
-#### 2. `src/pages/admin/permissoes/types.ts`
-
-Adicionar `remember_token` ao tipo `UserWithPermissions`:
+Passar `null` como segundo argumento (agentId) na chamada `insertUserAgent`:
 
 ```typescript
-export interface UserWithPermissions {
-  // ... campos existentes
-  remember_token: string | null;
+await externalDb.insertUserAgent(
+  selectedUser.id,
+  null,                      // agent_id = NULL → monitorado
+  selectedAgent.cod_agent
+);
+```
+
+#### 2. `src/lib/externalDb.ts`
+
+Alterar o tipo do parametro `agentId` para aceitar `null`:
+
+```typescript
+async insertUserAgent(userId: number, agentId: number | null, codAgent: string): Promise<void> {
+```
+
+#### 3. `supabase/functions/db-query/index.ts` (case `insert_user_agent`)
+
+Tratar `agentId` nulo no SQL, usando `$2::int` para permitir NULL:
+
+```typescript
+case 'insert_user_agent': {
+  const { userId, agentId, codAgent } = data;
+  const rows = await sql.unsafe(
+    `INSERT INTO user_agents (user_id, agent_id, cod_agent, created_at)
+     VALUES ($1, $2::int, $3::bigint, now())
+     RETURNING id`,
+    [userId, agentId ?? null, codAgent]
+  );
+  result = rows;
+  break;
 }
 ```
 
-#### 3. `src/pages/admin/permissoes/components/UserPermissionsList.tsx`
+### Impacto
 
-Abaixo da linha do email (linha 127-128), adicionar condicional que mostra a senha quando `remember_token` existir:
-
-- Importar `Key`, `Copy`, `Check` do lucide-react
-- Importar `Tooltip` do radix
-- Adicionar estado `copiedId` para controlar feedback de copia
-- Renderizar a senha com icone de chave, texto monospace e botao copiar (mesmo padrao do `EquipeMemberCard`)
+- A chamada existente em `useAgentSave.ts` continua funcionando normalmente pois passa um `agentId` numerico real
+- Apenas o `MonitorAgentDialog` passa `null`, fazendo o agente aparecer corretamente na secao "Agentes Monitorados"
 
 ### Arquivos modificados
 
-- `supabase/functions/db-query/index.ts` -- adicionar campo na query
-- `src/pages/admin/permissoes/types.ts` -- adicionar campo no tipo
-- `src/pages/admin/permissoes/components/UserPermissionsList.tsx` -- exibir senha com botao copiar
+- `src/pages/agents/components/MonitorAgentDialog.tsx` — passar null como agentId
+- `src/lib/externalDb.ts` — tipo do parametro
+- `supabase/functions/db-query/index.ts` — tratar NULL no SQL
+
