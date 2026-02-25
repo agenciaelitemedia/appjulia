@@ -236,7 +236,7 @@ class ExternalDatabase {
     return result[0];
   }
 
-  async insertUserAgent(userId: number, agentId: number, codAgent: string): Promise<void> {
+  async insertUserAgent(userId: number, agentId: number | null, codAgent: string): Promise<void> {
     await this.invoke({
       action: 'insert_user_agent',
       data: { userId, agentId, codAgent },
