@@ -723,7 +723,7 @@ serve(async (req) => {
         // Verificar duplicidade para monitoramento (agent_id IS NULL)
         if (agentId === null || agentId === undefined) {
           const existing = await sql.unsafe(
-            `SELECT id FROM user_agents WHERE user_id = $1 AND cod_agent = $2::text AND agent_id IS NULL LIMIT 1`,
+            `SELECT id FROM user_agents WHERE user_id = $1 AND cod_agent = $2::bigint AND agent_id IS NULL LIMIT 1`,
             [userId, codAgent]
           );
           if (existing.length > 0) {
