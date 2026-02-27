@@ -719,6 +719,18 @@ serve(async (req) => {
 
       case 'insert_user_agent': {
         const { userId, agentId, codAgent } = data;
+        
+        // Verificar duplicidade para monitoramento (agent_id IS NULL)
+        if (agentId === null || agentId === undefined) {
+          const existing = await sql.unsafe(
+            `SELECT id FROM user_agents WHERE user_id = $1 AND cod_agent = $2::text AND agent_id IS NULL LIMIT 1`,
+            [userId, codAgent]
+          );
+          if (existing.length > 0) {
+            throw new Error('duplicate: Este usuário já monitora este agente');
+          }
+        }
+        
         const rows = await sql.unsafe(
           `INSERT INTO user_agents (user_id, agent_id, cod_agent, created_at)
            VALUES ($1, $2::int, $3::bigint, now())
