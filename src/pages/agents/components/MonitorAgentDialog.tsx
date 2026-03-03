@@ -58,6 +58,7 @@ export function MonitorAgentDialog({ open, onOpenChange, onSuccess }: MonitorAge
         setStep('user');
         setSelectedUser(null);
         setSelectedAgent(null);
+        setIsOwner(false);
         userSearch.clearSearch();
         agentSearch.clearSearch();
       }, 200);
