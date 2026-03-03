@@ -624,8 +624,13 @@ export default function AgentsList() {
                   </TableCell>
                   <TableCell>
                     <div className="font-medium">
-                      {agent.business_name || agent.client_name}
+                      {agent.client_name || '-'}
                     </div>
+                    {agent.business_name && (
+                      <div className="text-sm text-muted-foreground">
+                        {agent.business_name}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="text-center">
                     {agent.plan_name || (
