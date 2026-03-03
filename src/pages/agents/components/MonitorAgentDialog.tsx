@@ -91,7 +91,7 @@ export function MonitorAgentDialog({ open, onOpenChange, onSuccess }: MonitorAge
     try {
       await externalDb.insertUserAgent(
         selectedUser.id,
-        null,                      // agent_id = NULL → monitorado
+        isOwner ? selectedAgent.id : null,
         selectedAgent.cod_agent
       );
       toast.success('Agente vinculado com sucesso!');
