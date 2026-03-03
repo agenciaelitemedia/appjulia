@@ -307,8 +307,21 @@ export function MonitorAgentDialog({ open, onOpenChange, onSuccess }: MonitorAge
                 </div>
               </div>
 
+              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/50">
+                <Label htmlFor="owner-switch" className="cursor-pointer">
+                  Proprietário
+                </Label>
+                <Switch
+                  id="owner-switch"
+                  checked={isOwner}
+                  onCheckedChange={setIsOwner}
+                />
+              </div>
+
               <p className="text-sm text-muted-foreground text-center">
-                O usuário poderá monitorar este agente após a vinculação.
+                {isOwner
+                  ? 'O usuário será proprietário deste agente.'
+                  : 'O usuário poderá monitorar este agente após a vinculação.'}
               </p>
             </div>
           )}
