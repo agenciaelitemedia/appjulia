@@ -1,59 +1,83 @@
 
 
-## Gravar agent_id como NULL para agentes monitorados
+## Módulo Administrativo: Gerenciar Monitoramento
 
-### Problema
+Criar uma nova página `/admin/monitoramento` seguindo o mesmo padrão visual da página de Permissões: lista de usuários à esquerda, e à direita duas abas com os agentes vinculados e disponíveis.
 
-O `MonitorAgentDialog` grava `agent_id` com o valor real do agente, mas o `useMyAgents` diferencia agentes proprios de monitorados verificando `agent_id === null`. Resultado: agentes monitorados aparecem como "Meus Agentes" em vez de "Agentes Monitorados".
+### Estrutura de Arquivos
 
-### Alteracoes
-
-#### 1. `src/pages/agents/components/MonitorAgentDialog.tsx`
-
-Passar `null` como segundo argumento (agentId) na chamada `insertUserAgent`:
-
-```typescript
-await externalDb.insertUserAgent(
-  selectedUser.id,
-  null,                      // agent_id = NULL → monitorado
-  selectedAgent.cod_agent
-);
+```text
+src/pages/admin/monitoramento/
+├── MonitoramentoPage.tsx          # Página principal (layout 1/3 + 2/3)
+├── components/
+│   ├── MonitoramentoUserList.tsx   # Lista de usuários (reutiliza padrão do PermissionsList)
+│   └── MonitoramentoEditor.tsx    # Painel direito com 2 abas
+└── hooks/
+    └── useMonitoramentoData.ts    # Hooks para buscar/editar vínculos
 ```
 
-#### 2. `src/lib/externalDb.ts`
+### 1. `MonitoramentoPage.tsx`
+Layout idêntico ao `PermissoesPage`: grid 1/3 (lista de usuários) + 2/3 (editor). Usa `useUsersWithPermissions` (já existente) para listar usuários com filtro por role e busca.
 
-Alterar o tipo do parametro `agentId` para aceitar `null`:
+### 2. `MonitoramentoUserList.tsx`
+Componente simplificado baseado no `UserPermissionsList` existente: filtro por role, busca por nome/email, lista clicável.
 
-```typescript
-async insertUserAgent(userId: number, agentId: number | null, codAgent: string): Promise<void> {
+### 3. `MonitoramentoEditor.tsx`
+Painel com duas abas (Tabs):
+- **Vinculados**: Lista agentes já atrelados ao usuário selecionado. Cada item mostra nome/escritório, cod_agent, badge "Proprietário"/"Monitorado", e botões para editar (toggle proprietário) e excluir.
+- **Disponíveis**: Lista todos os agentes que ainda NÃO estão vinculados ao usuário. Cada item tem botão "Vincular" com switch de Proprietário.
+
+### 4. `useMonitoramentoData.ts`
+- `useUserLinkedAgents(userId)` — chama `get_user_agents` (já existe no backend)
+- `useAllAgentsForLinking(userId)` — chama uma nova action `get_available_agents_for_user` que retorna agentes não vinculados ao usuário
+- `useLinkAgent()` — mutation que chama `insert_user_agent` (já existe)
+- `useUnlinkAgent()` — mutation que chama nova action `delete_user_agent`
+- `useUpdateAgentLink()` — mutation que chama nova action `update_user_agent_ownership`
+
+### 5. Backend: novas actions no `db-query/index.ts`
+
+**`get_available_agents_for_user`**: Retorna agentes que não possuem vínculo com o userId:
+```sql
+SELECT a.id, a.cod_agent, c.name AS client_name, c.business_name
+FROM agents a
+JOIN clients c ON c.id = a.client_id
+WHERE a.is_visibilided = true
+AND NOT EXISTS (
+  SELECT 1 FROM user_agents ua
+  WHERE ua.cod_agent = a.cod_agent AND ua.user_id = $1
+)
+ORDER BY c.business_name
 ```
 
-#### 3. `supabase/functions/db-query/index.ts` (case `insert_user_agent`)
-
-Tratar `agentId` nulo no SQL, usando `$2::int` para permitir NULL:
-
-```typescript
-case 'insert_user_agent': {
-  const { userId, agentId, codAgent } = data;
-  const rows = await sql.unsafe(
-    `INSERT INTO user_agents (user_id, agent_id, cod_agent, created_at)
-     VALUES ($1, $2::int, $3::bigint, now())
-     RETURNING id`,
-    [userId, agentId ?? null, codAgent]
-  );
-  result = rows;
-  break;
-}
+**`delete_user_agent`**: Remove vínculo por user_id + cod_agent:
+```sql
+DELETE FROM user_agents WHERE user_id = $1 AND cod_agent = $2::bigint
 ```
 
-### Impacto
+**`update_user_agent_ownership`**: Atualiza agent_id (toggle proprietário):
+```sql
+UPDATE user_agents SET agent_id = $3::int
+WHERE user_id = $1 AND cod_agent = $2::bigint
+```
 
-- A chamada existente em `useAgentSave.ts` continua funcionando normalmente pois passa um `agentId` numerico real
-- Apenas o `MonitorAgentDialog` passa `null`, fazendo o agente aparecer corretamente na secao "Agentes Monitorados"
+### 6. Rota e Navegação
 
-### Arquivos modificados
+Adicionar rota em `App.tsx`:
+```tsx
+<Route path="/admin/monitoramento" element={
+  <ProtectedRoute module="admin_agents"><MonitoramentoPage /></ProtectedRoute>
+} />
+```
 
-- `src/pages/agents/components/MonitorAgentDialog.tsx` — passar null como agentId
-- `src/lib/externalDb.ts` — tipo do parametro
-- `supabase/functions/db-query/index.ts` — tratar NULL no SQL
+### Resumo de arquivos
+
+| Arquivo | Ação |
+|---|---|
+| `src/pages/admin/monitoramento/MonitoramentoPage.tsx` | Criar |
+| `src/pages/admin/monitoramento/components/MonitoramentoUserList.tsx` | Criar |
+| `src/pages/admin/monitoramento/components/MonitoramentoEditor.tsx` | Criar |
+| `src/pages/admin/monitoramento/hooks/useMonitoramentoData.ts` | Criar |
+| `supabase/functions/db-query/index.ts` | Adicionar 3 actions |
+| `src/lib/externalDb.ts` | Adicionar 3 métodos |
+| `src/App.tsx` | Adicionar rota |
 
