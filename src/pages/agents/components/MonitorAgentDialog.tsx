@@ -43,6 +43,7 @@ export function MonitorAgentDialog({ open, onOpenChange, onSuccess }: MonitorAge
   const [selectedAgent, setSelectedAgent] = useState<SearchedAgent | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
 
   // User search hook
   const userSearch = useUserSearch();
