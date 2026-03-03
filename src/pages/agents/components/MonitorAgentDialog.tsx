@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Users, Search, User, Bot, ChevronRight, ArrowLeft, Check, Loader2 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
