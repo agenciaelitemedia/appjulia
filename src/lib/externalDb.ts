@@ -540,6 +540,27 @@ class ExternalDatabase {
     return result[0];
   }
 
+  async getAvailableAgentsForUser<T = any>(userId: number): Promise<T[]> {
+    return this.invoke({
+      action: 'get_available_agents_for_user',
+      data: { userId },
+    });
+  }
+
+  async deleteUserAgent(userId: number, codAgent: string): Promise<void> {
+    await this.invoke({
+      action: 'delete_user_agent',
+      data: { userId, codAgent },
+    });
+  }
+
+  async updateUserAgentOwnership(userId: number, codAgent: string, agentId: number | null): Promise<void> {
+    await this.invoke({
+      action: 'update_user_agent_ownership',
+      data: { userId, codAgent, agentId },
+    });
+  }
+
   async getSessionStatus(whatsappNumber: string, codAgent: string): Promise<SessionStatus | null> {
     const result = await this.invoke({
       action: 'get_session_status',

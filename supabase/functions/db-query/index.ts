@@ -2322,6 +2322,43 @@ serve(async (req) => {
         break;
       }
 
+      case 'get_available_agents_for_user': {
+        const { userId } = data;
+        result = await sql.unsafe(
+          `SELECT a.id, a.cod_agent::text as cod_agent, c.name AS client_name, c.business_name
+           FROM agents a
+           JOIN clients c ON c.id = a.client_id
+           WHERE a.is_visibilided = true
+           AND NOT EXISTS (
+             SELECT 1 FROM user_agents ua
+             WHERE ua.cod_agent = a.cod_agent AND ua.user_id = $1
+           )
+           ORDER BY c.business_name`,
+          [userId]
+        );
+        break;
+      }
+
+      case 'delete_user_agent': {
+        const { userId, codAgent } = data;
+        await sql.unsafe(
+          `DELETE FROM user_agents WHERE user_id = $1 AND cod_agent = $2::bigint`,
+          [userId, codAgent]
+        );
+        result = [{ success: true }];
+        break;
+      }
+
+      case 'update_user_agent_ownership': {
+        const { userId, codAgent, agentId } = data;
+        await sql.unsafe(
+          `UPDATE user_agents SET agent_id = $3::int WHERE user_id = $1 AND cod_agent = $2::bigint`,
+          [userId, codAgent, agentId]
+        );
+        result = [{ success: true }];
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
