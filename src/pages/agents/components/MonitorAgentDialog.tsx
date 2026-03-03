@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Users, Search, User, Bot, ChevronRight, ArrowLeft, Check, Loader2 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -41,6 +43,7 @@ export function MonitorAgentDialog({ open, onOpenChange, onSuccess }: MonitorAge
   const [selectedAgent, setSelectedAgent] = useState<SearchedAgent | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
 
   // User search hook
   const userSearch = useUserSearch();
@@ -55,6 +58,7 @@ export function MonitorAgentDialog({ open, onOpenChange, onSuccess }: MonitorAge
         setStep('user');
         setSelectedUser(null);
         setSelectedAgent(null);
+        setIsOwner(false);
         userSearch.clearSearch();
         agentSearch.clearSearch();
       }, 200);
@@ -87,7 +91,7 @@ export function MonitorAgentDialog({ open, onOpenChange, onSuccess }: MonitorAge
     try {
       await externalDb.insertUserAgent(
         selectedUser.id,
-        null,                      // agent_id = NULL → monitorado
+        isOwner ? selectedAgent.id : null,
         selectedAgent.cod_agent
       );
       toast.success('Agente vinculado com sucesso!');
@@ -303,8 +307,21 @@ export function MonitorAgentDialog({ open, onOpenChange, onSuccess }: MonitorAge
                 </div>
               </div>
 
+              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/50">
+                <Label htmlFor="owner-switch" className="cursor-pointer">
+                  Proprietário
+                </Label>
+                <Switch
+                  id="owner-switch"
+                  checked={isOwner}
+                  onCheckedChange={setIsOwner}
+                />
+              </div>
+
               <p className="text-sm text-muted-foreground text-center">
-                O usuário poderá monitorar este agente após a vinculação.
+                {isOwner
+                  ? 'O usuário será proprietário deste agente.'
+                  : 'O usuário poderá monitorar este agente após a vinculação.'}
               </p>
             </div>
           )}
