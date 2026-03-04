@@ -40,6 +40,8 @@ export function MonitoramentoEditor({ user }: MonitoramentoEditorProps) {
   const unlinkAgent = useUnlinkAgent();
   const updateOwnership = useUpdateAgentOwnership();
 
+  const [searchLinked, setSearchLinked] = useState('');
+  const [searchAvailable, setSearchAvailable] = useState('');
   const [linkAsOwner, setLinkAsOwner] = useState<Record<string, boolean>>({});
 
   const handleLink = (agent: { id: number; cod_agent: string }) => {
