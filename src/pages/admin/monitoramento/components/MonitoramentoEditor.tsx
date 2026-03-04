@@ -99,19 +99,30 @@ export function MonitoramentoEditor({ user }: MonitoramentoEditorProps) {
         </TabsList>
 
         <TabsContent value="linked" className="flex-1 m-0 p-0">
-          <ScrollArea className="h-[calc(100vh-380px)]">
+          <div className="px-4 pt-3 pb-1">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar agente vinculado..."
+                value={searchLinked}
+                onChange={(e) => setSearchLinked(e.target.value)}
+                className="pl-9 h-9"
+              />
+            </div>
+          </div>
+          <ScrollArea className="h-[calc(100vh-430px)]">
             <div className="p-4 space-y-2">
               {loadingLinked ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <Skeleton key={i} className="h-20 w-full rounded-lg" />
                 ))
-              ) : linkedAgents.length === 0 ? (
+              ) : filteredLinked.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <Bot className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                  <p>Nenhum agente vinculado</p>
+                  <p>{searchLinked ? 'Nenhum resultado encontrado' : 'Nenhum agente vinculado'}</p>
                 </div>
               ) : (
-                linkedAgents.map((agent: any) => (
+                filteredLinked.map((agent: any) => (
                   <div
                     key={agent.cod_agent}
                     className="flex items-center justify-between p-3 rounded-lg border bg-card"
