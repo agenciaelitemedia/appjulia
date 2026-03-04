@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { Link2, Link2Off, Trash2, Building2, Bot, Crown, Eye } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Link2, Link2Off, Trash2, Building2, Bot, Crown, Eye, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
