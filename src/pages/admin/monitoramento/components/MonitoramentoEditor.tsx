@@ -44,7 +44,19 @@ export function MonitoramentoEditor({ user }: MonitoramentoEditorProps) {
   const [searchAvailable, setSearchAvailable] = useState('');
   const [linkAsOwner, setLinkAsOwner] = useState<Record<string, boolean>>({});
 
-  const handleLink = (agent: { id: number; cod_agent: string }) => {
+  const filterAgent = (agent: any, term: string) => {
+    if (!term) return true;
+    const t = term.toLowerCase();
+    return (
+      agent.client_name?.toLowerCase().includes(t) ||
+      agent.business_name?.toLowerCase().includes(t) ||
+      agent.cod_agent?.toString().includes(t)
+    );
+  };
+
+  const filteredLinked = useMemo(() => linkedAgents.filter((a: any) => filterAgent(a, searchLinked)), [linkedAgents, searchLinked]);
+  const filteredAvailable = useMemo(() => availableAgents.filter((a: any) => filterAgent(a, searchAvailable)), [availableAgents, searchAvailable]);
+
     const isOwner = linkAsOwner[agent.cod_agent] ?? false;
     linkAgent.mutate({
       userId: user.id,
