@@ -57,6 +57,7 @@ export function MonitoramentoEditor({ user }: MonitoramentoEditorProps) {
   const filteredLinked = useMemo(() => linkedAgents.filter((a: any) => filterAgent(a, searchLinked)), [linkedAgents, searchLinked]);
   const filteredAvailable = useMemo(() => availableAgents.filter((a: any) => filterAgent(a, searchAvailable)), [availableAgents, searchAvailable]);
 
+  const handleLink = (agent: { id: number; cod_agent: string }) => {
     const isOwner = linkAsOwner[agent.cod_agent] ?? false;
     linkAgent.mutate({
       userId: user.id,
