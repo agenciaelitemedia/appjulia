@@ -10,6 +10,7 @@ import { useMenuModules, getSortedGroups } from "@/hooks/useMenuModules";
 import { getIcon } from "@/lib/iconMap";
 import { DebugBarToggle } from "@/components/debug/DebugBarToggle";
 import { useEnsureDataJudModule } from "@/pages/datajud/hooks/useEnsureDataJudModule";
+import { useEnsureMonitoramentoModule } from "@/pages/admin/monitoramento/hooks/useEnsureMonitoramentoModule";
 import {
   Tooltip,
   TooltipContent,
@@ -32,6 +33,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   
   // Ensure DataJud module exists for admins
   useEnsureDataJudModule();
+  useEnsureMonitoramentoModule();
 
   const isTimeUser = user?.role === "time";
   
