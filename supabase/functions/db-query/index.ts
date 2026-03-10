@@ -1158,7 +1158,7 @@ serve(async (req) => {
         
         // Update user name and principal
         await sql.unsafe(
-          `UPDATE users SET name = $1, user_id = $2, updated_at = now() WHERE id = $3`,
+          `UPDATE users SET name = $1, user_id = $2, use_custom_permissions = TRUE, updated_at = now() WHERE id = $3`,
           [name, principalUserId, memberId]
         );
         
