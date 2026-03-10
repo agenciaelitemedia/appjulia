@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { UserCircle, Mail, Lock, Copy, RefreshCw, Loader2 } from 'lucide-react';
+import { UserCircle, Mail, Lock, Copy, RefreshCw, Loader2, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAgentUpdate } from '../../hooks/useAgentUpdate';
 import type { EditAgentFormData } from './EditClientStep';
@@ -147,6 +149,45 @@ export function EditUserStep() {
                 Resetar Senha
               </Button>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Permissions Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Permissões de Edição
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Controle quais seções o proprietário do agente pode editar na página "Meus Agentes".
+          </p>
+          
+          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+            <div className="space-y-0.5">
+              <Label htmlFor="can_edit_config" className="text-sm font-medium">Editar Configurações</Label>
+              <p className="text-xs text-muted-foreground">Permite alterar as configurações (settings) do agente</p>
+            </div>
+            <Switch
+              id="can_edit_config"
+              checked={watch('can_edit_config')}
+              onCheckedChange={(checked) => setValue('can_edit_config', checked)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+            <div className="space-y-0.5">
+              <Label htmlFor="can_edit_prompt" className="text-sm font-medium">Editar Prompt</Label>
+              <p className="text-xs text-muted-foreground">Permite alterar o prompt do agente</p>
+            </div>
+            <Switch
+              id="can_edit_prompt"
+              checked={watch('can_edit_prompt')}
+              onCheckedChange={(checked) => setValue('can_edit_prompt', checked)}
+            />
           </div>
         </CardContent>
       </Card>

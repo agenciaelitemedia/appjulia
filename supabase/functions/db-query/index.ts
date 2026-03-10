@@ -832,6 +832,8 @@ serve(async (req) => {
             u.name as user_name,
             u.email as user_email,
             u.remember_token,
+            ua.can_edit_prompt,
+            ua.can_edit_config,
             -- Leads do mes
             (SELECT COUNT(DISTINCT s.id) FROM sessions s 
              WHERE s.agent_id = a.id 

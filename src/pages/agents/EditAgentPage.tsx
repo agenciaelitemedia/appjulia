@@ -47,6 +47,8 @@ interface AgentDetails {
   user_email: string | null;
   remember_token: string | null;
   leads_received: number;
+  can_edit_prompt: boolean;
+  can_edit_config: boolean;
 }
 
 const STEPS = [
@@ -94,6 +96,8 @@ export default function EditAgentPage() {
       user_email: null,
       remember_token: null,
       leads_received: 0,
+      can_edit_prompt: false,
+      can_edit_config: true,
     },
   });
 
@@ -144,6 +148,8 @@ export default function EditAgentPage() {
           user_email: data.user_email,
           remember_token: data.remember_token,
           leads_received: typeof data.leads_received === 'number' ? data.leads_received : parseInt(String(data.leads_received)) || 0,
+          can_edit_prompt: data.can_edit_prompt ?? false,
+          can_edit_config: data.can_edit_config ?? true,
         });
         
       } catch (error) {
@@ -202,6 +208,20 @@ export default function EditAgentPage() {
       client_city: data.client_city,
       client_state: data.client_state,
     });
+    
+    // Save user agent permissions if user is linked
+    if (result.success && details.user_id && details.cod_agent) {
+      try {
+        await externalDb.updateUserAgentPermissions(
+          details.user_id,
+          details.cod_agent,
+          data.can_edit_prompt,
+          data.can_edit_config
+        );
+      } catch (err) {
+        console.error('Error updating permissions:', err);
+      }
+    }
     
     if (result.success) {
       toast.success('Agente atualizado com sucesso!');

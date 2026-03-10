@@ -1,46 +1,59 @@
 
 
-## Plano: Checkboxes de permissões na aba Usuário do EditAgentPage
+## Gravar agent_id como NULL para agentes monitorados
 
-### Contexto
-A query `get_agent_details` já faz JOIN com `user_agents` (linha 844) mas não retorna `can_edit_prompt` e `can_edit_config`. Precisamos incluí-los e expor controles na aba Usuário.
+### Problema
 
-### Alterações
+O `MonitorAgentDialog` grava `agent_id` com o valor real do agente, mas o `useMyAgents` diferencia agentes proprios de monitorados verificando `agent_id === null`. Resultado: agentes monitorados aparecem como "Meus Agentes" em vez de "Agentes Monitorados".
 
-#### 1. Backend — `supabase/functions/db-query/index.ts`
-No case `get_agent_details`, adicionar ao SELECT:
-```sql
-ua.can_edit_prompt,
-ua.can_edit_config
-```
+### Alteracoes
 
-#### 2. Frontend — `EditClientStep.tsx` (tipo `EditAgentFormData`)
-Adicionar campos:
+#### 1. `src/pages/agents/components/MonitorAgentDialog.tsx`
+
+Passar `null` como segundo argumento (agentId) na chamada `insertUserAgent`:
+
 ```typescript
-can_edit_prompt: boolean;
-can_edit_config: boolean;
+await externalDb.insertUserAgent(
+  selectedUser.id,
+  null,                      // agent_id = NULL → monitorado
+  selectedAgent.cod_agent
+);
 ```
 
-#### 3. Frontend — `EditAgentPage.tsx`
-- Incluir `can_edit_prompt` e `can_edit_config` no `AgentDetails` interface e no `methods.reset()`
-- No `onSubmit`, chamar `externalDb.updateUserAgentPermissions()` se houver `user_id`
+#### 2. `src/lib/externalDb.ts`
 
-#### 4. Frontend — `EditUserStep.tsx`
-Adicionar um card "Permissões de Edição" com dois switches:
-- **Editar Configurações** (`can_edit_config`) — controla se o dono pode editar configs
-- **Editar Prompt** (`can_edit_prompt`) — controla se o dono pode editar prompt
+Alterar o tipo do parametro `agentId` para aceitar `null`:
 
-Cada switch usa `watch`/`setValue` do form context.
+```typescript
+async insertUserAgent(userId: number, agentId: number | null, codAgent: string): Promise<void> {
+```
 
-#### 5. Frontend — `externalDb.ts`
-Garantir que existe o método `updateUserAgentPermissions` (já deve existir da implementação anterior).
+#### 3. `supabase/functions/db-query/index.ts` (case `insert_user_agent`)
 
-### Arquivos afetados
+Tratar `agentId` nulo no SQL, usando `$2::int` para permitir NULL:
 
-| Arquivo | Alteração |
-|---|---|
-| `supabase/functions/db-query/index.ts` | Adicionar campos ao SELECT do `get_agent_details` |
-| `src/pages/agents/components/edit-steps/EditClientStep.tsx` | Adicionar campos ao tipo |
-| `src/pages/agents/EditAgentPage.tsx` | Propagar campos no form e salvar permissões |
-| `src/pages/agents/components/edit-steps/EditUserStep.tsx` | Adicionar switches de permissão |
+```typescript
+case 'insert_user_agent': {
+  const { userId, agentId, codAgent } = data;
+  const rows = await sql.unsafe(
+    `INSERT INTO user_agents (user_id, agent_id, cod_agent, created_at)
+     VALUES ($1, $2::int, $3::bigint, now())
+     RETURNING id`,
+    [userId, agentId ?? null, codAgent]
+  );
+  result = rows;
+  break;
+}
+```
+
+### Impacto
+
+- A chamada existente em `useAgentSave.ts` continua funcionando normalmente pois passa um `agentId` numerico real
+- Apenas o `MonitorAgentDialog` passa `null`, fazendo o agente aparecer corretamente na secao "Agentes Monitorados"
+
+### Arquivos modificados
+
+- `src/pages/agents/components/MonitorAgentDialog.tsx` — passar null como agentId
+- `src/lib/externalDb.ts` — tipo do parametro
+- `supabase/functions/db-query/index.ts` — tratar NULL no SQL
 
