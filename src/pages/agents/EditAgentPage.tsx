@@ -148,6 +148,8 @@ export default function EditAgentPage() {
           user_email: data.user_email,
           remember_token: data.remember_token,
           leads_received: typeof data.leads_received === 'number' ? data.leads_received : parseInt(String(data.leads_received)) || 0,
+          can_edit_prompt: data.can_edit_prompt ?? false,
+          can_edit_config: data.can_edit_config ?? true,
         });
         
       } catch (error) {

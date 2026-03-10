@@ -47,6 +47,10 @@ export interface EditAgentFormData {
   user_email: string | null;
   remember_token: string | null;
   leads_received: number;
+  
+  // User agent permissions
+  can_edit_prompt: boolean;
+  can_edit_config: boolean;
 }
 
 export function EditClientStep() {
