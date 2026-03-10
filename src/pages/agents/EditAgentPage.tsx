@@ -96,6 +96,8 @@ export default function EditAgentPage() {
       user_email: null,
       remember_token: null,
       leads_received: 0,
+      can_edit_prompt: false,
+      can_edit_config: true,
     },
   });
 
