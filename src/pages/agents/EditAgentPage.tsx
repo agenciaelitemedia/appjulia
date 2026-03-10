@@ -209,6 +209,20 @@ export default function EditAgentPage() {
       client_state: data.client_state,
     });
     
+    // Save user agent permissions if user is linked
+    if (result.success && details.user_id && details.cod_agent) {
+      try {
+        await externalDb.updateUserAgentPermissions(
+          details.user_id,
+          details.cod_agent,
+          data.can_edit_prompt,
+          data.can_edit_config
+        );
+      } catch (err) {
+        console.error('Error updating permissions:', err);
+      }
+    }
+    
     if (result.success) {
       toast.success('Agente atualizado com sucesso!');
       navigate(`/admin/agentes/${id}/detalhes`);
