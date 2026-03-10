@@ -153,6 +153,45 @@ export function EditUserStep() {
         </CardContent>
       </Card>
 
+      {/* Permissions Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Permissões de Edição
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Controle quais seções o proprietário do agente pode editar na página "Meus Agentes".
+          </p>
+          
+          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+            <div className="space-y-0.5">
+              <Label htmlFor="can_edit_config" className="text-sm font-medium">Editar Configurações</Label>
+              <p className="text-xs text-muted-foreground">Permite alterar as configurações (settings) do agente</p>
+            </div>
+            <Switch
+              id="can_edit_config"
+              checked={watch('can_edit_config')}
+              onCheckedChange={(checked) => setValue('can_edit_config', checked)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+            <div className="space-y-0.5">
+              <Label htmlFor="can_edit_prompt" className="text-sm font-medium">Editar Prompt</Label>
+              <p className="text-xs text-muted-foreground">Permite alterar o prompt do agente</p>
+            </div>
+            <Switch
+              id="can_edit_prompt"
+              checked={watch('can_edit_prompt')}
+              onCheckedChange={(checked) => setValue('can_edit_prompt', checked)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="p-4 bg-secondary/50 border border-border rounded-lg">
         <p className="text-sm text-secondary-foreground">
           <strong>Nota:</strong> Os dados do usuário não podem ser alterados nesta tela. 
