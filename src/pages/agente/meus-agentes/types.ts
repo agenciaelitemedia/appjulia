@@ -13,6 +13,9 @@ export interface UserAgent {
   evo_url: string | null;
   evo_apikey: string | null;
   evo_instancia: string | null;
+  // Permissões de edição
+  can_edit_prompt: boolean;
+  can_edit_config: boolean;
 }
 
 export type ConnectionStatus = 'no_config' | 'connected' | 'disconnected' | 'checking';

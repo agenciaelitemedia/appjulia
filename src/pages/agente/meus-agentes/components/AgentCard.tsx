@@ -1,7 +1,9 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Bot, Eye } from 'lucide-react';
+import { Bot, Eye, Pencil } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { UserAgent } from '../types';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
 import { ConnectionStatusBadge } from './ConnectionStatusBadge';
@@ -13,6 +15,7 @@ interface AgentCardProps {
 }
 
 export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
+  const navigate = useNavigate();
   const { data: connectionStatus = 'no_config', isLoading } = useConnectionStatus(
     agent.hub,
     agent.evo_url,
@@ -23,6 +26,8 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
   const leadsPercentage = agent.plan_limit 
     ? Math.min((agent.leads_received / agent.plan_limit) * 100, 100)
     : 0;
+
+  const canEdit = !isMonitored && (agent.can_edit_config || agent.can_edit_prompt);
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -77,14 +82,24 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
           </div>
         )}
 
-        {/* Botões de controle de conexão - apenas para "Meus Agentes" */}
+        {/* Botões de controle de conexão e edição - apenas para "Meus Agentes" */}
         {!isMonitored && (
-          <div className="pt-3 mt-3 border-t border-border/50">
+          <div className="pt-3 mt-3 border-t border-border/50 flex items-center justify-between">
             <ConnectionControlButtons
               agent={agent}
               status={connectionStatus}
               isLoading={isLoading}
             />
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/agente/meus-agentes/${agent.cod_agent}/editar`)}
+              >
+                <Pencil className="w-4 h-4 mr-1" />
+                Editar
+              </Button>
+            )}
           </div>
         )}
       </CardContent>

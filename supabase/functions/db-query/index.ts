@@ -2393,6 +2393,67 @@ serve(async (req) => {
         break;
       }
 
+      case 'update_user_agent_permissions': {
+        const { userId, codAgent, canEditPrompt, canEditConfig } = data;
+        await sql.unsafe(
+          `UPDATE user_agents SET can_edit_prompt = $3, can_edit_config = $4 WHERE user_id = $1 AND cod_agent = $2::bigint`,
+          [userId, codAgent, canEditPrompt, canEditConfig]
+        );
+        result = [{ success: true }];
+        break;
+      }
+
+      case 'update_agent_by_owner': {
+        const { userId, codAgent, settings, prompt } = data;
+        // Verify ownership
+        const ownership = await sql.unsafe(
+          `SELECT ua.agent_id, ua.can_edit_prompt, ua.can_edit_config
+           FROM user_agents ua
+           WHERE ua.user_id = $1 AND ua.cod_agent = $2::bigint AND ua.agent_id IS NOT NULL
+           LIMIT 1`,
+          [userId, codAgent]
+        );
+        if (ownership.length === 0) {
+          throw new Error('Você não é proprietário deste agente');
+        }
+        const perm = ownership[0];
+        const agentId = perm.agent_id;
+        const updates: string[] = [];
+        const values: any[] = [];
+        let idx = 1;
+
+        if (settings !== undefined && perm.can_edit_config) {
+          const normalizedSettings = normalizeSettings(settings);
+          updates.push(`settings = CASE WHEN jsonb_typeof($${idx}::jsonb) = 'string' THEN ($${idx}::jsonb #>> '{}')::jsonb ELSE $${idx}::jsonb END`);
+          values.push(normalizedSettings);
+          idx++;
+        }
+        if (prompt !== undefined && perm.can_edit_prompt) {
+          updates.push(`prompt = $${idx}`);
+          values.push(prompt);
+          idx++;
+        }
+        if (updates.length === 0) {
+          throw new Error('Sem permissão para editar os campos solicitados');
+        }
+        updates.push('updated_at = now()');
+        values.push(agentId);
+        const updateQuery = `UPDATE agents SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id`;
+        const rows = await sql.unsafe(updateQuery, values);
+        result = rows;
+        break;
+      }
+
+      case 'migrate_user_agents_permissions': {
+        // Add can_edit_prompt and can_edit_config columns if they don't exist
+        await sql.unsafe(`
+          ALTER TABLE user_agents ADD COLUMN IF NOT EXISTS can_edit_prompt BOOLEAN NOT NULL DEFAULT FALSE;
+          ALTER TABLE user_agents ADD COLUMN IF NOT EXISTS can_edit_config BOOLEAN NOT NULL DEFAULT TRUE;
+        `);
+        result = [{ success: true, message: 'Columns added successfully' }];
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
