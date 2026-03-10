@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react';
-import { Link2, Link2Off, Trash2, Building2, Bot, Crown, Eye, Search } from 'lucide-react';
+import { Link2, Link2Off, Trash2, Building2, Bot, Crown, Eye, Search, Pencil, MessageSquare, Settings } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -20,6 +21,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { externalDb } from '@/lib/externalDb';
+import { toast } from '@/hooks/use-toast';
 import type { UserWithPermissions } from '../../permissoes/types';
 import {
   useUserLinkedAgents,
@@ -83,6 +86,23 @@ export function MonitoramentoEditor({ user }: MonitoramentoEditorProps) {
     });
   };
 
+  const handleTogglePermission = async (agent: any, field: 'can_edit_prompt' | 'can_edit_config') => {
+    const newValue = !agent[field];
+    try {
+      await externalDb.updateUserAgentPermissions(
+        user.id,
+        agent.cod_agent,
+        field === 'can_edit_prompt' ? newValue : (agent.can_edit_prompt ?? false),
+        field === 'can_edit_config' ? newValue : (agent.can_edit_config ?? true)
+      );
+      toast({ title: 'Permissão atualizada', description: `${field === 'can_edit_prompt' ? 'Editar Prompt' : 'Editar Config'} ${newValue ? 'ativado' : 'desativado'}` });
+      // Invalidate to refetch
+      window.dispatchEvent(new Event('refetch-linked-agents'));
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível atualizar a permissão', variant: 'destructive' });
+    }
+  };
+
   return (
     <Card className="h-full flex flex-col">
       <div className="p-4 border-b">
@@ -129,61 +149,91 @@ export function MonitoramentoEditor({ user }: MonitoramentoEditorProps) {
                 filteredLinked.map((agent: any) => (
                   <div
                     key={agent.cod_agent}
-                    className="flex items-center justify-between p-3 rounded-lg border bg-card"
+                    className="p-3 rounded-lg border bg-card space-y-2"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
-                        <Bot className="w-5 h-5 text-muted-foreground" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="font-medium truncate">{agent.client_name || '-'}</div>
-                        {agent.business_name && (
-                          <div className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Building2 className="w-3 h-3" />
-                            {agent.business_name}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+                          <Bot className="w-5 h-5 text-muted-foreground" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{agent.client_name || '-'}</div>
+                          {agent.business_name && (
+                            <div className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Building2 className="w-3 h-3" />
+                              {agent.business_name}
+                            </div>
+                          )}
+                          <div className="text-xs text-muted-foreground font-mono">
+                            cod: {agent.cod_agent}
                           </div>
-                        )}
-                        <div className="text-xs text-muted-foreground font-mono">
-                          cod: {agent.cod_agent}
                         </div>
                       </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge
+                          variant={agent.agent_id ? 'default' : 'secondary'}
+                          className="cursor-pointer text-xs"
+                          onClick={() => handleToggleOwnership(agent)}
+                        >
+                          {agent.agent_id ? (
+                            <><Crown className="w-3 h-3 mr-1" /> Proprietário</>
+                          ) : (
+                            <><Eye className="w-3 h-3 mr-1" /> Monitorado</>
+                          )}
+                        </Badge>
+
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Desvincular agente</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Tem certeza que deseja remover o vínculo do agente <strong>{agent.client_name}</strong> com este usuário?
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleUnlink(agent.cod_agent)}>
+                                Desvincular
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge
-                        variant={agent.agent_id ? 'default' : 'secondary'}
-                        className="cursor-pointer text-xs"
-                        onClick={() => handleToggleOwnership(agent)}
-                      >
-                        {agent.agent_id ? (
-                          <><Crown className="w-3 h-3 mr-1" /> Proprietário</>
-                        ) : (
-                          <><Eye className="w-3 h-3 mr-1" /> Monitorado</>
-                        )}
-                      </Badge>
-
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Desvincular agente</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Tem certeza que deseja remover o vínculo do agente <strong>{agent.client_name}</strong> com este usuário?
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleUnlink(agent.cod_agent)}>
-                              Desvincular
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
+                    {/* Permissões de edição - só para proprietários */}
+                    {agent.agent_id && (
+                      <div className="flex items-center gap-4 pl-13 pt-1 border-t border-border/50">
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id={`config-${agent.cod_agent}`}
+                            checked={agent.can_edit_config ?? true}
+                            onCheckedChange={() => handleTogglePermission(agent, 'can_edit_config')}
+                          />
+                          <Label htmlFor={`config-${agent.cod_agent}`} className="text-xs cursor-pointer flex items-center gap-1">
+                            <Settings className="w-3 h-3" />
+                            Editar Config
+                          </Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id={`prompt-${agent.cod_agent}`}
+                            checked={agent.can_edit_prompt ?? false}
+                            onCheckedChange={() => handleTogglePermission(agent, 'can_edit_prompt')}
+                          />
+                          <Label htmlFor={`prompt-${agent.cod_agent}`} className="text-xs cursor-pointer flex items-center gap-1">
+                            <MessageSquare className="w-3 h-3" />
+                            Editar Prompt
+                          </Label>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))
               )}

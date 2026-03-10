@@ -561,6 +561,28 @@ class ExternalDatabase {
     });
   }
 
+  async updateUserAgentPermissions(userId: number, codAgent: string, canEditPrompt: boolean, canEditConfig: boolean): Promise<void> {
+    await this.invoke({
+      action: 'update_user_agent_permissions',
+      data: { userId, codAgent, canEditPrompt, canEditConfig },
+    });
+  }
+
+  async updateAgentByOwner(userId: number, codAgent: string, settings?: string, prompt?: string): Promise<void> {
+    await this.invoke({
+      action: 'update_agent_by_owner',
+      data: { userId, codAgent, settings, prompt },
+    });
+  }
+
+  async migrateUserAgentsPermissions(): Promise<{ success: boolean; message: string }> {
+    const result = await this.invoke({
+      action: 'migrate_user_agents_permissions',
+      data: {},
+    });
+    return result[0];
+  }
+
   async getSessionStatus(whatsappNumber: string, codAgent: string): Promise<SessionStatus | null> {
     const result = await this.invoke({
       action: 'get_session_status',
