@@ -492,6 +492,8 @@ serve(async (req) => {
             c.business_name,
             ap.name as plan_name,
             ap."limit" as plan_limit,
+            COALESCE(ua.can_edit_prompt, false) as can_edit_prompt,
+            COALESCE(ua.can_edit_config, true) as can_edit_config,
             (SELECT COUNT(DISTINCT s.id) FROM sessions s 
              WHERE s.agent_id = a.id 
              AND EXISTS (SELECT 1 FROM log_messages lm 
