@@ -26,6 +26,7 @@ import ContratosPage from "./pages/estrategico/contratos/ContratosPage";
 import CampanhasPage from "./pages/estrategico/campanhas/CampanhasPage";
 import FollowupPage from "./pages/agente/followup/FollowupPage";
 import MyAgentsPage from "./pages/agente/meus-agentes/MyAgentsPage";
+import MyAgentEditPage from "./pages/agente/meus-agentes/MyAgentEditPage";
 import CriativosPage from "./pages/criativos/CriativosPage";
 import EquipePage from "./pages/equipe/EquipePage";
 import ProfileSettingsPage from "./pages/profile/ProfileSettingsPage";
