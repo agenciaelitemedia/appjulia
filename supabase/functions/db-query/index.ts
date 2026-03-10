@@ -1487,16 +1487,48 @@ serve(async (req) => {
           );
           
           if (parentUserId.length > 0 && parentUserId[0].user_id) {
-            const parentPerms = await sql.unsafe(`
-              SELECT m.code as module_code,
-                     COALESCE(rdp.can_view, FALSE) as can_view,
-                     COALESCE(rdp.can_create, FALSE) as can_create,
-                     COALESCE(rdp.can_edit, FALSE) as can_edit,
-                     COALESCE(rdp.can_delete, FALSE) as can_delete
-              FROM modules m
-              LEFT JOIN role_default_permissions rdp ON rdp.module_id = m.id AND rdp.role = 'user'
-              WHERE m.is_active = TRUE
-            `);
+            const pid = parentUserId[0].user_id;
+
+            // Check if parent uses custom permissions
+            const parentUser = await sql.unsafe(
+              `SELECT role, use_custom_permissions FROM users WHERE id = $1`,
+              [pid]
+            );
+
+            let parentPerms;
+            const pu = parentUser[0];
+
+            if (pu?.role === 'admin') {
+              // Admin parent: all modules allowed
+              parentPerms = await sql.unsafe(`
+                SELECT code as module_code, TRUE as can_view, TRUE as can_create, TRUE as can_edit, TRUE as can_delete
+                FROM modules WHERE is_active = TRUE
+              `);
+            } else if (pu?.use_custom_permissions) {
+              // Parent has custom permissions: use them
+              parentPerms = await sql.unsafe(`
+                SELECT m.code as module_code,
+                       COALESCE(up.can_view, FALSE) as can_view,
+                       COALESCE(up.can_create, FALSE) as can_create,
+                       COALESCE(up.can_edit, FALSE) as can_edit,
+                       COALESCE(up.can_delete, FALSE) as can_delete
+                FROM modules m
+                LEFT JOIN user_permissions up ON up.module_id = m.id AND up.user_id = $1
+                WHERE m.is_active = TRUE
+              `, [pid]);
+            } else {
+              // Parent uses role defaults
+              parentPerms = await sql.unsafe(`
+                SELECT m.code as module_code,
+                       COALESCE(rdp.can_view, FALSE) as can_view,
+                       COALESCE(rdp.can_create, FALSE) as can_create,
+                       COALESCE(rdp.can_edit, FALSE) as can_edit,
+                       COALESCE(rdp.can_delete, FALSE) as can_delete
+                FROM modules m
+                LEFT JOIN role_default_permissions rdp ON rdp.module_id = m.id AND rdp.role = $1
+                WHERE m.is_active = TRUE
+              `, [pu?.role || 'user']);
+            }
 
             // Intersect permissions: child can only have permission if parent also has it
             const parentMap = new Map(parentPerms.map(p => [p.module_code, p]));
