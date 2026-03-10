@@ -47,6 +47,8 @@ interface AgentDetails {
   user_email: string | null;
   remember_token: string | null;
   leads_received: number;
+  can_edit_prompt: boolean;
+  can_edit_config: boolean;
 }
 
 const STEPS = [
