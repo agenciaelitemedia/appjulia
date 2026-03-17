@@ -114,7 +114,7 @@ function truncateText(text: string | undefined, maxLength: number): string {
 
             {/* Header with name and actions */}
             <div className="flex items-start justify-between gap-2">
-              <div className="flex flex-col gap-0.5">
+              <div className="flex flex-col gap-0.5 min-w-0 overflow-hidden">
                 <div className="flex items-center gap-1.5 text-sm font-medium">
                   <span className="text-primary">👤</span>
                   <span className="line-clamp-1">{card.contact_name || 'Sem nome'}</span>
