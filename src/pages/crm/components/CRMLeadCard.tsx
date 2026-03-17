@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Clock, Eye, Hash, MessageCircle, Scale, Video } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Bot, Clock, Eye, Hash, MessageCircle, Scale, Video } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,7 +10,9 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { WhatsAppMessagesDialog } from './WhatsAppMessagesDialog';
 import { ContractInfoDialog } from './ContractInfoDialog';
+import { SessionStatusDialog } from './SessionStatusDialog';
 import { VideoCallDialog } from '@/pages/video/components/VideoCallDialog';
+import { externalDb } from '@/lib/externalDb';
 import { formatDbDateTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -36,6 +38,22 @@ function truncateText(text: string | undefined, maxLength: number): string {
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
   const [videoCallOpen, setVideoCallOpen] = useState(false);
+  const [sessionOpen, setSessionOpen] = useState(false);
+  const [isAgentActive, setIsAgentActive] = useState<boolean | null>(null);
+
+  const fetchAgentStatus = useCallback(async () => {
+    if (!card.whatsapp_number || !card.cod_agent) return;
+    try {
+      const result = await externalDb.getSessionStatus(card.whatsapp_number, card.cod_agent);
+      setIsAgentActive(result?.active ?? false);
+    } catch {
+      setIsAgentActive(false);
+    }
+  }, [card.whatsapp_number, card.cod_agent]);
+
+  useEffect(() => {
+    fetchAgentStatus();
+  }, [fetchAgentStatus]);
 
   // Video call only visible for admin and colaborador roles
   const canStartVideoCall = user?.role === 'admin' || user?.role === 'colaborador';
@@ -63,6 +81,16 @@ function truncateText(text: string | undefined, maxLength: number): string {
   const handleVideoCall = (e: React.MouseEvent) => {
     e.stopPropagation();
     setVideoCallOpen(true);
+  };
+
+  const handleSessionStatus = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSessionOpen(true);
+  };
+
+  const handleSessionClose = (open: boolean) => {
+    setSessionOpen(open);
+    if (!open) fetchAgentStatus();
   };
 
   const truncatedBusinessName = truncateText(card.owner_business_name, 20);
@@ -262,9 +290,33 @@ function truncateText(text: string | undefined, maxLength: number): string {
                 ) : (
                   <div />
                 )}
-                <span className="text-[10px] text-muted-foreground/50">
-                  🇧🇷 Horário de Brasília
-                </span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                          "h-6 px-1.5 gap-1 text-[10px] font-medium",
+                          isAgentActive === null
+                            ? "text-muted-foreground"
+                            : isAgentActive
+                              ? "text-green-500 hover:bg-green-100/50 dark:hover:bg-green-900/30"
+                              : "text-red-500 hover:bg-red-100/50 dark:hover:bg-red-900/30"
+                        )}
+                        onClick={handleSessionStatus}
+                      >
+                        <Bot className={cn("h-3.5 w-3.5", isAgentActive && "animate-pulse")} />
+                        <span>{isAgentActive === null ? '...' : isAgentActive ? 'Ativa' : 'Inativa'}</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">
+                        {isAgentActive === null ? 'Verificando status...' : isAgentActive ? 'Julia Ativa — clique para detalhes' : 'Julia Inativa — clique para detalhes'}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </div>
           </div>
@@ -298,6 +350,14 @@ function truncateText(text: string | undefined, maxLength: number): string {
         whatsappNumber={card.whatsapp_number}
         contactName={card.contact_name}
         apiCredentials={apiCredentials}
+      />
+
+      {/* Session Status Dialog */}
+      <SessionStatusDialog
+        open={sessionOpen}
+        onOpenChange={handleSessionClose}
+        whatsappNumber={card.whatsapp_number}
+        codAgent={card.cod_agent}
       />
     </>
   );

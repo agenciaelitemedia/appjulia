@@ -1,35 +1,59 @@
 
 
-## Plano: Substituir "🇧🇷 Horário de Brasília" por ícone de status do agente
+## Gravar agent_id como NULL para agentes monitorados
 
-### O que muda
+### Problema
 
-No `CRMLeadCard.tsx`, substituir o texto estático "🇧🇷 Horário de Brasília" por um botão com ícone `Bot` que:
-- Mostra verde (ativo) ou vermelho (inativo) baseado no status da sessão do lead
-- Ao clicar, abre o `SessionStatusDialog` existente
+O `MonitorAgentDialog` grava `agent_id` com o valor real do agente, mas o `useMyAgents` diferencia agentes proprios de monitorados verificando `agent_id === null`. Resultado: agentes monitorados aparecem como "Meus Agentes" em vez de "Agentes Monitorados".
 
-### Implementação
+### Alteracoes
 
-#### 1. `CRMLeadCard.tsx`
-- Adicionar estado `sessionOpen` para controlar o `SessionStatusDialog`
-- Adicionar estado `isAgentActive` (null = carregando, boolean = status) com fetch via `externalDb.getSessionStatus` no mount
-- Substituir o `<span>🇧🇷 Horário de Brasília</span>` (linha 265-267) por um botão clicável com ícone `Bot`:
-  - Verde pulsante se ativo, vermelho se inativo, cinza se carregando
-  - Tooltip "Julia Ativa" / "Julia Inativa"
-  - onClick abre `SessionStatusDialog`
-- Adicionar `<SessionStatusDialog>` ao final do componente, passando `whatsappNumber` e `codAgent`
-- Ao fechar o dialog, re-fetch o status para sincronizar o ícone
+#### 1. `src/pages/agents/components/MonitorAgentDialog.tsx`
 
-#### Consideração de performance
-Como cada card faria uma chamada individual ao backend para buscar o status, isso pode ser pesado com muitos leads. Uma alternativa seria:
-- **Opção A**: Fetch individual por card (simples, mas N requests)
-- **Opção B**: Passar o status como prop do pipeline (batch fetch no nível do CRMPipeline)
+Passar `null` como segundo argumento (agentId) na chamada `insertUserAgent`:
 
-Vou implementar com **Opção A** (fetch no card) com lazy loading — o status só é buscado quando o card é visível, e com cache via `cod_agent` para evitar refetch duplicado para o mesmo agente.
+```typescript
+await externalDb.insertUserAgent(
+  selectedUser.id,
+  null,                      // agent_id = NULL → monitorado
+  selectedAgent.cod_agent
+);
+```
 
-### Arquivos afetados
+#### 2. `src/lib/externalDb.ts`
 
-| Arquivo | Alteração |
-|---|---|
-| `src/pages/crm/components/CRMLeadCard.tsx` | Substituir texto por ícone Bot + abrir SessionStatusDialog |
+Alterar o tipo do parametro `agentId` para aceitar `null`:
+
+```typescript
+async insertUserAgent(userId: number, agentId: number | null, codAgent: string): Promise<void> {
+```
+
+#### 3. `supabase/functions/db-query/index.ts` (case `insert_user_agent`)
+
+Tratar `agentId` nulo no SQL, usando `$2::int` para permitir NULL:
+
+```typescript
+case 'insert_user_agent': {
+  const { userId, agentId, codAgent } = data;
+  const rows = await sql.unsafe(
+    `INSERT INTO user_agents (user_id, agent_id, cod_agent, created_at)
+     VALUES ($1, $2::int, $3::bigint, now())
+     RETURNING id`,
+    [userId, agentId ?? null, codAgent]
+  );
+  result = rows;
+  break;
+}
+```
+
+### Impacto
+
+- A chamada existente em `useAgentSave.ts` continua funcionando normalmente pois passa um `agentId` numerico real
+- Apenas o `MonitorAgentDialog` passa `null`, fazendo o agente aparecer corretamente na secao "Agentes Monitorados"
+
+### Arquivos modificados
+
+- `src/pages/agents/components/MonitorAgentDialog.tsx` — passar null como agentId
+- `src/lib/externalDb.ts` — tipo do parametro
+- `supabase/functions/db-query/index.ts` — tratar NULL no SQL
 
