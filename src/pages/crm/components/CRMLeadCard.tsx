@@ -83,6 +83,16 @@ function truncateText(text: string | undefined, maxLength: number): string {
     setVideoCallOpen(true);
   };
 
+  const handleSessionStatus = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSessionOpen(true);
+  };
+
+  const handleSessionClose = (open: boolean) => {
+    setSessionOpen(open);
+    if (!open) fetchAgentStatus();
+  };
+
   const truncatedBusinessName = truncateText(card.owner_business_name, 20);
   const fullTooltip = card.owner_name || card.owner_business_name
     ? `${card.owner_name || ''}${card.owner_name && card.owner_business_name ? ' • ' : ''}${card.owner_business_name || ''}`
