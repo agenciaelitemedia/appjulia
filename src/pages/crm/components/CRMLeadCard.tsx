@@ -290,9 +290,33 @@ function truncateText(text: string | undefined, maxLength: number): string {
                 ) : (
                   <div />
                 )}
-                <span className="text-[10px] text-muted-foreground/50">
-                  🇧🇷 Horário de Brasília
-                </span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                          "h-6 px-1.5 gap-1 text-[10px] font-medium",
+                          isAgentActive === null
+                            ? "text-muted-foreground"
+                            : isAgentActive
+                              ? "text-green-500 hover:bg-green-100/50 dark:hover:bg-green-900/30"
+                              : "text-red-500 hover:bg-red-100/50 dark:hover:bg-red-900/30"
+                        )}
+                        onClick={handleSessionStatus}
+                      >
+                        <Bot className={cn("h-3.5 w-3.5", isAgentActive && "animate-pulse")} />
+                        <span>{isAgentActive === null ? '...' : isAgentActive ? 'Ativa' : 'Inativa'}</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">
+                        {isAgentActive === null ? 'Verificando status...' : isAgentActive ? 'Julia Ativa — clique para detalhes' : 'Julia Inativa — clique para detalhes'}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </div>
           </div>
