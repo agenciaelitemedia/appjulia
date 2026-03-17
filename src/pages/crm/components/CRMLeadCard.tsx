@@ -351,6 +351,14 @@ function truncateText(text: string | undefined, maxLength: number): string {
         contactName={card.contact_name}
         apiCredentials={apiCredentials}
       />
+
+      {/* Session Status Dialog */}
+      <SessionStatusDialog
+        open={sessionOpen}
+        onOpenChange={handleSessionClose}
+        whatsappNumber={card.whatsapp_number}
+        codAgent={card.cod_agent}
+      />
     </>
   );
 }
