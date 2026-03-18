@@ -287,21 +287,35 @@ function truncateText(text: string | undefined, maxLength: number): string {
                         size="sm"
                         className={cn(
                           "h-6 px-1.5 gap-1 text-[10px] font-medium",
-                          isAgentActive === null
+                          isAgentLoading
                             ? "text-muted-foreground"
-                            : isAgentActive
-                              ? "text-green-500 hover:bg-green-100/50 dark:hover:bg-green-900/30"
-                              : "text-red-500 hover:bg-red-100/50 dark:hover:bg-red-900/30"
+                            : isAgentActive === null
+                              ? "text-muted-foreground"
+                              : isAgentActive
+                                ? "text-green-500 hover:bg-green-100/50 dark:hover:bg-green-900/30"
+                                : "text-red-500 hover:bg-red-100/50 dark:hover:bg-red-900/30"
                         )}
                         onClick={handleSessionStatus}
                       >
-                        <Bot className={cn("h-3.5 w-3.5", isAgentActive && "animate-pulse")} />
-                        <span>{isAgentActive === null ? '...' : isAgentActive ? 'Ativa' : 'Inativa'}</span>
+                        {isAgentLoading ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Bot className={cn("h-3.5 w-3.5", isAgentActive && "animate-pulse")} />
+                        )}
+                        <span>
+                          {isAgentLoading ? 'Verificando...' : isAgentActive === null ? '...' : isAgentActive ? 'Ativa' : 'Inativa'}
+                        </span>
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
                       <p className="text-xs">
-                        {isAgentActive === null ? 'Verificando status...' : isAgentActive ? 'Julia Ativa — clique para detalhes' : 'Julia Inativa — clique para detalhes'}
+                        {isAgentLoading 
+                          ? 'Verificando status da Julia...' 
+                          : isAgentActive === null 
+                            ? 'Verificando status...' 
+                            : isAgentActive 
+                              ? 'Julia Ativa — clique para detalhes' 
+                              : 'Julia Inativa — clique para detalhes'}
                       </p>
                     </TooltipContent>
                   </Tooltip>
