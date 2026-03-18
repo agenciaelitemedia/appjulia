@@ -116,6 +116,32 @@ export function ConfigStep() {
         </p>
       </div>
 
+      {/* Copilot Section - Highlighted */}
+      <Card className="border-2 border-primary bg-primary/5 shadow-md">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2 text-primary">
+            <Sparkles className="h-5 w-5" />
+            Copiloto Julia IA
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <FormLabel className="text-sm font-medium">Ativar Copiloto Inteligente</FormLabel>
+              <FormDescription>
+                Análise automática do CRM com insights inteligentes em tempo real. 
+                Receba alertas sobre leads parados, oportunidades quentes e riscos.
+              </FormDescription>
+            </div>
+            <Switch
+              checked={config.COPILOT_ENABLED}
+              onCheckedChange={(checked) => updateField('COPILOT_ENABLED', checked)}
+              className="scale-125"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Chat & Resume Section */}
       <Card>
         <CardHeader className="pb-3">

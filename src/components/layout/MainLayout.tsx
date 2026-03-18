@@ -51,6 +51,7 @@ export function MainLayout() {
             <Outlet />
           </main>
         </div>
+        <CopilotWidget />
       </div>
     </SidebarProvider>
   );
