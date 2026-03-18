@@ -22,6 +22,7 @@ export type ModuleCode =
   | 'finance_clients'
   | 'finance_reports'
   | 'datajud'
+  | 'copilot_admin'
   | 'settings';
 
 export interface Module {
