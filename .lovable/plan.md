@@ -1,66 +1,59 @@
 
 
-## Plano Atualizado: Copiloto Autônomo da Julia — Toggle no ConfigStep + Widget Global
+## Gravar agent_id como NULL para agentes monitorados
 
-### Mudanca adicional
+### Problema
 
-Adicionar campo `COPILOT_ENABLED` (boolean, default `false`) no JSON de settings do agente, exibido em **destaque** no topo da aba Config (ConfigStep), antes de todas as outras seções. Isso permite ativar/desativar o copiloto por agente tanto na criação quanto na edição.
+O `MonitorAgentDialog` grava `agent_id` com o valor real do agente, mas o `useMyAgents` diferencia agentes proprios de monitorados verificando `agent_id === null`. Resultado: agentes monitorados aparecem como "Meus Agentes" em vez de "Agentes Monitorados".
 
-### Componentes a implementar
+### Alteracoes
 
-#### 1. Tabelas Supabase (migração)
-- `crm_copilot_config` — config por agente (intervalos, horários, last_check_at, last_data_hash)
-- `crm_copilot_insights` — insights gerados pela IA (tipo, severidade, título, descrição, is_read)
-- Habilitar realtime em `crm_copilot_insights`
+#### 1. `src/pages/agents/components/MonitorAgentDialog.tsx`
 
-#### 2. ConfigStep.tsx — Toggle do Copiloto em destaque
-- Adicionar `COPILOT_ENABLED` ao `ConfigFields` e `DEFAULT_CONFIG`
-- Renderizar no **topo do componente**, antes da seção "Chat e Resumo", como um Card com visual destacado (borda colorida `border-primary`, fundo `bg-primary/5`):
+Passar `null` como segundo argumento (agentId) na chamada `insertUserAgent`:
 
-```text
-┌─────────────────────────────────────────────┐
-│ 🤖 Copiloto Julia IA                       │
-│ Análise automática do CRM com insights      │
-│ inteligentes em tempo real                   │
-│                                    [SWITCH] │
-└─────────────────────────────────────────────┘
+```typescript
+await externalDb.insertUserAgent(
+  selectedUser.id,
+  null,                      // agent_id = NULL → monitorado
+  selectedAgent.cod_agent
+);
 ```
 
-- Ícone `Bot` ou `Sparkles` do Lucide para destaque visual
-- Quando ativado, a edge function `crm-copilot-monitor` inclui esse agente nas análises; quando desativado, pula
+#### 2. `src/lib/externalDb.ts`
 
-#### 3. Edge Function `crm-copilot-monitor`
-- Busca agentes ativos no DB externo + verifica se `COPILOT_ENABLED: true` no settings
-- Verifica/cria config em `crm_copilot_config` automaticamente para agentes com copiloto ativo
-- Hash incremental: só chama IA quando dados mudam
-- Frequência adaptativa baseada na config (15min comercial / 2h fora)
-- Chama Lovable AI (Gemini Flash) com contexto de cards + mensagens
-- Salva insights em `crm_copilot_insights`
+Alterar o tipo do parametro `agentId` para aceitar `null`:
 
-#### 4. Widget Global — `CopilotWidget` no MainLayout
-- FAB fixo no canto inferior direito com ícone de assistente + badge de unread
-- Ao clicar, abre Sheet pela direita com lista de insights
-- Realtime subscription para novos insights
-- Visível em todas as páginas (renderizado no MainLayout)
+```typescript
+async insertUserAgent(userId: number, agentId: number | null, codAgent: string): Promise<void> {
+```
 
-#### 5. Hook `useCopilotInsights`
-- Query + realtime em `crm_copilot_insights`
-- Função markAsRead
-- Contagem de unread para badge
+#### 3. `supabase/functions/db-query/index.ts` (case `insert_user_agent`)
 
-#### 6. pg_cron — Agendamento a cada 5 minutos
-- A lógica de intervalo (15min vs 2h) fica na edge function
+Tratar `agentId` nulo no SQL, usando `$2::int` para permitir NULL:
 
-### Arquivos a criar/editar
+```typescript
+case 'insert_user_agent': {
+  const { userId, agentId, codAgent } = data;
+  const rows = await sql.unsafe(
+    `INSERT INTO user_agents (user_id, agent_id, cod_agent, created_at)
+     VALUES ($1, $2::int, $3::bigint, now())
+     RETURNING id`,
+    [userId, agentId ?? null, codAgent]
+  );
+  result = rows;
+  break;
+}
+```
 
-| Arquivo | Ação |
-|---|---|
-| Migração SQL | Criar tabelas + realtime |
-| `src/pages/agents/components/wizard-steps/ConfigStep.tsx` | Editar — adicionar card COPILOT_ENABLED no topo |
-| `supabase/functions/crm-copilot-monitor/index.ts` | Criar |
-| `src/components/copilot/CopilotWidget.tsx` | Criar — FAB + Sheet |
-| `src/components/copilot/CopilotInsightCard.tsx` | Criar — card de insight |
-| `src/hooks/useCopilotInsights.ts` | Criar |
-| `src/components/layout/MainLayout.tsx` | Editar — adicionar `<CopilotWidget />` |
-| pg_cron SQL | Agendar execução |
+### Impacto
+
+- A chamada existente em `useAgentSave.ts` continua funcionando normalmente pois passa um `agentId` numerico real
+- Apenas o `MonitorAgentDialog` passa `null`, fazendo o agente aparecer corretamente na secao "Agentes Monitorados"
+
+### Arquivos modificados
+
+- `src/pages/agents/components/MonitorAgentDialog.tsx` — passar null como agentId
+- `src/lib/externalDb.ts` — tipo do parametro
+- `supabase/functions/db-query/index.ts` — tratar NULL no SQL
 

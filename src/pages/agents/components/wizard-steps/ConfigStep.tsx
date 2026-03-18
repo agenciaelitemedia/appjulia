@@ -7,12 +7,13 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MessageSquare, Bell, Phone, Play, FileText, Video, Clock } from 'lucide-react';
+import { MessageSquare, Bell, Phone, Play, FileText, Video, Clock, Sparkles } from 'lucide-react';
 import { MultiPhraseInput } from './MultiPhraseInput';
 import { BusinessHoursEditor, type BusinessHoursSchedule } from './BusinessHoursEditor';
 import type { AgentFormData } from '../CreateAgentWizard';
 
 interface ConfigFields {
+  COPILOT_ENABLED: boolean;
   CHAT_RESUME: boolean;
   ONLY_ME_RESUME: boolean;
   NOTIFY_RESUME: string;
@@ -55,6 +56,7 @@ const DEFAULT_BUSINESS_HOURS_SCHEDULE: BusinessHoursSchedule = {
 };
 
 const DEFAULT_CONFIG: ConfigFields = {
+  COPILOT_ENABLED: false,
   CHAT_RESUME: true,
   ONLY_ME_RESUME: true,
   NOTIFY_RESUME: '',
@@ -113,6 +115,32 @@ export function ConfigStep() {
           Configure as opções de comportamento do agente
         </p>
       </div>
+
+      {/* Copilot Section - Highlighted */}
+      <Card className="border-2 border-primary bg-primary/5 shadow-md">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2 text-primary">
+            <Sparkles className="h-5 w-5" />
+            Copiloto Julia IA
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <FormLabel className="text-sm font-medium">Ativar Copiloto Inteligente</FormLabel>
+              <FormDescription>
+                Análise automática do CRM com insights inteligentes em tempo real. 
+                Receba alertas sobre leads parados, oportunidades quentes e riscos.
+              </FormDescription>
+            </div>
+            <Switch
+              checked={config.COPILOT_ENABLED}
+              onCheckedChange={(checked) => updateField('COPILOT_ENABLED', checked)}
+              className="scale-125"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Chat & Resume Section */}
       <Card>

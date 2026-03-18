@@ -1,0 +1,102 @@
+import { useState } from 'react';
+import { AudioLines, CheckCheck } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { useCopilotInsights } from '@/hooks/useCopilotInsights';
+import { CopilotInsightCard } from './CopilotInsightCard';
+import { cn } from '@/lib/utils';
+
+export function CopilotWidget() {
+  const [open, setOpen] = useState(false);
+  const { insights, unreadCount, isLoading, markAsRead, markAllAsRead } =
+    useCopilotInsights();
+
+  return (
+    <>
+      {/* FAB */}
+      <button
+        onClick={() => setOpen(true)}
+        className={cn(
+          'fixed bottom-6 right-6 z-40 flex items-center justify-center',
+          'h-14 w-14 rounded-full shadow-lg',
+          'bg-primary text-primary-foreground',
+          'hover:scale-105 active:scale-95 transition-transform',
+          'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+        )}
+        aria-label="Abrir Copiloto Julia"
+      >
+        <AudioLines className="h-6 w-6" />
+        {unreadCount > 0 && (
+          <Badge
+            variant="destructive"
+            className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 text-[10px] flex items-center justify-center"
+          >
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </Badge>
+        )}
+      </button>
+
+      {/* Sheet */}
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent side="right" className="w-[380px] sm:w-[420px] flex flex-col p-0">
+          <SheetHeader className="p-4 pb-2 border-b">
+            <div className="flex items-center justify-between">
+              <SheetTitle className="flex items-center gap-2 text-base">
+                <AudioLines className="h-4 w-4 text-primary" />
+                Copiloto Julia
+              </SheetTitle>
+              {unreadCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs h-7"
+                  onClick={() => markAllAsRead.mutate()}
+                >
+                  <CheckCheck className="h-3 w-3 mr-1" />
+                  Marcar todas
+                </Button>
+              )}
+            </div>
+            <SheetDescription className="text-xs">
+              Insights automáticos sobre seus leads e CRM
+            </SheetDescription>
+          </SheetHeader>
+
+          <ScrollArea className="flex-1 p-3">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : insights.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <AudioLines className="h-10 w-10 mb-3 opacity-30" />
+                <p className="text-sm font-medium">Nenhum insight ainda</p>
+                <p className="text-xs mt-1 text-center max-w-[240px]">
+                  Ative o Copiloto nas configurações do agente para receber análises automáticas.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {insights.map((insight) => (
+                  <CopilotInsightCard
+                    key={insight.id}
+                    insight={insight}
+                    onMarkAsRead={(id) => markAsRead.mutate(id)}
+                  />
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
+    </>
+  );
+}

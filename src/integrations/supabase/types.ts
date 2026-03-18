@@ -325,6 +325,93 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_copilot_config: {
+        Row: {
+          business_hours_end: string
+          business_hours_start: string
+          check_interval_business: number
+          check_interval_off: number
+          cod_agent: string
+          created_at: string
+          id: string
+          is_active: boolean
+          last_check_at: string | null
+          last_data_hash: string | null
+          timezone: string
+          updated_at: string
+          user_id: number
+        }
+        Insert: {
+          business_hours_end?: string
+          business_hours_start?: string
+          check_interval_business?: number
+          check_interval_off?: number
+          cod_agent: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_check_at?: string | null
+          last_data_hash?: string | null
+          timezone?: string
+          updated_at?: string
+          user_id: number
+        }
+        Update: {
+          business_hours_end?: string
+          business_hours_start?: string
+          check_interval_business?: number
+          check_interval_off?: number
+          cod_agent?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_check_at?: string | null
+          last_data_hash?: string | null
+          timezone?: string
+          updated_at?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
+      crm_copilot_insights: {
+        Row: {
+          cod_agent: string
+          created_at: string
+          description: string
+          id: string
+          insight_type: string
+          is_read: boolean
+          related_cards: Json | null
+          severity: string
+          title: string
+          user_id: number
+        }
+        Insert: {
+          cod_agent: string
+          created_at?: string
+          description: string
+          id?: string
+          insight_type?: string
+          is_read?: boolean
+          related_cards?: Json | null
+          severity?: string
+          title: string
+          user_id: number
+        }
+        Update: {
+          cod_agent?: string
+          created_at?: string
+          description?: string
+          id?: string
+          insight_type?: string
+          is_read?: boolean
+          related_cards?: Json | null
+          severity?: string
+          title?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
       crm_custom_fields: {
         Row: {
           board_id: string
