@@ -191,6 +191,7 @@ export function CopilotChatTab() {
                     <ReactMarkdown>{msg.content}</ReactMarkdown>
                   </div>
                 )}
+              </div>
             ))}
             {isLoading && messages[messages.length - 1]?.role === 'user' && (
               <div className="bg-muted rounded-lg p-3 mr-8 flex items-center gap-2">
