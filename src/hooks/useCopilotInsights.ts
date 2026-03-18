@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { externalDb } from '@/lib/externalDb';
 
 export interface CopilotInsight {
   id: string;
@@ -34,6 +35,26 @@ export function useCopilotInsights() {
       return (data ?? []) as unknown as CopilotInsight[];
     },
     enabled: !!user?.id,
+  });
+
+  // Check if user has any agent with COPILOT_INTERACTIVE enabled
+  const interactiveQuery = useQuery({
+    queryKey: ['copilot-interactive-check', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return false;
+      try {
+        const result = await externalDb.query('get_user_agents', { userId: user.id });
+        const agents = Array.isArray(result) ? result : [];
+        return agents.some((ua: any) => {
+          try {
+            const settings = typeof ua.settings === 'string' ? JSON.parse(ua.settings) : ua.settings;
+            return settings?.COPILOT_INTERACTIVE === true;
+          } catch { return false; }
+        });
+      } catch { return false; }
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Realtime subscription
@@ -99,5 +120,6 @@ export function useCopilotInsights() {
     unreadCount,
     markAsRead,
     markAllAsRead,
+    hasInteractive: interactiveQuery.data ?? false,
   };
 }
