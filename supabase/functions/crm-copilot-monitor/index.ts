@@ -7,10 +7,52 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/**
+ * Normalize CA cert PEM for Deno SSL
+ */
+function normalizeCaCert(input: string): string[] {
+  let text = input.trim();
+  text = text.replace(/\\n/g, "\n").replace(/\r\n/g, "\n");
+  if (!text.includes("BEGIN CERTIFICATE")) {
+    try { const decoded = atob(text); if (decoded.includes("BEGIN CERTIFICATE")) text = decoded; } catch {}
+  }
+  text = text
+    .replace(/-----BEGIN CERTIFICATE-----\s+/g, "-----BEGIN CERTIFICATE-----\n")
+    .replace(/\s+-----END CERTIFICATE-----/g, "\n-----END CERTIFICATE-----")
+    .replace(/-----END CERTIFICATE-----\s+/g, "-----END CERTIFICATE-----\n");
+  const blocks = text.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g);
+  if (!blocks || blocks.length === 0) return [];
+  const wrap64 = (s: string) => s.match(/.{1,64}/g)?.join("\n") ?? s;
+  return blocks.map((block) => {
+    const b64 = block.replace(/-----BEGIN CERTIFICATE-----/g, "").replace(/-----END CERTIFICATE-----/g, "").replace(/\s+/g, "").trim();
+    return `-----BEGIN CERTIFICATE-----\n${wrap64(b64)}\n-----END CERTIFICATE-----\n`;
+  });
+}
+
+function createDbConnection(caCerts: string[]) {
+  const externalDbUrl = (Deno.env.get("EXTERNAL_DB_URL") ?? "").trim();
+  const ssl = caCerts.length > 0 ? { caCerts, rejectUnauthorized: true } : ("require" as const);
+  return externalDbUrl
+    ? postgres(externalDbUrl, { ssl, connect_timeout: 15, idle_timeout: 20, max: 2 })
+    : postgres({
+        host: Deno.env.get("EXTERNAL_DB_HOST"),
+        port: parseInt(Deno.env.get("EXTERNAL_DB_PORT") || "25061"),
+        database: Deno.env.get("EXTERNAL_DB_DATABASE"),
+        username: Deno.env.get("EXTERNAL_DB_USERNAME"),
+        password: Deno.env.get("EXTERNAL_DB_PASSWORD"),
+        ssl,
+        connect_timeout: 15,
+        idle_timeout: 20,
+        max: 2,
+      });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  let sql: ReturnType<typeof postgres> | null = null;
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -20,10 +62,18 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    // Connect to external DB
-    const dbUrl = Deno.env.get("EXTERNAL_DB_URL");
-    if (!dbUrl) throw new Error("EXTERNAL_DB_URL not configured");
-    const sql = postgres(dbUrl, { ssl: { rejectUnauthorized: false }, max: 2, idle_timeout: 10 });
+    // Connect to external DB with proper SSL
+    const rawCaCert = Deno.env.get("EXTERNAL_DB_CA_CERT") ?? "";
+    const caCerts = rawCaCert ? normalizeCaCert(rawCaCert) : [];
+    console.log("CA certificates found:", caCerts.length);
+    sql = createDbConnection(caCerts);
+
+    // Parse request body for force flag
+    let forceRun = false;
+    try {
+      const body = await req.json();
+      forceRun = body?.force === true;
+    } catch {}
 
     // 1. Get agents with COPILOT_ENABLED in settings
     const agents = await sql`
@@ -36,10 +86,14 @@ serve(async (req) => {
 
     const copilotAgents = agents.filter((a: any) => {
       try {
-        const settings = typeof a.settings === 'string' ? JSON.parse(a.settings) : a.settings;
+        const settings = typeof a.settings === "string" ? JSON.parse(a.settings) : a.settings;
         return settings?.COPILOT_ENABLED === true;
-      } catch { return false; }
+      } catch {
+        return false;
+      }
     });
+
+    console.log(`Found ${copilotAgents.length} agents with COPILOT_ENABLED out of ${agents.length} total`);
 
     if (copilotAgents.length === 0) {
       await sql.end();
@@ -63,37 +117,38 @@ serve(async (req) => {
         if (!config) {
           const { data: newConfig } = await supabase
             .from("crm_copilot_config")
-            .insert({
-              user_id: agent.user_id,
-              cod_agent: agent.cod_agent,
-            } as any)
+            .insert({ user_id: agent.user_id, cod_agent: agent.cod_agent } as any)
             .select()
             .single();
           config = newConfig;
         }
         if (!config) continue;
 
-        // 3. Check frequency (adaptive interval)
-        const now = new Date();
-        const tz = config.timezone || "America/Sao_Paulo";
-        const localHour = parseInt(
-          now.toLocaleString("en-US", { timeZone: tz, hour: "numeric", hour12: false })
-        );
-        const bhStart = parseInt((config.business_hours_start || "08:00").split(":")[0]);
-        const bhEnd = parseInt((config.business_hours_end || "20:00").split(":")[0]);
-        const isBusinessHours = localHour >= bhStart && localHour < bhEnd;
-        const interval = isBusinessHours
-          ? (config.check_interval_business || 15)
-          : (config.check_interval_off || 120);
+        // 3. Check frequency (skip if forceRun)
+        if (!forceRun) {
+          const now = new Date();
+          const tz = (config as any).timezone || "America/Sao_Paulo";
+          const localHour = parseInt(
+            now.toLocaleString("en-US", { timeZone: tz, hour: "numeric", hour12: false })
+          );
+          const bhStart = parseInt(((config as any).business_hours_start || "08:00").split(":")[0]);
+          const bhEnd = parseInt(((config as any).business_hours_end || "20:00").split(":")[0]);
+          const isBusinessHours = localHour >= bhStart && localHour < bhEnd;
+          const interval = isBusinessHours
+            ? ((config as any).check_interval_business || 15)
+            : ((config as any).check_interval_off || 120);
 
-        if (config.last_check_at) {
-          const lastCheck = new Date(config.last_check_at);
-          const minutesSince = (now.getTime() - lastCheck.getTime()) / 60000;
-          if (minutesSince < interval) {
-            results.push({ cod_agent: agent.cod_agent, status: "skipped_interval" });
-            continue;
+          if ((config as any).last_check_at) {
+            const lastCheck = new Date((config as any).last_check_at);
+            const minutesSince = (now.getTime() - lastCheck.getTime()) / 60000;
+            if (minutesSince < interval) {
+              results.push({ cod_agent: agent.cod_agent, status: "skipped_interval" });
+              continue;
+            }
           }
         }
+
+        const now = new Date();
 
         // 4. Get CRM cards for this agent
         const cards = await sql`
@@ -108,9 +163,10 @@ serve(async (req) => {
           LIMIT 20
         `;
 
+        console.log(`Agent ${agent.cod_agent}: found ${cards.length} cards`);
+
         if (cards.length === 0) {
           results.push({ cod_agent: agent.cod_agent, status: "no_cards" });
-          // Update last_check_at
           await supabase
             .from("crm_copilot_config")
             .update({ last_check_at: now.toISOString() } as any)
@@ -126,7 +182,7 @@ serve(async (req) => {
           .map((b) => b.toString(16).padStart(2, "0"))
           .join("");
 
-        if (currentHash === config.last_data_hash) {
+        if (!forceRun && currentHash === (config as any).last_data_hash) {
           results.push({ cod_agent: agent.cod_agent, status: "skipped_no_changes" });
           await supabase
             .from("crm_copilot_config")
@@ -162,13 +218,15 @@ serve(async (req) => {
           stage: c.stage_name,
           created_at: c.created_at,
           updated_at: c.updated_at,
-          msg_count: c.msg_count,
+          msg_count: Number(c.msg_count),
           recent_messages: (msgsByCard[c.id] || []).map((m: any) => ({
             text: m.message?.substring(0, 200),
             from_me: m.from_me,
             at: m.created_at,
           })),
         }));
+
+        console.log(`Agent ${agent.cod_agent}: calling AI with ${cardsSummary.length} cards context`);
 
         // 8. Call Lovable AI with tool calling
         const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -263,6 +321,8 @@ A data/hora atual é: ${now.toISOString()}`,
           continue;
         }
 
+        console.log(`Agent ${agent.cod_agent}: AI returned ${aiInsights.length} insights`);
+
         // 9. Deduplicate: skip insights with same type+title in last 24h
         const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
         const { data: recentInsights } = await supabase
@@ -291,7 +351,8 @@ A data/hora atual é: ${now.toISOString()}`,
             related_cards: i.related_card_ids || [],
           }));
 
-          await supabase.from("crm_copilot_insights").insert(rows as any);
+          const { error: insertError } = await supabase.from("crm_copilot_insights").insert(rows as any);
+          if (insertError) console.error("Insert error:", insertError);
         }
 
         // 11. Update config
@@ -306,6 +367,7 @@ A data/hora atual é: ${now.toISOString()}`,
         results.push({
           cod_agent: agent.cod_agent,
           status: "processed",
+          cards_analyzed: cards.length,
           insights_generated: newInsights.length,
           insights_skipped_dedup: aiInsights.length - newInsights.length,
         });
@@ -326,6 +388,7 @@ A data/hora atual é: ${now.toISOString()}`,
     });
   } catch (err) {
     console.error("crm-copilot-monitor error:", err);
+    if (sql) try { await sql.end(); } catch {}
     return new Response(
       JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
