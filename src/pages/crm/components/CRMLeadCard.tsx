@@ -1,21 +1,21 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Bot, Clock, Eye, Hash, MessageCircle, Scale, Video } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { CRMCard } from '../types';
- import { CRMFollowupInfo } from '../types';
+import { CRMFollowupInfo } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { WhatsAppMessagesDialog } from './WhatsAppMessagesDialog';
 import { ContractInfoDialog } from './ContractInfoDialog';
 import { SessionStatusDialog } from './SessionStatusDialog';
 import { VideoCallDialog } from '@/pages/video/components/VideoCallDialog';
-import { externalDb } from '@/lib/externalDb';
 import { formatDbDateTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 
 interface CRMLeadCardProps {
   card: CRMCard;
@@ -39,21 +39,10 @@ function truncateText(text: string | undefined, maxLength: number): string {
   const [contractOpen, setContractOpen] = useState(false);
   const [videoCallOpen, setVideoCallOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
-  const [isAgentActive, setIsAgentActive] = useState<boolean | null>(null);
-
-  const fetchAgentStatus = useCallback(async () => {
-    if (!card.whatsapp_number || !card.cod_agent) return;
-    try {
-      const result = await externalDb.getSessionStatus(card.whatsapp_number, card.cod_agent);
-      setIsAgentActive(result?.active ?? false);
-    } catch {
-      setIsAgentActive(false);
-    }
-  }, [card.whatsapp_number, card.cod_agent]);
-
-  useEffect(() => {
-    fetchAgentStatus();
-  }, [fetchAgentStatus]);
+  const { isActive: isAgentActive, invalidate: refreshAgentStatus } = useAgentSessionStatus(
+    card.whatsapp_number,
+    card.cod_agent
+  );
 
   // Video call only visible for admin and colaborador roles
   const canStartVideoCall = user?.role === 'admin' || user?.role === 'colaborador';
@@ -90,7 +79,7 @@ function truncateText(text: string | undefined, maxLength: number): string {
 
   const handleSessionClose = (open: boolean) => {
     setSessionOpen(open);
-    if (!open) fetchAgentStatus();
+    if (!open) refreshAgentStatus();
   };
 
   const truncatedBusinessName = truncateText(card.owner_business_name, 20);
