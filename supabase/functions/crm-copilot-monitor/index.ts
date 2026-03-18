@@ -66,11 +66,12 @@ serve(async (req) => {
 
     // 1. Get agents with COPILOT_ENABLED
     const agents = await sql`
-      SELECT a.id, a.cod_agent, a.settings, ua.user_id
+      SELECT DISTINCT ON (a.cod_agent) a.id, a.cod_agent, a.settings, ua.user_id
       FROM agents a
       JOIN user_agents ua ON ua.agent_id = a.id
       WHERE a.status = true
         AND ua.agent_id IS NOT NULL
+      ORDER BY a.cod_agent, ua.id ASC
     `;
 
     const copilotAgents = agents.filter((a: any) => {
