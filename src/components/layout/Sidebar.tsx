@@ -11,6 +11,7 @@ import { getIcon } from "@/lib/iconMap";
 import { DebugBarToggle } from "@/components/debug/DebugBarToggle";
 import { useEnsureDataJudModule } from "@/pages/datajud/hooks/useEnsureDataJudModule";
 import { useEnsureMonitoramentoModule } from "@/pages/admin/monitoramento/hooks/useEnsureMonitoramentoModule";
+import { useEnsureCopilotModule } from "@/hooks/useEnsureCopilotModule";
 import {
   Tooltip,
   TooltipContent,
