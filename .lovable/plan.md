@@ -1,41 +1,59 @@
 
 
-## Plano: Histórico de Conversas do Chat Interativo no Banco
+## Gravar agent_id como NULL para agentes monitorados
 
-### O que muda
+### Problema
 
-Atualmente o chat do copiloto perde todas as mensagens ao fechar o widget. Vamos persistir o histórico no banco (Supabase) e enviar o contexto completo da conversa para a IA.
+O `MonitorAgentDialog` grava `agent_id` com o valor real do agente, mas o `useMyAgents` diferencia agentes proprios de monitorados verificando `agent_id === null`. Resultado: agentes monitorados aparecem como "Meus Agentes" em vez de "Agentes Monitorados".
 
-### 1. Nova tabela `crm_copilot_chat_messages`
+### Alteracoes
 
-| Coluna | Tipo | Default |
-|---|---|---|
-| id | uuid | gen_random_uuid() |
-| user_id | integer | NOT NULL |
-| role | text | NOT NULL ('user' ou 'assistant') |
-| content | text | NOT NULL |
-| created_at | timestamptz | now() |
+#### 1. `src/pages/agents/components/MonitorAgentDialog.tsx`
 
-RLS: permissiva (mesmo padrão das demais tabelas do copiloto). Índice em `(user_id, created_at)`.
+Passar `null` como segundo argumento (agentId) na chamada `insertUserAgent`:
 
-### 2. Frontend — `CopilotChatTab.tsx`
+```typescript
+await externalDb.insertUserAgent(
+  selectedUser.id,
+  null,                      // agent_id = NULL → monitorado
+  selectedAgent.cod_agent
+);
+```
 
-- No `useEffect` inicial, carregar últimas 50 mensagens do banco via `supabase.from('crm_copilot_chat_messages').select().eq('user_id', user.id).order('created_at').limit(50)`
-- Após enviar mensagem do usuário, inserir no banco com `role: 'user'`
-- Após streaming completo da resposta, inserir no banco com `role: 'assistant'`
-- Adicionar botão "Limpar conversa" no header do chat para deletar histórico
+#### 2. `src/lib/externalDb.ts`
 
-### 3. Edge Function — `copilot-chat/index.ts`
+Alterar o tipo do parametro `agentId` para aceitar `null`:
 
-- Receber `history` (array de `{role, content}`) além de `message`
-- Montar o array de mensagens da IA com: `[system, ...history, {role: 'user', content: message}]`
-- Limitar histórico a últimas 20 mensagens para não estourar contexto
+```typescript
+async insertUserAgent(userId: number, agentId: number | null, codAgent: string): Promise<void> {
+```
 
-### Arquivos
+#### 3. `supabase/functions/db-query/index.ts` (case `insert_user_agent`)
 
-| Arquivo | Ação |
-|---|---|
-| Migração SQL | Criar tabela `crm_copilot_chat_messages` |
-| `src/components/copilot/CopilotChatTab.tsx` | Editar — carregar/salvar mensagens no banco, botão limpar |
-| `supabase/functions/copilot-chat/index.ts` | Editar — aceitar `history` e enviar contexto completo à IA |
+Tratar `agentId` nulo no SQL, usando `$2::int` para permitir NULL:
+
+```typescript
+case 'insert_user_agent': {
+  const { userId, agentId, codAgent } = data;
+  const rows = await sql.unsafe(
+    `INSERT INTO user_agents (user_id, agent_id, cod_agent, created_at)
+     VALUES ($1, $2::int, $3::bigint, now())
+     RETURNING id`,
+    [userId, agentId ?? null, codAgent]
+  );
+  result = rows;
+  break;
+}
+```
+
+### Impacto
+
+- A chamada existente em `useAgentSave.ts` continua funcionando normalmente pois passa um `agentId` numerico real
+- Apenas o `MonitorAgentDialog` passa `null`, fazendo o agente aparecer corretamente na secao "Agentes Monitorados"
+
+### Arquivos modificados
+
+- `src/pages/agents/components/MonitorAgentDialog.tsx` — passar null como agentId
+- `src/lib/externalDb.ts` — tipo do parametro
+- `supabase/functions/db-query/index.ts` — tratar NULL no SQL
 
