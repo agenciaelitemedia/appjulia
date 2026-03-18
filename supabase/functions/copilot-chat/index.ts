@@ -64,7 +64,7 @@ serve(async (req) => {
 
     // SECURITY: Only fetch agents belonging to this user
     const userAgents = await sql`
-      SELECT DISTINCT a.cod_agent, a.name
+      SELECT DISTINCT a.cod_agent
       FROM agents a
       JOIN user_agents ua ON ua.agent_id = a.id
       WHERE ua.user_id = ${userId}
@@ -120,7 +120,7 @@ REGRAS DE SEGURANÇA:
 DADOS ATUAIS DO CRM (${cards.length} leads ativos):
 ${JSON.stringify(crmContext, null, 2)}
 
-Agentes do usuário: ${userAgents.map((a: any) => `${a.cod_agent} (${a.name})`).join(', ')}
+Agentes do usuário: ${agentCodes.join(', ')}
 
 Responda em português brasileiro, seja conciso e objetivo.`;
 
