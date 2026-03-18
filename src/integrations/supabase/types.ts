@@ -412,6 +412,36 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_copilot_settings: {
+        Row: {
+          created_at: string
+          custom_prompt_suffix: string | null
+          enabled_insight_types: Json
+          id: string
+          max_insights_per_run: number
+          updated_at: string
+          user_id: number
+        }
+        Insert: {
+          created_at?: string
+          custom_prompt_suffix?: string | null
+          enabled_insight_types?: Json
+          id?: string
+          max_insights_per_run?: number
+          updated_at?: string
+          user_id: number
+        }
+        Update: {
+          created_at?: string
+          custom_prompt_suffix?: string | null
+          enabled_insight_types?: Json
+          id?: string
+          max_insights_per_run?: number
+          updated_at?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
       crm_custom_fields: {
         Row: {
           board_id: string
