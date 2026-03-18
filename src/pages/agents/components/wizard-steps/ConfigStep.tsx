@@ -14,6 +14,7 @@ import type { AgentFormData } from '../CreateAgentWizard';
 
 interface ConfigFields {
   COPILOT_ENABLED: boolean;
+  COPILOT_INTERACTIVE: boolean;
   CHAT_RESUME: boolean;
   ONLY_ME_RESUME: boolean;
   NOTIFY_RESUME: string;
