@@ -43,8 +43,7 @@ export function useCopilotInsights() {
     queryFn: async () => {
       if (!user?.id) return false;
       try {
-        const result = await externalDb.query('get_user_agents', { userId: user.id });
-        const agents = Array.isArray(result) ? result : [];
+        const agents = await externalDb.getUserAgents(user.id);
         return agents.some((ua: any) => {
           try {
             const settings = typeof ua.settings === 'string' ? JSON.parse(ua.settings) : ua.settings;
