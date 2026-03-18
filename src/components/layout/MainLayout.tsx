@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useAuth } from '@/contexts/AuthContext';
 import { SidebarProvider } from '@/contexts/SidebarContext';
+import { CopilotWidget } from '@/components/copilot/CopilotWidget';
 import { cn } from '@/lib/utils';
 
 export function MainLayout() {
