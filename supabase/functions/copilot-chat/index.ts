@@ -120,7 +120,7 @@ REGRAS DE SEGURANÇA:
 DADOS ATUAIS DO CRM (${cards.length} leads ativos):
 ${JSON.stringify(crmContext, null, 2)}
 
-Agentes do usuário: ${userAgents.map((a: any) => `${a.cod_agent} (${a.name})`).join(', ')}
+Agentes do usuário: ${agentCodes.join(', ')}
 
 Responda em português brasileiro, seja conciso e objetivo.`;
 
