@@ -1,21 +1,21 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Bot, Clock, Eye, Hash, MessageCircle, Scale, Video } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { CRMCard } from '../types';
- import { CRMFollowupInfo } from '../types';
+import { CRMFollowupInfo } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { WhatsAppMessagesDialog } from './WhatsAppMessagesDialog';
 import { ContractInfoDialog } from './ContractInfoDialog';
 import { SessionStatusDialog } from './SessionStatusDialog';
 import { VideoCallDialog } from '@/pages/video/components/VideoCallDialog';
-import { externalDb } from '@/lib/externalDb';
 import { formatDbDateTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 
 interface CRMLeadCardProps {
   card: CRMCard;
