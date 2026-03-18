@@ -56,6 +56,7 @@ const DEFAULT_BUSINESS_HOURS_SCHEDULE: BusinessHoursSchedule = {
 };
 
 const DEFAULT_CONFIG: ConfigFields = {
+  COPILOT_ENABLED: false,
   CHAT_RESUME: true,
   ONLY_ME_RESUME: true,
   NOTIFY_RESUME: '',
