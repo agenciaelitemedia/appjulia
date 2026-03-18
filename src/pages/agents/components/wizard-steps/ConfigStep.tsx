@@ -7,12 +7,13 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MessageSquare, Bell, Phone, Play, FileText, Video, Clock } from 'lucide-react';
+import { MessageSquare, Bell, Phone, Play, FileText, Video, Clock, Sparkles } from 'lucide-react';
 import { MultiPhraseInput } from './MultiPhraseInput';
 import { BusinessHoursEditor, type BusinessHoursSchedule } from './BusinessHoursEditor';
 import type { AgentFormData } from '../CreateAgentWizard';
 
 interface ConfigFields {
+  COPILOT_ENABLED: boolean;
   CHAT_RESUME: boolean;
   ONLY_ME_RESUME: boolean;
   NOTIFY_RESUME: string;
