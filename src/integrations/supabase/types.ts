@@ -325,6 +325,30 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_copilot_chat_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          role: string
+          user_id: number
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          role: string
+          user_id: number
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
       crm_copilot_config: {
         Row: {
           business_hours_end: string
