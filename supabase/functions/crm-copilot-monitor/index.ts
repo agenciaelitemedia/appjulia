@@ -81,8 +81,8 @@ serve(async (req) => {
       SELECT a.id, a.cod_agent, a.settings, ua.user_id
       FROM agents a
       JOIN user_agents ua ON ua.agent_id = a.id
-      WHERE a.is_active = true
-        AND ua.is_owner = true
+      WHERE a.status = true
+        AND ua.agent_id IS NOT NULL
     `;
 
     const copilotAgents = agents.filter((a: any) => {
