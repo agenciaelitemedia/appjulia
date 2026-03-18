@@ -39,21 +39,10 @@ function truncateText(text: string | undefined, maxLength: number): string {
   const [contractOpen, setContractOpen] = useState(false);
   const [videoCallOpen, setVideoCallOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
-  const [isAgentActive, setIsAgentActive] = useState<boolean | null>(null);
-
-  const fetchAgentStatus = useCallback(async () => {
-    if (!card.whatsapp_number || !card.cod_agent) return;
-    try {
-      const result = await externalDb.getSessionStatus(card.whatsapp_number, card.cod_agent);
-      setIsAgentActive(result?.active ?? false);
-    } catch {
-      setIsAgentActive(false);
-    }
-  }, [card.whatsapp_number, card.cod_agent]);
-
-  useEffect(() => {
-    fetchAgentStatus();
-  }, [fetchAgentStatus]);
+  const { isActive: isAgentActive, invalidate: refreshAgentStatus } = useAgentSessionStatus(
+    card.whatsapp_number,
+    card.cod_agent
+  );
 
   // Video call only visible for admin and colaborador roles
   const canStartVideoCall = user?.role === 'admin' || user?.role === 'colaborador';
