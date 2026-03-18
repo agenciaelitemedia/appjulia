@@ -64,7 +64,7 @@ serve(async (req) => {
 
     // SECURITY: Only fetch agents belonging to this user
     const userAgents = await sql`
-      SELECT DISTINCT a.cod_agent, a.name
+      SELECT DISTINCT a.cod_agent
       FROM agents a
       JOIN user_agents ua ON ua.agent_id = a.id
       WHERE ua.user_id = ${userId}
