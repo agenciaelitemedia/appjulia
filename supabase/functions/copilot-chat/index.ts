@@ -48,12 +48,17 @@ serve(async (req) => {
   let sql: ReturnType<typeof postgres> | null = null;
 
   try {
-    const { message, userId } = await req.json();
+    const { message, userId, history } = await req.json();
     if (!message || !userId) {
       return new Response(JSON.stringify({ error: "message and userId required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Sanitize history: keep last 20 messages
+    const safeHistory: Array<{ role: string; content: string }> = Array.isArray(history)
+      ? history.slice(-20).filter((m: any) => m.role && m.content && typeof m.content === 'string')
+      : [];
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
