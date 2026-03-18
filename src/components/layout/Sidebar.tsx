@@ -35,6 +35,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   // Ensure DataJud module exists for admins
   useEnsureDataJudModule();
   useEnsureMonitoramentoModule();
+  useEnsureCopilotModule();
 
   const isTimeUser = user?.role === "time";
   

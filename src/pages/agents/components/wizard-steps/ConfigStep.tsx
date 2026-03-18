@@ -126,7 +126,7 @@ export function ConfigStep() {
             Copiloto Julia IA
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <FormLabel className="text-sm font-medium">Ativar Copiloto Inteligente</FormLabel>
@@ -137,10 +137,31 @@ export function ConfigStep() {
             </div>
             <Switch
               checked={config.COPILOT_ENABLED}
-              onCheckedChange={(checked) => updateField('COPILOT_ENABLED', checked)}
+              onCheckedChange={(checked) => {
+                updateField('COPILOT_ENABLED', checked);
+                if (!checked) updateField('COPILOT_INTERACTIVE', false);
+              }}
               className="scale-125"
             />
           </div>
+
+          {config.COPILOT_ENABLED && (
+            <>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <FormLabel className="text-sm font-medium">Copiloto Interativo (Chat)</FormLabel>
+                  <FormDescription>
+                    Habilita um chat onde você pode fazer perguntas sobre seus leads em tempo real.
+                  </FormDescription>
+                </div>
+                <Switch
+                  checked={config.COPILOT_INTERACTIVE}
+                  onCheckedChange={(checked) => updateField('COPILOT_INTERACTIVE', checked)}
+                />
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
