@@ -147,7 +147,7 @@ serve(async (req) => {
           FROM crm_atendimento_cards c
           LEFT JOIN crm_atendimento_stages s ON s.id = c.stage_id
           WHERE c.cod_agent = ${agent.cod_agent}
-            AND c.end_stage IS NULL
+            AND c.end_stage = false
           ORDER BY c.updated_at DESC
           LIMIT 25
         `;
