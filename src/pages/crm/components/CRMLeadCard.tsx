@@ -79,7 +79,7 @@ function truncateText(text: string | undefined, maxLength: number): string {
 
   const handleSessionClose = (open: boolean) => {
     setSessionOpen(open);
-    if (!open) fetchAgentStatus();
+    if (!open) refreshAgentStatus();
   };
 
   const truncatedBusinessName = truncateText(card.owner_business_name, 20);
