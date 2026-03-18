@@ -184,8 +184,13 @@ export function CopilotChatTab() {
                     : 'bg-muted mr-8'
                 )}
               >
-                <p className="whitespace-pre-wrap">{msg.content}</p>
-              </div>
+                {msg.role === 'user' ? (
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                ) : (
+                  <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-headings:my-2 prose-pre:my-2 prose-code:text-xs">
+                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  </div>
+                )}
             ))}
             {isLoading && messages[messages.length - 1]?.role === 'user' && (
               <div className="bg-muted rounded-lg p-3 mr-8 flex items-center gap-2">
