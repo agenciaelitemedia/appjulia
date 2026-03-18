@@ -62,10 +62,11 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    // Connect to external DB with proper SSL
+    // Connect to external DB with proper SSL (same pattern as db-query)
     const rawCaCert = Deno.env.get("EXTERNAL_DB_CA_CERT") ?? "";
     const caCerts = rawCaCert ? normalizeCaCert(rawCaCert) : [];
-    console.log("CA certificates found:", caCerts.length);
+    console.log("crm-copilot-monitor: CA certificates found:", caCerts.length);
+    console.log("crm-copilot-monitor: External DB URL provided:", Boolean(Deno.env.get("EXTERNAL_DB_URL")));
     sql = createDbConnection(caCerts);
 
     // Parse request body for force flag
