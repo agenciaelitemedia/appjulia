@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bot, Clock, Eye, Hash, MessageCircle, Scale, Video } from 'lucide-react';
+import { Bot, Clock, Eye, Hash, Loader2, MessageCircle, Scale, Video } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
