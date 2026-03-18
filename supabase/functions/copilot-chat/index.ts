@@ -140,6 +140,7 @@ Responda em português brasileiro, seja conciso e objetivo.`;
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
+          ...safeHistory.map((m: any) => ({ role: m.role, content: m.content })),
           { role: "user", content: message },
         ],
         stream: true,
