@@ -9,7 +9,7 @@ export function useEnsureCopilotModule() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdmin || !isCopilotEnabled()) return;
 
     const ensureModule = async () => {
       try {
