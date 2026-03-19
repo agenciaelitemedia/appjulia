@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Users,
   TrendingUp,
   ArrowUpRight,
   ArrowDownRight,
@@ -90,7 +89,6 @@ export default function Dashboard() {
   // Compute sparkline data from evolution
   const sparklineData = useMemo(() => {
     return {
-      leads: evolutionData.map(d => d.leads),
       qualified: evolutionData.map(d => d.qualified),
       contractsGenerated: evolutionData.map(d => d.contractsGenerated),
     };
@@ -193,15 +191,6 @@ export default function Dashboard() {
 
   const statCards = [
     {
-      title: 'Total de Whatsapp',
-      value: stats?.totalLeads ?? 0,
-      displayValue: (stats?.totalLeads ?? 0).toLocaleString('pt-BR'),
-      icon: Users,
-      change: changes?.leads,
-      sparklineData: sparklineData.leads,
-      sparklineColor: 'hsl(var(--chart-1))',
-    },
-    {
       title: 'Atendimentos',
       value: stats?.totalSessions ?? 0,
       displayValue: (stats?.totalSessions ?? 0).toLocaleString('pt-BR'),
@@ -302,7 +291,7 @@ export default function Dashboard() {
         />
 
         {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           {statCards.map((stat) => (
             <Card key={stat.title}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
