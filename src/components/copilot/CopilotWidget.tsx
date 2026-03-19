@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AudioLines, CheckCheck, Bell, MessageCircle } from 'lucide-react';
+import { isCopilotEnabled } from '@/lib/environment';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -20,6 +21,8 @@ export function CopilotWidget() {
   const [open, setOpen] = useState(false);
   const { insights, unreadCount, isLoading, markAsRead, markAllAsRead, hasInteractive } =
     useCopilotInsights();
+
+  if (!isCopilotEnabled()) return null;
 
   return (
     <>

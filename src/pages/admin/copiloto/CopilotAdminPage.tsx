@@ -1,4 +1,5 @@
-import { Sparkles } from 'lucide-react';
+import { Sparkles, ShieldAlert } from 'lucide-react';
+import { isCopilotEnabled } from '@/lib/environment';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { InsightsMonitorTab } from './components/InsightsMonitorTab';
 import { CopilotSettingsTab } from './components/CopilotSettingsTab';
@@ -11,6 +12,16 @@ export default function CopilotAdminPage() {
     settings, isLoadingSettings, saveSettings,
     agents,
   } = useCopilotAdmin();
+
+  if (!isCopilotEnabled()) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-3">
+        <ShieldAlert className="h-12 w-12 opacity-40" />
+        <h2 className="text-lg font-semibold">Indisponível neste ambiente</h2>
+        <p className="text-sm">O Copiloto está desabilitado em produção.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
