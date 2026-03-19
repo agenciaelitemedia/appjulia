@@ -1,26 +1,27 @@
 
 
-## Plano: Navegar para o CRM filtrando por WhatsApp sem restrição de data
+## Plano: Corrigir BOOT_ERROR da Edge Function db-query
 
-### Problema atual
-1. `CampanhasLeadsTab` navega para `/crm/leads?search=whatsapp` mas o CRM **não lê** os query params da URL
-2. A query do CRM **sempre filtra por data** (`stage_entered_at` entre `dateFrom` e `dateTo`), então mesmo buscando pelo número, o lead pode não aparecer se estiver fora do período selecionado
+### Problema
+A edge function `db-query` não está iniciando. O erro nos logs é:
+```
+The requested module 'npm:bcryptjs@2.4.3' does not provide an export named 'compare'
+```
 
-### Mudanças
+O pacote `bcryptjs@2.4.3` usa `module.exports` (CommonJS), então named imports `{ compare, hash }` não funcionam no Deno com o specifier `npm:`.
 
-**1. `src/pages/estrategico/campanhas/components/CampanhasLeadsTab.tsx`**
-- Alterar `handleGoToCRM` para passar um parâmetro extra indicando busca por WhatsApp: `navigate(/crm/leads?whatsapp=NUMERO)`
+### Correção
 
-**2. `src/pages/crm/CRMPage.tsx`**
-- Importar `useSearchParams` do react-router-dom
-- Na inicialização, verificar se existe `?whatsapp=` na URL
-- Se existir: setar `filters.search` com o número, e limpar `dateFrom`/`dateTo` (strings vazias) para ignorar o filtro de data
-- Limpar o param da URL após consumir (para não persistir no reload)
+**`supabase/functions/db-query/index.ts` (linha 3)**
 
-**3. `src/pages/crm/hooks/useCRMData.ts` — `useCRMCards`**
-- Tornar os filtros de data **condicionais** na query SQL: se `dateFrom` e `dateTo` forem vazios, não aplicar a cláusula `WHERE` de data
-- Isso permite buscar o lead independentemente de quando foi movimentado
+Trocar o import de named exports para default import:
+
+```typescript
+import bcrypt from "npm:bcryptjs@2.4.3";
+```
+
+E substituir todas as chamadas de `compare(...)` por `bcrypt.compare(...)` e `hash(...)` por `bcrypt.hash(...)` no restante do arquivo.
 
 ### Resultado
-Ao clicar "Ir para o CRM" na lista de leads da campanha, o usuário será redirecionado ao CRM com o número de WhatsApp preenchido na busca e sem filtro de data, garantindo que o lead apareça.
+A function voltará a iniciar corretamente e o CRM carregará os dados normalmente.
 
