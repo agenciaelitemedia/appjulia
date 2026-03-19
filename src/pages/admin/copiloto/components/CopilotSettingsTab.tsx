@@ -122,9 +122,9 @@ export function CopilotSettingsTab({ settings, isLoading, onSave, isSaving }: Pr
           <CardTitle className="text-base">Prompt Personalizado (Avançado)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <FormDescription>
+          <p className="text-sm text-muted-foreground">
             Texto adicional adicionado ao prompt da IA. Use para personalizar o comportamento da análise.
-          </FormDescription>
+          </p>
           <Textarea
             value={customPrompt}
             onChange={(e) => setCustomPrompt(e.target.value)}
