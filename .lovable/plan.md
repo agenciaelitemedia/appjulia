@@ -1,32 +1,26 @@
 
 
-## Correção: Cache de Status da Sessão no CRM
+## Plano: Ajustar Cards do Dashboard CRM
 
-### Problema
+### O que muda
 
-O hook `useAgentSessionStatus` usa `queryKey: ['agent-session-status', codAgent]`, mas a query no banco filtra por `whatsapp_number` (do lead) E `cod_agent`. Como o cache key não inclui o `whatsapp_number`, todos os cards do mesmo agente compartilham o resultado do primeiro card que disparou a query — resultando em todos mostrando o mesmo status.
+- **Remover** o card "Atendimentos" (card 2, que mostra média diária e total de sessões Julia)
+- **Renomear** o card "WhatsApp" para "Atendimentos", mantendo o sparkline e usando `totalSessions` da Julia como valor principal em vez de `cards.length`
+- **Ajustar grid** de 6 colunas para 5 colunas (`lg:grid-cols-5`), incluindo o skeleton de loading
 
-### Solução
+### Resultado final — 5 cards
 
-Incluir `whatsappNumber` no `queryKey` para que cada lead tenha seu próprio cache de status de sessão.
+1. **Atendimentos** (ex-WhatsApp) — valor: `totalSessions`, subtitle: "total no período", com sparkline
+2. **Tempo Médio** — sem mudança
+3. **Taxa Contratos** — sem mudança
+4. **Qualificados** — sem mudança
+5. **Desqualificado** — sem mudança
 
-### Arquivo a editar
+### Arquivo
 
-**`src/hooks/useAgentSessionStatus.ts`**
-- Alterar `queryKey` de `['agent-session-status', codAgent]` para `['agent-session-status', codAgent, whatsappNumber]`
-- Ajustar `invalidateQueries` para invalidar por `codAgent` (prefixo), mantendo a invalidação em lote quando o dialog fecha
-
-### Mudança exata
-
-```typescript
-// queryKey: incluir whatsappNumber
-queryKey: ['agent-session-status', codAgent, whatsappNumber],
-
-// invalidate: invalidar todos os status do agente (prefixo match)
-queryClient.invalidateQueries({ 
-  queryKey: ['agent-session-status', codAgent] 
-});
-```
-
-A invalidação por prefixo `['agent-session-status', codAgent]` já funciona corretamente — React Query invalida todas as queries que começam com esse prefixo, cobrindo todos os leads do agente.
+**`src/pages/crm/components/CRMDashboardSummary.tsx`**
+- Remover import `Headphones`
+- Remover card "Atendimentos" (linhas 127-141)
+- No card "WhatsApp": renomear label para "Atendimentos", trocar valor de `stats.total` para `stats.totalSessions`
+- Grid: `grid-cols-2 lg:grid-cols-5`, skeleton array de 5 itens
 
