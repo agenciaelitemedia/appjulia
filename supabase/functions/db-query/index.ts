@@ -367,7 +367,7 @@ serve(async (req) => {
         const normalizedHash = storedHash.replace(/^\$2y\$/, '$2a$');
         
         // Verify password using bcrypt
-        const isValid = await compare(password, normalizedHash);
+        const isValid = await bcrypt.compare(password, normalizedHash);
         
         if (!isValid) {
           result = [];
