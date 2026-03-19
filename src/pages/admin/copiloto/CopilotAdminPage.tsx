@@ -6,6 +6,13 @@ import { CopilotSettingsTab } from './components/CopilotSettingsTab';
 import { useCopilotAdmin } from './hooks/useCopilotAdmin';
 
 export default function CopilotAdminPage() {
+  const {
+    insights, totalInsights, isLoadingInsights,
+    filters, setFilters, page, setPage, pageSize,
+    settings, isLoadingSettings, saveSettings,
+    agents,
+  } = useCopilotAdmin();
+
   if (!isCopilotEnabled()) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-3">
@@ -15,13 +22,6 @@ export default function CopilotAdminPage() {
       </div>
     );
   }
-
-  const {
-    insights, totalInsights, isLoadingInsights,
-    filters, setFilters, page, setPage, pageSize,
-    settings, isLoadingSettings, saveSettings,
-    agents,
-  } = useCopilotAdmin();
 
   return (
     <div className="space-y-6">
