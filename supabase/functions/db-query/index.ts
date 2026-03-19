@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
-import { compare, hash } from "npm:bcryptjs@2.4.3";
+import bcrypt from "npm:bcryptjs@2.4.3";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -367,7 +367,7 @@ serve(async (req) => {
         const normalizedHash = storedHash.replace(/^\$2y\$/, '$2a$');
         
         // Verify password using bcrypt
-        const isValid = await compare(password, normalizedHash);
+        const isValid = await bcrypt.compare(password, normalizedHash);
         
         if (!isValid) {
           result = [];
@@ -401,14 +401,14 @@ serve(async (req) => {
         const normalizedHash = storedHash.replace(/^\$2y\$/, '$2a$');
         
         // Verify current password
-        const isValid = await compare(currentPassword, normalizedHash);
+        const isValid = await bcrypt.compare(currentPassword, normalizedHash);
         
         if (!isValid) {
           throw new Error('Senha atual incorreta');
         }
         
         // Hash new password
-        const newHash = await hash(newPassword, 10);
+        const newHash = await bcrypt.hash(newPassword, 10);
         
         // Update password in database
         await sql.unsafe(
