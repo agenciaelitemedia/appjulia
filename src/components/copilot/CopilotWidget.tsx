@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AudioLines, CheckCheck, Bell, MessageCircle } from 'lucide-react';
+import { isCopilotEnabled } from '@/lib/environment';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
