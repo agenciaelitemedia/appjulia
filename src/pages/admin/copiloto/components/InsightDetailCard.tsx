@@ -66,23 +66,28 @@ export function InsightDetailCard({ insight }: Props) {
           </div>
           <p className="text-sm text-muted-foreground mt-1">{insight.description}</p>
 
-          {/* Related cards (clickable leads) */}
+          {/* Related cards (list) */}
           {relatedCards.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {relatedCards.map((card: any, idx: number) => (
-                <button
-                  key={idx}
-                  onClick={() => handleLeadClick(card)}
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-background border border-border hover:bg-accent transition-colors cursor-pointer"
-                >
-                  <span className="font-medium">{card.contact_name || card.contact || 'Lead'}</span>
-                  {card.whatsapp_number && (
-                    <span className="text-muted-foreground">• {card.whatsapp_number}</span>
-                  )}
-                  <ExternalLink className="h-3 w-3 text-muted-foreground" />
-                </button>
-              ))}
-            </div>
+            <ul className="mt-3 space-y-1">
+              {relatedCards.map((card: any, idx: number) => {
+                const phone = card.whatsapp_number || card.phone || '';
+                const name = card.contact_name || card.contact || 'Lead';
+                return (
+                  <li key={idx} className="flex items-center gap-2 text-xs">
+                    <MessageCircle className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="font-medium">{name}</span>
+                    {phone && <span className="text-muted-foreground">({phone})</span>}
+                    <button
+                      onClick={() => handleLeadClick(card)}
+                      className="inline-flex items-center text-primary hover:text-primary/80 transition-colors"
+                      title="Ver no CRM"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
 
           <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
