@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Users,
   TrendingUp,
   ArrowUpRight,
   ArrowDownRight,
