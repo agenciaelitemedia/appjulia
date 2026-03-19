@@ -191,15 +191,6 @@ export default function Dashboard() {
 
   const statCards = [
     {
-      title: 'Total de Whatsapp',
-      value: stats?.totalLeads ?? 0,
-      displayValue: (stats?.totalLeads ?? 0).toLocaleString('pt-BR'),
-      icon: Users,
-      change: changes?.leads,
-      sparklineData: sparklineData.leads,
-      sparklineColor: 'hsl(var(--chart-1))',
-    },
-    {
       title: 'Atendimentos',
       value: stats?.totalSessions ?? 0,
       displayValue: (stats?.totalSessions ?? 0).toLocaleString('pt-BR'),
