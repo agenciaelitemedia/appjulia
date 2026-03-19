@@ -102,8 +102,8 @@ export function CopilotSettingsTab({ settings, isLoading, onSave, isSaving }: Pr
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <FormLabel>Máximo de insights por execução</FormLabel>
-            <FormDescription>Quantos insights a IA pode gerar por agente em cada análise</FormDescription>
+            <Label>Máximo de insights por execução</Label>
+            <p className="text-sm text-muted-foreground">Quantos insights a IA pode gerar por agente em cada análise</p>
             <Input
               type="number"
               min={1}
