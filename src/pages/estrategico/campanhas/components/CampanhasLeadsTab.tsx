@@ -279,6 +279,19 @@ export function CampanhasLeadsTab({ filters }: CampanhasLeadsTabProps) {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <AgentStatusIcon
+                            whatsapp={lead.whatsapp}
+                            codAgent={lead.cod_agent}
+                            onClick={() => {
+                              if (!lead.whatsapp) return;
+                              setSessionDialog({
+                                open: true,
+                                whatsapp: lead.whatsapp,
+                                codAgent: lead.cod_agent,
+                              });
+                            }}
+                          />
+                          
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
