@@ -397,7 +397,7 @@ export function ContratosTable({
                   {getSortIcon('data_contrato')}
                 </Button>
               </TableHead>
-              <TableHead className="w-[120px] text-center">Ações</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
