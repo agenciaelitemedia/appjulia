@@ -70,12 +70,42 @@ function formatWhatsAppNumber(number: string): string {
   return number;
 }
 
+function AgentStatusIcon({ whatsapp, codAgent, onClick }: { whatsapp: string; codAgent: string; onClick: () => void }) {
+  const { isActive, isLoading } = useAgentSessionStatus(whatsapp, codAgent);
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            disabled={!whatsapp}
+            onClick={onClick}
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            ) : (
+              <Bot className={cn('h-4 w-4', isActive ? 'text-emerald-500' : 'text-red-500')} />
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {isLoading ? 'Verificando...' : isActive ? 'Julia ativa' : 'Julia inativa'}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 export function ContratosTable({
   contratos,
   isLoading,
   searchTerm = '',
   onViewDetails,
 }: ContratosTableProps) {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [selectedContrato, setSelectedContrato] = useState<JuliaContrato | null>(null);
@@ -83,6 +113,11 @@ export function ContratosTable({
   const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [sessionDialog, setSessionDialog] = useState<{
+    open: boolean;
+    whatsapp: string;
+    codAgent: string;
+  }>({ open: false, whatsapp: '', codAgent: '' });
 
   const filteredContratos = useMemo(() => {
     if (!searchTerm) return contratos;
