@@ -13,7 +13,7 @@ export function useAgentSessionStatus(
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: ['agent-session-status', codAgent],
+    queryKey: ['agent-session-status', codAgent, whatsappNumber],
     queryFn: async (): Promise<SessionStatus | null> => {
       if (!whatsappNumber || !codAgent) return null;
       return externalDb.getSessionStatus(whatsappNumber, codAgent);
