@@ -1,4 +1,5 @@
-import { Sparkles } from 'lucide-react';
+import { Sparkles, ShieldAlert } from 'lucide-react';
+import { isCopilotEnabled } from '@/lib/environment';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { InsightsMonitorTab } from './components/InsightsMonitorTab';
 import { CopilotSettingsTab } from './components/CopilotSettingsTab';
