@@ -89,7 +89,6 @@ export default function Dashboard() {
   // Compute sparkline data from evolution
   const sparklineData = useMemo(() => {
     return {
-      leads: evolutionData.map(d => d.leads),
       qualified: evolutionData.map(d => d.qualified),
       contractsGenerated: evolutionData.map(d => d.contractsGenerated),
     };
