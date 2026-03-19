@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { CRMHeader } from './components/CRMHeader';
 import { CRMDashboardSummary } from './components/CRMDashboardSummary';
@@ -15,14 +16,28 @@ import { getInitialDates, getSavedAgentCodes } from '@/hooks/usePersistedPeriod'
 
 export default function CRMPage() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialDates = getInitialDates();
   const didInitAgentsRef = useRef(false);
+
+  // Check if we have a whatsapp param from campaigns navigation
+  const whatsappParam = searchParams.get('whatsapp');
   
-  const [filters, setFilters] = useState<UnifiedFiltersState>({
-    search: '',
-    agentCodes: [],
-    dateFrom: initialDates.dateFrom,
-    dateTo: initialDates.dateTo,
+  const [filters, setFilters] = useState<UnifiedFiltersState>(() => {
+    if (whatsappParam) {
+      return {
+        search: whatsappParam,
+        agentCodes: [],
+        dateFrom: '',
+        dateTo: '',
+      };
+    }
+    return {
+      search: '',
+      agentCodes: [],
+      dateFrom: initialDates.dateFrom,
+      dateTo: initialDates.dateTo,
+    };
   });
   
   const [selectedCard, setSelectedCard] = useState<CRMCard | null>(null);
