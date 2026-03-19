@@ -81,8 +81,8 @@ export function CopilotSettingsTab({ settings, isLoading, onSave, isSaving }: Pr
                 <div className="flex items-center gap-3">
                   <Icon className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <FormLabel className="text-sm">{type.label}</FormLabel>
-                    <FormDescription className="text-xs">{type.desc}</FormDescription>
+                    <Label className="text-sm">{type.label}</Label>
+                    <p className="text-xs text-muted-foreground">{type.desc}</p>
                   </div>
                 </div>
                 <Switch
