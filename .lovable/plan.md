@@ -1,27 +1,22 @@
 
 
-## Plano: Corrigir BOOT_ERROR da Edge Function db-query
+# Desabilitar Copiloto em produção (`acesso.atendejulia.com.br`)
 
-### Problema
-A edge function `db-query` não está iniciando. O erro nos logs é:
-```
-The requested module 'npm:bcryptjs@2.4.3' does not provide an export named 'compare'
-```
+## Plano
 
-O pacote `bcryptjs@2.4.3` usa `module.exports` (CommonJS), então named imports `{ compare, hash }` não funcionam no Deno com o specifier `npm:`.
+### 1. Criar helper de ambiente (`src/lib/environment.ts`)
+- Função `isCopilotEnabled()` que retorna `false` quando `window.location.hostname === 'acesso.atendejulia.com.br'`
 
-### Correção
+### 2. Guardar o widget (`src/components/copilot/CopilotWidget.tsx`)
+- Importar `isCopilotEnabled` e retornar `null` no início se `false`
 
-**`supabase/functions/db-query/index.ts` (linha 3)**
+### 3. Esconder módulo admin do Copiloto (`src/components/layout/Sidebar.tsx`)
+- Condicionar `useEnsureCopilotModule()` a `isCopilotEnabled()`
 
-Trocar o import de named exports para default import:
-
-```typescript
-import bcrypt from "npm:bcryptjs@2.4.3";
-```
-
-E substituir todas as chamadas de `compare(...)` por `bcrypt.compare(...)` e `hash(...)` por `bcrypt.hash(...)` no restante do arquivo.
+### 4. Proteger página admin (`src/pages/admin/copiloto/CopilotAdminPage.tsx`)
+- Mostrar mensagem "Indisponível neste ambiente" se `!isCopilotEnabled()`
 
 ### Resultado
-A function voltará a iniciar corretamente e o CRM carregará os dados normalmente.
+- Em `acesso.atendejulia.com.br`: widget não aparece, módulo não é criado no menu, página admin bloqueada
+- Em qualquer outro domínio (preview, localhost): tudo funciona normalmente
 
