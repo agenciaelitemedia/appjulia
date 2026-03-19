@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Table,
   TableBody,
@@ -25,10 +26,13 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from '@/components/ui/pagination';
-import { MessageSquare, ArrowUpDown, ArrowUp, ArrowDown, Download, MessageCircle } from 'lucide-react';
+import { MessageSquare, ArrowUpDown, ArrowUp, ArrowDown, Download, MessageCircle, ExternalLink, Bot, Loader2 } from 'lucide-react';
 import { JuliaSessao } from '../../types';
 import { formatDbDateTime } from '@/lib/dateUtils';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
+import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
+import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
+import { cn } from '@/lib/utils';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -42,16 +46,56 @@ interface DesempenhoTableProps {
   onExport?: (data: JuliaSessao[]) => void;
 }
 
+function AgentStatusIcon({ whatsapp, codAgent, onClick }: { whatsapp: string; codAgent: string; onClick: () => void }) {
+  const { isActive, isLoading } = useAgentSessionStatus(whatsapp, codAgent);
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            disabled={!whatsapp}
+            onClick={onClick}
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            ) : (
+              <Bot className={cn('h-4 w-4', isActive ? 'text-emerald-500' : 'text-red-500')} />
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {isLoading ? 'Verificando...' : isActive ? 'Julia ativa' : 'Julia inativa'}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport }: DesempenhoTableProps) {
+  const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [selectedSessao, setSelectedSessao] = useState<JuliaSessao | null>(null);
+  const [sessionDialog, setSessionDialog] = useState<{
+    open: boolean;
+    whatsapp: string;
+    codAgent: string;
+  }>({ open: false, whatsapp: '', codAgent: '' });
 
   const handleOpenMessages = (sessao: JuliaSessao) => {
     setSelectedSessao(sessao);
     setMessagesOpen(true);
+  };
+
+  const handleGoToCRM = (whatsapp: string) => {
+    if (!whatsapp) return;
+    navigate(`/crm/leads?whatsapp=${encodeURIComponent(whatsapp)}`);
   };
 
   const filteredSessoes = useMemo(() => {
@@ -66,7 +110,6 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
     );
   }, [sessoes, searchTerm]);
 
-  // Sort data
   const sortedSessoes = useMemo(() => {
     if (!sortField) return filteredSessoes;
 
@@ -114,7 +157,6 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
     });
   }, [filteredSessoes, sortField, sortDirection]);
 
-  // Reset page when search term changes
   useMemo(() => {
     setCurrentPage(1);
   }, [searchTerm]);
@@ -208,7 +250,6 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
 
   return (
     <div className="space-y-4">
-      {/* Export Button */}
       <div className="flex justify-end">
         <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-2">
           <Download className="h-4 w-4" />
@@ -221,82 +262,42 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
           <TableHeader>
             <TableRow>
               <TableHead>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="-ml-3 h-8"
-                  onClick={() => handleSort('cod_agent')}
-                >
+                <Button variant="ghost" size="sm" className="-ml-3 h-8" onClick={() => handleSort('cod_agent')}>
                   Agente
                   {getSortIcon('cod_agent')}
                 </Button>
               </TableHead>
               <TableHead className="text-center">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8"
-                  onClick={() => handleSort('whatsapp')}
-                >
+                <Button variant="ghost" size="sm" className="h-8" onClick={() => handleSort('whatsapp')}>
                   WhatsApp
                   {getSortIcon('whatsapp')}
                 </Button>
               </TableHead>
               <TableHead className="text-center">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8"
-                  onClick={() => handleSort('perfil_agent')}
-                >
+                <Button variant="ghost" size="sm" className="h-8" onClick={() => handleSort('perfil_agent')}>
                   Perfil
                   {getSortIcon('perfil_agent')}
                 </Button>
               </TableHead>
               <TableHead className="text-center">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8"
-                  onClick={() => handleSort('total_msg')}
-                >
-                  Mensagens
-                  {getSortIcon('total_msg')}
-                </Button>
-              </TableHead>
-              <TableHead className="text-center">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8"
-                  onClick={() => handleSort('created_at')}
-                >
+                <Button variant="ghost" size="sm" className="h-8" onClick={() => handleSort('created_at')}>
                   Início
                   {getSortIcon('created_at')}
                 </Button>
               </TableHead>
               <TableHead className="text-center">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8"
-                  onClick={() => handleSort('max_created_at')}
-                >
+                <Button variant="ghost" size="sm" className="h-8" onClick={() => handleSort('max_created_at')}>
                   Última Msg
                   {getSortIcon('max_created_at')}
                 </Button>
               </TableHead>
               <TableHead className="text-center">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8"
-                  onClick={() => handleSort('status_document')}
-                >
+                <Button variant="ghost" size="sm" className="h-8" onClick={() => handleSort('status_document')}>
                   Status
                   {getSortIcon('status_document')}
                 </Button>
               </TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -325,30 +326,6 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
                     {sessao.perfil_agent}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-center">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100/50 relative"
-                          onClick={() => handleOpenMessages(sessao)}
-                        >
-                          <MessageCircle className="h-5 w-5" />
-                          {sessao.total_msg && sessao.total_msg > 0 && (
-                            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-green-600 text-white text-[10px] font-bold flex items-center justify-center">
-                              {sessao.total_msg > 99 ? '99+' : sessao.total_msg}
-                            </span>
-                          )}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Ver {sessao.total_msg?.toLocaleString('pt-BR')} mensagens</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </TableCell>
                 <TableCell className="text-center text-sm">
                   {formatDbDateTime(sessao.created_at)}
                 </TableCell>
@@ -364,13 +341,62 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
                     <span className="text-muted-foreground">-</span>
                   )}
                 </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <AgentStatusIcon
+                      whatsapp={sessao.whatsapp}
+                      codAgent={sessao.cod_agent}
+                      onClick={() => {
+                        if (!sessao.whatsapp) return;
+                        setSessionDialog({
+                          open: true,
+                          whatsapp: sessao.whatsapp,
+                          codAgent: sessao.cod_agent,
+                        });
+                      }}
+                    />
+
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            disabled={!sessao.whatsapp}
+                            onClick={() => handleOpenMessages(sessao)}
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Ver conversa</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            disabled={!sessao.whatsapp}
+                            onClick={() => handleGoToCRM(sessao.whatsapp)}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Ir para CRM</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
@@ -425,7 +451,6 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
         </div>
       )}
 
-      {/* WhatsApp Messages Dialog */}
       {selectedSessao && (
         <WhatsAppMessagesDialog
           open={messagesOpen}
@@ -435,6 +460,13 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
           codAgent={selectedSessao.cod_agent}
         />
       )}
+
+      <SessionStatusDialog
+        open={sessionDialog.open}
+        onOpenChange={(open) => setSessionDialog(prev => ({ ...prev, open }))}
+        whatsappNumber={sessionDialog.whatsapp}
+        codAgent={sessionDialog.codAgent}
+      />
     </div>
   );
 }
