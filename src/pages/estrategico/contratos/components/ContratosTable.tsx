@@ -447,6 +447,29 @@ export function ContratosTable({
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
+                      {contrato.status_document === 'SIGNED' && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => handleDownloadContract(contrato)}
+                                disabled={!contrato.zapsing_doctoken || downloadingId === contrato.zapsing_doctoken}
+                              >
+                                {downloadingId === contrato.zapsing_doctoken ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Download className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Baixar contrato assinado</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+
                       <AgentStatusIcon
                         whatsapp={contrato.whatsapp}
                         codAgent={contrato.cod_agent}
@@ -495,29 +518,6 @@ export function ContratosTable({
                           <TooltipContent>Ir para CRM</TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
-
-                      {contrato.status_document === 'SIGNED' && (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => handleDownloadContract(contrato)}
-                                disabled={!contrato.zapsing_doctoken || downloadingId === contrato.zapsing_doctoken}
-                              >
-                                {downloadingId === contrato.zapsing_doctoken ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Download className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Baixar contrato assinado</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
 
                       <TooltipProvider>
                         <Tooltip>
