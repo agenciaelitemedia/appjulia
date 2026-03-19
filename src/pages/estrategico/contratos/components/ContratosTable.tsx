@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Table,
   TableBody,
@@ -25,12 +26,15 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from '@/components/ui/pagination';
-import { FileText, Eye, MessageCircle, Download, Loader2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { FileText, Eye, MessageCircle, Download, Loader2, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, Bot } from 'lucide-react';
 import { JuliaContrato } from '../../types';
 import { formatDbDateTime, formatTimeDifference } from '@/lib/dateUtils';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
+import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
+import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -66,12 +70,42 @@ function formatWhatsAppNumber(number: string): string {
   return number;
 }
 
+function AgentStatusIcon({ whatsapp, codAgent, onClick }: { whatsapp: string; codAgent: string; onClick: () => void }) {
+  const { isActive, isLoading } = useAgentSessionStatus(whatsapp, codAgent);
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            disabled={!whatsapp}
+            onClick={onClick}
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            ) : (
+              <Bot className={cn('h-4 w-4', isActive ? 'text-emerald-500' : 'text-red-500')} />
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {isLoading ? 'Verificando...' : isActive ? 'Julia ativa' : 'Julia inativa'}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 export function ContratosTable({
   contratos,
   isLoading,
   searchTerm = '',
   onViewDetails,
 }: ContratosTableProps) {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [selectedContrato, setSelectedContrato] = useState<JuliaContrato | null>(null);
@@ -79,6 +113,11 @@ export function ContratosTable({
   const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [sessionDialog, setSessionDialog] = useState<{
+    open: boolean;
+    whatsapp: string;
+    codAgent: string;
+  }>({ open: false, whatsapp: '', codAgent: '' });
 
   const filteredContratos = useMemo(() => {
     if (!searchTerm) return contratos;
@@ -358,7 +397,7 @@ export function ContratosTable({
                   {getSortIcon('data_contrato')}
                 </Button>
               </TableHead>
-              <TableHead className="w-[120px] text-center">Ações</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -406,65 +445,93 @@ export function ContratosTable({
                   <TableCell className="text-center text-sm">
                     {formatDbDateTime(contrato.data_contrato)}
                   </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-1">
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <AgentStatusIcon
+                        whatsapp={contrato.whatsapp}
+                        codAgent={contrato.cod_agent}
+                        onClick={() => {
+                          if (!contrato.whatsapp) return;
+                          setSessionDialog({
+                            open: true,
+                            whatsapp: contrato.whatsapp,
+                            codAgent: contrato.cod_agent,
+                          });
+                        }}
+                      />
+
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100/50"
+                              className="h-8 w-8"
+                              disabled={!contrato.whatsapp}
                               onClick={() => handleOpenMessages(contrato)}
                             >
                               <MessageCircle className="h-4 w-4" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Ver mensagens do WhatsApp</p>
-                          </TooltipContent>
+                          <TooltipContent>Ver conversa</TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
 
-                       {contrato.status_document === 'SIGNED' && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              disabled={!contrato.whatsapp}
+                              onClick={() => {
+                                if (contrato.whatsapp) navigate(`/crm/leads?whatsapp=${encodeURIComponent(contrato.whatsapp)}`);
+                              }}
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Ir para CRM</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+
+                      {contrato.status_document === 'SIGNED' && (
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-100/50"
+                                className="h-8 w-8"
                                 onClick={() => handleDownloadContract(contrato)}
-                                 disabled={!contrato.zapsing_doctoken || downloadingId === contrato.zapsing_doctoken}
+                                disabled={!contrato.zapsing_doctoken || downloadingId === contrato.zapsing_doctoken}
                               >
-                                 {downloadingId === contrato.zapsing_doctoken ? (
+                                {downloadingId === contrato.zapsing_doctoken ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
                                   <Download className="h-4 w-4" />
                                 )}
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Baixar contrato assinado</p>
-                            </TooltipContent>
+                            <TooltipContent>Baixar contrato assinado</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                       )}
-                      
+
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
                               variant="ghost"
                               size="icon"
+                              className="h-8 w-8"
                               onClick={() => onViewDetails(contrato)}
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Ver detalhes</p>
-                          </TooltipContent>
+                          <TooltipContent>Ver detalhes</TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     </div>
@@ -540,6 +607,13 @@ export function ContratosTable({
           codAgent={selectedContrato.cod_agent}
         />
       )}
+
+      <SessionStatusDialog
+        open={sessionDialog.open}
+        onOpenChange={(open) => setSessionDialog(prev => ({ ...prev, open }))}
+        whatsappNumber={sessionDialog.whatsapp}
+        codAgent={sessionDialog.codAgent}
+      />
     </>
   );
 }
