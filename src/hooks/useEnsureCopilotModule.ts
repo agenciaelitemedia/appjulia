@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { externalDb } from '@/lib/externalDb';
+import { isCopilotEnabled } from '@/lib/environment';
 
 export function useEnsureCopilotModule() {
   const { isAdmin } = useAuth();
