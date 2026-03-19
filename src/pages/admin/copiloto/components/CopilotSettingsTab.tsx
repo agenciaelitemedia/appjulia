@@ -4,7 +4,7 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { FormLabel, FormDescription } from '@/components/ui/form';
+import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Save, Loader2, Sparkles, AlertTriangle, Flame, Clock, TrendingUp, Info } from 'lucide-react';
 import { toast } from 'sonner';
@@ -81,8 +81,8 @@ export function CopilotSettingsTab({ settings, isLoading, onSave, isSaving }: Pr
                 <div className="flex items-center gap-3">
                   <Icon className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <FormLabel className="text-sm">{type.label}</FormLabel>
-                    <FormDescription className="text-xs">{type.desc}</FormDescription>
+                    <Label className="text-sm">{type.label}</Label>
+                    <p className="text-xs text-muted-foreground">{type.desc}</p>
                   </div>
                 </div>
                 <Switch
@@ -102,8 +102,8 @@ export function CopilotSettingsTab({ settings, isLoading, onSave, isSaving }: Pr
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <FormLabel>Máximo de insights por execução</FormLabel>
-            <FormDescription>Quantos insights a IA pode gerar por agente em cada análise</FormDescription>
+            <Label>Máximo de insights por execução</Label>
+            <p className="text-sm text-muted-foreground">Quantos insights a IA pode gerar por agente em cada análise</p>
             <Input
               type="number"
               min={1}
@@ -122,9 +122,9 @@ export function CopilotSettingsTab({ settings, isLoading, onSave, isSaving }: Pr
           <CardTitle className="text-base">Prompt Personalizado (Avançado)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <FormDescription>
+          <p className="text-sm text-muted-foreground">
             Texto adicional adicionado ao prompt da IA. Use para personalizar o comportamento da análise.
-          </FormDescription>
+          </p>
           <Textarea
             value={customPrompt}
             onChange={(e) => setCustomPrompt(e.target.value)}
