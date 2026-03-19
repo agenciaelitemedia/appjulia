@@ -137,7 +137,11 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
             )
           ),
           atendimentos AS (
-            SELECT COUNT(*)::int as count FROM campaign_leads
+            SELECT COUNT(*)::int as count
+            FROM campaing_ads ca
+            WHERE ca.cod_agent::text = ANY($1::varchar[])
+              AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           ),
           em_qualificacao AS (
             SELECT COUNT(*)::int as count
