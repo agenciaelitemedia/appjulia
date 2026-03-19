@@ -26,12 +26,15 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from '@/components/ui/pagination';
-import { FileText, Eye, MessageCircle, Download, Loader2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { FileText, Eye, MessageCircle, Download, Loader2, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, Bot } from 'lucide-react';
 import { JuliaContrato } from '../../types';
 import { formatDbDateTime, formatTimeDifference } from '@/lib/dateUtils';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
+import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
+import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 const ITEMS_PER_PAGE = 20;
 
