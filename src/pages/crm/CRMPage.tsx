@@ -49,6 +49,13 @@ export default function CRMPage() {
   const { data: juliaSessions } = useCRMJuliaSessions(filters);
    const { data: followupMap = new Map() } = useFollowupActiveLeads(filters.agentCodes);
 
+  // Clean up whatsapp param from URL after consuming it
+  useEffect(() => {
+    if (whatsappParam) {
+      setSearchParams({}, { replace: true });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Initialize agentCodes when agents load
   useEffect(() => {
     if (!didInitAgentsRef.current && agents.length > 0 && filters.agentCodes.length === 0) {
