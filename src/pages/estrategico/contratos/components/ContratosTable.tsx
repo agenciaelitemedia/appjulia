@@ -607,6 +607,13 @@ export function ContratosTable({
           codAgent={selectedContrato.cod_agent}
         />
       )}
+
+      <SessionStatusDialog
+        open={sessionDialog.open}
+        onOpenChange={(open) => setSessionDialog(prev => ({ ...prev, open }))}
+        whatsappNumber={sessionDialog.whatsapp}
+        codAgent={sessionDialog.codAgent}
+      />
     </>
   );
 }
