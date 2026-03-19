@@ -389,6 +389,14 @@ export function CampanhasLeadsTab({ filters }: CampanhasLeadsTabProps) {
         leadName={messagesDialog.name}
         codAgent={messagesDialog.codAgent}
       />
+
+      {/* Dialog de status do agente */}
+      <SessionStatusDialog
+        open={sessionDialog.open}
+        onOpenChange={(open) => setSessionDialog(prev => ({ ...prev, open }))}
+        whatsappNumber={sessionDialog.whatsapp}
+        codAgent={sessionDialog.codAgent}
+      />
     </>
   );
 }
