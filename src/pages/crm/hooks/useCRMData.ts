@@ -13,6 +13,7 @@ export function useCRMJuliaSessions(filters: CRMFiltersState) {
       if (agentCodes.length === 0) return { totalSessions: 0, dailyAverage: 0 };
 
       try {
+        const hasDates = dateFrom && dateTo;
         const result = await externalDb.raw<{ total_sessions: string; daily_average: string }>({
           query: `
             WITH sessions_data AS (
@@ -21,15 +22,15 @@ export function useCRMJuliaSessions(filters: CRMFiltersState) {
                 COUNT(DISTINCT (created_at AT TIME ZONE 'America/Sao_Paulo')::date) as total_days
               FROM vw_painelv2_desempenho_julia
               WHERE cod_agent::text = ANY($1::varchar[])
-                AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-                AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+                ${hasDates ? `AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+                AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date` : ''}
             )
             SELECT 
               total_sessions,
               CASE WHEN total_days > 0 THEN total_sessions::float / total_days ELSE 0 END as daily_average
             FROM sessions_data
           `,
-          params: [agentCodes, dateFrom, dateTo],
+          params: hasDates ? [agentCodes, dateFrom, dateTo] : [agentCodes],
         });
         
         return {
