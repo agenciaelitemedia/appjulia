@@ -408,7 +408,7 @@ serve(async (req) => {
         }
         
         // Hash new password
-        const newHash = await hash(newPassword, 10);
+        const newHash = await bcrypt.hash(newPassword, 10);
         
         // Update password in database
         await sql.unsafe(
