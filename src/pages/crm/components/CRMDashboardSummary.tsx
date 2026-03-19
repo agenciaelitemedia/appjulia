@@ -103,14 +103,14 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
   }
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-      {/* 1. Whatsapp */}
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      {/* 1. Atendimentos */}
       <Card className="border-l-4 border-l-chart-1">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <p className="text-xs text-muted-foreground font-medium">Whatsapp</p>
-              <p className="text-2xl font-bold text-foreground">{stats.total}</p>
+              <p className="text-xs text-muted-foreground font-medium">Atendimentos</p>
+              <p className="text-2xl font-bold text-foreground">{stats.totalSessions}</p>
               <p className="text-xs text-muted-foreground">total no período</p>
             </div>
             <div className="w-20 h-12">
@@ -119,22 +119,6 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
                   <Line type="monotone" dataKey="count" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 2. Atendimentos */}
-      <Card className="border-l-4 border-l-chart-4">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">Atendimentos</p>
-              <p className="text-2xl font-bold text-foreground">{Math.round(juliaSessions?.dailyAverage ?? 0)}</p>
-              <p className="text-xs text-muted-foreground">{stats.totalSessions} atendimentos da Julia</p>
-            </div>
-            <div className="p-2 bg-chart-4/10 rounded-full">
-              <Headphones className="h-5 w-5 text-chart-4" />
             </div>
           </div>
         </CardContent>
