@@ -150,7 +150,7 @@ export function CampanhasLeadsTab({ filters }: CampanhasLeadsTabProps) {
 
   const handleGoToCRM = (whatsapp: string) => {
     if (!whatsapp) return;
-    navigate(`/crm/leads?search=${encodeURIComponent(whatsapp)}`);
+    navigate(`/crm/leads?whatsapp=${encodeURIComponent(whatsapp)}`);
   };
 
   if (isLoading) {
