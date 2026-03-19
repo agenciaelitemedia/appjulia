@@ -137,11 +137,17 @@ export function useDashboardCampaignFunnel(filters: UnifiedFiltersState) {
             )
           ),
           atendimentos AS (
-            SELECT COUNT(*)::int as count
-            FROM campaing_ads ca
-            WHERE ca.cod_agent::text = ANY($1::varchar[])
-              AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+            SELECT COUNT(DISTINCT v.session_id)::int as count
+            FROM vw_painelv2_desempenho_julia v
+            WHERE v.cod_agent::text = ANY($1::varchar[])
+              AND (v.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (v.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+              AND EXISTS (
+                SELECT 1 FROM campaing_ads ca
+                LEFT JOIN sessions s ON s.id = ca.session_id::int
+                WHERE ca.cod_agent::text = v.cod_agent::text
+                  AND COALESCE(NULLIF((ca.campaign_data::jsonb)->>'phone', ''), s.whatsapp_number::text) = v.whatsapp::text
+              )
           ),
           em_qualificacao AS (
             SELECT COUNT(*)::int as count
