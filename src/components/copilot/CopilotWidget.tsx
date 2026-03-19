@@ -18,6 +18,7 @@ import { CopilotChatTab } from './CopilotChatTab';
 import { cn } from '@/lib/utils';
 
 export function CopilotWidget() {
+  if (!isCopilotEnabled()) return null;
   const [open, setOpen] = useState(false);
   const { insights, unreadCount, isLoading, markAsRead, markAllAsRead, hasInteractive } =
     useCopilotInsights();

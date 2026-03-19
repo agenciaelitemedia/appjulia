@@ -6,6 +6,16 @@ import { CopilotSettingsTab } from './components/CopilotSettingsTab';
 import { useCopilotAdmin } from './hooks/useCopilotAdmin';
 
 export default function CopilotAdminPage() {
+  if (!isCopilotEnabled()) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-3">
+        <ShieldAlert className="h-12 w-12 opacity-40" />
+        <h2 className="text-lg font-semibold">Indisponível neste ambiente</h2>
+        <p className="text-sm">O Copiloto está desabilitado em produção.</p>
+      </div>
+    );
+  }
+
   const {
     insights, totalInsights, isLoadingInsights,
     filters, setFilters, page, setPage, pageSize,
