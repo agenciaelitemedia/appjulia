@@ -67,6 +67,17 @@ export function UnifiedFilters({
   periodTooltip,
 }: UnifiedFiltersProps) {
   const [isOpen, setIsOpen] = useState(true);
+  const [agentSearch, setAgentSearch] = useState('');
+
+  const filteredAgents = useMemo(() => {
+    if (!agentSearch) return agents;
+    const search = agentSearch.toLowerCase();
+    return agents.filter(agent =>
+      agent.cod_agent?.toLowerCase().includes(search) ||
+      agent.owner_name?.toLowerCase().includes(search) ||
+      agent.owner_business_name?.toLowerCase().includes(search)
+    );
+  }, [agents, agentSearch]);
 
   // Calcular contagem de agentes selecionados
   const selectedCount = useMemo(() => filters.agentCodes.length, [filters.agentCodes]);
