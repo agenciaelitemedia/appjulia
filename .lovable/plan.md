@@ -1,37 +1,36 @@
 
 
-# Unificar métrica de Atendimentos: Card e Funil Julia
+# Corrigir contagem de Atendimentos no funil de Campanhas
 
 ## Problema
-O card "Atendimentos" conta sessões únicas (`COUNT(DISTINCT session_id)`) da view `vw_painelv2_desempenho_julia`, enquanto o funil Julia conta leads únicos no CRM que têm match com a Julia. Isso gera números diferentes.
+
+O funil de Campanhas no dashboard conta "Atendimentos" a partir de `crm_atendimento_cards` filtrado por `stage_entered_at`, e depois cruza com `campaing_ads`. Isso exclui leads de campanha que ainda não entraram no CRM ou cuja `stage_entered_at` está fora do período. O número correto deveria vir direto da tabela `campaing_ads`, contando todos os leads de campanha no período.
 
 ## Solução
-Alterar o primeiro estágio ("Atendimentos") do funil Julia em `useDashboardFunnels.ts` para usar a mesma query do card: `COUNT(DISTINCT session_id)` da `vw_painelv2_desempenho_julia`, filtrado por `cod_agent` e `created_at`.
 
-## Alteração
+Alterar a query do `useDashboardCampaignFunnel` em `src/pages/dashboard/hooks/useDashboardFunnels.ts`:
 
-### Arquivo: `src/pages/dashboard/hooks/useDashboardFunnels.ts`
-
-Na função `useDashboardJuliaFunnel`, substituir o CTE `atendimentos` que hoje conta leads do CRM com match Julia:
+### CTE `atendimentos` — contar direto de `campaing_ads`
 
 ```sql
--- ANTES (conta leads CRM com match Julia)
+-- ANTES: conta leads CRM que tem match com campanha
 atendimentos AS (
-  SELECT COUNT(*)::int as count FROM julia_leads
+  SELECT COUNT(*)::int as count FROM campaign_leads
 )
 
--- DEPOIS (conta sessões Julia, igual ao card)
+-- DEPOIS: conta leads direto da tabela de campanhas (todas as entradas)
 atendimentos AS (
-  SELECT COUNT(DISTINCT v.session_id)::int as count
-  FROM vw_painelv2_desempenho_julia v
-  WHERE v.cod_agent::text = ANY($1::varchar[])
-    AND (v.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-    AND (v.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+  SELECT COUNT(*)::int as count
+  FROM campaing_ads ca
+  WHERE ca.cod_agent::text = ANY($1::varchar[])
+    AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+    AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
 )
 ```
 
-Os demais estágios do funil (Em Qualificação, Qualificados, Contratos Gerados, Contratos Assinados) permanecem inalterados, pois dependem corretamente dos leads no CRM.
+Os CTEs de `crm_leads` e `campaign_leads` continuam sendo usados para os estágios seguintes (Em Qualificação, Qualificados, etc.), pois esses dependem do CRM. Apenas o topo do funil muda para refletir o total real de leads de campanha.
 
 ## Resultado
-O número exibido no topo do funil Julia será idêntico ao do card "Atendimentos", ambos representando sessões únicas da Julia no período.
+
+O "Atendimentos" do funil de Campanhas mostrará o total real de leads vindos de anúncios no período, não apenas os que já entraram no CRM.
 
