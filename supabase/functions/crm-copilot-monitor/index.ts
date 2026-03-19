@@ -320,15 +320,24 @@ Regras:
 
         // 10. Save
         if (newInsights.length > 0) {
-          const rows = newInsights.map((i: any) => ({
-            user_id: Number(agent.user_id),
-            cod_agent: agent.cod_agent,
-            insight_type: i.insight_type,
-            severity: i.severity,
-            title: i.title,
-            description: i.description,
-            related_cards: i.related_card_ids || [],
-          }));
+          const rows = newInsights.map((i: any) => {
+            const cardIds = i.related_card_ids || [];
+            const relatedCardsData = cardIds.map((cid: number) => {
+              const card = cards.find((c: any) => Number(c.id) === cid);
+              return card
+                ? { id: cid, contact_name: card.contact_name || 'Sem nome', whatsapp_number: card.whatsapp_number || '' }
+                : { id: cid, contact_name: `Lead #${cid}`, whatsapp_number: '' };
+            });
+            return {
+              user_id: Number(agent.user_id),
+              cod_agent: agent.cod_agent,
+              insight_type: i.insight_type,
+              severity: i.severity,
+              title: i.title,
+              description: i.description,
+              related_cards: relatedCardsData,
+            };
+          });
           const { error: insertError } = await supabase.from("crm_copilot_insights").insert(rows as any);
           if (insertError) console.error("Insert error:", insertError);
         }

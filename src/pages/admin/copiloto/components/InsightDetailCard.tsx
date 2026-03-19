@@ -70,15 +70,18 @@ export function InsightDetailCard({ insight }: Props) {
           {relatedCards.length > 0 && (
             <ul className="mt-3 space-y-1">
               {relatedCards.map((card: any, idx: number) => {
-                const phone = card.whatsapp_number || card.phone || '';
-                const name = card.contact_name || card.contact || 'Lead';
+                // Handle both old format (plain number) and new format (object)
+                const isObject = typeof card === 'object' && card !== null;
+                const phone = isObject ? (card.whatsapp_number || card.phone || '') : '';
+                const name = isObject ? (card.contact_name || card.contact || `Lead #${card.id}`) : `Lead #${card}`;
+                const clickData = isObject ? card : { whatsapp_number: '', contact_name: `Lead #${card}` };
                 return (
                   <li key={idx} className="flex items-center gap-2 text-xs">
                     <MessageCircle className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     <span className="font-medium">{name}</span>
                     {phone && <span className="text-muted-foreground">({phone})</span>}
                     <button
-                      onClick={() => handleLeadClick(card)}
+                      onClick={() => handleLeadClick(clickData)}
                       className="inline-flex items-center text-primary hover:text-primary/80 transition-colors"
                       title="Ver no CRM"
                     >
