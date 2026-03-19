@@ -50,6 +50,36 @@ interface CampanhasLeadsTabProps {
 
 const ITEMS_PER_PAGE = 20;
 
+// Small inline component to show agent status per row
+function AgentStatusIcon({ whatsapp, codAgent, onClick }: { whatsapp: string; codAgent: string; onClick: () => void }) {
+  const { isActive, isLoading } = useAgentSessionStatus(whatsapp, codAgent);
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            disabled={!whatsapp}
+            onClick={onClick}
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            ) : (
+              <Bot className={cn('h-4 w-4', isActive ? 'text-emerald-500' : 'text-red-500')} />
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {isLoading ? 'Verificando...' : isActive ? 'Julia ativa' : 'Julia inativa'}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 export function CampanhasLeadsTab({ filters }: CampanhasLeadsTabProps) {
   const navigate = useNavigate();
   
@@ -62,6 +92,11 @@ export function CampanhasLeadsTab({ filters }: CampanhasLeadsTabProps) {
     name: string;
     codAgent: string;
   }>({ open: false, whatsapp: '', name: '', codAgent: '' });
+  const [sessionDialog, setSessionDialog] = useState<{
+    open: boolean;
+    whatsapp: string;
+    codAgent: string;
+  }>({ open: false, whatsapp: '', codAgent: '' });
 
   // Hook para listar campanhas disponíveis
   const { data: campaignOptions = [], isLoading: isLoadingOptions } = useCampanhasOptions(filters);
