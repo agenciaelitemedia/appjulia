@@ -233,7 +233,7 @@ export function UnifiedFilters({
           <div className="flex flex-wrap items-center gap-2.5">
             {/* Agent Selector */}
             {showAgentSelector && (
-              <Popover>
+              <Popover onOpenChange={(open) => { if (!open) setAgentSearch(''); }}>
                 <PopoverTrigger asChild>
                   <Button 
                     variant="outline" 
@@ -247,6 +247,18 @@ export function UnifiedFilters({
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-80 p-0 shadow-lg border-border" align="start">
+                  <div className="p-2 border-b border-border">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar agente..."
+                        value={agentSearch}
+                        onChange={(e) => setAgentSearch(e.target.value)}
+                        className="pl-8 h-8 text-sm"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
                   <div className="p-3 border-b border-border bg-muted/30">
                     <div className="flex items-center gap-2">
                       <Checkbox
@@ -270,7 +282,7 @@ export function UnifiedFilters({
                   </div>
                   <ScrollArea className="h-64">
                     <div className="p-2 space-y-0.5">
-                      {agents.map((agent) => (
+                      {filteredAgents.map((agent) => (
                         <div
                           key={agent.cod_agent}
                           className="flex items-start gap-2.5 p-2.5 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
@@ -293,6 +305,11 @@ export function UnifiedFilters({
                           </div>
                         </div>
                       ))}
+                      {filteredAgents.length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          Nenhum agente encontrado
+                        </p>
+                      )}
                     </div>
                   </ScrollArea>
                 </PopoverContent>
