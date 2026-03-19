@@ -1,4 +1,4 @@
-import { AlertTriangle, Info, Flame, Clock, TrendingUp, ExternalLink } from 'lucide-react';
+import { AlertTriangle, Info, Flame, Clock, TrendingUp, ExternalLink, MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
