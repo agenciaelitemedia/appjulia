@@ -401,7 +401,7 @@ serve(async (req) => {
         const normalizedHash = storedHash.replace(/^\$2y\$/, '$2a$');
         
         // Verify current password
-        const isValid = await compare(currentPassword, normalizedHash);
+        const isValid = await bcrypt.compare(currentPassword, normalizedHash);
         
         if (!isValid) {
           throw new Error('Senha atual incorreta');
