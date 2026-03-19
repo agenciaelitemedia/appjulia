@@ -1,36 +1,60 @@
 
 
-# Corrigir contagem de Atendimentos no funil de Campanhas
+# Corrigir consistência do funil Orgânicos
 
-## Problema
+## Problema identificado
 
-O funil de Campanhas no dashboard conta "Atendimentos" a partir de `crm_atendimento_cards` filtrado por `stage_entered_at`, e depois cruza com `campaing_ads`. Isso exclui leads de campanha que ainda não entraram no CRM ou cuja `stage_entered_at` está fora do período. O número correto deveria vir direto da tabela `campaing_ads`, contando todos os leads de campanha no período.
+O funil "Orgânicos" é calculado como `Julia - Campanhas` para cada estágio. Para os estágios 1-4 isso funciona porque ambos contam leads CRM. Mas para "Atendimentos" (estágio 0):
 
-## Solução
+- **Julia**: `COUNT(DISTINCT session_id)` da view de desempenho (sessões de IA)
+- **Campanhas**: `COUNT(*)` da `campaing_ads` (entradas de anúncios)
 
-Alterar a query do `useDashboardCampaignFunnel` em `src/pages/dashboard/hooks/useDashboardFunnels.ts`:
+A subtração mistura unidades diferentes, gerando um número inconsistente no funil Orgânicos.
 
-### CTE `atendimentos` — contar direto de `campaing_ads`
+## Opções de solução
+
+### Opção A: Unificar "Atendimentos" de Campanhas para contar sessões Julia com match em campaign
+Alterar o CTE `atendimentos` do funil de Campanhas para contar `COUNT(DISTINCT v.session_id)` da `vw_painelv2_desempenho_julia` onde o lead tem match na `campaing_ads`. Assim ambos os funis usam a mesma unidade (sessões Julia) e a subtração para Orgânicos faz sentido.
 
 ```sql
--- ANTES: conta leads CRM que tem match com campanha
+-- Campanhas: contar sessões Julia que vieram de campanha
 atendimentos AS (
-  SELECT COUNT(*)::int as count FROM campaign_leads
-)
-
--- DEPOIS: conta leads direto da tabela de campanhas (todas as entradas)
-atendimentos AS (
-  SELECT COUNT(*)::int as count
-  FROM campaing_ads ca
-  WHERE ca.cod_agent::text = ANY($1::varchar[])
-    AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-    AND (ca.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+  SELECT COUNT(DISTINCT v.session_id)::int as count
+  FROM vw_painelv2_desempenho_julia v
+  WHERE v.cod_agent::text = ANY($1::varchar[])
+    AND (v.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+    AND (v.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+    AND EXISTS (
+      SELECT 1 FROM campaing_ads ca
+      LEFT JOIN sessions s ON s.id = ca.session_id::int
+      WHERE ca.cod_agent::text = v.cod_agent::text
+        AND COALESCE(NULLIF((ca.campaign_data::jsonb)->>'phone', ''), s.whatsapp_number::text) = v.whatsapp::text
+    )
 )
 ```
 
-Os CTEs de `crm_leads` e `campaign_leads` continuam sendo usados para os estágios seguintes (Em Qualificação, Qualificados, etc.), pois esses dependem do CRM. Apenas o topo do funil muda para refletir o total real de leads de campanha.
+**Vantagem**: Orgânicos = Sessões Julia sem campanha. Unidade consistente.
+**Desvantagem**: Pode mostrar menos "Atendimentos de campanha" que o total real de leads de anúncios.
+
+### Opção B: Manter como está e apenas renomear
+Renomear o estágio 0 de cada funil para deixar claro que medem coisas diferentes:
+- Julia: "Sessões Julia"
+- Campanhas: "Leads de Anúncios"
+- Orgânicos: não exibir o estágio 0 (ou calcular separadamente)
+
+## Recomendação
+
+**Opção A** -- unifica a unidade para "sessões Julia" em todos os funis, tornando a subtração para Orgânicos matematicamente correta. O número de Campanhas pode ser menor que o total de `campaing_ads`, mas representa com precisão quantas sessões Julia vieram de campanha.
+
+## Alteração
+
+### Arquivo: `src/pages/dashboard/hooks/useDashboardFunnels.ts`
+
+Na função `useDashboardCampaignFunnel`, substituir o CTE `atendimentos` (linhas 139-145) pela versão que conta sessões Julia com match em `campaing_ads`.
 
 ## Resultado
-
-O "Atendimentos" do funil de Campanhas mostrará o total real de leads vindos de anúncios no período, não apenas os que já entraram no CRM.
+- Julia Atendimentos = total de sessões Julia
+- Campanhas Atendimentos = sessões Julia originadas de campanha
+- Orgânicos Atendimentos = sessões Julia sem campanha
+- Todos os funis usam a mesma unidade, subtração é consistente
 
