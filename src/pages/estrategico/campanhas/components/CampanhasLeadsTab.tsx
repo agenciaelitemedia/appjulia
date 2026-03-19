@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageCircle, ExternalLink, Search, Users, Filter } from 'lucide-react';
+import { MessageCircle, ExternalLink, Search, Users, Filter, Bot, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,9 +35,11 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
+import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
 import { PlatformBadges } from './PlatformBadges';
 import { useCampanhasLeadsList } from '../hooks/useCampanhasLeadsList';
 import { useCampanhasOptions } from '../hooks/useCampanhasOptions';
+import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 import { UnifiedFiltersState } from '@/components/filters/types';
 import { formatDateShortSaoPaulo } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
