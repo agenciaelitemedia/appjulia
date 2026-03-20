@@ -65,8 +65,8 @@ export function useDashboardJuliaFunnel(filters: UnifiedFiltersState) {
             SELECT COUNT(DISTINCT v.session_id)::int as count
             FROM vw_painelv2_desempenho_julia v
             WHERE v.cod_agent::text = ANY($1::varchar[])
-              AND (v.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (v.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+                AND (v.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+                AND (v.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           ),
           em_qualificacao AS (
             SELECT COUNT(*)::int as count
