@@ -123,6 +123,8 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
       disqualifiedRate,
       phaseStats,
       maxPhaseDays,
+      juliaAvgDays,
+      totalJuliaCards,
       dailyTrend,
       humanAvgDays,
       resolvedCount: resolvedCards.length,
