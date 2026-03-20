@@ -190,8 +190,8 @@ export function useDashboardStats(filters: DashboardFiltersState) {
             SELECT COUNT(DISTINCT session_id) as total
             FROM vw_painelv2_desempenho_julia
             WHERE cod_agent::text = ANY($1::varchar[])
-              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+              AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           `,
           params: [agentCodes, dateFrom, dateTo],
         }).catch(() => [{ total: 0 }]),
