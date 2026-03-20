@@ -196,11 +196,11 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
             <div>
               <div className="flex items-center gap-1.5 mb-1">
                 <User className="h-3.5 w-3.5 text-chart-1" />
-                <p className="text-xs text-muted-foreground font-medium">Tempo Humano</p>
+                <p className="text-xs text-muted-foreground font-medium">Média Humano</p>
               </div>
               <p className="text-2xl font-bold text-foreground">{formatAvgTime(stats.humanAvgDays)}</p>
               <p className="text-xs text-muted-foreground">
-                {stats.resolvedCount} resolvidos · {stats.activeCount} em andamento
+                Média de tempo por fase
               </p>
             </div>
             <div className="p-2 bg-chart-1/10 rounded-full">
