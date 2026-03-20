@@ -13,20 +13,20 @@ interface CRMDashboardSummaryProps {
 
 const formatAvgTime = (days: number): string => {
   const totalHours = days * 24;
-  
-  if (totalHours < 24) {
-    return `${Math.round(totalHours)}h`;
-  }
-  
+  if (totalHours < 1) return "< 1h";
+  if (totalHours < 24) return `${Math.round(totalHours)}h`;
   const fullDays = Math.floor(totalHours / 24);
   const remainingHours = Math.round(totalHours % 24);
-  
-  if (remainingHours === 0) {
-    return `${fullDays}d`;
-  }
-  
+  if (remainingHours === 0) return `${fullDays}d`;
   return `${fullDays}d ${remainingHours}h`;
 };
+
+const JULIA_PHASES = [
+  { name: "Entrada", short: "Entrada" },
+  { name: "Análise de Caso", short: "Análise" },
+  { name: "Negociação", short: "Negociação" },
+  { name: "Contrato em Curso", short: "Contrato" },
+];
 
 export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }: CRMDashboardSummaryProps) {
   const stats = useMemo(() => {
@@ -53,15 +53,21 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
     const qualifiedRate = totalSessions > 0 ? (qualified / totalSessions) * 100 : 0;
     const disqualifiedRate = totalSessions > 0 ? (disqualified / totalSessions) * 100 : 0;
 
-    const avgTime =
-      cards.length > 0
-        ? cards.reduce((sum, card) => {
-            const entered = new Date(card.stage_entered_at);
-            const now = new Date();
-            const days = (now.getTime() - entered.getTime()) / (1000 * 60 * 60 * 24);
-            return sum + days;
-          }, 0) / cards.length
-        : 0;
+    // Tempo médio por fase da Julia
+    const phaseStats = JULIA_PHASES.map((phase) => {
+      const stage = stages.find((s) => s.name === phase.name);
+      if (!stage) return { ...phase, avgDays: 0, count: 0 };
+      const phaseCards = cards.filter((c) => c.stage_id === stage.id);
+      if (phaseCards.length === 0) return { ...phase, avgDays: 0, count: 0 };
+      const totalDays = phaseCards.reduce((sum, card) => {
+        const entered = new Date(card.stage_entered_at);
+        const now = new Date();
+        return sum + (now.getTime() - entered.getTime()) / (1000 * 60 * 60 * 24);
+      }, 0);
+      return { ...phase, avgDays: totalDays / phaseCards.length, count: phaseCards.length };
+    });
+
+    const maxPhaseDays = Math.max(...phaseStats.map((p) => p.avgDays), 1);
 
     const dailyMap = new Map<string, number>();
     cards.forEach((card) => {
@@ -83,7 +89,8 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
       qualifiedRate,
       disqualified,
       disqualifiedRate,
-      avgTime,
+      phaseStats,
+      maxPhaseDays,
       dailyTrend,
     };
   }, [cards, stages, juliaSessions]);
@@ -124,23 +131,39 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
         </CardContent>
       </Card>
 
-      {/* 3. Tempo Médio */}
+      {/* 2. Tempo por Fase */}
       <Card className="border-l-4 border-l-chart-3">
         <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">Tempo Médio</p>
-              <p className="text-2xl font-bold text-foreground">{formatAvgTime(stats.avgTime)}</p>
-              <p className="text-xs text-muted-foreground">na fase atual</p>
-            </div>
-            <div className="p-2 bg-chart-3/10 rounded-full">
-              <Clock className="h-5 w-5 text-chart-3" />
-            </div>
+          <div className="flex items-center gap-1.5 mb-2">
+            <Clock className="h-3.5 w-3.5 text-chart-3" />
+            <p className="text-xs text-muted-foreground font-medium">Tempo por Fase</p>
+          </div>
+          <div className="space-y-1.5">
+            {stats.phaseStats.map((phase) => {
+              const pct = stats.maxPhaseDays > 0 ? (phase.avgDays / stats.maxPhaseDays) * 100 : 0;
+              const isSlowest = phase.avgDays === stats.maxPhaseDays && phase.avgDays > 0;
+              return (
+                <div key={phase.name} className="flex items-center gap-2">
+                  <span className={`text-[10px] w-16 truncate ${isSlowest ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                    {phase.short}
+                  </span>
+                  <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${isSlowest ? "bg-chart-3" : "bg-chart-3/40"}`}
+                      style={{ width: `${Math.max(pct, 2)}%` }}
+                    />
+                  </div>
+                  <span className={`text-[10px] w-10 text-right tabular-nums ${isSlowest ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                    {formatAvgTime(phase.avgDays)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
 
-      {/* 4. Taxa Contratos */}
+      {/* 3. Taxa Contratos */}
       <Card className="border-l-4 border-l-chart-2">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
@@ -158,7 +181,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
         </CardContent>
       </Card>
 
-      {/* 5. Qualificados */}
+      {/* 4. Qualificados */}
       <Card className="border-l-4 border-l-chart-4">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
@@ -176,7 +199,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
         </CardContent>
       </Card>
 
-      {/* 6. Desqualificado */}
+      {/* 5. Desqualificado */}
       <Card className="border-l-4 border-l-chart-5">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
