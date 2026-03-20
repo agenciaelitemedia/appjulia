@@ -165,7 +165,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
         <CardContent className="p-4">
           <div className="flex items-center gap-1.5 mb-2">
             <Clock className="h-3.5 w-3.5 text-chart-3" />
-            <p className="text-xs text-muted-foreground font-medium">Tempo por Fase</p>
+            <p className="text-xs text-muted-foreground font-medium">Tempo Julia</p>
           </div>
           <div className="space-y-1.5">
             {stats.phaseStats.map((phase) => {
