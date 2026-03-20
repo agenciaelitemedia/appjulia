@@ -45,9 +45,13 @@ export function InsightDetailCard({ insight }: Props) {
   const relatedCards = Array.isArray(insight.related_cards) ? insight.related_cards : [];
 
   const handleLeadClick = (card: any) => {
-    const search = card.whatsapp_number || card.phone || card.contact_name || '';
-    const dateStr = format(new Date(insight.created_at), 'yyyy-MM-dd');
-    navigate(`/crm/leads?search=${encodeURIComponent(search)}&dateFrom=${dateStr}&dateTo=${dateStr}`);
+    const whatsapp = card.whatsapp_number || card.phone || '';
+    if (whatsapp) {
+      navigate(`/crm/leads?whatsapp=${encodeURIComponent(whatsapp)}`);
+    } else {
+      const search = card.contact_name || '';
+      navigate(`/crm/leads?search=${encodeURIComponent(search)}`);
+    }
   };
 
   return (
