@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, Target, CheckCircle, XCircle } from "lucide-react";
+import { Clock, Target, CheckCircle, XCircle, User } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { CRMCard, CRMStage } from "../types";
 
@@ -69,6 +69,32 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
 
     const maxPhaseDays = Math.max(...phaseStats.map((p) => p.avgDays), 1);
 
+    // Tempo médio humano (ciclo de vida do card no CRM)
+    const resolvedStageIds = [contractSignedStage?.id, disqualifiedStage?.id].filter(Boolean);
+    const resolvedCards = cards.filter((c) => resolvedStageIds.includes(c.stage_id));
+    const activeCards = cards.filter((c) => !resolvedStageIds.includes(c.stage_id));
+
+    const now = new Date();
+    const resolvedAvgDays = resolvedCards.length > 0
+      ? resolvedCards.reduce((sum, card) => {
+          const created = new Date(card.created_at);
+          const updated = new Date(card.updated_at);
+          return sum + (updated.getTime() - created.getTime()) / (1000 * 60 * 60 * 24);
+        }, 0) / resolvedCards.length
+      : 0;
+
+    const activeAvgDays = activeCards.length > 0
+      ? activeCards.reduce((sum, card) => {
+          const created = new Date(card.created_at);
+          return sum + (now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24);
+        }, 0) / activeCards.length
+      : 0;
+
+    const totalHumanCards = resolvedCards.length + activeCards.length;
+    const humanAvgDays = totalHumanCards > 0
+      ? (resolvedAvgDays * resolvedCards.length + activeAvgDays * activeCards.length) / totalHumanCards
+      : 0;
+
     const dailyMap = new Map<string, number>();
     cards.forEach((card) => {
       const date = card.created_at.split("T")[0];
@@ -92,13 +118,16 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
       phaseStats,
       maxPhaseDays,
       dailyTrend,
+      humanAvgDays,
+      resolvedCount: resolvedCards.length,
+      activeCount: activeCards.length,
     };
   }, [cards, stages, juliaSessions]);
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        {[1, 2, 3, 4, 5].map((i) => (
+       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
           <Card key={i} className="animate-pulse">
             <CardContent className="p-4">
               <div className="h-16 bg-muted rounded" />
@@ -110,7 +139,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
   }
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
       {/* 1. Atendimentos */}
       <Card className="border-l-4 border-l-chart-1">
         <CardContent className="p-4">
@@ -136,7 +165,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
         <CardContent className="p-4">
           <div className="flex items-center gap-1.5 mb-2">
             <Clock className="h-3.5 w-3.5 text-chart-3" />
-            <p className="text-xs text-muted-foreground font-medium">Tempo por Fase</p>
+            <p className="text-xs text-muted-foreground font-medium">Tempo Julia</p>
           </div>
           <div className="space-y-1.5">
             {stats.phaseStats.map((phase) => {
@@ -163,7 +192,28 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
         </CardContent>
       </Card>
 
-      {/* 3. Taxa Contratos */}
+      {/* 3. Tempo Humano */}
+      <Card className="border-l-4 border-l-chart-1">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <User className="h-3.5 w-3.5 text-chart-1" />
+                <p className="text-xs text-muted-foreground font-medium">Tempo Humano</p>
+              </div>
+              <p className="text-2xl font-bold text-foreground">{formatAvgTime(stats.humanAvgDays)}</p>
+              <p className="text-xs text-muted-foreground">
+                {stats.resolvedCount} resolvidos · {stats.activeCount} em andamento
+              </p>
+            </div>
+            <div className="p-2 bg-chart-1/10 rounded-full">
+              <Clock className="h-5 w-5 text-chart-1" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 4. Taxa Contratos */}
       <Card className="border-l-4 border-l-chart-2">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
