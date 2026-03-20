@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, Target, CheckCircle, XCircle } from "lucide-react";
+import { Clock, Target, CheckCircle, XCircle, User } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { CRMCard, CRMStage } from "../types";
 
