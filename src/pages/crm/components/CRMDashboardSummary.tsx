@@ -69,6 +69,12 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
 
     const maxPhaseDays = Math.max(...phaseStats.map((p) => p.avgDays), 1);
 
+    // Média geral da Julia (média ponderada por quantidade de cards em cada fase)
+    const totalJuliaCards = phaseStats.reduce((sum, p) => sum + p.count, 0);
+    const juliaAvgDays = totalJuliaCards > 0
+      ? phaseStats.reduce((sum, p) => sum + p.avgDays * p.count, 0) / totalJuliaCards
+      : 0;
+
     // Tempo médio humano (ciclo de vida do card no CRM)
     const resolvedStageIds = [contractSignedStage?.id, disqualifiedStage?.id].filter(Boolean);
     const resolvedCards = cards.filter((c) => resolvedStageIds.includes(c.stage_id));
