@@ -1,20 +1,15 @@
 
 
-# Filtrar e calcular tempos por `stage_entered_at`
-
-## Situação atual
-- A query de cards já filtra por `stage_entered_at` — correto.
-- O cálculo de **Média Tempo Julia** já usa `stage_entered_at` — correto.
-- O cálculo de **Tempo Humano** usa `created_at` e `updated_at` — inconsistente.
+# Trocar `created_at` por `stage_entered_at` na query do card Atendimentos
 
 ## Alteração
 
-### `src/pages/crm/components/CRMDashboardSummary.tsx`
+### `src/pages/crm/hooks/useCRMData.ts` (linhas 19-26)
 
-Ajustar o cálculo do **Tempo Humano** (linhas 84-97) para usar `stage_entered_at` em vez de `created_at`:
+Na query da `useCRMJuliaSessions`, substituir todas as referências a `created_at` por `stage_entered_at`:
 
-- **Cards resolvidos**: tempo = `updated_at - stage_entered_at` (tempo na fase final)
-- **Cards ativos**: tempo = `now - stage_entered_at` (tempo na fase atual)
+- Linha 22: `COUNT(DISTINCT (created_at AT TIME ZONE ...))` → `COUNT(DISTINCT (stage_entered_at AT TIME ZONE ...))`
+- Linhas 25-26: filtro de data `created_at` → `stage_entered_at`
 
-Isso torna o cálculo consistente com o filtro e com o card da Julia, ambos baseados em `stage_entered_at`.
+A view `vw_painelv2_desempenho_julia` precisa ter a coluna `stage_entered_at`. Caso não tenha, será necessário verificar as colunas disponíveis.
 
