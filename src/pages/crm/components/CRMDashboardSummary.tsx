@@ -103,7 +103,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
 
     const dailyMap = new Map<string, number>();
     cards.forEach((card) => {
-      const date = card.created_at.split("T")[0];
+      const date = card.stage_entered_at.split("T")[0];
       dailyMap.set(date, (dailyMap.get(date) || 0) + 1);
     });
 
