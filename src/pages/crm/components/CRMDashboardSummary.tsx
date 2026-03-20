@@ -83,16 +83,16 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
     const now = new Date();
     const resolvedAvgDays = resolvedCards.length > 0
       ? resolvedCards.reduce((sum, card) => {
-          const created = new Date(card.created_at);
+          const entered = new Date(card.stage_entered_at);
           const updated = new Date(card.updated_at);
-          return sum + (updated.getTime() - created.getTime()) / (1000 * 60 * 60 * 24);
+          return sum + (updated.getTime() - entered.getTime()) / (1000 * 60 * 60 * 24);
         }, 0) / resolvedCards.length
       : 0;
 
     const activeAvgDays = activeCards.length > 0
       ? activeCards.reduce((sum, card) => {
-          const created = new Date(card.created_at);
-          return sum + (now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24);
+          const entered = new Date(card.stage_entered_at);
+          return sum + (now.getTime() - entered.getTime()) / (1000 * 60 * 60 * 24);
         }, 0) / activeCards.length
       : 0;
 
