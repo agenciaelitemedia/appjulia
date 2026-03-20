@@ -175,11 +175,11 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
             <div>
               <div className="flex items-center gap-1.5 mb-1">
                 <Clock className="h-3.5 w-3.5 text-chart-3" />
-                <p className="text-xs text-muted-foreground font-medium">Média Tempo Julia</p>
+                <p className="text-xs text-muted-foreground font-medium">Média Júlia</p>
               </div>
               <p className="text-2xl font-bold text-foreground">{formatAvgTime(stats.juliaAvgDays)}</p>
               <p className="text-xs text-muted-foreground">
-                {stats.totalJuliaCards} leads nas 4 fases
+                Média de tempo por fase
               </p>
             </div>
             <div className="p-2 bg-chart-3/10 rounded-full">
