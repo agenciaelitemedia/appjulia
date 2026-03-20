@@ -1,22 +1,24 @@
 
 
-# Adicionar busca no seletor de agentes (estilo Select2)
+# Card de Tempo Médio por Fase da Julia
 
-## Problema
-O seletor de agentes no `UnifiedFilters` abre um Popover com checkboxes, mas não tem campo de busca para filtrar agentes na lista. Com muitos agentes, fica difícil encontrar o desejado.
+## O que será feito
+Adicionar um novo card após "Atendimentos" no `CRMDashboardSummary` mostrando o tempo médio de permanência dos leads nas 4 fases atendidas pela Julia: **Entrada**, **Análise de Caso**, **Negociação** e **Contrato em Curso**.
 
-## Solução
-Adicionar um campo de busca (input) no topo do Popover de agentes, filtrando a lista em tempo real conforme o usuário digita. A busca será feita pelo código do agente, nome e nome do escritório.
+## Cálculo
+Para cada uma das 4 fases, filtrar os `cards` que estão naquela fase, calcular `(now - stage_entered_at)` de cada um e tirar a média. Os dados já existem no array `cards` e `stages` — não precisa de nova query.
 
-## Alteração
+## Layout do card
+- Borda lateral colorida (chart-3, mantendo a cor do atual "Tempo Médio")
+- Título: "Tempo por Fase"
+- 4 linhas compactas, cada uma com: nome da fase (abreviado), barra de progresso proporcional e o tempo formatado (ex: `2d 5h`)
+- A fase mais lenta fica destacada
 
-### `src/components/filters/UnifiedFilters.tsx`
+## Alteração no grid
+- Grid passa de `grid-cols-5` para `grid-cols-6` (no `lg:`)
+- O card atual "Tempo Médio" (média geral) é **substituído** por este novo card mais detalhado, mantendo 5 cards no total
+- Ordem: Atendimentos → **Tempo por Fase** → Taxa Contratos → Qualificados → Desqualificado
 
-1. Adicionar estado `agentSearch` para controlar o texto de busca
-2. Adicionar `useMemo` para filtrar a lista de agentes pelo termo digitado (busca em `cod_agent`, `owner_name`, `owner_business_name`)
-3. Inserir um `Input` com ícone de busca no header do Popover (acima do "Selecionar Todos"), com placeholder "Buscar agente..."
-4. Renderizar `filteredAgents` em vez de `agents` na lista de checkboxes
-5. Limpar o campo de busca ao fechar o Popover
-
-A estrutura visual permanece a mesma (checkboxes com multi-seleção), apenas ganha o campo de busca no topo para filtrar rapidamente.
+## Arquivo alterado
+`src/pages/crm/components/CRMDashboardSummary.tsx`
 
