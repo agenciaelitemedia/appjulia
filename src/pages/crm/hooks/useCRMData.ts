@@ -19,11 +19,11 @@ export function useCRMJuliaSessions(filters: CRMFiltersState) {
             WITH sessions_data AS (
               SELECT 
                 COUNT(DISTINCT session_id) as total_sessions,
-                COUNT(DISTINCT (created_at AT TIME ZONE 'America/Sao_Paulo')::date) as total_days
+                COUNT(DISTINCT (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date) as total_days
               FROM vw_painelv2_desempenho_julia
               WHERE cod_agent::text = ANY($1::varchar[])
-                ${hasDates ? `AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-                AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date` : ''}
+                ${hasDates ? `AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+                AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date` : ''}
             )
             SELECT 
               total_sessions,
