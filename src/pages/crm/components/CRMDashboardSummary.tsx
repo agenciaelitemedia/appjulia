@@ -168,34 +168,23 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
         </CardContent>
       </Card>
 
-      {/* 2. Tempo por Fase */}
+      {/* 2. Média Tempo Julia */}
       <Card className="border-l-4 border-l-chart-3">
         <CardContent className="p-4">
-          <div className="flex items-center gap-1.5 mb-2">
-            <Clock className="h-3.5 w-3.5 text-chart-3" />
-            <p className="text-xs text-muted-foreground font-medium">Tempo Julia</p>
-          </div>
-          <div className="space-y-1.5">
-            {stats.phaseStats.map((phase) => {
-              const pct = stats.maxPhaseDays > 0 ? (phase.avgDays / stats.maxPhaseDays) * 100 : 0;
-              const isSlowest = phase.avgDays === stats.maxPhaseDays && phase.avgDays > 0;
-              return (
-                <div key={phase.name} className="flex items-center gap-2">
-                  <span className={`text-[10px] w-16 truncate ${isSlowest ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
-                    {phase.short}
-                  </span>
-                  <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${isSlowest ? "bg-chart-3" : "bg-chart-3/40"}`}
-                      style={{ width: `${Math.max(pct, 2)}%` }}
-                    />
-                  </div>
-                  <span className={`text-[10px] w-10 text-right tabular-nums ${isSlowest ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
-                    {formatAvgTime(phase.avgDays)}
-                  </span>
-                </div>
-              );
-            })}
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Clock className="h-3.5 w-3.5 text-chart-3" />
+                <p className="text-xs text-muted-foreground font-medium">Média Tempo Julia</p>
+              </div>
+              <p className="text-2xl font-bold text-foreground">{formatAvgTime(stats.juliaAvgDays)}</p>
+              <p className="text-xs text-muted-foreground">
+                {stats.totalJuliaCards} leads nas 4 fases
+              </p>
+            </div>
+            <div className="p-2 bg-chart-3/10 rounded-full">
+              <Clock className="h-5 w-5 text-chart-3" />
+            </div>
           </div>
         </CardContent>
       </Card>
