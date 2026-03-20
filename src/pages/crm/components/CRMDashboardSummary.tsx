@@ -127,7 +127,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
   if (isLoading) {
     return (
        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-        {[1, 2, 3, 4, 5].map((i) => (
+        {[1, 2, 3, 4, 5, 6].map((i) => (
           <Card key={i} className="animate-pulse">
             <CardContent className="p-4">
               <div className="h-16 bg-muted rounded" />
