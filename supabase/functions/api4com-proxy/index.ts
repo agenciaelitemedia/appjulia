@@ -185,7 +185,6 @@ serve(async (req) => {
         // Determine ramal number
         let ramalNumber = extensionNumber;
         if (!ramalNumber) {
-          // List existing extensions to find next available
           try {
             const existing = await api4comRequest(baseUrl, '/extensions', headers);
             const extList = Array.isArray(existing) ? existing : (existing?.data || existing?.extensions || []);
@@ -198,18 +197,52 @@ serve(async (req) => {
           }
         }
 
-        // Step 1: Create extension via POST /extensions
-        const apiResult = await api4comRequest(baseUrl, '/extensions', headers, {
-          method: 'POST',
-          body: {
-            ramal: ramalNumber,
-            senha: randomSenha,
-            first_name: fName,
-            last_name: lName,
-            email_address: emailToUse,
-            gravar_audio: 1,
-          },
-        });
+        // ---- STEP 1: Create user in Api4Com organization ----
+        let api4comUserId: string | null = null;
+        try {
+          const userResult = await api4comRequest(baseUrl, '/users', headers, {
+            method: 'POST',
+            body: {
+              name: `${fName} ${lName}`.trim(),
+              email: emailToUse,
+              password: randomSenha,
+              phone: '',
+              role: 'USER',
+            },
+          });
+          api4comUserId = userResult?.id ? String(userResult.id) : null;
+          console.log('Api4Com user created:', api4comUserId, userResult);
+        } catch (userErr: any) {
+          // User might already exist (email conflict) — continue to extension creation
+          console.log('User creation skipped/failed (may already exist):', userErr.message);
+        }
+
+        // ---- STEP 2: Create extension (ramal) in Api4Com ----
+        let apiResult: any;
+        try {
+          apiResult = await api4comRequest(baseUrl, '/extensions', headers, {
+            method: 'POST',
+            body: {
+              ramal: ramalNumber,
+              senha: randomSenha,
+              first_name: fName,
+              last_name: lName,
+              email_address: emailToUse,
+              gravar_audio: 1,
+            },
+          });
+        } catch (extErr: any) {
+          // Rollback user if we created one
+          if (api4comUserId) {
+            try {
+              await fetch(`${baseUrl}/users/${api4comUserId}`, { method: 'DELETE', headers });
+              console.log('Rolled back Api4Com user:', api4comUserId);
+            } catch (e) {
+              console.error('Rollback user delete failed:', e);
+            }
+          }
+          throw new Error(`Erro ao criar ramal na Api4Com: ${extErr.message}`);
+        }
 
         const ramal = apiResult?.ramal || apiResult?.extension || ramalNumber;
         const senha = apiResult?.senha || apiResult?.password || randomSenha;
@@ -219,7 +252,7 @@ serve(async (req) => {
           throw new Error('Api4Com não retornou número de ramal. Resposta: ' + JSON.stringify(apiResult));
         }
 
-        // Auto-populate sip_domain
+        // Auto-populate sip_domain from response
         const sipDomainFromResponse = apiResult?.domain;
         if (sipDomainFromResponse && !config.sip_domain) {
           await supabase.from('phone_config')
@@ -227,19 +260,26 @@ serve(async (req) => {
             .eq('id', config.id);
         }
 
-        // Count existing extensions for local number
-        const { count: extCount } = await supabase
-          .from('phone_extensions')
-          .select('id', { count: 'exact', head: true })
-          .eq('cod_agent', codAgent);
-        const localNumber = `${1000 + (extCount || 0) + 1}`;
+        // ---- STEP 3: Verify extension was actually created ----
+        try {
+          const verifyList = await api4comRequest(baseUrl, '/extensions', headers);
+          const vList = Array.isArray(verifyList) ? verifyList : (verifyList?.data || verifyList?.extensions || []);
+          const found = vList.find((e: any) => String(e.id) === api4comId || String(e.ramal) === String(ramal));
+          if (!found) {
+            console.warn('Extension not found in verification list, but API returned success. Proceeding.');
+          } else {
+            console.log('Extension verified in Api4Com:', found.ramal, found.id);
+          }
+        } catch (verifyErr) {
+          console.warn('Verification check failed (non-critical):', verifyErr);
+        }
 
-        // Persist in DB with all metadata
+        // ---- STEP 4: Persist in DB — extension_number = api4com_ramal (no divergence) ----
         const { error: dbError } = await supabase
           .from('phone_extensions')
           .insert({
             cod_agent: codAgent,
-            extension_number: localNumber,
+            extension_number: ramal, // Same as api4com_ramal — no ambiguity
             label: label || fName || null,
             assigned_member_id: assignedMemberId || null,
             api4com_id: api4comId,
@@ -248,24 +288,26 @@ serve(async (req) => {
             api4com_email: emailToUse,
             api4com_first_name: fName,
             api4com_last_name: lName,
-            api4com_raw: apiResult || {},
+            api4com_raw: {
+              extension: apiResult || {},
+              user_id: api4comUserId,
+            },
             is_active: true,
           });
 
         // Rollback on DB failure
         if (dbError) {
-          console.error('DB insert failed, rolling back Api4Com extension:', dbError);
+          console.error('DB insert failed, rolling back Api4Com:', dbError);
           if (api4comId) {
-            try {
-              await fetch(`${baseUrl}/extensions/${api4comId}`, { method: 'DELETE', headers });
-            } catch (e) {
-              console.error('Rollback delete failed:', e);
-            }
+            try { await fetch(`${baseUrl}/extensions/${api4comId}`, { method: 'DELETE', headers }); } catch (e) { console.error('Rollback ext:', e); }
+          }
+          if (api4comUserId) {
+            try { await fetch(`${baseUrl}/users/${api4comUserId}`, { method: 'DELETE', headers }); } catch (e) { console.error('Rollback user:', e); }
           }
           throw new Error(`Erro ao salvar ramal no banco: ${dbError.message}`);
         }
 
-        result = { ramal, senha, id: api4comId, localNumber };
+        result = { ramal, senha, id: api4comId, userId: api4comUserId };
         break;
       }
 
