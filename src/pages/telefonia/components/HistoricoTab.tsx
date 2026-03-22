@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PhoneIncoming, PhoneOutgoing, Play, RefreshCw, LayoutDashboard, Phone, ExternalLink, Search, X } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, Play, LayoutDashboard, Phone, ExternalLink, Search, X } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { GravacaoPlayer } from './GravacaoPlayer';
 import { useMemo, useState } from 'react';
@@ -75,10 +75,12 @@ export function HistoricoTab({ codAgent }: Props) {
   const [dateTo, setDateTo] = useState('');
 
   const extensionNameMap = new Map<string, string>();
+  const extensionCodAgentMap = new Map<string, string>();
   for (const ext of extensions) {
     if (ext.extension_number) {
       const name = ext.api4com_first_name || ext.label || ext.extension_number;
       extensionNameMap.set(ext.extension_number, name);
+      if (ext.api4com_last_name) extensionCodAgentMap.set(ext.extension_number, ext.api4com_last_name);
     }
   }
 
@@ -99,12 +101,17 @@ export function HistoricoTab({ codAgent }: Props) {
 
   const filteredHistory = useMemo(() => {
     return callHistory.filter((call) => {
-      // Search by number
       if (search) {
-        const q = search.replace(/\D/g, '');
+        const q = search.toLowerCase();
+        const qDigits = search.replace(/\D/g, '');
         const calledClean = (call.called || '').replace(/\D/g, '');
         const callerClean = (call.caller || '').replace(/\D/g, '');
-        if (!calledClean.includes(q) && !callerClean.includes(q)) return false;
+        const extKey = call.extension_number || call.caller || '';
+        const attendant = (extensionNameMap.get(extKey) || '').toLowerCase();
+        const extCodAgent = (extensionCodAgentMap.get(extKey) || codAgent || '').toLowerCase();
+        const matchNumber = qDigits && (calledClean.includes(qDigits) || callerClean.includes(qDigits));
+        const matchName = attendant.includes(q) || extCodAgent.includes(q);
+        if (!matchNumber && !matchName) return false;
       }
       // Direction
       if (directionFilter !== 'all') {
@@ -137,17 +144,8 @@ export function HistoricoTab({ codAgent }: Props) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader>
         <CardTitle className="text-lg">Histórico de Chamadas</CardTitle>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => syncCallHistory.mutate({})}
-          disabled={syncCallHistory.isPending}
-        >
-          <RefreshCw className={`h-4 w-4 mr-1 ${syncCallHistory.isPending ? 'animate-spin' : ''}`} />
-          Sincronizar
-        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Filters */}
@@ -155,7 +153,7 @@ export function HistoricoTab({ codAgent }: Props) {
           <div className="relative flex-1 min-w-[200px] max-w-xs">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por número..."
+              placeholder="Buscar por número ou atendente..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-9"
