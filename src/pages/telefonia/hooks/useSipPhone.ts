@@ -129,10 +129,22 @@ export function useSipPhone(): UseSipPhoneReturn {
   const connect = useCallback((creds: SipCredentials) => {
     credsRef.current = creds;
     setStatus('registering');
+    setDiagnostics(prev => ({
+      ...prev,
+      domain: creds.domain,
+      wsUrl: creds.wsUrl,
+      username: creds.username,
+      registrationStatus: 'connecting',
+      wsState: 'connecting',
+      lastError: '',
+    }));
+    addDiagEvent(`Connecting to ${creds.wsUrl} as ${creds.username}@${creds.domain}`);
 
     const uri = UserAgent.makeURI(`sip:${creds.username}@${creds.domain}`);
     if (!uri) {
       setStatus('error');
+      addDiagEvent('ERROR: Invalid SIP URI');
+      setDiagnostics(prev => ({ ...prev, lastError: 'Invalid SIP URI', registrationStatus: 'error' }));
       return;
     }
 
@@ -149,11 +161,12 @@ export function useSipPhone(): UseSipPhoneReturn {
           sessionRef.current = invitation;
           setCallerInfo(invitation.remoteIdentity?.uri?.user || 'Desconhecido');
           setStatus('ringing');
+          addDiagEvent(`Incoming call from ${invitation.remoteIdentity?.uri?.user || '?'}`);
           setupSessionListeners(invitation);
 
-          // Auto-answer api4com integrated calls
           const headers = invitation.request.getHeaders('X-Api4comintegratedcall');
           if (headers?.length && headers[0] === 'true') {
+            addDiagEvent('Auto-answering integrated call');
             invitation.accept();
           }
         },
@@ -170,17 +183,33 @@ export function useSipPhone(): UseSipPhoneReturn {
       switch (state) {
         case RegistererState.Registered:
           setStatus('registered');
+          addDiagEvent('✓ SIP Registered');
+          setDiagnostics(prev => ({ ...prev, registrationStatus: 'registered', wsState: 'connected' }));
           break;
         case RegistererState.Unregistered:
           setStatus('idle');
+          addDiagEvent('SIP Unregistered');
+          setDiagnostics(prev => ({ ...prev, registrationStatus: 'unregistered' }));
           break;
       }
     });
 
     ua.start().then(() => {
-      registerer.register().catch(() => setStatus('error'));
-    }).catch(() => setStatus('error'));
-  }, [setupSessionListeners]);
+      addDiagEvent('WebSocket connected, registering...');
+      setDiagnostics(prev => ({ ...prev, wsState: 'connected', registrationStatus: 'registering' }));
+      registerer.register().catch((err) => {
+        setStatus('error');
+        const msg = err?.message || 'Registration failed';
+        addDiagEvent(`ERROR register: ${msg}`);
+        setDiagnostics(prev => ({ ...prev, lastError: msg, registrationStatus: 'error' }));
+      });
+    }).catch((err) => {
+      setStatus('error');
+      const msg = err?.message || 'WebSocket connection failed';
+      addDiagEvent(`ERROR connect: ${msg}`);
+      setDiagnostics(prev => ({ ...prev, lastError: msg, wsState: 'error', registrationStatus: 'error' }));
+    });
+  }, [setupSessionListeners, addDiagEvent]);
 
   const disconnect = useCallback(() => {
     if (sessionRef.current?.state === SessionState.Established) {
