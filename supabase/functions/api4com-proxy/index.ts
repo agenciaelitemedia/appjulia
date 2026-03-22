@@ -188,12 +188,20 @@ serve(async (req) => {
           try {
             const existing = await api4comRequest(baseUrl, '/extensions', headers);
             const extList = Array.isArray(existing) ? existing : (existing?.data || existing?.extensions || []);
-            const numbers = extList
-              .map((e: any) => parseInt(e.ramal || e.extension || '0', 10))
-              .filter((n: number) => !isNaN(n) && n > 0);
-            ramalNumber = String(numbers.length > 0 ? Math.max(...numbers) + 1 : 1000);
+            const existingNumbers = new Set(
+              extList
+                .map((e: any) => parseInt(e.ramal || e.extension || '0', 10))
+                .filter((n: number) => !isNaN(n) && n > 0)
+            );
+            // Find next available number starting from 1000
+            let candidate = 1000;
+            while (existingNumbers.has(candidate)) {
+              candidate++;
+            }
+            ramalNumber = String(candidate);
+            console.log('Auto-assigned ramal number:', ramalNumber, 'existing:', [...existingNumbers].sort());
           } catch {
-            ramalNumber = '1000';
+            ramalNumber = String(1000 + Date.now() % 1000);
           }
         }
 
