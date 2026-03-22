@@ -123,7 +123,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
               </div>
               <p className="text-2xl font-bold text-foreground">{stats.activeFollowups}</p>
               <p className="text-xs text-muted-foreground">
-                {stats.stepsCount} em etapas · {stats.infiniteCount} infinitos
+                Leads em cadência ativa
               </p>
             </div>
             <div className="p-2 bg-chart-3/10 rounded-full">
