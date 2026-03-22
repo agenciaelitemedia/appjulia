@@ -1,27 +1,48 @@
 
 
-# Corrigir duplicatas no historico + fuso horario
+# Plano atualizado: Origem da chamada + formatação + gravação + reutilização de código
 
-## Problema 1: Registros duplicados
-Os logs mostram que o webhook recebe o mesmo evento `channel-hangup` **duas vezes** (duas instancias da edge function bootan simultaneamente para o mesmo request). Ambas fazem `.maybeSingle()` quase ao mesmo tempo, nenhuma encontra registro existente, e ambas fazem `INSERT` — gerando duplicata.
+## Mudanças
 
-Alem disso, o webhook cria registro no `channel-create`, depois no `channel-hangup`, e depois o `syncQueue` do frontend tambem faz upsert — potencialmente 3 registros.
+### 1. Centralizar lógica de discagem no `PhoneContext.dialNumber`
+**`src/contexts/PhoneContext.tsx`**
+- Expandir assinatura: `dialNumber(phone, contactName?, origin?: 'CRM' | 'DISCADOR', whatsappNumber?: string)`
+- Enviar `metadata: { origin, whatsapp_number }` no body da action `dial`
+- Toda discagem (CRM, DiscadorTab, HeaderDialer) passa por este único método — uma mudança no fluxo só precisa ser feita aqui
 
-### Correção
-1. **Adicionar constraint UNIQUE em `call_id`** na tabela `phone_call_logs` — isso impede duplicatas no nivel do banco
-2. **Usar `upsert` com `onConflict: 'call_id'`** no webhook em vez de select+insert manual
-3. **Remover o insert do `channel-create`** — o webhook nao deve criar registros parciais, apenas o `channel-hangup` e o sync devem persistir dados
+### 2. Chamadores passam origin e whatsapp
 
-## Problema 2: Horario 3h a menos
-A Api4Com envia timestamps como `"2026-03-22 18:18:52"` sem fuso — são horario de Brasilia (UTC-3). O webhook salva direto no banco sem adicionar o offset. O banco interpreta como UTC, resultando em 3h de diferença.
+**`PhoneCallDialog.tsx`** — `dialNumber(whatsappNumber, contactName, 'CRM', whatsappNumber)`
 
-### Correção
-No webhook, ao parsear `startedAt`, `endedAt`, `answeredAt` que vem sem timezone: **concatenar `-03:00`** (Brasilia) antes de salvar, para que o banco armazene corretamente.
+**`HeaderDialer.tsx`** — `dialNumber(number, undefined, 'DISCADOR')`
 
-Mesma logica no `sync_call_history` da proxy: os timestamps do CDR da Api4Com tambem vem sem fuso.
+**`DiscadorTab.tsx`** — Migrar para usar `dialNumber` do `PhoneContext` em vez de `dial.mutate` direto. Passar `origin: 'DISCADOR'`. Isso elimina duplicação de lógica e garante que o fluxo de enfileiramento no `syncQueueManager` e exibição do softphone é idêntico ao CRM.
+
+### 3. Backend — propagar metadata
+**`api4com-proxy/index.ts`** — action `dial`: incluir `metadata` recebido do frontend no body enviado à Api4Com (já faz isso parcialmente). O metadata volta no CDR e é salvo no `sync_call_history`.
+
+### 4. Histórico — coluna Origem + link CRM + formatação + gravação
+**`HistoricoTab.tsx`**:
+- **Nova coluna "Origem"**:
+  - Se `metadata.origin === 'CRM'`: ícone `LayoutDashboard` + botão clicável que navega para `/crm?whatsapp={metadata.whatsapp_number}`
+  - Se `metadata.origin === 'DISCADOR'`: ícone `Phone` + texto "Discador"
+  - Se sem metadata: ícone `Phone` + "Manual"
+- **Formatação de números**: atualizar `formatPhone` para tratar prefixo `0` da Api4Com (`0DDNNNNNNNNN` → `(DD) NNNNN-NNNN`)
+- **Botão gravação**: desabilitar se `duration_seconds === 0` ou nulo (sem duração = sem gravação útil)
+
+## Reutilização de código
+A mudança principal é que o `DiscadorTab` deixa de usar `dial.mutate` diretamente e passa a usar `dialNumber` do `PhoneContext`, assim como o CRM e o HeaderDialer já fazem. Isso significa que:
+- Enfileiramento no syncQueue → feito no PhoneContext
+- Exibição do softphone → feita no PhoneContext
+- Metadata de origem → passada como parâmetro para o PhoneContext
+- Qualquer mudança futura no fluxo de discagem/gravação/histórico precisa ser feita **apenas no PhoneContext**
 
 ## Arquivos alterados
-- Migration SQL: `ALTER TABLE phone_call_logs ADD CONSTRAINT phone_call_logs_call_id_unique UNIQUE (call_id)`
-- `supabase/functions/api4com-webhook/index.ts` — upsert com onConflict, remover channel-create insert, fix timezone
-- `supabase/functions/api4com-proxy/index.ts` — fix timezone nos timestamps do sync
+| Arquivo | Ação |
+|---|---|
+| `src/contexts/PhoneContext.tsx` | Adicionar params `origin` e `whatsappNumber`, enviar no metadata |
+| `src/pages/crm/components/PhoneCallDialog.tsx` | Passar `origin='CRM'` e `whatsappNumber` |
+| `src/components/layout/HeaderDialer.tsx` | Passar `origin='DISCADOR'` |
+| `src/pages/telefonia/components/DiscadorTab.tsx` | Migrar para `dialNumber` do PhoneContext com `origin='DISCADOR'` |
+| `src/pages/telefonia/components/HistoricoTab.tsx` | Coluna origem, link CRM, formatação, gravação disabled |
 
