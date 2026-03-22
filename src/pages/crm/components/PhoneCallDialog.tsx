@@ -8,9 +8,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSipPhone, type CallEndedInfo } from '@/pages/telefonia/hooks/useSipPhone';
+import { useSyncQueue } from '@/pages/telefonia/hooks/useSyncQueue';
 import { SoftphoneWidget } from '@/pages/telefonia/components/SoftphoneWidget';
 import { formatPhoneForDialing } from '@/lib/phoneFormat';
-
 interface PhoneCallDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -22,24 +22,20 @@ interface PhoneCallDialogProps {
 export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactName, codAgent }: PhoneCallDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const syncQueue = useSyncQueue(codAgent);
   const [selectedExtension, setSelectedExtension] = useState('');
   const [sipError, setSipError] = useState('');
   const [showSoftphone, setShowSoftphone] = useState(false);
   const autoConnected = useRef(false);
 
-  // Sync call history after call ends (replaces complete_call_log)
+  // After SIP call ends, sync with since param (no call_id available)
   const handleCallEnded = useCallback((_info: CallEndedInfo) => {
-    setTimeout(() => {
-      const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-      supabase.functions.invoke('api4com-proxy', {
-        body: { action: 'sync_call_history', codAgent, since },
-      }).then(({ data, error }) => {
-        queryClient.invalidateQueries({ queryKey: ['my-call-history'] });
-        if (!error && !data?.error) {
-          toast.success(`Histórico sincronizado: ${data?.data?.synced || 0} registros`);
-        }
-      }).catch(console.error);
-    }, 3000);
+    const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    supabase.functions.invoke('api4com-proxy', {
+      body: { action: 'sync_call_history', codAgent, since },
+    }).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['my-call-history'] });
+    }).catch(console.error);
   }, [codAgent, queryClient]);
 
   const sip = useSipPhone(handleCallEnded);
@@ -131,10 +127,12 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
     onSuccess: (result) => {
       if (result?.via === 'sip') {
         toast.success(`Discando para ${contactName} via SIP...`);
-        // Close dialog and show centered softphone
         onOpenChange(false);
         setShowSoftphone(true);
       } else {
+        // Enqueue sync for REST call_id
+        const callId = result?.data?.call_id || result?.data?.id;
+        if (callId) syncQueue.enqueue(String(callId));
         toast.success(`Ligando para ${contactName}...`);
         onOpenChange(false);
       }

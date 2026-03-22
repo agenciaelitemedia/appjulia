@@ -585,115 +585,170 @@ serve(async (req) => {
         let totalSynced = 0;
         let totalRecords = 0;
         const syncErrors: string[] = [];
+        let notFound = false;
 
         try {
-          let sinceDate = since;
-          if (!sinceDate && !callId) {
-            const { data: lastLog } = await supabase
-              .from('phone_call_logs')
-              .select('started_at')
-              .eq('cod_agent', codAgent)
-              .order('started_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            sinceDate = lastLog?.started_at || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-          }
+          // MODE 1: Sync specific call_id (UPDATE only, never INSERT)
+          if (callId) {
+            let found = false;
+            let page = 1;
+            const maxPages = 3;
 
-          let page = 1;
-          let hasMore = true;
-          const maxPages = 5;
+            while (!found && page <= maxPages) {
+              const callsData = await api4comRequest(baseUrl, `/calls?page=${page}`, headers);
+              const records = Array.isArray(callsData) ? callsData : (callsData?.data || []);
+              if (records.length === 0) break;
+              totalRecords += records.length;
 
-          while (hasMore && page <= maxPages) {
-            const endpoint = `/calls?page=${page}`;
-            const callsData = await api4comRequest(baseUrl, endpoint, headers);
-            const records = Array.isArray(callsData) ? callsData : (callsData?.data || []);
-            const meta = callsData?.meta;
+              for (const cdr of records) {
+                const cdrId = cdr.id ? String(cdr.id) : null;
+                if (cdrId !== String(callId)) continue;
 
-            if (records.length === 0) break;
-            totalRecords += records.length;
+                found = true;
+                const direction = cdr.call_type || 'outbound';
+                const caller = cdr.from || '';
+                const called = cdr.to || '';
+                const attendantName = [cdr.first_name, cdr.last_name].filter(Boolean).join(' ').trim() || null;
+                const minutePrice = cdr.minute_price != null ? Number(cdr.minute_price) : null;
+                const callPrice = cdr.call_price != null ? Number(cdr.call_price) : null;
 
-            for (const cdr of records) {
-              const cdrId = cdr.id ? String(cdr.id) : null;
-              if (callId && cdrId !== String(callId)) continue;
+                const cdrMetadata: Record<string, any> = {};
+                if (cdr.BINA) cdrMetadata.bina = cdr.BINA;
+                if (cdr.email) cdrMetadata.email = cdr.email;
+                if (attendantName) cdrMetadata.attendant_name = attendantName;
+                if (minutePrice != null) cdrMetadata.minute_price = minutePrice;
+                if (cdr.metadata) cdrMetadata.api4com_metadata = cdr.metadata;
+                if (cdr.domain) cdrMetadata.domain = cdr.domain;
 
-              const cdrStarted = cdr.started_at;
-              if (sinceDate && cdrStarted && new Date(cdrStarted) < new Date(sinceDate)) {
-                hasMore = false;
-                continue;
+                const updateData = {
+                  extension_number: caller,
+                  direction, caller, called,
+                  started_at: cdr.started_at,
+                  ended_at: cdr.ended_at || null,
+                  duration_seconds: Number(cdr.duration ?? 0),
+                  record_url: cdr.record_url || null,
+                  cost: callPrice ?? 0,
+                  hangup_cause: cdr.hangup_cause || null,
+                  status: 'hangup',
+                  metadata: cdrMetadata,
+                };
+
+                const { data: updated } = await supabase
+                  .from('phone_call_logs')
+                  .update(updateData)
+                  .eq('call_id', String(callId))
+                  .select('id');
+
+                totalSynced = updated?.length || 0;
+                break;
               }
 
-              const direction = cdr.call_type || 'outbound';
-              const caller = cdr.from || '';
-              const called = cdr.to || '';
-              const durationSec = cdr.duration ?? 0;
-              const recordUrlCdr = cdr.record_url || null;
-              const minutePrice = cdr.minute_price != null ? Number(cdr.minute_price) : null;
-              const callPrice = cdr.call_price != null ? Number(cdr.call_price) : null;
-              const hangupCauseCdr = cdr.hangup_cause || null;
-              const attendantName = [cdr.first_name, cdr.last_name].filter(Boolean).join(' ').trim() || null;
-
-              const cdrMetadata: Record<string, any> = {};
-              if (cdr.BINA) cdrMetadata.bina = cdr.BINA;
-              if (cdr.email) cdrMetadata.email = cdr.email;
-              if (attendantName) cdrMetadata.attendant_name = attendantName;
-              if (minutePrice != null) cdrMetadata.minute_price = minutePrice;
-              if (cdr.metadata) cdrMetadata.api4com_metadata = cdr.metadata;
-              if (cdr.domain) cdrMetadata.domain = cdr.domain;
-
-              const logEntry: any = {
-                cod_agent: codAgent,
-                extension_number: caller,
-                direction, caller, called,
-                started_at: cdrStarted,
-                ended_at: cdr.ended_at || null,
-                duration_seconds: Number(durationSec),
-                record_url: recordUrlCdr,
-                cost: callPrice ?? 0,
-                hangup_cause: hangupCauseCdr,
-                status: 'hangup',
-                metadata: cdrMetadata,
-              };
-
-              if (cdrId) {
-                logEntry.call_id = cdrId;
-                const { data: existing } = await supabase
-                  .from('phone_call_logs').select('id').eq('call_id', cdrId).maybeSingle();
-
-                if (existing) {
-                  await supabase.from('phone_call_logs').update({
-                    duration_seconds: Number(durationSec), record_url: recordUrlCdr,
-                    cost: callPrice ?? 0, hangup_cause: hangupCauseCdr,
-                    ended_at: cdr.ended_at || null, started_at: cdrStarted,
-                    status: 'hangup', metadata: cdrMetadata,
-                  }).eq('id', existing.id);
-                } else {
-                  await supabase.from('phone_call_logs').insert(logEntry);
-                }
+              const meta = callsData?.meta;
+              if (meta?.currentPage && meta?.totalPageCount && meta.currentPage < meta.totalPageCount) {
+                page++;
               } else {
-                const { data: dup } = await supabase
-                  .from('phone_call_logs').select('id')
-                  .eq('cod_agent', codAgent).eq('extension_number', caller)
-                  .eq('called', called || '').eq('started_at', cdrStarted || '')
-                  .maybeSingle();
-                if (!dup) await supabase.from('phone_call_logs').insert(logEntry);
+                break;
               }
-              totalSynced++;
             }
 
-            if (callId) break;
-            if (meta?.currentPage && meta?.totalPageCount && meta.currentPage < meta.totalPageCount) {
-              page++;
-            } else if (records.length >= 10) {
-              page++;
-            } else {
-              hasMore = false;
+            if (!found) notFound = true;
+          } else {
+            // MODE 2: Incremental sync by date
+            let sinceDate = since;
+            if (!sinceDate) {
+              const { data: lastLog } = await supabase
+                .from('phone_call_logs')
+                .select('started_at')
+                .eq('cod_agent', codAgent)
+                .order('started_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              sinceDate = lastLog?.started_at || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            }
+
+            let page = 1;
+            let hasMore = true;
+            const maxPages = 5;
+
+            while (hasMore && page <= maxPages) {
+              const callsData = await api4comRequest(baseUrl, `/calls?page=${page}`, headers);
+              const records = Array.isArray(callsData) ? callsData : (callsData?.data || []);
+              if (records.length === 0) break;
+              totalRecords += records.length;
+
+              for (const cdr of records) {
+                const cdrId = cdr.id ? String(cdr.id) : null;
+                const cdrStarted = cdr.started_at;
+                if (sinceDate && cdrStarted && new Date(cdrStarted) < new Date(sinceDate)) {
+                  hasMore = false;
+                  continue;
+                }
+
+                const direction = cdr.call_type || 'outbound';
+                const caller = cdr.from || '';
+                const called = cdr.to || '';
+                const attendantName = [cdr.first_name, cdr.last_name].filter(Boolean).join(' ').trim() || null;
+                const minutePrice = cdr.minute_price != null ? Number(cdr.minute_price) : null;
+                const callPrice = cdr.call_price != null ? Number(cdr.call_price) : null;
+
+                const cdrMetadata: Record<string, any> = {};
+                if (cdr.BINA) cdrMetadata.bina = cdr.BINA;
+                if (cdr.email) cdrMetadata.email = cdr.email;
+                if (attendantName) cdrMetadata.attendant_name = attendantName;
+                if (minutePrice != null) cdrMetadata.minute_price = minutePrice;
+                if (cdr.metadata) cdrMetadata.api4com_metadata = cdr.metadata;
+                if (cdr.domain) cdrMetadata.domain = cdr.domain;
+
+                const logEntry: any = {
+                  cod_agent: codAgent,
+                  extension_number: caller,
+                  direction, caller, called,
+                  started_at: cdrStarted,
+                  ended_at: cdr.ended_at || null,
+                  duration_seconds: Number(cdr.duration ?? 0),
+                  record_url: cdr.record_url || null,
+                  cost: callPrice ?? 0,
+                  hangup_cause: cdr.hangup_cause || null,
+                  status: 'hangup',
+                  metadata: cdrMetadata,
+                };
+
+                if (cdrId) {
+                  logEntry.call_id = cdrId;
+                  const { data: existing } = await supabase
+                    .from('phone_call_logs').select('id').eq('call_id', cdrId).maybeSingle();
+
+                  if (existing) {
+                    await supabase.from('phone_call_logs').update(logEntry).eq('id', existing.id);
+                  } else {
+                    await supabase.from('phone_call_logs').insert(logEntry);
+                  }
+                } else {
+                  const { data: dup } = await supabase
+                    .from('phone_call_logs').select('id')
+                    .eq('cod_agent', codAgent).eq('extension_number', caller)
+                    .eq('called', called || '').eq('started_at', cdrStarted || '')
+                    .maybeSingle();
+                  if (!dup) await supabase.from('phone_call_logs').insert(logEntry);
+                }
+                totalSynced++;
+              }
+
+              const meta = callsData?.meta;
+              if (meta?.currentPage && meta?.totalPageCount && meta.currentPage < meta.totalPageCount) {
+                page++;
+              } else if (records.length >= 10) {
+                page++;
+              } else {
+                hasMore = false;
+              }
             }
           }
         } catch (e: any) {
           syncErrors.push(e.message);
         }
 
-        result = { synced: totalSynced, total: totalRecords, errors: syncErrors };
+        result = { synced: totalSynced, total: totalRecords, errors: syncErrors, notFound };
         break;
       }
 
