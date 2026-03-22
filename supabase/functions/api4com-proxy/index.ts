@@ -262,14 +262,33 @@ serve(async (req) => {
           throw new Error('Credenciais SIP não encontradas. Sincronize os ramais ou recrie este ramal.');
         }
 
-        // Use sip_domain (account domain) for SIP, not api4com_domain (REST API host)
-        const sipDomain = config.sip_domain || config.api4com_domain;
+        let sipDomain = config.sip_domain;
+
+        // Auto-resolve account SIP domain when not configured
+        if (!sipDomain) {
+          try {
+            const account = await api4comRequest(baseUrl, '/accounts', headers);
+            const resolvedDomain = account?.domain || account?.data?.domain || (Array.isArray(account) ? account[0]?.domain : null);
+
+            if (resolvedDomain) {
+              sipDomain = resolvedDomain;
+              await supabase.from('phone_config')
+                .update({ sip_domain: resolvedDomain })
+                .eq('id', config.id);
+              console.log(`Resolved and saved sip_domain: ${resolvedDomain}`);
+            }
+          } catch (e) {
+            console.log('Could not auto-resolve sip_domain from /accounts:', e);
+          }
+        }
+
+        const finalSipDomain = sipDomain || config.api4com_domain;
 
         result = {
-          domain: sipDomain,
+          domain: finalSipDomain,
           username,
           password,
-          wsUrl: `wss://${sipDomain}:6443`,
+          wsUrl: `wss://${finalSipDomain}:6443`,
         };
         break;
       }
