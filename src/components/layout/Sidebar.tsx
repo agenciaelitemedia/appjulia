@@ -12,6 +12,7 @@ import { DebugBarToggle } from "@/components/debug/DebugBarToggle";
 import { useEnsureDataJudModule } from "@/pages/datajud/hooks/useEnsureDataJudModule";
 import { useEnsureMonitoramentoModule } from "@/pages/admin/monitoramento/hooks/useEnsureMonitoramentoModule";
 import { useEnsureCopilotModule } from "@/hooks/useEnsureCopilotModule";
+import { useEnsureTelefoniaModule } from "@/hooks/useEnsureTelefoniaModule";
 import {
   Tooltip,
   TooltipContent,
@@ -36,6 +37,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   useEnsureDataJudModule();
   useEnsureMonitoramentoModule();
   useEnsureCopilotModule();
+  useEnsureTelefoniaModule();
 
   const isTimeUser = user?.role === "time";
   

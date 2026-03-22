@@ -90,7 +90,7 @@ const App = () => (
                   <Route path="/crm-builder" element={<CRMBuilderPage />} />
                   <Route path="/crm-builder/:boardId" element={<BoardPage />} />
                   <Route path="/datajud" element={<DataJudSearchPage />} />
-                  <Route path="/telefonia" element={<TelefoniaPage />} />
+                  <Route path="/telefonia" element={<ProtectedRoute module="telephony"><TelefoniaPage /></ProtectedRoute>} />
                   
                   {/* Admin routes - protected by module permission */}
                   <Route path="/admin/agentes" element={<ProtectedRoute module="admin_agents"><AgentsList /></ProtectedRoute>} />
@@ -103,7 +103,7 @@ const App = () => (
                   <Route path="/admin/meta-ads" element={<ProtectedRoute module="admin_agents"><MetaAdsTestPage /></ProtectedRoute>} />
                   <Route path="/admin/monitoramento" element={<ProtectedRoute module="admin_agents"><MonitoramentoPage /></ProtectedRoute>} />
                   <Route path="/admin/copiloto" element={<ProtectedRoute module="copilot_admin"><CopilotAdminPage /></ProtectedRoute>} />
-                  <Route path="/admin/telefonia" element={<ProtectedRoute module="admin_agents"><TelefoniaAdminPage /></ProtectedRoute>} />
+                  <Route path="/admin/telefonia" element={<ProtectedRoute module="telephony_admin"><TelefoniaAdminPage /></ProtectedRoute>} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>
