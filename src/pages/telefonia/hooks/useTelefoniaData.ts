@@ -42,10 +42,9 @@ export function useTelefoniaData(codAgent: string | undefined) {
     enabled: !!codAgent,
   });
 
-  // Create extension via Api4Com API
+  // Create extension via Api4Com API (backend handles DB insert + rollback)
   const createExtension = useMutation({
     mutationFn: async (ext: Partial<PhoneExtension> & { email?: string; memberName?: string }) => {
-      // 1. Create on Api4Com with member's real email and name
       const { data: apiResult, error: apiError } = await supabase.functions.invoke('api4com-proxy', {
         body: {
           action: 'create_extension',
@@ -53,35 +52,14 @@ export function useTelefoniaData(codAgent: string | undefined) {
           firstName: ext.memberName || ext.label || 'Ramal',
           lastName: codAgent,
           email: ext.email || undefined,
+          assignedMemberId: ext.assigned_member_id || null,
+          label: ext.label || ext.memberName || null,
         },
       });
 
       if (apiError) throw new Error(apiError.message || 'Erro ao criar ramal na Api4Com');
       if (apiResult?.error) throw new Error(apiResult.error);
-
-      const api4comData = apiResult?.data;
-      if (!api4comData?.ramal) {
-        throw new Error('Api4Com não retornou dados do ramal');
-      }
-
-      // 2. Generate local alias
-      const existingCount = extensionsQuery.data?.length || 0;
-      const localNumber = `${1000 + existingCount + 1}`;
-
-      // 3. Save in our DB
-      const { error } = await supabase
-        .from('phone_extensions')
-        .insert({
-          cod_agent: codAgent,
-          extension_number: localNumber,
-          label: ext.label || ext.memberName || null,
-          assigned_member_id: ext.assigned_member_id || null,
-          api4com_id: api4comData.id ? String(api4comData.id) : null,
-          api4com_ramal: api4comData.ramal,
-          api4com_password: api4comData.senha || null,
-          is_active: true,
-        } as any);
-      if (error) throw error;
+      return apiResult?.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-extensions'] });

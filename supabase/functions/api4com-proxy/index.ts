@@ -158,43 +158,94 @@ serve(async (req) => {
       }
 
       case 'create_extension': {
-        const { firstName, lastName, email } = params;
-        // Generate random password for the extension
+        const { firstName, lastName, email, assignedMemberId, label } = params;
+
+        // Validate uniqueness: 1 member = 1 extension per agent
+        if (assignedMemberId) {
+          const { data: existingMember } = await supabase
+            .from('phone_extensions')
+            .select('id')
+            .eq('cod_agent', codAgent)
+            .eq('assigned_member_id', assignedMemberId)
+            .maybeSingle();
+          if (existingMember) {
+            throw new Error('Este membro já possui um ramal vinculado.');
+          }
+        }
+
+        // Generate random password
         const randomSenha = Array.from(crypto.getRandomValues(new Uint8Array(6)))
           .map(b => String.fromCharCode(65 + (b % 26)))
           .join('') + Math.floor(Math.random() * 900 + 100);
 
-        result = await api4comRequest(baseUrl, '/extensions/next-available', headers, {
+        const emailToUse = email || `ramal_${Date.now()}@atendejulia.com`;
+
+        const apiResult = await api4comRequest(baseUrl, '/extensions/next-available', headers, {
           method: 'POST',
           body: {
             first_name: firstName || 'Ramal',
             last_name: lastName || codAgent,
-            email_address: email || `ramal_${Date.now()}@atendejulia.com`,
+            email_address: emailToUse,
             senha: randomSenha,
             gravar_audio: 1,
           },
         });
 
-        // Validate Api4Com returned real credentials
-        const ramal = result?.ramal || result?.extension;
-        const senha = result?.senha || result?.password;
-        const id = result?.id;
+        const ramal = apiResult?.ramal || apiResult?.extension;
+        const senha = apiResult?.senha || apiResult?.password || randomSenha;
+        const api4comId = apiResult?.id ? String(apiResult.id) : null;
 
         if (!ramal) {
-          throw new Error('Api4Com não retornou número de ramal. Resposta: ' + JSON.stringify(result));
+          throw new Error('Api4Com não retornou número de ramal. Resposta: ' + JSON.stringify(apiResult));
         }
 
-        // Auto-populate sip_domain from create response if not set
-        const sipDomainFromResponse = result?.domain;
+        // Auto-populate sip_domain
+        const sipDomainFromResponse = apiResult?.domain;
         if (sipDomainFromResponse && !config.sip_domain) {
           await supabase.from('phone_config')
             .update({ sip_domain: sipDomainFromResponse })
             .eq('id', config.id);
-          console.log(`Auto-saved sip_domain: ${sipDomainFromResponse}`);
         }
 
-        // Enrich result for frontend
-        result = { ...result, ramal, senha, id: id ? String(id) : null };
+        // Count existing extensions for local number
+        const { count: extCount } = await supabase
+          .from('phone_extensions')
+          .select('id', { count: 'exact', head: true })
+          .eq('cod_agent', codAgent);
+        const localNumber = `${1000 + (extCount || 0) + 1}`;
+
+        // Persist in DB with all metadata
+        const { error: dbError } = await supabase
+          .from('phone_extensions')
+          .insert({
+            cod_agent: codAgent,
+            extension_number: localNumber,
+            label: label || firstName || null,
+            assigned_member_id: assignedMemberId || null,
+            api4com_id: api4comId,
+            api4com_ramal: ramal,
+            api4com_password: senha,
+            api4com_email: emailToUse,
+            api4com_first_name: firstName || 'Ramal',
+            api4com_last_name: lastName || codAgent,
+            api4com_raw: apiResult || {},
+            is_active: true,
+          });
+
+        // Rollback on DB failure
+        if (dbError) {
+          console.error('DB insert failed, rolling back Api4Com extension:', dbError);
+          if (api4comId) {
+            try {
+              await fetch(`${baseUrl}/extensions/${api4comId}`, { method: 'DELETE', headers });
+            } catch (e) {
+              console.error('Rollback delete failed:', e);
+            }
+          }
+          throw new Error(`Erro ao salvar ramal no banco: ${dbError.message}`);
+        }
+
+        result = { ramal, senha, id: api4comId, localNumber };
         break;
       }
 

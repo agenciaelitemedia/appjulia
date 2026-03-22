@@ -51,12 +51,12 @@ export function RamalDialog({ open, onOpenChange, extension, onSave, isCreating,
       .map(e => Number(e.assigned_member_id))
   );
 
-  // Build options: self first, then team members — filter out already assigned
+  // Build options: self first, then team members — filter out already assigned (Number() normalization)
   const memberOptions: TeamMemberOption[] = [
-    ...(user && !assignedMemberIds.has(user.id) ? [{ id: user.id, name: user.name, email: user.email, isSelf: true }] : []),
+    ...(user && !assignedMemberIds.has(Number(user.id)) ? [{ id: Number(user.id), name: user.name, email: user.email, isSelf: true }] : []),
     ...teamMembers
-      .filter((m: any) => m.id !== user?.id && !assignedMemberIds.has(m.id))
-      .map((m: any) => ({ id: m.id, name: m.name, email: m.email, isSelf: false })),
+      .filter((m: any) => Number(m.id) !== Number(user?.id) && !assignedMemberIds.has(Number(m.id)))
+      .map((m: any) => ({ id: Number(m.id), name: m.name, email: m.email, isSelf: false })),
   ];
 
   useEffect(() => {
