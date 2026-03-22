@@ -29,10 +29,10 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
 
   // Sync call history after call ends (replaces complete_call_log)
   const handleCallEnded = useCallback((_info: CallEndedInfo) => {
-    // Wait for CDR to be available in Api4Com, then sync
     setTimeout(() => {
+      const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       supabase.functions.invoke('api4com-proxy', {
-        body: { action: 'sync_call_history', codAgent },
+        body: { action: 'sync_call_history', codAgent, since },
       }).then(({ data, error }) => {
         queryClient.invalidateQueries({ queryKey: ['my-call-history'] });
         if (!error && !data?.error) {

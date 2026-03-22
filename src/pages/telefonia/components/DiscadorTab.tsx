@@ -33,7 +33,7 @@ export function DiscadorTab({ codAgent }: Props) {
   // After call ends, sync CDR from Api4Com instead of creating local logs
   const handleCallEnded = useCallback((_info: CallEndedInfo) => {
     setTimeout(() => {
-      syncCallHistory.mutateAsync().catch(console.error);
+      syncCallHistory.mutateAsync({}).catch(console.error);
     }, 3000);
   }, [syncCallHistory]);
 
