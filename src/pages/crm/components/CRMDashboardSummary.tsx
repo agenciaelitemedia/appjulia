@@ -1,8 +1,14 @@
 import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, Target, CheckCircle, XCircle, User, RotateCcw } from "lucide-react";
+import { Target, CheckCircle, XCircle, RotateCcw, MessageCircleReply } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { CRMCard, CRMStage, CRMFollowupInfo } from "../types";
+
+interface FollowupReturnRateResult {
+  totalLeads: number;
+  returned: number;
+  returnRate: number;
+}
 
 interface CRMDashboardSummaryProps {
   cards: CRMCard[];
@@ -10,6 +16,7 @@ interface CRMDashboardSummaryProps {
   isLoading?: boolean;
   juliaSessions?: { totalSessions: number; dailyAverage: number };
   followupMap?: Map<string, CRMFollowupInfo>;
+  returnRateData?: FollowupReturnRateResult;
 }
 
 const formatAvgTime = (days: number): string => {
