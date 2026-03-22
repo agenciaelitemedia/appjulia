@@ -57,6 +57,8 @@ export interface PhoneExtension {
   assigned_member_id: number | null;
   label: string | null;
   api4com_id: string | null;
+  api4com_ramal: string | null;
+  api4com_password: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
