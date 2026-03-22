@@ -60,6 +60,10 @@ export interface PhoneExtension {
   api4com_id: string | null;
   api4com_ramal: string | null;
   api4com_password: string | null;
+  api4com_email: string | null;
+  api4com_first_name: string | null;
+  api4com_last_name: string | null;
+  api4com_raw: any;
   is_active: boolean;
   created_at: string;
   updated_at: string;
