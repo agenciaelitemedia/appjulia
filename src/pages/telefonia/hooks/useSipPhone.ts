@@ -80,7 +80,8 @@ export function useSipPhone(): UseSipPhoneReturn {
           startTimer();
           // Attach remote audio
           const remoteStream = new MediaStream();
-          session.sessionDescriptionHandler?.peerConnection?.getReceivers().forEach((receiver) => {
+          const pc = (session.sessionDescriptionHandler as any)?.peerConnection as RTCPeerConnection | undefined;
+          pc?.getReceivers().forEach((receiver) => {
             if (receiver.track) remoteStream.addTrack(receiver.track);
           });
           if (remoteAudioRef.current) {
