@@ -92,7 +92,6 @@ export function HistoricoTab({ codAgent }: Props) {
     </Card>
   );
 }
-  const { callHistory, callHistoryLoading } = useTelefoniaData(codAgent);
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
 
   return (
