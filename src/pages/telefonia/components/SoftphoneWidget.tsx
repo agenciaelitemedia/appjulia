@@ -55,19 +55,42 @@ export function SoftphoneWidget({
   const [minimized, setMinimized] = useState(false);
   const [showDTMF, setShowDTMF] = useState(false);
   const wasInCall = useRef(false);
+  const graceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const cfg = statusConfig[status];
   const isActive = ['calling', 'ringing', 'in-call'].includes(status);
 
-  // Track call end to fire onCallFinished
+  // Track call end with 15s grace period for PBX callback
   useEffect(() => {
     if (status === 'in-call' || status === 'calling' || status === 'ringing') {
       wasInCall.current = true;
+      if (graceTimeout.current) {
+        clearTimeout(graceTimeout.current);
+        graceTimeout.current = null;
+      }
     } else if (wasInCall.current && (status === 'registered' || status === 'idle')) {
       wasInCall.current = false;
-      onCallFinished?.();
+      if (graceTimeout.current) clearTimeout(graceTimeout.current);
+      graceTimeout.current = setTimeout(() => {
+        graceTimeout.current = null;
+        onCallFinished?.();
+      }, 15000);
     }
   }, [status, onCallFinished]);
+
+  useEffect(() => {
+    return () => {
+      if (graceTimeout.current) clearTimeout(graceTimeout.current);
+    };
+  }, []);
+
+  const handleManualClose = useCallback(() => {
+    if (graceTimeout.current) {
+      clearTimeout(graceTimeout.current);
+      graceTimeout.current = null;
+    }
+    onCallFinished?.();
+  }, [onCallFinished]);
 
   if (status === 'idle' && !centered) return null;
   if (status === 'idle' && centered) return null;
