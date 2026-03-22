@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useSipPhone } from '@/pages/telefonia/hooks/useSipPhone';
 import { SoftphoneWidget } from '@/pages/telefonia/components/SoftphoneWidget';
+import { formatPhoneForDialing } from '@/lib/phoneFormat';
 
 interface PhoneCallDialogProps {
   open: boolean;
