@@ -75,6 +75,7 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
   const callerInfoRef = useRef<string>('');
   const onCallEndedRef = useRef(onCallEnded);
   onCallEndedRef.current = onCallEnded;
+  const durationRef = useRef(0);
 
   // Create audio element for remote audio
   useEffect(() => {
