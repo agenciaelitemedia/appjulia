@@ -157,12 +157,18 @@ serve(async (req) => {
 
       case 'create_extension': {
         const { firstName, lastName, email } = params;
+        // Generate random password for the extension
+        const randomSenha = Array.from(crypto.getRandomValues(new Uint8Array(6)))
+          .map(b => String.fromCharCode(65 + (b % 26)))
+          .join('') + Math.floor(Math.random() * 900 + 100);
+
         result = await api4comRequest(baseUrl, '/extensions/next-available', headers, {
           method: 'POST',
           body: {
             first_name: firstName || 'Ramal',
             last_name: lastName || codAgent,
             email_address: email || `ramal_${Date.now()}@atendejulia.com`,
+            senha: randomSenha,
             gravar_audio: 1,
           },
         });
