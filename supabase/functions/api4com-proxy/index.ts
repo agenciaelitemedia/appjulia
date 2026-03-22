@@ -273,7 +273,7 @@ serve(async (req) => {
           throw new Error('Não foi possível encontrar um número de ramal disponível após várias tentativas.');
         }
 
-        const ramal = apiResult?.ramal || apiResult?.extension || ramalNumber;
+        const ramal = apiResult?.ramal || apiResult?.extension || finalRamalNumber;
         const senha = apiResult?.senha || apiResult?.password || randomSenha;
         const api4comId = apiResult?.id ? String(apiResult.id) : null;
 
