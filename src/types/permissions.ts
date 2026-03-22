@@ -23,6 +23,8 @@ export type ModuleCode =
   | 'finance_reports'
   | 'datajud'
   | 'copilot_admin'
+  | 'telephony_admin'
+  | 'telephony'
   | 'settings';
 
 export interface Module {
