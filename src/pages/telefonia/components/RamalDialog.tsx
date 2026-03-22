@@ -18,6 +18,7 @@ interface RamalDialogProps {
   onSave: (ext: Partial<PhoneExtension> & { email?: string; memberName?: string }) => void;
   isCreating?: boolean;
   codAgent: string;
+  existingExtensions?: PhoneExtension[];
 }
 
 interface TeamMemberOption {
