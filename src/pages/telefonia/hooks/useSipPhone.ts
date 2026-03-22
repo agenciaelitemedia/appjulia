@@ -195,7 +195,9 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
       delegate: {
         onInvite: (invitation: Invitation) => {
           sessionRef.current = invitation;
-          setCallerInfo(invitation.remoteIdentity?.uri?.user || 'Desconhecido');
+          const incomingCaller = invitation.remoteIdentity?.uri?.user || 'Desconhecido';
+          setCallerInfo(incomingCaller);
+          callerInfoRef.current = incomingCaller;
           setStatus('ringing');
           addDiagEvent(`Incoming call from ${invitation.remoteIdentity?.uri?.user || '?'}`);
           setupSessionListeners(invitation);
