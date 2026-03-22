@@ -225,7 +225,7 @@ export function useSipPhone(): UseSipPhoneReturn {
   const toggleHold = useCallback(() => {
     // Hold via re-invite is complex; for now toggle audio direction
     if (!sessionRef.current) return;
-    const pc = sessionRef.current.sessionDescriptionHandler?.peerConnection;
+    const pc = (sessionRef.current.sessionDescriptionHandler as any)?.peerConnection as RTCPeerConnection | undefined;
     if (!pc) return;
     pc.getSenders().forEach((sender) => {
       if (sender.track?.kind === 'audio') {
