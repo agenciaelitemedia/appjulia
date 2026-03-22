@@ -115,6 +115,11 @@ export function SoftphoneWidget({
               <span className={cn('h-2.5 w-2.5 rounded-full', cfg.dotColor)} />
               <Badge variant="secondary" className={cn('text-xs', cfg.color)}>{cfg.label}</Badge>
             </div>
+            {!isActive && (
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleManualClose}>
+                <X className="h-3 w-3" />
+              </Button>
+            )}
           </div>
 
           {/* Body */}
