@@ -76,13 +76,13 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
       }
 
       if (sip.status === 'registered') {
-        sip.call(whatsappNumber);
+        sip.call(phoneInfo.formatted);
         return { via: 'sip' };
       }
 
       // REST fallback using extensionId
       const { data, error } = await supabase.functions.invoke('api4com-proxy', {
-        body: { action: 'dial', codAgent, extensionId: ext.id, phone: whatsappNumber },
+        body: { action: 'dial', codAgent, extensionId: ext.id, phone: phoneInfo.formatted },
       });
       if (error) throw new Error(error.message || 'Erro ao discar');
       if (data?.error) throw new Error(data.error);
