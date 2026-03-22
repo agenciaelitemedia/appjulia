@@ -1,14 +1,15 @@
 import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, Target, CheckCircle, XCircle, User } from "lucide-react";
+import { Clock, Target, CheckCircle, XCircle, User, RotateCcw } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
-import { CRMCard, CRMStage } from "../types";
+import { CRMCard, CRMStage, CRMFollowupInfo } from "../types";
 
 interface CRMDashboardSummaryProps {
   cards: CRMCard[];
   stages: CRMStage[];
   isLoading?: boolean;
   juliaSessions?: { totalSessions: number; dailyAverage: number };
+  followupMap?: Map<string, CRMFollowupInfo>;
 }
 
 const formatAvgTime = (days: number): string => {
@@ -20,13 +21,6 @@ const formatAvgTime = (days: number): string => {
   if (remainingHours === 0) return `${fullDays}d`;
   return `${fullDays}d ${remainingHours}h`;
 };
-
-const JULIA_PHASES = [
-  { name: "Entrada", short: "Entrada" },
-  { name: "Análise de Caso", short: "Análise" },
-  { name: "Negociação", short: "Negociação" },
-  { name: "Contrato em Curso", short: "Contrato" },
-];
 
 export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }: CRMDashboardSummaryProps) {
   const stats = useMemo(() => {

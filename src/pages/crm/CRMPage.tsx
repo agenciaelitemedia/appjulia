@@ -137,7 +137,7 @@ export default function CRMPage() {
         periodTooltip="Filtra pela data da última movimentação do lead no pipeline (não pela data de criação)"
       />
 
-      <CRMDashboardSummary cards={filteredCards} stages={stages} isLoading={cardsLoading} juliaSessions={juliaSessions} />
+      <CRMDashboardSummary cards={filteredCards} stages={stages} isLoading={cardsLoading} juliaSessions={juliaSessions} followupMap={followupMap} />
 
       <CRMTotalizers cards={filteredCards} stages={stages} />
 
