@@ -157,7 +157,7 @@ serve(async (req) => {
 
       case 'create_extension': {
         const { firstName, lastName, email } = params;
-        result = await api4comRequest(baseUrl, '/extensions/nextAvailable', headers, {
+        result = await api4comRequest(baseUrl, '/extensions/next-available', headers, {
           method: 'POST',
           body: {
             first_name: firstName || 'Ramal',
