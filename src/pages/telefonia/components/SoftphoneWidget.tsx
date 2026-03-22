@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Phone, PhoneOff, Mic, MicOff, Pause, Play, Minimize2, Maximize2, Keyboard } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Phone, PhoneOff, Mic, MicOff, Pause, Play, Minimize2, Maximize2, Keyboard, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -16,6 +16,8 @@ interface SoftphoneWidgetProps {
   onToggleMute: () => void;
   onToggleHold: () => void;
   onSendDTMF: (digit: string) => void;
+  centered?: boolean;
+  onCallFinished?: () => void;
 }
 
 const statusConfig: Record<SipStatus, { label: string; color: string; dotColor: string }> = {
@@ -47,15 +49,137 @@ export function SoftphoneWidget({
   onToggleMute,
   onToggleHold,
   onSendDTMF,
+  centered = false,
+  onCallFinished,
 }: SoftphoneWidgetProps) {
   const [minimized, setMinimized] = useState(false);
   const [showDTMF, setShowDTMF] = useState(false);
+  const wasInCall = useRef(false);
 
   const cfg = statusConfig[status];
   const isActive = ['calling', 'ringing', 'in-call'].includes(status);
 
-  if (status === 'idle') return null;
+  // Track call end to fire onCallFinished
+  useEffect(() => {
+    if (status === 'in-call' || status === 'calling' || status === 'ringing') {
+      wasInCall.current = true;
+    } else if (wasInCall.current && (status === 'registered' || status === 'idle')) {
+      wasInCall.current = false;
+      onCallFinished?.();
+    }
+  }, [status, onCallFinished]);
 
+  if (status === 'idle' && !centered) return null;
+  if (status === 'idle' && centered) return null;
+
+  // Centered mode: fullscreen overlay with click-blocking backdrop
+  if (centered) {
+    return (
+      <div
+        className="fixed inset-0 z-[9999] flex items-center justify-center"
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        {/* Backdrop - blocks all interaction below */}
+        <div className="absolute inset-0 bg-black/50" />
+
+        {/* Card */}
+        <div className="relative w-80 rounded-xl border bg-card shadow-2xl">
+          {/* Header */}
+          <div className="flex items-center justify-between px-3 py-2 border-b">
+            <div className="flex items-center gap-2">
+              <span className={cn('h-2.5 w-2.5 rounded-full', cfg.dotColor)} />
+              <Badge variant="secondary" className={cn('text-xs', cfg.color)}>{cfg.label}</Badge>
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="p-4 space-y-3">
+            {callerInfo && (
+              <div className="text-center">
+                <p className="text-lg font-mono font-bold tracking-wider">{callerInfo}</p>
+                {status === 'in-call' && (
+                  <p className="text-2xl font-mono text-primary mt-1">{formatDuration(duration)}</p>
+                )}
+              </div>
+            )}
+
+            {!isActive && status === 'registered' && (
+              <p className="text-center text-sm text-muted-foreground">Softphone pronto</p>
+            )}
+
+            {/* DTMF Pad */}
+            {showDTMF && status === 'in-call' && (
+              <div className="grid grid-cols-3 gap-1">
+                {dtmfKeys.map((key) => (
+                  <Button
+                    key={key}
+                    variant="outline"
+                    size="sm"
+                    className="h-9 text-lg font-mono"
+                    onClick={() => onSendDTMF(key)}
+                  >
+                    {key}
+                  </Button>
+                ))}
+              </div>
+            )}
+
+            {/* Controls */}
+            <div className="flex items-center justify-center gap-2">
+              {status === 'ringing' && (
+                <Button size="icon" className="h-10 w-10 rounded-full bg-green-600 hover:bg-green-700" onClick={onAnswer}>
+                  <Phone className="h-4 w-4 text-white" />
+                </Button>
+              )}
+
+              {status === 'in-call' && (
+                <>
+                  <Button
+                    size="icon"
+                    variant={isMuted ? 'destructive' : 'outline'}
+                    className="h-9 w-9 rounded-full"
+                    onClick={onToggleMute}
+                  >
+                    {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant={isHeld ? 'secondary' : 'outline'}
+                    className="h-9 w-9 rounded-full"
+                    onClick={onToggleHold}
+                  >
+                    {isHeld ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant={showDTMF ? 'secondary' : 'outline'}
+                    className="h-9 w-9 rounded-full"
+                    onClick={() => setShowDTMF(!showDTMF)}
+                  >
+                    <Keyboard className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+
+              {isActive && (
+                <Button
+                  size="icon"
+                  className="h-10 w-10 rounded-full bg-destructive hover:bg-destructive/90"
+                  onClick={onHangup}
+                >
+                  <PhoneOff className="h-4 w-4 text-white" />
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Default corner mode
   if (minimized) {
     return (
       <div className="fixed bottom-4 right-4 z-50">
