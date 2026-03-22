@@ -116,39 +116,10 @@ serve(async (req) => {
           metadata: { ...(metadata || {}), gateway: 'atende-julia', cod_agent: codAgent },
         };
 
-        try {
-          result = await api4comRequest(baseUrl, '/dialer', headers, {
-            method: 'POST',
-            body: dialBody,
-          });
-
-          // Log successful initiation
-          await supabase.from('phone_call_logs').insert({
-            call_id: result.call_id || result.id || null,
-            cod_agent: codAgent,
-            extension_number: api4comRamal,
-            direction: 'outbound',
-            caller: api4comRamal,
-            called: phone,
-            started_at: new Date().toISOString(),
-            status: 'initiated',
-            metadata: dialBody.metadata,
-          });
-        } catch (dialError: any) {
-          // Log failed attempt
-          await supabase.from('phone_call_logs').insert({
-            cod_agent: codAgent,
-            extension_number: api4comRamal,
-            direction: 'outbound',
-            caller: api4comRamal,
-            called: phone,
-            started_at: new Date().toISOString(),
-            status: 'failed',
-            hangup_cause: dialError.message,
-            metadata: dialBody.metadata,
-          });
-          throw dialError;
-        }
+        result = await api4comRequest(baseUrl, '/dialer', headers, {
+          method: 'POST',
+          body: dialBody,
+        });
         break;
       }
 
@@ -633,13 +604,23 @@ serve(async (req) => {
                   metadata: cdrMetadata,
                 };
 
-                const { data: updated } = await supabase
+                // Upsert: insert if not exists, update if exists
+                const { data: existing } = await supabase
                   .from('phone_call_logs')
-                  .update(updateData)
+                  .select('id')
                   .eq('call_id', String(callId))
-                  .select('id');
+                  .maybeSingle();
 
-                totalSynced = updated?.length || 0;
+                if (existing) {
+                  await supabase.from('phone_call_logs').update(updateData).eq('id', existing.id);
+                } else {
+                  await supabase.from('phone_call_logs').insert({
+                    ...updateData,
+                    call_id: String(callId),
+                    cod_agent: codAgent,
+                  });
+                }
+                totalSynced = 1;
                 break;
               }
 
