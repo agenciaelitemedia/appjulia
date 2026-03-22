@@ -74,6 +74,11 @@ function truncateText(text: string | undefined, maxLength: number): string {
     setVideoCallOpen(true);
   };
 
+  const handlePhoneCall = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPhoneCallOpen(true);
+  };
+
   const handleSessionStatus = (e: React.MouseEvent) => {
     e.stopPropagation();
     setSessionOpen(true);

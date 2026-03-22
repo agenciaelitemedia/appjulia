@@ -8,7 +8,7 @@ import { DiscadorPad } from './DiscadorPad';
 export function DiscadorTab() {
   const { extensions, dial } = useTelefoniaData();
   const { user } = useAuth();
-  const [selectedExtension, setSelectedExtension] = useState('');
+  const [selectedExtension, setSelectedExtension] = useState<string>('');
   const [number, setNumber] = useState('');
 
   const activeExtensions = extensions.filter((e) => e.is_active);
