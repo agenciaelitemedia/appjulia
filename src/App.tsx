@@ -90,6 +90,7 @@ const App = () => (
                   <Route path="/crm-builder" element={<CRMBuilderPage />} />
                   <Route path="/crm-builder/:boardId" element={<BoardPage />} />
                   <Route path="/datajud" element={<DataJudSearchPage />} />
+                  <Route path="/telefonia" element={<TelefoniaPage />} />
                   
                   {/* Admin routes - protected by module permission */}
                   <Route path="/admin/agentes" element={<ProtectedRoute module="admin_agents"><AgentsList /></ProtectedRoute>} />
