@@ -26,6 +26,7 @@ export interface PhoneConfig {
   cod_agent: string;
   api4com_domain: string;
   api4com_token: string;
+  sip_domain: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

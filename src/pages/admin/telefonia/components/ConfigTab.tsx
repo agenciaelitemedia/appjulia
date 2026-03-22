@@ -79,7 +79,7 @@ export function ConfigTab() {
           <CardTitle className="text-lg">Configuração Api4Com</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Cód. Agente</Label>
               <Input value={codAgent} onChange={(e) => setCodAgent(e.target.value)} placeholder="202601001" />
