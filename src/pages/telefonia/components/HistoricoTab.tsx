@@ -76,7 +76,7 @@ export function HistoricoTab({ codAgent }: Props) {
   }
 
   const handleGoToCrm = (whatsappNumber: string) => {
-    navigate(`/crm?whatsapp=${encodeURIComponent(whatsappNumber)}`);
+    navigate(`/crm/leads?whatsapp=${encodeURIComponent(whatsappNumber)}`);
   };
 
   return (
