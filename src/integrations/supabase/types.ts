@@ -959,6 +959,8 @@ export type Database = {
       phone_extensions: {
         Row: {
           api4com_id: string | null
+          api4com_password: string | null
+          api4com_ramal: string | null
           assigned_member_id: number | null
           cod_agent: string
           created_at: string
@@ -970,6 +972,8 @@ export type Database = {
         }
         Insert: {
           api4com_id?: string | null
+          api4com_password?: string | null
+          api4com_ramal?: string | null
           assigned_member_id?: number | null
           cod_agent: string
           created_at?: string
@@ -981,6 +985,8 @@ export type Database = {
         }
         Update: {
           api4com_id?: string | null
+          api4com_password?: string | null
+          api4com_ramal?: string | null
           assigned_member_id?: number | null
           cod_agent?: string
           created_at?: string
