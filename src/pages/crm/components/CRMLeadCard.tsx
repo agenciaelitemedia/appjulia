@@ -345,6 +345,15 @@ function truncateText(text: string | undefined, maxLength: number): string {
         whatsappNumber={card.whatsapp_number}
         codAgent={card.cod_agent}
       />
+
+      {/* Phone Call Dialog */}
+      <PhoneCallDialog
+        open={phoneCallOpen}
+        onOpenChange={setPhoneCallOpen}
+        whatsappNumber={card.whatsapp_number}
+        contactName={card.contact_name}
+        codAgent={card.cod_agent}
+      />
     </>
   );
 }
