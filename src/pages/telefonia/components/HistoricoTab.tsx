@@ -56,8 +56,17 @@ interface Props {
 }
 
 export function HistoricoTab({ codAgent }: Props) {
-  const { callHistory, callHistoryLoading, syncCallHistory } = useTelefoniaData(codAgent);
+  const { callHistory, callHistoryLoading, syncCallHistory, extensions } = useTelefoniaData(codAgent);
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
+
+  // Build a map of extension_number -> first name
+  const extensionNameMap = new Map<string, string>();
+  for (const ext of extensions) {
+    if (ext.extension_number) {
+      const name = ext.api4com_first_name || ext.label || ext.extension_number;
+      extensionNameMap.set(ext.extension_number, name);
+    }
+  }
 
   return (
     <Card>
