@@ -851,6 +851,7 @@ export type Database = {
           metadata: Json | null
           record_url: string | null
           started_at: string | null
+          status: string
         }
         Insert: {
           answered_at?: string | null
@@ -869,6 +870,7 @@ export type Database = {
           metadata?: Json | null
           record_url?: string | null
           started_at?: string | null
+          status?: string
         }
         Update: {
           answered_at?: string | null
@@ -887,6 +889,7 @@ export type Database = {
           metadata?: Json | null
           record_url?: string | null
           started_at?: string | null
+          status?: string
         }
         Relationships: []
       }
