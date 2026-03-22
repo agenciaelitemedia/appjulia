@@ -40,6 +40,7 @@ function truncateText(text: string | undefined, maxLength: number): string {
   const [contractOpen, setContractOpen] = useState(false);
   const [videoCallOpen, setVideoCallOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
+  const [phoneCallOpen, setPhoneCallOpen] = useState(false);
   const { isActive: isAgentActive, isLoading: isAgentLoading, invalidate: refreshAgentStatus } = useAgentSessionStatus(
     card.whatsapp_number,
     card.cod_agent
