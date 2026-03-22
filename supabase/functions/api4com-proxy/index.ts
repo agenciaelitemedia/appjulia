@@ -178,7 +178,7 @@ serve(async (req) => {
           .map(b => String.fromCharCode(65 + (b % 26)))
           .join('') + Math.floor(Math.random() * 900 + 100);
 
-        const emailToUse = email || `ramal_${Date.now()}@atendejulia.com`;
+        const emailToUse = `ramal_${Date.now()}@atendejulia.com.br`;
         const fName = firstName || 'Ramal';
         const lName = lastName || codAgent;
 
