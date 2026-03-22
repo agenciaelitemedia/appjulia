@@ -198,7 +198,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
               <p className="text-xs text-muted-foreground font-medium">Desqualificado</p>
               <p className="text-2xl font-bold text-foreground">{stats.disqualifiedRate.toFixed(1)}%</p>
               <p className="text-xs text-muted-foreground">
-                {stats.disqualified} de {stats.totalSessions} atendimentos
+                Leads sem perfil ou interesse
               </p>
             </div>
             <div className="p-2 bg-chart-5/10 rounded-full">
