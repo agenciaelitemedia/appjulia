@@ -120,6 +120,58 @@ export function DiscadorTab({ codAgent }: Props) {
             disabled={!selectedExtension || dial.isPending || sip.status === 'calling'}
             isDialing={dial.isPending || sip.status === 'calling'}
           />
+
+          {/* SIP Diagnostics Panel */}
+          <Collapsible>
+            <CollapsibleTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full justify-center pt-2">
+              <Activity className="h-3 w-3" />
+              Diagnóstico SIP
+              <ChevronDown className="h-3 w-3" />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="mt-2 rounded-md border bg-muted/30 p-3 space-y-2 text-xs font-mono">
+                <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                  <span className="text-muted-foreground">Domínio:</span>
+                  <span className="truncate">{sip.diagnostics.domain || '—'}</span>
+                  <span className="text-muted-foreground">WebSocket:</span>
+                  <span className="truncate">{sip.diagnostics.wsUrl || '—'}</span>
+                  <span className="text-muted-foreground">Usuário:</span>
+                  <span>{sip.diagnostics.username || '—'}</span>
+                  <span className="text-muted-foreground">WS Estado:</span>
+                  <Badge variant="outline" className="w-fit text-[10px] h-5">
+                    {sip.diagnostics.wsState}
+                  </Badge>
+                  <span className="text-muted-foreground">Registro:</span>
+                  <Badge
+                    variant="outline"
+                    className={`w-fit text-[10px] h-5 ${
+                      sip.diagnostics.registrationStatus === 'registered'
+                        ? 'border-green-500 text-green-600'
+                        : sip.diagnostics.registrationStatus === 'error'
+                        ? 'border-destructive text-destructive'
+                        : ''
+                    }`}
+                  >
+                    {sip.diagnostics.registrationStatus}
+                  </Badge>
+                </div>
+                {sip.diagnostics.lastError && (
+                  <p className="text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3 shrink-0" />
+                    {sip.diagnostics.lastError}
+                  </p>
+                )}
+                {sip.diagnostics.events.length > 0 && (
+                  <div className="border-t pt-2 mt-1 space-y-0.5 max-h-32 overflow-y-auto">
+                    <p className="text-muted-foreground mb-1">Eventos:</p>
+                    {sip.diagnostics.events.map((e, i) => (
+                      <p key={i} className="text-[10px] leading-tight text-muted-foreground">{e}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </CardContent>
       </Card>
 
