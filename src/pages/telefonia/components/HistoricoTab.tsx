@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { PhoneIncoming, PhoneOutgoing, Play } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, Play, RefreshCw } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { GravacaoPlayer } from './GravacaoPlayer';
 import { useState } from 'react';
@@ -17,13 +17,22 @@ interface Props {
 }
 
 export function HistoricoTab({ codAgent }: Props) {
-  const { callHistory, callHistoryLoading } = useTelefoniaData(codAgent);
+  const { callHistory, callHistoryLoading, syncCallHistory } = useTelefoniaData(codAgent);
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg">Minhas Chamadas</CardTitle>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => syncCallHistory.mutate()}
+          disabled={syncCallHistory.isPending}
+        >
+          <RefreshCw className={`h-4 w-4 mr-1 ${syncCallHistory.isPending ? 'animate-spin' : ''}`} />
+          Sincronizar
+        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         {playingUrl && (

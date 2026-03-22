@@ -455,6 +455,115 @@ serve(async (req) => {
         break;
       }
 
+      case 'sync_call_history': {
+        // Fetch all extensions for this agent
+        const { data: agentExtensions } = await supabase
+          .from('phone_extensions')
+          .select('api4com_ramal, extension_number')
+          .eq('cod_agent', codAgent)
+          .not('api4com_ramal', 'is', null);
+
+        if (!agentExtensions?.length) {
+          result = { synced: 0, total: 0, message: 'Nenhum ramal encontrado' };
+          break;
+        }
+
+        let totalSynced = 0;
+        let totalRecords = 0;
+        const syncErrors: string[] = [];
+
+        for (const ext of agentExtensions) {
+          try {
+            // Try different CDR endpoint patterns
+            let cdrData: any;
+            try {
+              cdrData = await api4comRequest(baseUrl, `/cdr?ramal=${ext.api4com_ramal}`, headers);
+            } catch {
+              try {
+                cdrData = await api4comRequest(baseUrl, `/cdr?extension=${ext.api4com_ramal}`, headers);
+              } catch {
+                cdrData = await api4comRequest(baseUrl, `/cdr/${ext.api4com_ramal}`, headers);
+              }
+            }
+
+            const records = Array.isArray(cdrData) ? cdrData : (cdrData?.data || cdrData?.records || cdrData?.cdr || []);
+            totalRecords += records.length;
+
+            for (const cdr of records) {
+              const callId = cdr.call_id || cdr.uniqueid || cdr.id || null;
+              const direction = cdr.direction || (cdr.type === 'inbound' ? 'inbound' : 'outbound');
+              const caller = cdr.caller || cdr.src || cdr.from || ext.api4com_ramal;
+              const called = cdr.called || cdr.dst || cdr.to || null;
+              const startedAt = cdr.started_at || cdr.start || cdr.calldate || null;
+              const endedAt = cdr.ended_at || cdr.end || null;
+              const durationSec = cdr.duration_seconds ?? cdr.duration ?? cdr.billsec ?? 0;
+              const recordUrlCdr = cdr.record_url || cdr.recording_url || cdr.gravacao || null;
+              const costCdr = cdr.cost != null ? Number(cdr.cost) : (cdr.tarifa != null ? Number(cdr.tarifa) : 0);
+              const hangupCauseCdr = cdr.hangup_cause || cdr.disposition || null;
+
+              const logEntry: any = {
+                cod_agent: codAgent,
+                extension_number: ext.api4com_ramal,
+                direction,
+                caller,
+                called,
+                started_at: startedAt,
+                ended_at: endedAt,
+                duration_seconds: Number(durationSec),
+                record_url: recordUrlCdr,
+                cost: costCdr,
+                hangup_cause: hangupCauseCdr,
+                status: 'hangup',
+              };
+
+              if (callId) {
+                logEntry.call_id = String(callId);
+                // Check if exists
+                const { data: existing } = await supabase
+                  .from('phone_call_logs')
+                  .select('id')
+                  .eq('call_id', String(callId))
+                  .maybeSingle();
+
+                if (existing) {
+                  // Update with enriched data
+                  await supabase.from('phone_call_logs').update({
+                    duration_seconds: Number(durationSec),
+                    record_url: recordUrlCdr,
+                    cost: costCdr,
+                    hangup_cause: hangupCauseCdr,
+                    ended_at: endedAt,
+                    status: 'hangup',
+                  }).eq('id', existing.id);
+                } else {
+                  await supabase.from('phone_call_logs').insert(logEntry);
+                }
+              } else {
+                // No call_id — insert if not duplicate by time+number
+                const { data: dup } = await supabase
+                  .from('phone_call_logs')
+                  .select('id')
+                  .eq('cod_agent', codAgent)
+                  .eq('extension_number', ext.api4com_ramal)
+                  .eq('called', called || '')
+                  .eq('started_at', startedAt || '')
+                  .maybeSingle();
+
+                if (!dup) {
+                  await supabase.from('phone_call_logs').insert(logEntry);
+                }
+              }
+              totalSynced++;
+            }
+          } catch (e: any) {
+            syncErrors.push(`Ramal ${ext.api4com_ramal}: ${e.message}`);
+          }
+        }
+
+        result = { synced: totalSynced, total: totalRecords, errors: syncErrors };
+        break;
+      }
+
       default:
         throw new Error(`Ação desconhecida: ${action}`);
     }
