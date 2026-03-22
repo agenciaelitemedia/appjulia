@@ -24,30 +24,23 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
   const queryClient = useQueryClient();
   const [selectedExtension, setSelectedExtension] = useState('');
   const [sipError, setSipError] = useState('');
+  const [showSoftphone, setShowSoftphone] = useState(false);
   const autoConnected = useRef(false);
 
-  const handleCallEnded = useCallback((info: CallEndedInfo) => {
-    const formatted = formatPhoneForDialing(whatsappNumber).formatted;
-    supabase.functions.invoke('api4com-proxy', {
-      body: {
-        action: 'complete_call_log',
-        codAgent,
-        extensionNumber: info.callerInfo || '',
-        phone: formatted,
-        startedAt: info.startedAt,
-        endedAt: info.endedAt,
-        durationSeconds: info.duration,
-      },
-    }).then(({ data, error }) => {
-      queryClient.invalidateQueries({ queryKey: ['my-call-history'] });
-      if (!error && !data?.error) {
-        const details: string[] = [];
-        if (data?.data?.record_url) details.push('gravação disponível');
-        if (data?.data?.cost != null) details.push(`custo: R$${Number(data.data.cost).toFixed(2)}`);
-        toast.success(`Chamada registrada${details.length ? ` (${details.join(', ')})` : ''}`);
-      }
-    }).catch(console.error);
-  }, [whatsappNumber, codAgent, queryClient]);
+  // Sync call history after call ends (replaces complete_call_log)
+  const handleCallEnded = useCallback((_info: CallEndedInfo) => {
+    // Wait for CDR to be available in Api4Com, then sync
+    setTimeout(() => {
+      supabase.functions.invoke('api4com-proxy', {
+        body: { action: 'sync_call_history', codAgent },
+      }).then(({ data, error }) => {
+        queryClient.invalidateQueries({ queryKey: ['my-call-history'] });
+        if (!error && !data?.error) {
+          toast.success(`Histórico sincronizado: ${data?.data?.synced || 0} registros`);
+        }
+      }).catch(console.error);
+    }, 3000);
+  }, [codAgent, queryClient]);
 
   const sip = useSipPhone(handleCallEnded);
 
@@ -67,7 +60,6 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
     enabled: open && !!codAgent,
   });
 
-  // Find user's own extension
   const myExtension = useMemo(() => {
     if (!user?.id) return null;
     return extensions.find((e: any) => Number(e.assigned_member_id) === Number(user.id)) || null;
@@ -110,6 +102,11 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
     handleSelectExtension(String(myExtension.id));
   }, [open, myExtension, selectedExtension, handleSelectExtension]);
 
+  // Handle softphone call finished
+  const handleCallFinished = useCallback(() => {
+    setShowSoftphone(false);
+  }, []);
+
   const dial = useMutation({
     mutationFn: async () => {
       const ext = extensions.find((e: any) => String(e.id) === selectedExtension);
@@ -134,6 +131,9 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
     onSuccess: (result) => {
       if (result?.via === 'sip') {
         toast.success(`Discando para ${contactName} via SIP...`);
+        // Close dialog and show centered softphone
+        onOpenChange(false);
+        setShowSoftphone(true);
       } else {
         toast.success(`Ligando para ${contactName}...`);
         onOpenChange(false);
@@ -146,94 +146,101 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
   const sipStatusLabel = sip.status === 'registered' ? 'SIP ativo' : sip.status === 'error' ? 'SIP erro' : sip.status === 'idle' ? '' : sip.status;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[400px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {hasExtension ? (
-              <Phone className="h-5 w-5 text-primary" />
-            ) : (
-              <PhoneOff className="h-5 w-5 text-muted-foreground" />
-            )}
-            Ligar para {contactName}
-            {sipStatusLabel && (
-              <Badge variant="secondary" className="text-xs">
-                {sipStatusLabel}
-              </Badge>
-            )}
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4 py-4">
-          <div className="text-center">
-            <p className="text-2xl font-mono font-bold tracking-wider">{whatsappNumber}</p>
-            <p className="text-sm text-muted-foreground mt-1">{contactName}</p>
-            <div className="flex items-center justify-center gap-1.5 mt-2">
-              <span className="text-xs text-muted-foreground">Discar:</span>
-              <span className="text-xs font-mono font-medium">{phoneInfo.formatted}</span>
-              <Badge variant="outline" className="text-[10px] h-5">
-                {phoneInfo.type === 'mobile' ? 'Cel' : phoneInfo.type === 'landline' ? 'Fixo' : '?'}
-              </Badge>
-              {phoneInfo.ninthAdded && (
-                <Badge variant="secondary" className="text-[10px] h-5 bg-yellow-500/10 text-yellow-600">+9°</Badge>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {hasExtension ? (
+                <Phone className="h-5 w-5 text-primary" />
+              ) : (
+                <PhoneOff className="h-5 w-5 text-muted-foreground" />
               )}
-            </div>
-          </div>
-
-          {!hasExtension ? (
-            <div className="text-center py-4 space-y-2">
-              <PhoneOff className="h-10 w-10 mx-auto text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Você não possui ramal ativo.</p>
-              <p className="text-xs text-muted-foreground">Solicite ao administrador.</p>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
-              <div className="text-sm">
-                <span className="text-muted-foreground">Ramal: </span>
-                <span className="font-medium">
-                  {myExtension.extension_number} {myExtension.label ? `(${myExtension.label})` : ''}
-                </span>
-              </div>
-              {(myExtension as any).api4com_ramal && (
-                <Badge variant="outline" className="text-[10px] h-5">
-                  {(myExtension as any).api4com_ramal}
+              Ligar para {contactName}
+              {sipStatusLabel && (
+                <Badge variant="secondary" className="text-xs">
+                  {sipStatusLabel}
                 </Badge>
               )}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="text-center">
+              <p className="text-2xl font-mono font-bold tracking-wider">{whatsappNumber}</p>
+              <p className="text-sm text-muted-foreground mt-1">{contactName}</p>
+              <div className="flex items-center justify-center gap-1.5 mt-2">
+                <span className="text-xs text-muted-foreground">Discar:</span>
+                <span className="text-xs font-mono font-medium">{phoneInfo.formatted}</span>
+                <Badge variant="outline" className="text-[10px] h-5">
+                  {phoneInfo.type === 'mobile' ? 'Cel' : phoneInfo.type === 'landline' ? 'Fixo' : '?'}
+                </Badge>
+                {phoneInfo.ninthAdded && (
+                  <Badge variant="secondary" className="text-[10px] h-5 bg-yellow-500/10 text-yellow-600">+9°</Badge>
+                )}
+              </div>
             </div>
-          )}
 
-          {sipError && (
-            <p className="text-xs text-destructive flex items-center gap-1">
-              <AlertCircle className="h-3 w-3" /> {sipError}
-            </p>
-          )}
-        </div>
+            {!hasExtension ? (
+              <div className="text-center py-4 space-y-2">
+                <PhoneOff className="h-10 w-10 mx-auto text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Você não possui ramal ativo.</p>
+                <p className="text-xs text-muted-foreground">Solicite ao administrador.</p>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Ramal: </span>
+                  <span className="font-medium">
+                    {myExtension.extension_number} {myExtension.label ? `(${myExtension.label})` : ''}
+                  </span>
+                </div>
+                {(myExtension as any).api4com_ramal && (
+                  <Badge variant="outline" className="text-[10px] h-5">
+                    {(myExtension as any).api4com_ramal}
+                  </Badge>
+                )}
+              </div>
+            )}
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button
-            onClick={() => dial.mutate()}
-            disabled={!hasExtension || !selectedExtension || dial.isPending || sip.status === 'calling'}
-            className="gap-2"
-          >
-            {dial.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
-            {dial.isPending ? 'Discando...' : sip.status === 'registered' ? 'Ligar (SIP)' : 'Ligar'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+            {sipError && (
+              <p className="text-xs text-destructive flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" /> {sipError}
+              </p>
+            )}
+          </div>
 
-      <SoftphoneWidget
-        status={sip.status}
-        duration={sip.duration}
-        isMuted={sip.isMuted}
-        isHeld={sip.isHeld}
-        callerInfo={sip.callerInfo || contactName}
-        onAnswer={sip.answer}
-        onHangup={sip.hangup}
-        onToggleMute={sip.toggleMute}
-        onToggleHold={sip.toggleHold}
-        onSendDTMF={sip.sendDTMF}
-      />
-    </Dialog>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button
+              onClick={() => dial.mutate()}
+              disabled={!hasExtension || !selectedExtension || dial.isPending || sip.status === 'calling'}
+              className="gap-2"
+            >
+              {dial.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
+              {dial.isPending ? 'Discando...' : sip.status === 'registered' ? 'Ligar (SIP)' : 'Ligar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Softphone rendered outside dialog, centered on screen */}
+      {showSoftphone && (
+        <SoftphoneWidget
+          status={sip.status}
+          duration={sip.duration}
+          isMuted={sip.isMuted}
+          isHeld={sip.isHeld}
+          callerInfo={sip.callerInfo || contactName}
+          onAnswer={sip.answer}
+          onHangup={sip.hangup}
+          onToggleMute={sip.toggleMute}
+          onToggleHold={sip.toggleHold}
+          onSendDTMF={sip.sendDTMF}
+          centered
+          onCallFinished={handleCallFinished}
+        />
+      )}
+    </>
   );
 }

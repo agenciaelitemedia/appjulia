@@ -27,20 +27,15 @@ const statusColors: Record<string, string> = {
 
 export function DiscadorTab({ codAgent }: Props) {
   const { user } = useAuth();
-  const { extensions, dial, getSipCredentials, completeCallLog } = useTelefoniaData(codAgent);
+  const { extensions, dial, getSipCredentials, syncCallHistory } = useTelefoniaData(codAgent);
   const lastDialedNumber = useRef('');
 
-  const handleCallEnded = useCallback((info: CallEndedInfo) => {
-    const ext = extensions.find((e) => Number(e.assigned_member_id) === Number(user?.id));
-    if (!ext) return;
-    completeCallLog.mutate({
-      extensionNumber: ext.api4com_ramal || ext.extension_number,
-      phone: info.callerInfo || lastDialedNumber.current,
-      startedAt: info.startedAt,
-      endedAt: info.endedAt,
-      durationSeconds: info.duration,
-    });
-  }, [extensions, user?.id, completeCallLog]);
+  // After call ends, sync CDR from Api4Com instead of creating local logs
+  const handleCallEnded = useCallback((_info: CallEndedInfo) => {
+    setTimeout(() => {
+      syncCallHistory.mutateAsync().catch(console.error);
+    }, 3000);
+  }, [syncCallHistory]);
 
   const sip = useSipPhone(handleCallEnded);
   const [selectedExtension, setSelectedExtension] = useState<string>('');
@@ -50,7 +45,6 @@ export function DiscadorTab({ codAgent }: Props) {
 
   const activeExtensions = extensions.filter((e) => e.is_active);
 
-  // Find user's own extension
   const myExtension = useMemo(() => {
     if (!user?.id) return null;
     return activeExtensions.find((e) => Number(e.assigned_member_id) === Number(user.id)) || null;
@@ -81,7 +75,6 @@ export function DiscadorTab({ codAgent }: Props) {
     }
   }, [extensions, getSipCredentials, sip]);
 
-  // Auto-connect user's extension on mount
   useEffect(() => {
     if (autoConnected.current || !myExtension || selectedExtension) return;
     autoConnected.current = true;
@@ -146,7 +139,6 @@ export function DiscadorTab({ codAgent }: Props) {
             </div>
           ) : (
             <>
-              {/* Show connected extension info */}
               <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
                 <div className="text-sm">
                   <span className="text-muted-foreground">Ramal: </span>
@@ -175,7 +167,6 @@ export function DiscadorTab({ codAgent }: Props) {
                 isDialing={dial.isPending || sip.status === 'calling'}
               />
 
-              {/* Phone format preview */}
               {phoneInfo && (
                 <div className="flex items-center gap-2 text-xs rounded-md border bg-muted/30 px-3 py-2">
                   <PhoneForwarded className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -191,7 +182,6 @@ export function DiscadorTab({ codAgent }: Props) {
                 </div>
               )}
 
-              {/* SIP Diagnostics Panel */}
               <Collapsible>
                 <CollapsibleTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full justify-center pt-2">
                   <Activity className="h-3 w-3" />
