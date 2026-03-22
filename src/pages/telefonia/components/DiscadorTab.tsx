@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { AlertCircle, ChevronDown, Activity, PhoneForwarded, PhoneOff } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
-import { useSipPhone } from '../hooks/useSipPhone';
+import { useSipPhone, type CallEndedInfo } from '../hooks/useSipPhone';
 import { SoftphoneWidget } from './SoftphoneWidget';
 import { DiscadorPad } from './DiscadorPad';
 import { useAuth } from '@/contexts/AuthContext';
@@ -27,8 +27,22 @@ const statusColors: Record<string, string> = {
 
 export function DiscadorTab({ codAgent }: Props) {
   const { user } = useAuth();
-  const { extensions, dial, getSipCredentials } = useTelefoniaData(codAgent);
-  const sip = useSipPhone();
+  const { extensions, dial, getSipCredentials, completeCallLog } = useTelefoniaData(codAgent);
+  const lastDialedNumber = useRef('');
+
+  const handleCallEnded = useCallback((info: CallEndedInfo) => {
+    const ext = extensions.find((e) => e.assigned_member_id === user?.id);
+    if (!ext) return;
+    completeCallLog.mutate({
+      extensionNumber: ext.api4com_ramal || ext.extension_number,
+      phone: info.callerInfo || lastDialedNumber.current,
+      startedAt: info.startedAt,
+      endedAt: info.endedAt,
+      durationSeconds: info.duration,
+    });
+  }, [extensions, user?.id, completeCallLog]);
+
+  const sip = useSipPhone(handleCallEnded);
   const [selectedExtension, setSelectedExtension] = useState<string>('');
   const [number, setNumber] = useState('');
   const [sipError, setSipError] = useState('');
