@@ -604,13 +604,23 @@ serve(async (req) => {
                   metadata: cdrMetadata,
                 };
 
-                const { data: updated } = await supabase
+                // Upsert: insert if not exists, update if exists
+                const { data: existing } = await supabase
                   .from('phone_call_logs')
-                  .update(updateData)
+                  .select('id')
                   .eq('call_id', String(callId))
-                  .select('id');
+                  .maybeSingle();
 
-                totalSynced = updated?.length || 0;
+                if (existing) {
+                  await supabase.from('phone_call_logs').update(updateData).eq('id', existing.id);
+                } else {
+                  await supabase.from('phone_call_logs').insert({
+                    ...updateData,
+                    call_id: String(callId),
+                    cod_agent: codAgent,
+                  });
+                }
+                totalSynced = 1;
                 break;
               }
 
