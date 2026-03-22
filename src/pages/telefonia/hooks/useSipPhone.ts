@@ -3,6 +3,15 @@ import { Invitation, Inviter, Registerer, RegistererState, SessionState, UserAge
 
 export type SipStatus = 'idle' | 'registering' | 'registered' | 'calling' | 'ringing' | 'in-call' | 'error';
 
+export interface CallEndedInfo {
+  duration: number;
+  callerInfo: string;
+  startedAt: string | null;
+  endedAt: string;
+}
+
+export type OnCallEndedCallback = (info: CallEndedInfo) => void;
+
 export interface SipDiagnostics {
   domain: string;
   wsUrl: string;
@@ -37,7 +46,7 @@ interface UseSipPhoneReturn {
   sendDTMF: (digit: string) => void;
 }
 
-export function useSipPhone(): UseSipPhoneReturn {
+export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneReturn {
   const [status, setStatus] = useState<SipStatus>('idle');
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
@@ -62,6 +71,11 @@ export function useSipPhone(): UseSipPhoneReturn {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const credsRef = useRef<SipCredentials | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const callStartedAtRef = useRef<string | null>(null);
+  const callerInfoRef = useRef<string>('');
+  const onCallEndedRef = useRef(onCallEnded);
+  onCallEndedRef.current = onCallEnded;
+  const durationRef = useRef(0);
 
   // Create audio element for remote audio
   useEffect(() => {
@@ -81,7 +95,13 @@ export function useSipPhone(): UseSipPhoneReturn {
 
   const startTimer = useCallback(() => {
     setDuration(0);
-    timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
+    durationRef.current = 0;
+    timerRef.current = setInterval(() => {
+      setDuration((d) => {
+        durationRef.current = d + 1;
+        return d + 1;
+      });
+    }, 1000);
   }, []);
 
   const stopTimer = useCallback(() => {
@@ -100,6 +120,7 @@ export function useSipPhone(): UseSipPhoneReturn {
           break;
         case SessionState.Established:
           setStatus('in-call');
+          callStartedAtRef.current = new Date().toISOString();
           startTimer();
           // Attach remote audio
           const remoteStream = new MediaStream();
@@ -111,17 +132,39 @@ export function useSipPhone(): UseSipPhoneReturn {
             remoteAudioRef.current.srcObject = remoteStream;
           }
           break;
-        case SessionState.Terminated:
+        case SessionState.Terminated: {
+          const endedAt = new Date().toISOString();
+          const callDuration = durationRef.current;
+          const savedCallerInfo = callerInfoRef.current;
+          const savedStartedAt = callStartedAtRef.current;
+
+          // Fire callback with call data
+          if (onCallEndedRef.current && (savedStartedAt || savedCallerInfo)) {
+            try {
+              onCallEndedRef.current({
+                duration: callDuration,
+                callerInfo: savedCallerInfo,
+                startedAt: savedStartedAt,
+                endedAt,
+              });
+            } catch (e) {
+              console.error('onCallEnded callback error:', e);
+            }
+          }
+
           setStatus(registererRef.current?.state === RegistererState.Registered ? 'registered' : 'idle');
           stopTimer();
           setIsMuted(false);
           setIsHeld(false);
           setCallerInfo('');
           sessionRef.current = null;
+          callStartedAtRef.current = null;
+          callerInfoRef.current = '';
           if (remoteAudioRef.current) {
             remoteAudioRef.current.srcObject = null;
           }
           break;
+        }
       }
     });
   }, [startTimer, stopTimer]);
@@ -159,7 +202,9 @@ export function useSipPhone(): UseSipPhoneReturn {
       delegate: {
         onInvite: (invitation: Invitation) => {
           sessionRef.current = invitation;
-          setCallerInfo(invitation.remoteIdentity?.uri?.user || 'Desconhecido');
+          const incomingCaller = invitation.remoteIdentity?.uri?.user || 'Desconhecido';
+          setCallerInfo(incomingCaller);
+          callerInfoRef.current = incomingCaller;
           setStatus('ringing');
           addDiagEvent(`Incoming call from ${invitation.remoteIdentity?.uri?.user || '?'}`);
           setupSessionListeners(invitation);
@@ -236,6 +281,7 @@ export function useSipPhone(): UseSipPhoneReturn {
     });
     sessionRef.current = inviter;
     setCallerInfo(target);
+    callerInfoRef.current = target;
     setStatus('calling');
     setupSessionListeners(inviter);
 

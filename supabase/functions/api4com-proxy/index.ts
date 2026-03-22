@@ -375,6 +375,86 @@ serve(async (req) => {
         break;
       }
 
+      case 'complete_call_log': {
+        const { extensionNumber, phone, startedAt, endedAt, durationSeconds, hangupCause } = params;
+
+        // Try to find existing log (created by dial or webhook)
+        let existingLog = null;
+        if (extensionNumber && phone) {
+          const { data: logs } = await supabase
+            .from('phone_call_logs')
+            .select('id, call_id, status')
+            .eq('cod_agent', codAgent)
+            .eq('extension_number', extensionNumber)
+            .eq('called', phone)
+            .order('created_at', { ascending: false })
+            .limit(1);
+          existingLog = logs?.[0] || null;
+        }
+
+        // Try to fetch CDR details from Api4Com for recording URL and cost
+        let recordUrl: string | null = null;
+        let cost: number | null = null;
+        if (existingLog?.call_id) {
+          try {
+            const cdrResult = await api4comRequest(baseUrl, `/cdr?call_id=${existingLog.call_id}`, headers);
+            const cdr = Array.isArray(cdrResult) ? cdrResult[0] : cdrResult?.data?.[0] || cdrResult;
+            recordUrl = cdr?.record_url || cdr?.recording_url || cdr?.gravacao || null;
+            cost = cdr?.cost != null ? Number(cdr.cost) : null;
+          } catch (e) {
+            console.log('CDR fetch failed (non-critical):', e);
+          }
+        }
+
+        const logData: any = {
+          cod_agent: codAgent,
+          extension_number: extensionNumber || null,
+          called: phone || null,
+          ended_at: endedAt || new Date().toISOString(),
+          duration_seconds: durationSeconds || 0,
+          hangup_cause: hangupCause || 'normal_clearing',
+          status: 'hangup',
+        };
+        if (recordUrl) logData.record_url = recordUrl;
+        if (cost != null) logData.cost = cost;
+        if (startedAt) logData.started_at = startedAt;
+
+        if (existingLog) {
+          // Update existing log (don't overwrite webhook data if already complete)
+          if (existingLog.status === 'hangup') {
+            // Already completed by webhook, just ensure we have all fields
+            const { error: updateErr } = await supabase
+              .from('phone_call_logs')
+              .update({
+                ...(recordUrl && { record_url: recordUrl }),
+                ...(cost != null && { cost }),
+                ...(durationSeconds && { duration_seconds: durationSeconds }),
+              })
+              .eq('id', existingLog.id);
+            if (updateErr) console.log('Update existing complete log error:', updateErr);
+          } else {
+            const { error: updateErr } = await supabase
+              .from('phone_call_logs')
+              .update(logData)
+              .eq('id', existingLog.id);
+            if (updateErr) throw new Error(`Erro ao atualizar log: ${updateErr.message}`);
+          }
+          result = { updated: true, id: existingLog.id, record_url: recordUrl, cost };
+        } else {
+          // Create new log as fallback
+          logData.direction = 'outbound';
+          logData.caller = extensionNumber || null;
+          const { data: inserted, error: insertErr } = await supabase
+            .from('phone_call_logs')
+            .insert(logData)
+            .select('id')
+            .single();
+          if (insertErr) throw new Error(`Erro ao criar log: ${insertErr.message}`);
+          result = { created: true, id: inserted?.id, record_url: recordUrl, cost };
+        }
+        break;
+      }
+
       default:
         throw new Error(`Ação desconhecida: ${action}`);
     }
