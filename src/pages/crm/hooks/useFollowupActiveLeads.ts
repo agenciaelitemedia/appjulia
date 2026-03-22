@@ -11,38 +11,41 @@
    followup_to: number | null;
  }
  
- export function useFollowupActiveLeads(agentCodes: string[]) {
-   return useQuery({
-     queryKey: ['crm-followup-active', agentCodes],
-     queryFn: async () => {
-       if (!agentCodes.length) return new Map<string, CRMFollowupInfo>();
- 
-       const query = `
-         WITH ranked_followup AS (
-           SELECT 
-             fq.cod_agent::text as cod_agent,
-          fq.whatsapp::text as whatsapp,
-             fq.step_number,
-             fq.node_count,
-             fq.followup_from,
-             fq.followup_to,
-             fq.created_at,
-             ROW_NUMBER() OVER (
-            PARTITION BY fq.cod_agent, fq.whatsapp 
-               ORDER BY fq.created_at DESC
-             ) as rn
-        FROM vw_send_followup_queue_card fq
-        WHERE fq.cod_agent::text = ANY($1::varchar[])
-         )
-         SELECT cod_agent, whatsapp, step_number, node_count, followup_from, followup_to
-         FROM ranked_followup
-         WHERE rn = 1
-       `;
- 
-       const result = await externalDb.raw<FollowupActiveRow>({
-         query,
-         params: [agentCodes],
-       });
+export function useFollowupActiveLeads(agentCodes: string[], dateFrom?: string, dateTo?: string) {
+  return useQuery({
+    queryKey: ['crm-followup-active', agentCodes, dateFrom, dateTo],
+    queryFn: async () => {
+      if (!agentCodes.length) return new Map<string, CRMFollowupInfo>();
+
+      const query = `
+        WITH ranked_followup AS (
+          SELECT 
+            fq.cod_agent::text as cod_agent,
+            fq.whatsapp::text as whatsapp,
+            fq.step_number,
+            fq.node_count,
+            fq.followup_from,
+            fq.followup_to,
+            fq.created_at,
+            ROW_NUMBER() OVER (
+              PARTITION BY fq.cod_agent, fq.whatsapp 
+              ORDER BY fq.created_at DESC
+            ) as rn
+          FROM vw_send_followup_queue_card fq
+          WHERE fq.cod_agent::text = ANY($1::varchar[])
+            AND fq.step_number > 0
+            AND ($2::date IS NULL OR (fq.send_date AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date)
+            AND ($3::date IS NULL OR (fq.send_date AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date)
+        )
+        SELECT cod_agent, whatsapp, step_number, node_count, followup_from, followup_to
+        FROM ranked_followup
+        WHERE rn = 1
+      `;
+
+      const result = await externalDb.raw<FollowupActiveRow>({
+        query,
+        params: [agentCodes, dateFrom || null, dateTo || null],
+      });
  
        // Transform into Map for O(1) lookup
        const map = new Map<string, CRMFollowupInfo>();
