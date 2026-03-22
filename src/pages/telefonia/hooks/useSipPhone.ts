@@ -242,7 +242,7 @@ export function useSipPhone(): UseSipPhoneReturn {
 
   const sendDTMF = useCallback((digit: string) => {
     if (!sessionRef.current || sessionRef.current.state !== SessionState.Established) return;
-    const pc = sessionRef.current.sessionDescriptionHandler?.peerConnection;
+    const pc = (sessionRef.current.sessionDescriptionHandler as any)?.peerConnection as RTCPeerConnection | undefined;
     if (!pc) return;
     const sender = pc.getSenders().find((s) => s.track?.kind === 'audio');
     if (sender?.dtmf) {
