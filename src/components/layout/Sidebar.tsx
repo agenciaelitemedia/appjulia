@@ -12,7 +12,7 @@ import { DebugBarToggle } from "@/components/debug/DebugBarToggle";
 import { useEnsureDataJudModule } from "@/pages/datajud/hooks/useEnsureDataJudModule";
 import { useEnsureMonitoramentoModule } from "@/pages/admin/monitoramento/hooks/useEnsureMonitoramentoModule";
 import { useEnsureCopilotModule } from "@/hooks/useEnsureCopilotModule";
-import {
+import { useEnsureTelefoniaModule } from "@/hooks/useEnsureTelefoniaModule";
   Tooltip,
   TooltipContent,
   TooltipProvider,
