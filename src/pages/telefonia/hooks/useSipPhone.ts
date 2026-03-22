@@ -286,6 +286,7 @@ export function useSipPhone(): UseSipPhoneReturn {
     isMuted,
     isHeld,
     callerInfo,
+    diagnostics,
     connect,
     disconnect,
     call,
