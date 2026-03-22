@@ -49,32 +49,6 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
     const infiniteCount = activeFollowups.filter(f => f.is_infinite && f.step_number >= (f.followup_to ?? 0)).length;
     const stepsCount = activeFollowups.length - infiniteCount;
 
-    // Tempo médio humano (ciclo de vida do card no CRM)
-    const resolvedStageIds = [contractSignedStage?.id, disqualifiedStage?.id].filter(Boolean);
-    const resolvedCards = cards.filter((c) => resolvedStageIds.includes(c.stage_id));
-    const activeCards = cards.filter((c) => !resolvedStageIds.includes(c.stage_id));
-
-    const now = new Date();
-    const resolvedAvgDays = resolvedCards.length > 0
-      ? resolvedCards.reduce((sum, card) => {
-          const entered = new Date(card.stage_entered_at);
-          const updated = new Date(card.updated_at);
-          return sum + (updated.getTime() - entered.getTime()) / (1000 * 60 * 60 * 24);
-        }, 0) / resolvedCards.length
-      : 0;
-
-    const activeAvgDays = activeCards.length > 0
-      ? activeCards.reduce((sum, card) => {
-          const entered = new Date(card.stage_entered_at);
-          return sum + (now.getTime() - entered.getTime()) / (1000 * 60 * 60 * 24);
-        }, 0) / activeCards.length
-      : 0;
-
-    const totalHumanCards = resolvedCards.length + activeCards.length;
-    const humanAvgDays = totalHumanCards > 0
-      ? (resolvedAvgDays * resolvedCards.length + activeAvgDays * activeCards.length) / totalHumanCards
-      : 0;
-
     const dailyMap = new Map<string, number>();
     cards.forEach((card) => {
       const date = card.stage_entered_at.split("T")[0];
@@ -99,9 +73,6 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
       infiniteCount,
       stepsCount,
       dailyTrend,
-      humanAvgDays,
-      resolvedCount: resolvedCards.length,
-      activeCount: activeCards.length,
     };
   }, [cards, stages, juliaSessions, followupMap]);
 
