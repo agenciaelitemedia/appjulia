@@ -95,7 +95,13 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
 
   const startTimer = useCallback(() => {
     setDuration(0);
-    timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
+    durationRef.current = 0;
+    timerRef.current = setInterval(() => {
+      setDuration((d) => {
+        durationRef.current = d + 1;
+        return d + 1;
+      });
+    }, 1000);
   }, []);
 
   const stopTimer = useCallback(() => {
