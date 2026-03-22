@@ -45,6 +45,8 @@ import MetaAdsTestPage from "./pages/admin/meta-ads/MetaAdsTestPage";
 import MonitoramentoPage from "./pages/admin/monitoramento/MonitoramentoPage";
 import CopilotAdminPage from "./pages/admin/copiloto/CopilotAdminPage";
 import DataJudSearchPage from "./pages/datajud/DataJudSearchPage";
+import TelefoniaPage from "./pages/telefonia/TelefoniaPage";
+import TelefoniaAdminPage from "./pages/admin/telefonia/TelefoniaAdminPage";
 import RedirectPage from "./pages/RedirectPage";
 import NotFound from "./pages/NotFound";
 
