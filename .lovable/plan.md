@@ -1,48 +1,52 @@
 
 
-# Plano atualizado: Origem da chamada + formatação + gravação + reutilização de código
+# Plano consolidado: Corrigir origem CRM + encerrar chamada remota + badge SIP no header + indicador visual
 
-## Mudanças
+## 1. Corrigir origem CRM no historico (metadata)
 
-### 1. Centralizar lógica de discagem no `PhoneContext.dialNumber`
-**`src/contexts/PhoneContext.tsx`**
-- Expandir assinatura: `dialNumber(phone, contactName?, origin?: 'CRM' | 'DISCADOR', whatsappNumber?: string)`
-- Enviar `metadata: { origin, whatsapp_number }` no body da action `dial`
-- Toda discagem (CRM, DiscadorTab, HeaderDialer) passa por este único método — uma mudança no fluxo só precisa ser feita aqui
+**Problema**: O `dialNumber` envia `metadata: { origin, whatsapp_number }` para a API, que repassa à Api4Com. Quando o CDR volta na sincronização, esses campos ficam dentro de `cdr.metadata` mas são salvos apenas como `cdrMetadata.api4com_metadata` (linha 599/683). O `HistoricoTab` lê `(meta).origin` na raiz — que não existe.
 
-### 2. Chamadores passam origin e whatsapp
+**Correção em `api4com-proxy/index.ts`**:
+- Bloco MODE 1 (linha ~599): após `if (cdr.metadata) cdrMetadata.api4com_metadata = cdr.metadata;`, adicionar:
+  ```
+  if (cdr.metadata?.origin) cdrMetadata.origin = cdr.metadata.origin;
+  if (cdr.metadata?.whatsapp_number) cdrMetadata.whatsapp_number = cdr.metadata.whatsapp_number;
+  ```
+- Bloco MODE 2 (linha ~683): mesma adição.
 
-**`PhoneCallDialog.tsx`** — `dialNumber(whatsappNumber, contactName, 'CRM', whatsappNumber)`
+**Correção em `api4com-webhook/index.ts`** (linha ~68):
+- Após construir `metadata`, extrair `origin` e `whatsapp_number` do `event.metadata`:
+  ```
+  if (event.metadata?.origin) metadata.origin = event.metadata.origin;
+  if (event.metadata?.whatsapp_number) metadata.whatsapp_number = event.metadata.whatsapp_number;
+  ```
 
-**`HeaderDialer.tsx`** — `dialNumber(number, undefined, 'DISCADOR')`
+## 2. Encerrar chamada quando remoto desliga
 
-**`DiscadorTab.tsx`** — Migrar para usar `dialNumber` do `PhoneContext` em vez de `dial.mutate` direto. Passar `origin: 'DISCADOR'`. Isso elimina duplicação de lógica e garante que o fluxo de enfileiramento no `syncQueueManager` e exibição do softphone é idêntico ao CRM.
+**Problema**: Quando o destinatário desliga, a conexão WebRTC perde mídia mas o SIP pode não receber BYE, deixando a chamada ativa no frontend.
 
-### 3. Backend — propagar metadata
-**`api4com-proxy/index.ts`** — action `dial`: incluir `metadata` recebido do frontend no body enviado à Api4Com (já faz isso parcialmente). O metadata volta no CDR e é salvo no `sync_call_history`.
+**Correção em `useSipPhone.ts`**:
+- Na função `setupSessionListeners`, dentro de `SessionState.Established`, após configurar o áudio remoto, monitorar `peerConnection.oniceconnectionstatechange`:
+  - Se `iceConnectionState === 'disconnected' || 'failed'`, aguardar 3s
+  - Se não recuperar (`connected`/`completed`), chamar `session.bye()` para encerrar
 
-### 4. Histórico — coluna Origem + link CRM + formatação + gravação
-**`HistoricoTab.tsx`**:
-- **Nova coluna "Origem"**:
-  - Se `metadata.origin === 'CRM'`: ícone `LayoutDashboard` + botão clicável que navega para `/crm?whatsapp={metadata.whatsapp_number}`
-  - Se `metadata.origin === 'DISCADOR'`: ícone `Phone` + texto "Discador"
-  - Se sem metadata: ícone `Phone` + "Manual"
-- **Formatação de números**: atualizar `formatPhone` para tratar prefixo `0` da Api4Com (`0DDNNNNNNNNN` → `(DD) NNNNN-NNNN`)
-- **Botão gravação**: desabilitar se `duration_seconds === 0` ou nulo (sem duração = sem gravação útil)
+## 3. Badge de status SIP no Header
 
-## Reutilização de código
-A mudança principal é que o `DiscadorTab` deixa de usar `dial.mutate` diretamente e passa a usar `dialNumber` do `PhoneContext`, assim como o CRM e o HeaderDialer já fazem. Isso significa que:
-- Enfileiramento no syncQueue → feito no PhoneContext
-- Exibição do softphone → feita no PhoneContext
-- Metadata de origem → passada como parâmetro para o PhoneContext
-- Qualquer mudança futura no fluxo de discagem/gravação/histórico precisa ser feita **apenas no PhoneContext**
+**Correção em `HeaderDialer.tsx`**:
+- Ao lado do botão do telefone (ou substituindo o botão atual), adicionar um Badge visível:
+  - SIP `registered` ou `in-call`: Badge verde com ícone Phone + "Disponível"
+  - SIP `registering`/`calling`/`ringing`: Badge amarelo com "Conectando..."
+  - SIP `error`: Badge vermelho com "Indisponível"
+  - SIP `idle`: Badge cinza com "Offline"
+- O badge fica visível no header sem precisar abrir o popover, dando feedback visual constante
+
+**Implementação**: Renderizar o Badge fora do `Popover`, ao lado do `PopoverTrigger`, como um elemento inline no header. Usar as cores do `dotColor` já calculadas para manter consistência.
 
 ## Arquivos alterados
 | Arquivo | Ação |
 |---|---|
-| `src/contexts/PhoneContext.tsx` | Adicionar params `origin` e `whatsappNumber`, enviar no metadata |
-| `src/pages/crm/components/PhoneCallDialog.tsx` | Passar `origin='CRM'` e `whatsappNumber` |
-| `src/components/layout/HeaderDialer.tsx` | Passar `origin='DISCADOR'` |
-| `src/pages/telefonia/components/DiscadorTab.tsx` | Migrar para `dialNumber` do PhoneContext com `origin='DISCADOR'` |
-| `src/pages/telefonia/components/HistoricoTab.tsx` | Coluna origem, link CRM, formatação, gravação disabled |
+| `supabase/functions/api4com-proxy/index.ts` | Extrair origin/whatsapp_number do metadata do CDR (2 blocos) |
+| `supabase/functions/api4com-webhook/index.ts` | Extrair origin/whatsapp_number do event.metadata |
+| `src/pages/telefonia/hooks/useSipPhone.ts` | Detectar ICE disconnected/failed e encerrar sessão |
+| `src/components/layout/HeaderDialer.tsx` | Adicionar Badge de status SIP visível no header |
 
