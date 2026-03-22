@@ -134,7 +134,7 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
           break;
         case SessionState.Terminated: {
           const endedAt = new Date().toISOString();
-          const callDuration = timerRef.current ? Math.max(0, duration) : 0;
+          const callDuration = durationRef.current;
           const savedCallerInfo = callerInfoRef.current;
           const savedStartedAt = callStartedAtRef.current;
 
