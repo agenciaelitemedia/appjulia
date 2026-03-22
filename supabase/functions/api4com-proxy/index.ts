@@ -225,31 +225,52 @@ serve(async (req) => {
           console.log('User creation skipped/failed (may already exist):', userErr.message);
         }
 
-        // ---- STEP 2: Create extension (ramal) in Api4Com ----
+        // ---- STEP 2: Create extension (ramal) in Api4Com with retry on conflict ----
         let apiResult: any;
-        try {
-          apiResult = await api4comRequest(baseUrl, '/extensions', headers, {
-            method: 'POST',
-            body: {
-              ramal: ramalNumber,
-              senha: randomSenha,
-              first_name: fName,
-              last_name: lName,
-              email_address: emailToUse,
-              gravar_audio: 1,
-            },
-          });
-        } catch (extErr: any) {
-          // Rollback user if we created one
-          if (api4comUserId) {
-            try {
-              await fetch(`${baseUrl}/users/${api4comUserId}`, { method: 'DELETE', headers });
-              console.log('Rolled back Api4Com user:', api4comUserId);
-            } catch (e) {
-              console.error('Rollback user delete failed:', e);
+        let finalRamalNumber = ramalNumber;
+        const maxRetries = 10;
+        let created = false;
+
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+          try {
+            apiResult = await api4comRequest(baseUrl, '/extensions', headers, {
+              method: 'POST',
+              body: {
+                ramal: finalRamalNumber,
+                senha: randomSenha,
+                first_name: fName,
+                last_name: lName,
+                email_address: emailToUse,
+                gravar_audio: 1,
+              },
+            });
+            created = true;
+            break;
+          } catch (extErr: any) {
+            // If "already exists", try next number (only for auto-assigned numbers)
+            if (extErr.message?.includes('already exists') && !extensionNumber) {
+              console.log(`Ramal ${finalRamalNumber} already exists, trying next...`);
+              finalRamalNumber = String(parseInt(finalRamalNumber, 10) + 1);
+              continue;
             }
+            // Other error or user-chosen number — rollback and fail
+            if (api4comUserId) {
+              try {
+                await fetch(`${baseUrl}/users/${api4comUserId}`, { method: 'DELETE', headers });
+                console.log('Rolled back Api4Com user:', api4comUserId);
+              } catch (e) {
+                console.error('Rollback user delete failed:', e);
+              }
+            }
+            throw new Error(`Erro ao criar ramal na Api4Com: ${extErr.message}`);
           }
-          throw new Error(`Erro ao criar ramal na Api4Com: ${extErr.message}`);
+        }
+
+        if (!created) {
+          if (api4comUserId) {
+            try { await fetch(`${baseUrl}/users/${api4comUserId}`, { method: 'DELETE', headers }); } catch {}
+          }
+          throw new Error('Não foi possível encontrar um número de ramal disponível após várias tentativas.');
         }
 
         const ramal = apiResult?.ramal || apiResult?.extension || ramalNumber;
