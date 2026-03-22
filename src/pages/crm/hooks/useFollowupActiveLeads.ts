@@ -34,8 +34,8 @@ export function useFollowupActiveLeads(agentCodes: string[], dateFrom?: string, 
           FROM vw_send_followup_queue_card fq
           WHERE fq.cod_agent::text = ANY($1::varchar[])
             AND fq.step_number > 0
-            AND ($2::date IS NULL OR (fq.send_date AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date)
-            AND ($3::date IS NULL OR (fq.send_date AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date)
+            AND ($2::date IS NULL OR (fq.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date)
+            AND ($3::date IS NULL OR (fq.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date)
         )
         SELECT cod_agent, whatsapp, step_number, node_count, followup_from, followup_to
         FROM ranked_followup
