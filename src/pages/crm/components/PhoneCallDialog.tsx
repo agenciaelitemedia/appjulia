@@ -8,9 +8,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSipPhone, type CallEndedInfo } from '@/pages/telefonia/hooks/useSipPhone';
+import { useSyncQueue } from '@/pages/telefonia/hooks/useSyncQueue';
 import { SoftphoneWidget } from '@/pages/telefonia/components/SoftphoneWidget';
 import { formatPhoneForDialing } from '@/lib/phoneFormat';
-
 interface PhoneCallDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
