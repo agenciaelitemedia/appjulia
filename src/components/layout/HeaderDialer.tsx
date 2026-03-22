@@ -59,7 +59,6 @@ export function HeaderDialer() {
     sip.status === 'error' ? 'Indisponível' : sip.status === 'idle' ? 'Offline' : 'Conectando...';
 
   return (
-    <div className="flex items-center gap-1.5">
       <Popover open={open} onOpenChange={setOpen}>
         <Tooltip>
           <TooltipTrigger asChild>
