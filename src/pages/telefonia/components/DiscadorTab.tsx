@@ -53,7 +53,7 @@ export function DiscadorTab({ codAgent }: Props) {
   // Find user's own extension
   const myExtension = useMemo(() => {
     if (!user?.id) return null;
-    return activeExtensions.find((e) => e.assigned_member_id === user.id) || null;
+    return activeExtensions.find((e) => Number(e.assigned_member_id) === Number(user.id)) || null;
   }, [activeExtensions, user?.id]);
 
   const handleSelectExtension = useCallback(async (extId: string) => {

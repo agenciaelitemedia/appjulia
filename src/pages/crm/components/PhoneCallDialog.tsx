@@ -70,7 +70,7 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
   // Find user's own extension
   const myExtension = useMemo(() => {
     if (!user?.id) return null;
-    return extensions.find((e: any) => e.assigned_member_id === user.id) || null;
+    return extensions.find((e: any) => Number(e.assigned_member_id) === Number(user.id)) || null;
   }, [extensions, user?.id]);
 
   const handleSelectExtension = useCallback(async (extId: string) => {
