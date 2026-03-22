@@ -26,7 +26,7 @@ interface PhoneContextType {
   setShowSoftphone: (show: boolean) => void;
   softphoneCentered: boolean;
   setSoftphoneCentered: (centered: boolean) => void;
-  dialNumber: (phone: string, contactName?: string) => Promise<void>;
+  dialNumber: (phone: string, contactName?: string, origin?: 'CRM' | 'DISCADOR', whatsappNumber?: string) => Promise<void>;
   isDialing: boolean;
   dialContactName: string;
 }
@@ -113,7 +113,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const dialNumber = useCallback(async (phone: string, contactName?: string) => {
+  const dialNumber = useCallback(async (phone: string, contactName?: string, origin?: 'CRM' | 'DISCADOR', whatsappNumber?: string) => {
     if (!myExtension || !codAgent) {
       toast.error('Nenhum ramal disponível');
       return;
@@ -127,9 +127,13 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     setDialContactName(contactName || formatted);
     setIsDialing(true);
 
+    const metadata: Record<string, unknown> = {};
+    if (origin) metadata.origin = origin;
+    if (whatsappNumber) metadata.whatsapp_number = whatsappNumber;
+
     try {
       const { data, error } = await supabase.functions.invoke('api4com-proxy', {
-        body: { action: 'dial', codAgent, extensionId: myExtension.id, phone: formatted },
+        body: { action: 'dial', codAgent, extensionId: myExtension.id, phone: formatted, metadata },
       });
       if (error) throw new Error(error.message || 'Erro ao discar');
       if (data?.error) throw new Error(data.error);

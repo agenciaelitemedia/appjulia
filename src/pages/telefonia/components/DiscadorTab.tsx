@@ -1,14 +1,10 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { AlertCircle, ChevronDown, Activity, PhoneForwarded, PhoneOff } from 'lucide-react';
-import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { usePhone } from '@/contexts/PhoneContext';
-import { syncQueueManager } from '@/lib/syncQueueManager';
 import { DiscadorPad } from './DiscadorPad';
-import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
 import { formatPhoneForDialing } from '@/lib/phoneFormat';
 
 interface Props {
@@ -26,12 +22,8 @@ const statusColors: Record<string, string> = {
 };
 
 export function DiscadorTab({ codAgent }: Props) {
-  const { user } = useAuth();
-  const { extensions, dial } = useTelefoniaData(codAgent);
-  const { sip, myExtension, isAvailable, setShowSoftphone } = usePhone();
+  const { sip, myExtension, isAvailable, dialNumber, isDialing, setSoftphoneCentered } = usePhone();
   const [number, setNumber] = useState('');
-
-  const selectedExtension = myExtension ? String(myExtension.id) : '';
 
   const phoneInfo = useMemo(() => {
     if (!number || number.replace(/\D/g, '').length < 8) return null;
@@ -39,24 +31,10 @@ export function DiscadorTab({ codAgent }: Props) {
   }, [number]);
 
   const handleDial = useCallback(() => {
-    if (!selectedExtension || !number || !myExtension) return;
-
-    if (!myExtension.api4com_ramal) {
-      toast.error('Ramal sem vínculo Api4Com. Sincronize os ramais.');
-      return;
-    }
-
-    const { formatted } = formatPhoneForDialing(number);
-
-    // Always use REST dial
-    dial.mutate({ extensionId: myExtension.id, phone: formatted }, {
-      onSuccess: (result) => {
-        const callId = result?.data?.call_id || result?.data?.id;
-        if (callId) syncQueueManager.enqueue(String(callId));
-        setShowSoftphone(true);
-      },
-    });
-  }, [selectedExtension, number, myExtension, dial, setShowSoftphone]);
+    if (!number || !myExtension) return;
+    setSoftphoneCentered(true);
+    dialNumber(number, undefined, 'DISCADOR');
+  }, [number, myExtension, dialNumber, setSoftphoneCentered]);
 
   return (
     <div className="max-w-md mx-auto">
@@ -106,8 +84,8 @@ export function DiscadorTab({ codAgent }: Props) {
                 value={number}
                 onChange={setNumber}
                 onDial={handleDial}
-                disabled={!selectedExtension || dial.isPending || sip.status === 'calling'}
-                isDialing={dial.isPending || sip.status === 'calling'}
+                disabled={!myExtension || isDialing || sip.status === 'calling'}
+                isDialing={isDialing || sip.status === 'calling'}
               />
 
               {phoneInfo && (
