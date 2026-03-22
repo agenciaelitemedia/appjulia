@@ -84,8 +84,8 @@ export function DiscadorTab({ codAgent }: Props) {
                 value={number}
                 onChange={setNumber}
                 onDial={handleDial}
-                disabled={!selectedExtension || dial.isPending || sip.status === 'calling'}
-                isDialing={dial.isPending || sip.status === 'calling'}
+                disabled={!myExtension || isDialing || sip.status === 'calling'}
+                isDialing={isDialing || sip.status === 'calling'}
               />
 
               {phoneInfo && (
