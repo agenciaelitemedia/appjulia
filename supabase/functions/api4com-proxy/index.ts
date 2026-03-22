@@ -158,7 +158,7 @@ serve(async (req) => {
       }
 
       case 'create_extension': {
-        const { firstName, lastName, email, assignedMemberId, label } = params;
+        const { firstName, lastName, email, assignedMemberId, label, extensionNumber } = params;
 
         // Validate uniqueness: 1 member = 1 extension per agent
         if (assignedMemberId) {
@@ -179,19 +179,39 @@ serve(async (req) => {
           .join('') + Math.floor(Math.random() * 900 + 100);
 
         const emailToUse = email || `ramal_${Date.now()}@atendejulia.com`;
+        const fName = firstName || 'Ramal';
+        const lName = lastName || codAgent;
 
-        const apiResult = await api4comRequest(baseUrl, '/extensions/next-available', headers, {
+        // Determine ramal number
+        let ramalNumber = extensionNumber;
+        if (!ramalNumber) {
+          // List existing extensions to find next available
+          try {
+            const existing = await api4comRequest(baseUrl, '/extensions', headers);
+            const extList = Array.isArray(existing) ? existing : (existing?.data || existing?.extensions || []);
+            const numbers = extList
+              .map((e: any) => parseInt(e.ramal || e.extension || '0', 10))
+              .filter((n: number) => !isNaN(n) && n > 0);
+            ramalNumber = String(numbers.length > 0 ? Math.max(...numbers) + 1 : 1000);
+          } catch {
+            ramalNumber = '1000';
+          }
+        }
+
+        // Step 1: Create extension via POST /extensions
+        const apiResult = await api4comRequest(baseUrl, '/extensions', headers, {
           method: 'POST',
           body: {
-            first_name: firstName || 'Ramal',
-            last_name: lastName || codAgent,
-            email_address: emailToUse,
+            ramal: ramalNumber,
             senha: randomSenha,
+            first_name: fName,
+            last_name: lName,
+            email_address: emailToUse,
             gravar_audio: 1,
           },
         });
 
-        const ramal = apiResult?.ramal || apiResult?.extension;
+        const ramal = apiResult?.ramal || apiResult?.extension || ramalNumber;
         const senha = apiResult?.senha || apiResult?.password || randomSenha;
         const api4comId = apiResult?.id ? String(apiResult.id) : null;
 
@@ -220,14 +240,14 @@ serve(async (req) => {
           .insert({
             cod_agent: codAgent,
             extension_number: localNumber,
-            label: label || firstName || null,
+            label: label || fName || null,
             assigned_member_id: assignedMemberId || null,
             api4com_id: api4comId,
             api4com_ramal: ramal,
             api4com_password: senha,
             api4com_email: emailToUse,
-            api4com_first_name: firstName || 'Ramal',
-            api4com_last_name: lastName || codAgent,
+            api4com_first_name: fName,
+            api4com_last_name: lName,
             api4com_raw: apiResult || {},
             is_active: true,
           });
