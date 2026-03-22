@@ -88,20 +88,22 @@ export function useTelefoniaData(codAgent: string | undefined) {
   const deleteExtension = useMutation({
     mutationFn: async (id: number) => {
       const ext = extensionsQuery.data?.find((e) => e.id === id);
-      if (ext?.api4com_id) {
-        await supabase.functions.invoke('api4com-proxy', {
-          body: { action: 'delete_extension', codAgent, extensionId: ext.api4com_id },
-        });
+      if (!ext?.api4com_id) {
+        // Sem vínculo Api4Com, deletar só do banco
+        const { error } = await supabase.from('phone_extensions').delete().eq('id', id);
+        if (error) throw error;
+        return;
       }
-      const { error } = await supabase
-        .from('phone_extensions')
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
+      // Backend faz tudo: Api4Com (extensão + usuário) + banco
+      const { data, error } = await supabase.functions.invoke('api4com-proxy', {
+        body: { action: 'delete_extension', codAgent, extensionId: ext.api4com_id },
+      });
+      if (error) throw new Error(error.message || 'Erro ao deletar ramal');
+      if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-extensions'] });
-      toast.success('Ramal removido');
+      toast.success('Ramal removido (Api4Com + banco)');
     },
     onError: (e: Error) => toast.error(e.message),
   });
