@@ -1,0 +1,109 @@
+import { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Progress } from '@/components/ui/progress';
+import { Plus, Pencil, Trash2, Phone } from 'lucide-react';
+import { useTelefoniaData } from '../hooks/useTelefoniaData';
+import { RamalDialog } from './RamalDialog';
+import type { PhoneExtension } from '../types';
+
+export function MeusRamaisTab() {
+  const { extensions, extensionsLoading, maxExtensions, usedExtensions, canCreateExtension, plan, createExtension, updateExtension, deleteExtension } = useTelefoniaData();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<PhoneExtension | null>(null);
+
+  const handleSave = (ext: Partial<PhoneExtension>) => {
+    if (editing) {
+      updateExtension.mutate({ ...ext, id: editing.id });
+    } else {
+      createExtension.mutate(ext);
+    }
+    setDialogOpen(false);
+    setEditing(null);
+  };
+
+  const usagePercent = maxExtensions > 0 ? (usedExtensions / maxExtensions) * 100 : 0;
+
+  return (
+    <div className="space-y-4">
+      {/* Plan info */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <p className="text-sm font-medium">Plano: {plan?.plan_name || 'Nenhum plano vinculado'}</p>
+              <p className="text-xs text-muted-foreground">{usedExtensions} de {maxExtensions} ramais</p>
+            </div>
+            <Badge variant={canCreateExtension ? 'default' : 'destructive'}>
+              {canCreateExtension ? 'Disponível' : 'Limite atingido'}
+            </Badge>
+          </div>
+          <Progress value={usagePercent} className="h-2" />
+        </CardContent>
+      </Card>
+
+      {/* Extensions list */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Phone className="h-5 w-5" />
+            Meus Ramais
+          </CardTitle>
+          <Button size="sm" onClick={() => { setEditing(null); setDialogOpen(true); }} disabled={!canCreateExtension}>
+            <Plus className="h-4 w-4 mr-1" /> Novo Ramal
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {extensionsLoading ? (
+            <p className="text-sm text-muted-foreground">Carregando...</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ramal</TableHead>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Membro</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-[100px]">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {extensions.map((ext) => (
+                  <TableRow key={ext.id}>
+                    <TableCell className="font-mono font-medium">{ext.extension_number}</TableCell>
+                    <TableCell>{ext.label || '-'}</TableCell>
+                    <TableCell>{ext.assigned_member_id || '-'}</TableCell>
+                    <TableCell>
+                      <Badge variant={ext.is_active ? 'default' : 'secondary'}>
+                        {ext.is_active ? 'Ativo' : 'Inativo'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditing(ext); setDialogOpen(true); }}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteExtension.mutate(ext.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {extensions.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">Nenhum ramal criado</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <RamalDialog open={dialogOpen} onOpenChange={setDialogOpen} extension={editing} onSave={handleSave} />
+    </div>
+  );
+}
