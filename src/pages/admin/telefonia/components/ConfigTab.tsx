@@ -20,9 +20,10 @@ export function ConfigTab() {
 
   const handleSave = () => {
     if (!codAgent || !domain || !token) return;
-    saveConfig.mutate({ cod_agent: codAgent, api4com_domain: domain, api4com_token: token });
+    saveConfig.mutate({ cod_agent: codAgent, api4com_domain: domain, api4com_token: token, sip_domain: sipDomain || undefined });
     setCodAgent('');
     setDomain('');
+    setSipDomain('');
     setToken('');
   };
 
