@@ -99,16 +99,15 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
       qualifiedRate,
       disqualified,
       disqualifiedRate,
-      phaseStats,
-      maxPhaseDays,
-      juliaAvgDays,
-      totalJuliaCards,
+      activeFollowups: activeFollowups.length,
+      infiniteCount,
+      stepsCount,
       dailyTrend,
       humanAvgDays,
       resolvedCount: resolvedCards.length,
       activeCount: activeCards.length,
     };
-  }, [cards, stages, juliaSessions]);
+  }, [cards, stages, juliaSessions, followupMap]);
 
   if (isLoading) {
     return (
