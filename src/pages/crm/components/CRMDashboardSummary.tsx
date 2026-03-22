@@ -173,9 +173,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
             <div>
               <p className="text-xs text-muted-foreground font-medium">Qualificados</p>
               <p className="text-2xl font-bold text-foreground">{stats.qualifiedRate.toFixed(1)}%</p>
-              <p className="text-xs text-muted-foreground">
-                Leads em negociação ou contrato
-              </p>
+              <p className="text-xs text-muted-foreground">Aptos para contrato</p>
             </div>
             <div className="p-2 bg-chart-4/10 rounded-full">
               <CheckCircle className="h-5 w-5 text-chart-4" />
