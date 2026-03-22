@@ -165,50 +165,16 @@ export function useTelefoniaData(codAgent: string | undefined) {
     return data?.data as { domain: string; username: string; password: string; wsUrl: string };
   };
 
-  // Complete call log after hangup (client-side fallback)
-  const completeCallLog = useMutation({
-    mutationFn: async (info: {
-      extensionNumber: string;
-      phone: string;
-      startedAt: string | null;
-      endedAt: string;
-      durationSeconds: number;
-      hangupCause?: string;
-    }) => {
+  // Sync call history from Api4Com CDR (incremental)
+  const syncCallHistory = useMutation({
+    mutationFn: async (params?: { callId?: string; since?: string }) => {
       const { data, error } = await supabase.functions.invoke('api4com-proxy', {
         body: {
-          action: 'complete_call_log',
+          action: 'sync_call_history',
           codAgent,
-          extensionNumber: info.extensionNumber,
-          phone: info.phone,
-          startedAt: info.startedAt,
-          endedAt: info.endedAt,
-          durationSeconds: info.durationSeconds,
-          hangupCause: info.hangupCause || 'normal_clearing',
+          callId: params?.callId,
+          since: params?.since,
         },
-      });
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.error);
-      return data?.data;
-    },
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['my-call-history'] });
-      const details: string[] = [];
-      if (result?.record_url) details.push('gravação disponível');
-      if (result?.cost != null) details.push(`custo: R$${Number(result.cost).toFixed(2)}`);
-      toast.success(`Chamada registrada${details.length ? ` (${details.join(', ')})` : ''}`);
-    },
-    onError: (e: Error) => {
-      console.error('completeCallLog error:', e);
-      toast.error(`Erro ao registrar chamada: ${e.message}`);
-    },
-  });
-
-  // Sync call history from Api4Com CDR
-  const syncCallHistory = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('api4com-proxy', {
-        body: { action: 'sync_call_history', codAgent },
       });
       if (error) throw new Error(error.message || 'Erro ao sincronizar histórico');
       if (data?.error) throw new Error(data.error);
