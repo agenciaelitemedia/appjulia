@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PhoneIncoming, PhoneOutgoing, Play, RefreshCw, LayoutDashboard, Phone, ExternalLink, Search, X } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, Play, LayoutDashboard, Phone, ExternalLink, Search, X } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { GravacaoPlayer } from './GravacaoPlayer';
 import { useMemo, useState } from 'react';
