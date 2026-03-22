@@ -62,6 +62,7 @@ export function UnifiedFilters({
   statusOptions = [],
   showStateFilter = false,
   stateOptions = [],
+  customSelects = [],
   searchPlaceholder = 'Buscar...',
   className,
   periodTooltip,
@@ -434,7 +435,21 @@ export function UnifiedFilters({
               </Select>
             )}
 
-            {/* Search Input */}
+            {/* Custom Selects */}
+            {customSelects.map((sel) => (
+              <Select key={sel.key} value={sel.value} onValueChange={sel.onChange}>
+                <SelectTrigger className={cn("h-9 bg-background shadow-sm hover:border-primary/30 transition-colors", sel.width || "w-[140px]")}>
+                  <SelectValue placeholder={sel.placeholder} />
+                </SelectTrigger>
+                <SelectContent className="shadow-lg">
+                  {sel.options.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ))}
             {showSearch && (
               <div className="relative flex-1 min-w-[200px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

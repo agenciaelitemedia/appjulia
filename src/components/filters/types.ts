@@ -4,6 +4,15 @@ export interface Agent {
   owner_business_name?: string;
 }
 
+export interface CustomSelectConfig {
+  key: string;
+  placeholder: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+  width?: string;
+}
+
 export interface UnifiedFiltersState {
   search: string;
   agentCodes: string[];
@@ -35,6 +44,9 @@ export interface UnifiedFiltersProps {
   statusOptions?: string[];
   showStateFilter?: boolean;        // Para página de FollowUp
   stateOptions?: { value: string; label: string }[];
+  
+  // Selects customizados genéricos
+  customSelects?: CustomSelectConfig[];
   
   // Personalização
   searchPlaceholder?: string;
