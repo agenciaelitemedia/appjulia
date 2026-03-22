@@ -22,7 +22,7 @@ const sipStatusLabel: Record<string, string> = {
 };
 
 export function HeaderDialer() {
-  const { sip, isAvailable, dialNumber, isDialing, showSoftphone, setShowSoftphone } = usePhone();
+  const { sip, isAvailable, dialNumber, isDialing, showSoftphone, setShowSoftphone, setSoftphoneCentered } = usePhone();
   const [number, setNumber] = useState('');
   const [open, setOpen] = useState(false);
 
