@@ -2,13 +2,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PhoneIncoming, PhoneOutgoing, Play, LayoutDashboard, Phone, ExternalLink, Search, X } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, Play, LayoutDashboard, Phone, ExternalLink } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { GravacaoPlayer } from './GravacaoPlayer';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
+import { UnifiedFiltersState, CustomSelectConfig } from '@/components/filters/types';
+import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -62,17 +63,23 @@ interface Props {
 }
 
 export function HistoricoTab({ codAgent }: Props) {
-  const { callHistory, callHistoryLoading, syncCallHistory, extensions } = useTelefoniaData(codAgent);
+  const { callHistory, callHistoryLoading, extensions } = useTelefoniaData(codAgent);
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Filters
-  const [search, setSearch] = useState('');
-  const [directionFilter, setDirectionFilter] = useState<string>('all');
-  const [originFilter, setOriginFilter] = useState<string>('all');
-  const [causeFilter, setCauseFilter] = useState<string>('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  // Telephony-specific filters (managed locally)
+  const [directionFilter, setDirectionFilter] = useState('all');
+  const [originFilter, setOriginFilter] = useState('all');
+  const [causeFilter, setCauseFilter] = useState('all');
+
+  // UnifiedFilters state (period + search)
+  const today = getTodayInSaoPaulo();
+  const [filters, setFilters] = useState<UnifiedFiltersState>({
+    search: '',
+    agentCodes: [],
+    dateFrom: today,
+    dateTo: today,
+  });
 
   const extensionNameMap = new Map<string, string>();
   const extensionCodAgentMap = new Map<string, string>();
@@ -88,22 +95,54 @@ export function HistoricoTab({ codAgent }: Props) {
     navigate(`/crm/leads?whatsapp=${encodeURIComponent(whatsappNumber)}`);
   };
 
-  const hasActiveFilters = search || directionFilter !== 'all' || originFilter !== 'all' || causeFilter !== 'all' || dateFrom || dateTo;
-
-  const clearFilters = () => {
-    setSearch('');
-    setDirectionFilter('all');
-    setOriginFilter('all');
-    setCauseFilter('all');
-    setDateFrom('');
-    setDateTo('');
-  };
+  const customSelects: CustomSelectConfig[] = [
+    {
+      key: 'direction',
+      placeholder: 'Sentido',
+      value: directionFilter,
+      onChange: setDirectionFilter,
+      options: [
+        { value: 'all', label: 'Todos' },
+        { value: 'outbound', label: 'Sainte' },
+        { value: 'inbound', label: 'Entrante' },
+      ],
+      width: 'w-[130px]',
+    },
+    {
+      key: 'origin',
+      placeholder: 'Origem',
+      value: originFilter,
+      onChange: setOriginFilter,
+      options: [
+        { value: 'all', label: 'Todas' },
+        { value: 'CRM', label: 'CRM' },
+        { value: 'DISCADOR', label: 'Discador' },
+        { value: 'MANUAL', label: 'Manual' },
+      ],
+      width: 'w-[130px]',
+    },
+    {
+      key: 'cause',
+      placeholder: 'Status',
+      value: causeFilter,
+      onChange: setCauseFilter,
+      options: [
+        { value: 'all', label: 'Todos' },
+        { value: 'NORMAL_CLEARING', label: 'Atendida' },
+        { value: 'ORIGINATOR_CANCEL', label: 'Cancelada' },
+        { value: 'NO_ANSWER', label: 'Sem resposta' },
+        { value: 'USER_BUSY', label: 'Ocupado' },
+      ],
+      width: 'w-[140px]',
+    },
+  ];
 
   const filteredHistory = useMemo(() => {
     return callHistory.filter((call) => {
-      if (search) {
-        const q = search.toLowerCase();
-        const qDigits = search.replace(/\D/g, '');
+      // Search
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        const qDigits = filters.search.replace(/\D/g, '');
         const calledClean = (call.called || '').replace(/\D/g, '');
         const callerClean = (call.caller || '').replace(/\D/g, '');
         const extKey = call.extension_number || call.caller || '';
@@ -130,209 +169,171 @@ export function HistoricoTab({ codAgent }: Props) {
         if ((call.hangup_cause || '') !== causeFilter) return false;
       }
       // Date range
-      if (dateFrom && call.started_at) {
-        if (new Date(call.started_at) < new Date(dateFrom)) return false;
+      if (filters.dateFrom && call.started_at) {
+        if (new Date(call.started_at) < new Date(filters.dateFrom)) return false;
       }
-      if (dateTo && call.started_at) {
-        const end = new Date(dateTo);
+      if (filters.dateTo && call.started_at) {
+        const end = new Date(filters.dateTo);
         end.setHours(23, 59, 59, 999);
         if (new Date(call.started_at) > end) return false;
       }
       return true;
     });
-  }, [callHistory, search, directionFilter, originFilter, causeFilter, dateFrom, dateTo]);
+  }, [callHistory, filters.search, filters.dateFrom, filters.dateTo, directionFilter, originFilter, causeFilter]);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Histórico de Chamadas</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[200px] max-w-xs">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por número ou atendente..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-9"
-            />
+    <div className="space-y-4">
+      <UnifiedFilters
+        agents={[]}
+        filters={filters}
+        onFiltersChange={(f) => {
+          setFilters(f);
+          // Reset custom selects on clear (when search is empty and dates reset to today)
+        }}
+        showAgentSelector={false}
+        showSearch={true}
+        showQuickPeriods={true}
+        searchPlaceholder="Buscar por número ou atendente..."
+        customSelects={customSelects}
+      />
+
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Histórico de Chamadas</CardTitle>
+            <span className="text-xs text-muted-foreground">{filteredHistory.length} registro(s)</span>
           </div>
-          <Select value={directionFilter} onValueChange={setDirectionFilter}>
-            <SelectTrigger className="w-[130px] h-9">
-              <SelectValue placeholder="Tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="outbound">Sainte</SelectItem>
-              <SelectItem value="inbound">Entrante</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={originFilter} onValueChange={setOriginFilter}>
-            <SelectTrigger className="w-[130px] h-9">
-              <SelectValue placeholder="Origem" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              <SelectItem value="CRM">CRM</SelectItem>
-              <SelectItem value="DISCADOR">Discador</SelectItem>
-              <SelectItem value="MANUAL">Manual</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={causeFilter} onValueChange={setCauseFilter}>
-            <SelectTrigger className="w-[140px] h-9">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="NORMAL_CLEARING">Atendida</SelectItem>
-              <SelectItem value="ORIGINATOR_CANCEL">Cancelada</SelectItem>
-              <SelectItem value="NO_ANSWER">Sem resposta</SelectItem>
-              <SelectItem value="USER_BUSY">Ocupado</SelectItem>
-            </SelectContent>
-          </Select>
-          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[140px] h-9" placeholder="De" />
-          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[140px] h-9" placeholder="Até" />
-          {hasActiveFilters && (
-            <Button variant="ghost" size="sm" className="h-9" onClick={clearFilters}>
-              <X className="h-4 w-4 mr-1" /> Limpar
-            </Button>
+        </CardHeader>
+        <CardContent>
+          {playingUrl && (
+            <GravacaoPlayer url={playingUrl} onClose={() => setPlayingUrl(null)} />
           )}
-        </div>
 
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">{filteredHistory.length} registro(s)</span>
-        </div>
-
-        {playingUrl && (
-          <GravacaoPlayer url={playingUrl} onClose={() => setPlayingUrl(null)} />
-        )}
-
-        {callHistoryLoading ? (
-          <p className="text-sm text-muted-foreground">Carregando...</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Origem</TableHead>
-                  <TableHead>Atendente</TableHead>
-                  <TableHead>Ramal</TableHead>
-                  <TableHead>Número discado</TableHead>
-                  <TableHead>Iniciou às</TableHead>
-                  <TableHead>Finalizou às</TableHead>
-                  <TableHead>Duração</TableHead>
-                  <TableHead>Causa</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Gravação</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredHistory.map((call) => {
-                  const meta = call.metadata || {};
-                  const origin = (meta as any)?.origin as string | undefined;
-                  const whatsappNumber = (meta as any)?.whatsapp_number as string | undefined;
-                  const extName = extensionNameMap.get(call.extension_number || call.caller || '') || '';
-                  const attendantName = extName ? `${extName} ${codAgent}` : codAgent;
-                  const hasDuration = call.duration_seconds != null && call.duration_seconds > 0;
-                  
-                  return (
-                    <TableRow key={call.id}>
-                      <TableCell className="text-xs whitespace-nowrap">
-                        {origin === 'CRM' ? (
-                          <div className="flex items-center gap-1">
-                            <LayoutDashboard className="h-3.5 w-3.5 text-primary" />
-                            <span>CRM</span>
-                            {whatsappNumber && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={() => handleGoToCrm(whatsappNumber)}
-                                title="Ver no CRM"
-                              >
-                                <ExternalLink className="h-3 w-3" />
-                              </Button>
-                            )}
-                          </div>
-                        ) : origin === 'DISCADOR' ? (
-                          <div className="flex items-center gap-1">
-                            <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>Discador</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>Manual</span>
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-xs whitespace-nowrap">
-                        {attendantName}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {call.extension_number || call.caller || '-'}
-                      </TableCell>
-                      <TableCell className="text-xs whitespace-nowrap">
-                        {formatPhone(call.called)}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                        {call.started_at ? new Date(call.started_at).toLocaleString('pt-BR') : '-'}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                        {call.ended_at ? new Date(call.ended_at).toLocaleString('pt-BR') : '-'}
-                      </TableCell>
-                      <TableCell className="text-xs font-mono">
-                        {formatDuration(call.duration_seconds)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getHangupBadgeVariant(call.hangup_cause)} className="text-[10px] whitespace-nowrap">
-                          {formatHangupCause(call.hangup_cause)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        {call.direction === 'outbound' || call.direction === 'Sainte' ? (
-                          <span className="flex items-center gap-1">
-                            <PhoneOutgoing className="h-3.5 w-3.5 text-primary" />
-                            Sainte
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1">
-                            <PhoneIncoming className="h-3.5 w-3.5 text-primary" />
-                            Entrante
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {call.record_url ? (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => setPlayingUrl(call.record_url)}
-                            disabled={!hasDuration}
-                            title={!hasDuration ? 'Sem gravação disponível' : 'Reproduzir gravação'}
-                          >
-                            <Play className="h-3.5 w-3.5" />
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-                {filteredHistory.length === 0 && (
+          {callHistoryLoading ? (
+            <p className="text-sm text-muted-foreground">Carregando...</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center text-muted-foreground">Nenhuma chamada encontrada</TableCell>
+                    <TableHead>Origem</TableHead>
+                    <TableHead>Atendente</TableHead>
+                    <TableHead>Ramal</TableHead>
+                    <TableHead>Número discado</TableHead>
+                    <TableHead>Iniciou às</TableHead>
+                    <TableHead>Finalizou às</TableHead>
+                    <TableHead>Duração</TableHead>
+                    <TableHead>Causa</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Gravação</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+                </TableHeader>
+                <TableBody>
+                  {filteredHistory.map((call) => {
+                    const meta = call.metadata || {};
+                    const origin = (meta as any)?.origin as string | undefined;
+                    const whatsappNumber = (meta as any)?.whatsapp_number as string | undefined;
+                    const extName = extensionNameMap.get(call.extension_number || call.caller || '') || '';
+                    const attendantName = extName ? `${extName} ${codAgent}` : codAgent;
+                    const hasDuration = call.duration_seconds != null && call.duration_seconds > 0;
+                    
+                    return (
+                      <TableRow key={call.id}>
+                        <TableCell className="text-xs whitespace-nowrap">
+                          {origin === 'CRM' ? (
+                            <div className="flex items-center gap-1">
+                              <LayoutDashboard className="h-3.5 w-3.5 text-primary" />
+                              <span>CRM</span>
+                              {whatsappNumber && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => handleGoToCrm(whatsappNumber)}
+                                  title="Ver no CRM"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          ) : origin === 'DISCADOR' ? (
+                            <div className="flex items-center gap-1">
+                              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span>Discador</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span>Manual</span>
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">
+                          {attendantName}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {call.extension_number || call.caller || '-'}
+                        </TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">
+                          {formatPhone(call.called)}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {call.started_at ? new Date(call.started_at).toLocaleString('pt-BR') : '-'}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {call.ended_at ? new Date(call.ended_at).toLocaleString('pt-BR') : '-'}
+                        </TableCell>
+                        <TableCell className="text-xs font-mono">
+                          {formatDuration(call.duration_seconds)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getHangupBadgeVariant(call.hangup_cause)} className="text-[10px] whitespace-nowrap">
+                            {formatHangupCause(call.hangup_cause)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {call.direction === 'outbound' || call.direction === 'Sainte' ? (
+                            <span className="flex items-center gap-1">
+                              <PhoneOutgoing className="h-3.5 w-3.5 text-primary" />
+                              Sainte
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1">
+                              <PhoneIncoming className="h-3.5 w-3.5 text-primary" />
+                              Entrante
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {call.record_url ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => setPlayingUrl(call.record_url)}
+                              disabled={!hasDuration}
+                              title={!hasDuration ? 'Sem gravação disponível' : 'Reproduzir gravação'}
+                            >
+                              <Play className="h-3.5 w-3.5" />
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {filteredHistory.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={10} className="text-center text-muted-foreground">Nenhuma chamada encontrada</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
