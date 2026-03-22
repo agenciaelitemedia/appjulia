@@ -127,10 +127,12 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
     onSuccess: (result) => {
       if (result?.via === 'sip') {
         toast.success(`Discando para ${contactName} via SIP...`);
-        // Close dialog and show centered softphone
         onOpenChange(false);
         setShowSoftphone(true);
       } else {
+        // Enqueue sync for REST call_id
+        const callId = result?.data?.call_id || result?.data?.id;
+        if (callId) syncQueue.enqueue(String(callId));
         toast.success(`Ligando para ${contactName}...`);
         onOpenChange(false);
       }

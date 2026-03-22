@@ -103,9 +103,14 @@ export function DiscadorTab({ codAgent }: Props) {
     if (sip.status === 'registered') {
       sip.call(formatted);
     } else {
-      dial.mutate({ extensionId: ext.id, phone: formatted });
+      dial.mutate({ extensionId: ext.id, phone: formatted }, {
+        onSuccess: (result) => {
+          const callId = result?.data?.call_id || result?.data?.id;
+          if (callId) syncQueue.enqueue(String(callId));
+        },
+      });
     }
-  }, [selectedExtension, number, sip, extensions, dial]);
+  }, [selectedExtension, number, sip, extensions, dial, syncQueue]);
 
   const hasExtension = !!myExtension;
 
