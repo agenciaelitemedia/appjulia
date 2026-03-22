@@ -141,9 +141,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
                 <p className="text-xs text-muted-foreground font-medium">Taxa de Retorno</p>
               </div>
               <p className="text-2xl font-bold text-foreground">{(returnRateData?.returnRate ?? 0).toFixed(1)}%</p>
-              <p className="text-xs text-muted-foreground">
-                Leads que responderam ao followup
-              </p>
+              <p className="text-xs text-muted-foreground">Respostas ao followup</p>
             </div>
             <div className="p-2 bg-chart-1/10 rounded-full">
               <MessageCircleReply className="h-5 w-5 text-chart-1" />
