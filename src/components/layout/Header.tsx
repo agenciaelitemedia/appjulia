@@ -1,4 +1,5 @@
 import { Menu, Bell, Search, LogOut, User, Settings, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { HeaderDialer } from './HeaderDialer';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
