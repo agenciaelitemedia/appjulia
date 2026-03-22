@@ -144,7 +144,12 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       toast.success(`Ligando para ${contactName || formatted}...`);
       setShowSoftphone(true);
     } catch (err: any) {
-      toast.error(err.message || 'Erro ao discar');
+      const msg = err.message || 'Erro ao discar';
+      if (msg.includes('user not registered') || msg.includes('not registered')) {
+        toast.error('Ramal SIP não registrado. Verifique se o softphone está conectado.');
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setIsDialing(false);
     }
