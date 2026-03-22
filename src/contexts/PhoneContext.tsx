@@ -136,6 +136,14 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Check SIP registration before dialing
+    if (sip.status !== 'registered' && sip.status !== 'in-call' && sip.status !== 'calling' && sip.status !== 'ringing') {
+      toast.info('SIP não registrado. Reconectando...');
+      await connectSip();
+      // Wait briefly for registration
+      await new Promise(r => setTimeout(r, 3000));
+    }
+
     const { formatted } = formatPhoneForDialing(phone);
     setDialContactName(contactName || formatted);
     setIsDialing(true);
