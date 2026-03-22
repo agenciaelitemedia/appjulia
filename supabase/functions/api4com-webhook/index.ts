@@ -6,6 +6,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Append -03:00 (Brasília) to naive timestamps from Api4Com
+function fixTimezone(ts: string | null | undefined): string | null {
+  if (!ts) return null;
+  const s = String(ts).trim();
+  // Already has timezone info
+  if (/[+-]\d{2}:\d{2}$/.test(s) || s.endsWith('Z')) return s;
+  // Naive timestamp — assume Brasília
+  return `${s}-03:00`;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -41,14 +51,14 @@ serve(async (req) => {
     console.log(`Event: ${eventType}, callId: ${callId}, codAgent: ${codAgent}, ext: ${extensionNumber}`);
 
     if (eventType === 'channel-hangup' || event.hangup_cause) {
-      // Complete hangup event — check if we have all data
+      // Only process hangup events — this is the only webhook event that persists data
       const duration = event.duration || event.billsec || 0;
       const recordUrl = event.record_url || event.recording_url || event.recordUrl || null;
       const cost = event.cost || event.call_price || 0;
       const hangupCause = event.hangup_cause || event.hangupCause || null;
-      const startedAt = event.start_stamp || event.created_at || event.startedAt || null;
-      const answeredAt = event.answer_stamp || event.answeredAt || null;
-      const endedAt = event.end_stamp || event.endedAt || new Date().toISOString();
+      const startedAt = fixTimezone(event.start_stamp || event.created_at || event.startedAt);
+      const answeredAt = fixTimezone(event.answer_stamp || event.answeredAt);
+      const endedAt = fixTimezone(event.end_stamp || event.endedAt) || new Date().toISOString();
       const direction = event.direction || event.call_type || 'unknown';
       const caller = event.caller_id_number || event.from || event.caller || '';
       const called = event.destination_number || event.to || event.called || '';
@@ -60,6 +70,7 @@ serve(async (req) => {
       if (minutePrice != null) metadata.minute_price = minutePrice;
 
       const logData: Record<string, any> = {
+        call_id: callId ? String(callId) : null,
         cod_agent: codAgent || null,
         extension_number: extensionNumber,
         direction,
@@ -76,29 +87,27 @@ serve(async (req) => {
       };
       if (answeredAt) logData.answered_at = answeredAt;
 
-      if (callId) {
-        logData.call_id = String(callId);
-        const { data: existing } = await supabase
-          .from('phone_call_logs')
-          .select('id')
-          .eq('call_id', String(callId))
-          .maybeSingle();
+      // Check if we have complete data
+      const dataComplete = (duration > 0 || hangupCause) && callId;
 
-        if (existing) {
-          await supabase.from('phone_call_logs').update(logData).eq('id', existing.id);
-        } else {
-          await supabase.from('phone_call_logs').insert(logData);
+      if (callId) {
+        // Use upsert with onConflict to prevent duplicates (UNIQUE constraint on call_id)
+        const { error: upsertError } = await supabase
+          .from('phone_call_logs')
+          .upsert(logData, { onConflict: 'call_id' });
+
+        if (upsertError) {
+          console.error('Upsert error:', upsertError);
         }
       } else {
+        // No call_id — just insert (rare case)
         await supabase.from('phone_call_logs').insert(logData);
       }
 
-      // If data is incomplete (no duration or no cost), trigger incremental sync
-      const dataComplete = duration > 0 || hangupCause;
+      // If data is incomplete, trigger incremental sync for this specific call
       if (!dataComplete && codAgent && callId) {
         console.log('Hangup data incomplete, triggering incremental sync for callId:', callId);
         try {
-          // Get config for this agent
           const { data: config } = await supabase
             .from('phone_config')
             .select('api4com_domain, api4com_token')
@@ -107,9 +116,9 @@ serve(async (req) => {
             .maybeSingle();
 
           if (config) {
-            const baseUrl = `https://${config.api4com_domain}/api/v1`;
-            const headers = { 'Authorization': config.api4com_token, 'Content-Type': 'application/json' };
-            const resp = await fetch(`${baseUrl}/calls?page=1`, { headers });
+            const apiBaseUrl = `https://${config.api4com_domain}/api/v1`;
+            const apiHeaders = { 'Authorization': config.api4com_token, 'Content-Type': 'application/json' };
+            const resp = await fetch(`${apiBaseUrl}/calls?page=1`, { headers: apiHeaders });
             if (resp.ok) {
               const callsData = await resp.json();
               const records = Array.isArray(callsData) ? callsData : (callsData?.data || []);
@@ -120,21 +129,23 @@ serve(async (req) => {
                   cost: Number(match.call_price ?? 0),
                   record_url: match.record_url || null,
                   hangup_cause: match.hangup_cause || hangupCause,
-                  started_at: match.started_at || startedAt,
-                  ended_at: match.ended_at || endedAt,
+                  started_at: fixTimezone(match.started_at) || startedAt,
+                  ended_at: fixTimezone(match.ended_at) || endedAt,
                   status: 'hangup',
                 };
+                if (match.answer_stamp || match.answeredAt) {
+                  cdrUpdate.answered_at = fixTimezone(match.answer_stamp || match.answeredAt);
+                }
                 const cdrMeta: Record<string, any> = { ...metadata };
                 if (match.minute_price != null) cdrMeta.minute_price = Number(match.minute_price);
                 const attName = [match.first_name, match.last_name].filter(Boolean).join(' ').trim();
                 if (attName) cdrMeta.attendant_name = attName;
                 cdrUpdate.metadata = cdrMeta;
 
-                const { data: ex } = await supabase.from('phone_call_logs').select('id').eq('call_id', String(callId)).maybeSingle();
-                if (ex) {
-                  await supabase.from('phone_call_logs').update(cdrUpdate).eq('id', ex.id);
-                  console.log('Enriched call log from CDR for callId:', callId);
-                }
+                await supabase.from('phone_call_logs')
+                  .update(cdrUpdate)
+                  .eq('call_id', String(callId));
+                console.log('Enriched call log from CDR for callId:', callId);
               }
             }
           }
@@ -142,35 +153,8 @@ serve(async (req) => {
           console.error('Incremental sync from webhook failed (non-critical):', e);
         }
       }
-    } else if (eventType === 'channel-create') {
-      // Only upsert if no existing record — avoid creating partial records
-      if (callId) {
-        const { data: existing } = await supabase.from('phone_call_logs').select('id').eq('call_id', String(callId)).maybeSingle();
-        if (!existing) {
-          await supabase.from('phone_call_logs').insert({
-            call_id: String(callId),
-            cod_agent: codAgent || null,
-            extension_number: extensionNumber,
-            direction: event.direction || 'unknown',
-            caller: event.caller_id_number || event.from || event.caller || '',
-            called: event.destination_number || event.to || event.called || '',
-            started_at: event.start_stamp || event.created_at || new Date().toISOString(),
-            status: 'initiated',
-            metadata: event,
-          });
-        }
-      }
-    } else if (eventType === 'channel-answer') {
-      if (callId) {
-        const { data: existing } = await supabase.from('phone_call_logs').select('id').eq('call_id', String(callId)).maybeSingle();
-        if (existing) {
-          await supabase.from('phone_call_logs').update({
-            answered_at: event.answer_stamp || new Date().toISOString(),
-            status: 'answered',
-          }).eq('id', existing.id);
-        }
-      }
     }
+    // channel-create and channel-answer are ignored — no partial records
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

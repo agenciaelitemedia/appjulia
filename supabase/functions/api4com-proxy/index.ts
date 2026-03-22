@@ -558,8 +558,16 @@ serve(async (req) => {
         const syncErrors: string[] = [];
         let notFound = false;
 
+        // Helper: append -03:00 (Brasília) to naive timestamps
+        const fixTz = (ts: string | null | undefined): string | null => {
+          if (!ts) return null;
+          const s = String(ts).trim();
+          if (/[+-]\d{2}:\d{2}$/.test(s) || s.endsWith('Z')) return s;
+          return `${s}-03:00`;
+        };
+
         try {
-          // MODE 1: Sync specific call_id (UPDATE only, never INSERT)
+          // MODE 1: Sync specific call_id — upsert (insert if not exists, update if exists)
           if (callId) {
             let found = false;
             let page = 1;
@@ -591,11 +599,14 @@ serve(async (req) => {
                 if (cdr.metadata) cdrMetadata.api4com_metadata = cdr.metadata;
                 if (cdr.domain) cdrMetadata.domain = cdr.domain;
 
-                const updateData = {
+                const logEntry = {
+                  call_id: String(callId),
+                  cod_agent: codAgent,
                   extension_number: caller,
                   direction, caller, called,
-                  started_at: cdr.started_at,
-                  ended_at: cdr.ended_at || null,
+                  started_at: fixTz(cdr.started_at),
+                  ended_at: fixTz(cdr.ended_at),
+                  answered_at: fixTz(cdr.answer_stamp || cdr.answeredAt),
                   duration_seconds: Number(cdr.duration ?? 0),
                   record_url: cdr.record_url || null,
                   cost: callPrice ?? 0,
@@ -604,21 +615,13 @@ serve(async (req) => {
                   metadata: cdrMetadata,
                 };
 
-                // Upsert: insert if not exists, update if exists
-                const { data: existing } = await supabase
+                // Upsert using UNIQUE constraint on call_id
+                const { error: upsertErr } = await supabase
                   .from('phone_call_logs')
-                  .select('id')
-                  .eq('call_id', String(callId))
-                  .maybeSingle();
+                  .upsert(logEntry, { onConflict: 'call_id' });
 
-                if (existing) {
-                  await supabase.from('phone_call_logs').update(updateData).eq('id', existing.id);
-                } else {
-                  await supabase.from('phone_call_logs').insert({
-                    ...updateData,
-                    call_id: String(callId),
-                    cod_agent: codAgent,
-                  });
+                if (upsertErr) {
+                  console.error('Upsert error for callId', callId, upsertErr);
                 }
                 totalSynced = 1;
                 break;
@@ -684,8 +687,9 @@ serve(async (req) => {
                   cod_agent: codAgent,
                   extension_number: caller,
                   direction, caller, called,
-                  started_at: cdrStarted,
-                  ended_at: cdr.ended_at || null,
+                  started_at: fixTz(cdrStarted),
+                  ended_at: fixTz(cdr.ended_at),
+                  answered_at: fixTz(cdr.answer_stamp || cdr.answeredAt),
                   duration_seconds: Number(cdr.duration ?? 0),
                   record_url: cdr.record_url || null,
                   cost: callPrice ?? 0,
@@ -696,19 +700,16 @@ serve(async (req) => {
 
                 if (cdrId) {
                   logEntry.call_id = cdrId;
-                  const { data: existing } = await supabase
-                    .from('phone_call_logs').select('id').eq('call_id', cdrId).maybeSingle();
-
-                  if (existing) {
-                    await supabase.from('phone_call_logs').update(logEntry).eq('id', existing.id);
-                  } else {
-                    await supabase.from('phone_call_logs').insert(logEntry);
-                  }
+                  // Upsert using UNIQUE constraint
+                  const { error: upsertErr } = await supabase
+                    .from('phone_call_logs')
+                    .upsert(logEntry, { onConflict: 'call_id' });
+                  if (upsertErr) console.error('Upsert error:', upsertErr);
                 } else {
                   const { data: dup } = await supabase
                     .from('phone_call_logs').select('id')
                     .eq('cod_agent', codAgent).eq('extension_number', caller)
-                    .eq('called', called || '').eq('started_at', cdrStarted || '')
+                    .eq('called', called || '').eq('started_at', fixTz(cdrStarted) || '')
                     .maybeSingle();
                   if (!dup) await supabase.from('phone_call_logs').insert(logEntry);
                 }
