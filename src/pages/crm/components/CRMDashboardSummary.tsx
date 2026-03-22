@@ -48,8 +48,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
     const disqualifiedRate = totalSessions > 0 ? (disqualified / totalSessions) * 100 : 0;
 
     // FollowUp ativos
-    const followupEntries = followupMap ? Array.from(followupMap.values()) : [];
-    const activeFollowups = followupEntries.filter(f => f.step_number > 0);
+    const activeFollowups = followupMap ? Array.from(followupMap.values()) : [];
     const infiniteCount = activeFollowups.filter(f => f.is_infinite && f.step_number >= (f.followup_to ?? 0)).length;
     const stepsCount = activeFollowups.length - infiniteCount;
 
