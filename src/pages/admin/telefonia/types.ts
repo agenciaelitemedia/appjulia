@@ -11,13 +11,11 @@ export interface PhonePlan {
 
 export interface PhoneUserPlan {
   id: number;
-  user_id: number;
+  cod_agent: string;
   plan_id: number;
   is_active: boolean;
   assigned_at: string;
   // joined
-  user_name?: string;
-  user_email?: string;
   plan_name?: string;
   max_extensions?: number;
   used_extensions?: number;
@@ -54,7 +52,7 @@ export interface PhoneCallLog {
 
 export interface PhoneExtension {
   id: number;
-  user_id: number;
+  cod_agent: string;
   extension_number: string;
   assigned_member_id: number | null;
   label: string | null;

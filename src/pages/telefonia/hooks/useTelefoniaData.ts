@@ -1,22 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { PhoneExtension, PhoneCallLog } from '../types';
 
-export function useTelefoniaData() {
-  const { user } = useAuth();
+export function useTelefoniaData(codAgent: string | undefined) {
   const queryClient = useQueryClient();
-  const userId = user?.id;
 
-  // Get user's plan
+  // Get agent's plan
   const planQuery = useQuery({
-    queryKey: ['my-phone-plan', userId],
+    queryKey: ['my-phone-plan', codAgent],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('phone_user_plans')
         .select('*, phone_extension_plans(name, max_extensions, price)')
-        .eq('user_id', userId!)
+        .eq('cod_agent', codAgent!)
         .eq('is_active', true)
         .maybeSingle();
       if (error) throw error;
@@ -27,22 +24,22 @@ export function useTelefoniaData() {
         max_extensions: (data as any).phone_extension_plans?.max_extensions || 0,
       };
     },
-    enabled: !!userId,
+    enabled: !!codAgent,
   });
 
-  // Get user's extensions
+  // Get agent's extensions
   const extensionsQuery = useQuery({
-    queryKey: ['my-extensions', userId],
+    queryKey: ['my-extensions', codAgent],
     queryFn: async (): Promise<PhoneExtension[]> => {
       const { data, error } = await supabase
         .from('phone_extensions')
         .select('*')
-        .eq('user_id', userId!)
+        .eq('cod_agent', codAgent!)
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data as unknown as PhoneExtension[];
     },
-    enabled: !!userId,
+    enabled: !!codAgent,
   });
 
   // Create extension
@@ -50,7 +47,7 @@ export function useTelefoniaData() {
     mutationFn: async (ext: Partial<PhoneExtension>) => {
       const { error } = await supabase
         .from('phone_extensions')
-        .insert({ ...ext, user_id: userId } as any);
+        .insert({ ...ext, cod_agent: codAgent } as any);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -92,29 +89,25 @@ export function useTelefoniaData() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Call history for user
+  // Call history for agent
   const historyQuery = useQuery({
-    queryKey: ['my-call-history', userId],
+    queryKey: ['my-call-history', codAgent],
     queryFn: async (): Promise<PhoneCallLog[]> => {
-      // Get user's extension numbers
-      const exts = extensionsQuery.data?.map((e) => e.extension_number) || [];
-      if (exts.length === 0) return [];
-      
       const { data, error } = await supabase
         .from('phone_call_logs')
         .select('*')
-        .in('extension_number', exts)
+        .eq('cod_agent', codAgent!)
         .order('created_at', { ascending: false })
         .limit(200);
       if (error) throw error;
       return data as unknown as PhoneCallLog[];
     },
-    enabled: !!userId && (extensionsQuery.data?.length || 0) > 0,
+    enabled: !!codAgent,
   });
 
   // Dial
   const dial = useMutation({
-    mutationFn: async ({ extension, phone, codAgent }: { extension: string; phone: string; codAgent: string }) => {
+    mutationFn: async ({ extension, phone }: { extension: string; phone: string }) => {
       const { data, error } = await supabase.functions.invoke('api4com-proxy', {
         body: { action: 'dial', codAgent, extension, phone },
       });

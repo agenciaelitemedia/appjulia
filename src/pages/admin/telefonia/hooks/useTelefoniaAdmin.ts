@@ -63,7 +63,7 @@ export function useTelefoniaAdmin() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // === User Plans ===
+  // === User Plans (now by cod_agent) ===
   const userPlansQuery = useQuery({
     queryKey: ['phone-user-plans'],
     queryFn: async (): Promise<PhoneUserPlan[]> => {
@@ -81,16 +81,16 @@ export function useTelefoniaAdmin() {
   });
 
   const assignPlan = useMutation({
-    mutationFn: async ({ userId, planId }: { userId: number; planId: number }) => {
-      // Deactivate existing plans
+    mutationFn: async ({ codAgent, planId }: { codAgent: string; planId: number }) => {
+      // Deactivate existing plans for this cod_agent
       await supabase
         .from('phone_user_plans')
         .update({ is_active: false } as any)
-        .eq('user_id', userId);
+        .eq('cod_agent', codAgent);
       // Assign new plan
       const { error } = await supabase
         .from('phone_user_plans')
-        .insert({ user_id: userId, plan_id: planId } as any);
+        .insert({ cod_agent: codAgent, plan_id: planId } as any);
       if (error) throw error;
     },
     onSuccess: () => {

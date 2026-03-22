@@ -7,37 +7,36 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { UserPlus } from 'lucide-react';
 import { useTelefoniaAdmin } from '../hooks/useTelefoniaAdmin';
-import { externalDb } from '@/lib/externalDb';
 import { toast } from 'sonner';
 
 export function UserPlansTab() {
   const { plans, userPlans, userPlansLoading, assignPlan } = useTelefoniaAdmin();
-  const [userId, setUserId] = useState('');
+  const [codAgent, setCodAgent] = useState('');
   const [selectedPlanId, setSelectedPlanId] = useState('');
 
   const activePlans = plans.filter((p) => p.is_active);
 
   const handleAssign = () => {
-    if (!userId || !selectedPlanId) {
-      toast.error('Informe o ID do usuário e selecione um plano');
+    if (!codAgent || !selectedPlanId) {
+      toast.error('Informe o Cod Agent e selecione um plano');
       return;
     }
-    assignPlan.mutate({ userId: Number(userId), planId: Number(selectedPlanId) });
-    setUserId('');
+    assignPlan.mutate({ codAgent, planId: Number(selectedPlanId) });
+    setCodAgent('');
     setSelectedPlanId('');
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Vincular Planos a Usuários</CardTitle>
+        <CardTitle className="text-lg">Vincular Planos a Agentes</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Assign form */}
         <div className="flex items-end gap-3">
           <div className="flex-1">
-            <label className="text-sm font-medium mb-1 block">ID do Usuário</label>
-            <Input value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="Ex: 42" type="number" />
+            <label className="text-sm font-medium mb-1 block">Cod Agent</label>
+            <Input value={codAgent} onChange={(e) => setCodAgent(e.target.value)} placeholder="Ex: 12345" />
           </div>
           <div className="flex-1">
             <label className="text-sm font-medium mb-1 block">Plano</label>
@@ -66,7 +65,7 @@ export function UserPlansTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>User ID</TableHead>
+                <TableHead>Cod Agent</TableHead>
                 <TableHead>Plano</TableHead>
                 <TableHead>Máx. Ramais</TableHead>
                 <TableHead>Status</TableHead>
@@ -76,7 +75,7 @@ export function UserPlansTab() {
             <TableBody>
               {userPlans.map((up) => (
                 <TableRow key={up.id}>
-                  <TableCell>{up.user_id}</TableCell>
+                  <TableCell className="font-mono">{up.cod_agent}</TableCell>
                   <TableCell className="font-medium">{up.plan_name || '-'}</TableCell>
                   <TableCell>{up.max_extensions || '-'}</TableCell>
                   <TableCell>
