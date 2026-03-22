@@ -21,17 +21,24 @@ serve(async (req) => {
 
     const callId = event.call_id || event.uuid || event.id;
     const eventType = event.event || event.eventType || (event.hangup_cause ? 'channel-hangup' : 'unknown');
-    const codAgent = event.cod_agent || event.metadata?.cod_agent || '';
+
+    // Resolve cod_agent: metadata > direct field > lookup by extension
+    const codAgent = event.metadata?.cod_agent
+      || event.cod_agent
+      || event.metadata?.gateway === 'atende-julia' ? (event.metadata?.cod_agent || '') : '';
+
+    const extensionNumber = event.extension || event.caller_id_number || event.caller || '';
+
+    console.log(`Event: ${eventType}, callId: ${callId}, codAgent: ${codAgent}, ext: ${extensionNumber}`);
 
     if (eventType === 'channel-create') {
-      // Call initiated — insert new record
       const callData = {
         call_id: callId,
-        cod_agent: codAgent,
-        extension_number: event.extension || event.caller_id_number || '',
+        cod_agent: codAgent || null,
+        extension_number: extensionNumber,
         direction: event.direction || 'unknown',
-        caller: event.caller_id_number || event.from || '',
-        called: event.destination_number || event.to || '',
+        caller: event.caller_id_number || event.from || event.caller || '',
+        called: event.destination_number || event.to || event.called || '',
         started_at: event.start_stamp || event.created_at || new Date().toISOString(),
         status: 'initiated',
         metadata: event,
@@ -47,7 +54,6 @@ serve(async (req) => {
         await supabase.from('phone_call_logs').insert(callData);
       }
     } else if (eventType === 'channel-answer') {
-      // Call answered — update existing record
       const { data: existing } = await supabase
         .from('phone_call_logs')
         .select('id')
@@ -63,32 +69,32 @@ serve(async (req) => {
           })
           .eq('id', existing.id);
       } else {
-        // If we missed the create event, insert with answered status
         await supabase.from('phone_call_logs').insert({
           call_id: callId,
-          cod_agent: codAgent,
-          extension_number: event.extension || event.caller_id_number || '',
+          cod_agent: codAgent || null,
+          extension_number: extensionNumber,
           direction: event.direction || 'unknown',
-          caller: event.caller_id_number || event.from || '',
-          called: event.destination_number || event.to || '',
-          started_at: event.start_stamp || event.created_at,
+          caller: event.caller_id_number || event.from || event.caller || '',
+          called: event.destination_number || event.to || event.called || '',
+          started_at: event.start_stamp || event.created_at || new Date().toISOString(),
           answered_at: event.answer_stamp || new Date().toISOString(),
           status: 'answered',
           metadata: event,
         });
       }
     } else if (eventType === 'channel-hangup' || event.hangup_cause) {
-      // Call ended — update or insert
       const updateData: Record<string, any> = {
-        ended_at: event.end_stamp || new Date().toISOString(),
+        ended_at: event.end_stamp || event.endedAt || new Date().toISOString(),
         duration_seconds: event.duration || event.billsec || 0,
-        hangup_cause: event.hangup_cause || null,
-        record_url: event.record_url || event.recording_url || null,
+        hangup_cause: event.hangup_cause || event.hangupCause || null,
+        record_url: event.record_url || event.recording_url || event.recordUrl || null,
         cost: event.cost || 0,
         status: 'hangup',
         metadata: event,
       };
-      if (event.answer_stamp) updateData.answered_at = event.answer_stamp;
+      if (event.answer_stamp || event.answeredAt) {
+        updateData.answered_at = event.answer_stamp || event.answeredAt;
+      }
 
       const { data: existing } = await supabase
         .from('phone_call_logs')
@@ -104,12 +110,12 @@ serve(async (req) => {
       } else {
         await supabase.from('phone_call_logs').insert({
           call_id: callId,
-          cod_agent: codAgent,
-          extension_number: event.extension || event.caller_id_number || '',
+          cod_agent: codAgent || null,
+          extension_number: extensionNumber,
           direction: event.direction || 'unknown',
-          caller: event.caller_id_number || event.from || '',
-          called: event.destination_number || event.to || '',
-          started_at: event.start_stamp || event.created_at,
+          caller: event.caller_id_number || event.from || event.caller || '',
+          called: event.destination_number || event.to || event.called || '',
+          started_at: event.start_stamp || event.created_at || event.startedAt || new Date().toISOString(),
           ...updateData,
         });
       }
@@ -118,7 +124,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('api4com-webhook error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),

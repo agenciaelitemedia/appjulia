@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
-import { Plus, Pencil, Trash2, Phone } from 'lucide-react';
+import { Plus, Pencil, Trash2, Phone, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { RamalDialog } from './RamalDialog';
 import type { PhoneExtension } from '../types';
@@ -14,7 +14,7 @@ interface Props {
 }
 
 export function MeusRamaisTab({ codAgent }: Props) {
-  const { extensions, extensionsLoading, maxExtensions, usedExtensions, canCreateExtension, plan, createExtension, updateExtension, deleteExtension } = useTelefoniaData(codAgent);
+  const { extensions, extensionsLoading, maxExtensions, usedExtensions, canCreateExtension, plan, createExtension, updateExtension, deleteExtension, syncExtensions } = useTelefoniaData(codAgent);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<PhoneExtension | null>(null);
 
@@ -53,9 +53,20 @@ export function MeusRamaisTab({ codAgent }: Props) {
             <Phone className="h-5 w-5" />
             Meus Ramais
           </CardTitle>
-          <Button size="sm" onClick={() => { setEditing(null); setDialogOpen(true); }} disabled={!canCreateExtension}>
-            <Plus className="h-4 w-4 mr-1" /> Novo Ramal
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => syncExtensions.mutate()}
+              disabled={syncExtensions.isPending}
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${syncExtensions.isPending ? 'animate-spin' : ''}`} />
+              Sincronizar
+            </Button>
+            <Button size="sm" onClick={() => { setEditing(null); setDialogOpen(true); }} disabled={!canCreateExtension}>
+              <Plus className="h-4 w-4 mr-1" /> Novo Ramal
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {extensionsLoading ? (
@@ -64,39 +75,58 @@ export function MeusRamaisTab({ codAgent }: Props) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Ramal</TableHead>
+                  <TableHead>Ramal Local</TableHead>
+                  <TableHead>Api4Com</TableHead>
                   <TableHead>Nome</TableHead>
                   <TableHead>Membro</TableHead>
+                  <TableHead>Vínculo</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-[100px]">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {extensions.map((ext) => (
-                  <TableRow key={ext.id}>
-                    <TableCell className="font-mono font-medium">{ext.extension_number}</TableCell>
-                    <TableCell>{ext.label || '-'}</TableCell>
-                    <TableCell>{ext.assigned_member_id || '-'}</TableCell>
-                    <TableCell>
-                      <Badge variant={ext.is_active ? 'default' : 'secondary'}>
-                        {ext.is_active ? 'Ativo' : 'Inativo'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditing(ext); setDialogOpen(true); }}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteExtension.mutate(ext.id)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {extensions.map((ext) => {
+                  const isLinked = !!ext.api4com_ramal;
+                  return (
+                    <TableRow key={ext.id}>
+                      <TableCell className="font-mono font-medium">{ext.extension_number}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {ext.api4com_ramal || <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell>{ext.label || '-'}</TableCell>
+                      <TableCell>{ext.assigned_member_id || '-'}</TableCell>
+                      <TableCell>
+                        {isLinked ? (
+                          <Badge variant="default" className="gap-1 bg-green-600">
+                            <CheckCircle className="h-3 w-3" /> Vinculado
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="gap-1">
+                            <AlertCircle className="h-3 w-3" /> Sem vínculo
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={ext.is_active ? 'default' : 'secondary'}>
+                          {ext.is_active ? 'Ativo' : 'Inativo'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditing(ext); setDialogOpen(true); }}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteExtension.mutate(ext.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
                 {extensions.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">Nenhum ramal criado</TableCell>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground">Nenhum ramal criado</TableCell>
                   </TableRow>
                 )}
               </TableBody>

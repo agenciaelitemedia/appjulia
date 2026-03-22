@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Phone, Loader2 } from 'lucide-react';
+import { Phone, Loader2, AlertCircle } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -20,9 +20,9 @@ interface PhoneCallDialogProps {
 
 export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactName, codAgent }: PhoneCallDialogProps) {
   const [selectedExtension, setSelectedExtension] = useState('');
+  const [sipError, setSipError] = useState('');
   const sip = useSipPhone();
 
-  // Fetch agent's active extensions
   const { data: extensions = [] } = useQuery({
     queryKey: ['my-extensions-for-call', codAgent],
     queryFn: async () => {
@@ -39,37 +39,49 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
 
   const handleSelectExtension = useCallback(async (extId: string) => {
     setSelectedExtension(extId);
+    setSipError('');
 
     if (sip.status !== 'idle') sip.disconnect();
 
     const ext = extensions.find((e: any) => String(e.id) === extId);
     if (!ext) return;
 
+    if (!ext.api4com_ramal) {
+      setSipError('Ramal sem vínculo Api4Com');
+      return;
+    }
+
     try {
       const { data, error } = await supabase.functions.invoke('api4com-proxy', {
         body: { action: 'get_sip_credentials', codAgent, extensionId: ext.id },
       });
-      if (error || data?.error) return;
+      if (error) throw new Error(error.message || 'Erro ao buscar credenciais');
+      if (data?.error) throw new Error(data.error);
       sip.connect(data.data);
-    } catch {
-      // SIP not available
+    } catch (err: any) {
+      setSipError(err.message || 'SIP indisponível');
     }
   }, [extensions, codAgent, sip]);
 
   const dial = useMutation({
     mutationFn: async () => {
       const ext = extensions.find((e: any) => String(e.id) === selectedExtension);
-      const extensionNumber = (ext as any)?.api4com_ramal || (ext as any)?.extension_number || '';
+      if (!ext) throw new Error('Selecione um ramal');
+
+      if (!(ext as any).api4com_ramal) {
+        throw new Error('Ramal sem vínculo Api4Com. Sincronize os ramais.');
+      }
 
       if (sip.status === 'registered') {
         sip.call(whatsappNumber);
         return { via: 'sip' };
       }
 
+      // REST fallback using extensionId
       const { data, error } = await supabase.functions.invoke('api4com-proxy', {
-        body: { action: 'dial', codAgent, extension: extensionNumber, phone: whatsappNumber },
+        body: { action: 'dial', codAgent, extensionId: ext.id, phone: whatsappNumber },
       });
-      if (error) throw error;
+      if (error) throw new Error(error.message || 'Erro ao discar');
       if (data?.error) throw new Error(data.error);
       return data;
     },
@@ -81,10 +93,10 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
         onOpenChange(false);
       }
     },
-    onError: (e: Error) => toast.error(`Erro: ${e.message}`),
+    onError: (e: Error) => toast.error(e.message),
   });
 
-  const sipStatusLabel = sip.status === 'registered' ? 'SIP ativo' : sip.status === 'idle' ? '' : sip.status;
+  const sipStatusLabel = sip.status === 'registered' ? 'SIP ativo' : sip.status === 'error' ? 'SIP erro' : sip.status === 'idle' ? '' : sip.status;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -117,11 +129,16 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
                 {extensions.map((ext: any) => (
                   <SelectItem key={ext.id} value={String(ext.id)}>
                     {ext.extension_number} {ext.label ? `(${ext.label})` : ''}
-                    {ext.api4com_ramal ? ` → ${ext.api4com_ramal}` : ''}
+                    {ext.api4com_ramal ? ` → ${ext.api4com_ramal}` : ' ⚠️ sem vínculo'}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {sipError && (
+              <p className="text-xs text-destructive mt-1 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" /> {sipError}
+              </p>
+            )}
             {extensions.length === 0 && (
               <p className="text-xs text-destructive mt-1">Nenhum ramal ativo encontrado</p>
             )}
@@ -141,7 +158,6 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
         </DialogFooter>
       </DialogContent>
 
-      {/* Softphone Widget for active calls */}
       <SoftphoneWidget
         status={sip.status}
         duration={sip.duration}

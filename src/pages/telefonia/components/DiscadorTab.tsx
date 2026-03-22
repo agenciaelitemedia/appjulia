@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { AlertCircle } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { useSipPhone } from '../hooks/useSipPhone';
 import { SoftphoneWidget } from './SoftphoneWidget';
@@ -27,41 +28,51 @@ export function DiscadorTab({ codAgent }: Props) {
   const sip = useSipPhone();
   const [selectedExtension, setSelectedExtension] = useState<string>('');
   const [number, setNumber] = useState('');
+  const [sipError, setSipError] = useState('');
 
   const activeExtensions = extensions.filter((e) => e.is_active);
 
   const handleSelectExtension = useCallback(async (extId: string) => {
     setSelectedExtension(extId);
+    setSipError('');
 
-    // Disconnect previous SIP if any
     if (sip.status !== 'idle') {
       sip.disconnect();
     }
 
-    // Try to connect SIP
     const ext = extensions.find((e) => String(e.id) === extId);
     if (!ext) return;
+
+    if (!ext.api4com_ramal) {
+      setSipError('Ramal sem vínculo Api4Com. Sincronize os ramais primeiro.');
+      return;
+    }
 
     try {
       const creds = await getSipCredentials(ext.id);
       sip.connect(creds);
-    } catch {
-      // SIP not available, will use REST fallback
-      toast.info('SIP não disponível, usando discagem via API');
+    } catch (err: any) {
+      setSipError(err.message || 'Erro ao conectar SIP');
+      toast.warning('SIP indisponível, usando discagem via API');
     }
   }, [extensions, getSipCredentials, sip]);
 
   const handleDial = useCallback(() => {
     if (!selectedExtension || !number) return;
 
+    const ext = extensions.find((e) => String(e.id) === selectedExtension);
+    if (!ext) return;
+
+    if (!ext.api4com_ramal) {
+      toast.error('Ramal sem vínculo Api4Com. Sincronize os ramais.');
+      return;
+    }
+
     if (sip.status === 'registered') {
-      // Use SIP
       sip.call(number);
     } else {
-      // REST fallback
-      const ext = extensions.find((e) => String(e.id) === selectedExtension);
-      const extensionNumber = ext?.api4com_ramal || ext?.extension_number || '';
-      dial.mutate({ extension: extensionNumber, phone: number });
+      // REST fallback using extensionId
+      dial.mutate({ extensionId: ext.id, phone: number });
     }
   }, [selectedExtension, number, sip, extensions, dial]);
 
@@ -73,7 +84,7 @@ export function DiscadorTab({ codAgent }: Props) {
             Discador
             {sip.status !== 'idle' && (
               <Badge variant="secondary" className={statusColors[sip.status]}>
-                {sip.status === 'registered' ? 'SIP' : sip.status}
+                {sip.status === 'registered' ? 'SIP Conectado' : sip.status === 'error' ? 'SIP Erro' : sip.status}
               </Badge>
             )}
           </CardTitle>
@@ -89,11 +100,16 @@ export function DiscadorTab({ codAgent }: Props) {
                 {activeExtensions.map((ext) => (
                   <SelectItem key={ext.id} value={String(ext.id)}>
                     {ext.extension_number} {ext.label ? `(${ext.label})` : ''}
-                    {ext.api4com_ramal ? ` → ${ext.api4com_ramal}` : ''}
+                    {ext.api4com_ramal ? ` → ${ext.api4com_ramal}` : ' ⚠️ sem vínculo'}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {sipError && (
+              <p className="text-xs text-destructive mt-1 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" /> {sipError}
+              </p>
+            )}
           </div>
 
           <DiscadorPad
@@ -106,7 +122,6 @@ export function DiscadorTab({ codAgent }: Props) {
         </CardContent>
       </Card>
 
-      {/* Softphone Widget */}
       <SoftphoneWidget
         status={sip.status}
         duration={sip.duration}
