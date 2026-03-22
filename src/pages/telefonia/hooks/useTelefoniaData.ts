@@ -55,13 +55,13 @@ export function useTelefoniaData(codAgent: string | undefined) {
         },
       });
 
-      if (apiError) throw apiError;
+      if (apiError) throw new Error(apiError.message || 'Erro ao criar ramal na Api4Com');
       if (apiResult?.error) throw new Error(apiResult.error);
 
       const api4comData = apiResult?.data;
-      const api4comRamal = api4comData?.ramal || api4comData?.extension || null;
-      const api4comPassword = api4comData?.senha || api4comData?.password || null;
-      const api4comId = api4comData?.id ? String(api4comData.id) : null;
+      if (!api4comData?.ramal) {
+        throw new Error('Api4Com não retornou dados do ramal');
+      }
 
       // 2. Generate local alias
       const existingCount = extensionsQuery.data?.length || 0;
@@ -75,18 +75,18 @@ export function useTelefoniaData(codAgent: string | undefined) {
           extension_number: localNumber,
           label: ext.label || null,
           assigned_member_id: ext.assigned_member_id || null,
-          api4com_id: api4comId,
-          api4com_ramal: api4comRamal,
-          api4com_password: api4comPassword,
+          api4com_id: api4comData.id ? String(api4comData.id) : null,
+          api4com_ramal: api4comData.ramal,
+          api4com_password: api4comData.senha || null,
           is_active: true,
         } as any);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-extensions'] });
-      toast.success('Ramal criado na Api4Com e vinculado');
+      toast.success('Ramal criado e vinculado na Api4Com');
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(`Erro ao criar ramal: ${e.message}`),
   });
 
   // Update extension
@@ -108,7 +108,6 @@ export function useTelefoniaData(codAgent: string | undefined) {
   // Delete extension
   const deleteExtension = useMutation({
     mutationFn: async (id: number) => {
-      // Get api4com_id to delete on Api4Com too
       const ext = extensionsQuery.data?.find((e) => e.id === id);
       if (ext?.api4com_id) {
         await supabase.functions.invoke('api4com-proxy', {
@@ -128,6 +127,23 @@ export function useTelefoniaData(codAgent: string | undefined) {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Sync extensions from Api4Com
+  const syncExtensions = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('api4com-proxy', {
+        body: { action: 'sync_extensions', codAgent },
+      });
+      if (error) throw new Error(error.message || 'Erro ao sincronizar');
+      if (data?.error) throw new Error(data.error);
+      return data?.data;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['my-extensions'] });
+      toast.success(`Sincronizado: ${result?.synced || 0} ramais de ${result?.total || 0}`);
+    },
+    onError: (e: Error) => toast.error(`Erro ao sincronizar: ${e.message}`),
+  });
+
   // Call history for agent
   const historyQuery = useQuery({
     queryKey: ['my-call-history', codAgent],
@@ -144,13 +160,13 @@ export function useTelefoniaData(codAgent: string | undefined) {
     enabled: !!codAgent,
   });
 
-  // Dial (REST fallback)
+  // Dial via REST (using extensionId for proper resolution)
   const dial = useMutation({
-    mutationFn: async ({ extension, phone }: { extension: string; phone: string }) => {
+    mutationFn: async ({ extensionId, phone }: { extensionId: number; phone: string }) => {
       const { data, error } = await supabase.functions.invoke('api4com-proxy', {
-        body: { action: 'dial', codAgent, extension, phone },
+        body: { action: 'dial', codAgent, extensionId, phone },
       });
-      if (error) throw error;
+      if (error) throw new Error(error.message || 'Erro ao discar');
       if (data?.error) throw new Error(data.error);
       return data;
     },
@@ -163,7 +179,7 @@ export function useTelefoniaData(codAgent: string | undefined) {
     const { data, error } = await supabase.functions.invoke('api4com-proxy', {
       body: { action: 'get_sip_credentials', codAgent, extensionId },
     });
-    if (error) throw error;
+    if (error) throw new Error(error.message || 'Erro ao buscar credenciais SIP');
     if (data?.error) throw new Error(data.error);
     return data?.data as { domain: string; username: string; password: string; wsUrl: string };
   };
@@ -183,6 +199,7 @@ export function useTelefoniaData(codAgent: string | undefined) {
     createExtension,
     updateExtension,
     deleteExtension,
+    syncExtensions,
     callHistory: historyQuery.data || [],
     callHistoryLoading: historyQuery.isLoading,
     dial,
