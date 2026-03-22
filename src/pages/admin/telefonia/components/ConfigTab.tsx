@@ -13,6 +13,7 @@ export function ConfigTab() {
   const { configs, configsLoading, saveConfig, setupWebhook } = useTelefoniaAdmin();
   const [codAgent, setCodAgent] = useState('');
   const [domain, setDomain] = useState('');
+  const [sipDomain, setSipDomain] = useState('');
   const [token, setToken] = useState('');
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/api4com-webhook`;
