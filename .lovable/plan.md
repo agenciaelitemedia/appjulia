@@ -1,32 +1,24 @@
-# Corrigir softphone desaparecendo ao ligar pelo CRM
 
-## Diagnóstico (baseado nos logs SIP)
 
-O problema é uma **race condition** no fluxo SIP:
+# Plano: Histórico apenas por sincronização — nunca criar registros ao discar
 
-1. Usuário clica "Ligar" → `sip.call()` cria INVITE outbound, status='calling'
-2. `showSoftphone = true`, Dialog fecha
-3. O PBX **rejeita/redireciona** o INVITE outbound rapidamente → sessão Terminated → status volta para 'registered'
-4. No SoftphoneWidget, `wasInCall` era true + status agora é 'registered' → dispara `onCallFinished` → `showSoftphone = false` → **softphone some**
-5. Depois o PBX faz callback (INVITE incoming para o ramal) — mas o softphone já foi fechado
+## Problema
+O backend `api4com-proxy` action `dial` (linhas 126-149) cria registros em `phone_call_logs` tanto no sucesso quanto no erro da discagem. Isso viola a regra de que o histórico deve vir exclusivamente da sincronização.
 
-Os logs confirmam: todas as chamadas são **INCOMING** (FROM números externos TO ramal 1006). O outbound SIP falha silenciosamente.
+## Correções
 
-## Correção
+### 1. `api4com-proxy/index.ts` — action `dial`
+- Remover os dois `insert` em `phone_call_logs` (linhas 126-136 e 139-149)
+- Manter apenas a chamada REST ao `/dialer` e retornar o `call_id` ao frontend
 
-### `PhoneCallDialog.tsx`
+### 2. `api4com-proxy/index.ts` — action `sync_call_history`
+- Quando receber `callId`: buscar na API, e fazer **upsert** (insert se não existe, update se existe) — não apenas update
+- Isso garante que a sincronização é a única fonte de criação de registros
 
-- **Sempre usar REST `/dialer**` para ligar (nunca `sip.call()` direto)
-- Após discar via REST, mostrar softphone e aguardar callback incoming do PBX
-- Manter `showSoftphone = true` para receber a chamada de volta
-
-### `SoftphoneWidget.tsx`
-
-- Adicionar **grace period de 15 segundos** no `onCallFinished`: ao detectar fim da chamada, aguardar 5s antes de chamar `onCallFinished`
-- Se durante esse período uma nova chamada chegar (status muda para ringing/calling/in-call), cancelar o timeout e manter o widget aberto
-- Adicionar botão de **fechar manual** (X) no modo centralizado para o usuário fechar quando quiser
+### 3. Frontend — já está correto
+- `PhoneCallDialog.tsx` e `DiscadorTab.tsx` já capturam o `call_id` e enfileiram no `syncQueue`
+- O `syncQueue` já dispara a sync após 15s com o `callId`
 
 ## Arquivos alterados
+- `supabase/functions/api4com-proxy/index.ts` — remover inserts do dial + upsert no sync
 
-- `src/pages/crm/components/PhoneCallDialog.tsx` — sempre REST dial
-- `src/pages/telefonia/components/SoftphoneWidget.tsx` — grace period + botão fechar
