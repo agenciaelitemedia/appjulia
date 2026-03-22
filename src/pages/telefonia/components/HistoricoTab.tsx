@@ -2,10 +2,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PhoneIncoming, PhoneOutgoing, Play, RefreshCw, LayoutDashboard, Phone, ExternalLink } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { PhoneIncoming, PhoneOutgoing, Play, RefreshCw, LayoutDashboard, Phone, ExternalLink, Search, X } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { GravacaoPlayer } from './GravacaoPlayer';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 function formatDuration(seconds: number): string {
@@ -18,11 +20,9 @@ function formatDuration(seconds: number): string {
 function formatPhone(phone: string | null): string {
   if (!phone) return '-';
   let clean = phone.replace(/\D/g, '');
-  // Api4Com sends 0DDNNNNNNNNN — remove leading 0
   if (clean.startsWith('0') && (clean.length === 11 || clean.length === 12)) {
     clean = clean.slice(1);
   }
-  // Remove country code 55
   if (clean.startsWith('55') && clean.length >= 12) {
     clean = clean.slice(2);
   }
@@ -66,7 +66,14 @@ export function HistoricoTab({ codAgent }: Props) {
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Build a map of extension_number -> first name
+  // Filters
+  const [search, setSearch] = useState('');
+  const [directionFilter, setDirectionFilter] = useState<string>('all');
+  const [originFilter, setOriginFilter] = useState<string>('all');
+  const [causeFilter, setCauseFilter] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
   const extensionNameMap = new Map<string, string>();
   for (const ext of extensions) {
     if (ext.extension_number) {
@@ -78,6 +85,55 @@ export function HistoricoTab({ codAgent }: Props) {
   const handleGoToCrm = (whatsappNumber: string) => {
     navigate(`/crm/leads?whatsapp=${encodeURIComponent(whatsappNumber)}`);
   };
+
+  const hasActiveFilters = search || directionFilter !== 'all' || originFilter !== 'all' || causeFilter !== 'all' || dateFrom || dateTo;
+
+  const clearFilters = () => {
+    setSearch('');
+    setDirectionFilter('all');
+    setOriginFilter('all');
+    setCauseFilter('all');
+    setDateFrom('');
+    setDateTo('');
+  };
+
+  const filteredHistory = useMemo(() => {
+    return callHistory.filter((call) => {
+      // Search by number
+      if (search) {
+        const q = search.replace(/\D/g, '');
+        const calledClean = (call.called || '').replace(/\D/g, '');
+        const callerClean = (call.caller || '').replace(/\D/g, '');
+        if (!calledClean.includes(q) && !callerClean.includes(q)) return false;
+      }
+      // Direction
+      if (directionFilter !== 'all') {
+        const isOutbound = call.direction === 'outbound' || call.direction === 'Sainte';
+        if (directionFilter === 'outbound' && !isOutbound) return false;
+        if (directionFilter === 'inbound' && isOutbound) return false;
+      }
+      // Origin
+      if (originFilter !== 'all') {
+        const meta = call.metadata || {};
+        const origin = (meta as any)?.origin || 'MANUAL';
+        if (originFilter !== origin) return false;
+      }
+      // Cause
+      if (causeFilter !== 'all') {
+        if ((call.hangup_cause || '') !== causeFilter) return false;
+      }
+      // Date range
+      if (dateFrom && call.started_at) {
+        if (new Date(call.started_at) < new Date(dateFrom)) return false;
+      }
+      if (dateTo && call.started_at) {
+        const end = new Date(dateTo);
+        end.setHours(23, 59, 59, 999);
+        if (new Date(call.started_at) > end) return false;
+      }
+      return true;
+    });
+  }, [callHistory, search, directionFilter, originFilter, causeFilter, dateFrom, dateTo]);
 
   return (
     <Card>
@@ -94,6 +150,63 @@ export function HistoricoTab({ codAgent }: Props) {
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[200px] max-w-xs">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por número..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 h-9"
+            />
+          </div>
+          <Select value={directionFilter} onValueChange={setDirectionFilter}>
+            <SelectTrigger className="w-[130px] h-9">
+              <SelectValue placeholder="Tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="outbound">Sainte</SelectItem>
+              <SelectItem value="inbound">Entrante</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={originFilter} onValueChange={setOriginFilter}>
+            <SelectTrigger className="w-[130px] h-9">
+              <SelectValue placeholder="Origem" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              <SelectItem value="CRM">CRM</SelectItem>
+              <SelectItem value="DISCADOR">Discador</SelectItem>
+              <SelectItem value="MANUAL">Manual</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={causeFilter} onValueChange={setCauseFilter}>
+            <SelectTrigger className="w-[140px] h-9">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="NORMAL_CLEARING">Atendida</SelectItem>
+              <SelectItem value="ORIGINATOR_CANCEL">Cancelada</SelectItem>
+              <SelectItem value="NO_ANSWER">Sem resposta</SelectItem>
+              <SelectItem value="USER_BUSY">Ocupado</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[140px] h-9" placeholder="De" />
+          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[140px] h-9" placeholder="Até" />
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" className="h-9" onClick={clearFilters}>
+              <X className="h-4 w-4 mr-1" /> Limpar
+            </Button>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">{filteredHistory.length} registro(s)</span>
+        </div>
+
         {playingUrl && (
           <GravacaoPlayer url={playingUrl} onClose={() => setPlayingUrl(null)} />
         )}
@@ -112,21 +225,18 @@ export function HistoricoTab({ codAgent }: Props) {
                   <TableHead>Iniciou às</TableHead>
                   <TableHead>Finalizou às</TableHead>
                   <TableHead>Duração</TableHead>
-                  <TableHead>Tarifa</TableHead>
-                  <TableHead>Custo</TableHead>
                   <TableHead>Causa</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Gravação</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {callHistory.map((call) => {
+                {filteredHistory.map((call) => {
                   const meta = call.metadata || {};
                   const origin = (meta as any)?.origin as string | undefined;
                   const whatsappNumber = (meta as any)?.whatsapp_number as string | undefined;
                   const extName = extensionNameMap.get(call.extension_number || call.caller || '') || '';
                   const attendantName = extName ? `${extName} ${codAgent}` : codAgent;
-                  const minutePrice = (meta as any)?.minute_price;
                   const hasDuration = call.duration_seconds != null && call.duration_seconds > 0;
                   
                   return (
@@ -178,12 +288,6 @@ export function HistoricoTab({ codAgent }: Props) {
                       <TableCell className="text-xs font-mono">
                         {formatDuration(call.duration_seconds)}
                       </TableCell>
-                      <TableCell className="text-xs">
-                        {minutePrice != null ? `R$ ${Number(minutePrice).toFixed(2)}` : ''}
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        {call.cost > 0 ? `R$ ${Number(call.cost).toFixed(2)}` : ''}
-                      </TableCell>
                       <TableCell>
                         <Badge variant={getHangupBadgeVariant(call.hangup_cause)} className="text-[10px] whitespace-nowrap">
                           {formatHangupCause(call.hangup_cause)}
@@ -221,9 +325,9 @@ export function HistoricoTab({ codAgent }: Props) {
                     </TableRow>
                   );
                 })}
-                {callHistory.length === 0 && (
+                {filteredHistory.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={12} className="text-center text-muted-foreground">Nenhuma chamada registrada</TableCell>
+                    <TableCell colSpan={10} className="text-center text-muted-foreground">Nenhuma chamada encontrada</TableCell>
                   </TableRow>
                 )}
               </TableBody>
