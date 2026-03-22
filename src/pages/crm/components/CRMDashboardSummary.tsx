@@ -1,14 +1,15 @@
 import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, Target, CheckCircle, XCircle, User } from "lucide-react";
+import { Clock, Target, CheckCircle, XCircle, User, RotateCcw } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
-import { CRMCard, CRMStage } from "../types";
+import { CRMCard, CRMStage, CRMFollowupInfo } from "../types";
 
 interface CRMDashboardSummaryProps {
   cards: CRMCard[];
   stages: CRMStage[];
   isLoading?: boolean;
   juliaSessions?: { totalSessions: number; dailyAverage: number };
+  followupMap?: Map<string, CRMFollowupInfo>;
 }
 
 const formatAvgTime = (days: number): string => {
@@ -21,14 +22,7 @@ const formatAvgTime = (days: number): string => {
   return `${fullDays}d ${remainingHours}h`;
 };
 
-const JULIA_PHASES = [
-  { name: "Entrada", short: "Entrada" },
-  { name: "Análise de Caso", short: "Análise" },
-  { name: "Negociação", short: "Negociação" },
-  { name: "Contrato em Curso", short: "Contrato" },
-];
-
-export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }: CRMDashboardSummaryProps) {
+export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, followupMap }: CRMDashboardSummaryProps) {
   const stats = useMemo(() => {
     const total = cards.length;
 
@@ -53,27 +47,11 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
     const qualifiedRate = totalSessions > 0 ? (qualified / totalSessions) * 100 : 0;
     const disqualifiedRate = totalSessions > 0 ? (disqualified / totalSessions) * 100 : 0;
 
-    // Tempo médio por fase da Julia
-    const phaseStats = JULIA_PHASES.map((phase) => {
-      const stage = stages.find((s) => s.name === phase.name);
-      if (!stage) return { ...phase, avgDays: 0, count: 0 };
-      const phaseCards = cards.filter((c) => c.stage_id === stage.id);
-      if (phaseCards.length === 0) return { ...phase, avgDays: 0, count: 0 };
-      const totalDays = phaseCards.reduce((sum, card) => {
-        const entered = new Date(card.stage_entered_at);
-        const now = new Date();
-        return sum + (now.getTime() - entered.getTime()) / (1000 * 60 * 60 * 24);
-      }, 0);
-      return { ...phase, avgDays: totalDays / phaseCards.length, count: phaseCards.length };
-    });
-
-    const maxPhaseDays = Math.max(...phaseStats.map((p) => p.avgDays), 1);
-
-    // Média geral da Julia (média ponderada por quantidade de cards em cada fase)
-    const totalJuliaCards = phaseStats.reduce((sum, p) => sum + p.count, 0);
-    const juliaAvgDays = totalJuliaCards > 0
-      ? phaseStats.reduce((sum, p) => sum + p.avgDays * p.count, 0) / totalJuliaCards
-      : 0;
+    // FollowUp ativos
+    const followupEntries = followupMap ? Array.from(followupMap.values()) : [];
+    const activeFollowups = followupEntries.filter(f => f.step_number > 0);
+    const infiniteCount = activeFollowups.filter(f => f.is_infinite && f.step_number >= (f.followup_to ?? 0)).length;
+    const stepsCount = activeFollowups.length - infiniteCount;
 
     // Tempo médio humano (ciclo de vida do card no CRM)
     const resolvedStageIds = [contractSignedStage?.id, disqualifiedStage?.id].filter(Boolean);
@@ -121,16 +99,15 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
       qualifiedRate,
       disqualified,
       disqualifiedRate,
-      phaseStats,
-      maxPhaseDays,
-      juliaAvgDays,
-      totalJuliaCards,
+      activeFollowups: activeFollowups.length,
+      infiniteCount,
+      stepsCount,
       dailyTrend,
       humanAvgDays,
       resolvedCount: resolvedCards.length,
       activeCount: activeCards.length,
     };
-  }, [cards, stages, juliaSessions]);
+  }, [cards, stages, juliaSessions, followupMap]);
 
   if (isLoading) {
     return (
@@ -168,22 +145,22 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }:
         </CardContent>
       </Card>
 
-      {/* 2. Média Tempo Julia */}
+      {/* 2. FollowUp Ativos */}
       <Card className="border-l-4 border-l-chart-3">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-1.5 mb-1">
-                <Clock className="h-3.5 w-3.5 text-chart-3" />
-                <p className="text-xs text-muted-foreground font-medium">Média Júlia</p>
+                <RotateCcw className="h-3.5 w-3.5 text-chart-3" />
+                <p className="text-xs text-muted-foreground font-medium">FollowUp Ativos</p>
               </div>
-              <p className="text-2xl font-bold text-foreground">{formatAvgTime(stats.juliaAvgDays)}</p>
+              <p className="text-2xl font-bold text-foreground">{stats.activeFollowups}</p>
               <p className="text-xs text-muted-foreground">
-                Média de tempo por fase
+                {stats.stepsCount} em etapas · {stats.infiniteCount} infinitos
               </p>
             </div>
             <div className="p-2 bg-chart-3/10 rounded-full">
-              <Clock className="h-5 w-5 text-chart-3" />
+              <RotateCcw className="h-5 w-5 text-chart-3" />
             </div>
           </div>
         </CardContent>
