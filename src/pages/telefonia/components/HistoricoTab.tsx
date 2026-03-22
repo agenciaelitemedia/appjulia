@@ -75,10 +75,12 @@ export function HistoricoTab({ codAgent }: Props) {
   const [dateTo, setDateTo] = useState('');
 
   const extensionNameMap = new Map<string, string>();
+  const extensionCodAgentMap = new Map<string, string>();
   for (const ext of extensions) {
     if (ext.extension_number) {
       const name = ext.api4com_first_name || ext.label || ext.extension_number;
       extensionNameMap.set(ext.extension_number, name);
+      if (ext.api4com_last_name) extensionCodAgentMap.set(ext.extension_number, ext.api4com_last_name);
     }
   }
 
