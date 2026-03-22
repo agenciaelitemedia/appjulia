@@ -99,7 +99,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
             <div className="flex-1">
               <p className="text-xs text-muted-foreground font-medium">Atendimentos</p>
               <p className="text-2xl font-bold text-foreground">{stats.totalSessions}</p>
-              <p className="text-xs text-muted-foreground">Leads atendidos pela Júlia</p>
+              <p className="text-xs text-muted-foreground">Via Júlia no período</p>
             </div>
             <div className="w-20 h-12">
               <ResponsiveContainer width="100%" height="100%">
@@ -122,9 +122,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
                 <p className="text-xs text-muted-foreground font-medium">FollowUp Ativos</p>
               </div>
               <p className="text-2xl font-bold text-foreground">{stats.activeFollowups}</p>
-              <p className="text-xs text-muted-foreground">
-                Leads em cadência ativa
-              </p>
+              <p className="text-xs text-muted-foreground">Em cadência agora</p>
             </div>
             <div className="p-2 bg-chart-3/10 rounded-full">
               <RotateCcw className="h-5 w-5 text-chart-3" />
@@ -143,9 +141,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
                 <p className="text-xs text-muted-foreground font-medium">Taxa de Retorno</p>
               </div>
               <p className="text-2xl font-bold text-foreground">{(returnRateData?.returnRate ?? 0).toFixed(1)}%</p>
-              <p className="text-xs text-muted-foreground">
-                Leads que responderam ao followup
-              </p>
+              <p className="text-xs text-muted-foreground">Respostas ao followup</p>
             </div>
             <div className="p-2 bg-chart-1/10 rounded-full">
               <MessageCircleReply className="h-5 w-5 text-chart-1" />
@@ -161,9 +157,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
             <div>
               <p className="text-xs text-muted-foreground font-medium">Taxa Contratos</p>
               <p className="text-2xl font-bold text-foreground">{stats.conversionRate.toFixed(1)}%</p>
-              <p className="text-xs text-muted-foreground">
-                Conversão em contratos
-              </p>
+              <p className="text-xs text-muted-foreground">Leads convertidos</p>
             </div>
             <div className="p-2 bg-chart-2/10 rounded-full">
               <Target className="h-5 w-5 text-chart-2" />
@@ -179,9 +173,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
             <div>
               <p className="text-xs text-muted-foreground font-medium">Qualificados</p>
               <p className="text-2xl font-bold text-foreground">{stats.qualifiedRate.toFixed(1)}%</p>
-              <p className="text-xs text-muted-foreground">
-                Leads em negociação ou contrato
-              </p>
+              <p className="text-xs text-muted-foreground">Aptos para contrato</p>
             </div>
             <div className="p-2 bg-chart-4/10 rounded-full">
               <CheckCircle className="h-5 w-5 text-chart-4" />
@@ -197,9 +189,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
             <div>
               <p className="text-xs text-muted-foreground font-medium">Desqualificado</p>
               <p className="text-2xl font-bold text-foreground">{stats.disqualifiedRate.toFixed(1)}%</p>
-              <p className="text-xs text-muted-foreground">
-                Leads sem perfil ou interesse
-              </p>
+              <p className="text-xs text-muted-foreground">Sem perfil adequado</p>
             </div>
             <div className="p-2 bg-chart-5/10 rounded-full">
               <XCircle className="h-5 w-5 text-chart-5" />
