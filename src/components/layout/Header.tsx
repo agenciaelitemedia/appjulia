@@ -1,4 +1,5 @@
 import { Menu, Bell, Search, LogOut, User, Settings, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { HeaderDialer } from './HeaderDialer';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -89,6 +90,9 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
 
         {/* Right side */}
         <div className="flex items-center gap-4 ml-auto">
+          {/* Phone Dialer */}
+          <HeaderDialer />
+
           {/* Notifications */}
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="h-5 w-5" />

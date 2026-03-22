@@ -4,13 +4,13 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { AlertCircle, ChevronDown, Activity, PhoneForwarded, PhoneOff } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
-import { useSipPhone, type CallEndedInfo } from '../hooks/useSipPhone';
-import { useSyncQueue } from '../hooks/useSyncQueue';
-import { SoftphoneWidget } from './SoftphoneWidget';
+import { usePhone } from '@/contexts/PhoneContext';
+import { syncQueueManager } from '@/lib/syncQueueManager';
 import { DiscadorPad } from './DiscadorPad';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { formatPhoneForDialing } from '@/lib/phoneFormat';
+
 interface Props {
   codAgent: string;
 }
@@ -27,59 +27,11 @@ const statusColors: Record<string, string> = {
 
 export function DiscadorTab({ codAgent }: Props) {
   const { user } = useAuth();
-  const { extensions, dial, getSipCredentials, syncCallHistory } = useTelefoniaData(codAgent);
-  const syncQueue = useSyncQueue(codAgent);
-  const lastDialedNumber = useRef('');
-
-  // After SIP call ends, sync with since param (no call_id available)
-  const handleCallEnded = useCallback((_info: CallEndedInfo) => {
-    const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    syncCallHistory.mutateAsync({ since }).catch(console.error);
-  }, [syncCallHistory]);
-
-  const sip = useSipPhone(handleCallEnded);
-  const [selectedExtension, setSelectedExtension] = useState<string>('');
+  const { extensions, dial } = useTelefoniaData(codAgent);
+  const { sip, myExtension, isAvailable, setShowSoftphone } = usePhone();
   const [number, setNumber] = useState('');
-  const [sipError, setSipError] = useState('');
-  const autoConnected = useRef(false);
 
-  const activeExtensions = extensions.filter((e) => e.is_active);
-
-  const myExtension = useMemo(() => {
-    if (!user?.id) return null;
-    return activeExtensions.find((e) => Number(e.assigned_member_id) === Number(user.id)) || null;
-  }, [activeExtensions, user?.id]);
-
-  const handleSelectExtension = useCallback(async (extId: string) => {
-    setSelectedExtension(extId);
-    setSipError('');
-
-    if (sip.status !== 'idle') {
-      sip.disconnect();
-    }
-
-    const ext = extensions.find((e) => String(e.id) === extId);
-    if (!ext) return;
-
-    if (!ext.api4com_ramal) {
-      setSipError('Ramal sem vínculo Api4Com. Sincronize os ramais primeiro.');
-      return;
-    }
-
-    try {
-      const creds = await getSipCredentials(ext.id);
-      sip.connect(creds);
-    } catch (err: any) {
-      setSipError(err.message || 'Erro ao conectar SIP');
-      toast.warning('SIP indisponível, usando discagem via API');
-    }
-  }, [extensions, getSipCredentials, sip]);
-
-  useEffect(() => {
-    if (autoConnected.current || !myExtension || selectedExtension) return;
-    autoConnected.current = true;
-    handleSelectExtension(String(myExtension.id));
-  }, [myExtension, selectedExtension, handleSelectExtension]);
+  const selectedExtension = myExtension ? String(myExtension.id) : '';
 
   const phoneInfo = useMemo(() => {
     if (!number || number.replace(/\D/g, '').length < 8) return null;
@@ -87,32 +39,24 @@ export function DiscadorTab({ codAgent }: Props) {
   }, [number]);
 
   const handleDial = useCallback(() => {
-    if (!selectedExtension || !number) return;
+    if (!selectedExtension || !number || !myExtension) return;
 
-    const ext = extensions.find((e) => String(e.id) === selectedExtension);
-    if (!ext) return;
-
-    if (!ext.api4com_ramal) {
+    if (!myExtension.api4com_ramal) {
       toast.error('Ramal sem vínculo Api4Com. Sincronize os ramais.');
       return;
     }
 
     const { formatted } = formatPhoneForDialing(number);
-    lastDialedNumber.current = formatted;
 
-    if (sip.status === 'registered') {
-      sip.call(formatted);
-    } else {
-      dial.mutate({ extensionId: ext.id, phone: formatted }, {
-        onSuccess: (result) => {
-          const callId = result?.data?.call_id || result?.data?.id;
-          if (callId) syncQueue.enqueue(String(callId));
-        },
-      });
-    }
-  }, [selectedExtension, number, sip, extensions, dial, syncQueue]);
-
-  const hasExtension = !!myExtension;
+    // Always use REST dial
+    dial.mutate({ extensionId: myExtension.id, phone: formatted }, {
+      onSuccess: (result) => {
+        const callId = result?.data?.call_id || result?.data?.id;
+        if (callId) syncQueueManager.enqueue(String(callId));
+        setShowSoftphone(true);
+      },
+    });
+  }, [selectedExtension, number, myExtension, dial, setShowSoftphone]);
 
   return (
     <div className="max-w-md mx-auto">
@@ -120,7 +64,7 @@ export function DiscadorTab({ codAgent }: Props) {
         <CardHeader>
           <CardTitle className="text-lg text-center flex items-center justify-center gap-2">
             Discador
-            {!hasExtension ? (
+            {!isAvailable ? (
               <Badge variant="secondary" className="bg-muted text-muted-foreground">
                 <PhoneOff className="h-3 w-3 mr-1" /> Indisponível
               </Badge>
@@ -132,7 +76,7 @@ export function DiscadorTab({ codAgent }: Props) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!hasExtension ? (
+          {!isAvailable ? (
             <div className="text-center py-8 space-y-3">
               <PhoneOff className="h-12 w-12 mx-auto text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
@@ -142,7 +86,7 @@ export function DiscadorTab({ codAgent }: Props) {
                 Solicite ao administrador a criação de um ramal.
               </p>
             </div>
-          ) : (
+          ) : myExtension && (
             <>
               <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
                 <div className="text-sm">
@@ -157,12 +101,6 @@ export function DiscadorTab({ codAgent }: Props) {
                   </Badge>
                 )}
               </div>
-
-              {sipError && (
-                <p className="text-xs text-destructive flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" /> {sipError}
-                </p>
-              )}
 
               <DiscadorPad
                 value={number}
@@ -241,19 +179,6 @@ export function DiscadorTab({ codAgent }: Props) {
           )}
         </CardContent>
       </Card>
-
-      <SoftphoneWidget
-        status={sip.status}
-        duration={sip.duration}
-        isMuted={sip.isMuted}
-        isHeld={sip.isHeld}
-        callerInfo={sip.callerInfo}
-        onAnswer={sip.answer}
-        onHangup={sip.hangup}
-        onToggleMute={sip.toggleMute}
-        onToggleHold={sip.toggleHold}
-        onSendDTMF={sip.sendDTMF}
-      />
     </div>
   );
 }
