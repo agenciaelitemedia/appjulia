@@ -1,40 +1,46 @@
 
 
-# Plano: Sincronizar ao desligar + Softphone centralizado no CRM
+# Plano: Histórico apenas por sincronização inteligente + webhook completo
 
-## 1. Não criar registros locais durante a ligação — sincronizar depois
+## Situação atual
+- O webhook cria registros parciais no banco (channel-create, channel-answer, channel-hangup)
+- O `sync_call_history` busca TODAS as páginas da Api4Com a cada chamada — ineficiente
+- O `complete_call_log` ainda existe no backend (código morto)
+- Após cada chamada, o frontend dispara sync completo desnecessariamente
 
-### `DiscadorTab.tsx`
-- Remover `completeCallLog.mutate(...)` do `handleCallEnded`
-- Chamar `syncCallHistory.mutateAsync()` após desligar (com delay ~2-3s para CDR estar disponível)
+## Mudanças
 
-### `PhoneCallDialog.tsx`
-- Remover chamada à action `complete_call_log` do `handleCallEnded`
-- Substituir por `sync_call_history` após desligar (com delay ~2-3s)
+### 1. Webhook completo — não disparar sync se já tem todos os dados
+**`supabase/functions/api4com-webhook/index.ts`**
+- No evento `channel-hangup`: verificar se o payload já contém `duration`, `record_url`, `cost`, `hangup_cause`
+- Se sim: fazer upsert completo no banco e **não** disparar sync (dados já estão completos)
+- Se não: após salvar o que tem, disparar internamente a sync apenas para o `call_id` específico (buscar `GET /calls?call_id={id}` ou `GET /calls/{id}`)
+- Resolver `cod_agent` via lookup no `phone_extensions` pelo `extensionNumber` quando não vier no payload
 
-## 2. Softphone centralizado sobre popups ao ligar do CRM
+### 2. Sync incremental — buscar apenas o necessário
+**`supabase/functions/api4com-proxy/index.ts`** — action `sync_call_history`
+- Aceitar parâmetros opcionais: `callId`, `since` (timestamp)
+- Se `callId` fornecido: buscar apenas `GET /calls/{callId}` e upsert esse registro
+- Se `since` fornecido: buscar `GET /calls?start_date={since}` para pegar apenas chamadas recentes
+- Se nenhum: buscar o `MAX(started_at)` do banco para o `cod_agent` e usar como `since` (sync incremental automático)
+- Remover paginação exaustiva — limitar a últimas 24h se não houver parâmetro
 
-### `SoftphoneWidget.tsx`
-- Modo centralizado (`fixed inset-0 flex items-center justify-center`) com backdrop `bg-black/50` e `z-[9999]`
-- Nova prop `centered?: boolean` para alternar entre canto e centro
-- Nova prop `onCallFinished?: () => void` chamada ao encerrar chamada
-- **Bloqueio de clique externo**: o backdrop deve consumir todos os cliques (`onClick={e => e.stopPropagation()}` + `pointer-events: none` no fundo, `pointer-events: auto` no card). Clicar fora do card do softphone **não fecha** nenhum popup. Apenas o botão de desligar/fechar dentro do widget encerra o softphone.
-- Ao terminar a chamada (status volta para `registered`/`idle` após `in-call`): chamar `onCallFinished` e fechar automaticamente
+### 3. Frontend — sync inteligente pós-chamada
+**`DiscadorTab.tsx` e `PhoneCallDialog.tsx`**
+- Após desligar, chamar `sync_call_history` com `since: <início da chamada>` (ou últimos 5 min)
+- Se o webhook já tiver registrado tudo, o sync será no-op (upsert sem mudança)
 
-### `PhoneCallDialog.tsx`
-1. Usuário clica "Ligar" → fecha o Dialog, mostra `SoftphoneWidget` centralizado
-2. `SoftphoneWidget` renderizado **fora** do Dialog (no nível raiz do componente)
-3. Ao desligar → softphone fecha + dispara sincronização
+### 4. Remover código morto
+**`api4com-proxy/index.ts`**
+- Remover case `complete_call_log` inteiro (linhas 583-661)
 
-## 3. Travar interação externa durante chamada ativa
-
-- O backdrop do softphone centralizado cobre toda a tela e **não propaga eventos** para elementos abaixo
-- Nenhum Dialog (Radix) aberto será fechado por clique no backdrop do softphone
-- O único controle de fechamento é o botão de desligar/encerrar dentro do próprio widget
-- Sem `onOpenChange` ou `onPointerDownOutside` que possa fechar popups do CRM por engano
+**`useTelefoniaData.ts`**
+- Remover mutation `completeCallLog` e referências
 
 ## Arquivos alterados
-- `src/pages/telefonia/components/SoftphoneWidget.tsx` — modo centralizado, bloqueio de clique externo, props novas
-- `src/pages/crm/components/PhoneCallDialog.tsx` — fechar dialog ao ligar, sync ao desligar, softphone fora do dialog
-- `src/pages/telefonia/components/DiscadorTab.tsx` — remover `completeCallLog`, sync ao desligar
+- `supabase/functions/api4com-webhook/index.ts` — webhook com dados completos + lookup de cod_agent
+- `supabase/functions/api4com-proxy/index.ts` — sync incremental + remover complete_call_log
+- `src/pages/telefonia/components/DiscadorTab.tsx` — passar `since` no sync
+- `src/pages/crm/components/PhoneCallDialog.tsx` — passar `since` no sync
+- `src/pages/telefonia/hooks/useTelefoniaData.ts` — remover completeCallLog, ajustar syncCallHistory para aceitar params
 
