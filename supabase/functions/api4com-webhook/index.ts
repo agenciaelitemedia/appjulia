@@ -67,6 +67,8 @@ serve(async (req) => {
 
       const metadata: Record<string, any> = { ...event };
       if (attendantName) metadata.attendant_name = attendantName;
+      if (event.metadata?.origin) metadata.origin = event.metadata.origin;
+      if (event.metadata?.whatsapp_number) metadata.whatsapp_number = event.metadata.whatsapp_number;
       if (minutePrice != null) metadata.minute_price = minutePrice;
 
       const logData: Record<string, any> = {

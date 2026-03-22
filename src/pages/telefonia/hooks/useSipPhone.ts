@@ -131,6 +131,30 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
           if (remoteAudioRef.current) {
             remoteAudioRef.current.srcObject = remoteStream;
           }
+          // Detect remote hangup via ICE disconnection
+          if (pc) {
+            let iceDisconnectTimer: ReturnType<typeof setTimeout> | null = null;
+            pc.oniceconnectionstatechange = () => {
+              const iceState = pc.iceConnectionState;
+              if (iceState === 'disconnected' || iceState === 'failed') {
+                if (!iceDisconnectTimer) {
+                  iceDisconnectTimer = setTimeout(() => {
+                    const currentIce = pc.iceConnectionState;
+                    if (currentIce !== 'connected' && currentIce !== 'completed') {
+                      console.log('ICE disconnected/failed for 3s — forcing hangup');
+                      try { session.bye(); } catch { /* already terminated */ }
+                    }
+                    iceDisconnectTimer = null;
+                  }, 3000);
+                }
+              } else if (iceState === 'connected' || iceState === 'completed') {
+                if (iceDisconnectTimer) {
+                  clearTimeout(iceDisconnectTimer);
+                  iceDisconnectTimer = null;
+                }
+              }
+            };
+          }
           break;
         case SessionState.Terminated: {
           const endedAt = new Date().toISOString();
