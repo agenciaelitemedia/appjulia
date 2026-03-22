@@ -207,7 +207,7 @@ export function useTelefoniaData(codAgent: string | undefined) {
     callHistoryLoading: historyQuery.isLoading,
     dial,
     getSipCredentials,
-    completeCallLog,
+    
     syncCallHistory,
   };
 }

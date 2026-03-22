@@ -66,7 +66,7 @@ export function HistoricoTab({ codAgent }: Props) {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => syncCallHistory.mutate()}
+          onClick={() => syncCallHistory.mutate({})}
           disabled={syncCallHistory.isPending}
         >
           <RefreshCw className={`h-4 w-4 mr-1 ${syncCallHistory.isPending ? 'animate-spin' : ''}`} />
