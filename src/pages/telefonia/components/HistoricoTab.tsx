@@ -72,7 +72,26 @@ export function HistoricoTab({ codAgent }: Props) {
   const [originFilter, setOriginFilter] = useState('all');
   const [causeFilter, setCauseFilter] = useState('all');
 
-  // UnifiedFilters state (period + search)
+  // Build agent list from extensions' last_name (cod_agent) + first_name
+  const agentsList = useMemo(() => {
+    const agentMap = new Map<string, { cod_agent: string; owner_name: string }>();
+    for (const ext of extensions) {
+      const agentCode = ext.api4com_last_name || codAgent;
+      if (agentCode && !agentMap.has(agentCode)) {
+        agentMap.set(agentCode, {
+          cod_agent: agentCode,
+          owner_name: ext.api4com_first_name || ext.label || agentCode,
+        });
+      }
+    }
+    // Ensure current codAgent is always in the list
+    if (!agentMap.has(codAgent)) {
+      agentMap.set(codAgent, { cod_agent: codAgent, owner_name: codAgent });
+    }
+    return Array.from(agentMap.values());
+  }, [extensions, codAgent]);
+
+  // UnifiedFilters state (period + search + agents)
   const today = getTodayInSaoPaulo();
   const [filters, setFilters] = useState<UnifiedFiltersState>({
     search: '',
@@ -81,13 +100,20 @@ export function HistoricoTab({ codAgent }: Props) {
     dateTo: today,
   });
 
+  // Initialize agentCodes with all agents when list loads
+  useMemo(() => {
+    if (agentsList.length > 0 && filters.agentCodes.length === 0) {
+      setFilters(prev => ({ ...prev, agentCodes: agentsList.map(a => a.cod_agent) }));
+    }
+  }, [agentsList]);
+
   const extensionNameMap = new Map<string, string>();
   const extensionCodAgentMap = new Map<string, string>();
   for (const ext of extensions) {
     if (ext.extension_number) {
       const name = ext.api4com_first_name || ext.label || ext.extension_number;
       extensionNameMap.set(ext.extension_number, name);
-      if (ext.api4com_last_name) extensionCodAgentMap.set(ext.extension_number, ext.api4com_last_name);
+      extensionCodAgentMap.set(ext.extension_number, ext.api4com_last_name || codAgent);
     }
   }
 
@@ -139,6 +165,12 @@ export function HistoricoTab({ codAgent }: Props) {
 
   const filteredHistory = useMemo(() => {
     return callHistory.filter((call) => {
+      // Agent filter (by last_name / cod_agent)
+      if (filters.agentCodes.length > 0 && filters.agentCodes.length < agentsList.length) {
+        const extKey = call.extension_number || call.caller || '';
+        const callAgent = extensionCodAgentMap.get(extKey) || codAgent;
+        if (!filters.agentCodes.includes(callAgent)) return false;
+      }
       // Search
       if (filters.search) {
         const q = filters.search.toLowerCase();
@@ -168,7 +200,7 @@ export function HistoricoTab({ codAgent }: Props) {
       if (causeFilter !== 'all') {
         if ((call.hangup_cause || '') !== causeFilter) return false;
       }
-      // Date range
+      // Date range (using started_at)
       if (filters.dateFrom && call.started_at) {
         if (new Date(call.started_at) < new Date(filters.dateFrom)) return false;
       }
@@ -179,18 +211,15 @@ export function HistoricoTab({ codAgent }: Props) {
       }
       return true;
     });
-  }, [callHistory, filters.search, filters.dateFrom, filters.dateTo, directionFilter, originFilter, causeFilter]);
+  }, [callHistory, filters.search, filters.dateFrom, filters.dateTo, filters.agentCodes, directionFilter, originFilter, causeFilter, agentsList.length]);
 
   return (
     <div className="space-y-4">
       <UnifiedFilters
-        agents={[]}
+        agents={agentsList}
         filters={filters}
-        onFiltersChange={(f) => {
-          setFilters(f);
-          // Reset custom selects on clear (when search is empty and dates reset to today)
-        }}
-        showAgentSelector={false}
+        onFiltersChange={setFilters}
+        showAgentSelector={true}
         showSearch={true}
         showQuickPeriods={true}
         searchPlaceholder="Buscar por número ou atendente..."
