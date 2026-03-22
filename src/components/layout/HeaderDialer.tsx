@@ -37,6 +37,7 @@ export function HeaderDialer() {
   const handleDial = async () => {
     if (!number) return;
     setOpen(false);
+    setSoftphoneCentered(true);
     await dialNumber(number);
     setNumber('');
   };
