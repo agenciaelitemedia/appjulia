@@ -1,13 +1,13 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { AlertCircle, ChevronDown, Activity, PhoneForwarded } from 'lucide-react';
+import { AlertCircle, ChevronDown, Activity, PhoneForwarded, PhoneOff } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { useSipPhone } from '../hooks/useSipPhone';
 import { SoftphoneWidget } from './SoftphoneWidget';
 import { DiscadorPad } from './DiscadorPad';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { formatPhoneForDialing } from '@/lib/phoneFormat';
 
@@ -26,13 +26,21 @@ const statusColors: Record<string, string> = {
 };
 
 export function DiscadorTab({ codAgent }: Props) {
+  const { user } = useAuth();
   const { extensions, dial, getSipCredentials } = useTelefoniaData(codAgent);
   const sip = useSipPhone();
   const [selectedExtension, setSelectedExtension] = useState<string>('');
   const [number, setNumber] = useState('');
   const [sipError, setSipError] = useState('');
+  const autoConnected = useRef(false);
 
   const activeExtensions = extensions.filter((e) => e.is_active);
+
+  // Find user's own extension
+  const myExtension = useMemo(() => {
+    if (!user?.id) return null;
+    return activeExtensions.find((e) => e.assigned_member_id === user.id) || null;
+  }, [activeExtensions, user?.id]);
 
   const handleSelectExtension = useCallback(async (extId: string) => {
     setSelectedExtension(extId);
@@ -59,6 +67,13 @@ export function DiscadorTab({ codAgent }: Props) {
     }
   }, [extensions, getSipCredentials, sip]);
 
+  // Auto-connect user's extension on mount
+  useEffect(() => {
+    if (autoConnected.current || !myExtension || selectedExtension) return;
+    autoConnected.current = true;
+    handleSelectExtension(String(myExtension.id));
+  }, [myExtension, selectedExtension, handleSelectExtension]);
+
   const phoneInfo = useMemo(() => {
     if (!number || number.replace(/\D/g, '').length < 8) return null;
     return formatPhoneForDialing(number);
@@ -84,117 +99,136 @@ export function DiscadorTab({ codAgent }: Props) {
     }
   }, [selectedExtension, number, sip, extensions, dial]);
 
+  const hasExtension = !!myExtension;
+
   return (
     <div className="max-w-md mx-auto">
       <Card>
         <CardHeader>
           <CardTitle className="text-lg text-center flex items-center justify-center gap-2">
             Discador
-            {sip.status !== 'idle' && (
+            {!hasExtension ? (
+              <Badge variant="secondary" className="bg-muted text-muted-foreground">
+                <PhoneOff className="h-3 w-3 mr-1" /> Indisponível
+              </Badge>
+            ) : sip.status !== 'idle' ? (
               <Badge variant="secondary" className={statusColors[sip.status]}>
                 {sip.status === 'registered' ? 'SIP Conectado' : sip.status === 'error' ? 'SIP Erro' : sip.status}
               </Badge>
-            )}
+            ) : null}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div>
-            <label className="text-sm font-medium mb-1 block">Ramal de origem</label>
-            <Select value={selectedExtension} onValueChange={handleSelectExtension}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o ramal..." />
-              </SelectTrigger>
-              <SelectContent>
-                {activeExtensions.map((ext) => (
-                  <SelectItem key={ext.id} value={String(ext.id)}>
-                    {ext.extension_number} {ext.label ? `(${ext.label})` : ''}
-                    {ext.api4com_ramal ? ` → ${ext.api4com_ramal}` : ' ⚠️ sem vínculo'}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {sipError && (
-              <p className="text-xs text-destructive mt-1 flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" /> {sipError}
+          {!hasExtension ? (
+            <div className="text-center py-8 space-y-3">
+              <PhoneOff className="h-12 w-12 mx-auto text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                Nenhum ramal vinculado ao seu usuário.
               </p>
-            )}
-          </div>
-
-          <DiscadorPad
-            value={number}
-            onChange={setNumber}
-            onDial={handleDial}
-            disabled={!selectedExtension || dial.isPending || sip.status === 'calling'}
-            isDialing={dial.isPending || sip.status === 'calling'}
-          />
-
-          {/* Phone format preview */}
-          {phoneInfo && (
-            <div className="flex items-center gap-2 text-xs rounded-md border bg-muted/30 px-3 py-2">
-              <PhoneForwarded className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              <span className="font-mono font-medium">{phoneInfo.formatted}</span>
-              <Badge variant="outline" className="text-[10px] h-5">
-                {phoneInfo.type === 'mobile' ? 'Celular' : phoneInfo.type === 'landline' ? 'Fixo' : 'Outro'}
-              </Badge>
-              {phoneInfo.ninthAdded && (
-                <Badge variant="secondary" className="text-[10px] h-5 bg-yellow-500/10 text-yellow-600">
-                  9° dígito adicionado
-                </Badge>
-              )}
+              <p className="text-xs text-muted-foreground">
+                Solicite ao administrador a criação de um ramal.
+              </p>
             </div>
-          )}
-
-          {/* SIP Diagnostics Panel */}
-          <Collapsible>
-            <CollapsibleTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full justify-center pt-2">
-              <Activity className="h-3 w-3" />
-              Diagnóstico SIP
-              <ChevronDown className="h-3 w-3" />
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="mt-2 rounded-md border bg-muted/30 p-3 space-y-2 text-xs font-mono">
-                <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-                  <span className="text-muted-foreground">Domínio:</span>
-                  <span className="truncate">{sip.diagnostics.domain || '—'}</span>
-                  <span className="text-muted-foreground">WebSocket:</span>
-                  <span className="truncate">{sip.diagnostics.wsUrl || '—'}</span>
-                  <span className="text-muted-foreground">Usuário:</span>
-                  <span>{sip.diagnostics.username || '—'}</span>
-                  <span className="text-muted-foreground">WS Estado:</span>
-                  <Badge variant="outline" className="w-fit text-[10px] h-5">
-                    {sip.diagnostics.wsState}
-                  </Badge>
-                  <span className="text-muted-foreground">Registro:</span>
-                  <Badge
-                    variant="outline"
-                    className={`w-fit text-[10px] h-5 ${
-                      sip.diagnostics.registrationStatus === 'registered'
-                        ? 'border-green-500 text-green-600'
-                        : sip.diagnostics.registrationStatus === 'error'
-                        ? 'border-destructive text-destructive'
-                        : ''
-                    }`}
-                  >
-                    {sip.diagnostics.registrationStatus}
-                  </Badge>
+          ) : (
+            <>
+              {/* Show connected extension info */}
+              <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Ramal: </span>
+                  <span className="font-medium">
+                    {myExtension.extension_number} {myExtension.label ? `(${myExtension.label})` : ''}
+                  </span>
                 </div>
-                {sip.diagnostics.lastError && (
-                  <p className="text-destructive flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3 shrink-0" />
-                    {sip.diagnostics.lastError}
-                  </p>
-                )}
-                {sip.diagnostics.events.length > 0 && (
-                  <div className="border-t pt-2 mt-1 space-y-0.5 max-h-32 overflow-y-auto">
-                    <p className="text-muted-foreground mb-1">Eventos:</p>
-                    {sip.diagnostics.events.map((e, i) => (
-                      <p key={i} className="text-[10px] leading-tight text-muted-foreground">{e}</p>
-                    ))}
-                  </div>
+                {myExtension.api4com_ramal && (
+                  <Badge variant="outline" className="text-[10px] h-5">
+                    {myExtension.api4com_ramal}
+                  </Badge>
                 )}
               </div>
-            </CollapsibleContent>
-          </Collapsible>
+
+              {sipError && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" /> {sipError}
+                </p>
+              )}
+
+              <DiscadorPad
+                value={number}
+                onChange={setNumber}
+                onDial={handleDial}
+                disabled={!selectedExtension || dial.isPending || sip.status === 'calling'}
+                isDialing={dial.isPending || sip.status === 'calling'}
+              />
+
+              {/* Phone format preview */}
+              {phoneInfo && (
+                <div className="flex items-center gap-2 text-xs rounded-md border bg-muted/30 px-3 py-2">
+                  <PhoneForwarded className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="font-mono font-medium">{phoneInfo.formatted}</span>
+                  <Badge variant="outline" className="text-[10px] h-5">
+                    {phoneInfo.type === 'mobile' ? 'Celular' : phoneInfo.type === 'landline' ? 'Fixo' : 'Outro'}
+                  </Badge>
+                  {phoneInfo.ninthAdded && (
+                    <Badge variant="secondary" className="text-[10px] h-5 bg-yellow-500/10 text-yellow-600">
+                      9° dígito adicionado
+                    </Badge>
+                  )}
+                </div>
+              )}
+
+              {/* SIP Diagnostics Panel */}
+              <Collapsible>
+                <CollapsibleTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full justify-center pt-2">
+                  <Activity className="h-3 w-3" />
+                  Diagnóstico SIP
+                  <ChevronDown className="h-3 w-3" />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="mt-2 rounded-md border bg-muted/30 p-3 space-y-2 text-xs font-mono">
+                    <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                      <span className="text-muted-foreground">Domínio:</span>
+                      <span className="truncate">{sip.diagnostics.domain || '—'}</span>
+                      <span className="text-muted-foreground">WebSocket:</span>
+                      <span className="truncate">{sip.diagnostics.wsUrl || '—'}</span>
+                      <span className="text-muted-foreground">Usuário:</span>
+                      <span>{sip.diagnostics.username || '—'}</span>
+                      <span className="text-muted-foreground">WS Estado:</span>
+                      <Badge variant="outline" className="w-fit text-[10px] h-5">
+                        {sip.diagnostics.wsState}
+                      </Badge>
+                      <span className="text-muted-foreground">Registro:</span>
+                      <Badge
+                        variant="outline"
+                        className={`w-fit text-[10px] h-5 ${
+                          sip.diagnostics.registrationStatus === 'registered'
+                            ? 'border-green-500 text-green-600'
+                            : sip.diagnostics.registrationStatus === 'error'
+                            ? 'border-destructive text-destructive'
+                            : ''
+                        }`}
+                      >
+                        {sip.diagnostics.registrationStatus}
+                      </Badge>
+                    </div>
+                    {sip.diagnostics.lastError && (
+                      <p className="text-destructive flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3 shrink-0" />
+                        {sip.diagnostics.lastError}
+                      </p>
+                    )}
+                    {sip.diagnostics.events.length > 0 && (
+                      <div className="border-t pt-2 mt-1 space-y-0.5 max-h-32 overflow-y-auto">
+                        <p className="text-muted-foreground mb-1">Eventos:</p>
+                        {sip.diagnostics.events.map((e, i) => (
+                          <p key={i} className="text-[10px] leading-tight text-muted-foreground">{e}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </>
+          )}
         </CardContent>
       </Card>
 

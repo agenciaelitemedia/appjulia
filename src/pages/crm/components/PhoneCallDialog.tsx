@@ -1,12 +1,13 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Phone, Loader2, AlertCircle } from 'lucide-react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { Phone, Loader2, AlertCircle, PhoneOff } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 import { useSipPhone } from '@/pages/telefonia/hooks/useSipPhone';
 import { SoftphoneWidget } from '@/pages/telefonia/components/SoftphoneWidget';
 import { formatPhoneForDialing } from '@/lib/phoneFormat';
@@ -20,9 +21,11 @@ interface PhoneCallDialogProps {
 }
 
 export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactName, codAgent }: PhoneCallDialogProps) {
+  const { user } = useAuth();
   const [selectedExtension, setSelectedExtension] = useState('');
   const [sipError, setSipError] = useState('');
   const sip = useSipPhone();
+  const autoConnected = useRef(false);
 
   const phoneInfo = useMemo(() => formatPhoneForDialing(whatsappNumber), [whatsappNumber]);
 
@@ -39,6 +42,12 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
     },
     enabled: open && !!codAgent,
   });
+
+  // Find user's own extension
+  const myExtension = useMemo(() => {
+    if (!user?.id) return null;
+    return extensions.find((e: any) => e.assigned_member_id === user.id) || null;
+  }, [extensions, user?.id]);
 
   const handleSelectExtension = useCallback(async (extId: string) => {
     setSelectedExtension(extId);
@@ -66,10 +75,21 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
     }
   }, [extensions, codAgent, sip]);
 
+  // Auto-connect when dialog opens and extensions load
+  useEffect(() => {
+    if (!open) {
+      autoConnected.current = false;
+      return;
+    }
+    if (autoConnected.current || !myExtension || selectedExtension) return;
+    autoConnected.current = true;
+    handleSelectExtension(String(myExtension.id));
+  }, [open, myExtension, selectedExtension, handleSelectExtension]);
+
   const dial = useMutation({
     mutationFn: async () => {
       const ext = extensions.find((e: any) => String(e.id) === selectedExtension);
-      if (!ext) throw new Error('Selecione um ramal');
+      if (!ext) throw new Error('Nenhum ramal disponível');
 
       if (!(ext as any).api4com_ramal) {
         throw new Error('Ramal sem vínculo Api4Com. Sincronize os ramais.');
@@ -80,7 +100,6 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
         return { via: 'sip' };
       }
 
-      // REST fallback using extensionId
       const { data, error } = await supabase.functions.invoke('api4com-proxy', {
         body: { action: 'dial', codAgent, extensionId: ext.id, phone: phoneInfo.formatted },
       });
@@ -99,6 +118,7 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const hasExtension = !!myExtension;
   const sipStatusLabel = sip.status === 'registered' ? 'SIP ativo' : sip.status === 'error' ? 'SIP erro' : sip.status === 'idle' ? '' : sip.status;
 
   return (
@@ -106,7 +126,11 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
       <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Phone className="h-5 w-5 text-primary" />
+            {hasExtension ? (
+              <Phone className="h-5 w-5 text-primary" />
+            ) : (
+              <PhoneOff className="h-5 w-5 text-muted-foreground" />
+            )}
             Ligar para {contactName}
             {sipStatusLabel && (
               <Badge variant="secondary" className="text-xs">
@@ -132,37 +156,40 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
             </div>
           </div>
 
-          <div>
-            <label className="text-sm font-medium mb-1 block">Ramal de origem</label>
-            <Select value={selectedExtension} onValueChange={handleSelectExtension}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o ramal..." />
-              </SelectTrigger>
-              <SelectContent>
-                {extensions.map((ext: any) => (
-                  <SelectItem key={ext.id} value={String(ext.id)}>
-                    {ext.extension_number} {ext.label ? `(${ext.label})` : ''}
-                    {ext.api4com_ramal ? ` → ${ext.api4com_ramal}` : ' ⚠️ sem vínculo'}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {sipError && (
-              <p className="text-xs text-destructive mt-1 flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" /> {sipError}
-              </p>
-            )}
-            {extensions.length === 0 && (
-              <p className="text-xs text-destructive mt-1">Nenhum ramal ativo encontrado</p>
-            )}
-          </div>
+          {!hasExtension ? (
+            <div className="text-center py-4 space-y-2">
+              <PhoneOff className="h-10 w-10 mx-auto text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Você não possui ramal ativo.</p>
+              <p className="text-xs text-muted-foreground">Solicite ao administrador.</p>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
+              <div className="text-sm">
+                <span className="text-muted-foreground">Ramal: </span>
+                <span className="font-medium">
+                  {myExtension.extension_number} {myExtension.label ? `(${myExtension.label})` : ''}
+                </span>
+              </div>
+              {(myExtension as any).api4com_ramal && (
+                <Badge variant="outline" className="text-[10px] h-5">
+                  {(myExtension as any).api4com_ramal}
+                </Badge>
+              )}
+            </div>
+          )}
+
+          {sipError && (
+            <p className="text-xs text-destructive flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" /> {sipError}
+            </p>
+          )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button
             onClick={() => dial.mutate()}
-            disabled={!selectedExtension || dial.isPending || sip.status === 'calling'}
+            disabled={!hasExtension || !selectedExtension || dial.isPending || sip.status === 'calling'}
             className="gap-2"
           >
             {dial.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
