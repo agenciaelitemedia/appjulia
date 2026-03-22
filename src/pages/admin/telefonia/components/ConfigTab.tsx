@@ -13,15 +13,17 @@ export function ConfigTab() {
   const { configs, configsLoading, saveConfig, setupWebhook } = useTelefoniaAdmin();
   const [codAgent, setCodAgent] = useState('');
   const [domain, setDomain] = useState('');
+  const [sipDomain, setSipDomain] = useState('');
   const [token, setToken] = useState('');
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/api4com-webhook`;
 
   const handleSave = () => {
     if (!codAgent || !domain || !token) return;
-    saveConfig.mutate({ cod_agent: codAgent, api4com_domain: domain, api4com_token: token });
+    saveConfig.mutate({ cod_agent: codAgent, api4com_domain: domain, api4com_token: token, sip_domain: sipDomain || undefined });
     setCodAgent('');
     setDomain('');
+    setSipDomain('');
     setToken('');
   };
 
@@ -77,14 +79,18 @@ export function ConfigTab() {
           <CardTitle className="text-lg">Configuração Api4Com</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Cód. Agente</Label>
               <Input value={codAgent} onChange={(e) => setCodAgent(e.target.value)} placeholder="202601001" />
             </div>
             <div>
-              <Label>Domínio Api4Com</Label>
+              <Label>Domínio API (REST)</Label>
               <Input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="api.api4com.com" />
+            </div>
+            <div>
+              <Label>Domínio SIP (WebRTC)</Label>
+              <Input value={sipDomain} onChange={(e) => setSipDomain(e.target.value)} placeholder="seudominio.api4com.com (auto-detectado)" />
             </div>
             <div>
               <Label>Token</Label>

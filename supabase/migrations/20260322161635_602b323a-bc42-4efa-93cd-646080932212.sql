@@ -1,0 +1,1 @@
+ALTER TABLE phone_config ADD COLUMN sip_domain text;

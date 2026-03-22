@@ -901,6 +901,7 @@ export type Database = {
           created_at: string
           id: number
           is_active: boolean
+          sip_domain: string | null
           updated_at: string
         }
         Insert: {
@@ -910,6 +911,7 @@ export type Database = {
           created_at?: string
           id?: number
           is_active?: boolean
+          sip_domain?: string | null
           updated_at?: string
         }
         Update: {
@@ -919,6 +921,7 @@ export type Database = {
           created_at?: string
           id?: number
           is_active?: boolean
+          sip_domain?: string | null
           updated_at?: string
         }
         Relationships: []
