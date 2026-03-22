@@ -322,12 +322,75 @@ serve(async (req) => {
 
       case 'delete_extension': {
         const { extensionId } = params;
-        const response = await fetch(`${baseUrl}/extensions/${extensionId}`, {
-          method: 'DELETE',
-          headers,
-        });
-        const text = await response.text();
-        result = { success: response.ok, detail: text };
+        
+        // 1. Buscar registro no banco para obter api4com_raw.user_id
+        const { data: extRecord } = await supabase
+          .from('phone_extensions')
+          .select('id, api4com_id, api4com_raw')
+          .eq('api4com_id', extensionId)
+          .eq('cod_agent', codAgent)
+          .maybeSingle();
+
+        const deleteResults: Record<string, unknown> = {};
+
+        // 2. Deletar extensão na Api4Com
+        try {
+          const extResponse = await fetch(`${baseUrl}/extensions/${extensionId}`, {
+            method: 'DELETE',
+            headers,
+          });
+          deleteResults.extension = { success: extResponse.ok, status: extResponse.status };
+          if (!extResponse.ok) {
+            const errText = await extResponse.text();
+            console.log('Failed to delete extension from Api4Com:', errText);
+            // 404 = already gone, continue; otherwise fail
+            if (extResponse.status !== 404) {
+              throw new Error(`Erro ao deletar ramal na Api4Com: ${errText}`);
+            }
+          }
+        } catch (e: any) {
+          if (e.message?.includes('Erro ao deletar ramal')) throw e;
+          console.log('Extension delete network error:', e.message);
+        }
+
+        // 3. Deletar usuário organizacional na Api4Com (se existir)
+        const api4comUserId = extRecord?.api4com_raw?.user_id || extRecord?.api4com_raw?.userId;
+        if (api4comUserId) {
+          try {
+            const userResponse = await fetch(`${baseUrl}/users/${api4comUserId}`, {
+              method: 'DELETE',
+              headers,
+            });
+            deleteResults.user = { success: userResponse.ok, status: userResponse.status };
+            if (!userResponse.ok && userResponse.status !== 404) {
+              console.log('Failed to delete user from Api4Com:', await userResponse.text());
+            }
+          } catch (e: any) {
+            console.log('User delete error (non-blocking):', e.message);
+            deleteResults.user = { success: false, error: e.message };
+          }
+        }
+
+        // 4. Deletar do banco
+        if (extRecord?.id) {
+          const { error: dbError } = await supabase
+            .from('phone_extensions')
+            .delete()
+            .eq('id', extRecord.id);
+          if (dbError) throw new Error(`Erro ao deletar do banco: ${dbError.message}`);
+          deleteResults.database = { success: true };
+        } else {
+          // Fallback: tentar deletar por api4com_id
+          const { error: dbError } = await supabase
+            .from('phone_extensions')
+            .delete()
+            .eq('api4com_id', extensionId)
+            .eq('cod_agent', codAgent);
+          if (dbError) throw new Error(`Erro ao deletar do banco: ${dbError.message}`);
+          deleteResults.database = { success: true };
+        }
+
+        result = deleteResults;
         break;
       }
 
