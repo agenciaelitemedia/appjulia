@@ -1,14 +1,10 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { AlertCircle, ChevronDown, Activity, PhoneForwarded, PhoneOff } from 'lucide-react';
-import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { usePhone } from '@/contexts/PhoneContext';
-import { syncQueueManager } from '@/lib/syncQueueManager';
 import { DiscadorPad } from './DiscadorPad';
-import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
 import { formatPhoneForDialing } from '@/lib/phoneFormat';
 
 interface Props {
