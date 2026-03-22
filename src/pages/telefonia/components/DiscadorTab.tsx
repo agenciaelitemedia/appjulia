@@ -5,12 +5,12 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { AlertCircle, ChevronDown, Activity, PhoneForwarded, PhoneOff } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { useSipPhone, type CallEndedInfo } from '../hooks/useSipPhone';
+import { useSyncQueue } from '../hooks/useSyncQueue';
 import { SoftphoneWidget } from './SoftphoneWidget';
 import { DiscadorPad } from './DiscadorPad';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { formatPhoneForDialing } from '@/lib/phoneFormat';
-
 interface Props {
   codAgent: string;
 }
