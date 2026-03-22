@@ -101,12 +101,17 @@ export function HistoricoTab({ codAgent }: Props) {
 
   const filteredHistory = useMemo(() => {
     return callHistory.filter((call) => {
-      // Search by number
       if (search) {
-        const q = search.replace(/\D/g, '');
+        const q = search.toLowerCase();
+        const qDigits = search.replace(/\D/g, '');
         const calledClean = (call.called || '').replace(/\D/g, '');
         const callerClean = (call.caller || '').replace(/\D/g, '');
-        if (!calledClean.includes(q) && !callerClean.includes(q)) return false;
+        const extKey = call.extension_number || call.caller || '';
+        const attendant = (extensionNameMap.get(extKey) || '').toLowerCase();
+        const extCodAgent = (extensionCodAgentMap.get(extKey) || codAgent || '').toLowerCase();
+        const matchNumber = qDigits && (calledClean.includes(qDigits) || callerClean.includes(qDigits));
+        const matchName = attendant.includes(q) || extCodAgent.includes(q);
+        if (!matchNumber && !matchName) return false;
       }
       // Direction
       if (directionFilter !== 'all') {
