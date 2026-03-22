@@ -28,13 +28,13 @@ const statusColors: Record<string, string> = {
 export function DiscadorTab({ codAgent }: Props) {
   const { user } = useAuth();
   const { extensions, dial, getSipCredentials, syncCallHistory } = useTelefoniaData(codAgent);
+  const syncQueue = useSyncQueue(codAgent);
   const lastDialedNumber = useRef('');
 
-  // After call ends, sync CDR from Api4Com instead of creating local logs
+  // After SIP call ends, sync with since param (no call_id available)
   const handleCallEnded = useCallback((_info: CallEndedInfo) => {
-    setTimeout(() => {
-      syncCallHistory.mutateAsync({}).catch(console.error);
-    }, 3000);
+    const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    syncCallHistory.mutateAsync({ since }).catch(console.error);
   }, [syncCallHistory]);
 
   const sip = useSipPhone(handleCallEnded);
