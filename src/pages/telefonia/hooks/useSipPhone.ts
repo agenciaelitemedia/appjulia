@@ -3,6 +3,15 @@ import { Invitation, Inviter, Registerer, RegistererState, SessionState, UserAge
 
 export type SipStatus = 'idle' | 'registering' | 'registered' | 'calling' | 'ringing' | 'in-call' | 'error';
 
+export interface CallEndedInfo {
+  duration: number;
+  callerInfo: string;
+  startedAt: string | null;
+  endedAt: string;
+}
+
+export type OnCallEndedCallback = (info: CallEndedInfo) => void;
+
 export interface SipDiagnostics {
   domain: string;
   wsUrl: string;
