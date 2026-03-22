@@ -3,12 +3,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Phone, Loader2, AlertCircle, PhoneOff } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSipPhone } from '@/pages/telefonia/hooks/useSipPhone';
+import { useSipPhone, type CallEndedInfo } from '@/pages/telefonia/hooks/useSipPhone';
 import { SoftphoneWidget } from '@/pages/telefonia/components/SoftphoneWidget';
 import { formatPhoneForDialing } from '@/lib/phoneFormat';
 
@@ -22,10 +21,35 @@ interface PhoneCallDialogProps {
 
 export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactName, codAgent }: PhoneCallDialogProps) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [selectedExtension, setSelectedExtension] = useState('');
   const [sipError, setSipError] = useState('');
-  const sip = useSipPhone();
   const autoConnected = useRef(false);
+
+  const handleCallEnded = useCallback((info: CallEndedInfo) => {
+    const formatted = formatPhoneForDialing(whatsappNumber).formatted;
+    supabase.functions.invoke('api4com-proxy', {
+      body: {
+        action: 'complete_call_log',
+        codAgent,
+        extensionNumber: info.callerInfo || '',
+        phone: formatted,
+        startedAt: info.startedAt,
+        endedAt: info.endedAt,
+        durationSeconds: info.duration,
+      },
+    }).then(({ data, error }) => {
+      queryClient.invalidateQueries({ queryKey: ['my-call-history'] });
+      if (!error && !data?.error) {
+        const details: string[] = [];
+        if (data?.data?.record_url) details.push('gravação disponível');
+        if (data?.data?.cost != null) details.push(`custo: R$${Number(data.data.cost).toFixed(2)}`);
+        toast.success(`Chamada registrada${details.length ? ` (${details.join(', ')})` : ''}`);
+      }
+    }).catch(console.error);
+  }, [whatsappNumber, codAgent, queryClient]);
+
+  const sip = useSipPhone(handleCallEnded);
 
   const phoneInfo = useMemo(() => formatPhoneForDialing(whatsappNumber), [whatsappNumber]);
 
