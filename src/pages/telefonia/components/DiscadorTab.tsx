@@ -31,7 +31,7 @@ export function DiscadorTab({ codAgent }: Props) {
   const lastDialedNumber = useRef('');
 
   const handleCallEnded = useCallback((info: CallEndedInfo) => {
-    const ext = extensions.find((e) => e.assigned_member_id === user?.id);
+    const ext = extensions.find((e) => Number(e.assigned_member_id) === Number(user?.id));
     if (!ext) return;
     completeCallLog.mutate({
       extensionNumber: ext.api4com_ramal || ext.extension_number,
