@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Phone, Delete } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { maskPhone } from '@/lib/inputMasks';
 
 interface DiscadorPadProps {
   value: string;
