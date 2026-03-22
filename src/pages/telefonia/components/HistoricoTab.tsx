@@ -153,7 +153,7 @@ export function HistoricoTab({ codAgent }: Props) {
           <div className="relative flex-1 min-w-[200px] max-w-xs">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por número..."
+              placeholder="Buscar por número ou atendente..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-9"
