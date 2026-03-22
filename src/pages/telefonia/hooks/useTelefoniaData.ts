@@ -224,6 +224,23 @@ export function useTelefoniaData(codAgent: string | undefined) {
     },
   });
 
+  // Sync call history from Api4Com CDR
+  const syncCallHistory = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('api4com-proxy', {
+        body: { action: 'sync_call_history', codAgent },
+      });
+      if (error) throw new Error(error.message || 'Erro ao sincronizar histórico');
+      if (data?.error) throw new Error(data.error);
+      return data?.data;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['my-call-history'] });
+      toast.success(`Histórico sincronizado: ${result?.synced || 0} registros`);
+    },
+    onError: (e: Error) => toast.error(`Erro ao sincronizar: ${e.message}`),
+  });
+
   const maxExtensions = planQuery.data?.max_extensions || 0;
   const usedExtensions = extensionsQuery.data?.length || 0;
   const canCreateExtension = usedExtensions < maxExtensions;
@@ -245,5 +262,6 @@ export function useTelefoniaData(codAgent: string | undefined) {
     dial,
     getSipCredentials,
     completeCallLog,
+    syncCallHistory,
   };
 }
