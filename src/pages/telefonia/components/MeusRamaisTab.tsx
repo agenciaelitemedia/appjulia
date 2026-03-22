@@ -18,7 +18,7 @@ export function MeusRamaisTab({ codAgent }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<PhoneExtension | null>(null);
 
-  const handleSave = (ext: Partial<PhoneExtension>) => {
+  const handleSave = (ext: Partial<PhoneExtension> & { email?: string; memberName?: string }) => {
     if (editing) {
       updateExtension.mutate({ ...ext, id: editing.id });
     } else {
@@ -135,7 +135,7 @@ export function MeusRamaisTab({ codAgent }: Props) {
         </CardContent>
       </Card>
 
-      <RamalDialog open={dialogOpen} onOpenChange={setDialogOpen} extension={editing} onSave={handleSave} />
+      <RamalDialog open={dialogOpen} onOpenChange={setDialogOpen} extension={editing} onSave={handleSave} codAgent={codAgent} isCreating={createExtension.isPending} />
     </div>
   );
 }
