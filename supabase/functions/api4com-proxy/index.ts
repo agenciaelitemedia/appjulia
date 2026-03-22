@@ -182,6 +182,15 @@ serve(async (req) => {
           throw new Error('Api4Com não retornou número de ramal. Resposta: ' + JSON.stringify(result));
         }
 
+        // Auto-populate sip_domain from create response if not set
+        const sipDomainFromResponse = result?.domain;
+        if (sipDomainFromResponse && !config.sip_domain) {
+          await supabase.from('phone_config')
+            .update({ sip_domain: sipDomainFromResponse })
+            .eq('id', config.id);
+          console.log(`Auto-saved sip_domain: ${sipDomainFromResponse}`);
+        }
+
         // Enrich result for frontend
         result = { ...result, ramal, senha, id: id ? String(id) : null };
         break;
