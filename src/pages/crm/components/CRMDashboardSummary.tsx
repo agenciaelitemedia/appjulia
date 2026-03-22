@@ -99,7 +99,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
             <div className="flex-1">
               <p className="text-xs text-muted-foreground font-medium">Atendimentos</p>
               <p className="text-2xl font-bold text-foreground">{stats.totalSessions}</p>
-              <p className="text-xs text-muted-foreground">total no período</p>
+              <p className="text-xs text-muted-foreground">Leads atendidos pela Júlia</p>
             </div>
             <div className="w-20 h-12">
               <ResponsiveContainer width="100%" height="100%">
