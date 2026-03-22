@@ -1,75 +1,77 @@
 
 
-# Webhook Api4Com: Configuração automática + tratamento de todos os eventos
+# Telefonia Api4Com — O que falta para funcionar de verdade
 
-## Situação atual
+O módulo tem a estrutura (tabelas, edge functions, UI) mas falta a integração real: criação automática de ramais na Api4Com e o softphone SIP para fazer/receber chamadas no navegador.
 
-O webhook `api4com-webhook` já existe e trata apenas `channel-hangup`. Mas:
-1. Não há como **cadastrar automaticamente** a URL do webhook no painel da Api4Com via API
-2. Não trata outros eventos úteis (channel-create, channel-answer, etc.)
-3. O admin não vê qual URL configurar no painel da Api4Com
+## O que já existe
+- Tabelas: `phone_config`, `phone_extensions`, `phone_user_plans`, `phone_extension_plans`, `phone_call_logs` (com status)
+- Edge functions: `api4com-proxy` (dial, list, create, update, delete, setup_webhook, get_account) e `api4com-webhook` (channel-create/answer/hangup)
+- UI: páginas admin e usuário com tabs (ramais, discador, histórico, relatórios)
 
-## Alterações
+## O que falta (5 partes)
 
-### 1. `api4com-proxy/index.ts` — nova ação `setup_webhook`
+### 1. Migração — colunas SIP na tabela `phone_extensions`
+- Adicionar `api4com_ramal` (text nullable) — número real atribuído pela Api4Com
+- Adicionar `api4com_password` (text nullable) — senha SIP para conexão WebRTC
 
-Adicionar ação que chama `PATCH /integrations` na Api4Com para registrar o webhook automaticamente:
+### 2. Edge Function `api4com-proxy` — criar ramal via API real
+- Alterar ação `create_extension` para chamar `POST /extensions/nextAvailable` com `{ first_name, last_name, email_address, gravar_audio: 1 }`
+- Retornar `{ ramal, senha, id }` da Api4Com para salvar no banco
+- Adicionar ação `hangup` → `POST /calls/hangup`
+- Adicionar ação `get_sip_credentials` → retorna domínio + ramal + senha para o frontend conectar o softphone
 
-```typescript
-case 'setup_webhook': {
-  const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/api4com-webhook`;
-  const response = await fetch(`${baseUrl}/integrations`, {
-    method: 'PATCH',
-    headers,
-    body: JSON.stringify({
-      gateway: 'atende-julia',
-      webhook: true,
-      webhookConstraint: {
-        metadata: { gateway: 'atende-julia' }
-      },
-      metadata: {
-        webhookUrl,
-        webhookVersion: 'v1.4',
-        webhookTypes: ['channel-create', 'channel-answer', 'channel-hangup']
-      }
-    }),
-  });
-  result = await response.json();
-  break;
-}
+### 3. Softphone SIP com `sip.js`
+- Instalar `sip.js` (npm)
+- Criar `src/pages/telefonia/hooks/useSipPhone.ts`:
+  - Conecta via `wss://dominio.api4com.com:6443`
+  - Gerencia estados: `idle → registering → registered → calling → ringing → in-call → error`
+  - Expõe: `call()`, `answer()`, `hangup()`, `mute()`, `hold()`, `sendDTMF()`, `duration`
+  - Auto-atende chamadas com header `X-Api4comintegratedcall`
+- Criar `src/pages/telefonia/components/SoftphoneWidget.tsx`:
+  - Widget flutuante (canto inferior direito) com badge de status colorido
+  - Teclado DTMF durante chamada, botões mute/hold/hangup
+  - Timer de duração em tempo real
+  - Minimizável
+
+### 4. Fluxo de criação de ramal (`RamalDialog.tsx` + `useTelefoniaData.ts`)
+- Na criação: remover campo "Número do Ramal" (Api4Com define automaticamente)
+- Pedir apenas: Nome/Apelido + Membro da equipe
+- Ao salvar: chamar `api4com-proxy` → `create_extension` → receber ramal/senha → salvar no banco com `extension_number` (alias exibido, ex: "Ramal 1") + `api4com_ramal` (real) + `api4com_password`
+- Na edição: mostrar ramal local e ramal Api4Com (readonly)
+
+### 5. Discador e CRM integrados ao Softphone
+- `DiscadorTab.tsx`: ao selecionar ramal, carregar credenciais SIP e registrar softphone. Discar via SIP.js (WebRTC). Mostrar status em tempo real (tocando, em chamada, ocupado). Fallback para API REST se SIP falhar.
+- `PhoneCallDialog.tsx` (CRM): mesma lógica — usa softphone se registrado, senão API REST
+- Status visual: badge verde (registrado), amarelo (discando/tocando), vermelho (erro), cinza (offline)
+
+## Ordem de execução
+1. Migração (api4com_ramal, api4com_password)
+2. Atualizar api4com-proxy (create via nextAvailable, hangup, get_sip_credentials)
+3. npm install sip.js
+4. Criar useSipPhone hook
+5. Criar SoftphoneWidget
+6. Atualizar RamalDialog (sem número manual)
+7. Atualizar useTelefoniaData (fluxo create real)
+8. Atualizar DiscadorTab + PhoneCallDialog (integrar softphone)
+
+## Detalhes técnicos
+
+### Conexão SIP (useSipPhone.ts)
+```text
+UserAgent → wss://dominio:6443
+  ├─ Registerer (se registra no servidor)
+  ├─ Inviter (faz chamada outbound)
+  └─ Session (gerencia chamada ativa)
+     ├─ onProgress → status: ringing
+     ├─ onAccepted → status: in-call, start timer
+     └─ onTerminated → status: idle, log duration
 ```
 
-### 2. `api4com-webhook/index.ts` — tratar todos os eventos
-
-Expandir para tratar:
-- **channel-create**: criar registro em `phone_call_logs` com status inicial (chamada iniciada)
-- **channel-answer**: atualizar `answered_at` no registro existente
-- **channel-hangup**: atualizar `ended_at`, `duration_seconds`, `hangup_cause`, `record_url`, `cost`
-
-Lógica: sempre buscar pelo `call_id`, fazer upsert. Extrair `cod_agent` do `metadata.gateway` + lookup na tabela `phone_config` pelo domínio ou pelo metadata enviado no dial.
-
-### 3. `ConfigTab.tsx` — botão "Configurar Webhook" + exibir URL
-
-Na aba de Configuração do admin:
-- Mostrar a URL do webhook (readonly, copiável): `https://<SUPABASE_URL>/functions/v1/api4com-webhook`
-- Botão **"Configurar Webhook Automaticamente"** que chama `api4com-proxy` com `action: 'setup_webhook'`
-- Instruções: "Cole esta URL no painel Api4Com → Integrações → Webhook, ou clique no botão para configurar automaticamente via API"
-
-### 4. `phone_call_logs` — nova coluna `status`
-
-Migração para adicionar coluna `status` (text, default 'initiated'):
-- Valores: `initiated`, `ringing`, `answered`, `hangup`, `failed`
-- Permite mostrar status em tempo real no histórico
-
-### 5. Atualizar `useTelefoniaAdmin.ts`
-
-Adicionar mutation `setupWebhook` que chama `api4com-proxy` com `action: 'setup_webhook'`.
-
-## Ordem
-
-1. Migração (coluna `status` em `phone_call_logs`)
-2. Atualizar `api4com-webhook` (tratar channel-create, channel-answer, channel-hangup)
-3. Atualizar `api4com-proxy` (ação `setup_webhook`)
-4. Atualizar `ConfigTab.tsx` (URL + botão configurar webhook)
-5. Atualizar hook admin (mutation setupWebhook)
+### Endpoint create_extension (api4com-proxy)
+```text
+POST /extensions/nextAvailable
+Body: { first_name, last_name, email_address, gravar_audio: 1 }
+Response: { id, ramal: "1047", senha: "PwDLooL", domain, bina }
+```
 
