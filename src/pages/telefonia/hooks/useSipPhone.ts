@@ -113,6 +113,7 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
           break;
         case SessionState.Established:
           setStatus('in-call');
+          callStartedAtRef.current = new Date().toISOString();
           startTimer();
           // Attach remote audio
           const remoteStream = new MediaStream();
@@ -124,17 +125,39 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
             remoteAudioRef.current.srcObject = remoteStream;
           }
           break;
-        case SessionState.Terminated:
+        case SessionState.Terminated: {
+          const endedAt = new Date().toISOString();
+          const callDuration = timerRef.current ? Math.max(0, duration) : 0;
+          const savedCallerInfo = callerInfoRef.current;
+          const savedStartedAt = callStartedAtRef.current;
+
+          // Fire callback with call data
+          if (onCallEndedRef.current && (savedStartedAt || savedCallerInfo)) {
+            try {
+              onCallEndedRef.current({
+                duration: callDuration,
+                callerInfo: savedCallerInfo,
+                startedAt: savedStartedAt,
+                endedAt,
+              });
+            } catch (e) {
+              console.error('onCallEnded callback error:', e);
+            }
+          }
+
           setStatus(registererRef.current?.state === RegistererState.Registered ? 'registered' : 'idle');
           stopTimer();
           setIsMuted(false);
           setIsHeld(false);
           setCallerInfo('');
           sessionRef.current = null;
+          callStartedAtRef.current = null;
+          callerInfoRef.current = '';
           if (remoteAudioRef.current) {
             remoteAudioRef.current.srcObject = null;
           }
           break;
+        }
       }
     });
   }, [startTimer, stopTimer]);
