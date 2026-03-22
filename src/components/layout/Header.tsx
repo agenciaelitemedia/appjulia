@@ -90,6 +90,9 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
 
         {/* Right side */}
         <div className="flex items-center gap-4 ml-auto">
+          {/* Phone Dialer */}
+          <HeaderDialer />
+
           {/* Notifications */}
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="h-5 w-5" />
