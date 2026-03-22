@@ -62,6 +62,7 @@ export function UnifiedFilters({
   statusOptions = [],
   showStateFilter = false,
   stateOptions = [],
+  customSelects = [],
   searchPlaceholder = 'Buscar...',
   className,
   periodTooltip,
