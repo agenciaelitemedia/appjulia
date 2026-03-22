@@ -833,6 +833,194 @@ export type Database = {
         }
         Relationships: []
       }
+      phone_call_logs: {
+        Row: {
+          answered_at: string | null
+          call_id: string | null
+          called: string | null
+          caller: string | null
+          cod_agent: string | null
+          cost: number | null
+          created_at: string
+          direction: string | null
+          duration_seconds: number | null
+          ended_at: string | null
+          extension_number: string | null
+          hangup_cause: string | null
+          id: number
+          metadata: Json | null
+          record_url: string | null
+          started_at: string | null
+        }
+        Insert: {
+          answered_at?: string | null
+          call_id?: string | null
+          called?: string | null
+          caller?: string | null
+          cod_agent?: string | null
+          cost?: number | null
+          created_at?: string
+          direction?: string | null
+          duration_seconds?: number | null
+          ended_at?: string | null
+          extension_number?: string | null
+          hangup_cause?: string | null
+          id?: number
+          metadata?: Json | null
+          record_url?: string | null
+          started_at?: string | null
+        }
+        Update: {
+          answered_at?: string | null
+          call_id?: string | null
+          called?: string | null
+          caller?: string | null
+          cod_agent?: string | null
+          cost?: number | null
+          created_at?: string
+          direction?: string | null
+          duration_seconds?: number | null
+          ended_at?: string | null
+          extension_number?: string | null
+          hangup_cause?: string | null
+          id?: number
+          metadata?: Json | null
+          record_url?: string | null
+          started_at?: string | null
+        }
+        Relationships: []
+      }
+      phone_config: {
+        Row: {
+          api4com_domain: string
+          api4com_token: string
+          cod_agent: string
+          created_at: string
+          id: number
+          is_active: boolean
+          updated_at: string
+        }
+        Insert: {
+          api4com_domain: string
+          api4com_token: string
+          cod_agent: string
+          created_at?: string
+          id?: number
+          is_active?: boolean
+          updated_at?: string
+        }
+        Update: {
+          api4com_domain?: string
+          api4com_token?: string
+          cod_agent?: string
+          created_at?: string
+          id?: number
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      phone_extension_plans: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: number
+          is_active: boolean
+          max_extensions: number
+          name: string
+          price: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: number
+          is_active?: boolean
+          max_extensions?: number
+          name: string
+          price?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: number
+          is_active?: boolean
+          max_extensions?: number
+          name?: string
+          price?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      phone_extensions: {
+        Row: {
+          api4com_id: string | null
+          assigned_member_id: number | null
+          created_at: string
+          extension_number: string
+          id: number
+          is_active: boolean
+          label: string | null
+          updated_at: string
+          user_id: number
+        }
+        Insert: {
+          api4com_id?: string | null
+          assigned_member_id?: number | null
+          created_at?: string
+          extension_number: string
+          id?: number
+          is_active?: boolean
+          label?: string | null
+          updated_at?: string
+          user_id: number
+        }
+        Update: {
+          api4com_id?: string | null
+          assigned_member_id?: number | null
+          created_at?: string
+          extension_number?: string
+          id?: number
+          is_active?: boolean
+          label?: string | null
+          updated_at?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
+      phone_user_plans: {
+        Row: {
+          assigned_at: string
+          id: number
+          is_active: boolean
+          plan_id: number
+          user_id: number
+        }
+        Insert: {
+          assigned_at?: string
+          id?: number
+          is_active?: boolean
+          plan_id: number
+          user_id: number
+        }
+        Update: {
+          assigned_at?: string
+          id?: number
+          is_active?: boolean
+          plan_id?: number
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "phone_user_plans_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "phone_extension_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       video_call_records: {
         Row: {
           cod_agent: string

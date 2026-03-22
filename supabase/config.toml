@@ -20,3 +20,9 @@ verify_jwt = false
 
 [functions.datajud-monitor]
 verify_jwt = false
+
+[functions.api4com-proxy]
+verify_jwt = false
+
+[functions.api4com-webhook]
+verify_jwt = false
