@@ -18,7 +18,7 @@ export function DiscadorTab() {
     dial.mutate({
       extension: selectedExtension,
       phone: number,
-      codAgent: user?.cod_agent || '',
+      codAgent: String(user?.cod_agent || ''),
     });
   };
 
