@@ -18,6 +18,7 @@ interface RamalDialogProps {
   onSave: (ext: Partial<PhoneExtension> & { email?: string; memberName?: string }) => void;
   isCreating?: boolean;
   codAgent: string;
+  existingExtensions?: PhoneExtension[];
 }
 
 interface TeamMemberOption {
@@ -27,7 +28,7 @@ interface TeamMemberOption {
   isSelf?: boolean;
 }
 
-export function RamalDialog({ open, onOpenChange, extension, onSave, isCreating, codAgent }: RamalDialogProps) {
+export function RamalDialog({ open, onOpenChange, extension, onSave, isCreating, codAgent, existingExtensions = [] }: RamalDialogProps) {
   const { user } = useAuth();
   const [label, setLabel] = useState('');
   const [selectedMemberId, setSelectedMemberId] = useState<string>('');
@@ -43,11 +44,18 @@ export function RamalDialog({ open, onOpenChange, extension, onSave, isCreating,
     enabled: !!user?.id && open,
   });
 
-  // Build options: self first, then team members
+  // IDs of members already assigned to an extension (exclude current extension when editing)
+  const assignedMemberIds = new Set(
+    existingExtensions
+      .filter(e => e.assigned_member_id != null && (!extension || e.id !== extension.id))
+      .map(e => Number(e.assigned_member_id))
+  );
+
+  // Build options: self first, then team members — filter out already assigned
   const memberOptions: TeamMemberOption[] = [
-    ...(user ? [{ id: user.id, name: user.name, email: user.email, isSelf: true }] : []),
+    ...(user && !assignedMemberIds.has(user.id) ? [{ id: user.id, name: user.name, email: user.email, isSelf: true }] : []),
     ...teamMembers
-      .filter((m: any) => m.id !== user?.id)
+      .filter((m: any) => m.id !== user?.id && !assignedMemberIds.has(m.id))
       .map((m: any) => ({ id: m.id, name: m.name, email: m.email, isSelf: false })),
   ];
 
