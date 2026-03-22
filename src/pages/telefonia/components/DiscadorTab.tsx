@@ -59,6 +59,11 @@ export function DiscadorTab({ codAgent }: Props) {
     }
   }, [extensions, getSipCredentials, sip]);
 
+  const phoneInfo = useMemo(() => {
+    if (!number || number.replace(/\D/g, '').length < 8) return null;
+    return formatPhoneForDialing(number);
+  }, [number]);
+
   const handleDial = useCallback(() => {
     if (!selectedExtension || !number) return;
 
@@ -70,11 +75,12 @@ export function DiscadorTab({ codAgent }: Props) {
       return;
     }
 
+    const { formatted } = formatPhoneForDialing(number);
+
     if (sip.status === 'registered') {
-      sip.call(number);
+      sip.call(formatted);
     } else {
-      // REST fallback using extensionId
-      dial.mutate({ extensionId: ext.id, phone: number });
+      dial.mutate({ extensionId: ext.id, phone: formatted });
     }
   }, [selectedExtension, number, sip, extensions, dial]);
 
