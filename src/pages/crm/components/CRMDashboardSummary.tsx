@@ -189,9 +189,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
             <div>
               <p className="text-xs text-muted-foreground font-medium">Desqualificado</p>
               <p className="text-2xl font-bold text-foreground">{stats.disqualifiedRate.toFixed(1)}%</p>
-              <p className="text-xs text-muted-foreground">
-                Leads sem perfil ou interesse
-              </p>
+              <p className="text-xs text-muted-foreground">Sem perfil adequado</p>
             </div>
             <div className="p-2 bg-chart-5/10 rounded-full">
               <XCircle className="h-5 w-5 text-chart-5" />
