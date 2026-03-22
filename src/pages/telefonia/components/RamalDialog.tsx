@@ -1,37 +1,82 @@
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/contexts/AuthContext';
+import { externalDb } from '@/lib/externalDb';
 import type { PhoneExtension } from '../types';
 
 interface RamalDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   extension: PhoneExtension | null;
-  onSave: (ext: Partial<PhoneExtension>) => void;
+  onSave: (ext: Partial<PhoneExtension> & { email?: string; memberName?: string }) => void;
   isCreating?: boolean;
+  codAgent: string;
 }
 
-export function RamalDialog({ open, onOpenChange, extension, onSave, isCreating }: RamalDialogProps) {
+interface TeamMemberOption {
+  id: number;
+  name: string;
+  email: string;
+  isSelf?: boolean;
+}
+
+export function RamalDialog({ open, onOpenChange, extension, onSave, isCreating, codAgent }: RamalDialogProps) {
+  const { user } = useAuth();
   const [label, setLabel] = useState('');
-  const [memberId, setMemberId] = useState('');
+  const [selectedMemberId, setSelectedMemberId] = useState<string>('');
   const [isActive, setIsActive] = useState(true);
+
+  // Fetch team members
+  const { data: teamMembers = [] } = useQuery({
+    queryKey: ['team-members-for-ramal', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      return externalDb.getTeamMembers(user.id, user.role === 'admin');
+    },
+    enabled: !!user?.id && open,
+  });
+
+  // Build options: self first, then team members
+  const memberOptions: TeamMemberOption[] = [
+    ...(user ? [{ id: user.id, name: user.name, email: user.email, isSelf: true }] : []),
+    ...teamMembers
+      .filter((m: any) => m.id !== user?.id)
+      .map((m: any) => ({ id: m.id, name: m.name, email: m.email, isSelf: false })),
+  ];
 
   useEffect(() => {
     if (extension) {
       setLabel(extension.label || '');
-      setMemberId(extension.assigned_member_id ? String(extension.assigned_member_id) : '');
+      setSelectedMemberId(extension.assigned_member_id ? String(extension.assigned_member_id) : '');
       setIsActive(extension.is_active);
     } else {
       setLabel('');
-      setMemberId('');
+      setSelectedMemberId(user ? String(user.id) : '');
       setIsActive(true);
     }
-  }, [extension, open]);
+  }, [extension, open, user]);
 
   const isEditing = !!extension;
+
+  const selectedMember = memberOptions.find(m => String(m.id) === selectedMemberId);
+
+  // Auto-fill label when selecting a member (only on create)
+  const handleMemberChange = (value: string) => {
+    setSelectedMemberId(value);
+    if (!isEditing) {
+      const member = memberOptions.find(m => String(m.id) === value);
+      if (member) {
+        setLabel(member.name);
+      }
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -59,14 +104,34 @@ export function RamalDialog({ open, onOpenChange, extension, onSave, isCreating 
               O número do ramal será atribuído automaticamente pela Api4Com.
             </p>
           )}
+
+          <div>
+            <Label>Vincular a</Label>
+            <Select value={selectedMemberId} onValueChange={handleMemberChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um membro" />
+              </SelectTrigger>
+              <SelectContent>
+                {memberOptions.map((m) => (
+                  <SelectItem key={m.id} value={String(m.id)}>
+                    <div className="flex items-center gap-2">
+                      <span>{m.name}</span>
+                      {m.isSelf && (
+                        <Badge variant="secondary" className="text-[10px] px-1 py-0">Você</Badge>
+                      )}
+                      <span className="text-xs text-muted-foreground">{m.email}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div>
             <Label>Nome/Apelido</Label>
             <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Ex: Recepção" />
           </div>
-          <div>
-            <Label>ID do Membro (equipe)</Label>
-            <Input value={memberId} onChange={(e) => setMemberId(e.target.value)} placeholder="Opcional" type="number" />
-          </div>
+
           {isEditing && (
             <div className="flex items-center gap-2">
               <Switch checked={isActive} onCheckedChange={setIsActive} />
@@ -79,8 +144,10 @@ export function RamalDialog({ open, onOpenChange, extension, onSave, isCreating 
           <Button
             onClick={() => onSave({
               label: label || null,
-              assigned_member_id: memberId ? Number(memberId) : null,
+              assigned_member_id: selectedMemberId ? Number(selectedMemberId) : null,
               is_active: isActive,
+              email: selectedMember?.email || undefined,
+              memberName: selectedMember?.name || undefined,
             })}
             disabled={isCreating}
           >
