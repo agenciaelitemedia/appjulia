@@ -144,17 +144,8 @@ export function HistoricoTab({ codAgent }: Props) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader>
         <CardTitle className="text-lg">Histórico de Chamadas</CardTitle>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => syncCallHistory.mutate({})}
-          disabled={syncCallHistory.isPending}
-        >
-          <RefreshCw className={`h-4 w-4 mr-1 ${syncCallHistory.isPending ? 'animate-spin' : ''}`} />
-          Sincronizar
-        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Filters */}
