@@ -3,6 +3,16 @@ import { Invitation, Inviter, Registerer, RegistererState, SessionState, UserAge
 
 export type SipStatus = 'idle' | 'registering' | 'registered' | 'calling' | 'ringing' | 'in-call' | 'error';
 
+export interface SipDiagnostics {
+  domain: string;
+  wsUrl: string;
+  username: string;
+  registrationStatus: string;
+  lastError: string;
+  wsState: string;
+  events: string[];
+}
+
 interface SipCredentials {
   domain: string;
   username: string;
@@ -16,6 +26,7 @@ interface UseSipPhoneReturn {
   isMuted: boolean;
   isHeld: boolean;
   callerInfo: string;
+  diagnostics: SipDiagnostics;
   connect: (creds: SipCredentials) => void;
   disconnect: () => void;
   call: (target: string) => void;
