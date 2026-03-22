@@ -34,7 +34,7 @@ export function useFollowupReturnRate(agentCodes: string[], dateFrom?: string, d
       }[]>({
         query: `
           WITH current_state AS (
-            SELECT DISTINCT ON (cod_agent, session_id)
+            SELECT DISTINCT ON (session_id)
               session_id,
               id as queue_id,
               state,
@@ -42,7 +42,7 @@ export function useFollowupReturnRate(agentCodes: string[], dateFrom?: string, d
             FROM followup_queue
             WHERE cod_agent::text = ANY($1::varchar[])
               ${dateFilter}
-            ORDER BY cod_agent, session_id, send_date DESC
+            ORDER BY session_id, send_date DESC
           ),
           leads_with_response AS (
             SELECT DISTINCT fq.session_id
