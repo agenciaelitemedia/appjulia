@@ -57,6 +57,7 @@ serve(async (req) => {
           caller: extension,
           called: phone,
           started_at: new Date().toISOString(),
+          status: 'initiated',
           metadata: metadata || {},
         });
         break;
@@ -69,12 +70,19 @@ serve(async (req) => {
       }
 
       case 'create_extension': {
-        const response = await fetch(`${baseUrl}/extensions`, {
+        const { firstName, lastName, email } = params;
+        const response = await fetch(`${baseUrl}/extensions/nextAvailable`, {
           method: 'POST',
           headers,
-          body: JSON.stringify(params.extensionData),
+          body: JSON.stringify({
+            first_name: firstName || 'Ramal',
+            last_name: lastName || codAgent,
+            email_address: email || `ramal_${Date.now()}@atendejulia.com`,
+            gravar_audio: 1,
+          }),
         });
         result = await response.json();
+        // result expected: { ramal, senha, id, domain, bina }
         break;
       }
 
@@ -96,6 +104,40 @@ serve(async (req) => {
           headers,
         });
         result = { success: response.ok };
+        break;
+      }
+
+      case 'hangup': {
+        const { callId } = params;
+        const response = await fetch(`${baseUrl}/calls/hangup`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ call_id: callId }),
+        });
+        result = await response.json();
+        break;
+      }
+
+      case 'get_sip_credentials': {
+        const { extensionId } = params;
+        // Get extension from our DB
+        const { data: ext } = await supabase
+          .from('phone_extensions')
+          .select('api4com_ramal, api4com_password')
+          .eq('id', extensionId)
+          .eq('cod_agent', codAgent)
+          .single();
+
+        if (!ext?.api4com_ramal || !ext?.api4com_password) {
+          throw new Error('Credenciais SIP não encontradas para este ramal');
+        }
+
+        result = {
+          domain: config.api4com_domain,
+          username: ext.api4com_ramal,
+          password: ext.api4com_password,
+          wsUrl: `wss://${config.api4com_domain}:6443`,
+        };
         break;
       }
 
