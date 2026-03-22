@@ -1,40 +1,50 @@
 
 
-# Fix SIP WebSocket Connection — Wrong Domain
+# Formatação automática de números para Api4Com
 
-## Problem
-The SIP WebSocket connects to `wss://api.api4com.com:6443` (the REST API host) instead of `wss://atendejulia.api4com.com:6443` (the account's SIP domain). The create_extension response confirms the account domain is `atendejulia.api4com.com`.
+## Regras de telefonia brasileira para Api4Com
 
-## Root Cause
-`get_sip_credentials` in `api4com-proxy` uses `config.api4com_domain` (which stores `api.api4com.com`) for both REST and SIP. The SIP WebSocket server runs on the **account domain**, not the API domain.
+A Api4Com espera números no formato: `0 + DDD + número` (ex: `034999999999`).
 
-## Fix
+### Regras de detecção celular vs fixo
+- **Celular**: DDD + 9 dígitos (começa com 9). Ex: `34 9 9999-9999`
+- **Fixo**: DDD + 8 dígitos (começa com 2-5). Ex: `34 3333-9999`
+- **Nono dígito**: Se o número tem DDD + 8 dígitos e o primeiro dígito do número local é 6, 7, 8 ou 9, é celular sem o nono dígito → adicionar `9` automaticamente
 
-### 1. Migration — add `sip_domain` column to `phone_config`
-```sql
-ALTER TABLE phone_config ADD COLUMN sip_domain text;
+### Lógica de formatação
+```text
+Entrada do usuário     → Limpa dígitos → Detecta → Formata para Api4Com
+(34) 99999-9999        → 34999999999   → celular  → 034999999999
+(34) 9999-9999         → 3499999999    → cel s/9°  → 034999999999 (adiciona 9)
+(34) 3333-9999         → 3433339999    → fixo      → 03433339999
++55 34 99999-9999      → 5534999999999 → remove 55 → 034999999999
+34999999999             → já ok         → celular   → 034999999999
 ```
 
-### 2. `api4com-proxy` — `get_sip_credentials`
-- Use `config.sip_domain` if set, otherwise fallback to extracting domain from the extension's create response stored in DB
-- If `sip_domain` is null, try to get it from Api4Com via `GET /account` and save it
+## Alterações
 
-### 3. `api4com-proxy` — `create_extension`
-- After successful creation, if `config.sip_domain` is null, save the `domain` from the response (`atendejulia.api4com.com`) to `phone_config.sip_domain`
+### 1. `src/lib/phoneFormat.ts` — novo arquivo
+Função `formatPhoneForDialing(raw: string): { formatted: string; type: 'mobile' | 'landline' | 'unknown'; ninthAdded: boolean }`:
+- Remove `+55`, parênteses, traços, espaços
+- Se começa com `0`, mantém
+- Se tem 10 dígitos (DDD + 8): verifica se primeiro dígito local é 6-9 → adiciona nono dígito `9`
+- Se tem 11 dígitos (DDD + 9): celular OK
+- Adiciona `0` na frente se não tem
+- Retorna número formatado + metadados (tipo, se adicionou 9°)
 
-### 4. Admin `ConfigTab.tsx`
-- Add optional field "Domínio SIP" alongside existing domain field
-- Auto-populated from create_extension but editable
+### 2. `DiscadorTab.tsx` — formatar antes de discar
+- No `handleDial`, aplicar `formatPhoneForDialing(number)` antes de enviar
+- Mostrar indicador visual abaixo do input: "Celular: 034999999999 (9° dígito adicionado)" ou "Fixo: 03433339999"
 
-### 5. Quick fix alternative (simpler)
-Instead of a new column, just change `get_sip_credentials` to use the account domain pattern. Since the REST domain is `api.api4com.com` but the response from create_extension shows `atendejulia.api4com.com`, we can:
-- Store the SIP domain from create_extension response in a new `phone_config.sip_domain` column
-- OR: hardcode extraction from the create response's `domain` field already stored
+### 3. `PhoneCallDialog.tsx` — formatar `whatsappNumber`
+- Antes de discar (SIP ou REST), aplicar `formatPhoneForDialing(whatsappNumber)`
+- Exibir número formatado no display
 
-**Recommended approach**: Add `sip_domain` to `phone_config` + auto-populate from create_extension. Change `get_sip_credentials` to use `sip_domain || config.api4com_domain`.
+### 4. `DiscadorPad.tsx` — máscara visual no input
+- Aplicar `maskPhone` do `inputMasks.ts` no display enquanto digita
+- Enviar número limpo para o pai
 
-## Files changed
-- Migration: add `sip_domain` to `phone_config`
-- `supabase/functions/api4com-proxy/index.ts`: update `get_sip_credentials` and `create_extension`
-- `src/pages/admin/telefonia/components/ConfigTab.tsx`: add SIP domain field
+## Arquivos
+- Criar: `src/lib/phoneFormat.ts`
+- Editar: `DiscadorTab.tsx`, `PhoneCallDialog.tsx`, `DiscadorPad.tsx`
 
