@@ -3,6 +3,16 @@ import { Invitation, Inviter, Registerer, RegistererState, SessionState, UserAge
 
 export type SipStatus = 'idle' | 'registering' | 'registered' | 'calling' | 'ringing' | 'in-call' | 'error';
 
+export interface SipDiagnostics {
+  domain: string;
+  wsUrl: string;
+  username: string;
+  registrationStatus: string;
+  lastError: string;
+  wsState: string;
+  events: string[];
+}
+
 interface SipCredentials {
   domain: string;
   username: string;
@@ -16,6 +26,7 @@ interface UseSipPhoneReturn {
   isMuted: boolean;
   isHeld: boolean;
   callerInfo: string;
+  diagnostics: SipDiagnostics;
   connect: (creds: SipCredentials) => void;
   disconnect: () => void;
   call: (target: string) => void;
@@ -32,6 +43,18 @@ export function useSipPhone(): UseSipPhoneReturn {
   const [isMuted, setIsMuted] = useState(false);
   const [isHeld, setIsHeld] = useState(false);
   const [callerInfo, setCallerInfo] = useState('');
+  const [diagnostics, setDiagnostics] = useState<SipDiagnostics>({
+    domain: '', wsUrl: '', username: '', registrationStatus: 'none',
+    lastError: '', wsState: 'disconnected', events: [],
+  });
+
+  const addDiagEvent = useCallback((msg: string) => {
+    const ts = new Date().toLocaleTimeString('pt-BR');
+    setDiagnostics(prev => ({
+      ...prev,
+      events: [`[${ts}] ${msg}`, ...prev.events].slice(0, 20),
+    }));
+  }, []);
 
   const uaRef = useRef<UserAgent | null>(null);
   const registererRef = useRef<Registerer | null>(null);
@@ -106,10 +129,22 @@ export function useSipPhone(): UseSipPhoneReturn {
   const connect = useCallback((creds: SipCredentials) => {
     credsRef.current = creds;
     setStatus('registering');
+    setDiagnostics(prev => ({
+      ...prev,
+      domain: creds.domain,
+      wsUrl: creds.wsUrl,
+      username: creds.username,
+      registrationStatus: 'connecting',
+      wsState: 'connecting',
+      lastError: '',
+    }));
+    addDiagEvent(`Connecting to ${creds.wsUrl} as ${creds.username}@${creds.domain}`);
 
     const uri = UserAgent.makeURI(`sip:${creds.username}@${creds.domain}`);
     if (!uri) {
       setStatus('error');
+      addDiagEvent('ERROR: Invalid SIP URI');
+      setDiagnostics(prev => ({ ...prev, lastError: 'Invalid SIP URI', registrationStatus: 'error' }));
       return;
     }
 
@@ -126,11 +161,12 @@ export function useSipPhone(): UseSipPhoneReturn {
           sessionRef.current = invitation;
           setCallerInfo(invitation.remoteIdentity?.uri?.user || 'Desconhecido');
           setStatus('ringing');
+          addDiagEvent(`Incoming call from ${invitation.remoteIdentity?.uri?.user || '?'}`);
           setupSessionListeners(invitation);
 
-          // Auto-answer api4com integrated calls
           const headers = invitation.request.getHeaders('X-Api4comintegratedcall');
           if (headers?.length && headers[0] === 'true') {
+            addDiagEvent('Auto-answering integrated call');
             invitation.accept();
           }
         },
@@ -147,17 +183,33 @@ export function useSipPhone(): UseSipPhoneReturn {
       switch (state) {
         case RegistererState.Registered:
           setStatus('registered');
+          addDiagEvent('✓ SIP Registered');
+          setDiagnostics(prev => ({ ...prev, registrationStatus: 'registered', wsState: 'connected' }));
           break;
         case RegistererState.Unregistered:
           setStatus('idle');
+          addDiagEvent('SIP Unregistered');
+          setDiagnostics(prev => ({ ...prev, registrationStatus: 'unregistered' }));
           break;
       }
     });
 
     ua.start().then(() => {
-      registerer.register().catch(() => setStatus('error'));
-    }).catch(() => setStatus('error'));
-  }, [setupSessionListeners]);
+      addDiagEvent('WebSocket connected, registering...');
+      setDiagnostics(prev => ({ ...prev, wsState: 'connected', registrationStatus: 'registering' }));
+      registerer.register().catch((err) => {
+        setStatus('error');
+        const msg = err?.message || 'Registration failed';
+        addDiagEvent(`ERROR register: ${msg}`);
+        setDiagnostics(prev => ({ ...prev, lastError: msg, registrationStatus: 'error' }));
+      });
+    }).catch((err) => {
+      setStatus('error');
+      const msg = err?.message || 'WebSocket connection failed';
+      addDiagEvent(`ERROR connect: ${msg}`);
+      setDiagnostics(prev => ({ ...prev, lastError: msg, wsState: 'error', registrationStatus: 'error' }));
+    });
+  }, [setupSessionListeners, addDiagEvent]);
 
   const disconnect = useCallback(() => {
     if (sessionRef.current?.state === SessionState.Established) {
@@ -263,6 +315,7 @@ export function useSipPhone(): UseSipPhoneReturn {
     isMuted,
     isHeld,
     callerInfo,
+    diagnostics,
     connect,
     disconnect,
     call,
