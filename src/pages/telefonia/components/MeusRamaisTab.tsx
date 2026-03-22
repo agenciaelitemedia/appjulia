@@ -135,7 +135,7 @@ export function MeusRamaisTab({ codAgent }: Props) {
         </CardContent>
       </Card>
 
-      <RamalDialog open={dialogOpen} onOpenChange={setDialogOpen} extension={editing} onSave={handleSave} codAgent={codAgent} isCreating={createExtension.isPending} />
+      <RamalDialog open={dialogOpen} onOpenChange={setDialogOpen} extension={editing} onSave={handleSave} codAgent={codAgent} isCreating={createExtension.isPending} existingExtensions={extensions} />
     </div>
   );
 }
