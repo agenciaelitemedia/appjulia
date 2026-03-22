@@ -1,14 +1,15 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { AlertCircle, ChevronDown, Activity } from 'lucide-react';
+import { AlertCircle, ChevronDown, Activity, PhoneForwarded } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { useSipPhone } from '../hooks/useSipPhone';
 import { SoftphoneWidget } from './SoftphoneWidget';
 import { DiscadorPad } from './DiscadorPad';
 import { toast } from 'sonner';
+import { formatPhoneForDialing } from '@/lib/phoneFormat';
 
 interface Props {
   codAgent: string;
