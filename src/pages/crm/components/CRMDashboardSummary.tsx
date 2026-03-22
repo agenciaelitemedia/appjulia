@@ -157,9 +157,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
             <div>
               <p className="text-xs text-muted-foreground font-medium">Taxa Contratos</p>
               <p className="text-2xl font-bold text-foreground">{stats.conversionRate.toFixed(1)}%</p>
-              <p className="text-xs text-muted-foreground">
-                Conversão em contratos
-              </p>
+              <p className="text-xs text-muted-foreground">Leads convertidos</p>
             </div>
             <div className="p-2 bg-chart-2/10 rounded-full">
               <Target className="h-5 w-5 text-chart-2" />
