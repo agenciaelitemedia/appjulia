@@ -28,7 +28,7 @@ interface TeamMemberOption {
   isSelf?: boolean;
 }
 
-export function RamalDialog({ open, onOpenChange, extension, onSave, isCreating, codAgent }: RamalDialogProps) {
+export function RamalDialog({ open, onOpenChange, extension, onSave, isCreating, codAgent, existingExtensions = [] }: RamalDialogProps) {
   const { user } = useAuth();
   const [label, setLabel] = useState('');
   const [selectedMemberId, setSelectedMemberId] = useState<string>('');
