@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Phone, PhoneOff, Mic, MicOff, Pause, Play, Minimize2, Maximize2, Keyboard, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -55,19 +55,42 @@ export function SoftphoneWidget({
   const [minimized, setMinimized] = useState(false);
   const [showDTMF, setShowDTMF] = useState(false);
   const wasInCall = useRef(false);
+  const graceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const cfg = statusConfig[status];
   const isActive = ['calling', 'ringing', 'in-call'].includes(status);
 
-  // Track call end to fire onCallFinished
+  // Track call end with 15s grace period for PBX callback
   useEffect(() => {
     if (status === 'in-call' || status === 'calling' || status === 'ringing') {
       wasInCall.current = true;
+      if (graceTimeout.current) {
+        clearTimeout(graceTimeout.current);
+        graceTimeout.current = null;
+      }
     } else if (wasInCall.current && (status === 'registered' || status === 'idle')) {
       wasInCall.current = false;
-      onCallFinished?.();
+      if (graceTimeout.current) clearTimeout(graceTimeout.current);
+      graceTimeout.current = setTimeout(() => {
+        graceTimeout.current = null;
+        onCallFinished?.();
+      }, 15000);
     }
   }, [status, onCallFinished]);
+
+  useEffect(() => {
+    return () => {
+      if (graceTimeout.current) clearTimeout(graceTimeout.current);
+    };
+  }, []);
+
+  const handleManualClose = useCallback(() => {
+    if (graceTimeout.current) {
+      clearTimeout(graceTimeout.current);
+      graceTimeout.current = null;
+    }
+    onCallFinished?.();
+  }, [onCallFinished]);
 
   if (status === 'idle' && !centered) return null;
   if (status === 'idle' && centered) return null;
@@ -92,6 +115,11 @@ export function SoftphoneWidget({
               <span className={cn('h-2.5 w-2.5 rounded-full', cfg.dotColor)} />
               <Badge variant="secondary" className={cn('text-xs', cfg.color)}>{cfg.label}</Badge>
             </div>
+            {!isActive && (
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleManualClose}>
+                <X className="h-3 w-3" />
+              </Button>
+            )}
           </div>
 
           {/* Body */}
