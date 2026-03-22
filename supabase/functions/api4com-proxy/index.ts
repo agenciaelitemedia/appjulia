@@ -69,7 +69,9 @@ serve(async (req) => {
       .select('*')
       .eq('cod_agent', codAgent)
       .eq('is_active', true)
-      .single();
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (configError || !config) {
       throw new Error('Configuração Api4Com não encontrada para este agente');
