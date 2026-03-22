@@ -5,7 +5,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Phone, Loader2 } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
 interface PhoneCallDialogProps {
@@ -17,22 +16,21 @@ interface PhoneCallDialogProps {
 }
 
 export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactName, codAgent }: PhoneCallDialogProps) {
-  const { user } = useAuth();
   const [selectedExtension, setSelectedExtension] = useState('');
 
-  // Fetch user's active extensions
+  // Fetch agent's active extensions
   const { data: extensions = [] } = useQuery({
-    queryKey: ['my-extensions-for-call', user?.id],
+    queryKey: ['my-extensions-for-call', codAgent],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('phone_extensions')
         .select('*')
-        .eq('user_id', user!.id)
+        .eq('cod_agent', codAgent)
         .eq('is_active', true);
       if (error) throw error;
       return data || [];
     },
-    enabled: open && !!user?.id,
+    enabled: open && !!codAgent,
   });
 
   const dial = useMutation({

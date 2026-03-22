@@ -9,8 +9,12 @@ import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { RamalDialog } from './RamalDialog';
 import type { PhoneExtension } from '../types';
 
-export function MeusRamaisTab() {
-  const { extensions, extensionsLoading, maxExtensions, usedExtensions, canCreateExtension, plan, createExtension, updateExtension, deleteExtension } = useTelefoniaData();
+interface Props {
+  codAgent: string;
+}
+
+export function MeusRamaisTab({ codAgent }: Props) {
+  const { extensions, extensionsLoading, maxExtensions, usedExtensions, canCreateExtension, plan, createExtension, updateExtension, deleteExtension } = useTelefoniaData(codAgent);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<PhoneExtension | null>(null);
 
@@ -28,7 +32,6 @@ export function MeusRamaisTab() {
 
   return (
     <div className="space-y-4">
-      {/* Plan info */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center justify-between mb-2">
@@ -44,7 +47,6 @@ export function MeusRamaisTab() {
         </CardContent>
       </Card>
 
-      {/* Extensions list */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">

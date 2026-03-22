@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PhoneIncoming, PhoneOutgoing, Play } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
@@ -13,8 +12,12 @@ function formatDuration(seconds: number): string {
   return `${m}m ${s}s`;
 }
 
-export function HistoricoTab() {
-  const { callHistory, callHistoryLoading } = useTelefoniaData();
+interface Props {
+  codAgent: string;
+}
+
+export function HistoricoTab({ codAgent }: Props) {
+  const { callHistory, callHistoryLoading } = useTelefoniaData(codAgent);
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
 
   return (

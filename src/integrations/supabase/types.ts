@@ -957,59 +957,59 @@ export type Database = {
         Row: {
           api4com_id: string | null
           assigned_member_id: number | null
+          cod_agent: string
           created_at: string
           extension_number: string
           id: number
           is_active: boolean
           label: string | null
           updated_at: string
-          user_id: number
         }
         Insert: {
           api4com_id?: string | null
           assigned_member_id?: number | null
+          cod_agent: string
           created_at?: string
           extension_number: string
           id?: number
           is_active?: boolean
           label?: string | null
           updated_at?: string
-          user_id: number
         }
         Update: {
           api4com_id?: string | null
           assigned_member_id?: number | null
+          cod_agent?: string
           created_at?: string
           extension_number?: string
           id?: number
           is_active?: boolean
           label?: string | null
           updated_at?: string
-          user_id?: number
         }
         Relationships: []
       }
       phone_user_plans: {
         Row: {
           assigned_at: string
+          cod_agent: string
           id: number
           is_active: boolean
           plan_id: number
-          user_id: number
         }
         Insert: {
           assigned_at?: string
+          cod_agent: string
           id?: number
           is_active?: boolean
           plan_id: number
-          user_id: number
         }
         Update: {
           assigned_at?: string
+          cod_agent?: string
           id?: number
           is_active?: boolean
           plan_id?: number
-          user_id?: number
         }
         Relationships: [
           {

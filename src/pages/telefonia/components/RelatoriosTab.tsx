@@ -3,8 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Phone, PhoneOutgoing, Clock, TrendingUp } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 
-export function RelatoriosTab() {
-  const { callHistory } = useTelefoniaData();
+interface Props {
+  codAgent: string;
+}
+
+export function RelatoriosTab({ codAgent }: Props) {
+  const { callHistory } = useTelefoniaData(codAgent);
 
   const stats = useMemo(() => {
     const total = callHistory.length;

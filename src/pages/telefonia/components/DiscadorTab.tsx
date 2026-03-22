@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
-import { useAuth } from '@/contexts/AuthContext';
 import { DiscadorPad } from './DiscadorPad';
 
-export function DiscadorTab() {
-  const { extensions, dial } = useTelefoniaData();
-  const { user } = useAuth();
+interface Props {
+  codAgent: string;
+}
+
+export function DiscadorTab({ codAgent }: Props) {
+  const { extensions, dial } = useTelefoniaData(codAgent);
   const [selectedExtension, setSelectedExtension] = useState<string>('');
   const [number, setNumber] = useState('');
 
@@ -18,7 +20,6 @@ export function DiscadorTab() {
     dial.mutate({
       extension: selectedExtension,
       phone: number,
-      codAgent: String(user?.cod_agent || ''),
     });
   };
 
