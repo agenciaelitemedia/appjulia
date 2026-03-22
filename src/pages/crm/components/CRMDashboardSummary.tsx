@@ -47,27 +47,11 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
     const qualifiedRate = totalSessions > 0 ? (qualified / totalSessions) * 100 : 0;
     const disqualifiedRate = totalSessions > 0 ? (disqualified / totalSessions) * 100 : 0;
 
-    // Tempo médio por fase da Julia
-    const phaseStats = JULIA_PHASES.map((phase) => {
-      const stage = stages.find((s) => s.name === phase.name);
-      if (!stage) return { ...phase, avgDays: 0, count: 0 };
-      const phaseCards = cards.filter((c) => c.stage_id === stage.id);
-      if (phaseCards.length === 0) return { ...phase, avgDays: 0, count: 0 };
-      const totalDays = phaseCards.reduce((sum, card) => {
-        const entered = new Date(card.stage_entered_at);
-        const now = new Date();
-        return sum + (now.getTime() - entered.getTime()) / (1000 * 60 * 60 * 24);
-      }, 0);
-      return { ...phase, avgDays: totalDays / phaseCards.length, count: phaseCards.length };
-    });
-
-    const maxPhaseDays = Math.max(...phaseStats.map((p) => p.avgDays), 1);
-
-    // Média geral da Julia (média ponderada por quantidade de cards em cada fase)
-    const totalJuliaCards = phaseStats.reduce((sum, p) => sum + p.count, 0);
-    const juliaAvgDays = totalJuliaCards > 0
-      ? phaseStats.reduce((sum, p) => sum + p.avgDays * p.count, 0) / totalJuliaCards
-      : 0;
+    // FollowUp ativos
+    const followupEntries = followupMap ? Array.from(followupMap.values()) : [];
+    const activeFollowups = followupEntries.filter(f => f.step_number > 0);
+    const infiniteCount = activeFollowups.filter(f => f.is_infinite && f.step_number >= (f.followup_to ?? 0)).length;
+    const stepsCount = activeFollowups.length - infiniteCount;
 
     // Tempo médio humano (ciclo de vida do card no CRM)
     const resolvedStageIds = [contractSignedStage?.id, disqualifiedStage?.id].filter(Boolean);
