@@ -14,18 +14,15 @@ export function useFollowupReturnRate(agentCodes: string[], dateFrom?: string, d
       if (!agentCodes.length) return { totalLeads: 0, returned: 0, returnRate: 0 };
 
       const params: (string | string[] | null)[] = [agentCodes];
-      let dateFilter = '';
-      let fqDateFilter = '';
+      let crmDateFilter = '';
 
       if (dateFrom) {
         params.push(dateFrom);
-        dateFilter += ` AND (send_date AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length}::date`;
-        fqDateFilter += ` AND (fq.send_date AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length}::date`;
+        crmDateFilter += ` AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${params.length}::date`;
       }
       if (dateTo) {
         params.push(dateTo);
-        dateFilter += ` AND (send_date AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length}::date`;
-        fqDateFilter += ` AND (fq.send_date AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length}::date`;
+        crmDateFilter += ` AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${params.length}::date`;
       }
 
       const result = await externalDb.raw<{
@@ -33,7 +30,13 @@ export function useFollowupReturnRate(agentCodes: string[], dateFrom?: string, d
         returned: string;
       }[]>({
         query: `
-          WITH current_state AS (
+          WITH crm_leads AS (
+            SELECT DISTINCT whatsapp_number
+            FROM crm_atendimento_cards
+            WHERE cod_agent = ANY($1::varchar[])
+              ${crmDateFilter}
+          ),
+          current_state AS (
             SELECT DISTINCT ON (session_id)
               session_id,
               id as queue_id,
@@ -41,7 +44,7 @@ export function useFollowupReturnRate(agentCodes: string[], dateFrom?: string, d
               step_number
             FROM followup_queue
             WHERE cod_agent::text = ANY($1::varchar[])
-              ${dateFilter}
+              AND session_id IN (SELECT whatsapp_number FROM crm_leads)
             ORDER BY session_id, send_date DESC
           ),
           leads_with_response AS (
@@ -50,7 +53,6 @@ export function useFollowupReturnRate(agentCodes: string[], dateFrom?: string, d
             INNER JOIN followup_response fr ON fr.followup_queue_id = fq.id
             WHERE fq.cod_agent::text = ANY($1::varchar[])
               AND fq.session_id IN (SELECT session_id FROM current_state WHERE state = 'STOP')
-              ${fqDateFilter}
           )
           SELECT 
             COUNT(*)::text as total_leads,
