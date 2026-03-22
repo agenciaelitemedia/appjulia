@@ -596,7 +596,11 @@ serve(async (req) => {
                 if (cdr.email) cdrMetadata.email = cdr.email;
                 if (attendantName) cdrMetadata.attendant_name = attendantName;
                 if (minutePrice != null) cdrMetadata.minute_price = minutePrice;
-                if (cdr.metadata) cdrMetadata.api4com_metadata = cdr.metadata;
+                if (cdr.metadata) {
+                  cdrMetadata.api4com_metadata = cdr.metadata;
+                  if (cdr.metadata.origin) cdrMetadata.origin = cdr.metadata.origin;
+                  if (cdr.metadata.whatsapp_number) cdrMetadata.whatsapp_number = cdr.metadata.whatsapp_number;
+                }
                 if (cdr.domain) cdrMetadata.domain = cdr.domain;
 
                 const logEntry = {
