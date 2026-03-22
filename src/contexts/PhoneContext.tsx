@@ -86,25 +86,38 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     fetchExtension();
   }, [user?.id]);
 
-  // Auto-connect SIP when extension is found
+  // Auto-connect SIP when extension is found (with retry)
+  const connectSip = useCallback(async () => {
+    if (!myExtension || !codAgent || !myExtension.api4com_ramal) return;
+    try {
+      const { data, error } = await supabase.functions.invoke('api4com-proxy', {
+        body: { action: 'get_sip_credentials', codAgent, extensionId: myExtension.id },
+      });
+      if (error || data?.error) return;
+      sip.connect(data.data);
+    } catch (err) {
+      console.error('SIP connect failed:', err);
+    }
+  }, [myExtension, codAgent, sip]);
+
   useEffect(() => {
     if (autoConnected.current || !myExtension || !codAgent) return;
     if (!myExtension.api4com_ramal) return;
-
     autoConnected.current = true;
-    const connectSip = async () => {
-      try {
-        const { data, error } = await supabase.functions.invoke('api4com-proxy', {
-          body: { action: 'get_sip_credentials', codAgent, extensionId: myExtension.id },
-        });
-        if (error || data?.error) return;
-        sip.connect(data.data);
-      } catch (err) {
-        console.error('Auto SIP connect failed:', err);
-      }
-    };
     connectSip();
-  }, [myExtension, codAgent, sip]);
+  }, [myExtension, codAgent, connectSip]);
+
+  // Auto-retry SIP registration if it drops to idle/error
+  useEffect(() => {
+    if (!autoConnected.current || !myExtension) return;
+    if (sip.status === 'error' || (sip.status === 'idle' && autoConnected.current)) {
+      const retryTimer = setTimeout(() => {
+        console.log('SIP auto-retry: reconnecting...');
+        connectSip();
+      }, 5000);
+      return () => clearTimeout(retryTimer);
+    }
+  }, [sip.status, myExtension, connectSip]);
 
   // Cleanup on unmount
   useEffect(() => {
