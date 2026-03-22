@@ -1,27 +1,54 @@
 
 
-# Filtrar FollowUp Ativos pelo período e apenas ativos
+# Substituir "Média Humano" por "Taxa de Retorno" do FollowUp
 
-## Problema
-A query `useFollowupActiveLeads` busca **todos** os followups dos agentes selecionados sem filtro de data. Já os cards do CRM são filtrados por `stage_entered_at` no período. Resultado: 96 followups vs 32 cards.
+## Definição de "Retorno"
 
-## Solução
+Conforme já implementado na página de FollowUp (`useFollowupData.ts` linhas 730-736):
+- **Retornado** = lead com `state = 'STOP'` + `step_number <> 0` + possui registro na tabela `followup_response`
+- **Taxa de Retorno** = `retornados / total_leads_no_followup × 100`
 
-### `src/pages/crm/hooks/useFollowupActiveLeads.ts`
+Ou seja, é o lead que **respondeu** durante o processo de followup (não foi parado manualmente nem perdido).
 
-1. Adicionar parâmetros `dateFrom` e `dateTo` à função
-2. Adicionar filtro `WHERE fq.step_number > 0` na query (só ativos)
-3. Adicionar filtro de data na query usando `send_date` (conforme memory: followup usa `send_date` para filtrar)
-4. Atualizar `queryKey` para incluir as datas
+## Alterações
 
-### `src/pages/crm/CRMPage.tsx`
+### 1. Novo hook: `src/pages/crm/hooks/useFollowupReturnRate.ts`
 
-Passar `filters.dateFrom` e `filters.dateTo` para `useFollowupActiveLeads`:
-```typescript
-useFollowupActiveLeads(filters.agentCodes, filters.dateFrom, filters.dateTo)
+Criar um hook que executa a mesma lógica de taxa de retorno do followup, filtrando por `agentCodes`, `dateFrom` e `dateTo`. A query usará:
+
+```sql
+WITH current_state AS (
+  SELECT DISTINCT ON (cod_agent, session_id)
+    session_id, id as queue_id, state, step_number
+  FROM followup_queue
+  WHERE cod_agent IN (...) AND send_date filtrado por período
+  ORDER BY cod_agent, session_id, send_date DESC
+),
+leads_with_response AS (
+  SELECT DISTINCT fq.session_id
+  FROM followup_queue fq
+  INNER JOIN followup_response fr ON fr.followup_queue_id = fq.id
+  WHERE fq.session_id IN (SELECT session_id FROM current_state WHERE state = 'STOP')
+)
+SELECT 
+  COUNT(*) as total_leads,
+  COUNT(*) FILTER (WHERE state='STOP' AND step_number<>0 
+    AND session_id IN (SELECT session_id FROM leads_with_response)) as returned
+FROM current_state
 ```
 
-### `src/pages/crm/components/CRMDashboardSummary.tsx`
+Retorna: `{ totalLeads, returned, returnRate }`.
 
-Remover o filtro `f.step_number > 0` do frontend (já filtrado no banco).
+### 2. `src/pages/crm/CRMPage.tsx`
+
+- Importar e chamar o novo hook
+- Passar os dados como prop para `CRMDashboardSummary`
+
+### 3. `src/pages/crm/components/CRMDashboardSummary.tsx`
+
+- Substituir o card "Média Humano" (posição 3) pelo card "Taxa de Retorno"
+- Exibir: valor `XX.X%`, subtexto `X de Y responderam`
+- Ícone: `MessageCircleReply` ou similar
+- Borda: `border-l-chart-1`
+- Remover cálculos de `humanAvgDays`, `resolvedCount`, `activeCount` do useMemo
 
