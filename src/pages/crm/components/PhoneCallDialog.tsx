@@ -120,6 +120,16 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
           <div className="text-center">
             <p className="text-2xl font-mono font-bold tracking-wider">{whatsappNumber}</p>
             <p className="text-sm text-muted-foreground mt-1">{contactName}</p>
+            <div className="flex items-center justify-center gap-1.5 mt-2">
+              <span className="text-xs text-muted-foreground">Discar:</span>
+              <span className="text-xs font-mono font-medium">{phoneInfo.formatted}</span>
+              <Badge variant="outline" className="text-[10px] h-5">
+                {phoneInfo.type === 'mobile' ? 'Cel' : phoneInfo.type === 'landline' ? 'Fixo' : '?'}
+              </Badge>
+              {phoneInfo.ninthAdded && (
+                <Badge variant="secondary" className="text-[10px] h-5 bg-yellow-500/10 text-yellow-600">+9°</Badge>
+              )}
+            </div>
           </div>
 
           <div>

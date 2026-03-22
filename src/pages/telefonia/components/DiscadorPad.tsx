@@ -32,8 +32,8 @@ export function DiscadorPad({ value, onChange, onDial, disabled, isDialing }: Di
     <div className="space-y-4">
       {/* Display */}
       <Input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={maskPhone(value)}
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, ''))}
         placeholder="Digite o número..."
         className="text-center text-2xl font-mono tracking-widest h-14"
       />

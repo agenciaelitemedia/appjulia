@@ -128,6 +128,22 @@ export function DiscadorTab({ codAgent }: Props) {
             isDialing={dial.isPending || sip.status === 'calling'}
           />
 
+          {/* Phone format preview */}
+          {phoneInfo && (
+            <div className="flex items-center gap-2 text-xs rounded-md border bg-muted/30 px-3 py-2">
+              <PhoneForwarded className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="font-mono font-medium">{phoneInfo.formatted}</span>
+              <Badge variant="outline" className="text-[10px] h-5">
+                {phoneInfo.type === 'mobile' ? 'Celular' : phoneInfo.type === 'landline' ? 'Fixo' : 'Outro'}
+              </Badge>
+              {phoneInfo.ninthAdded && (
+                <Badge variant="secondary" className="text-[10px] h-5 bg-yellow-500/10 text-yellow-600">
+                  9° dígito adicionado
+                </Badge>
+              )}
+            </div>
+          )}
+
           {/* SIP Diagnostics Panel */}
           <Collapsible>
             <CollapsibleTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full justify-center pt-2">
