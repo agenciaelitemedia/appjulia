@@ -174,7 +174,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsDialing(false);
     }
-  }, [myExtension, codAgent]);
+  }, [myExtension, codAgent, sip.status, connectSip]);
 
   const isAvailable = !!myExtension && !!myExtension.api4com_ramal;
 
