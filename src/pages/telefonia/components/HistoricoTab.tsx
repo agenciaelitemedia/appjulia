@@ -2,10 +2,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PhoneIncoming, PhoneOutgoing, Play, RefreshCw } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, Play, RefreshCw, LayoutDashboard, Phone, ExternalLink } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { GravacaoPlayer } from './GravacaoPlayer';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -16,15 +17,20 @@ function formatDuration(seconds: number): string {
 
 function formatPhone(phone: string | null): string {
   if (!phone) return '-';
-  const clean = phone.replace(/\D/g, '');
+  let clean = phone.replace(/\D/g, '');
+  // Api4Com sends 0DDNNNNNNNNN — remove leading 0
+  if (clean.startsWith('0') && (clean.length === 11 || clean.length === 12)) {
+    clean = clean.slice(1);
+  }
+  // Remove country code 55
+  if (clean.startsWith('55') && clean.length >= 12) {
+    clean = clean.slice(2);
+  }
   if (clean.length === 11) {
     return `(${clean.slice(0, 2)}) ${clean.slice(2, 7)}-${clean.slice(7)}`;
   }
   if (clean.length === 10) {
     return `(${clean.slice(0, 2)}) ${clean.slice(2, 6)}-${clean.slice(6)}`;
-  }
-  if (clean.length === 13 && clean.startsWith('55')) {
-    return `(${clean.slice(2, 4)}) ${clean.slice(4, 9)}-${clean.slice(9)}`;
   }
   return phone;
 }
@@ -58,6 +64,7 @@ interface Props {
 export function HistoricoTab({ codAgent }: Props) {
   const { callHistory, callHistoryLoading, syncCallHistory, extensions } = useTelefoniaData(codAgent);
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   // Build a map of extension_number -> first name
   const extensionNameMap = new Map<string, string>();
@@ -67,6 +74,10 @@ export function HistoricoTab({ codAgent }: Props) {
       extensionNameMap.set(ext.extension_number, name);
     }
   }
+
+  const handleGoToCrm = (whatsappNumber: string) => {
+    navigate(`/crm?whatsapp=${encodeURIComponent(whatsappNumber)}`);
+  };
 
   return (
     <Card>
@@ -94,6 +105,7 @@ export function HistoricoTab({ codAgent }: Props) {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Origem</TableHead>
                   <TableHead>Atendente</TableHead>
                   <TableHead>Ramal</TableHead>
                   <TableHead>Número discado</TableHead>
@@ -110,12 +122,44 @@ export function HistoricoTab({ codAgent }: Props) {
               <TableBody>
                 {callHistory.map((call) => {
                   const meta = call.metadata || {};
+                  const origin = (meta as any)?.origin as string | undefined;
+                  const whatsappNumber = (meta as any)?.whatsapp_number as string | undefined;
                   const extName = extensionNameMap.get(call.extension_number || call.caller || '') || '';
                   const attendantName = extName ? `${extName} ${codAgent}` : codAgent;
-                  const minutePrice = meta.minute_price;
+                  const minutePrice = (meta as any)?.minute_price;
+                  const hasDuration = call.duration_seconds != null && call.duration_seconds > 0;
                   
                   return (
                     <TableRow key={call.id}>
+                      <TableCell className="text-xs whitespace-nowrap">
+                        {origin === 'CRM' ? (
+                          <div className="flex items-center gap-1">
+                            <LayoutDashboard className="h-3.5 w-3.5 text-primary" />
+                            <span>CRM</span>
+                            {whatsappNumber && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => handleGoToCrm(whatsappNumber)}
+                                title="Ver no CRM"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                        ) : origin === 'DISCADOR' ? (
+                          <div className="flex items-center gap-1">
+                            <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span>Discador</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span>Manual</span>
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell className="text-xs whitespace-nowrap">
                         {attendantName}
                       </TableCell>
@@ -148,19 +192,26 @@ export function HistoricoTab({ codAgent }: Props) {
                       <TableCell className="text-xs">
                         {call.direction === 'outbound' || call.direction === 'Sainte' ? (
                           <span className="flex items-center gap-1">
-                            <PhoneOutgoing className="h-3.5 w-3.5 text-blue-500" />
+                            <PhoneOutgoing className="h-3.5 w-3.5 text-primary" />
                             Sainte
                           </span>
                         ) : (
                           <span className="flex items-center gap-1">
-                            <PhoneIncoming className="h-3.5 w-3.5 text-green-500" />
+                            <PhoneIncoming className="h-3.5 w-3.5 text-primary" />
                             Entrante
                           </span>
                         )}
                       </TableCell>
                       <TableCell>
                         {call.record_url ? (
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPlayingUrl(call.record_url)}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setPlayingUrl(call.record_url)}
+                            disabled={!hasDuration}
+                            title={!hasDuration ? 'Sem gravação disponível' : 'Reproduzir gravação'}
+                          >
                             <Play className="h-3.5 w-3.5" />
                           </Button>
                         ) : (
@@ -172,7 +223,7 @@ export function HistoricoTab({ codAgent }: Props) {
                 })}
                 {callHistory.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center text-muted-foreground">Nenhuma chamada registrada</TableCell>
+                    <TableCell colSpan={12} className="text-center text-muted-foreground">Nenhuma chamada registrada</TableCell>
                   </TableRow>
                 )}
               </TableBody>
