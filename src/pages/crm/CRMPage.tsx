@@ -7,7 +7,8 @@ import { CRMTotalizers } from './components/CRMTotalizers';
 import { CRMPipeline } from './components/CRMPipeline';
 import { CRMLeadDetailsDialog } from './components/CRMLeadDetailsDialog';
 import { useCRMStages, useCRMCards, useCRMAgents, useCRMJuliaSessions } from './hooks/useCRMData';
- import { useFollowupActiveLeads } from './hooks/useFollowupActiveLeads';
+import { useFollowupActiveLeads } from './hooks/useFollowupActiveLeads';
+import { useFollowupReturnRate } from './hooks/useFollowupReturnRate';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState } from '@/components/filters/types';
 import { CRMCard } from './types';
@@ -47,7 +48,8 @@ export default function CRMPage() {
   const { data: agents = [], isLoading: agentsLoading } = useCRMAgents();
   const { data: cards = [], isLoading: cardsLoading, refetch } = useCRMCards(filters);
   const { data: juliaSessions } = useCRMJuliaSessions(filters);
-   const { data: followupMap = new Map() } = useFollowupActiveLeads(filters.agentCodes, filters.dateFrom, filters.dateTo);
+  const { data: followupMap = new Map() } = useFollowupActiveLeads(filters.agentCodes, filters.dateFrom, filters.dateTo);
+  const { data: returnRateData } = useFollowupReturnRate(filters.agentCodes, filters.dateFrom, filters.dateTo);
 
   // Clean up whatsapp param from URL after consuming it
   useEffect(() => {
@@ -137,7 +139,7 @@ export default function CRMPage() {
         periodTooltip="Filtra pela data da última movimentação do lead no pipeline (não pela data de criação)"
       />
 
-      <CRMDashboardSummary cards={filteredCards} stages={stages} isLoading={cardsLoading} juliaSessions={juliaSessions} followupMap={followupMap} />
+      <CRMDashboardSummary cards={filteredCards} stages={stages} isLoading={cardsLoading} juliaSessions={juliaSessions} followupMap={followupMap} returnRateData={returnRateData} />
 
       <CRMTotalizers cards={filteredCards} stages={stages} />
 

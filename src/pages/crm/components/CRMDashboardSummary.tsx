@@ -1,8 +1,14 @@
 import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, Target, CheckCircle, XCircle, User, RotateCcw } from "lucide-react";
+import { Target, CheckCircle, XCircle, RotateCcw, MessageCircleReply } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { CRMCard, CRMStage, CRMFollowupInfo } from "../types";
+
+interface FollowupReturnRateResult {
+  totalLeads: number;
+  returned: number;
+  returnRate: number;
+}
 
 interface CRMDashboardSummaryProps {
   cards: CRMCard[];
@@ -10,19 +16,10 @@ interface CRMDashboardSummaryProps {
   isLoading?: boolean;
   juliaSessions?: { totalSessions: number; dailyAverage: number };
   followupMap?: Map<string, CRMFollowupInfo>;
+  returnRateData?: FollowupReturnRateResult;
 }
 
-const formatAvgTime = (days: number): string => {
-  const totalHours = days * 24;
-  if (totalHours < 1) return "< 1h";
-  if (totalHours < 24) return `${Math.round(totalHours)}h`;
-  const fullDays = Math.floor(totalHours / 24);
-  const remainingHours = Math.round(totalHours % 24);
-  if (remainingHours === 0) return `${fullDays}d`;
-  return `${fullDays}d ${remainingHours}h`;
-};
-
-export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, followupMap }: CRMDashboardSummaryProps) {
+export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, followupMap, returnRateData }: CRMDashboardSummaryProps) {
   const stats = useMemo(() => {
     const total = cards.length;
 
@@ -52,32 +49,6 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
     const infiniteCount = activeFollowups.filter(f => f.is_infinite && f.step_number >= (f.followup_to ?? 0)).length;
     const stepsCount = activeFollowups.length - infiniteCount;
 
-    // Tempo médio humano (ciclo de vida do card no CRM)
-    const resolvedStageIds = [contractSignedStage?.id, disqualifiedStage?.id].filter(Boolean);
-    const resolvedCards = cards.filter((c) => resolvedStageIds.includes(c.stage_id));
-    const activeCards = cards.filter((c) => !resolvedStageIds.includes(c.stage_id));
-
-    const now = new Date();
-    const resolvedAvgDays = resolvedCards.length > 0
-      ? resolvedCards.reduce((sum, card) => {
-          const entered = new Date(card.stage_entered_at);
-          const updated = new Date(card.updated_at);
-          return sum + (updated.getTime() - entered.getTime()) / (1000 * 60 * 60 * 24);
-        }, 0) / resolvedCards.length
-      : 0;
-
-    const activeAvgDays = activeCards.length > 0
-      ? activeCards.reduce((sum, card) => {
-          const entered = new Date(card.stage_entered_at);
-          return sum + (now.getTime() - entered.getTime()) / (1000 * 60 * 60 * 24);
-        }, 0) / activeCards.length
-      : 0;
-
-    const totalHumanCards = resolvedCards.length + activeCards.length;
-    const humanAvgDays = totalHumanCards > 0
-      ? (resolvedAvgDays * resolvedCards.length + activeAvgDays * activeCards.length) / totalHumanCards
-      : 0;
-
     const dailyMap = new Map<string, number>();
     cards.forEach((card) => {
       const date = card.stage_entered_at.split("T")[0];
@@ -102,9 +73,6 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
       infiniteCount,
       stepsCount,
       dailyTrend,
-      humanAvgDays,
-      resolvedCount: resolvedCards.length,
-      activeCount: activeCards.length,
     };
   }, [cards, stages, juliaSessions, followupMap]);
 
@@ -165,22 +133,22 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
         </CardContent>
       </Card>
 
-      {/* 3. Tempo Humano */}
+      {/* 3. Taxa de Retorno */}
       <Card className="border-l-4 border-l-chart-1">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-1.5 mb-1">
-                <User className="h-3.5 w-3.5 text-chart-1" />
-                <p className="text-xs text-muted-foreground font-medium">Média Humano</p>
+                <MessageCircleReply className="h-3.5 w-3.5 text-chart-1" />
+                <p className="text-xs text-muted-foreground font-medium">Taxa de Retorno</p>
               </div>
-              <p className="text-2xl font-bold text-foreground">{formatAvgTime(stats.humanAvgDays)}</p>
+              <p className="text-2xl font-bold text-foreground">{(returnRateData?.returnRate ?? 0).toFixed(1)}%</p>
               <p className="text-xs text-muted-foreground">
-                Média de tempo por fase
+                {returnRateData?.returned ?? 0} de {returnRateData?.totalLeads ?? 0} responderam
               </p>
             </div>
             <div className="p-2 bg-chart-1/10 rounded-full">
-              <Clock className="h-5 w-5 text-chart-1" />
+              <MessageCircleReply className="h-5 w-5 text-chart-1" />
             </div>
           </div>
         </CardContent>
