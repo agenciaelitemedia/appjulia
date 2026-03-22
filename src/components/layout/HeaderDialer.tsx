@@ -60,20 +60,15 @@ export function HeaderDialer() {
 
   return (
     <div className="flex items-center gap-1.5">
-      <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0 h-5 gap-1 font-medium hidden sm:inline-flex', badgeColor)}>
-        <span className={cn('h-1.5 w-1.5 rounded-full', dotColor)} />
-        {badgeLabel}
-      </Badge>
-
       <Popover open={open} onOpenChange={setOpen}>
         <Tooltip>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
-                <Phone className="h-5 w-5" />
-                <span className={cn('absolute top-1 right-1 h-2.5 w-2.5 rounded-full border-2 border-background sm:hidden', dotColor)} />
-                <span className="sr-only">Softphone</span>
-              </Button>
+              <button className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium cursor-pointer transition-colors hover:opacity-80', badgeColor)}>
+                <span className={cn('h-1.5 w-1.5 rounded-full', dotColor)} />
+                <Phone className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{badgeLabel}</span>
+              </button>
             </PopoverTrigger>
           </TooltipTrigger>
           <TooltipContent side="bottom">
