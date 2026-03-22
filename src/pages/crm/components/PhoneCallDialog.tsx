@@ -24,6 +24,8 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
   const [sipError, setSipError] = useState('');
   const sip = useSipPhone();
 
+  const phoneInfo = useMemo(() => formatPhoneForDialing(whatsappNumber), [whatsappNumber]);
+
   const { data: extensions = [] } = useQuery({
     queryKey: ['my-extensions-for-call', codAgent],
     queryFn: async () => {
