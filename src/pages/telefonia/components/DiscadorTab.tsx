@@ -105,6 +105,7 @@ export function DiscadorTab({ codAgent }: Props) {
     }
 
     const { formatted } = formatPhoneForDialing(number);
+    lastDialedNumber.current = formatted;
 
     if (sip.status === 'registered') {
       sip.call(formatted);
