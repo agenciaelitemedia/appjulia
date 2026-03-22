@@ -43,6 +43,18 @@ export function useSipPhone(): UseSipPhoneReturn {
   const [isMuted, setIsMuted] = useState(false);
   const [isHeld, setIsHeld] = useState(false);
   const [callerInfo, setCallerInfo] = useState('');
+  const [diagnostics, setDiagnostics] = useState<SipDiagnostics>({
+    domain: '', wsUrl: '', username: '', registrationStatus: 'none',
+    lastError: '', wsState: 'disconnected', events: [],
+  });
+
+  const addDiagEvent = useCallback((msg: string) => {
+    const ts = new Date().toLocaleTimeString('pt-BR');
+    setDiagnostics(prev => ({
+      ...prev,
+      events: [`[${ts}] ${msg}`, ...prev.events].slice(0, 20),
+    }));
+  }, []);
 
   const uaRef = useRef<UserAgent | null>(null);
   const registererRef = useRef<Registerer | null>(null);
