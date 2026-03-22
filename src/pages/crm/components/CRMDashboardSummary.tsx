@@ -19,17 +19,7 @@ interface CRMDashboardSummaryProps {
   returnRateData?: FollowupReturnRateResult;
 }
 
-const formatAvgTime = (days: number): string => {
-  const totalHours = days * 24;
-  if (totalHours < 1) return "< 1h";
-  if (totalHours < 24) return `${Math.round(totalHours)}h`;
-  const fullDays = Math.floor(totalHours / 24);
-  const remainingHours = Math.round(totalHours % 24);
-  if (remainingHours === 0) return `${fullDays}d`;
-  return `${fullDays}d ${remainingHours}h`;
-};
-
-export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, followupMap }: CRMDashboardSummaryProps) {
+export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, followupMap, returnRateData }: CRMDashboardSummaryProps) {
   const stats = useMemo(() => {
     const total = cards.length;
 
