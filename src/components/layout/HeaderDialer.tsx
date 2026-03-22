@@ -130,6 +130,5 @@ export function HeaderDialer() {
           </div>
         </PopoverContent>
       </Popover>
-    </div>
   );
 }
