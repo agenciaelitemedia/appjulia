@@ -22,7 +22,7 @@ const formatAvgTime = (days: number): string => {
   return `${fullDays}d ${remainingHours}h`;
 };
 
-export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions }: CRMDashboardSummaryProps) {
+export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, followupMap }: CRMDashboardSummaryProps) {
   const stats = useMemo(() => {
     const total = cards.length;
 
