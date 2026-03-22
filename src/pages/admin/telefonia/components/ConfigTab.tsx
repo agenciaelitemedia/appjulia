@@ -85,8 +85,12 @@ export function ConfigTab() {
               <Input value={codAgent} onChange={(e) => setCodAgent(e.target.value)} placeholder="202601001" />
             </div>
             <div>
-              <Label>Domínio Api4Com</Label>
+              <Label>Domínio API (REST)</Label>
               <Input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="api.api4com.com" />
+            </div>
+            <div>
+              <Label>Domínio SIP (WebRTC)</Label>
+              <Input value={sipDomain} onChange={(e) => setSipDomain(e.target.value)} placeholder="seudominio.api4com.com (auto-detectado)" />
             </div>
             <div>
               <Label>Token</Label>

@@ -260,11 +260,14 @@ serve(async (req) => {
           throw new Error('Credenciais SIP não encontradas. Sincronize os ramais ou recrie este ramal.');
         }
 
+        // Use sip_domain (account domain) for SIP, not api4com_domain (REST API host)
+        const sipDomain = config.sip_domain || config.api4com_domain;
+
         result = {
-          domain: config.api4com_domain,
+          domain: sipDomain,
           username,
           password,
-          wsUrl: `wss://${config.api4com_domain}:6443`,
+          wsUrl: `wss://${sipDomain}:6443`,
         };
         break;
       }
