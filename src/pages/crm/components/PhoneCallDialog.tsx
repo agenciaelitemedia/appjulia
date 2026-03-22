@@ -24,7 +24,7 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
   const handleDial = async () => {
     onOpenChange(false);
     setSoftphoneCentered(true);
-    await dialNumber(whatsappNumber, contactName);
+    await dialNumber(whatsappNumber, contactName, 'CRM', whatsappNumber);
   };
 
   return (

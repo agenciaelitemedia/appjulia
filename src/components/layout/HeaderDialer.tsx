@@ -38,7 +38,7 @@ export function HeaderDialer() {
     if (!number) return;
     setOpen(false);
     setSoftphoneCentered(true);
-    await dialNumber(number);
+    await dialNumber(number, undefined, 'DISCADOR');
     setNumber('');
   };
 

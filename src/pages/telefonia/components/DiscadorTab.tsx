@@ -22,12 +22,8 @@ const statusColors: Record<string, string> = {
 };
 
 export function DiscadorTab({ codAgent }: Props) {
-  const { user } = useAuth();
-  const { extensions, dial } = useTelefoniaData(codAgent);
-  const { sip, myExtension, isAvailable, setShowSoftphone } = usePhone();
+  const { sip, myExtension, isAvailable, dialNumber, isDialing, setSoftphoneCentered } = usePhone();
   const [number, setNumber] = useState('');
-
-  const selectedExtension = myExtension ? String(myExtension.id) : '';
 
   const phoneInfo = useMemo(() => {
     if (!number || number.replace(/\D/g, '').length < 8) return null;
@@ -35,24 +31,10 @@ export function DiscadorTab({ codAgent }: Props) {
   }, [number]);
 
   const handleDial = useCallback(() => {
-    if (!selectedExtension || !number || !myExtension) return;
-
-    if (!myExtension.api4com_ramal) {
-      toast.error('Ramal sem vínculo Api4Com. Sincronize os ramais.');
-      return;
-    }
-
-    const { formatted } = formatPhoneForDialing(number);
-
-    // Always use REST dial
-    dial.mutate({ extensionId: myExtension.id, phone: formatted }, {
-      onSuccess: (result) => {
-        const callId = result?.data?.call_id || result?.data?.id;
-        if (callId) syncQueueManager.enqueue(String(callId));
-        setShowSoftphone(true);
-      },
-    });
-  }, [selectedExtension, number, myExtension, dial, setShowSoftphone]);
+    if (!number || !myExtension) return;
+    setSoftphoneCentered(true);
+    dialNumber(number, undefined, 'DISCADOR');
+  }, [number, myExtension, dialNumber, setSoftphoneCentered]);
 
   return (
     <div className="max-w-md mx-auto">
