@@ -44,14 +44,15 @@ export function useTelefoniaData(codAgent: string | undefined) {
 
   // Create extension via Api4Com API
   const createExtension = useMutation({
-    mutationFn: async (ext: Partial<PhoneExtension>) => {
-      // 1. Create on Api4Com
+    mutationFn: async (ext: Partial<PhoneExtension> & { email?: string; memberName?: string }) => {
+      // 1. Create on Api4Com with member's real email and name
       const { data: apiResult, error: apiError } = await supabase.functions.invoke('api4com-proxy', {
         body: {
           action: 'create_extension',
           codAgent,
-          firstName: ext.label || 'Ramal',
+          firstName: ext.memberName || ext.label || 'Ramal',
           lastName: codAgent,
+          email: ext.email || undefined,
         },
       });
 
@@ -73,7 +74,7 @@ export function useTelefoniaData(codAgent: string | undefined) {
         .insert({
           cod_agent: codAgent,
           extension_number: localNumber,
-          label: ext.label || null,
+          label: ext.label || ext.memberName || null,
           assigned_member_id: ext.assigned_member_id || null,
           api4com_id: api4comData.id ? String(api4comData.id) : null,
           api4com_ramal: api4comData.ramal,
@@ -91,7 +92,7 @@ export function useTelefoniaData(codAgent: string | undefined) {
 
   // Update extension
   const updateExtension = useMutation({
-    mutationFn: async ({ id, ...ext }: Partial<PhoneExtension> & { id: number }) => {
+    mutationFn: async ({ id, email, memberName, ...ext }: Partial<PhoneExtension> & { id: number; email?: string; memberName?: string }) => {
       const { error } = await supabase
         .from('phone_extensions')
         .update({ ...ext, updated_at: new Date().toISOString() } as any)
