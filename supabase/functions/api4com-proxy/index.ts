@@ -686,9 +686,10 @@ serve(async (req) => {
                 if (attendantName) cdrMetadata.attendant_name = attendantName;
                 if (minutePrice != null) cdrMetadata.minute_price = minutePrice;
                 if (cdr.metadata) {
-                  cdrMetadata.api4com_metadata = cdr.metadata;
-                  if (cdr.metadata.origin) cdrMetadata.origin = cdr.metadata.origin;
-                  if (cdr.metadata.whatsapp_number) cdrMetadata.whatsapp_number = cdr.metadata.whatsapp_number;
+                  const cdrMeta = typeof cdr.metadata === 'string' ? (() => { try { return JSON.parse(cdr.metadata); } catch { return cdr.metadata; } })() : cdr.metadata;
+                  cdrMetadata.api4com_metadata = cdrMeta;
+                  if (cdrMeta?.origin) cdrMetadata.origin = cdrMeta.origin;
+                  if (cdrMeta?.whatsapp_number) cdrMetadata.whatsapp_number = cdrMeta.whatsapp_number;
                 }
                 if (cdr.domain) cdrMetadata.domain = cdr.domain;
 
