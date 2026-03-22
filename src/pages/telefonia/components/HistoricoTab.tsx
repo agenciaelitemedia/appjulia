@@ -110,6 +110,8 @@ export function HistoricoTab({ codAgent }: Props) {
               <TableBody>
                 {callHistory.map((call) => {
                   const meta = call.metadata || {};
+                  const extName = extensionNameMap.get(call.extension_number || call.caller || '') || '';
+                  const attendantName = extName ? `${extName} ${codAgent}` : codAgent;
                   const attendantName = meta.attendant_name || `${codAgent}`;
                   const minutePrice = meta.minute_price;
                   
