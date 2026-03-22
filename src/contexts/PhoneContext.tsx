@@ -26,7 +26,7 @@ interface PhoneContextType {
   setShowSoftphone: (show: boolean) => void;
   softphoneCentered: boolean;
   setSoftphoneCentered: (centered: boolean) => void;
-  dialNumber: (phone: string, contactName?: string) => Promise<void>;
+  dialNumber: (phone: string, contactName?: string, origin?: 'CRM' | 'DISCADOR', whatsappNumber?: string) => Promise<void>;
   isDialing: boolean;
   dialContactName: string;
 }
