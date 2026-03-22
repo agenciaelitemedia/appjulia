@@ -122,9 +122,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
                 <p className="text-xs text-muted-foreground font-medium">FollowUp Ativos</p>
               </div>
               <p className="text-2xl font-bold text-foreground">{stats.activeFollowups}</p>
-              <p className="text-xs text-muted-foreground">
-                Leads em cadência ativa
-              </p>
+              <p className="text-xs text-muted-foreground">Em cadência agora</p>
             </div>
             <div className="p-2 bg-chart-3/10 rounded-full">
               <RotateCcw className="h-5 w-5 text-chart-3" />
