@@ -99,6 +99,28 @@ serve(async (req) => {
         break;
       }
 
+      case 'setup_webhook': {
+        const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/api4com-webhook`;
+        const response = await fetch(`${baseUrl}/integrations`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({
+            gateway: 'atende-julia',
+            webhook: true,
+            webhookConstraint: {
+              metadata: { gateway: 'atende-julia' }
+            },
+            metadata: {
+              webhookUrl,
+              webhookVersion: 'v1.4',
+              webhookTypes: ['channel-create', 'channel-answer', 'channel-hangup']
+            }
+          }),
+        });
+        result = await response.json();
+        break;
+      }
+
       case 'get_account': {
         const response = await fetch(`${baseUrl}/accounts`, { headers });
         result = await response.json();

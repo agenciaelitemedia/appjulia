@@ -149,6 +149,18 @@ export function useTelefoniaAdmin() {
     },
   });
 
+  const setupWebhook = useMutation({
+    mutationFn: async (codAgent: string) => {
+      const { data, error } = await supabase.functions.invoke('api4com-proxy', {
+        body: { action: 'setup_webhook', codAgent },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => toast.success('Webhook configurado com sucesso'),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return {
     plans: plansQuery.data || [],
     plansLoading: plansQuery.isLoading,
@@ -161,6 +173,7 @@ export function useTelefoniaAdmin() {
     configs: configsQuery.data || [],
     configsLoading: configsQuery.isLoading,
     saveConfig,
+    setupWebhook,
     callHistory: callHistoryQuery.data || [],
     callHistoryLoading: callHistoryQuery.isLoading,
   };

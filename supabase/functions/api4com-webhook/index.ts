@@ -19,39 +19,99 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Handle channel-hangup event
-    if (event.event === 'channel-hangup' || event.hangup_cause) {
+    const callId = event.call_id || event.uuid || event.id;
+    const eventType = event.event || event.eventType || (event.hangup_cause ? 'channel-hangup' : 'unknown');
+    const codAgent = event.cod_agent || event.metadata?.cod_agent || '';
+
+    if (eventType === 'channel-create') {
+      // Call initiated — insert new record
       const callData = {
-        call_id: event.call_id || event.uuid,
-        cod_agent: event.cod_agent || event.metadata?.cod_agent || '',
+        call_id: callId,
+        cod_agent: codAgent,
         extension_number: event.extension || event.caller_id_number || '',
         direction: event.direction || 'unknown',
         caller: event.caller_id_number || event.from || '',
         called: event.destination_number || event.to || '',
-        started_at: event.start_stamp || event.created_at,
-        answered_at: event.answer_stamp || null,
-        ended_at: event.end_stamp || new Date().toISOString(),
-        duration_seconds: event.duration || event.billsec || 0,
-        hangup_cause: event.hangup_cause || null,
-        record_url: event.record_url || event.recording_url || null,
-        cost: event.cost || 0,
+        started_at: event.start_stamp || event.created_at || new Date().toISOString(),
+        status: 'initiated',
         metadata: event,
       };
 
-      // Try to update existing log, or insert new one
       const { data: existing } = await supabase
         .from('phone_call_logs')
         .select('id')
-        .eq('call_id', callData.call_id)
+        .eq('call_id', callId)
+        .maybeSingle();
+
+      if (!existing) {
+        await supabase.from('phone_call_logs').insert(callData);
+      }
+    } else if (eventType === 'channel-answer') {
+      // Call answered — update existing record
+      const { data: existing } = await supabase
+        .from('phone_call_logs')
+        .select('id')
+        .eq('call_id', callId)
         .maybeSingle();
 
       if (existing) {
         await supabase
           .from('phone_call_logs')
-          .update(callData)
+          .update({
+            answered_at: event.answer_stamp || new Date().toISOString(),
+            status: 'answered',
+          })
           .eq('id', existing.id);
       } else {
-        await supabase.from('phone_call_logs').insert(callData);
+        // If we missed the create event, insert with answered status
+        await supabase.from('phone_call_logs').insert({
+          call_id: callId,
+          cod_agent: codAgent,
+          extension_number: event.extension || event.caller_id_number || '',
+          direction: event.direction || 'unknown',
+          caller: event.caller_id_number || event.from || '',
+          called: event.destination_number || event.to || '',
+          started_at: event.start_stamp || event.created_at,
+          answered_at: event.answer_stamp || new Date().toISOString(),
+          status: 'answered',
+          metadata: event,
+        });
+      }
+    } else if (eventType === 'channel-hangup' || event.hangup_cause) {
+      // Call ended — update or insert
+      const updateData: Record<string, any> = {
+        ended_at: event.end_stamp || new Date().toISOString(),
+        duration_seconds: event.duration || event.billsec || 0,
+        hangup_cause: event.hangup_cause || null,
+        record_url: event.record_url || event.recording_url || null,
+        cost: event.cost || 0,
+        status: 'hangup',
+        metadata: event,
+      };
+      if (event.answer_stamp) updateData.answered_at = event.answer_stamp;
+
+      const { data: existing } = await supabase
+        .from('phone_call_logs')
+        .select('id')
+        .eq('call_id', callId)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from('phone_call_logs')
+          .update(updateData)
+          .eq('id', existing.id);
+      } else {
+        await supabase.from('phone_call_logs').insert({
+          call_id: callId,
+          cod_agent: codAgent,
+          extension_number: event.extension || event.caller_id_number || '',
+          direction: event.direction || 'unknown',
+          caller: event.caller_id_number || event.from || '',
+          called: event.destination_number || event.to || '',
+          started_at: event.start_stamp || event.created_at,
+          ...updateData,
+        });
       }
     }
 
