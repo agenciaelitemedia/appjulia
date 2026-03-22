@@ -1,14 +1,15 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { AlertCircle, ChevronDown, Activity } from 'lucide-react';
+import { AlertCircle, ChevronDown, Activity, PhoneForwarded } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { useSipPhone } from '../hooks/useSipPhone';
 import { SoftphoneWidget } from './SoftphoneWidget';
 import { DiscadorPad } from './DiscadorPad';
 import { toast } from 'sonner';
+import { formatPhoneForDialing } from '@/lib/phoneFormat';
 
 interface Props {
   codAgent: string;
@@ -58,6 +59,11 @@ export function DiscadorTab({ codAgent }: Props) {
     }
   }, [extensions, getSipCredentials, sip]);
 
+  const phoneInfo = useMemo(() => {
+    if (!number || number.replace(/\D/g, '').length < 8) return null;
+    return formatPhoneForDialing(number);
+  }, [number]);
+
   const handleDial = useCallback(() => {
     if (!selectedExtension || !number) return;
 
@@ -69,11 +75,12 @@ export function DiscadorTab({ codAgent }: Props) {
       return;
     }
 
+    const { formatted } = formatPhoneForDialing(number);
+
     if (sip.status === 'registered') {
-      sip.call(number);
+      sip.call(formatted);
     } else {
-      // REST fallback using extensionId
-      dial.mutate({ extensionId: ext.id, phone: number });
+      dial.mutate({ extensionId: ext.id, phone: formatted });
     }
   }, [selectedExtension, number, sip, extensions, dial]);
 
@@ -120,6 +127,22 @@ export function DiscadorTab({ codAgent }: Props) {
             disabled={!selectedExtension || dial.isPending || sip.status === 'calling'}
             isDialing={dial.isPending || sip.status === 'calling'}
           />
+
+          {/* Phone format preview */}
+          {phoneInfo && (
+            <div className="flex items-center gap-2 text-xs rounded-md border bg-muted/30 px-3 py-2">
+              <PhoneForwarded className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="font-mono font-medium">{phoneInfo.formatted}</span>
+              <Badge variant="outline" className="text-[10px] h-5">
+                {phoneInfo.type === 'mobile' ? 'Celular' : phoneInfo.type === 'landline' ? 'Fixo' : 'Outro'}
+              </Badge>
+              {phoneInfo.ninthAdded && (
+                <Badge variant="secondary" className="text-[10px] h-5 bg-yellow-500/10 text-yellow-600">
+                  9° dígito adicionado
+                </Badge>
+              )}
+            </div>
+          )}
 
           {/* SIP Diagnostics Panel */}
           <Collapsible>

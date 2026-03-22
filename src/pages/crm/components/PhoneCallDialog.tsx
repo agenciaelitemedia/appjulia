@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useSipPhone } from '@/pages/telefonia/hooks/useSipPhone';
 import { SoftphoneWidget } from '@/pages/telefonia/components/SoftphoneWidget';
+import { formatPhoneForDialing } from '@/lib/phoneFormat';
 
 interface PhoneCallDialogProps {
   open: boolean;
@@ -22,6 +23,8 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
   const [selectedExtension, setSelectedExtension] = useState('');
   const [sipError, setSipError] = useState('');
   const sip = useSipPhone();
+
+  const phoneInfo = useMemo(() => formatPhoneForDialing(whatsappNumber), [whatsappNumber]);
 
   const { data: extensions = [] } = useQuery({
     queryKey: ['my-extensions-for-call', codAgent],
@@ -73,13 +76,13 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
       }
 
       if (sip.status === 'registered') {
-        sip.call(whatsappNumber);
+        sip.call(phoneInfo.formatted);
         return { via: 'sip' };
       }
 
       // REST fallback using extensionId
       const { data, error } = await supabase.functions.invoke('api4com-proxy', {
-        body: { action: 'dial', codAgent, extensionId: ext.id, phone: whatsappNumber },
+        body: { action: 'dial', codAgent, extensionId: ext.id, phone: phoneInfo.formatted },
       });
       if (error) throw new Error(error.message || 'Erro ao discar');
       if (data?.error) throw new Error(data.error);
@@ -117,6 +120,16 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
           <div className="text-center">
             <p className="text-2xl font-mono font-bold tracking-wider">{whatsappNumber}</p>
             <p className="text-sm text-muted-foreground mt-1">{contactName}</p>
+            <div className="flex items-center justify-center gap-1.5 mt-2">
+              <span className="text-xs text-muted-foreground">Discar:</span>
+              <span className="text-xs font-mono font-medium">{phoneInfo.formatted}</span>
+              <Badge variant="outline" className="text-[10px] h-5">
+                {phoneInfo.type === 'mobile' ? 'Cel' : phoneInfo.type === 'landline' ? 'Fixo' : '?'}
+              </Badge>
+              {phoneInfo.ninthAdded && (
+                <Badge variant="secondary" className="text-[10px] h-5 bg-yellow-500/10 text-yellow-600">+9°</Badge>
+              )}
+            </div>
           </div>
 
           <div>

@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Phone, Delete } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { maskPhone } from '@/lib/inputMasks';
 
 interface DiscadorPadProps {
   value: string;
@@ -31,8 +32,8 @@ export function DiscadorPad({ value, onChange, onDial, disabled, isDialing }: Di
     <div className="space-y-4">
       {/* Display */}
       <Input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={maskPhone(value)}
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, ''))}
         placeholder="Digite o número..."
         className="text-center text-2xl font-mono tracking-widest h-14"
       />
