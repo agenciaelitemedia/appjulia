@@ -272,6 +272,7 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
     });
     sessionRef.current = inviter;
     setCallerInfo(target);
+    callerInfoRef.current = target;
     setStatus('calling');
     setupSessionListeners(inviter);
 
