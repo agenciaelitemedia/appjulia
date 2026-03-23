@@ -51,7 +51,7 @@ interface CardChange {
 interface CardData {
   title: string;
   value: string;
-  icon: typeof BarChart3;
+  icon: typeof FileText;
   color: string;
   bgColor: string;
   change: CardChange | null;
