@@ -32,6 +32,8 @@ import { formatDbDateTime } from '@/lib/dateUtils';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
 import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
 import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
+import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialog';
+import { useCRMStages, useCRMCardByWhatsapp } from '@/pages/crm/hooks/useCRMData';
 import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 import { cn } from '@/lib/utils';
 
@@ -88,6 +90,16 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
   }>({ open: false, whatsapp: '', codAgent: '' });
   const [phoneCallOpen, setPhoneCallOpen] = useState(false);
   const [phoneCallSessao, setPhoneCallSessao] = useState<JuliaSessao | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsWhatsapp, setDetailsWhatsapp] = useState<string | null>(null);
+
+  const { data: stages = [] } = useCRMStages();
+  const { data: detailsCard = null } = useCRMCardByWhatsapp(detailsWhatsapp);
+
+  const handleOpenDetails = (sessao: JuliaSessao) => {
+    setDetailsWhatsapp(sessao.whatsapp);
+    setDetailsOpen(true);
+  };
 
   const handleOpenMessages = (sessao: JuliaSessao) => {
     setSelectedSessao(sessao);
@@ -430,7 +442,7 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
                               variant="outline"
                               size="icon"
                               className="h-7 w-7 rounded-full text-foreground border-border hover:bg-muted"
-                              onClick={() => handleOpenMessages(sessao)}
+                              onClick={() => handleOpenDetails(sessao)}
                             >
                               <Eye className="h-3.5 w-3.5" />
                             </Button>
@@ -526,6 +538,16 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
           codAgent={phoneCallSessao.cod_agent}
         />
       )}
+
+      <CRMLeadDetailsDialog
+        card={detailsCard}
+        stages={stages}
+        open={detailsOpen}
+        onOpenChange={(open) => {
+          setDetailsOpen(open);
+          if (!open) setDetailsWhatsapp(null);
+        }}
+      />
     </div>
   );
 }
