@@ -6,7 +6,7 @@ import { CRMDashboardSummary } from './components/CRMDashboardSummary';
 import { CRMTotalizers } from './components/CRMTotalizers';
 import { CRMPipeline } from './components/CRMPipeline';
 import { CRMLeadDetailsDialog } from './components/CRMLeadDetailsDialog';
-import { useCRMStages, useCRMCards, useCRMAgents, useCRMJuliaSessions } from './hooks/useCRMData';
+import { useCRMStages, useCRMCards, useCRMAgents, useCRMJuliaSessions, useCRMJuliaConversations } from './hooks/useCRMData';
 import { useFollowupActiveLeads } from './hooks/useFollowupActiveLeads';
 import { useFollowupReturnRate } from './hooks/useFollowupReturnRate';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
