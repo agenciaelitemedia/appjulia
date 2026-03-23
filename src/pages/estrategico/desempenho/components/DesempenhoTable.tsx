@@ -344,7 +344,6 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">
-                  <div className="flex items-center justify-end gap-1">
                       {/* Bot Status */}
                       <TooltipProvider>
                         <Tooltip>
@@ -439,7 +438,7 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
                           <TooltipContent>Ver detalhes</TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
-                    </div>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
