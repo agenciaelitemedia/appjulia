@@ -51,28 +51,26 @@ function AgentStatusIcon({ whatsapp, codAgent, onClick }: { whatsapp: string; co
   const { isActive, isLoading } = useAgentSessionStatus(whatsapp, codAgent);
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            disabled={!whatsapp}
-            onClick={onClick}
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            ) : (
-              <Bot className={cn('h-4 w-4', isActive ? 'text-emerald-500' : 'text-red-500')} />
-            )}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          {isLoading ? 'Verificando...' : isActive ? 'Julia ativa' : 'Julia inativa'}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Button
+      variant="outline"
+      size="icon"
+      className={cn(
+        "h-7 w-7 rounded-full",
+        isLoading
+          ? "text-muted-foreground border-muted"
+          : isActive
+            ? "text-green-500 border-green-500/30 hover:bg-green-100/50 dark:hover:bg-green-900/30"
+            : "text-red-500 border-red-500/30 hover:bg-red-100/50 dark:hover:bg-red-900/30"
+      )}
+      disabled={!whatsapp}
+      onClick={onClick}
+    >
+      {isLoading ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Bot className={cn("h-3.5 w-3.5", isActive && "animate-pulse")} />
+      )}
+    </Button>
   );
 }
 
