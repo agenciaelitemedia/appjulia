@@ -12,16 +12,23 @@ export function useTelefoniaData(codAgent: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('phone_user_plans')
-        .select('*, phone_extension_plans(name, max_extensions, price)')
+        .select('*, phone_extension_plans(name, max_extensions, price, extra_extension_price)')
         .eq('cod_agent', codAgent!)
         .eq('is_active', true)
         .maybeSingle();
       if (error) throw error;
       if (!data) return null;
+      const plan = (data as any).phone_extension_plans;
       return {
         ...data,
-        plan_name: (data as any).phone_extension_plans?.name,
-        max_extensions: (data as any).phone_extension_plans?.max_extensions || 0,
+        plan_name: plan?.name,
+        max_extensions: (plan?.max_extensions || 0) + (data.extra_extensions || 0),
+        base_extensions: plan?.max_extensions || 0,
+        extra_extensions: data.extra_extensions || 0,
+        extra_extension_price: plan?.extra_extension_price || 0,
+        billing_period: data.billing_period,
+        start_date: data.start_date,
+        due_date: data.due_date,
       };
     },
     enabled: !!codAgent,

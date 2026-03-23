@@ -5,10 +5,18 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Plus, Pencil, Trash2, Phone, RefreshCw, CheckCircle, AlertCircle, Ban } from 'lucide-react';
+import { Plus, Pencil, Trash2, Phone, RefreshCw, CheckCircle, AlertCircle, Ban, CalendarDays } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { RamalDialog } from './RamalDialog';
 import type { PhoneExtension } from '../types';
+import { format, isPast, parseISO } from 'date-fns';
+
+const PERIOD_LABELS: Record<string, string> = {
+  monthly: 'Mensal',
+  quarterly: 'Trimestral',
+  semiannual: 'Semestral',
+  annual: 'Anual',
+};
 
 interface Props {
   codAgent: string;
@@ -31,6 +39,7 @@ export function MeusRamaisTab({ codAgent }: Props) {
 
   const usagePercent = maxExtensions > 0 ? (usedExtensions / maxExtensions) * 100 : 0;
   const planDeactivated = !plan && !extensionsLoading;
+  const isExpired = plan?.due_date ? isPast(parseISO(plan.due_date)) : false;
 
   return (
     <div className="space-y-4">
@@ -45,16 +54,48 @@ export function MeusRamaisTab({ codAgent }: Props) {
 
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-sm font-medium">Plano: {plan?.plan_name || 'Nenhum plano vinculado'}</p>
-              <p className="text-xs text-muted-foreground">{usedExtensions} de {maxExtensions} ramais</p>
+              <p className="text-sm font-medium">
+                Plano: {plan?.plan_name || 'Nenhum plano vinculado'}
+                {plan?.billing_period && (
+                  <Badge variant="outline" className="ml-2 text-xs">
+                    {PERIOD_LABELS[plan.billing_period] || plan.billing_period}
+                  </Badge>
+                )}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {usedExtensions} de {maxExtensions} ramais
+                {plan && plan.extra_extensions > 0 && (
+                  <span className="ml-1">({plan.base_extensions} do plano + {plan.extra_extensions} extras)</span>
+                )}
+              </p>
             </div>
-            <Badge variant={canCreateExtension ? 'default' : 'destructive'}>
-              {canCreateExtension ? 'Disponível' : 'Limite atingido'}
-            </Badge>
+            <div className="flex flex-col items-end gap-1">
+              <Badge variant={canCreateExtension ? 'default' : 'destructive'}>
+                {canCreateExtension ? 'Disponível' : 'Limite atingido'}
+              </Badge>
+              {isExpired && (
+                <Badge variant="destructive" className="gap-1">
+                  <AlertCircle className="h-3 w-3" /> Vencido
+                </Badge>
+              )}
+            </div>
           </div>
           <Progress value={usagePercent} className="h-2" />
+          {plan?.start_date && (
+            <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <CalendarDays className="h-3 w-3" />
+                Início: {format(parseISO(plan.start_date), 'dd/MM/yyyy')}
+              </span>
+              {plan.due_date && (
+                <span className={isExpired ? 'text-destructive font-medium' : ''}>
+                  Vencimento: {format(parseISO(plan.due_date), 'dd/MM/yyyy')}
+                </span>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
