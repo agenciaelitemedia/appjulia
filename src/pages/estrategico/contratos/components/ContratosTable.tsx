@@ -684,6 +684,7 @@ export function ContratosTable({
           onOpenChange={setPhoneCallOpen}
           whatsappNumber={phoneCallContrato.whatsapp}
           contactName={phoneCallContrato.signer_name || ''}
+          codAgent={phoneCallContrato.cod_agent}
         />
       )}
     </>
