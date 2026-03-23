@@ -25,7 +25,9 @@ const statusColors: Record<string, string> = {
 
 export function DiscadorTab({ codAgent }: Props) {
   const { sip, myExtension, isAvailable, dialNumber, isDialing, setSoftphoneCentered } = usePhone();
+  const { plan, planLoading } = useTelefoniaData(codAgent);
   const [number, setNumber] = useState('');
+  const planDeactivated = !plan && !planLoading;
 
   const phoneInfo = useMemo(() => {
     if (!number || number.replace(/\D/g, '').length < 8) return null;
