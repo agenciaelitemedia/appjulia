@@ -20,7 +20,7 @@ interface CRMDashboardSummaryProps {
   returnRateData?: FollowupReturnRateResult;
 }
 
-export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, followupMap, returnRateData }: CRMDashboardSummaryProps) {
+export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, juliaConversations, followupMap, returnRateData }: CRMDashboardSummaryProps) {
   const stats = useMemo(() => {
     const total = cards.length;
 
