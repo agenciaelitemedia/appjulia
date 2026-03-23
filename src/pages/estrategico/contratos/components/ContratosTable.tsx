@@ -31,6 +31,7 @@ import { JuliaContrato } from '../../types';
 import { formatDbDateTime, formatTimeDifference } from '@/lib/dateUtils';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
 import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
+import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
 import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -136,6 +137,8 @@ export function ContratosTable({
   const { toast } = useToast();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [selectedContrato, setSelectedContrato] = useState<JuliaContrato | null>(null);
+  const [phoneCallOpen, setPhoneCallOpen] = useState(false);
+  const [phoneCallContrato, setPhoneCallContrato] = useState<JuliaContrato | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField] = useState<SortField | null>(null);
@@ -519,6 +522,27 @@ export function ContratosTable({
                         </Tooltip>
                       </TooltipProvider>
 
+                      {/* Telefone */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 rounded-full text-orange-500 border-orange-500/30 hover:bg-orange-100/50 dark:hover:bg-orange-900/30"
+                              disabled={!contrato.whatsapp}
+                              onClick={() => {
+                                setPhoneCallContrato(contrato);
+                                setPhoneCallOpen(true);
+                              }}
+                            >
+                              <Phone className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Ligar via ramal</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+
                       {/* WhatsApp */}
                       <TooltipProvider>
                         <Tooltip>
@@ -564,7 +588,7 @@ export function ContratosTable({
                             <Button
                               variant="outline"
                               size="icon"
-                              className="h-7 w-7 rounded-full text-orange-500 border-orange-500/30 hover:bg-orange-100/50 dark:hover:bg-orange-900/30"
+                              className="h-7 w-7 rounded-full text-foreground border-border hover:bg-muted"
                               onClick={() => onViewDetails(contrato)}
                             >
                               <Eye className="h-3.5 w-3.5" />
@@ -653,6 +677,16 @@ export function ContratosTable({
         whatsappNumber={sessionDialog.whatsapp}
         codAgent={sessionDialog.codAgent}
       />
+
+      {phoneCallContrato && (
+        <PhoneCallDialog
+          open={phoneCallOpen}
+          onOpenChange={setPhoneCallOpen}
+          whatsappNumber={phoneCallContrato.whatsapp}
+          contactName={phoneCallContrato.signer_name || ''}
+          codAgent={phoneCallContrato.cod_agent}
+        />
+      )}
     </>
   );
 }
