@@ -1,39 +1,30 @@
 
 
-# Webhook Endpoint para Receber Mensagens WABA
+# Adicionar Secret META_WEBHOOK_VERIFY_TOKEN
 
-## Problema atual
+## O que fazer
 
-A edge function `meta-webhook` existente é apenas para testes -- usa armazenamento in-memory e não encaminha mensagens para o N8N (que processa a lógica do agente).
+Quando eu sair do modo de planejamento, vou usar a ferramenta `add_secret` para solicitar que você insira o valor do token.
 
-## Solução
+## Como gerar seu token
 
-Reescrever `meta-webhook` para ser o webhook de produção: ao receber mensagens da Meta, identificar o agente pelo `phone_number_id`, buscar o `cod_agent` no banco externo, e encaminhar para o N8N via `N8N_HUB_SEND_URL`.
-
-## Fluxo
+Você pode gerar um token seguro de qualquer forma. Sugestão:
 
 ```text
-Meta Cloud API → POST /meta-webhook
-  1. Verificação GET (hub.verify_token) ✓ já existe
-  2. POST com mensagem:
-     a. Extrair phone_number_id do payload (metadata.phone_number_id)
-     b. Buscar agente no DB externo: SELECT cod_agent, waba_token FROM agents WHERE waba_number_id = $1
-     c. Encaminhar para N8N_HUB_SEND_URL com payload normalizado
-     d. Retornar 200 OK (Meta exige resposta rápida)
+julia_waba_verify_2026_<seu-codigo-aleatorio>
 ```
 
-## Arquivo alterado
+Ou use um gerador online de strings aleatórias (32+ caracteres).
 
-| Arquivo | Ação |
+## Passos
+
+| # | Ação |
 |---|---|
-| `supabase/functions/meta-webhook/index.ts` | Reescrever: adicionar conexão DB externo, lookup do agente por `waba_number_id`, forward para N8N. Manter verificação GET e logs de teste. |
-| `supabase/config.toml` | Adicionar `[functions.meta-webhook]` com `verify_jwt = false` (webhook público da Meta) |
+| 1 | Adicionar o secret `META_WEBHOOK_VERIFY_TOKEN` no projeto (você cola o valor) |
+| 2 | Copiar o **mesmo valor** no Meta Developers Dashboard → WhatsApp → Configuration → Callback URL → Verify Token |
+| 3 | O `meta-webhook` já usa essa env var — nenhuma alteração de código necessária |
 
-## Detalhes técnicos
+## Nenhum arquivo será alterado
 
-- Usa mesmo padrão de conexão PostgreSQL do `waba-admin` (com normalização SSL CA cert)
-- Payload encaminhado ao N8N inclui: `cod_agent`, `from` (número remetente), `message` (texto/tipo), `timestamp`, `raw_payload`
-- Verify token vem de env var `META_WEBHOOK_VERIFY_TOKEN` (fallback para o hardcoded atual)
-- Sempre retorna 200 para a Meta (mesmo em erro interno) para evitar retry loops
-- Mantém logs in-memory para debug via `get_logs`
+O código em `meta-webhook/index.ts` já lê `Deno.env.get('META_WEBHOOK_VERIFY_TOKEN')`. Basta adicionar o secret.
 
