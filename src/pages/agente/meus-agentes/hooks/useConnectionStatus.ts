@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { UaZapiClient } from '@/lib/uazapi/client';
-import { ConnectionStatus } from '../types';
+import { supabase } from '@/integrations/supabase/client';
+import { ConnectionStatus, WhatsAppProvider } from '../types';
 
 interface InstanceStatusResponse {
   instance?: {
@@ -16,47 +17,61 @@ interface InstanceStatusResponse {
 }
 
 export function useConnectionStatus(
-  hub: string | null,
+  hub: WhatsAppProvider,
   evoUrl: string | null,
   evoApikey: string | null,
-  evoInstancia: string | null
+  evoInstancia: string | null,
+  wabaConfigured?: boolean,
+  agentId?: number | null
 ) {
   return useQuery({
-    queryKey: ['connection-status', evoUrl, evoInstancia],
+    queryKey: ['connection-status', hub, evoUrl, evoInstancia, agentId],
     queryFn: async (): Promise<ConnectionStatus> => {
       // Sem configuração
-      if (!hub || !evoUrl || !evoApikey) {
-        return 'no_config';
-      }
+      if (!hub) return 'no_config';
       
-      // Apenas suporta uazapi por enquanto
-      if (hub !== 'uazapi') {
-        return 'no_config';
-      }
-      
-      try {
-        const client = new UaZapiClient({
-          baseUrl: evoUrl,
-          token: evoApikey,
-          instance: evoInstancia || undefined,
-        });
+      // WABA provider
+      if (hub === 'waba') {
+        if (!wabaConfigured || !agentId) return 'no_config';
         
-        const response = await client.get<InstanceStatusResponse>('/instance/status');
-        
-        // Verificar status.connected e status.loggedIn (booleanos reais)
-        const isConnected = response.status?.connected === true && response.status?.loggedIn === true;
-        
-        if (isConnected) {
-          return 'connected';
+        try {
+          const { data, error } = await supabase.functions.invoke('waba-admin', {
+            body: { action: 'verify_connection', agentId },
+          });
+          
+          if (error || !data?.success) return 'disconnected';
+          return data.connected ? 'waba_connected' : 'disconnected';
+        } catch {
+          return 'disconnected';
         }
-        
-        return 'disconnected';
-      } catch {
-        return 'disconnected';
       }
+      
+      // UaZapi provider
+      if (hub === 'uazapi') {
+        if (!evoUrl || !evoApikey) return 'no_config';
+        
+        try {
+          const client = new UaZapiClient({
+            baseUrl: evoUrl,
+            token: evoApikey,
+            instance: evoInstancia || undefined,
+          });
+          
+          const response = await client.get<InstanceStatusResponse>('/instance/status');
+          const isConnected = response.status?.connected === true && response.status?.loggedIn === true;
+          return isConnected ? 'connected' : 'disconnected';
+        } catch {
+          return 'disconnected';
+        }
+      }
+      
+      return 'no_config';
     },
-    enabled: !!hub && hub === 'uazapi' && !!evoUrl && !!evoApikey,
-    staleTime: 60000, // Cache por 1 minuto
+    enabled: !!hub && (
+      (hub === 'uazapi' && !!evoUrl && !!evoApikey) ||
+      (hub === 'waba' && !!wabaConfigured && !!agentId)
+    ),
+    staleTime: hub === 'waba' ? 120000 : 60000, // 2min WABA, 1min UaZapi
     retry: 1,
     refetchOnWindowFocus: false,
   });
