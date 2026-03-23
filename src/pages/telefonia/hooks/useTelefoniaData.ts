@@ -89,7 +89,7 @@ export function useTelefoniaData(codAgent: string | undefined) {
     mutationFn: async (id: number) => {
       const ext = extensionsQuery.data?.find((e) => e.id === id);
       if (!ext?.api4com_id) {
-        // Sem vínculo Api4Com, deletar só do banco
+        // Sem vínculo com provedor, deletar só do banco
         const { error } = await supabase.from('phone_extensions').delete().eq('id', id);
         if (error) throw error;
         return;
