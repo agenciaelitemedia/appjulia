@@ -207,6 +207,7 @@ export function useTelefoniaAdmin() {
     userPlans: userPlansQuery.data || [],
     userPlansLoading: userPlansQuery.isLoading,
     assignPlan,
+    updateUserPlan,
     config: configQuery.data || null,
     configLoading: configQuery.isLoading,
     saveConfig,
