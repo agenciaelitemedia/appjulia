@@ -17,23 +17,35 @@ interface PlanDialogProps {
 export function PlanDialog({ open, onOpenChange, plan, onSave }: PlanDialogProps) {
   const [name, setName] = useState('');
   const [maxExtensions, setMaxExtensions] = useState(5);
-  const [price, setPrice] = useState(0);
   const [description, setDescription] = useState('');
   const [isActive, setIsActive] = useState(true);
+  const [priceMonthly, setPriceMonthly] = useState(0);
+  const [priceQuarterly, setPriceQuarterly] = useState(0);
+  const [priceSemiannual, setPriceSemiannual] = useState(0);
+  const [priceAnnual, setPriceAnnual] = useState(0);
+  const [extraExtensionPrice, setExtraExtensionPrice] = useState(0);
 
   useEffect(() => {
     if (plan) {
       setName(plan.name);
       setMaxExtensions(plan.max_extensions);
-      setPrice(Number(plan.price));
       setDescription(plan.description || '');
       setIsActive(plan.is_active);
+      setPriceMonthly(Number(plan.price_monthly) || 0);
+      setPriceQuarterly(Number(plan.price_quarterly) || 0);
+      setPriceSemiannual(Number(plan.price_semiannual) || 0);
+      setPriceAnnual(Number(plan.price_annual) || 0);
+      setExtraExtensionPrice(Number(plan.extra_extension_price) || 0);
     } else {
       setName('');
       setMaxExtensions(5);
-      setPrice(0);
       setDescription('');
       setIsActive(true);
+      setPriceMonthly(0);
+      setPriceQuarterly(0);
+      setPriceSemiannual(0);
+      setPriceAnnual(0);
+      setExtraExtensionPrice(0);
     }
   }, [plan, open]);
 
@@ -54,8 +66,26 @@ export function PlanDialog({ open, onOpenChange, plan, onSave }: PlanDialogProps
               <Input type="number" value={maxExtensions} onChange={(e) => setMaxExtensions(Number(e.target.value))} min={1} />
             </div>
             <div>
-              <Label>Preço (R$)</Label>
-              <Input type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} min={0} step={0.01} />
+              <Label>Preço Ramal Extra (R$)</Label>
+              <Input type="number" value={extraExtensionPrice} onChange={(e) => setExtraExtensionPrice(Number(e.target.value))} min={0} step={0.01} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Mensal (R$)</Label>
+              <Input type="number" value={priceMonthly} onChange={(e) => setPriceMonthly(Number(e.target.value))} min={0} step={0.01} />
+            </div>
+            <div>
+              <Label>Trimestral (R$)</Label>
+              <Input type="number" value={priceQuarterly} onChange={(e) => setPriceQuarterly(Number(e.target.value))} min={0} step={0.01} />
+            </div>
+            <div>
+              <Label>Semestral (R$)</Label>
+              <Input type="number" value={priceSemiannual} onChange={(e) => setPriceSemiannual(Number(e.target.value))} min={0} step={0.01} />
+            </div>
+            <div>
+              <Label>Anual (R$)</Label>
+              <Input type="number" value={priceAnnual} onChange={(e) => setPriceAnnual(Number(e.target.value))} min={0} step={0.01} />
             </div>
           </div>
           <div>
@@ -69,7 +99,20 @@ export function PlanDialog({ open, onOpenChange, plan, onSave }: PlanDialogProps
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={() => onSave({ name, max_extensions: maxExtensions, price, description: description || null, is_active: isActive })} disabled={!name}>
+          <Button
+            onClick={() => onSave({
+              name,
+              max_extensions: maxExtensions,
+              price_monthly: priceMonthly,
+              price_quarterly: priceQuarterly,
+              price_semiannual: priceSemiannual,
+              price_annual: priceAnnual,
+              extra_extension_price: extraExtensionPrice,
+              description: description || null,
+              is_active: isActive,
+            })}
+            disabled={!name}
+          >
             Salvar
           </Button>
         </DialogFooter>

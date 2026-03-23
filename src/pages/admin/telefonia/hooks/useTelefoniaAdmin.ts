@@ -1,7 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import type { PhonePlan, PhoneUserPlan, PhoneConfig, PhoneCallLog } from '../types';
+import type { PhonePlan, PhoneUserPlan, PhoneConfig, PhoneCallLog, BillingPeriod } from '../types';
+import { BILLING_PERIOD_MONTHS } from '../types';
+import { addMonths, format } from 'date-fns';
+
+function calcDueDate(startDate: string, period: BillingPeriod): string {
+  const months = BILLING_PERIOD_MONTHS[period];
+  return format(addMonths(new Date(startDate), months), 'yyyy-MM-dd');
+}
 
 export function useTelefoniaAdmin() {
   const queryClient = useQueryClient();
@@ -63,53 +70,80 @@ export function useTelefoniaAdmin() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // === User Plans (now by cod_agent) ===
+  // === User Plans (agents) ===
   const userPlansQuery = useQuery({
     queryKey: ['phone-user-plans'],
     queryFn: async (): Promise<PhoneUserPlan[]> => {
       const { data, error } = await supabase
         .from('phone_user_plans')
-        .select('*, phone_extension_plans(name, max_extensions)')
+        .select('*, phone_extension_plans(name, max_extensions, price_monthly, price_quarterly, price_semiannual, price_annual, extra_extension_price)')
         .order('assigned_at', { ascending: false });
       if (error) throw error;
       return (data || []).map((d: any) => ({
         ...d,
         plan_name: d.phone_extension_plans?.name,
         max_extensions: d.phone_extension_plans?.max_extensions,
+        price_monthly: d.phone_extension_plans?.price_monthly,
+        price_quarterly: d.phone_extension_plans?.price_quarterly,
+        price_semiannual: d.phone_extension_plans?.price_semiannual,
+        price_annual: d.phone_extension_plans?.price_annual,
+        extra_extension_price: d.phone_extension_plans?.extra_extension_price,
       }));
     },
   });
 
   const assignPlan = useMutation({
-    mutationFn: async ({ codAgent, planId }: { codAgent: string; planId: number }) => {
+    mutationFn: async (params: {
+      codAgent: string;
+      planId: number;
+      billingPeriod: BillingPeriod;
+      extraExtensions: number;
+      clientName: string;
+      businessName: string;
+    }) => {
       // Deactivate existing plans for this cod_agent
       await supabase
         .from('phone_user_plans')
         .update({ is_active: false } as any)
-        .eq('cod_agent', codAgent);
-      // Assign new plan
+        .eq('cod_agent', params.codAgent);
+
+      const startDate = format(new Date(), 'yyyy-MM-dd');
+      const dueDate = calcDueDate(startDate, params.billingPeriod);
+
       const { error } = await supabase
         .from('phone_user_plans')
-        .insert({ cod_agent: codAgent, plan_id: planId } as any);
+        .insert({
+          cod_agent: params.codAgent,
+          plan_id: params.planId,
+          billing_period: params.billingPeriod,
+          extra_extensions: params.extraExtensions,
+          start_date: startDate,
+          due_date: dueDate,
+          client_name: params.clientName,
+          business_name: params.businessName,
+        } as any);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['phone-user-plans'] });
-      toast.success('Plano vinculado');
+      toast.success('Telefonia vinculada ao agente');
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // === Config ===
-  const configsQuery = useQuery({
-    queryKey: ['phone-configs'],
-    queryFn: async (): Promise<PhoneConfig[]> => {
+  // === Config (single global) ===
+  const configQuery = useQuery({
+    queryKey: ['phone-config-global'],
+    queryFn: async (): Promise<PhoneConfig | null> => {
       const { data, error } = await supabase
         .from('phone_config')
         .select('*')
-        .order('created_at', { ascending: false });
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
       if (error) throw error;
-      return data as unknown as PhoneConfig[];
+      return data as unknown as PhoneConfig | null;
     },
   });
 
@@ -129,35 +163,9 @@ export function useTelefoniaAdmin() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['phone-configs'] });
+      queryClient.invalidateQueries({ queryKey: ['phone-config-global'] });
       toast.success('Configuração salva');
     },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  // === Call History ===
-  const callHistoryQuery = useQuery({
-    queryKey: ['phone-call-history'],
-    queryFn: async (): Promise<PhoneCallLog[]> => {
-      const { data, error } = await supabase
-        .from('phone_call_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      return data as unknown as PhoneCallLog[];
-    },
-  });
-
-  const setupWebhook = useMutation({
-    mutationFn: async (codAgent: string) => {
-      const { data, error } = await supabase.functions.invoke('api4com-proxy', {
-        body: { action: 'setup_webhook', codAgent },
-      });
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => toast.success('Webhook configurado com sucesso'),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -170,11 +178,8 @@ export function useTelefoniaAdmin() {
     userPlans: userPlansQuery.data || [],
     userPlansLoading: userPlansQuery.isLoading,
     assignPlan,
-    configs: configsQuery.data || [],
-    configsLoading: configsQuery.isLoading,
+    config: configQuery.data || null,
+    configLoading: configQuery.isLoading,
     saveConfig,
-    setupWebhook,
-    callHistory: callHistoryQuery.data || [],
-    callHistoryLoading: callHistoryQuery.isLoading,
   };
 }
