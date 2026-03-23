@@ -522,6 +522,27 @@ export function ContratosTable({
                         </Tooltip>
                       </TooltipProvider>
 
+                      {/* Telefone */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 rounded-full text-orange-500 border-orange-500/30 hover:bg-orange-100/50 dark:hover:bg-orange-900/30"
+                              disabled={!contrato.whatsapp}
+                              onClick={() => {
+                                setPhoneCallContrato(contrato);
+                                setPhoneCallOpen(true);
+                              }}
+                            >
+                              <Phone className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Ligar via ramal</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+
                       {/* WhatsApp */}
                       <TooltipProvider>
                         <Tooltip>
@@ -567,7 +588,7 @@ export function ContratosTable({
                             <Button
                               variant="outline"
                               size="icon"
-                              className="h-7 w-7 rounded-full text-orange-500 border-orange-500/30 hover:bg-orange-100/50 dark:hover:bg-orange-900/30"
+                              className="h-7 w-7 rounded-full text-foreground border-border hover:bg-muted"
                               onClick={() => onViewDetails(contrato)}
                             >
                               <Eye className="h-3.5 w-3.5" />
