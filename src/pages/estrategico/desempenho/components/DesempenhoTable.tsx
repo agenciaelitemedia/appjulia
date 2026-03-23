@@ -442,7 +442,7 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
                               variant="outline"
                               size="icon"
                               className="h-7 w-7 rounded-full text-foreground border-border hover:bg-muted"
-                              onClick={() => handleOpenMessages(sessao)}
+                              onClick={() => handleOpenDetails(sessao)}
                             >
                               <Eye className="h-3.5 w-3.5" />
                             </Button>
