@@ -403,6 +403,33 @@ class ExternalDatabase {
     });
   }
 
+  async updateAgentWabaConnection(
+    agentId: number,
+    wabaId: string,
+    wabaToken: string,
+    wabaNumberId: string
+  ): Promise<void> {
+    await this.invoke({
+      action: 'update_agent_waba_connection',
+      data: { agentId, wabaId, wabaToken, wabaNumberId },
+    });
+  }
+
+  async clearAgentWabaConnection(agentId: number): Promise<void> {
+    await this.invoke({
+      action: 'clear_agent_waba_connection',
+      data: { agentId },
+    });
+  }
+
+  async getAgentWabaStatus(agentId: number): Promise<{ hub: string | null; waba_id: string | null; waba_configured: boolean }> {
+    const result = await this.invoke({
+      action: 'get_agent_waba_status',
+      data: { agentId },
+    });
+    return result[0];
+  }
+
   async getCrmAgentsForUser<T = any>(userId: number): Promise<T[]> {
     return this.invoke({
       action: 'get_crm_agents_for_user',

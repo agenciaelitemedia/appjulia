@@ -20,7 +20,9 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
     agent.hub,
     agent.evo_url,
     agent.evo_apikey,
-    agent.evo_instancia
+    agent.evo_instancia,
+    agent.waba_configured,
+    agent.agent_id_from_agents
   );
 
   const leadsPercentage = agent.plan_limit 
@@ -29,12 +31,13 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
 
   const canEdit = !isMonitored && (agent.can_edit_config || agent.can_edit_prompt);
 
+  const providerLabel = agent.hub === 'waba' ? 'API Oficial' : agent.hub === 'uazapi' ? 'UaZapi' : null;
+
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardContent className="p-4">
         {/* Header com badges */}
         <div className="flex items-start justify-between mb-3">
-          {/* Lado esquerdo: ícone + status ativo */}
           <div className="flex items-center gap-2">
             {isMonitored ? (
               <Eye className="w-4 h-4 text-muted-foreground" />
@@ -45,7 +48,6 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
               {agent.status ? 'Ativo' : 'Inativo'}
             </Badge>
           </div>
-          {/* Lado direito: badge de conexão WhatsApp */}
           <ConnectionStatusBadge status={connectionStatus} isLoading={isLoading} />
         </div>
 
@@ -54,15 +56,29 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
           {agent.business_name || agent.client_name || 'Sem nome'}
         </h3>
         
-        {/* Código do agente - abaixo do nome */}
+        {/* Código do agente */}
         <p className="text-xs text-muted-foreground font-mono mb-1">
           #{agent.cod_agent}
         </p>
 
-        {/* Instância WhatsApp (se configurada) */}
-        {agent.evo_instancia && (
+        {/* Provider info */}
+        {providerLabel && (
+          <p className="text-xs text-muted-foreground mb-1">
+            Provider: {providerLabel}
+          </p>
+        )}
+
+        {/* Instância WhatsApp (se UaZapi configurada) */}
+        {agent.hub === 'uazapi' && agent.evo_instancia && (
           <p className="text-xs text-muted-foreground mb-2 truncate">
             Instância: {agent.evo_instancia}
+          </p>
+        )}
+
+        {/* WABA Number ID (se WABA configurada) */}
+        {agent.hub === 'waba' && agent.waba_number_id && (
+          <p className="text-xs text-muted-foreground mb-2 truncate">
+            Phone ID: {agent.waba_number_id}
           </p>
         )}
 
@@ -82,7 +98,7 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
           </div>
         )}
 
-        {/* Botões de controle de conexão e edição - apenas para "Meus Agentes" */}
+        {/* Botões de controle */}
         {!isMonitored && (
           <div className="pt-3 mt-3 border-t border-border/50 flex items-center justify-between">
             <ConnectionControlButtons

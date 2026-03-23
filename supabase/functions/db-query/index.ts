@@ -488,6 +488,9 @@ serve(async (req) => {
             a.evo_url,
             a.evo_apikey,
             a.evo_instance as evo_instancia,
+            a.waba_id,
+            a.waba_number_id,
+            CASE WHEN a.waba_id IS NOT NULL AND a.waba_token IS NOT NULL AND a.waba_number_id IS NOT NULL THEN true ELSE false END as waba_configured,
             c.name as client_name,
             c.business_name,
             ap.name as plan_name,
@@ -2455,6 +2458,52 @@ serve(async (req) => {
           ALTER TABLE user_agents ADD COLUMN IF NOT EXISTS can_edit_config BOOLEAN NOT NULL DEFAULT TRUE;
         `);
         result = [{ success: true, message: 'Columns added successfully' }];
+        break;
+      }
+
+      case 'update_agent_waba_connection': {
+        const { agentId: wabaAgentId, wabaId, wabaToken, wabaNumberId } = data;
+        if (!wabaAgentId || !wabaId || !wabaToken || !wabaNumberId) {
+          throw new Error('Missing required WABA connection parameters');
+        }
+        result = await sql.unsafe(
+          `UPDATE agents 
+           SET hub = 'waba', 
+               waba_id = $1, 
+               waba_token = $2, 
+               waba_number_id = $3, 
+               updated_at = now()
+           WHERE id = $4 RETURNING id`,
+          [wabaId, wabaToken, wabaNumberId, wabaAgentId]
+        );
+        break;
+      }
+
+      case 'clear_agent_waba_connection': {
+        const { agentId: clearAgentId } = data;
+        if (!clearAgentId) throw new Error('Missing agentId');
+        result = await sql.unsafe(
+          `UPDATE agents 
+           SET hub = NULL, 
+               waba_id = NULL, 
+               waba_token = NULL, 
+               waba_number_id = NULL, 
+               updated_at = now()
+           WHERE id = $1 RETURNING id`,
+          [clearAgentId]
+        );
+        break;
+      }
+
+      case 'get_agent_waba_status': {
+        const { agentId: statusAgentId } = data;
+        if (!statusAgentId) throw new Error('Missing agentId');
+        result = await sql.unsafe(
+          `SELECT id, hub, waba_id, waba_token, waba_number_id,
+                  CASE WHEN waba_id IS NOT NULL AND waba_token IS NOT NULL AND waba_number_id IS NOT NULL THEN true ELSE false END as waba_configured
+           FROM agents WHERE id = $1`,
+          [statusAgentId]
+        );
         break;
       }
 
