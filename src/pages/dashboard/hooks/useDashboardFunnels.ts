@@ -84,15 +84,18 @@ export function useDashboardJuliaFunnel(filters: UnifiedFiltersState) {
           ),
           contratos_gerados AS (
             SELECT COUNT(*)::int as count
-            FROM julia_leads jl
-            JOIN crm_atendimento_stages s ON s.id = jl.stage_id
-            WHERE s.name IN ('Contrato em Curso', 'Contrato Assinado')
+            FROM vw_painelv2_desempenho_julia_contratos
+            WHERE cod_agent::text = ANY($1::varchar[])
+              AND (data_contrato AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (data_contrato AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           ),
           contratos_assinados AS (
             SELECT COUNT(*)::int as count
-            FROM julia_leads jl
-            JOIN crm_atendimento_stages s ON s.id = jl.stage_id
-            WHERE s.name = 'Contrato Assinado'
+            FROM vw_painelv2_desempenho_julia_contratos
+            WHERE cod_agent::text = ANY($1::varchar[])
+              AND (data_contrato AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (data_contrato AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+              AND status_document = 'SIGNED'
           )
           SELECT 'Atendimentos' as stage_name, '#22c55e' as stage_color, 0 as position, (SELECT count FROM atendimentos) as count
           UNION ALL SELECT 'Em Qualificação', '#eab308', 1, (SELECT count FROM em_qualificacao)
