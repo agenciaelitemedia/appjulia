@@ -103,7 +103,7 @@ export function useTelefoniaData(codAgent: string | undefined) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-extensions'] });
-      toast.success('Ramal removido (Api4Com + banco)');
+      toast.success('Ramal removido com sucesso');
     },
     onError: (e: Error) => toast.error(e.message),
   });

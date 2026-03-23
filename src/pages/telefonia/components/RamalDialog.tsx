@@ -101,7 +101,7 @@ export function RamalDialog({ open, onOpenChange, extension, onSave, isCreating,
               </div>
               {extension.api4com_ramal && (
                 <div>
-                  <Label className="text-muted-foreground text-xs">Ramal Api4Com</Label>
+                  <Label className="text-muted-foreground text-xs">Ramal Provedor</Label>
                   <p className="font-mono text-sm">{extension.api4com_ramal}</p>
                 </div>
               )}
@@ -109,7 +109,7 @@ export function RamalDialog({ open, onOpenChange, extension, onSave, isCreating,
           )}
           {!isEditing && (
             <p className="text-sm text-muted-foreground">
-              O número do ramal será atribuído automaticamente pela Api4Com.
+              O número do ramal será atribuído automaticamente pelo provedor.
             </p>
           )}
 

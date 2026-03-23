@@ -76,7 +76,7 @@ export function MeusRamaisTab({ codAgent }: Props) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Ramal Local</TableHead>
-                  <TableHead>Api4Com</TableHead>
+                  <TableHead>Nº Provedor</TableHead>
                   <TableHead>Nome</TableHead>
                   <TableHead>Membro</TableHead>
                   <TableHead>Vínculo</TableHead>
