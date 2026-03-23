@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { PhoneIncoming, PhoneOutgoing, Play, LayoutDashboard, Phone, ExternalLink } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { GravacaoPlayer } from './GravacaoPlayer';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState, CustomSelectConfig } from '@/components/filters/types';
@@ -100,9 +100,9 @@ export function HistoricoTab({ codAgent }: Props) {
     dateTo: today,
   });
 
-  // Initialize agentCodes with all agents when list loads
-  useMemo(() => {
-    if (agentsList.length > 0 && filters.agentCodes.length === 0) {
+  // Initialize/update agentCodes when agent list changes
+  useEffect(() => {
+    if (agentsList.length > 0) {
       setFilters(prev => ({ ...prev, agentCodes: agentsList.map(a => a.cod_agent) }));
     }
   }, [agentsList]);
