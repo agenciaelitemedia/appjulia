@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Phone, PhoneOutgoing, Clock, TrendingUp } from 'lucide-react';
 import { useCallHistoryQuery } from '../hooks/useCallHistoryQuery';
