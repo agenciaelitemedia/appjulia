@@ -26,11 +26,12 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from '@/components/ui/pagination';
-import { MessageSquare, ArrowUpDown, ArrowUp, ArrowDown, Download, MessageCircle, ExternalLink, Bot, Loader2 } from 'lucide-react';
+import { MessageSquare, ArrowUpDown, ArrowUp, ArrowDown, Download, MessageCircle, ExternalLink, Bot, Loader2, Phone, Eye } from 'lucide-react';
 import { JuliaSessao } from '../../types';
 import { formatDbDateTime } from '@/lib/dateUtils';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
 import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
+import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
 import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 import { cn } from '@/lib/utils';
 
@@ -50,28 +51,26 @@ function AgentStatusIcon({ whatsapp, codAgent, onClick }: { whatsapp: string; co
   const { isActive, isLoading } = useAgentSessionStatus(whatsapp, codAgent);
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            disabled={!whatsapp}
-            onClick={onClick}
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            ) : (
-              <Bot className={cn('h-4 w-4', isActive ? 'text-emerald-500' : 'text-red-500')} />
-            )}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          {isLoading ? 'Verificando...' : isActive ? 'Julia ativa' : 'Julia inativa'}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Button
+      variant="outline"
+      size="icon"
+      className={cn(
+        "h-7 w-7 rounded-full",
+        isLoading
+          ? "text-muted-foreground border-muted"
+          : isActive
+            ? "text-green-500 border-green-500/30 hover:bg-green-100/50 dark:hover:bg-green-900/30"
+            : "text-red-500 border-red-500/30 hover:bg-red-100/50 dark:hover:bg-red-900/30"
+      )}
+      disabled={!whatsapp}
+      onClick={onClick}
+    >
+      {isLoading ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Bot className={cn("h-3.5 w-3.5", isActive && "animate-pulse")} />
+      )}
+    </Button>
   );
 }
 
@@ -87,6 +86,8 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
     whatsapp: string;
     codAgent: string;
   }>({ open: false, whatsapp: '', codAgent: '' });
+  const [phoneCallOpen, setPhoneCallOpen] = useState(false);
+  const [phoneCallSessao, setPhoneCallSessao] = useState<JuliaSessao | null>(null);
 
   const handleOpenMessages = (sessao: JuliaSessao) => {
     setSelectedSessao(sessao);
@@ -343,52 +344,100 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">
-                    <AgentStatusIcon
-                      whatsapp={sessao.whatsapp}
-                      codAgent={sessao.cod_agent}
-                      onClick={() => {
-                        if (!sessao.whatsapp) return;
-                        setSessionDialog({
-                          open: true,
-                          whatsapp: sessao.whatsapp,
-                          codAgent: sessao.cod_agent,
-                        });
-                      }}
-                    />
+                      {/* Bot Status */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <AgentStatusIcon
+                              whatsapp={sessao.whatsapp}
+                              codAgent={sessao.cod_agent}
+                              onClick={() => {
+                                if (!sessao.whatsapp) return;
+                                setSessionDialog({
+                                  open: true,
+                                  whatsapp: sessao.whatsapp,
+                                  codAgent: sessao.cod_agent,
+                                });
+                              }}
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent>Status da Julia</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
 
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            disabled={!sessao.whatsapp}
-                            onClick={() => handleOpenMessages(sessao)}
-                          >
-                            <MessageCircle className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Ver conversa</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                      {/* Telefone */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 rounded-full text-orange-500 border-orange-500/30 hover:bg-orange-100/50 dark:hover:bg-orange-900/30"
+                              disabled={!sessao.whatsapp}
+                              onClick={() => {
+                                setPhoneCallSessao(sessao);
+                                setPhoneCallOpen(true);
+                              }}
+                            >
+                              <Phone className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Ligar via ramal</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
 
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            disabled={!sessao.whatsapp}
-                            onClick={() => handleGoToCRM(sessao.whatsapp)}
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Ir para CRM</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                      {/* WhatsApp */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 rounded-full text-green-500 border-green-500/30 hover:bg-green-100/50 dark:hover:bg-green-900/30"
+                              disabled={!sessao.whatsapp}
+                              onClick={() => handleOpenMessages(sessao)}
+                            >
+                              <MessageCircle className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Ver conversa</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+
+                      {/* Ir para CRM */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 rounded-full text-blue-500 border-blue-500/30 hover:bg-blue-100/50 dark:hover:bg-blue-900/30"
+                              disabled={!sessao.whatsapp}
+                              onClick={() => handleGoToCRM(sessao.whatsapp)}
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Ir para CRM</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+
+                      {/* Detalhes (Eye) */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 rounded-full text-foreground border-border hover:bg-muted"
+                              onClick={() => handleOpenMessages(sessao)}
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Ver detalhes</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                   </div>
                 </TableCell>
               </TableRow>
@@ -467,6 +516,16 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
         whatsappNumber={sessionDialog.whatsapp}
         codAgent={sessionDialog.codAgent}
       />
+
+      {phoneCallSessao && (
+        <PhoneCallDialog
+          open={phoneCallOpen}
+          onOpenChange={setPhoneCallOpen}
+          whatsappNumber={phoneCallSessao.whatsapp}
+          contactName={phoneCallSessao.name || ''}
+          codAgent={phoneCallSessao.cod_agent}
+        />
+      )}
     </div>
   );
 }
