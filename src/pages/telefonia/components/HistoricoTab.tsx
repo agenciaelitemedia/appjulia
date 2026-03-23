@@ -194,7 +194,7 @@ export function HistoricoTab({ codAgent }: Props) {
       onChange: setDirectionFilter,
       options: [
         { value: 'all', label: 'Todos' },
-        { value: 'outbound', label: 'Feitas' },
+        { value: 'outbound', label: 'Saída' },
         { value: 'inbound', label: 'Recebidas' },
       ],
       width: 'w-[130px]',
@@ -342,7 +342,7 @@ export function HistoricoTab({ codAgent }: Props) {
                           {call.direction === 'outbound' ? (
                             <span className="flex items-center gap-1">
                               <PhoneOutgoing className="h-3.5 w-3.5 text-primary" />
-                              Feita
+                              Saída
                             </span>
                           ) : (
                             <span className="flex items-center gap-1">
