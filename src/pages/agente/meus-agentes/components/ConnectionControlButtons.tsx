@@ -10,13 +10,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Loader2, QrCode, Settings, Unplug, Trash2 } from 'lucide-react';
+import { Loader2, QrCode, Settings, Unplug, Trash2, Shield } from 'lucide-react';
 import { UserAgent, ConnectionStatus } from '../types';
 import { useConnectionActions } from '../hooks/useConnectionActions';
 import { QRCodeDialog } from './QRCodeDialog';
 import { ConfigureInstanceDialog } from './ConfigureInstanceDialog';
 import { DeleteInstanceDialog } from './DeleteInstanceDialog';
+import { ProviderSelector } from './ProviderSelector';
+import { WabaSetupDialog } from './WabaSetupDialog';
 import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface ConnectionControlButtonsProps {
   agent: UserAgent;
@@ -33,6 +37,8 @@ export function ConnectionControlButtons({
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [providerDialogOpen, setProviderDialogOpen] = useState(false);
+  const [wabaDisconnecting, setWabaDisconnecting] = useState(false);
   const { disconnect, isDisconnecting, connect, isConnecting } = useConnectionActions(agent);
   const queryClient = useQueryClient();
 
@@ -42,7 +48,7 @@ export function ConnectionControlButtons({
 
   const handleConnected = () => {
     queryClient.invalidateQueries({
-      queryKey: ['connection-status', agent.evo_url, agent.evo_instancia],
+      queryKey: ['connection-status', agent.hub, agent.evo_url, agent.evo_instancia, agent.agent_id_from_agents],
     });
   };
 
@@ -53,6 +59,29 @@ export function ConnectionControlButtons({
 
   const handleDeleteSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ['user-agents'] });
+  };
+
+  const handleProviderSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['user-agents'] });
+    queryClient.invalidateQueries({ queryKey: ['connection-status'] });
+  };
+
+  const handleWabaDisconnect = async () => {
+    setWabaDisconnecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('waba-admin', {
+        body: { action: 'disconnect', agentId: agent.agent_id_from_agents },
+      });
+      if (error || !data?.success) throw new Error(data?.error || 'Falha ao desconectar');
+      toast.success('WhatsApp API Oficial desconectado');
+      queryClient.invalidateQueries({ queryKey: ['user-agents'] });
+      queryClient.invalidateQueries({ queryKey: ['connection-status'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao desconectar');
+    } finally {
+      setWabaDisconnecting(false);
+      setDisconnectDialogOpen(false);
+    }
   };
 
   if (isLoading || status === 'checking') {
@@ -70,22 +99,76 @@ export function ConnectionControlButtons({
         <>
           <Button
             size="sm"
-            onClick={() => setConfigDialogOpen(true)}
+            onClick={() => setProviderDialogOpen(true)}
             className="w-full bg-amber-500 hover:bg-amber-600 text-white"
           >
             <Settings className="w-4 h-4 mr-2" />
-            Configurar Instância
+            Configurar Conexão
           </Button>
-          <ConfigureInstanceDialog
-            open={configDialogOpen}
-            onOpenChange={setConfigDialogOpen}
+          <ProviderSelector
+            open={providerDialogOpen}
+            onOpenChange={setProviderDialogOpen}
             agent={agent}
-            onSuccess={handleConfigureSuccess}
+            onSuccess={handleProviderSuccess}
           />
         </>
       );
 
     case 'disconnected':
+      // Check if it was a WABA connection that is disconnected
+      if (agent.hub === 'waba') {
+        return (
+          <>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => setProviderDialogOpen(true)}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Shield className="w-4 h-4 mr-2" />
+                Reconectar
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setDisconnectDialogOpen(true)}
+                className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                title="Remover conexão"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+            <AlertDialog open={disconnectDialogOpen} onOpenChange={setDisconnectDialogOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remover conexão WABA</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Tem certeza que deseja remover a conexão API Oficial de{' '}
+                    <strong>{agent.business_name || agent.client_name || 'este agente'}</strong>?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleWabaDisconnect}
+                    className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                  >
+                    Sim, Remover
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <WabaSetupDialog
+              open={providerDialogOpen}
+              onOpenChange={setProviderDialogOpen}
+              agent={agent}
+              onSuccess={handleProviderSuccess}
+            />
+          </>
+        );
+      }
+
+      // UaZapi disconnected
       return (
         <>
           <div className="flex gap-2">
@@ -127,6 +210,48 @@ export function ConnectionControlButtons({
             agent={agent}
             onSuccess={handleDeleteSuccess}
           />
+        </>
+      );
+
+    case 'waba_connected':
+      return (
+        <>
+          <Button
+            size="sm"
+            onClick={() => setDisconnectDialogOpen(true)}
+            disabled={wabaDisconnecting}
+            className="w-full bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+          >
+            {wabaDisconnecting ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Unplug className="w-4 h-4 mr-2" />
+            )}
+            Desconectar
+          </Button>
+
+          <AlertDialog open={disconnectDialogOpen} onOpenChange={setDisconnectDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Desconectar API Oficial</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Tem certeza que deseja desconectar a API Oficial Meta de{' '}
+                  <strong>{agent.business_name || agent.client_name || 'este agente'}</strong>?
+                  <br /><br />
+                  As credenciais serão removidas e você precisará refazer o cadastro para reconectar.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleWabaDisconnect}
+                  className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                >
+                  Sim, Desconectar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </>
       );
 
