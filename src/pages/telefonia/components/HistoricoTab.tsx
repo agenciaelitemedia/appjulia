@@ -342,7 +342,7 @@ export function HistoricoTab({ codAgent }: Props) {
                           {call.direction === 'outbound' ? (
                             <span className="flex items-center gap-1">
                               <PhoneOutgoing className="h-3.5 w-3.5 text-primary" />
-                              Feita
+                              Saída
                             </span>
                           ) : (
                             <span className="flex items-center gap-1">
