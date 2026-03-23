@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
-import { Plus, Pencil, Trash2, Phone, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Plus, Pencil, Trash2, Phone, RefreshCw, CheckCircle, AlertCircle, Ban } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { RamalDialog } from './RamalDialog';
 import type { PhoneExtension } from '../types';
@@ -29,9 +30,19 @@ export function MeusRamaisTab({ codAgent }: Props) {
   };
 
   const usagePercent = maxExtensions > 0 ? (usedExtensions / maxExtensions) * 100 : 0;
+  const planDeactivated = !plan && !extensionsLoading;
 
   return (
     <div className="space-y-4">
+      {planDeactivated && (
+        <Alert variant="destructive">
+          <Ban className="h-4 w-4" />
+          <AlertDescription>
+            A telefonia está desativada para este agente. Entre em contato com o administrador.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center justify-between mb-2">
@@ -58,12 +69,12 @@ export function MeusRamaisTab({ codAgent }: Props) {
               size="sm"
               variant="outline"
               onClick={() => syncExtensions.mutate()}
-              disabled={syncExtensions.isPending}
+              disabled={syncExtensions.isPending || planDeactivated}
             >
               <RefreshCw className={`h-4 w-4 mr-1 ${syncExtensions.isPending ? 'animate-spin' : ''}`} />
               Sincronizar
             </Button>
-            <Button size="sm" onClick={() => { setEditing(null); setDialogOpen(true); }} disabled={!canCreateExtension}>
+            <Button size="sm" onClick={() => { setEditing(null); setDialogOpen(true); }} disabled={!canCreateExtension || planDeactivated}>
               <Plus className="h-4 w-4 mr-1" /> Novo Ramal
             </Button>
           </div>

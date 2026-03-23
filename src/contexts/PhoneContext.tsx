@@ -66,7 +66,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
 
   const sip = useSipPhone(handleCallEnded);
 
-  // Fetch user's extension
+  // Fetch user's extension (only if agent has active plan)
   useEffect(() => {
     if (!user?.id) return;
     const fetchExtension = async () => {
@@ -78,6 +78,19 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
         .limit(1);
       if (data && data.length > 0) {
         const ext = data[0] as unknown as PhoneExtensionInfo;
+        // Check if the agent's telephony plan is active
+        const { data: planData } = await supabase
+          .from('phone_user_plans')
+          .select('is_active')
+          .eq('cod_agent', ext.cod_agent)
+          .eq('is_active', true)
+          .limit(1);
+        if (!planData || planData.length === 0) {
+          // Agent plan is deactivated — don't enable telephony
+          setMyExtension(null);
+          setCodAgent(null);
+          return;
+        }
         setMyExtension(ext);
         setCodAgent(ext.cod_agent);
         syncQueueManager.init(ext.cod_agent);
