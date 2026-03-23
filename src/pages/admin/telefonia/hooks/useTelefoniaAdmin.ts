@@ -131,6 +131,35 @@ export function useTelefoniaAdmin() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const updateUserPlan = useMutation({
+    mutationFn: async (params: {
+      id: number;
+      planId: number;
+      billingPeriod: BillingPeriod;
+      extraExtensions: number;
+      startDate: string;
+    }) => {
+      const dueDate = calcDueDate(params.startDate, params.billingPeriod);
+
+      const { error } = await supabase
+        .from('phone_user_plans')
+        .update({
+          plan_id: params.planId,
+          billing_period: params.billingPeriod,
+          extra_extensions: params.extraExtensions,
+          start_date: params.startDate,
+          due_date: dueDate,
+        } as any)
+        .eq('id', params.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['phone-user-plans'] });
+      toast.success('Telefonia atualizada');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   // === Config (single global) ===
   const configQuery = useQuery({
     queryKey: ['phone-config-global'],
@@ -178,6 +207,7 @@ export function useTelefoniaAdmin() {
     userPlans: userPlansQuery.data || [],
     userPlansLoading: userPlansQuery.isLoading,
     assignPlan,
+    updateUserPlan,
     config: configQuery.data || null,
     configLoading: configQuery.isLoading,
     saveConfig,

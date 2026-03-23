@@ -5,9 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus } from 'lucide-react';
+import { Plus, Pencil } from 'lucide-react';
 import { useTelefoniaAdmin } from '../hooks/useTelefoniaAdmin';
 import { AddTelefoniaDialog } from './AddTelefoniaDialog';
+import { EditTelefoniaDialog } from './EditTelefoniaDialog';
 import { BILLING_PERIOD_LABELS, getPlanPriceByPeriod, type BillingPeriod, type PhoneUserPlan } from '../types';
 
 function isExpired(up: PhoneUserPlan): boolean {
@@ -18,16 +19,16 @@ function isExpired(up: PhoneUserPlan): boolean {
 export function AgentsTelefoniaTab() {
   const { userPlans, userPlansLoading, plans } = useTelefoniaAdmin();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<PhoneUserPlan | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
   const filtered = useMemo(() => {
     return userPlans.filter((up) => {
-      // Status filter
       if (statusFilter === 'active' && (!up.is_active || isExpired(up))) return false;
       if (statusFilter === 'expired' && !isExpired(up)) return false;
 
-      // Search
       if (search) {
         const q = search.toLowerCase();
         const matchCod = up.cod_agent.toLowerCase().includes(q);
@@ -41,7 +42,6 @@ export function AgentsTelefoniaTab() {
 
   const calcTotal = (up: PhoneUserPlan) => {
     const period = up.billing_period as BillingPeriod;
-    // Build a pseudo plan object for getPlanPriceByPeriod
     const planPrice = (() => {
       const map: Record<BillingPeriod, number> = {
         monthly: Number(up.price_monthly) || 0,
@@ -55,6 +55,11 @@ export function AgentsTelefoniaTab() {
     return planPrice + extrasPrice;
   };
 
+  const handleEdit = (up: PhoneUserPlan) => {
+    setEditingPlan(up);
+    setEditDialogOpen(true);
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -64,7 +69,6 @@ export function AgentsTelefoniaTab() {
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Filters */}
         <div className="flex gap-3">
           <Input
             placeholder="Buscar por código, nome ou escritório..."
@@ -99,6 +103,7 @@ export function AgentsTelefoniaTab() {
                   <TableHead>Período</TableHead>
                   <TableHead>Datas</TableHead>
                   <TableHead>Valor</TableHead>
+                  <TableHead className="w-[60px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -147,12 +152,17 @@ export function AgentsTelefoniaTab() {
                       <TableCell className="text-sm font-medium">
                         R$ {total.toFixed(2)}
                       </TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(up)} title="Editar">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center text-muted-foreground">
                       Nenhum agente encontrado
                     </TableCell>
                   </TableRow>
@@ -167,6 +177,13 @@ export function AgentsTelefoniaTab() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         plans={plans.filter(p => p.is_active)}
+      />
+
+      <EditTelefoniaDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        plans={plans.filter(p => p.is_active)}
+        userPlan={editingPlan}
       />
     </Card>
   );
