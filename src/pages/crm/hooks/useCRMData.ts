@@ -19,8 +19,8 @@ export function useCRMJuliaConversations(filters: CRMFiltersState) {
             SELECT COUNT(DISTINCT session_id) as total_conversations
             FROM vw_painelv2_desempenho_julia_all
             WHERE cod_agent::text = ANY($1::varchar[])
-              ${hasDates ? `AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date` : ''}
+              ${hasDates ? `AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date` : ''}
           `,
           params: hasDates ? [agentCodes, dateFrom, dateTo] : [agentCodes],
         });
