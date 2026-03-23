@@ -4,7 +4,7 @@ import { ptBR } from 'date-fns/locale';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { BarChart3, MessageSquare, TrendingUp, Calendar, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
+import { FileText, CheckCircle, TrendingUp, Clock, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
 import { JuliaSessao } from '../../types';
 import { getTodayInSaoPaulo, parseDbTimestamp, getPreviousPeriod } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
