@@ -92,7 +92,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, j
   }
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+    <div className="grid grid-cols-2 lg:grid-cols-7 gap-3">
       {/* 1. Atendimentos */}
       <Card className="border-l-4 border-l-chart-1">
         <CardContent className="p-4">
