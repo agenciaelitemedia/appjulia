@@ -137,6 +137,8 @@ export function ContratosTable({
   const { toast } = useToast();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [selectedContrato, setSelectedContrato] = useState<JuliaContrato | null>(null);
+  const [phoneCallOpen, setPhoneCallOpen] = useState(false);
+  const [phoneCallContrato, setPhoneCallContrato] = useState<JuliaContrato | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField] = useState<SortField | null>(null);
