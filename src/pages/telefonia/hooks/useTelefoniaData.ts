@@ -63,7 +63,7 @@ export function useTelefoniaData(codAgent: string | undefined) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-extensions'] });
-      toast.success('Ramal criado e vinculado na Api4Com');
+      toast.success('Ramal criado e vinculado com sucesso');
     },
     onError: (e: Error) => toast.error(`Erro ao criar ramal: ${e.message}`),
   });
