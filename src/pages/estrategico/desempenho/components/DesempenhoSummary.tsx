@@ -4,7 +4,7 @@ import { ptBR } from 'date-fns/locale';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { BarChart3, MessageSquare, TrendingUp, Calendar, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
+import { FileText, CheckCircle, TrendingUp, Clock, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
 import { JuliaSessao } from '../../types';
 import { getTodayInSaoPaulo, parseDbTimestamp, getPreviousPeriod } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
@@ -51,7 +51,7 @@ interface CardChange {
 interface CardData {
   title: string;
   value: string;
-  icon: typeof BarChart3;
+  icon: typeof FileText;
   color: string;
   bgColor: string;
   change: CardChange | null;
@@ -131,7 +131,7 @@ export function DesempenhoSummary({ sessoes, previousSessoes, isLoading, dateFro
     {
       title: 'Total Atendimentos',
       value: summary.totalSessoes.toLocaleString('pt-BR'),
-      icon: BarChart3,
+      icon: FileText,
       color: 'text-blue-600',
       bgColor: 'bg-blue-100',
       change: previousSummary 
@@ -141,7 +141,7 @@ export function DesempenhoSummary({ sessoes, previousSessoes, isLoading, dateFro
     {
       title: 'Total Mensagens',
       value: summary.totalMensagens.toLocaleString('pt-BR'),
-      icon: MessageSquare,
+      icon: CheckCircle,
       color: 'text-green-600',
       bgColor: 'bg-green-100',
       change: previousSummary 
@@ -161,7 +161,7 @@ export function DesempenhoSummary({ sessoes, previousSessoes, isLoading, dateFro
     {
       title: 'Atendimentos Hoje',
       value: summary.sessoesHoje.toLocaleString('pt-BR'),
-      icon: Calendar,
+      icon: Clock,
       color: 'text-orange-600',
       bgColor: 'bg-orange-100',
       change: null, // No comparison for "today" metric
