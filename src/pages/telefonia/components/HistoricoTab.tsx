@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { PhoneIncoming, PhoneOutgoing, Play, LayoutDashboard, Phone, ExternalLink } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { GravacaoPlayer } from './GravacaoPlayer';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState, CustomSelectConfig } from '@/components/filters/types';
