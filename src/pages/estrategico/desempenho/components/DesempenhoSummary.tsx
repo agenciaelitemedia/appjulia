@@ -141,7 +141,7 @@ export function DesempenhoSummary({ sessoes, previousSessoes, isLoading, dateFro
     {
       title: 'Total Mensagens',
       value: summary.totalMensagens.toLocaleString('pt-BR'),
-      icon: MessageSquare,
+      icon: CheckCircle,
       color: 'text-green-600',
       bgColor: 'bg-green-100',
       change: previousSummary 
