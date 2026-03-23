@@ -190,19 +190,16 @@ export function useTelefoniaAdmin() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // === Config (single global) ===
+  // === Config (per agent) ===
   const configQuery = useQuery({
-    queryKey: ['phone-config-global'],
-    queryFn: async (): Promise<PhoneConfig | null> => {
+    queryKey: ['phone-configs-all'],
+    queryFn: async (): Promise<PhoneConfig[]> => {
       const { data, error } = await supabase
         .from('phone_config')
         .select('*')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order('created_at', { ascending: false });
       if (error) throw error;
-      return data as unknown as PhoneConfig | null;
+      return (data || []) as unknown as PhoneConfig[];
     },
   });
 
@@ -222,8 +219,23 @@ export function useTelefoniaAdmin() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['phone-config-global'] });
+      queryClient.invalidateQueries({ queryKey: ['phone-configs-all'] });
       toast.success('Configuração salva');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteConfig = useMutation({
+    mutationFn: async (id: number) => {
+      const { error } = await supabase
+        .from('phone_config')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['phone-configs-all'] });
+      toast.success('Configuração removida');
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -240,8 +252,9 @@ export function useTelefoniaAdmin() {
     updateUserPlan,
     toggleUserPlanActive,
     deleteUserPlan,
-    config: configQuery.data || null,
-    configLoading: configQuery.isLoading,
+    configs: configQuery.data || [],
+    configsLoading: configQuery.isLoading,
     saveConfig,
+    deleteConfig,
   };
 }
