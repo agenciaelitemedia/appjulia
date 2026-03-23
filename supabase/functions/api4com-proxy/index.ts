@@ -63,8 +63,8 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get API4Com config for this agent
-    const { data: config, error: configError } = await supabase
+    // Get API4Com config — try agent-specific first, then fallback to global (any active)
+    let { data: config } = await supabase
       .from('phone_config')
       .select('*')
       .eq('cod_agent', codAgent)
@@ -73,8 +73,19 @@ serve(async (req) => {
       .limit(1)
       .maybeSingle();
 
-    if (configError || !config) {
-      throw new Error('Configuração Api4Com não encontrada para este agente');
+    if (!config) {
+      const { data: globalConfig } = await supabase
+        .from('phone_config')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      config = globalConfig;
+    }
+
+    if (!config) {
+      throw new Error('Configuração não encontrada. Configure o provedor de telefonia.');
     }
 
     const baseUrl = `https://${config.api4com_domain}/api/v1`;
