@@ -516,6 +516,16 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
         whatsappNumber={sessionDialog.whatsapp}
         codAgent={sessionDialog.codAgent}
       />
+
+      {phoneCallSessao && (
+        <PhoneCallDialog
+          open={phoneCallOpen}
+          onOpenChange={setPhoneCallOpen}
+          phoneNumber={phoneCallSessao.whatsapp}
+          contactName={phoneCallSessao.name || ''}
+          codAgent={phoneCallSessao.cod_agent}
+        />
+      )}
     </div>
   );
 }
