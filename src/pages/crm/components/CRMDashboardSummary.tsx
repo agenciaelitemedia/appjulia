@@ -15,6 +15,7 @@ interface CRMDashboardSummaryProps {
   stages: CRMStage[];
   isLoading?: boolean;
   juliaSessions?: { totalSessions: number; dailyAverage: number };
+  juliaConversations?: { totalConversations: number };
   followupMap?: Map<string, CRMFollowupInfo>;
   returnRateData?: FollowupReturnRateResult;
 }
