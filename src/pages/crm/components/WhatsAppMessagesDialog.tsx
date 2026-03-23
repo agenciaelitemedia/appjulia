@@ -892,7 +892,7 @@ export function WhatsAppMessagesDialog({
     try {
       const result = await externalDb.raw<AgentCredentials>({
         query: `
-          SELECT evo_url as api_url, evo_apikey as api_key, evo_instancia as api_instance 
+          SELECT evo_url as api_url, evo_apikey as api_key, evo_instance as api_instance 
           FROM agents 
           WHERE cod_agent = $1 AND evo_url IS NOT NULL
           LIMIT 1
