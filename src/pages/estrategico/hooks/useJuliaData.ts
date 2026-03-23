@@ -69,8 +69,8 @@ export function useJuliaSessoesPrevious(filters: JuliaFiltersState) {
           cod_agent::text, session_id, total_msg::int
         FROM vw_painelv2_desempenho_julia
         WHERE cod_agent::text = ANY($1::varchar[])
-          AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-          AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+          AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
       `;
       
       const params: any[] = [agentCodes, previousDateFrom, previousDateTo];
