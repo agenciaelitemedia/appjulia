@@ -538,6 +538,16 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
           codAgent={phoneCallSessao.cod_agent}
         />
       )}
+
+      <CRMLeadDetailsDialog
+        card={detailsCard}
+        stages={stages}
+        open={detailsOpen}
+        onOpenChange={(open) => {
+          setDetailsOpen(open);
+          if (!open) setDetailsWhatsapp(null);
+        }}
+      />
     </div>
   );
 }
