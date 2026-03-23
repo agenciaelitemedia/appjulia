@@ -26,7 +26,7 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from '@/components/ui/pagination';
-import { FileText, Eye, MessageCircle, Download, Loader2, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, Bot } from 'lucide-react';
+import { FileText, Eye, MessageCircle, Download, Loader2, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, Bot, Phone, Video, Scale } from 'lucide-react';
 import { JuliaContrato } from '../../types';
 import { formatDbDateTime, formatTimeDifference } from '@/lib/dateUtils';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
@@ -98,6 +98,33 @@ function AgentStatusIcon({ whatsapp, codAgent, onClick }: { whatsapp: string; co
     </TooltipProvider>
   );
 }
+
+const AgentStatusIconCircle = ({ whatsapp, codAgent, onClick }: { whatsapp: string; codAgent: string; onClick: () => void }) => {
+  const { isActive, isLoading } = useAgentSessionStatus(whatsapp, codAgent);
+
+  return (
+    <Button
+      variant="outline"
+      size="icon"
+      className={cn(
+        "h-7 w-7 rounded-full",
+        isLoading
+          ? "text-muted-foreground border-muted"
+          : isActive
+            ? "text-green-500 border-green-500/30 hover:bg-green-100/50 dark:hover:bg-green-900/30"
+            : "text-red-500 border-red-500/30 hover:bg-red-100/50 dark:hover:bg-red-900/30"
+      )}
+      disabled={!whatsapp}
+      onClick={onClick}
+    >
+      {isLoading ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Bot className={cn("h-3.5 w-3.5", isActive && "animate-pulse")} />
+      )}
+    </Button>
+  );
+};
 
 export function ContratosTable({
   contratos,
@@ -447,21 +474,22 @@ export function ContratosTable({
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
+                      {/* Download - only for signed */}
                       {contrato.status_document === 'SIGNED' && (
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
-                                variant="ghost"
+                                variant="outline"
                                 size="icon"
-                                className="h-8 w-8"
+                                className="h-7 w-7 rounded-full text-cyan-500 border-cyan-500/30 hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30"
                                 onClick={() => handleDownloadContract(contrato)}
                                 disabled={!contrato.zapsing_doctoken || downloadingId === contrato.zapsing_doctoken}
                               >
                                 {downloadingId === contrato.zapsing_doctoken ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                 ) : (
-                                  <Download className="h-4 w-4" />
+                                  <Download className="h-3.5 w-3.5" />
                                 )}
                               </Button>
                             </TooltipTrigger>
@@ -470,65 +498,76 @@ export function ContratosTable({
                         </TooltipProvider>
                       )}
 
-                      <AgentStatusIcon
-                        whatsapp={contrato.whatsapp}
-                        codAgent={contrato.cod_agent}
-                        onClick={() => {
-                          if (!contrato.whatsapp) return;
-                          setSessionDialog({
-                            open: true,
-                            whatsapp: contrato.whatsapp,
-                            codAgent: contrato.cod_agent,
-                          });
-                        }}
-                      />
+                      {/* Bot Status */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <AgentStatusIconCircle
+                              whatsapp={contrato.whatsapp}
+                              codAgent={contrato.cod_agent}
+                              onClick={() => {
+                                if (!contrato.whatsapp) return;
+                                setSessionDialog({
+                                  open: true,
+                                  whatsapp: contrato.whatsapp,
+                                  codAgent: contrato.cod_agent,
+                                });
+                              }}
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent>Status da Julia</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
 
+                      {/* WhatsApp */}
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="icon"
-                              className="h-8 w-8"
+                              className="h-7 w-7 rounded-full text-green-500 border-green-500/30 hover:bg-green-100/50 dark:hover:bg-green-900/30"
                               disabled={!contrato.whatsapp}
                               onClick={() => handleOpenMessages(contrato)}
                             >
-                              <MessageCircle className="h-4 w-4" />
+                              <MessageCircle className="h-3.5 w-3.5" />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Ver conversa</TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
 
+                      {/* Enviar para CRM */}
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="icon"
-                              className="h-8 w-8"
+                              className="h-7 w-7 rounded-full text-blue-500 border-blue-500/30 hover:bg-blue-100/50 dark:hover:bg-blue-900/30"
                               disabled={!contrato.whatsapp}
                               onClick={() => {
                                 if (contrato.whatsapp) navigate(`/crm/leads?whatsapp=${encodeURIComponent(contrato.whatsapp)}`);
                               }}
                             >
-                              <ExternalLink className="h-4 w-4" />
+                              <ExternalLink className="h-3.5 w-3.5" />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Ir para CRM</TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
 
+                      {/* Detalhes */}
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="icon"
-                              className="h-8 w-8"
+                              className="h-7 w-7 rounded-full text-orange-500 border-orange-500/30 hover:bg-orange-100/50 dark:hover:bg-orange-900/30"
                               onClick={() => onViewDetails(contrato)}
                             >
-                              <Eye className="h-4 w-4" />
+                              <Eye className="h-3.5 w-3.5" />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Ver detalhes</TooltipContent>
