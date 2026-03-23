@@ -521,7 +521,7 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
         <PhoneCallDialog
           open={phoneCallOpen}
           onOpenChange={setPhoneCallOpen}
-          phoneNumber={phoneCallSessao.whatsapp}
+          whatsappNumber={phoneCallSessao.whatsapp}
           contactName={phoneCallSessao.name || ''}
           codAgent={phoneCallSessao.cod_agent}
         />
