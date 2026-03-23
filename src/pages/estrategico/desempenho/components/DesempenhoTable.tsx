@@ -344,53 +344,102 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">
-                    <AgentStatusIcon
-                      whatsapp={sessao.whatsapp}
-                      codAgent={sessao.cod_agent}
-                      onClick={() => {
-                        if (!sessao.whatsapp) return;
-                        setSessionDialog({
-                          open: true,
-                          whatsapp: sessao.whatsapp,
-                          codAgent: sessao.cod_agent,
-                        });
-                      }}
-                    />
+                  <div className="flex items-center justify-end gap-1">
+                      {/* Bot Status */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <AgentStatusIcon
+                              whatsapp={sessao.whatsapp}
+                              codAgent={sessao.cod_agent}
+                              onClick={() => {
+                                if (!sessao.whatsapp) return;
+                                setSessionDialog({
+                                  open: true,
+                                  whatsapp: sessao.whatsapp,
+                                  codAgent: sessao.cod_agent,
+                                });
+                              }}
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent>Status da Julia</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
 
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            disabled={!sessao.whatsapp}
-                            onClick={() => handleOpenMessages(sessao)}
-                          >
-                            <MessageCircle className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Ver conversa</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                      {/* Telefone */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 rounded-full text-orange-500 border-orange-500/30 hover:bg-orange-100/50 dark:hover:bg-orange-900/30"
+                              disabled={!sessao.whatsapp}
+                              onClick={() => {
+                                setPhoneCallSessao(sessao);
+                                setPhoneCallOpen(true);
+                              }}
+                            >
+                              <Phone className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Ligar via ramal</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
 
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            disabled={!sessao.whatsapp}
-                            onClick={() => handleGoToCRM(sessao.whatsapp)}
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Ir para CRM</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
+                      {/* WhatsApp */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 rounded-full text-green-500 border-green-500/30 hover:bg-green-100/50 dark:hover:bg-green-900/30"
+                              disabled={!sessao.whatsapp}
+                              onClick={() => handleOpenMessages(sessao)}
+                            >
+                              <MessageCircle className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Ver conversa</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+
+                      {/* Ir para CRM */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 rounded-full text-blue-500 border-blue-500/30 hover:bg-blue-100/50 dark:hover:bg-blue-900/30"
+                              disabled={!sessao.whatsapp}
+                              onClick={() => handleGoToCRM(sessao.whatsapp)}
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Ir para CRM</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+
+                      {/* Detalhes (Eye) */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 rounded-full text-foreground border-border hover:bg-muted"
+                              onClick={() => handleOpenMessages(sessao)}
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Ver detalhes</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                 </TableCell>
               </TableRow>
             ))}
