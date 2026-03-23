@@ -33,8 +33,8 @@ export function useJuliaSessoes(filters: JuliaFiltersState) {
           status_document, max_created_at, created_at
         FROM vw_painelv2_desempenho_julia
         WHERE cod_agent::text = ANY($1::varchar[])
-          AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-          AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+          AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
       `;
       
       const params: any[] = [agentCodes, dateFrom, dateTo];
@@ -44,7 +44,7 @@ export function useJuliaSessoes(filters: JuliaFiltersState) {
         params.push(perfilAgent);
       }
       
-      query += ` ORDER BY created_at DESC`;
+      query += ` ORDER BY stage_entered_at DESC`;
       
       const result = await externalDb.raw<JuliaSessao>({ query, params });
       return result;
@@ -69,8 +69,8 @@ export function useJuliaSessoesPrevious(filters: JuliaFiltersState) {
           cod_agent::text, session_id, total_msg::int
         FROM vw_painelv2_desempenho_julia
         WHERE cod_agent::text = ANY($1::varchar[])
-          AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-          AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+          AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+          AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
       `;
       
       const params: any[] = [agentCodes, previousDateFrom, previousDateTo];
