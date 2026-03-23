@@ -26,11 +26,12 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from '@/components/ui/pagination';
-import { MessageSquare, ArrowUpDown, ArrowUp, ArrowDown, Download, MessageCircle, ExternalLink, Bot, Loader2 } from 'lucide-react';
+import { MessageSquare, ArrowUpDown, ArrowUp, ArrowDown, Download, MessageCircle, ExternalLink, Bot, Loader2, Phone, Eye } from 'lucide-react';
 import { JuliaSessao } from '../../types';
 import { formatDbDateTime } from '@/lib/dateUtils';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
 import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
+import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
 import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 import { cn } from '@/lib/utils';
 
