@@ -100,9 +100,9 @@ export function HistoricoTab({ codAgent }: Props) {
     dateTo: today,
   });
 
-  // Initialize agentCodes with all agents when list loads
-  useMemo(() => {
-    if (agentsList.length > 0 && filters.agentCodes.length === 0) {
+  // Initialize/update agentCodes when agent list changes
+  useEffect(() => {
+    if (agentsList.length > 0) {
       setFilters(prev => ({ ...prev, agentCodes: agentsList.map(a => a.cod_agent) }));
     }
   }, [agentsList]);
