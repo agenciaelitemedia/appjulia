@@ -1,32 +1,38 @@
 
 
-# Configuração por Agente + Token visível
+# Correção do erro 401 no chat de contratos
 
-## Resumo
-Reverter a aba Configuração do admin para gerenciar configs **por agente** (cada cod_agent tem seu próprio domínio/token/SIP). Adicionar toggle de visibilidade no campo Token.
+## Diagnóstico
 
-## Mudanças
+O problema está na função `loadAgentCredentials` do `WhatsAppMessagesDialog.tsx`. Ela busca credenciais da view `vw_list_client-agents-users` usando os campos `api_url`, `api_key`, `api_instance`. Porém, esses campos na view estão com valores desatualizados ou mapeiam colunas antigas.
 
-### 1. `ConfigTab.tsx` — listagem + formulário por agente
-- Manter seção Webhook (URL para copiar, somente leitura)
-- Substituir formulário único por:
-  - **Tabela** listando todas as configs existentes (cod_agent, domínio, SIP, status, ações editar/excluir)
-  - **Botão "Nova Configuração"** que abre formulário com: Cód. Agente, Domínio API, Domínio SIP, Token
-- Token: adicionar botão Eye/EyeOff para alternar entre `type="password"` e `type="text"`
-- Na tabela, token aparece mascarado com botão para revelar
+As credenciais válidas do UaZapi estão na tabela `agents` nos campos `evo_url`, `evo_apikey`, `evo_instancia` — como já é feito corretamente no `datajud-monitor` e no `UaZapiContext`.
 
-### 2. `useTelefoniaAdmin.ts` — query e mutations de config
-- `configQuery`: buscar **todas** as configs ativas (`phone_config` sem limit 1)
-- `saveConfig`: manter como está (upsert por id)
-- Adicionar `deleteConfig` mutation
-- Retornar `configs` (array) em vez de `config` (singular)
+O token retornado pela view (`3c888ef2-...`) é rejeitado pela API UaZapi com "Invalid token", confirmando que é um token antigo/incorreto.
 
-### 3. Edge Function — sem mudança
-A edge function já busca config por `cod_agent` primeiro e faz fallback para global. Funciona perfeitamente com múltiplas configs.
+## Solução
 
-## Arquivos alterados
+### `WhatsAppMessagesDialog.tsx` — alterar query de credenciais
+
+Trocar a query de:
+```sql
+SELECT api_url, api_key, api_instance 
+FROM "vw_list_client-agents-users" 
+WHERE cod_agent = $1
+```
+
+Para:
+```sql
+SELECT evo_url as api_url, evo_apikey as api_key, evo_instancia as api_instance 
+FROM agents 
+WHERE cod_agent = $1 AND evo_url IS NOT NULL
+LIMIT 1
+```
+
+Isso busca diretamente da tabela `agents` os campos corretos e válidos, usando aliases para manter compatibilidade com o restante do código (interface `AgentCredentials`).
+
+## Arquivo alterado
 | Arquivo | Ação |
 |---|---|
-| `src/pages/admin/telefonia/components/ConfigTab.tsx` | Reescrever: tabela de configs + formulário por agente + toggle token |
-| `src/pages/admin/telefonia/hooks/useTelefoniaAdmin.ts` | Query retorna array, adicionar deleteConfig |
+| `src/pages/crm/components/WhatsAppMessagesDialog.tsx` | Alterar query na função `loadAgentCredentials` |
 
