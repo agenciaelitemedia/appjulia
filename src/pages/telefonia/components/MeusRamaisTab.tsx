@@ -30,9 +30,19 @@ export function MeusRamaisTab({ codAgent }: Props) {
   };
 
   const usagePercent = maxExtensions > 0 ? (usedExtensions / maxExtensions) * 100 : 0;
+  const planDeactivated = !plan && !extensionsLoading;
 
   return (
     <div className="space-y-4">
+      {planDeactivated && (
+        <Alert variant="destructive">
+          <Ban className="h-4 w-4" />
+          <AlertDescription>
+            A telefonia está desativada para este agente. Entre em contato com o administrador.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center justify-between mb-2">
