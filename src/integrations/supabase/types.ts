@@ -930,31 +930,46 @@ export type Database = {
         Row: {
           created_at: string
           description: string | null
+          extra_extension_price: number
           id: number
           is_active: boolean
           max_extensions: number
           name: string
           price: number
+          price_annual: number
+          price_monthly: number
+          price_quarterly: number
+          price_semiannual: number
           updated_at: string
         }
         Insert: {
           created_at?: string
           description?: string | null
+          extra_extension_price?: number
           id?: number
           is_active?: boolean
           max_extensions?: number
           name: string
           price?: number
+          price_annual?: number
+          price_monthly?: number
+          price_quarterly?: number
+          price_semiannual?: number
           updated_at?: string
         }
         Update: {
           created_at?: string
           description?: string | null
+          extra_extension_price?: number
           id?: number
           is_active?: boolean
           max_extensions?: number
           name?: string
           price?: number
+          price_annual?: number
+          price_monthly?: number
+          price_quarterly?: number
+          price_semiannual?: number
           updated_at?: string
         }
         Relationships: []
@@ -1016,24 +1031,42 @@ export type Database = {
       phone_user_plans: {
         Row: {
           assigned_at: string
+          billing_period: string
+          business_name: string | null
+          client_name: string | null
           cod_agent: string
+          due_date: string | null
+          extra_extensions: number
           id: number
           is_active: boolean
           plan_id: number
+          start_date: string
         }
         Insert: {
           assigned_at?: string
+          billing_period?: string
+          business_name?: string | null
+          client_name?: string | null
           cod_agent: string
+          due_date?: string | null
+          extra_extensions?: number
           id?: number
           is_active?: boolean
           plan_id: number
+          start_date?: string
         }
         Update: {
           assigned_at?: string
+          billing_period?: string
+          business_name?: string | null
+          client_name?: string | null
           cod_agent?: string
+          due_date?: string | null
+          extra_extensions?: number
           id?: number
           is_active?: boolean
           plan_id?: number
+          start_date?: string
         }
         Relationships: [
           {
