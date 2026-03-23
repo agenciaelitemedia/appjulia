@@ -189,8 +189,6 @@ export function useTelefoniaData(codAgent: string | undefined) {
     updateExtension,
     deleteExtension,
     syncExtensions,
-    callHistory: historyQuery.data || [],
-    callHistoryLoading: historyQuery.isLoading,
     dial,
     getSipCredentials,
     
