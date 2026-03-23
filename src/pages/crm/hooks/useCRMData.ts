@@ -16,7 +16,7 @@ export function useCRMJuliaConversations(filters: CRMFiltersState) {
         const hasDates = dateFrom && dateTo;
         const result = await externalDb.raw<{ total_conversations: string }>({
           query: `
-            SELECT COUNT(DISTINCT session_id) as total_conversations
+            SELECT COUNT(whatsapp) as total_conversations
             FROM vw_painelv2_desempenho_julia_all
             WHERE cod_agent::text = ANY($1::varchar[])
               ${hasDates ? `AND (stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
