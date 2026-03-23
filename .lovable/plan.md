@@ -1,25 +1,23 @@
 
 
-# Unificar contagem Desempenho Julia com CRM Atendimentos
+# Implementar Suporte a API Oficial Meta (WABA) nos Agentes
 
-## Problema
+## Status: ✅ Implementado
 
-| Local | View | Filtro de data | Contagem |
-|---|---|---|---|
-| CRM — card "Atendimentos" | `vw_painelv2_desempenho_julia` | `stage_entered_at` | COUNT(DISTINCT session_id) via SQL |
-| Desempenho Julia — "Total Atendimentos" | `vw_painelv2_desempenho_julia` | `created_at` | Distinct session_id via JS (Set) |
+### O que foi feito
 
-Mesma view, mas filtros de data em colunas diferentes (`stage_entered_at` vs `created_at`) geram contagens diferentes.
+1. **Edge Function `waba-admin`** — exchange_token, save_credentials, verify_connection, disconnect
+2. **Edge Function `db-query`** — 3 novos cases WABA + campos waba_id/waba_number_id/waba_configured no get_user_agents
+3. **Frontend** — ProviderSelector, WabaSetupDialog, ConnectionStatusBadge (API Oficial badge), ConnectionControlButtons (suporte WABA), AgentCard (info por provider), useConnectionStatus (branch WABA)
+4. **Tipos** — WhatsAppProvider type, campos WABA no UserAgent, status waba_connected
 
-## Solução
+### ⚠️ SQL pendente no banco externo
 
-Alterar a query do hook `useJuliaSessoes` (usado pela página Desempenho) para filtrar por `stage_entered_at` em vez de `created_at`, alinhando com o CRM.
+Executar manualmente no banco externo:
 
-Fazer o mesmo no hook `useJuliaSessoesPrevious` para manter a comparação consistente.
-
-## Arquivos alterados
-
-| Arquivo | Ação |
-|---|---|
-| `src/pages/estrategico/hooks/useJuliaData.ts` | No `useJuliaSessoes`: trocar `created_at` por `stage_entered_at` nas cláusulas WHERE de data. No `useJuliaSessoesPrevious`: mesma troca. |
-
+```sql
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS waba_id VARCHAR(50) DEFAULT NULL;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS waba_token TEXT DEFAULT NULL;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS waba_number_id VARCHAR(50) DEFAULT NULL;
+CREATE INDEX IF NOT EXISTS idx_agents_waba_id ON agents(waba_id) WHERE waba_id IS NOT NULL;
+```
