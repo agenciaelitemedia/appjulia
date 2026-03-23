@@ -161,7 +161,7 @@ export function DesempenhoSummary({ sessoes, previousSessoes, isLoading, dateFro
     {
       title: 'Atendimentos Hoje',
       value: summary.sessoesHoje.toLocaleString('pt-BR'),
-      icon: Calendar,
+      icon: Clock,
       color: 'text-orange-600',
       bgColor: 'bg-orange-100',
       change: null, // No comparison for "today" metric
