@@ -1,14 +1,25 @@
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Phone, PhoneOutgoing, Clock, TrendingUp } from 'lucide-react';
-import { useTelefoniaData } from '../hooks/useTelefoniaData';
+import { useCallHistoryQuery } from '../hooks/useCallHistoryQuery';
+import { getTodayInSaoPaulo, get30DaysAgoInSaoPaulo } from '@/lib/dateUtils';
 
 interface Props {
   codAgent: string;
 }
 
 export function RelatoriosTab({ codAgent }: Props) {
-  const { callHistory } = useTelefoniaData(codAgent);
+  const today = getTodayInSaoPaulo();
+  const thirtyDaysAgo = get30DaysAgoInSaoPaulo();
+
+  const { data: historyResult } = useCallHistoryQuery(codAgent, {
+    dateFrom: thirtyDaysAgo,
+    dateTo: today,
+    page: 0,
+    pageSize: 1000,
+  });
+
+  const callHistory = historyResult?.data || [];
 
   const stats = useMemo(() => {
     const total = callHistory.length;
@@ -57,7 +68,7 @@ export function RelatoriosTab({ codAgent }: Props) {
         </CardHeader>
         <CardContent>
           <p className="text-3xl font-bold text-primary">R$ {stats.totalCost.toFixed(2)}</p>
-          <p className="text-sm text-muted-foreground mt-1">Custo acumulado de todas as chamadas</p>
+          <p className="text-sm text-muted-foreground mt-1">Custo acumulado dos últimos 30 dias</p>
         </CardContent>
       </Card>
     </div>

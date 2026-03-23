@@ -125,21 +125,7 @@ export function useTelefoniaData(codAgent: string | undefined) {
     onError: (e: Error) => toast.error(`Erro ao sincronizar: ${e.message}`),
   });
 
-  // Call history for agent
-  const historyQuery = useQuery({
-    queryKey: ['my-call-history', codAgent],
-    queryFn: async (): Promise<PhoneCallLog[]> => {
-      const { data, error } = await supabase
-        .from('phone_call_logs')
-        .select('*')
-        .eq('cod_agent', codAgent!)
-        .order('created_at', { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return data as unknown as PhoneCallLog[];
-    },
-    enabled: !!codAgent,
-  });
+  // Call history moved to useCallHistoryQuery for server-side filtering + pagination
 
   // Dial via REST (using extensionId for proper resolution)
   const dial = useMutation({
@@ -203,8 +189,6 @@ export function useTelefoniaData(codAgent: string | undefined) {
     updateExtension,
     deleteExtension,
     syncExtensions,
-    callHistory: historyQuery.data || [],
-    callHistoryLoading: historyQuery.isLoading,
     dial,
     getSipCredentials,
     
