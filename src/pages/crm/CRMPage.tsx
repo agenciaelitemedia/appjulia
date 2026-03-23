@@ -48,6 +48,7 @@ export default function CRMPage() {
   const { data: agents = [], isLoading: agentsLoading } = useCRMAgents();
   const { data: cards = [], isLoading: cardsLoading, refetch } = useCRMCards(filters);
   const { data: juliaSessions } = useCRMJuliaSessions(filters);
+  const { data: juliaConversations } = useCRMJuliaConversations(filters);
   const { data: followupMap = new Map() } = useFollowupActiveLeads(filters.agentCodes, filters.dateFrom, filters.dateTo);
   const { data: returnRateData } = useFollowupReturnRate(filters.agentCodes, filters.dateFrom, filters.dateTo);
 
