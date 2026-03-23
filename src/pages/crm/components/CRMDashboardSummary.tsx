@@ -93,37 +93,17 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, j
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-7 gap-3">
-      {/* 1. Atendimentos */}
-      <Card className="border-l-4 border-l-chart-1">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <p className="text-xs text-muted-foreground font-medium">Atendimentos</p>
-              <p className="text-2xl font-bold text-foreground">{stats.totalSessions}</p>
-              <p className="text-xs text-muted-foreground">Via Júlia no período</p>
-            </div>
-            <div className="w-20 h-12">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={stats.dailyTrend}>
-                  <Line type="monotone" dataKey="count" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 2. Conversas */}
+      {/* 1. Conversas do Whatsapp */}
       <Card className="border-l-4 border-l-chart-2">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-1.5 mb-1">
                 <MessageSquare className="h-3.5 w-3.5 text-chart-2" />
-                <p className="text-xs text-muted-foreground font-medium">Conversas</p>
+                <p className="text-xs text-muted-foreground font-medium">Conversas do Whatsapp</p>
               </div>
               <p className="text-2xl font-bold text-foreground">{juliaConversations?.totalConversations ?? 0}</p>
-              <p className="text-xs text-muted-foreground">Todas via Júlia</p>
+              <p className="text-xs text-muted-foreground">Todas interações Júlia</p>
             </div>
             <div className="p-2 bg-chart-2/10 rounded-full">
               <MessageSquare className="h-5 w-5 text-chart-2" />
@@ -132,6 +112,26 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, j
         </CardContent>
       </Card>
 
+      {/* 2. Atendimentos */}
+      <Card className="border-l-4 border-l-chart-1">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Target className="h-3.5 w-3.5 text-chart-1" />
+                <p className="text-xs text-muted-foreground font-medium">Atendimentos</p>
+              </div>
+              <p className="text-2xl font-bold text-foreground">{stats.totalSessions}</p>
+              <p className="text-xs text-muted-foreground">Via Júlia no período</p>
+            </div>
+            <div className="p-2 bg-chart-1/10 rounded-full">
+              <Target className="h-5 w-5 text-chart-1" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 3. FollowUp Ativos */}
       <Card className="border-l-4 border-l-chart-3">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
@@ -150,7 +150,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, j
         </CardContent>
       </Card>
 
-      {/* 3. Taxa de Retorno */}
+      {/* 4. Taxa de Retorno */}
       <Card className="border-l-4 border-l-chart-1">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
@@ -169,12 +169,15 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, j
         </CardContent>
       </Card>
 
-      {/* 4. Taxa Contratos */}
+      {/* 5. Taxa Contratos */}
       <Card className="border-l-4 border-l-chart-2">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground font-medium">Taxa Contratos</p>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Target className="h-3.5 w-3.5 text-chart-2" />
+                <p className="text-xs text-muted-foreground font-medium">Taxa Contratos</p>
+              </div>
               <p className="text-2xl font-bold text-foreground">{stats.conversionRate.toFixed(1)}%</p>
               <p className="text-xs text-muted-foreground">Leads convertidos</p>
             </div>
@@ -185,12 +188,15 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, j
         </CardContent>
       </Card>
 
-      {/* 4. Qualificados */}
+      {/* 6. Qualificados */}
       <Card className="border-l-4 border-l-chart-4">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground font-medium">Qualificados</p>
+              <div className="flex items-center gap-1.5 mb-1">
+                <CheckCircle className="h-3.5 w-3.5 text-chart-4" />
+                <p className="text-xs text-muted-foreground font-medium">Qualificados</p>
+              </div>
               <p className="text-2xl font-bold text-foreground">{stats.qualifiedRate.toFixed(1)}%</p>
               <p className="text-xs text-muted-foreground">Aptos para contrato</p>
             </div>
@@ -201,12 +207,15 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, j
         </CardContent>
       </Card>
 
-      {/* 5. Desqualificado */}
+      {/* 7. Desqualificado */}
       <Card className="border-l-4 border-l-chart-5">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground font-medium">Desqualificado</p>
+              <div className="flex items-center gap-1.5 mb-1">
+                <XCircle className="h-3.5 w-3.5 text-chart-5" />
+                <p className="text-xs text-muted-foreground font-medium">Desqualificado</p>
+              </div>
               <p className="text-2xl font-bold text-foreground">{stats.disqualifiedRate.toFixed(1)}%</p>
               <p className="text-xs text-muted-foreground">Sem perfil adequado</p>
             </div>
