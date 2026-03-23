@@ -5,11 +5,13 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Pencil } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Plus, MoreHorizontal, Pencil, Power, Trash2 } from 'lucide-react';
 import { useTelefoniaAdmin } from '../hooks/useTelefoniaAdmin';
 import { AddTelefoniaDialog } from './AddTelefoniaDialog';
 import { EditTelefoniaDialog } from './EditTelefoniaDialog';
-import { BILLING_PERIOD_LABELS, getPlanPriceByPeriod, type BillingPeriod, type PhoneUserPlan } from '../types';
+import { BILLING_PERIOD_LABELS, type BillingPeriod, type PhoneUserPlan } from '../types';
 
 function isExpired(up: PhoneUserPlan): boolean {
   if (!up.due_date) return false;
@@ -17,17 +19,19 @@ function isExpired(up: PhoneUserPlan): boolean {
 }
 
 export function AgentsTelefoniaTab() {
-  const { userPlans, userPlansLoading, plans } = useTelefoniaAdmin();
+  const { userPlans, userPlansLoading, plans, toggleUserPlanActive, deleteUserPlan } = useTelefoniaAdmin();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<PhoneUserPlan | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [deleteTarget, setDeleteTarget] = useState<PhoneUserPlan | null>(null);
 
   const filtered = useMemo(() => {
     return userPlans.filter((up) => {
       if (statusFilter === 'active' && (!up.is_active || isExpired(up))) return false;
       if (statusFilter === 'expired' && !isExpired(up)) return false;
+      if (statusFilter === 'inactive' && up.is_active) return false;
 
       if (search) {
         const q = search.toLowerCase();
@@ -42,15 +46,13 @@ export function AgentsTelefoniaTab() {
 
   const calcTotal = (up: PhoneUserPlan) => {
     const period = up.billing_period as BillingPeriod;
-    const planPrice = (() => {
-      const map: Record<BillingPeriod, number> = {
-        monthly: Number(up.price_monthly) || 0,
-        quarterly: Number(up.price_quarterly) || 0,
-        semiannual: Number(up.price_semiannual) || 0,
-        annual: Number(up.price_annual) || 0,
-      };
-      return map[period] || 0;
-    })();
+    const map: Record<BillingPeriod, number> = {
+      monthly: Number(up.price_monthly) || 0,
+      quarterly: Number(up.price_quarterly) || 0,
+      semiannual: Number(up.price_semiannual) || 0,
+      annual: Number(up.price_annual) || 0,
+    };
+    const planPrice = map[period] || 0;
     const extrasPrice = (up.extra_extensions || 0) * (Number(up.extra_extension_price) || 0);
     return planPrice + extrasPrice;
   };
@@ -58,6 +60,17 @@ export function AgentsTelefoniaTab() {
   const handleEdit = (up: PhoneUserPlan) => {
     setEditingPlan(up);
     setEditDialogOpen(true);
+  };
+
+  const handleToggleActive = (up: PhoneUserPlan) => {
+    toggleUserPlanActive.mutate({ id: up.id, isActive: !up.is_active });
+  };
+
+  const handleDelete = () => {
+    if (deleteTarget) {
+      deleteUserPlan.mutate(deleteTarget.id);
+      setDeleteTarget(null);
+    }
   };
 
   return (
@@ -84,6 +97,7 @@ export function AgentsTelefoniaTab() {
               <SelectItem value="all">Todos</SelectItem>
               <SelectItem value="active">Ativos</SelectItem>
               <SelectItem value="expired">Vencidos</SelectItem>
+              <SelectItem value="inactive">Inativos</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -112,12 +126,13 @@ export function AgentsTelefoniaTab() {
                   const totalRamais = (up.max_extensions || 0) + (up.extra_extensions || 0);
                   const total = calcTotal(up);
 
+                  const statusLabel = !up.is_active ? 'Inativo' : expired ? 'Vencido' : 'Ativo';
+                  const statusVariant = !up.is_active ? 'secondary' : expired ? 'destructive' : 'default';
+
                   return (
-                    <TableRow key={up.id}>
+                    <TableRow key={up.id} className={!up.is_active ? 'opacity-60' : ''}>
                       <TableCell>
-                        <Badge variant={expired ? 'destructive' : up.is_active ? 'default' : 'secondary'}>
-                          {expired ? 'Vencido' : up.is_active ? 'Ativo' : 'Inativo'}
-                        </Badge>
+                        <Badge variant={statusVariant}>{statusLabel}</Badge>
                       </TableCell>
                       <TableCell className="font-mono text-xs">{up.cod_agent}</TableCell>
                       <TableCell>
@@ -153,9 +168,27 @@ export function AgentsTelefoniaTab() {
                         R$ {total.toFixed(2)}
                       </TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => handleEdit(up)} title="Editar">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEdit(up)}>
+                              <Pencil className="h-4 w-4 mr-2" /> Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleToggleActive(up)}>
+                              <Power className="h-4 w-4 mr-2" /> {up.is_active ? 'Desativar' : 'Ativar'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => setDeleteTarget(up)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" /> Remover
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   );
@@ -185,6 +218,23 @@ export function AgentsTelefoniaTab() {
         plans={plans.filter(p => p.is_active)}
         userPlan={editingPlan}
       />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover telefonia</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja remover a telefonia do agente <strong>{deleteTarget?.cod_agent}</strong>? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
