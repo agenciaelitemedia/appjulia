@@ -194,8 +194,8 @@ export function HistoricoTab({ codAgent }: Props) {
       onChange: setDirectionFilter,
       options: [
         { value: 'all', label: 'Todos' },
-        { value: 'outbound', label: 'Sainte' },
-        { value: 'inbound', label: 'Entrante' },
+        { value: 'outbound', label: 'Feitas' },
+        { value: 'inbound', label: 'Recebidas' },
       ],
       width: 'w-[130px]',
     },
