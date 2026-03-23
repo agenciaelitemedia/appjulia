@@ -99,6 +99,33 @@ function AgentStatusIcon({ whatsapp, codAgent, onClick }: { whatsapp: string; co
   );
 }
 
+const AgentStatusIconCircle = ({ whatsapp, codAgent, onClick }: { whatsapp: string; codAgent: string; onClick: () => void }) => {
+  const { isActive, isLoading } = useAgentSessionStatus(whatsapp, codAgent);
+
+  return (
+    <Button
+      variant="outline"
+      size="icon"
+      className={cn(
+        "h-7 w-7 rounded-full",
+        isLoading
+          ? "text-muted-foreground border-muted"
+          : isActive
+            ? "text-green-500 border-green-500/30 hover:bg-green-100/50 dark:hover:bg-green-900/30"
+            : "text-red-500 border-red-500/30 hover:bg-red-100/50 dark:hover:bg-red-900/30"
+      )}
+      disabled={!whatsapp}
+      onClick={onClick}
+    >
+      {isLoading ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Bot className={cn("h-3.5 w-3.5", isActive && "animate-pulse")} />
+      )}
+    </Button>
+  );
+};
+
 export function ContratosTable({
   contratos,
   isLoading,
