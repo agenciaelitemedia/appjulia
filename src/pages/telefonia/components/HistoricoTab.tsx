@@ -2,14 +2,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PhoneIncoming, PhoneOutgoing, Play, LayoutDashboard, Phone, ExternalLink } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, Play, LayoutDashboard, Phone, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
+import { useCallHistoryQuery } from '../hooks/useCallHistoryQuery';
 import { GravacaoPlayer } from './GravacaoPlayer';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState, CustomSelectConfig } from '@/components/filters/types';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
+
+const PAGE_SIZE = 50;
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -63,9 +66,10 @@ interface Props {
 }
 
 export function HistoricoTab({ codAgent }: Props) {
-  const { callHistory, callHistoryLoading, extensions } = useTelefoniaData(codAgent);
+  const { extensions } = useTelefoniaData(codAgent);
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
   const navigate = useNavigate();
+  const [page, setPage] = useState(0);
 
   // Telephony-specific filters (managed locally)
   const [directionFilter, setDirectionFilter] = useState('all');
@@ -84,7 +88,6 @@ export function HistoricoTab({ codAgent }: Props) {
         });
       }
     }
-    // Ensure current codAgent is always in the list
     if (!agentMap.has(codAgent)) {
       agentMap.set(codAgent, { cod_agent: codAgent, owner_name: codAgent });
     }
@@ -107,15 +110,77 @@ export function HistoricoTab({ codAgent }: Props) {
     }
   }, [agentsList]);
 
-  const extensionNameMap = new Map<string, string>();
-  const extensionCodAgentMap = new Map<string, string>();
-  for (const ext of extensions) {
-    if (ext.extension_number) {
-      const name = ext.api4com_first_name || ext.label || ext.extension_number;
-      extensionNameMap.set(ext.extension_number, name);
-      extensionCodAgentMap.set(ext.extension_number, ext.api4com_last_name || codAgent);
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(0);
+  }, [filters.dateFrom, filters.dateTo, directionFilter, causeFilter, originFilter, filters.search, filters.agentCodes]);
+
+  // Server-side query with date, direction, cause filters + pagination
+  const { data: historyResult, isLoading: callHistoryLoading } = useCallHistoryQuery(codAgent, {
+    dateFrom: filters.dateFrom,
+    dateTo: filters.dateTo,
+    direction: directionFilter,
+    cause: causeFilter,
+    page,
+    pageSize: PAGE_SIZE,
+  });
+
+  const serverData = historyResult?.data || [];
+  const totalCount = historyResult?.totalCount || 0;
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+
+  // Extension maps for display
+  const extensionNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const ext of extensions) {
+      if (ext.extension_number) {
+        map.set(ext.extension_number, ext.api4com_first_name || ext.label || ext.extension_number);
+      }
     }
-  }
+    return map;
+  }, [extensions]);
+
+  const extensionCodAgentMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const ext of extensions) {
+      if (ext.extension_number) {
+        map.set(ext.extension_number, ext.api4com_last_name || codAgent);
+      }
+    }
+    return map;
+  }, [extensions, codAgent]);
+
+  // Client-side filters for origin, search, agent (can't filter these in DB easily)
+  const filteredHistory = useMemo(() => {
+    return serverData.filter((call) => {
+      // Agent filter
+      if (filters.agentCodes.length > 0 && filters.agentCodes.length < agentsList.length) {
+        const extKey = call.extension_number || call.caller || '';
+        const callAgent = extensionCodAgentMap.get(extKey) || codAgent;
+        if (!filters.agentCodes.includes(callAgent)) return false;
+      }
+      // Search
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        const qDigits = filters.search.replace(/\D/g, '');
+        const calledClean = (call.called || '').replace(/\D/g, '');
+        const callerClean = (call.caller || '').replace(/\D/g, '');
+        const extKey = call.extension_number || call.caller || '';
+        const attendant = (extensionNameMap.get(extKey) || '').toLowerCase();
+        const extCodAgent = (extensionCodAgentMap.get(extKey) || codAgent || '').toLowerCase();
+        const matchNumber = qDigits && (calledClean.includes(qDigits) || callerClean.includes(qDigits));
+        const matchName = attendant.includes(q) || extCodAgent.includes(q);
+        if (!matchNumber && !matchName) return false;
+      }
+      // Origin (client-side, stored in metadata)
+      if (originFilter !== 'all') {
+        const meta = call.metadata || {};
+        const origin = (meta as any)?.origin || 'MANUAL';
+        if (originFilter !== origin) return false;
+      }
+      return true;
+    });
+  }, [serverData, filters.search, filters.agentCodes, originFilter, agentsList.length, extensionNameMap, extensionCodAgentMap, codAgent]);
 
   const handleGoToCrm = (whatsappNumber: string) => {
     navigate(`/crm/leads?whatsapp=${encodeURIComponent(whatsappNumber)}`);
@@ -163,56 +228,6 @@ export function HistoricoTab({ codAgent }: Props) {
     },
   ];
 
-  const filteredHistory = useMemo(() => {
-    return callHistory.filter((call) => {
-      // Agent filter (by last_name / cod_agent)
-      if (filters.agentCodes.length > 0 && filters.agentCodes.length < agentsList.length) {
-        const extKey = call.extension_number || call.caller || '';
-        const callAgent = extensionCodAgentMap.get(extKey) || codAgent;
-        if (!filters.agentCodes.includes(callAgent)) return false;
-      }
-      // Search
-      if (filters.search) {
-        const q = filters.search.toLowerCase();
-        const qDigits = filters.search.replace(/\D/g, '');
-        const calledClean = (call.called || '').replace(/\D/g, '');
-        const callerClean = (call.caller || '').replace(/\D/g, '');
-        const extKey = call.extension_number || call.caller || '';
-        const attendant = (extensionNameMap.get(extKey) || '').toLowerCase();
-        const extCodAgent = (extensionCodAgentMap.get(extKey) || codAgent || '').toLowerCase();
-        const matchNumber = qDigits && (calledClean.includes(qDigits) || callerClean.includes(qDigits));
-        const matchName = attendant.includes(q) || extCodAgent.includes(q);
-        if (!matchNumber && !matchName) return false;
-      }
-      // Direction
-      if (directionFilter !== 'all') {
-        const isOutbound = call.direction === 'outbound' || call.direction === 'Sainte';
-        if (directionFilter === 'outbound' && !isOutbound) return false;
-        if (directionFilter === 'inbound' && isOutbound) return false;
-      }
-      // Origin
-      if (originFilter !== 'all') {
-        const meta = call.metadata || {};
-        const origin = (meta as any)?.origin || 'MANUAL';
-        if (originFilter !== origin) return false;
-      }
-      // Cause
-      if (causeFilter !== 'all') {
-        if ((call.hangup_cause || '') !== causeFilter) return false;
-      }
-      // Date range (using started_at)
-      if (filters.dateFrom && call.started_at) {
-        if (new Date(call.started_at) < new Date(filters.dateFrom)) return false;
-      }
-      if (filters.dateTo && call.started_at) {
-        const end = new Date(filters.dateTo);
-        end.setHours(23, 59, 59, 999);
-        if (new Date(call.started_at) > end) return false;
-      }
-      return true;
-    });
-  }, [callHistory, filters.search, filters.dateFrom, filters.dateTo, filters.agentCodes, directionFilter, originFilter, causeFilter, agentsList.length]);
-
   return (
     <div className="space-y-4">
       <UnifiedFilters
@@ -230,7 +245,10 @@ export function HistoricoTab({ codAgent }: Props) {
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Histórico de Chamadas</CardTitle>
-            <span className="text-xs text-muted-foreground">{filteredHistory.length} registro(s)</span>
+            <span className="text-xs text-muted-foreground">
+              {filteredHistory.length} de {totalCount} registro(s)
+              {totalPages > 1 && ` · Página ${page + 1} de ${totalPages}`}
+            </span>
           </div>
         </CardHeader>
         <CardContent>
@@ -359,6 +377,38 @@ export function HistoricoTab({ codAgent }: Props) {
                   )}
                 </TableBody>
               </Table>
+            </div>
+          )}
+
+          {/* Pagination controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-4 border-t mt-4">
+              <span className="text-xs text-muted-foreground">
+                {totalCount} registro(s) no total
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Anterior
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  {page + 1} / {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                  disabled={page >= totalPages - 1}
+                >
+                  Próxima
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
