@@ -149,25 +149,22 @@ function truncateText(text: string | undefined, maxLength: number): string {
             )}
 
             {/* Action badges bar */}
-            <div className="flex items-center gap-1 flex-wrap">
-              {/* Contract */}
+            <Badge variant="outline" className="w-full flex items-center justify-end gap-1 px-1.5 py-1 rounded-md">
               {card.has_contract_history && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
+                      <button
                         className={cn(
-                          "h-7 w-7 rounded-full",
+                          "h-6 w-6 rounded-full flex items-center justify-center transition-colors",
                           isContractSigned
-                            ? "text-green-500 border-green-500/30 hover:bg-green-100/50 dark:hover:bg-green-900/30"
-                            : "text-cyan-500 border-cyan-500/30 hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30"
+                            ? "text-green-500 hover:bg-green-100/50 dark:hover:bg-green-900/30"
+                            : "text-cyan-500 hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30"
                         )}
                         onClick={handleContract}
                       >
                         <Scale className="h-3.5 w-3.5" />
-                      </Button>
+                      </button>
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>{isContractSigned ? 'Contrato Assinado' : 'Contrato em Curso'}</p>
@@ -175,72 +172,60 @@ function truncateText(text: string | undefined, maxLength: number): string {
                   </Tooltip>
                 </TooltipProvider>
               )}
-              {/* Video Call */}
               {canStartVideoCall && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7 rounded-full text-blue-500 border-blue-500/30 hover:bg-blue-100/50 dark:hover:bg-blue-900/30"
+                      <button
+                        className="h-6 w-6 rounded-full flex items-center justify-center text-blue-500 hover:bg-blue-100/50 dark:hover:bg-blue-900/30 transition-colors"
                         onClick={handleVideoCall}
                       >
                         <Video className="h-3.5 w-3.5" />
-                      </Button>
+                      </button>
                     </TooltipTrigger>
                     <TooltipContent><p>Videochamada</p></TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               )}
-              {/* Phone Call */}
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-7 w-7 rounded-full text-orange-500 border-orange-500/30 hover:bg-orange-100/50 dark:hover:bg-orange-900/30"
+                    <button
+                      className="h-6 w-6 rounded-full flex items-center justify-center text-orange-500 hover:bg-orange-100/50 dark:hover:bg-orange-900/30 transition-colors"
                       onClick={handlePhoneCall}
                     >
                       <Phone className="h-3.5 w-3.5" />
-                    </Button>
+                    </button>
                   </TooltipTrigger>
                   <TooltipContent><p>Ligar via ramal</p></TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-              {/* WhatsApp */}
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-7 w-7 rounded-full text-green-500 border-green-500/30 hover:bg-green-100/50 dark:hover:bg-green-900/30"
+                    <button
+                      className="h-6 w-6 rounded-full flex items-center justify-center text-green-500 hover:bg-green-100/50 dark:hover:bg-green-900/30 transition-colors"
                       onClick={handleWhatsApp}
                     >
                       <MessageCircle className="h-3.5 w-3.5" />
-                    </Button>
+                    </button>
                   </TooltipTrigger>
                   <TooltipContent><p>Mensagens WhatsApp</p></TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-              {/* Bot Status */}
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
+                    <button
                       className={cn(
-                        "h-7 w-7 rounded-full",
+                        "h-6 w-6 rounded-full flex items-center justify-center transition-colors",
                         isAgentLoading
-                          ? "text-muted-foreground border-muted"
+                          ? "text-muted-foreground"
                           : isAgentActive === null
-                            ? "text-muted-foreground border-muted"
+                            ? "text-muted-foreground"
                             : isAgentActive
-                              ? "text-green-500 border-green-500/30 hover:bg-green-100/50 dark:hover:bg-green-900/30"
-                              : "text-red-500 border-red-500/30 hover:bg-red-100/50 dark:hover:bg-red-900/30"
+                              ? "text-green-500 hover:bg-green-100/50 dark:hover:bg-green-900/30"
+                              : "text-red-500 hover:bg-red-100/50 dark:hover:bg-red-900/30"
                       )}
                       onClick={handleSessionStatus}
                     >
@@ -249,7 +234,7 @@ function truncateText(text: string | undefined, maxLength: number): string {
                       ) : (
                         <Bot className={cn("h-3.5 w-3.5", isAgentActive && "animate-pulse")} />
                       )}
-                    </Button>
+                    </button>
                   </TooltipTrigger>
                   <TooltipContent>
                     <p className="text-xs">
@@ -258,7 +243,7 @@ function truncateText(text: string | undefined, maxLength: number): string {
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-            </div>
+            </Badge>
 
 
             {/* Dates and time in stage */}
