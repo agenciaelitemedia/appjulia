@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Target, CheckCircle, XCircle, RotateCcw, MessageCircleReply } from "lucide-react";
+import { Target, CheckCircle, XCircle, RotateCcw, MessageCircleReply, MessageSquare } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { CRMCard, CRMStage, CRMFollowupInfo } from "../types";
 
@@ -15,11 +15,12 @@ interface CRMDashboardSummaryProps {
   stages: CRMStage[];
   isLoading?: boolean;
   juliaSessions?: { totalSessions: number; dailyAverage: number };
+  juliaConversations?: { totalConversations: number };
   followupMap?: Map<string, CRMFollowupInfo>;
   returnRateData?: FollowupReturnRateResult;
 }
 
-export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, followupMap, returnRateData }: CRMDashboardSummaryProps) {
+export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, juliaConversations, followupMap, returnRateData }: CRMDashboardSummaryProps) {
   const stats = useMemo(() => {
     const total = cards.length;
 
@@ -78,8 +79,8 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
 
   if (isLoading) {
     return (
-       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
+       <div className="grid grid-cols-2 lg:grid-cols-7 gap-3">
+        {[1, 2, 3, 4, 5, 6, 7].map((i) => (
           <Card key={i} className="animate-pulse">
             <CardContent className="p-4">
               <div className="h-16 bg-muted rounded" />
@@ -91,7 +92,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
   }
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+    <div className="grid grid-cols-2 lg:grid-cols-7 gap-3">
       {/* 1. Atendimentos */}
       <Card className="border-l-4 border-l-chart-1">
         <CardContent className="p-4">
@@ -112,7 +113,25 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, f
         </CardContent>
       </Card>
 
-      {/* 2. FollowUp Ativos */}
+      {/* 2. Conversas */}
+      <Card className="border-l-4 border-l-chart-2">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <MessageSquare className="h-3.5 w-3.5 text-chart-2" />
+                <p className="text-xs text-muted-foreground font-medium">Conversas</p>
+              </div>
+              <p className="text-2xl font-bold text-foreground">{juliaConversations?.totalConversations ?? 0}</p>
+              <p className="text-xs text-muted-foreground">Todas via Júlia</p>
+            </div>
+            <div className="p-2 bg-chart-2/10 rounded-full">
+              <MessageSquare className="h-5 w-5 text-chart-2" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="border-l-4 border-l-chart-3">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">

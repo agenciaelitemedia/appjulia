@@ -3,6 +3,40 @@ import { externalDb } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
 import { CRMCard, CRMStage, CRMHistory, CRMAgent, CRMFiltersState } from '../types';
 
+// Hook to get all Julia conversations count (vw_painelv2_desempenho_julia_all)
+export function useCRMJuliaConversations(filters: CRMFiltersState) {
+  return useQuery({
+    queryKey: ['crm-julia-conversations', filters],
+    queryFn: async () => {
+      const { agentCodes, dateFrom, dateTo } = filters;
+      
+      if (agentCodes.length === 0) return { totalConversations: 0 };
+
+      try {
+        const hasDates = dateFrom && dateTo;
+        const result = await externalDb.raw<{ total_conversations: string }>({
+          query: `
+            SELECT COUNT(DISTINCT session_id) as total_conversations
+            FROM vw_painelv2_desempenho_julia_all
+            WHERE cod_agent::text = ANY($1::varchar[])
+              ${hasDates ? `AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date` : ''}
+          `,
+          params: hasDates ? [agentCodes, dateFrom, dateTo] : [agentCodes],
+        });
+        
+        return {
+          totalConversations: Number(result[0]?.total_conversations ?? 0),
+        };
+      } catch (err) {
+        console.error('[CRM] Failed to load Julia conversations:', err);
+        return { totalConversations: 0 };
+      }
+    },
+    enabled: filters.agentCodes.length > 0,
+  });
+}
+
 // Hook to get Julia sessions count for CRM dashboard
 export function useCRMJuliaSessions(filters: CRMFiltersState) {
   return useQuery({

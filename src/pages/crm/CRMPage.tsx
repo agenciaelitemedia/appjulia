@@ -6,7 +6,7 @@ import { CRMDashboardSummary } from './components/CRMDashboardSummary';
 import { CRMTotalizers } from './components/CRMTotalizers';
 import { CRMPipeline } from './components/CRMPipeline';
 import { CRMLeadDetailsDialog } from './components/CRMLeadDetailsDialog';
-import { useCRMStages, useCRMCards, useCRMAgents, useCRMJuliaSessions } from './hooks/useCRMData';
+import { useCRMStages, useCRMCards, useCRMAgents, useCRMJuliaSessions, useCRMJuliaConversations } from './hooks/useCRMData';
 import { useFollowupActiveLeads } from './hooks/useFollowupActiveLeads';
 import { useFollowupReturnRate } from './hooks/useFollowupReturnRate';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
@@ -48,6 +48,7 @@ export default function CRMPage() {
   const { data: agents = [], isLoading: agentsLoading } = useCRMAgents();
   const { data: cards = [], isLoading: cardsLoading, refetch } = useCRMCards(filters);
   const { data: juliaSessions } = useCRMJuliaSessions(filters);
+  const { data: juliaConversations } = useCRMJuliaConversations(filters);
   const { data: followupMap = new Map() } = useFollowupActiveLeads(filters.agentCodes, filters.dateFrom, filters.dateTo);
   const { data: returnRateData } = useFollowupReturnRate(filters.agentCodes, filters.dateFrom, filters.dateTo);
 
@@ -139,7 +140,7 @@ export default function CRMPage() {
         periodTooltip="Filtra pela data da última movimentação do lead no pipeline (não pela data de criação)"
       />
 
-      <CRMDashboardSummary cards={filteredCards} stages={stages} isLoading={cardsLoading} juliaSessions={juliaSessions} followupMap={followupMap} returnRateData={returnRateData} />
+      <CRMDashboardSummary cards={filteredCards} stages={stages} isLoading={cardsLoading} juliaSessions={juliaSessions} juliaConversations={juliaConversations} followupMap={followupMap} returnRateData={returnRateData} />
 
       <CRMTotalizers cards={filteredCards} stages={stages} />
 
