@@ -42,7 +42,15 @@ export function DiscadorTab({ codAgent }: Props) {
 
   return (
     <div className="max-w-md mx-auto">
-      <Card>
+      {planDeactivated && (
+        <Alert variant="destructive" className="mb-4">
+          <Ban className="h-4 w-4" />
+          <AlertDescription>
+            A telefonia está desativada para este agente. Entre em contato com o administrador.
+          </AlertDescription>
+        </Alert>
+      )}
+      <Card className={planDeactivated ? 'opacity-50 pointer-events-none' : ''}>
         <CardHeader>
           <CardTitle className="text-lg text-center flex items-center justify-center gap-2">
             Discador
