@@ -158,16 +158,14 @@ export function useDashboardStats(filters: DashboardFiltersState) {
           params: [agentCodes, dateFrom, dateTo],
         }).catch(() => [{ count: 0 }]),
         
-        // Conversions (SQL) - filtered by stage_entered_at
+        // Conversions - from Julia contracts view (single source of truth)
         externalDb.raw<{ count: number }>({
           query: `
             SELECT COUNT(*) as count 
-            FROM crm_atendimento_cards c 
-            JOIN crm_atendimento_stages s ON c.stage_id = s.id 
-            WHERE s.name IN ('Contrato em Curso', 'Contrato Assinado')
-              AND c.cod_agent = ANY($1::varchar[])
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
-              AND (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
+            FROM vw_painelv2_desempenho_julia_contratos
+            WHERE cod_agent::text = ANY($1::varchar[])
+              AND (data_contrato AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+              AND (data_contrato AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date
           `,
           params: [agentCodes, dateFrom, dateTo],
         }).catch(() => [{ count: 0 }]),
