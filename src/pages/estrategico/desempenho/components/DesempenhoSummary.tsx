@@ -131,7 +131,7 @@ export function DesempenhoSummary({ sessoes, previousSessoes, isLoading, dateFro
     {
       title: 'Total Atendimentos',
       value: summary.totalSessoes.toLocaleString('pt-BR'),
-      icon: BarChart3,
+      icon: FileText,
       color: 'text-blue-600',
       bgColor: 'bg-blue-100',
       change: previousSummary 
