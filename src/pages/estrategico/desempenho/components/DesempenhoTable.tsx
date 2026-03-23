@@ -32,6 +32,8 @@ import { formatDbDateTime } from '@/lib/dateUtils';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
 import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
 import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
+import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialog';
+import { useCRMStages, useCRMCardByWhatsapp } from '@/pages/crm/hooks/useCRMData';
 import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 import { cn } from '@/lib/utils';
 
