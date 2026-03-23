@@ -677,6 +677,15 @@ export function ContratosTable({
         whatsappNumber={sessionDialog.whatsapp}
         codAgent={sessionDialog.codAgent}
       />
+
+      {phoneCallContrato && (
+        <PhoneCallDialog
+          open={phoneCallOpen}
+          onOpenChange={setPhoneCallOpen}
+          whatsappNumber={phoneCallContrato.whatsapp}
+          contactName={phoneCallContrato.signer_name || ''}
+        />
+      )}
     </>
   );
 }
