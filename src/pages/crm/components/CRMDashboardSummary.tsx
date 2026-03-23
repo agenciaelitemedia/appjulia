@@ -103,7 +103,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, j
                 <p className="text-xs text-muted-foreground font-medium">Conversas do Whatsapp</p>
               </div>
               <p className="text-2xl font-bold text-foreground">{juliaConversations?.totalConversations ?? 0}</p>
-              <p className="text-xs text-muted-foreground">Todas interações Júlia</p>
+              <p className="text-xs text-muted-foreground">Todas as conversas iniciadas</p>
             </div>
             <div className="p-2 bg-chart-2/10 rounded-full">
               <MessageSquare className="h-5 w-5 text-chart-2" />
