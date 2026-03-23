@@ -160,6 +160,36 @@ export function useTelefoniaAdmin() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const toggleUserPlanActive = useMutation({
+    mutationFn: async ({ id, isActive }: { id: number; isActive: boolean }) => {
+      const { error } = await supabase
+        .from('phone_user_plans')
+        .update({ is_active: isActive } as any)
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['phone-user-plans'] });
+      toast.success(vars.isActive ? 'Telefonia ativada' : 'Telefonia desativada');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteUserPlan = useMutation({
+    mutationFn: async (id: number) => {
+      const { error } = await supabase
+        .from('phone_user_plans')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['phone-user-plans'] });
+      toast.success('Telefonia removida');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   // === Config (single global) ===
   const configQuery = useQuery({
     queryKey: ['phone-config-global'],
@@ -208,6 +238,8 @@ export function useTelefoniaAdmin() {
     userPlansLoading: userPlansQuery.isLoading,
     assignPlan,
     updateUserPlan,
+    toggleUserPlanActive,
+    deleteUserPlan,
     config: configQuery.data || null,
     configLoading: configQuery.isLoading,
     saveConfig,
