@@ -1,28 +1,32 @@
 
 
-# Desativar/Remover agente da telefonia
+# Bloquear telefonia no cliente quando agente está desativado
 
-## Mudanças
+## Problema
+Quando o admin desativa um agente de telefonia (`phone_user_plans.is_active = false`), o cliente continua podendo usar ramais e fazer ligações normalmente.
 
-### 1. Hook `useTelefoniaAdmin.ts` — adicionar mutation `deactivateUserPlan`
-- Nova mutation que faz `update({ is_active: false })` no `phone_user_plans` pelo `id`
-- Toast de sucesso "Telefonia desativada" e invalidação da query
+## Solução
 
-### 2. `AgentsTelefoniaTab.tsx` — botões de ação
-- Importar `DropdownMenu` (já existe no projeto) e ícones `MoreHorizontal`, `Power`, `Trash2`
-- Substituir o botão de lápis isolado por um `DropdownMenu` com 3 opções:
-  - **Editar** (ícone Pencil) — abre o EditTelefoniaDialog (comportamento atual)
-  - **Desativar/Ativar** (ícone Power) — toggle `is_active`, com confirmação inline
-  - **Remover** (ícone Trash2, vermelho) — deleta o registro com confirmação via `AlertDialog`
-- Adicionar filtro "Inativos" no select de status existente
+### 1. `PhoneContext.tsx` — verificar `phone_user_plans.is_active` antes de ativar
+- Após buscar a extensão do usuário (linha ~72), adicionar uma query ao `phone_user_plans` filtrando por `cod_agent` e `is_active = true`
+- Se não encontrar plano ativo, **não** setar `myExtension` nem `codAgent`, impedindo SIP e discagem
+- Resultado: `isAvailable = false`, badge mostra "Offline", softphone não conecta
 
-### 3. Hook `useTelefoniaAdmin.ts` — adicionar mutation `deleteUserPlan`
-- Nova mutation que faz `delete()` no `phone_user_plans` pelo `id`
-- Toast "Telefonia removida"
+### 2. `useTelefoniaData.ts` — planQuery já filtra `is_active = true`
+- Já está correto (linha 17). Quando desativado, `plan = null` e `maxExtensions = 0`
+- Porém precisamos garantir que `canCreateExtension` retorne `false` e que a UI mostre mensagem de plano desativado
+
+### 3. `MeusRamaisTab.tsx` — exibir aviso quando plano desativado
+- Se `plan === null` e não está carregando, mostrar um alerta informando que a telefonia está desativada para este agente
+- Desabilitar botões de criar ramal e sincronizar
+
+### 4. `DiscadorTab.tsx` — bloquear discagem
+- Se `plan === null`, exibir mensagem de telefonia desativada e desabilitar o formulário de discagem
 
 ## Arquivos alterados
 | Arquivo | Ação |
 |---|---|
-| `src/pages/admin/telefonia/hooks/useTelefoniaAdmin.ts` | Adicionar `deactivateUserPlan` e `deleteUserPlan` |
-| `src/pages/admin/telefonia/components/AgentsTelefoniaTab.tsx` | DropdownMenu com Editar/Desativar/Remover + AlertDialog de confirmação |
+| `src/contexts/PhoneContext.tsx` | Checar `phone_user_plans.is_active` antes de ativar extensão/SIP |
+| `src/pages/telefonia/components/MeusRamaisTab.tsx` | Alerta de telefonia desativada, desabilitar ações |
+| `src/pages/telefonia/components/DiscadorTab.tsx` | Bloquear discagem se plano inativo |
 
