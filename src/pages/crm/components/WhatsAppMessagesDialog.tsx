@@ -890,9 +890,12 @@ export function WhatsAppMessagesDialog({
   const loadAgentCredentials = async () => {
     setLoading(true);
     try {
-      const result = await externalDb.raw<AgentCredentials>({
+      const result = await externalDb.raw<Record<string, string>>({
         query: `
-          SELECT api_url, api_key, api_instance 
+          SELECT 
+            COALESCE(api_url, evo_url) as api_url, 
+            COALESCE(api_key, evo_apikey) as api_key, 
+            COALESCE(api_instance, evo_instancia) as api_instance 
           FROM "vw_list_client-agents-users" 
           WHERE cod_agent = $1 
           LIMIT 1
