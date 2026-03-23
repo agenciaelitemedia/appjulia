@@ -57,7 +57,7 @@ export function useTelefoniaData(codAgent: string | undefined) {
         },
       });
 
-      if (apiError) throw new Error(apiError.message || 'Erro ao criar ramal na Api4Com');
+      if (apiError) throw new Error(apiError.message || 'Erro ao criar ramal');
       if (apiResult?.error) throw new Error(apiResult.error);
       return apiResult?.data;
     },
