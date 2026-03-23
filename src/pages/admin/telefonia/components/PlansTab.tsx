@@ -35,46 +35,56 @@ export function PlansTab() {
         {plansLoading ? (
           <p className="text-sm text-muted-foreground">Carregando...</p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Máx. Ramais</TableHead>
-                <TableHead>Preço</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-[100px]">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {plans.map((plan) => (
-                <TableRow key={plan.id}>
-                  <TableCell className="font-medium">{plan.name}</TableCell>
-                  <TableCell>{plan.max_extensions}</TableCell>
-                  <TableCell>R$ {Number(plan.price).toFixed(2)}</TableCell>
-                  <TableCell>
-                    <Badge variant={plan.is_active ? 'default' : 'secondary'}>
-                      {plan.is_active ? 'Ativo' : 'Inativo'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingPlan(plan); setDialogOpen(true); }}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deletePlan.mutate(plan.id)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {plans.length === 0 && (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">Nenhum plano cadastrado</TableCell>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Ramais</TableHead>
+                  <TableHead>Mensal</TableHead>
+                  <TableHead>Trimestral</TableHead>
+                  <TableHead>Semestral</TableHead>
+                  <TableHead>Anual</TableHead>
+                  <TableHead>Extra</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-[100px]">Ações</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {plans.map((plan) => (
+                  <TableRow key={plan.id}>
+                    <TableCell className="font-medium">{plan.name}</TableCell>
+                    <TableCell>{plan.max_extensions}</TableCell>
+                    <TableCell className="text-xs">R$ {Number(plan.price_monthly).toFixed(2)}</TableCell>
+                    <TableCell className="text-xs">R$ {Number(plan.price_quarterly).toFixed(2)}</TableCell>
+                    <TableCell className="text-xs">R$ {Number(plan.price_semiannual).toFixed(2)}</TableCell>
+                    <TableCell className="text-xs">R$ {Number(plan.price_annual).toFixed(2)}</TableCell>
+                    <TableCell className="text-xs">R$ {Number(plan.extra_extension_price).toFixed(2)}</TableCell>
+                    <TableCell>
+                      <Badge variant={plan.is_active ? 'default' : 'secondary'}>
+                        {plan.is_active ? 'Ativo' : 'Inativo'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingPlan(plan); setDialogOpen(true); }}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deletePlan.mutate(plan.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {plans.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center text-muted-foreground">Nenhum plano cadastrado</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </CardContent>
 

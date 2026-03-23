@@ -1,9 +1,9 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Phone, CreditCard, Users, Settings, History } from 'lucide-react';
 import { PlansTab } from './components/PlansTab';
-import { UserPlansTab } from './components/UserPlansTab';
+import { AgentsTelefoniaTab } from './components/AgentsTelefoniaTab';
 import { ConfigTab } from './components/ConfigTab';
-import { CallHistoryTab } from './components/CallHistoryTab';
+import { CallHistoryAdminTab } from './components/CallHistoryAdminTab';
 
 export default function TelefoniaAdminPage() {
   return (
@@ -12,19 +12,19 @@ export default function TelefoniaAdminPage() {
         <Phone className="h-7 w-7 text-primary" />
         <div>
           <h1 className="text-2xl font-bold">Telefonia</h1>
-          <p className="text-sm text-muted-foreground">Gerenciar planos, ramais e configurações Api4Com</p>
+          <p className="text-sm text-muted-foreground">Gerenciar agentes, planos e configurações</p>
         </div>
       </div>
 
-      <Tabs defaultValue="plans" className="space-y-4">
+      <Tabs defaultValue="agents" className="space-y-4">
         <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="agents" className="gap-1.5">
+            <Users className="h-4 w-4" />
+            Agentes
+          </TabsTrigger>
           <TabsTrigger value="plans" className="gap-1.5">
             <CreditCard className="h-4 w-4" />
             Planos
-          </TabsTrigger>
-          <TabsTrigger value="user-plans" className="gap-1.5">
-            <Users className="h-4 w-4" />
-            Vincular
           </TabsTrigger>
           <TabsTrigger value="config" className="gap-1.5">
             <Settings className="h-4 w-4" />
@@ -36,10 +36,10 @@ export default function TelefoniaAdminPage() {
           </TabsTrigger>
         </TabsList>
 
+        <TabsContent value="agents"><AgentsTelefoniaTab /></TabsContent>
         <TabsContent value="plans"><PlansTab /></TabsContent>
-        <TabsContent value="user-plans"><UserPlansTab /></TabsContent>
         <TabsContent value="config"><ConfigTab /></TabsContent>
-        <TabsContent value="history"><CallHistoryTab /></TabsContent>
+        <TabsContent value="history"><CallHistoryAdminTab /></TabsContent>
       </Tabs>
     </div>
   );
