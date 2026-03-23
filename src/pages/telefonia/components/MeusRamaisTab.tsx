@@ -106,15 +106,6 @@ export function MeusRamaisTab({ codAgent }: Props) {
             Meus Ramais
           </CardTitle>
           <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => syncExtensions.mutate()}
-              disabled={syncExtensions.isPending || planDeactivated}
-            >
-              <RefreshCw className={`h-4 w-4 mr-1 ${syncExtensions.isPending ? 'animate-spin' : ''}`} />
-              Sincronizar
-            </Button>
             <Button size="sm" onClick={() => { setEditing(null); setDialogOpen(true); }} disabled={!canCreateExtension || planDeactivated}>
               <Plus className="h-4 w-4 mr-1" /> Novo Ramal
             </Button>
