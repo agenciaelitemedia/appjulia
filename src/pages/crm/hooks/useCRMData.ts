@@ -179,6 +179,40 @@ export function useCRMCardHistory(cardId: number | null) {
   });
 }
 
+export function useCRMCardByWhatsapp(whatsapp: string | null) {
+  return useQuery({
+    queryKey: ['crm-card-by-whatsapp', whatsapp],
+    queryFn: async () => {
+      if (!whatsapp) return null;
+      const result = await externalDb.raw<CRMCard>({
+        query: `
+          SELECT 
+            c.id, c.helena_count_id, c.cod_agent, c.contact_name, c.whatsapp_number, 
+            c.business_name, c.stage_id, c.notes,
+            c.created_at, c.updated_at, c.stage_entered_at,
+            s.name as stage_name, s.color as stage_color,
+            a.owner_name, a.owner_business_name,
+            EXISTS (
+              SELECT 1 FROM crm_atendimento_history h
+              JOIN crm_atendimento_stages hs ON h.to_stage_id = hs.id
+              WHERE h.card_id = c.id 
+                AND hs.name IN ('Contrato em Curso', 'Contrato Assinado')
+            ) OR s.name IN ('Contrato em Curso', 'Contrato Assinado') as has_contract_history
+          FROM crm_atendimento_cards c
+          LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
+          LEFT JOIN "vw_list_client-agents-users" a ON c.cod_agent = a.cod_agent::text
+          WHERE c.whatsapp_number = $1
+          ORDER BY c.stage_entered_at DESC
+          LIMIT 1
+        `,
+        params: [whatsapp],
+      });
+      return result[0] || null;
+    },
+    enabled: !!whatsapp,
+  });
+}
+
 export function useMoveCard() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
