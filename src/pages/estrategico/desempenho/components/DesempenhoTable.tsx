@@ -90,6 +90,16 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
   }>({ open: false, whatsapp: '', codAgent: '' });
   const [phoneCallOpen, setPhoneCallOpen] = useState(false);
   const [phoneCallSessao, setPhoneCallSessao] = useState<JuliaSessao | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsWhatsapp, setDetailsWhatsapp] = useState<string | null>(null);
+
+  const { data: stages = [] } = useCRMStages();
+  const { data: detailsCard = null } = useCRMCardByWhatsapp(detailsWhatsapp);
+
+  const handleOpenDetails = (sessao: JuliaSessao) => {
+    setDetailsWhatsapp(sessao.whatsapp);
+    setDetailsOpen(true);
+  };
 
   const handleOpenMessages = (sessao: JuliaSessao) => {
     setSelectedSessao(sessao);
