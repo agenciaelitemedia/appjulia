@@ -70,12 +70,14 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user?.id) return;
     const fetchExtension = async () => {
-      const { data } = await supabase
+      console.log('[PhoneContext] Looking for extension with assigned_member_id:', user.id, typeof user.id);
+      const { data, error: extError } = await supabase
         .from('phone_extensions')
         .select('*')
         .eq('assigned_member_id', Number(user.id))
         .eq('is_active', true)
         .limit(1);
+      console.log('[PhoneContext] Extension query result:', { data, error: extError });
       if (data && data.length > 0) {
         const ext = data[0] as unknown as PhoneExtensionInfo;
         // Check if the agent's telephony plan is active
