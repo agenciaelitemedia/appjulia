@@ -57,13 +57,13 @@ export function useTelefoniaData(codAgent: string | undefined) {
         },
       });
 
-      if (apiError) throw new Error(apiError.message || 'Erro ao criar ramal na Api4Com');
+      if (apiError) throw new Error(apiError.message || 'Erro ao criar ramal');
       if (apiResult?.error) throw new Error(apiResult.error);
       return apiResult?.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-extensions'] });
-      toast.success('Ramal criado e vinculado na Api4Com');
+      toast.success('Ramal criado e vinculado com sucesso');
     },
     onError: (e: Error) => toast.error(`Erro ao criar ramal: ${e.message}`),
   });
@@ -89,7 +89,7 @@ export function useTelefoniaData(codAgent: string | undefined) {
     mutationFn: async (id: number) => {
       const ext = extensionsQuery.data?.find((e) => e.id === id);
       if (!ext?.api4com_id) {
-        // Sem vínculo Api4Com, deletar só do banco
+        // Sem vínculo com provedor, deletar só do banco
         const { error } = await supabase.from('phone_extensions').delete().eq('id', id);
         if (error) throw error;
         return;
@@ -103,7 +103,7 @@ export function useTelefoniaData(codAgent: string | undefined) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-extensions'] });
-      toast.success('Ramal removido (Api4Com + banco)');
+      toast.success('Ramal removido com sucesso');
     },
     onError: (e: Error) => toast.error(e.message),
   });
