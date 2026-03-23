@@ -86,6 +86,8 @@ export function DesempenhoTable({ sessoes, isLoading, searchTerm = '', onExport 
     whatsapp: string;
     codAgent: string;
   }>({ open: false, whatsapp: '', codAgent: '' });
+  const [phoneCallOpen, setPhoneCallOpen] = useState(false);
+  const [phoneCallSessao, setPhoneCallSessao] = useState<JuliaSessao | null>(null);
 
   const handleOpenMessages = (sessao: JuliaSessao) => {
     setSelectedSessao(sessao);
