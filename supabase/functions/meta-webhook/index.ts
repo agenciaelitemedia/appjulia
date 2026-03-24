@@ -88,7 +88,7 @@ serve(async (req) => {
       // Internal: get debug logs
       if (body.action === 'get_logs') {
         return new Response(
-          JSON.stringify({ logs: webhookLogs.slice(-20) }),
+          JSON.stringify({ logs: webhookLogs.slice(-50) }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
