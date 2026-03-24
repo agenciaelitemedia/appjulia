@@ -1141,6 +1141,39 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_logs: {
+        Row: {
+          cod_agent: string | null
+          created_at: string
+          forwarded: boolean | null
+          from_number: string | null
+          id: string
+          message: string | null
+          payload: Json | null
+          source: string
+        }
+        Insert: {
+          cod_agent?: string | null
+          created_at?: string
+          forwarded?: boolean | null
+          from_number?: string | null
+          id?: string
+          message?: string | null
+          payload?: Json | null
+          source?: string
+        }
+        Update: {
+          cod_agent?: string | null
+          created_at?: string
+          forwarded?: boolean | null
+          from_number?: string | null
+          id?: string
+          message?: string | null
+          payload?: Json | null
+          source?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
