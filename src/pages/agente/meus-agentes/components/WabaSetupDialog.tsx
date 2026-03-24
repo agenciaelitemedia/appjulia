@@ -105,9 +105,10 @@ export function WabaSetupDialog({ open, onOpenChange, agent, onSuccess }: WabaSe
     window.addEventListener('message', sessionInfoListener);
 
     window.FB.login(
-      async (response) => {
+      (response) => {
         if (response.authResponse?.code) {
-          // Wait up to 5s for the sessionInfo event to arrive with WABA data
+          const code = response.authResponse.code;
+          // Wait up to 5s for sessionInfo, then process (non-async wrapper for FB SDK)
           const timeout = new Promise<{ waba_id: string; phone_number_id: string }>((resolve) =>
             setTimeout(() => {
               console.log('sessionInfo timeout - using ref data:', signupDataRef.current);
@@ -118,14 +119,10 @@ export function WabaSetupDialog({ open, onOpenChange, agent, onSuccess }: WabaSe
             }, 5000)
           );
 
-          const signupInfo = await Promise.race([signupDataPromise, timeout]);
-          window.removeEventListener('message', sessionInfoListener);
-
-          processSignup(
-            response.authResponse.code,
-            signupInfo.waba_id,
-            signupInfo.phone_number_id
-          );
+          Promise.race([signupDataPromise, timeout]).then((signupInfo) => {
+            window.removeEventListener('message', sessionInfoListener);
+            processSignup(code, signupInfo.waba_id, signupInfo.phone_number_id);
+          });
         } else {
           window.removeEventListener('message', sessionInfoListener);
           setStep('idle');
