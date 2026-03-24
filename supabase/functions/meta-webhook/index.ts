@@ -1,27 +1,47 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-// In-memory logs for debugging (last 100)
-const webhookLogs: Array<{
-  id: string;
-  from: string;
-  message: string;
-  timestamp: string;
-  cod_agent: string | null;
-  forwarded: boolean;
-  payload: unknown;
-}> = [];
+// Supabase client for webhook_logs table
+const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-function addLog(entry: Omit<typeof webhookLogs[0], 'id' | 'timestamp'>) {
-  const log = { ...entry, id: crypto.randomUUID(), timestamp: new Date().toISOString() };
-  webhookLogs.push(log);
-  if (webhookLogs.length > 200) webhookLogs.shift();
-  console.log('Webhook log:', JSON.stringify(log));
+async function addLog(entry: { from_number: string; message: string; cod_agent: string | null; forwarded: boolean; payload: unknown }) {
+  try {
+    await supabaseAdmin.from('webhook_logs').insert({
+      source: 'meta',
+      from_number: entry.from_number,
+      message: entry.message,
+      cod_agent: entry.cod_agent,
+      forwarded: entry.forwarded,
+      payload: entry.payload,
+    });
+  } catch (err) {
+    console.error('Failed to persist webhook log:', err);
+  }
+  console.log('Webhook log:', JSON.stringify(entry));
+}
+
+async function updateLastLogForwarded(fromNumber: string) {
+  try {
+    const { data } = await supabaseAdmin
+      .from('webhook_logs')
+      .select('id')
+      .eq('from_number', fromNumber)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (data && data.length > 0) {
+      await supabaseAdmin.from('webhook_logs').update({ forwarded: true }).eq('id', data[0].id);
+    }
+  } catch (err) {
+    console.error('Failed to update log forwarded status:', err);
+  }
 }
 
 function normalizeCaCert(input: string): string[] {
@@ -85,10 +105,16 @@ serve(async (req) => {
     try {
       const body = await req.json();
 
-      // Internal: get debug logs
+      // Internal: get debug logs from DB
       if (body.action === 'get_logs') {
+        const { data, error } = await supabaseAdmin
+          .from('webhook_logs')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(50);
+
         return new Response(
-          JSON.stringify({ logs: webhookLogs.slice(-50) }),
+          JSON.stringify({ logs: error ? [] : data }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -139,8 +165,8 @@ serve(async (req) => {
             const from = message.from || 'unknown';
             const msgText = message.text?.body || message.type || 'unknown';
 
-            addLog({
-              from,
+            await addLog({
+              from_number: from,
               message: msgText,
               cod_agent: codAgent,
               forwarded: false,
@@ -170,10 +196,7 @@ serve(async (req) => {
                 });
 
                 console.log(`N8N forward status: ${n8nResponse.status}`);
-
-                // Update log as forwarded
-                const lastLog = webhookLogs[webhookLogs.length - 1];
-                if (lastLog) lastLog.forwarded = true;
+                await updateLastLogForwarded(from);
               } catch (fwdErr) {
                 console.error('N8N forward error:', fwdErr);
               }
@@ -182,8 +205,8 @@ serve(async (req) => {
 
           // Process status updates
           for (const status of value.statuses || []) {
-            addLog({
-              from: status.recipient_id || 'unknown',
+            await addLog({
+              from_number: status.recipient_id || 'unknown',
               message: `status:${status.status}`,
               cod_agent: codAgent,
               forwarded: false,
