@@ -50,11 +50,39 @@ export default function WebhookMonitorPage() {
     fetchLogs();
   }, [fetchLogs]);
 
+  // Realtime subscription
   useEffect(() => {
-    if (!isPolling) return;
-    const interval = setInterval(fetchLogs, 10000);
-    return () => clearInterval(interval);
-  }, [isPolling, fetchLogs]);
+    const channel = supabase
+      .channel('webhook-logs-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'webhook_logs',
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setLogs((prev) => [payload.new as WebhookLog, ...prev].slice(0, 50));
+          } else if (payload.eventType === 'UPDATE') {
+            setLogs((prev) =>
+              prev.map((log) =>
+                log.id === (payload.new as WebhookLog).id ? (payload.new as WebhookLog) : log
+              )
+            );
+          } else if (payload.eventType === 'DELETE') {
+            setLogs((prev) => prev.filter((log) => log.id !== (payload.old as { id: string }).id));
+          }
+        }
+      )
+      .subscribe((status) => {
+        setIsPolling(status === 'SUBSCRIBED');
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const filtered = logs.filter((log) => {
     if (!filter) return true;
