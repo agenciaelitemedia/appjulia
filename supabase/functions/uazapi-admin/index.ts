@@ -207,16 +207,13 @@ serve(async (req) => {
         console.log('Deleting instance:', instanceName);
         
         // Delete instance from UaZapi using the correct endpoint
-        const deleteResponse = await fetch(
-          `${UAZAPI_BASE_URL}/instance/delete?admintoken=${encodeURIComponent(UAZAPI_ADMIN_TOKEN)}`,
-          {
-            method: 'DELETE',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ name: instanceName }),
-          }
-        );
+        const deleteResponse = await fetch(`${UAZAPI_BASE_URL}/instance`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'token': instanceToken || UAZAPI_ADMIN_TOKEN,
+          },
+        });
 
         if (!deleteResponse.ok) {
           const errorText = await deleteResponse.text();
