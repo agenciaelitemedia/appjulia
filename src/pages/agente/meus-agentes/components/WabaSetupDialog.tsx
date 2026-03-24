@@ -74,20 +74,29 @@ export function WabaSetupDialog({ open, onOpenChange, agent, onSuccess }: WabaSe
   const launchSignup = () => {
     setStep('signup');
 
+    // Promise that resolves when the WA_EMBEDDED_SIGNUP FINISH event arrives (or times out)
+    let resolveSignupData: ((value: { waba_id: string; phone_number_id: string }) => void) | null = null;
+    const signupDataPromise = new Promise<{ waba_id: string; phone_number_id: string }>((resolve) => {
+      resolveSignupData = resolve;
+    });
+
     const sessionInfoListener = (event: MessageEvent) => {
       if (event.origin !== 'https://www.facebook.com') return;
       try {
         const data = JSON.parse(event.data);
         if (data.type === 'WA_EMBEDDED_SIGNUP') {
           if (data.event === 'FINISH') {
-            signupDataRef.current = {
-              ...signupDataRef.current,
-              waba_id: data.data?.waba_id,
-              phone_number_id: data.data?.phone_number_id,
+            const info = {
+              waba_id: data.data?.waba_id || '',
+              phone_number_id: data.data?.phone_number_id || '',
             };
+            signupDataRef.current = info;
+            console.log('WA_EMBEDDED_SIGNUP FINISH received:', info);
+            resolveSignupData?.(info);
           }
           if (data.event === 'CANCEL' || data.event === 'ERROR') {
             setStep('idle');
+            resolveSignupData?.({ waba_id: '', phone_number_id: '' });
           }
         }
       } catch { /* ignore non-JSON */ }
@@ -96,16 +105,29 @@ export function WabaSetupDialog({ open, onOpenChange, agent, onSuccess }: WabaSe
     window.addEventListener('message', sessionInfoListener);
 
     window.FB.login(
-      (response) => {
-        window.removeEventListener('message', sessionInfoListener);
-
+      async (response) => {
         if (response.authResponse?.code) {
+          // Wait up to 5s for the sessionInfo event to arrive with WABA data
+          const timeout = new Promise<{ waba_id: string; phone_number_id: string }>((resolve) =>
+            setTimeout(() => {
+              console.log('sessionInfo timeout - using ref data:', signupDataRef.current);
+              resolve({
+                waba_id: signupDataRef.current.waba_id || '',
+                phone_number_id: signupDataRef.current.phone_number_id || '',
+              });
+            }, 5000)
+          );
+
+          const signupInfo = await Promise.race([signupDataPromise, timeout]);
+          window.removeEventListener('message', sessionInfoListener);
+
           processSignup(
             response.authResponse.code,
-            signupDataRef.current.waba_id || '',
-            signupDataRef.current.phone_number_id || ''
+            signupInfo.waba_id,
+            signupInfo.phone_number_id
           );
         } else {
+          window.removeEventListener('message', sessionInfoListener);
           setStep('idle');
           toast.error('Login cancelado ou falhou');
         }
@@ -114,7 +136,7 @@ export function WabaSetupDialog({ open, onOpenChange, agent, onSuccess }: WabaSe
         config_id: META_CONFIG_ID,
         response_type: 'code',
         override_default_response_type: true,
-        extras: { sessionInfoVersion: 3, featureType: 'whatsapp_business_app_onboarding' },
+        extras: { sessionInfoVersion: 3, featureType: 'whatsapp_business_app_onboarding' } as Record<string, unknown>,
       }
     );
   };
