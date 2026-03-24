@@ -114,7 +114,7 @@ export function WabaSetupDialog({ open, onOpenChange, agent, onSuccess }: WabaSe
         config_id: META_CONFIG_ID,
         response_type: 'code',
         override_default_response_type: true,
-        extras: { sessionInfoVersion: 2, feature: 'whatsapp_embedded_signup' },
+        extras: { sessionInfoVersion: 3, feature: 'whatsapp_embedded_signup' },
       }
     );
   };
