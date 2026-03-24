@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
-import { Play, Pause, RefreshCw, Radio, Search } from "lucide-react";
+import { RefreshCw, Radio, Search } from "lucide-react";
 import { format } from "date-fns";
 import { useEnsureWebhookMonitorModule } from "./hooks/useEnsureWebhookMonitorModule";
 
