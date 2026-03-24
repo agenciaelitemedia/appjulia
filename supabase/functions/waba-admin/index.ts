@@ -111,6 +111,63 @@ serve(async (req) => {
         );
       }
 
+      case 'fetch_waba_info': {
+        const { accessToken: token } = params;
+        if (!token) throw new Error('Missing accessToken');
+
+        // Get WABA accounts shared with this token
+        const bizRes = await fetch(
+          'https://graph.facebook.com/v22.0/me/businesses?fields=id,name',
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        const bizData = await bizRes.json();
+        console.log('Businesses:', JSON.stringify(bizData));
+
+        // Try to find WABA via debug_token or shared WABAs
+        const sharedWabaRes = await fetch(
+          `https://graph.facebook.com/v22.0/me?fields=id,name`,
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        const meData = await sharedWabaRes.json();
+
+        // Get all WABAs the user has access to
+        let wabaId = '';
+        let phoneNumberId = '';
+
+        if (bizData.data && bizData.data.length > 0) {
+          for (const biz of bizData.data) {
+            const wabaRes = await fetch(
+              `https://graph.facebook.com/v22.0/${biz.id}/owned_whatsapp_business_accounts?fields=id,name`,
+              { headers: { 'Authorization': `Bearer ${token}` } }
+            );
+            const wabaData = await wabaRes.json();
+            console.log(`WABAs for biz ${biz.id}:`, JSON.stringify(wabaData));
+
+            if (wabaData.data && wabaData.data.length > 0) {
+              wabaId = wabaData.data[0].id;
+
+              // Get phone numbers for this WABA
+              const phonesRes = await fetch(
+                `https://graph.facebook.com/v22.0/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name`,
+                { headers: { 'Authorization': `Bearer ${token}` } }
+              );
+              const phonesData = await phonesRes.json();
+              console.log(`Phones for WABA ${wabaId}:`, JSON.stringify(phonesData));
+
+              if (phonesData.data && phonesData.data.length > 0) {
+                phoneNumberId = phonesData.data[0].id;
+              }
+              break;
+            }
+          }
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, waba_id: wabaId, phone_number_id: phoneNumberId }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       case 'save_credentials': {
         const { agentId, wabaId, accessToken, phoneNumberId } = params;
         if (!agentId || !wabaId || !accessToken || !phoneNumberId) {

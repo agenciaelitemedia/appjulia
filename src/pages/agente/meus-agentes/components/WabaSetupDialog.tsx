@@ -131,15 +131,32 @@ export function WabaSetupDialog({ open, onOpenChange, agent, onSuccess }: WabaSe
         throw new Error(tokenData?.error || tokenError?.message || 'Falha ao trocar token');
       }
 
-      // Step 2: Save credentials
+      // Step 2: If waba_id/phone_number_id missing, fetch from Graph API
+      let finalWabaId = wabaId;
+      let finalPhoneNumberId = phoneNumberId;
+
+      if (!finalWabaId || !finalPhoneNumberId) {
+        console.log('WABA info not from signup event, fetching from Graph API...');
+        const { data: wabaInfo } = await supabase.functions.invoke('waba-admin', {
+          body: { action: 'fetch_waba_info', accessToken: tokenData.access_token },
+        });
+        if (wabaInfo?.waba_id) finalWabaId = wabaInfo.waba_id;
+        if (wabaInfo?.phone_number_id) finalPhoneNumberId = wabaInfo.phone_number_id;
+      }
+
+      if (!finalWabaId || !finalPhoneNumberId) {
+        throw new Error('Não foi possível obter o WABA ID ou Phone Number ID. Verifique se o cadastro foi concluído.');
+      }
+
+      // Step 3: Save credentials
       setStep('saving');
       const { data: saveData, error: saveError } = await supabase.functions.invoke('waba-admin', {
         body: {
           action: 'save_credentials',
           agentId: agent.agent_id_from_agents,
-          wabaId,
+          wabaId: finalWabaId,
           accessToken: tokenData.access_token,
-          phoneNumberId,
+          phoneNumberId: finalPhoneNumberId,
         },
       });
 
