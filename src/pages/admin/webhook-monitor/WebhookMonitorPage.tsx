@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
-import { Play, Pause, RefreshCw, Radio, Search } from "lucide-react";
+import { RefreshCw, Radio, Search } from "lucide-react";
 import { format } from "date-fns";
 import { useEnsureWebhookMonitorModule } from "./hooks/useEnsureWebhookMonitorModule";
 
@@ -50,11 +50,39 @@ export default function WebhookMonitorPage() {
     fetchLogs();
   }, [fetchLogs]);
 
+  // Realtime subscription
   useEffect(() => {
-    if (!isPolling) return;
-    const interval = setInterval(fetchLogs, 10000);
-    return () => clearInterval(interval);
-  }, [isPolling, fetchLogs]);
+    const channel = supabase
+      .channel('webhook-logs-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'webhook_logs',
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setLogs((prev) => [payload.new as WebhookLog, ...prev].slice(0, 50));
+          } else if (payload.eventType === 'UPDATE') {
+            setLogs((prev) =>
+              prev.map((log) =>
+                log.id === (payload.new as WebhookLog).id ? (payload.new as WebhookLog) : log
+              )
+            );
+          } else if (payload.eventType === 'DELETE') {
+            setLogs((prev) => prev.filter((log) => log.id !== (payload.old as { id: string }).id));
+          }
+        }
+      )
+      .subscribe((status) => {
+        setIsPolling(status === 'SUBSCRIBED');
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const filtered = logs.filter((log) => {
     if (!filter) return true;
@@ -83,13 +111,6 @@ export default function WebhookMonitorPage() {
           <Badge variant="outline">{logs.length} logs</Badge>
           <Button variant="outline" size="icon" onClick={fetchLogs} disabled={isLoading}>
             <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setIsPolling(!isPolling)}
-          >
-            {isPolling ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
           </Button>
         </div>
       </div>
