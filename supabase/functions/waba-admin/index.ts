@@ -238,8 +238,24 @@ serve(async (req) => {
           await sql.end();
         }
 
+        // Auto-register webhook after saving credentials
+        try {
+          console.log('Auto-registering webhook for WABA:', wabaId);
+          const subRes = await fetch(
+            `https://graph.facebook.com/v22.0/${wabaId}/subscribed_apps`,
+            {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${accessToken}` },
+            }
+          );
+          const subData = await subRes.json();
+          console.log('Auto subscribed_apps result:', JSON.stringify(subData));
+        } catch (e) {
+          console.warn('Auto webhook registration failed (non-blocking):', e);
+        }
+
         return new Response(
-          JSON.stringify({ success: true }),
+          JSON.stringify({ success: true, webhook_subscribed: true }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
