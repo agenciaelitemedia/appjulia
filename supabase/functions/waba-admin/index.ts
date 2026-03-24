@@ -59,59 +59,74 @@ type ResolvedWabaInfo = {
 };
 
 async function resolveWabaInfoFromToken(token: string): Promise<ResolvedWabaInfo> {
-  const headers = { 'Authorization': `Bearer ${token}` };
+  const META_APP_ID = Deno.env.get('META_APP_ID') ?? '';
+  const META_APP_SECRET = Deno.env.get('META_APP_SECRET') ?? '';
+  const appToken = `${META_APP_ID}|${META_APP_SECRET}`;
 
-  const bizRes = await fetch(
-    'https://graph.facebook.com/v22.0/me/businesses?fields=id,name,owned_whatsapp_business_accounts{id,name},client_whatsapp_business_accounts{id,name}',
-    { headers }
+  // Step 1: Use debug_token to inspect the user token and find WABA ID
+  console.log('resolveWabaInfoFromToken: using debug_token approach');
+  const debugRes = await fetch(
+    `https://graph.facebook.com/v22.0/debug_token?input_token=${encodeURIComponent(token)}`,
+    { headers: { 'Authorization': `Bearer ${appToken}` } }
   );
-  const bizData = await bizRes.json();
+  const debugData = await debugRes.json();
+  console.log('debug_token response:', JSON.stringify(debugData?.data?.granular_scopes || debugData?.error || 'no data'));
 
-  if (bizData?.error) {
-    throw new Error(bizData.error.message || 'Failed to fetch businesses from Graph API');
-  }
+  let wabaId = '';
+  let phoneNumberId = '';
 
-  const wabaIds = new Set<string>();
-  const businesses = Array.isArray(bizData?.data) ? bizData.data : [];
-
-  for (const biz of businesses) {
-    const owned = Array.isArray(biz?.owned_whatsapp_business_accounts?.data)
-      ? biz.owned_whatsapp_business_accounts.data
-      : [];
-    const client = Array.isArray(biz?.client_whatsapp_business_accounts?.data)
-      ? biz.client_whatsapp_business_accounts.data
-      : [];
-
-    for (const waba of [...owned, ...client]) {
-      if (waba?.id) wabaIds.add(String(waba.id));
+  // Extract WABA ID from granular_scopes
+  if (debugData?.data?.granular_scopes) {
+    for (const scope of debugData.data.granular_scopes) {
+      if (scope.scope === 'whatsapp_business_management' && Array.isArray(scope.target_ids) && scope.target_ids.length > 0) {
+        wabaId = String(scope.target_ids[0]);
+        console.log('Found WABA ID from debug_token granular_scopes:', wabaId);
+        break;
+      }
+    }
+    // Also check whatsapp_business_messaging scope
+    if (!wabaId) {
+      for (const scope of debugData.data.granular_scopes) {
+        if (scope.scope === 'whatsapp_business_messaging' && Array.isArray(scope.target_ids) && scope.target_ids.length > 0) {
+          wabaId = String(scope.target_ids[0]);
+          console.log('Found WABA ID from whatsapp_business_messaging scope:', wabaId);
+          break;
+        }
+      }
     }
   }
 
-  for (const currentWabaId of wabaIds) {
+  // Step 2: If we have a WABA ID, fetch phone numbers
+  if (wabaId) {
     const phonesRes = await fetch(
-      `https://graph.facebook.com/v22.0/${currentWabaId}/phone_numbers?fields=id,display_phone_number,verified_name`,
-      { headers }
+      `https://graph.facebook.com/v22.0/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
     );
     const phonesData = await phonesRes.json();
+    console.log('phone_numbers response:', JSON.stringify(phonesData?.data?.length ?? phonesData?.error ?? 'no data'));
 
-    if (phonesData?.error) {
-      console.warn(`Could not fetch phone numbers for WABA ${currentWabaId}:`, phonesData.error?.message);
-      continue;
-    }
-
-    const phones = Array.isArray(phonesData?.data) ? phonesData.data : [];
-    if (phones.length > 0 && phones[0]?.id) {
-      return {
-        wabaId: currentWabaId,
-        phoneNumberId: String(phones[0].id),
-      };
+    if (!phonesData?.error && Array.isArray(phonesData?.data) && phonesData.data.length > 0) {
+      phoneNumberId = String(phonesData.data[0].id);
+      console.log('Found phone_number_id:', phoneNumberId);
     }
   }
 
-  return {
-    wabaId: Array.from(wabaIds)[0] ?? '',
-    phoneNumberId: '',
-  };
+  // Step 3: Fallback - try shared WABAs via the token directly
+  if (!wabaId) {
+    console.log('Fallback: trying /me/shared_whatsapp_business_accounts');
+    try {
+      const sharedRes = await fetch(
+        'https://graph.facebook.com/v22.0/me?fields=id,name',
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      const meData = await sharedRes.json();
+      console.log('/me response:', JSON.stringify(meData?.id || meData?.error || 'no data'));
+    } catch (e) {
+      console.warn('Fallback /me failed:', e);
+    }
+  }
+
+  return { wabaId, phoneNumberId };
 }
 
 serve(async (req) => {
