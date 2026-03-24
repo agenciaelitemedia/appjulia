@@ -12,9 +12,9 @@ import { useEnsureWebhookMonitorModule } from "./hooks/useEnsureWebhookMonitorMo
 
 interface WebhookLog {
   id: string;
-  from: string;
+  from_number: string;
   message: string;
-  timestamp: string;
+  created_at: string;
   cod_agent: string | null;
   forwarded: boolean;
   payload: unknown;
@@ -30,11 +30,14 @@ export default function WebhookMonitorPage() {
   const fetchLogs = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("meta-webhook", {
-        body: { action: "get_logs" },
-      });
-      if (!error && data?.logs) {
-        setLogs(data.logs.reverse());
+      const { data, error } = await supabase
+        .from("webhook_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (!error && data) {
+        setLogs(data as WebhookLog[]);
       }
     } catch (err) {
       console.error("Erro ao buscar logs:", err);
@@ -57,7 +60,7 @@ export default function WebhookMonitorPage() {
     if (!filter) return true;
     const q = filter.toLowerCase();
     return (
-      log.from?.toLowerCase().includes(q) ||
+      log.from_number?.toLowerCase().includes(q) ||
       log.message?.toLowerCase().includes(q) ||
       log.cod_agent?.toLowerCase().includes(q)
     );
@@ -138,9 +141,9 @@ export default function WebhookMonitorPage() {
                       }
                     >
                       <TableCell className="text-xs font-mono text-muted-foreground">
-                        {format(new Date(log.timestamp), "dd/MM HH:mm:ss")}
+                        {format(new Date(log.created_at), "dd/MM HH:mm:ss")}
                       </TableCell>
-                      <TableCell className="font-mono text-sm">{log.from}</TableCell>
+                      <TableCell className="font-mono text-sm">{log.from_number}</TableCell>
                       <TableCell className="max-w-[300px] truncate text-sm">
                         {log.message}
                       </TableCell>
