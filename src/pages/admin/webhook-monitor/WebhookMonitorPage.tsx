@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { Play, Pause, RefreshCw, Radio, Search } from "lucide-react";
 import { format } from "date-fns";
+import { useEnsureWebhookMonitorModule } from "./hooks/useEnsureWebhookMonitorModule";
 
 interface WebhookLog {
   id: string;
