@@ -20,7 +20,7 @@ const webhookLogs: Array<{
 function addLog(entry: Omit<typeof webhookLogs[0], 'id' | 'timestamp'>) {
   const log = { ...entry, id: crypto.randomUUID(), timestamp: new Date().toISOString() };
   webhookLogs.push(log);
-  if (webhookLogs.length > 100) webhookLogs.shift();
+  if (webhookLogs.length > 200) webhookLogs.shift();
   console.log('Webhook log:', JSON.stringify(log));
 }
 
@@ -88,7 +88,7 @@ serve(async (req) => {
       // Internal: get debug logs
       if (body.action === 'get_logs') {
         return new Response(
-          JSON.stringify({ logs: webhookLogs.slice(-20) }),
+          JSON.stringify({ logs: webhookLogs.slice(-50) }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
