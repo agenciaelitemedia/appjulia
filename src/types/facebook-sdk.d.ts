@@ -1,4 +1,6 @@
 // Facebook SDK global types
+export {};
+
 declare global {
   interface Window {
     FB: {
@@ -20,11 +22,7 @@ declare global {
           config_id?: string;
           response_type?: string;
           override_default_response_type?: boolean;
-          extras?: {
-            sessionInfoVersion?: number;
-            feature?: string;
-            featureType?: string;
-          };
+          extras?: Record<string, unknown>;
         }
       ) => void;
       getLoginStatus: (callback: (response: { status: string }) => void) => void;
@@ -32,5 +30,3 @@ declare global {
     fbAsyncInit: () => void;
   }
 }
-
-
