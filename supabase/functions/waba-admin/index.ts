@@ -53,6 +53,67 @@ function createDbConnection(caCerts: string[]) {
       });
 }
 
+type ResolvedWabaInfo = {
+  wabaId: string;
+  phoneNumberId: string;
+};
+
+async function resolveWabaInfoFromToken(token: string): Promise<ResolvedWabaInfo> {
+  const headers = { 'Authorization': `Bearer ${token}` };
+
+  const bizRes = await fetch(
+    'https://graph.facebook.com/v22.0/me/businesses?fields=id,name,owned_whatsapp_business_accounts{id,name},client_whatsapp_business_accounts{id,name}',
+    { headers }
+  );
+  const bizData = await bizRes.json();
+
+  if (bizData?.error) {
+    throw new Error(bizData.error.message || 'Failed to fetch businesses from Graph API');
+  }
+
+  const wabaIds = new Set<string>();
+  const businesses = Array.isArray(bizData?.data) ? bizData.data : [];
+
+  for (const biz of businesses) {
+    const owned = Array.isArray(biz?.owned_whatsapp_business_accounts?.data)
+      ? biz.owned_whatsapp_business_accounts.data
+      : [];
+    const client = Array.isArray(biz?.client_whatsapp_business_accounts?.data)
+      ? biz.client_whatsapp_business_accounts.data
+      : [];
+
+    for (const waba of [...owned, ...client]) {
+      if (waba?.id) wabaIds.add(String(waba.id));
+    }
+  }
+
+  for (const currentWabaId of wabaIds) {
+    const phonesRes = await fetch(
+      `https://graph.facebook.com/v22.0/${currentWabaId}/phone_numbers?fields=id,display_phone_number,verified_name`,
+      { headers }
+    );
+    const phonesData = await phonesRes.json();
+
+    if (phonesData?.error) {
+      console.warn(`Could not fetch phone numbers for WABA ${currentWabaId}:`, phonesData.error?.message);
+      continue;
+    }
+
+    const phones = Array.isArray(phonesData?.data) ? phonesData.data : [];
+    if (phones.length > 0 && phones[0]?.id) {
+      return {
+        wabaId: currentWabaId,
+        phoneNumberId: String(phones[0].id),
+      };
+    }
+  }
+
+  return {
+    wabaId: Array.from(wabaIds)[0] ?? '',
+    phoneNumberId: '',
+  };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
