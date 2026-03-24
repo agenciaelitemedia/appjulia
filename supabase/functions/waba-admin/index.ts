@@ -349,7 +349,27 @@ serve(async (req) => {
       }
 
       case 'register_webhook': {
-        const { wabaId, accessToken } = params;
+        let { wabaId, accessToken, agentId } = params;
+
+        // If agentId provided, fetch credentials from DB
+        if (agentId && (!wabaId || !accessToken)) {
+          const rawCaCert = Deno.env.get('EXTERNAL_DB_CA_CERT') ?? '';
+          const caCerts = rawCaCert ? normalizeCaCert(rawCaCert) : [];
+          const sql = createDbConnection(caCerts);
+          try {
+            const rows = await sql.unsafe(
+              `SELECT waba_id, waba_token FROM agents WHERE id = $1`,
+              [agentId]
+            );
+            if (rows[0]) {
+              wabaId = wabaId || rows[0].waba_id;
+              accessToken = accessToken || rows[0].waba_token;
+            }
+          } finally {
+            await sql.end();
+          }
+        }
+
         if (!wabaId) throw new Error('Missing wabaId');
         if (!accessToken) throw new Error('Missing accessToken');
 
