@@ -162,7 +162,6 @@ serve(async (req) => {
             const msgText = message.text?.body || message.type || 'unknown';
             const msgType = message.type || 'text';
 
-            // Queue item for N8N delivery
             queueInserts.push({
               waba_id: wabaId,
               phone_number_id: phoneNumberId,
@@ -174,7 +173,6 @@ serve(async (req) => {
               status: 'pending',
             });
 
-            // Log entry
             logInserts.push({
               source: 'meta',
               from_number: from,
@@ -188,17 +186,30 @@ serve(async (req) => {
             });
           }
 
-          // Process status updates
-          for (const status of value?.statuses || []) {
+          // Process status updates — also queue for N8N
+          for (const statusObj of value?.statuses || []) {
+            const statusMsgId = statusObj.id || `status_${Date.now()}_${Math.random()}`;
+
+            queueInserts.push({
+              waba_id: wabaId,
+              phone_number_id: phoneNumberId,
+              from_number: statusObj.recipient_id || 'unknown',
+              message_id: statusMsgId,
+              message_type: 'status',
+              payload: statusObj,
+              contacts: [],
+              status: 'pending',
+            });
+
             logInserts.push({
               source: 'meta',
-              from_number: status.recipient_id || 'unknown',
-              message: `status:${status.status}`,
+              from_number: statusObj.recipient_id || 'unknown',
+              message: `status:${statusObj.status}`,
               forwarded: false,
-              payload: status,
-              message_id: status.id || null,
+              payload: statusObj,
+              message_id: statusMsgId,
               message_type: 'status',
-              status_type: status.status,
+              status_type: statusObj.status,
               waba_id: wabaId,
               phone_number_id: phoneNumberId,
             });
