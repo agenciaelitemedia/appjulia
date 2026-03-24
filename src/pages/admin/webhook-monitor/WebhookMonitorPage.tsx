@@ -112,13 +112,6 @@ export default function WebhookMonitorPage() {
           <Button variant="outline" size="icon" onClick={fetchLogs} disabled={isLoading}>
             <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
           </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setIsPolling(!isPolling)}
-          >
-            {isPolling ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-          </Button>
         </div>
       </div>
 
