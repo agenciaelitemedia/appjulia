@@ -114,7 +114,7 @@ export function WabaSetupDialog({ open, onOpenChange, agent, onSuccess }: WabaSe
         config_id: META_CONFIG_ID,
         response_type: 'code',
         override_default_response_type: true,
-        extras: { sessionInfoVersion: 3, featureType: 'whatsapp_business_app_onboarding' } as Record<string, unknown>,
+        extras: { sessionInfoVersion: 3, featureType: 'whatsapp_business_app_onboarding' },
       }
     );
   };
