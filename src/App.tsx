@@ -43,6 +43,7 @@ import AdvboxLogsPage from "./pages/advbox/LogsPage";
 import AdvboxQueriesPage from "./pages/advbox/QueriesPage";
 import MetaAdsTestPage from "./pages/admin/meta-ads/MetaAdsTestPage";
 import MonitoramentoPage from "./pages/admin/monitoramento/MonitoramentoPage";
+import WebhookMonitorPage from "./pages/admin/webhook-monitor/WebhookMonitorPage";
 import CopilotAdminPage from "./pages/admin/copiloto/CopilotAdminPage";
 import DataJudSearchPage from "./pages/datajud/DataJudSearchPage";
 import TelefoniaPage from "./pages/telefonia/TelefoniaPage";
