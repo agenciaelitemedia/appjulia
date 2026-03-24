@@ -21,6 +21,7 @@ interface WebhookLog {
 }
 
 export default function WebhookMonitorPage() {
+  useEnsureWebhookMonitorModule();
   const [logs, setLogs] = useState<WebhookLog[]>([]);
   const [isPolling, setIsPolling] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
