@@ -414,6 +414,26 @@ serve(async (req) => {
         );
       }
 
+      case 'list_waba_agents': {
+        const rawCaCert = Deno.env.get('EXTERNAL_DB_CA_CERT') ?? '';
+        const caCerts = rawCaCert ? normalizeCaCert(rawCaCert) : [];
+        const sql = createDbConnection(caCerts);
+
+        let agents;
+        try {
+          agents = await sql.unsafe(
+            `SELECT id, cod_agent, client_name, hub, waba_id, waba_number_id FROM agents WHERE hub = 'waba' AND waba_id IS NOT NULL LIMIT 10`
+          );
+        } finally {
+          await sql.end();
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, agents }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
