@@ -1149,8 +1149,13 @@ export type Database = {
           from_number: string | null
           id: string
           message: string | null
+          message_id: string | null
+          message_type: string | null
           payload: Json | null
+          phone_number_id: string | null
           source: string
+          status_type: string | null
+          waba_id: string | null
         }
         Insert: {
           cod_agent?: string | null
@@ -1159,8 +1164,13 @@ export type Database = {
           from_number?: string | null
           id?: string
           message?: string | null
+          message_id?: string | null
+          message_type?: string | null
           payload?: Json | null
+          phone_number_id?: string | null
           source?: string
+          status_type?: string | null
+          waba_id?: string | null
         }
         Update: {
           cod_agent?: string | null
@@ -1169,8 +1179,64 @@ export type Database = {
           from_number?: string | null
           id?: string
           message?: string | null
+          message_id?: string | null
+          message_type?: string | null
           payload?: Json | null
+          phone_number_id?: string | null
           source?: string
+          status_type?: string | null
+          waba_id?: string | null
+        }
+        Relationships: []
+      }
+      webhook_queue: {
+        Row: {
+          contacts: Json | null
+          created_at: string
+          error_message: string | null
+          from_number: string | null
+          id: string
+          message_id: string | null
+          message_type: string | null
+          n8n_response_status: number | null
+          payload: Json
+          phone_number_id: string | null
+          retries: number
+          sent_at: string | null
+          status: string
+          waba_id: string | null
+        }
+        Insert: {
+          contacts?: Json | null
+          created_at?: string
+          error_message?: string | null
+          from_number?: string | null
+          id?: string
+          message_id?: string | null
+          message_type?: string | null
+          n8n_response_status?: number | null
+          payload?: Json
+          phone_number_id?: string | null
+          retries?: number
+          sent_at?: string | null
+          status?: string
+          waba_id?: string | null
+        }
+        Update: {
+          contacts?: Json | null
+          created_at?: string
+          error_message?: string | null
+          from_number?: string | null
+          id?: string
+          message_id?: string | null
+          message_type?: string | null
+          n8n_response_status?: number | null
+          payload?: Json
+          phone_number_id?: string | null
+          retries?: number
+          sent_at?: string | null
+          status?: string
+          waba_id?: string | null
         }
         Relationships: []
       }
