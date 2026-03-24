@@ -21,7 +21,7 @@ interface WabaSetupDialogProps {
 
 type SetupStep = 'idle' | 'signup' | 'exchanging' | 'saving' | 'verifying' | 'done' | 'error';
 
-const META_APP_ID = '1280281479689498';
+const META_APP_ID = '848563184591665';
 const META_CONFIG_ID = '1349553886498498';
 
 export function WabaSetupDialog({ open, onOpenChange, agent, onSuccess }: WabaSetupDialogProps) {
