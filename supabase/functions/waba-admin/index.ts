@@ -422,7 +422,7 @@ serve(async (req) => {
         let agents;
         try {
           agents = await sql.unsafe(
-            `SELECT id, cod_agent, client_name, hub, waba_id, waba_number_id FROM agents WHERE hub = 'waba' AND waba_id IS NOT NULL LIMIT 10`
+            `SELECT id, cod_agent, hub, waba_id, waba_number_id FROM agents WHERE hub = 'waba' AND waba_id IS NOT NULL LIMIT 10`
           );
         } finally {
           await sql.end();
