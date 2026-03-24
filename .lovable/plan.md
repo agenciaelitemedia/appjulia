@@ -1,40 +1,55 @@
+# Refatorar meta-webhook: resposta imediata + fila de envio para N8N
 
+## Problema atual
 
-# Corrigir erro "(#100) Missing Permission" no fluxo WABA
+A Edge Function faz lookup no banco externo e envia ao N8N **antes** de responder 200 à Meta, causando timeouts e reenvios.
 
-## Causa raiz
+## Arquitetura proposta
 
-O token gerado pelo Embedded Signup (coexistência) é um **System User Token** com escopo limitado ao WABA. Ele **não tem permissão** para chamar `/me/businesses`, que é um endpoint de token pessoal. Por isso o `fetch_waba_info` falha com `(#100) Missing Permission`.
+```text
+Meta → meta-webhook → INSERT webhook_queue → RESPONDE 200 (imediato)
+                           ↓
+                    processQueue() (background, fire-and-forget)
+                           ↓
+                    Lê pending → envia síncrono ao N8N → atualiza status
+```
 
-O `waba_id` e `phone_number_id` **já deveriam vir** do evento `WA_EMBEDDED_SIGNUP` (via `postMessage`), mas no caso de coexistência com `sessionInfoVersion: 3`, esses dados podem não ser retornados no evento FINISH — ou o callback do `FB.login` pode disparar antes do `message` event chegar.
+URL do N8N: `https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start?app=waba&waba_id={waba_id}`
 
-## Solucao
+## Alteracoes
 
-Duas alteracoes:
+### 1. Nova tabela `webhook_queue`
 
-### 1. Edge Function (`waba-admin`): usar endpoint correto para System User Token
+Campos: `id`, `waba_id`, `phone_number_id`, `from_number`, `message_id` (dedup), `message_type`, `payload` (raw completo), `contacts`, `status` (pending/sent/failed), `retries`, `created_at`, `sent_at`, `error_message`, `n8n_response_status`.
 
-Trocar a chamada `/me/businesses` por endpoints que o System User Token tem permissao:
-- `GET /v22.0/debug_token?input_token={token}` para descobrir o WABA ID associado ao token
-- Ou usar diretamente `GET /v22.0/{waba_id}/phone_numbers` quando o waba_id ja estiver disponivel
+### 2. Alterar tabela `webhook_logs`
 
-A funcao `resolveWabaInfoFromToken` sera reescrita para:
-1. Chamar `debug_token` com o app token (`META_APP_ID|META_APP_SECRET`) para inspecionar o user token e extrair os granular scopes/WABA ID
-2. Se nao conseguir o WABA ID via debug_token, tentar `GET /v22.0/me?fields=id` e depois usar shared WABAs
-3. Listar phone numbers do WABA encontrado
+Adicionar colunas: `message_id` (WhatsApp message ID), `message_type`, `status_type` (para status updates), `waba_id`, `phone_number_id` — para gravar dados mais ricos do webhook.
 
-### 2. Frontend (`WabaSetupDialog.tsx`): garantir captura do sessionInfo
+### 3. Reescrever `meta-webhook/index.ts`
 
-Adicionar um pequeno delay ou promise para aguardar o `message` event antes de chamar `processSignup`, pois o callback do `FB.login` pode disparar antes do evento `WA_EMBEDDED_SIGNUP` com os dados. Isso reduz a necessidade de fallback no servidor.
+Fluxo no POST:
 
-- Criar uma Promise que resolve quando o `message` event FINISH chegar (com timeout de 5s)
-- Aguardar essa Promise antes de chamar `processSignup`
-- Se os dados ja estiverem no ref, pular o `fetch_waba_info` no servidor
+1. Parse body
+2. Extrair mensagens e statuses do payload
+3. INSERT em `webhook_queue` (itens com status `pending`) — sem lookup no banco externo
+4. INSERT em `webhook_logs` (log completo com metadata)
+5. **Responder 200 imediatamente**
+6. Fire-and-forget: `processQueue()` que:
+  - Para cada item pending na fila, envia síncrono ao N8N na URL `https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start?app=waba&waba_id={waba_id}`
+  - Atualiza status para `sent` ou `failed`
+  - Atualiza o `webhook_logs` correspondente com `forwarded=true` e `cod_agent`
+
+Deduplicação: usa `message_id` do WhatsApp para ignorar mensagens já na fila.
+
+### 4. Action `process_queue` (fallback)
+
+Adicionar action para processar itens pending manualmente ou via cron, caso o fire-and-forget não complete.
 
 ## Arquivos alterados
 
-| Arquivo | Alteracao |
-|---|---|
-| `supabase/functions/waba-admin/index.ts` | Reescrever `resolveWabaInfoFromToken` para usar `debug_token` em vez de `/me/businesses` |
-| `src/pages/agente/meus-agentes/components/WabaSetupDialog.tsx` | Aguardar sessionInfo antes de processar signup |
 
+| Arquivo                                    | O que muda                                               |
+| ------------------------------------------ | -------------------------------------------------------- |
+| Migração SQL                               | Cria `webhook_queue`, adiciona colunas ao `webhook_logs` |
+| `supabase/functions/meta-webhook/index.ts` | Resposta imediata + fila + processamento background      |
