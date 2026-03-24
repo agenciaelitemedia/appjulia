@@ -18,6 +18,11 @@ interface WebhookLog {
   cod_agent: string | null;
   forwarded: boolean;
   payload: unknown;
+  message_id: string | null;
+  message_type: string | null;
+  status_type: string | null;
+  waba_id: string | null;
+  phone_number_id: string | null;
 }
 
 export default function WebhookMonitorPage() {
