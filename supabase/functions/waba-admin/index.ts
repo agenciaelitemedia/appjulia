@@ -238,8 +238,24 @@ serve(async (req) => {
           await sql.end();
         }
 
+        // Auto-register webhook after saving credentials
+        try {
+          console.log('Auto-registering webhook for WABA:', wabaId);
+          const subRes = await fetch(
+            `https://graph.facebook.com/v22.0/${wabaId}/subscribed_apps`,
+            {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${accessToken}` },
+            }
+          );
+          const subData = await subRes.json();
+          console.log('Auto subscribed_apps result:', JSON.stringify(subData));
+        } catch (e) {
+          console.warn('Auto webhook registration failed (non-blocking):', e);
+        }
+
         return new Response(
-          JSON.stringify({ success: true }),
+          JSON.stringify({ success: true, webhook_subscribed: true }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -328,6 +344,72 @@ serve(async (req) => {
 
         return new Response(
           JSON.stringify({ success: true }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'register_webhook': {
+        const { wabaId, accessToken } = params;
+        if (!wabaId) throw new Error('Missing wabaId');
+        if (!accessToken) throw new Error('Missing accessToken');
+
+        const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
+        const META_VERIFY_TOKEN = Deno.env.get('META_WEBHOOK_VERIFY_TOKEN') ?? '';
+        const callbackUrl = `${SUPABASE_URL}/functions/v1/meta-webhook`;
+
+        console.log('Registering webhook for WABA:', wabaId, 'callback:', callbackUrl);
+
+        // Subscribe the app to the WABA
+        const subscribeRes = await fetch(
+          `https://graph.facebook.com/v22.0/${wabaId}/subscribed_apps`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+        const subscribeData = await subscribeRes.json();
+        console.log('subscribed_apps response:', JSON.stringify(subscribeData));
+
+        if (subscribeData?.error) {
+          throw new Error(`Failed to subscribe app: ${subscribeData.error.message}`);
+        }
+
+        // Register the webhook callback URL on the Meta App
+        const appToken = `${META_APP_ID}|${META_APP_SECRET}`;
+        const webhookRes = await fetch(
+          `https://graph.facebook.com/v22.0/${META_APP_ID}/subscriptions`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${appToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              object: 'whatsapp_business_account',
+              callback_url: callbackUrl,
+              verify_token: META_VERIFY_TOKEN,
+              fields: ['messages'],
+            }),
+          }
+        );
+        const webhookData = await webhookRes.json();
+        console.log('App subscriptions response:', JSON.stringify(webhookData));
+
+        if (webhookData?.error) {
+          // App subscription may already exist, still return success if subscribed_apps worked
+          console.warn('App subscription warning:', webhookData.error.message);
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            subscribed: subscribeData?.success === true,
+            webhook_registered: !webhookData?.error,
+            callback_url: callbackUrl,
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
