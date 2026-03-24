@@ -1,30 +1,30 @@
 
 
-# Adicionar Secret META_WEBHOOK_VERIFY_TOKEN
+# Criar Pagina de Monitoramento do Webhook WABA
 
-## O que fazer
+## Resumo
 
-Quando eu sair do modo de planejamento, vou usar a ferramenta `add_secret` para solicitar que você insira o valor do token.
+Nova pagina `/admin/webhook-monitor` com visualizacao em tempo real dos logs do webhook Meta, usando polling automatico na edge function `meta-webhook` (action `get_logs`).
 
-## Como gerar seu token
+## Arquivos
 
-Você pode gerar um token seguro de qualquer forma. Sugestão:
-
-```text
-julia_waba_verify_2026_<seu-codigo-aleatorio>
-```
-
-Ou use um gerador online de strings aleatórias (32+ caracteres).
-
-## Passos
-
-| # | Ação |
+| Arquivo | Acao |
 |---|---|
-| 1 | Adicionar o secret `META_WEBHOOK_VERIFY_TOKEN` no projeto (você cola o valor) |
-| 2 | Copiar o **mesmo valor** no Meta Developers Dashboard → WhatsApp → Configuration → Callback URL → Verify Token |
-| 3 | O `meta-webhook` já usa essa env var — nenhuma alteração de código necessária |
+| `src/pages/admin/webhook-monitor/WebhookMonitorPage.tsx` | Criar -- pagina principal com tabela de logs, auto-refresh (polling 10s), filtros por agente/status, badge de forwarded/not forwarded |
+| `src/App.tsx` | Adicionar import e rota `/admin/webhook-monitor` |
+| `supabase/functions/meta-webhook/index.ts` | Aumentar buffer de logs de 100 para 200 e adicionar campo `cod_agent` e `forwarded` no retorno de `get_logs` (ja existem nos logs, apenas garantir que retornam) |
 
-## Nenhum arquivo será alterado
+## Funcionalidades da pagina
 
-O código em `meta-webhook/index.ts` já lê `Deno.env.get('META_WEBHOOK_VERIFY_TOKEN')`. Basta adicionar o secret.
+- **Header** com titulo, badge de status (polling ativo/pausado), botao play/pause
+- **Tabela** com colunas: Timestamp, De (from), Mensagem, Agente (cod_agent), Status (forwarded sim/nao), Tipo (message/status)
+- **Auto-refresh** via polling a cada 10 segundos (toggleavel)
+- **Contador** de mensagens recebidas
+- **Filtro** por texto (busca em from/message)
+- Usa componentes existentes: Table, Badge, Card, ScrollArea, Input
+- Chama `supabase.functions.invoke('meta-webhook', { body: { action: 'get_logs' } })` para buscar logs
+
+## Layout
+
+Card unico com a tabela ocupando a area principal. Badge verde pulsante quando polling ativo. Rows coloridas: verde para forwarded, amarelo para nao forwarded (sem agente).
 
