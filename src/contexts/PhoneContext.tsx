@@ -103,7 +103,10 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
 
   // Auto-connect SIP when extension is found (with retry)
   const connectSip = useCallback(async () => {
-    if (!myExtension || !codAgent || !myExtension.api4com_ramal) return;
+    if (!myExtension || !codAgent || !myExtension.api4com_ramal) {
+      console.log('[PhoneContext] Skipping SIP connect — no extension/ramal');
+      return;
+    }
     try {
       const { data, error } = await supabase.functions.invoke('api4com-proxy', {
         body: { action: 'get_sip_credentials', codAgent, extensionId: myExtension.id },
