@@ -219,10 +219,16 @@ serve(async (req) => {
 
       // ── Batch insert into queue and logs ──
       if (queueInserts.length > 0) {
-        const { error } = await supabase
-          .from('webhook_queue')
-          .upsert(queueInserts, { onConflict: 'message_id', ignoreDuplicates: true });
-        if (error) console.error('Queue insert error:', error.message);
+        for (const item of queueInserts) {
+          const { error } = await supabase.from('webhook_queue').insert(item);
+          if (error) {
+            if (error.code === '23505') {
+              console.log('Dedup: message_id already in queue:', item.message_id);
+            } else {
+              console.error('Queue insert error:', error.message);
+            }
+          }
+        }
       }
 
       if (logInserts.length > 0) {
