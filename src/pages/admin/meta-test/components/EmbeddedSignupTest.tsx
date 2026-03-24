@@ -95,7 +95,7 @@ export function EmbeddedSignupTest({
         extras: {
           sessionInfoVersion: 3,
           featureType: 'whatsapp_business_app_onboarding',
-        },
+        } as Record<string, unknown>,
       }
     );
   };
