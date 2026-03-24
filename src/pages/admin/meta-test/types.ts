@@ -49,6 +49,7 @@ declare global {
           extras?: {
             sessionInfoVersion?: number;
             feature?: string;
+            featureType?: string;
           };
         }
       ) => void;
