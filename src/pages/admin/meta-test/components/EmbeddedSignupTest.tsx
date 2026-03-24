@@ -93,8 +93,8 @@ export function EmbeddedSignupTest({
         response_type: 'code',
         override_default_response_type: true,
         extras: {
-          sessionInfoVersion: 2,
-          feature: 'whatsapp_embedded_signup',
+          sessionInfoVersion: 3,
+          featureType: 'whatsapp_business_app_onboarding',
         },
       }
     );
