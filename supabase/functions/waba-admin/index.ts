@@ -349,7 +349,27 @@ serve(async (req) => {
       }
 
       case 'register_webhook': {
-        const { wabaId, accessToken } = params;
+        let { wabaId, accessToken, agentId } = params;
+
+        // If agentId provided, fetch credentials from DB
+        if (agentId && (!wabaId || !accessToken)) {
+          const rawCaCert = Deno.env.get('EXTERNAL_DB_CA_CERT') ?? '';
+          const caCerts = rawCaCert ? normalizeCaCert(rawCaCert) : [];
+          const sql = createDbConnection(caCerts);
+          try {
+            const rows = await sql.unsafe(
+              `SELECT waba_id, waba_token FROM agents WHERE id = $1`,
+              [agentId]
+            );
+            if (rows[0]) {
+              wabaId = wabaId || rows[0].waba_id;
+              accessToken = accessToken || rows[0].waba_token;
+            }
+          } finally {
+            await sql.end();
+          }
+        }
+
         if (!wabaId) throw new Error('Missing wabaId');
         if (!accessToken) throw new Error('Missing accessToken');
 
@@ -410,6 +430,26 @@ serve(async (req) => {
             webhook_registered: !webhookData?.error,
             callback_url: callbackUrl,
           }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'list_waba_agents': {
+        const rawCaCert = Deno.env.get('EXTERNAL_DB_CA_CERT') ?? '';
+        const caCerts = rawCaCert ? normalizeCaCert(rawCaCert) : [];
+        const sql = createDbConnection(caCerts);
+
+        let agents;
+        try {
+          agents = await sql.unsafe(
+            `SELECT id, cod_agent, hub, waba_id, waba_number_id FROM agents WHERE hub = 'waba' AND waba_id IS NOT NULL LIMIT 10`
+          );
+        } finally {
+          await sql.end();
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, agents }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
