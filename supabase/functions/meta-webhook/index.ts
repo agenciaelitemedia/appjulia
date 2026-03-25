@@ -19,20 +19,45 @@ async function getExternalPool() {
   const externalDbUrl = Deno.env.get("EXTERNAL_DB_URL")!;
   const externalDbCa = Deno.env.get("EXTERNAL_DB_CA_CERT");
 
-  const poolConfig: any = {
-    connectionString: externalDbUrl,
-    size: 1,
-  };
+  let parsedUrl: URL | null = null;
+  try {
+    parsedUrl = new URL(externalDbUrl);
+  } catch {
+    parsedUrl = null;
+  }
 
-  // Socket DSN (host via unix path) cannot accept ANY tls options in deno-postgres
+  const hostParam = parsedUrl?.searchParams.get("host") ?? "";
+  const socketParam = parsedUrl?.searchParams.get("socket") ?? "";
+  const socketHint = `${hostParam} ${socketParam}`.toLowerCase();
+
+  const normalizedUrl = externalDbUrl.toLowerCase();
   const isSocket =
-    externalDbUrl.includes("@/") ||
-    externalDbUrl.includes("host=/") ||
-    externalDbUrl.includes("host=%2F") ||
-    externalDbUrl.includes("%2F") ||
-    externalDbUrl.includes("/.s.PGSQL.") ||
-    /\/cloudsql\//.test(externalDbUrl);
+    socketHint.includes("/") ||
+    socketHint.includes(".s.pgsql") ||
+    socketHint.includes("cloudsql") ||
+    normalizedUrl.includes("socket=") ||
+    normalizedUrl.includes("host=/") ||
+    normalizedUrl.includes("host=%2f") ||
+    normalizedUrl.includes("/.s.pgsql.") ||
+    normalizedUrl.includes("/cloudsql/") ||
+    normalizedUrl.includes("%2fcloudsql%2f") ||
+    normalizedUrl.includes("@/");
 
+  let connectionString = externalDbUrl;
+  if (isSocket) {
+    if (parsedUrl) {
+      ["sslmode", "ssl", "sslcert", "sslkey", "sslrootcert", "sslca"].forEach((param) => {
+        parsedUrl!.searchParams.delete(param);
+      });
+      connectionString = parsedUrl.toString();
+    } else {
+      connectionString = externalDbUrl
+        .replace(/([?&])(sslmode|ssl|sslcert|sslkey|sslrootcert|sslca)=[^&]*/gi, "$1")
+        .replace(/[?&]$/, "");
+    }
+  }
+
+  const poolConfig: any = { connectionString, size: 1 };
   if (!isSocket && externalDbCa) {
     poolConfig.tls = { enabled: true, caCertificates: [externalDbCa] };
   }

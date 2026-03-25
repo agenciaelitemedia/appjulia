@@ -11,46 +11,37 @@ const GRAPH_API = "https://graph.facebook.com/v22.0";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-async function getExternalPool() {
-  const { Pool } = await import("https://deno.land/x/postgres@v0.19.3/mod.ts");
-  const externalDbUrl = Deno.env.get("EXTERNAL_DB_URL")!;
-  const externalDbCa = Deno.env.get("EXTERNAL_DB_CA_CERT");
-  const poolConfig: any = {
-    connectionString: externalDbUrl,
-    size: 1,
-  };
-
-  const isSocket =
-    externalDbUrl.includes("/.s.PGSQL.") ||
-    externalDbUrl.includes("%2F") ||
-    externalDbUrl.includes("host=/") ||
-    externalDbUrl.includes("@/") ||
-    /\/cloudsql\//.test(externalDbUrl);
-  // For socket connections: do NOT set any tls options (library rejects them entirely)
-  if (!isSocket && externalDbCa) {
-    poolConfig.tls = { enabled: true, caCertificates: [externalDbCa] };
-  }
-  return new Pool(poolConfig, 1);
-}
-
 async function getWabaCredentials(codAgent: string) {
-  const pool = await getExternalPool();
-  const conn = await pool.connect();
-  try {
-    const result = await conn.queryObject<{
-      waba_token: string;
-      waba_number_id: string;
-      waba_id: string;
-    }>(
-      "SELECT waba_token, waba_number_id, waba_id FROM agents WHERE cod_agent = $1 AND hub = 'waba' LIMIT 1",
-      [codAgent],
-    );
-    if (!result.rows.length) return null;
-    return result.rows[0];
-  } finally {
-    conn.release();
-    await pool.end();
+  const response = await fetch(`${supabaseUrl}/functions/v1/db-query`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: supabaseServiceKey,
+      Authorization: `Bearer ${supabaseServiceKey}`,
+    },
+    body: JSON.stringify({
+      action: "raw",
+      data: {
+        query: "SELECT waba_token, waba_number_id, waba_id FROM agents WHERE cod_agent = $1 AND hub = 'waba' LIMIT 1",
+        params: [codAgent],
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`db-query failed: ${errorBody}`);
   }
+
+  const payload = await response.json();
+  const row = payload?.data?.[0];
+  if (!row) return null;
+
+  return {
+    waba_token: row.waba_token as string,
+    waba_number_id: row.waba_number_id as string,
+    waba_id: row.waba_id as string,
+  };
 }
 
 // Resolve credentials from media_id's associated agent via external_id lookup
