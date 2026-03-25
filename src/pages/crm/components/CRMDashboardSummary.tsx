@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Target, CheckCircle, XCircle, RotateCcw, MessageCircleReply, MessageSquare } from "lucide-react";
+import { Bot, Target, CheckCircle, XCircle, RotateCcw, MessageCircleReply, MessageSquare } from "lucide-react";
 
 import { CRMCard, CRMStage, CRMFollowupInfo } from "../types";
 
