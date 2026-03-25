@@ -996,100 +996,114 @@ export function WhatsAppMessagesDialog({
   // ============================================
   // WABA: Parse webhook_logs into Message format
   // ============================================
-  
+
+  const mapWabaMessageToDialogMessage = (msg: any, log: any): Message => {
+    const msgType = (msg?.type || log?.message_type || 'text') as string;
+    let text = '';
+    let mediaId: string | undefined;
+    let caption: string | undefined;
+    let fileName: string | undefined;
+    let mimetype: string | undefined;
+    let type: MessageType = 'text';
+
+    switch (msgType) {
+      case 'text':
+        text = msg?.text?.body || log?.message || '';
+        type = 'text';
+        break;
+      case 'image':
+        mediaId = msg?.image?.id;
+        caption = msg?.image?.caption;
+        mimetype = msg?.image?.mime_type;
+        text = caption || log?.message || '[Imagem]';
+        type = 'image';
+        break;
+      case 'video':
+        mediaId = msg?.video?.id;
+        caption = msg?.video?.caption;
+        mimetype = msg?.video?.mime_type;
+        text = caption || log?.message || '[Vídeo]';
+        type = 'video';
+        break;
+      case 'audio':
+        mediaId = msg?.audio?.id;
+        mimetype = msg?.audio?.mime_type;
+        text = log?.message || '[Áudio]';
+        type = 'audio';
+        break;
+      case 'document':
+        mediaId = msg?.document?.id;
+        fileName = msg?.document?.filename;
+        mimetype = msg?.document?.mime_type;
+        caption = msg?.document?.caption;
+        text = fileName || caption || log?.message || '[Documento]';
+        type = 'document';
+        break;
+      case 'sticker':
+        mediaId = msg?.sticker?.id;
+        mimetype = msg?.sticker?.mime_type;
+        text = log?.message || '[Sticker]';
+        type = 'sticker';
+        break;
+      case 'location':
+        text = msg?.location?.name || log?.message || '[Localização]';
+        type = 'location';
+        break;
+      case 'contacts':
+        text = msg?.contacts?.[0]?.name?.formatted_name || log?.message || '[Contato]';
+        type = 'contact';
+        break;
+      case 'interactive':
+      case 'button':
+      case 'order':
+        text = msg?.interactive?.button_reply?.title || msg?.interactive?.list_reply?.title || log?.message || '[Interativo]';
+        type = 'text';
+        break;
+      default:
+        text = log?.message || `[${msgType || 'desconhecido'}]`;
+        type = 'unknown';
+    }
+
+    const timestampRaw = msg?.timestamp || log?.created_at;
+
+    return {
+      id: msg?.id || log?.message_id || log?.id,
+      text,
+      fromMe: false,
+      timestamp: normalizeTimestamp(timestampRaw),
+      type,
+      wabaMediaId: mediaId,
+      mimetype,
+      caption,
+      fileName,
+      latitude: msg?.location?.latitude,
+      longitude: msg?.location?.longitude,
+      ptt: msgType === 'audio' && msg?.audio?.voice === true,
+    };
+  };
+
   const parseWabaPayload = (log: any): Message | null => {
     try {
-      const payload = log.payload;
+      const payload = log?.payload;
       if (!payload) return null;
-      
-      // Messages received from contacts (incoming)
+
+      // Formato antigo/completo do webhook (entry/changes)
       const entries = payload?.entry || [];
       for (const entry of entries) {
         const changes = entry?.changes || [];
         for (const change of changes) {
-          const value = change?.value;
-          if (!value) continue;
-          
-          const msgs = value.messages || [];
-          for (const msg of msgs) {
-            const msgType = msg.type as string;
-            let text = '';
-            let mediaId: string | undefined;
-            let caption: string | undefined;
-            let fileName: string | undefined;
-            let mimetype: string | undefined;
-            let type: MessageType = 'text';
-            
-            switch (msgType) {
-              case 'text':
-                text = msg.text?.body || '';
-                type = 'text';
-                break;
-              case 'image':
-                mediaId = msg.image?.id;
-                caption = msg.image?.caption;
-                mimetype = msg.image?.mime_type;
-                text = caption || '[Imagem]';
-                type = 'image';
-                break;
-              case 'video':
-                mediaId = msg.video?.id;
-                caption = msg.video?.caption;
-                mimetype = msg.video?.mime_type;
-                text = caption || '[Vídeo]';
-                type = 'video';
-                break;
-              case 'audio':
-                mediaId = msg.audio?.id;
-                mimetype = msg.audio?.mime_type;
-                text = '[Áudio]';
-                type = 'audio';
-                break;
-              case 'document':
-                mediaId = msg.document?.id;
-                fileName = msg.document?.filename;
-                mimetype = msg.document?.mime_type;
-                caption = msg.document?.caption;
-                text = fileName || '[Documento]';
-                type = 'document';
-                break;
-              case 'sticker':
-                mediaId = msg.sticker?.id;
-                mimetype = msg.sticker?.mime_type;
-                text = '[Sticker]';
-                type = 'sticker';
-                break;
-              case 'location':
-                text = msg.location?.name || '[Localização]';
-                type = 'location';
-                break;
-              case 'contacts':
-                text = msg.contacts?.[0]?.name?.formatted_name || '[Contato]';
-                type = 'contact';
-                break;
-              default:
-                text = `[${msgType || 'desconhecido'}]`;
-                type = 'unknown';
-            }
-            
-            return {
-              id: msg.id || log.id,
-              text,
-              fromMe: false,
-              timestamp: msg.timestamp ? parseInt(msg.timestamp) * 1000 : new Date(log.created_at).getTime(),
-              type,
-              wabaMediaId: mediaId,
-              mimetype,
-              caption,
-              fileName,
-              latitude: msg.location?.latitude,
-              longitude: msg.location?.longitude,
-              ptt: msgType === 'audio' && msg.audio?.voice === true,
-            };
+          const msgs = change?.value?.messages || [];
+          if (msgs.length > 0) {
+            return mapWabaMessageToDialogMessage(msgs[0], log);
           }
         }
       }
-      
+
+      // Formato atual salvo na tabela: payload já é a mensagem da Meta
+      if (payload?.id || payload?.type || log?.message_type) {
+        return mapWabaMessageToDialogMessage(payload, log);
+      }
+
       return null;
     } catch (e) {
       console.warn('Error parsing WABA payload:', e);
