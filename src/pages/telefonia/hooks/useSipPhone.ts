@@ -77,14 +77,19 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
   onCallEndedRef.current = onCallEnded;
   const durationRef = useRef(0);
 
-  // Create audio element for remote audio
-  useEffect(() => {
+  // Lazily create audio element only when needed
+  const getOrCreateAudio = useCallback(() => {
     if (!remoteAudioRef.current) {
       const audio = new Audio();
       audio.autoplay = true;
       document.body.appendChild(audio);
       remoteAudioRef.current = audio;
     }
+    return remoteAudioRef.current;
+  }, []);
+
+  // Cleanup audio on unmount
+  useEffect(() => {
     return () => {
       if (remoteAudioRef.current) {
         document.body.removeChild(remoteAudioRef.current);
