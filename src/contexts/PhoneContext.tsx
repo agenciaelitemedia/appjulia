@@ -43,7 +43,8 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   const [isDialing, setIsDialing] = useState(false);
   const [dialContactName, setDialContactName] = useState('');
   const autoConnected = useRef(false);
-
+  const retryCount = useRef(0);
+  const maxRetries = 8; // max ~5min backoff (5*2^7 = 640s capped at 300s)
   // Listen for sync-queue-done events to invalidate queries
   useEffect(() => {
     const handler = () => {
@@ -125,14 +126,24 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     connectSip();
   }, [myExtension, codAgent, connectSip]);
 
-  // Auto-retry SIP registration if it drops to idle/error
+  // Auto-retry SIP registration with exponential backoff
   useEffect(() => {
     if (!autoConnected.current || !myExtension) return;
+    if (sip.status === 'registered' || sip.status === 'in-call' || sip.status === 'calling' || sip.status === 'ringing') {
+      retryCount.current = 0; // reset on successful connection
+      return;
+    }
     if (sip.status === 'error' || (sip.status === 'idle' && autoConnected.current)) {
+      if (retryCount.current >= maxRetries) {
+        console.log(`[PhoneContext] SIP max retries (${maxRetries}) reached, stopping auto-reconnect`);
+        return;
+      }
+      const delay = Math.min(5000 * Math.pow(2, retryCount.current), 300_000); // 5s, 10s, 20s, ... max 5min
+      console.log(`[PhoneContext] SIP retry #${retryCount.current + 1} in ${delay / 1000}s`);
       const retryTimer = setTimeout(() => {
-        console.log('SIP auto-retry: reconnecting...');
+        retryCount.current += 1;
         connectSip();
-      }, 5000);
+      }, delay);
       return () => clearTimeout(retryTimer);
     }
   }, [sip.status, myExtension, connectSip]);
