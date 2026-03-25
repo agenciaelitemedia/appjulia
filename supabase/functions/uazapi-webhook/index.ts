@@ -18,19 +18,35 @@ async function getExternalPool() {
   const { Pool } = await import("https://deno.land/x/postgres@v0.19.3/mod.ts");
   const externalDbUrl = Deno.env.get("EXTERNAL_DB_URL")!;
   const externalDbCa = Deno.env.get("EXTERNAL_DB_CA_CERT");
+
+  const normalizedUrl = externalDbUrl.toLowerCase();
+  const isSocket =
+    normalizedUrl.includes("@/") ||
+    normalizedUrl.includes("host=/") ||
+    normalizedUrl.includes("host=%2f") ||
+    normalizedUrl.includes("/.s.pgsql.") ||
+    normalizedUrl.includes("/cloudsql/") ||
+    normalizedUrl.includes("%2fcloudsql%2f");
+
+  let connectionString = externalDbUrl;
+  if (isSocket) {
+    try {
+      const parsed = new URL(externalDbUrl);
+      ["sslmode", "ssl", "sslcert", "sslkey", "sslrootcert", "sslca"].forEach((param) => {
+        parsed.searchParams.delete(param);
+      });
+      connectionString = parsed.toString();
+    } catch {
+      connectionString = externalDbUrl
+        .replace(/([?&])(sslmode|ssl|sslcert|sslkey|sslrootcert|sslca)=[^&]*/gi, "$1")
+        .replace(/[?&]$/, "");
+    }
+  }
+
   const poolConfig: any = {
-    connectionString: externalDbUrl,
+    connectionString,
     size: 1,
   };
-
-  // Socket DSN cannot accept ANY tls options in deno-postgres
-  const isSocket =
-    externalDbUrl.includes("@/") ||
-    externalDbUrl.includes("host=/") ||
-    externalDbUrl.includes("host=%2F") ||
-    externalDbUrl.includes("%2F") ||
-    externalDbUrl.includes("/.s.PGSQL.") ||
-    /\/cloudsql\//.test(externalDbUrl);
 
   if (!isSocket && externalDbCa) {
     poolConfig.tls = { enabled: true, caCertificates: [externalDbCa] };
