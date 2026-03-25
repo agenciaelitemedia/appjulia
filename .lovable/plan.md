@@ -1,34 +1,18 @@
-# Omnichannel Message Storage & Chat Engine
+# Ajustar popup de chat para suportar UaZapi e API Oficial (WABA)
 
-## Status: ✅ Implementado (FASES 1-3)
+## Status: ✅ Implementado
 
 ## O que foi feito
 
-### FASE 1 — Banco de Dados (5 migrations)
-- ✅ `chat_contacts` estendida: `channel_type`, `channel_source`, `remote_jid` + índice único
-- ✅ `chat_messages` estendida: `channel_type`, `external_id`, `is_forwarded`, `forwarded_score`, `raw_payload` + índices
-- ✅ `webhook_logs` estendida: `contact_id`
-- ✅ Realtime habilitado para `chat_messages` e `chat_contacts` (já existiam)
-- ✅ Bucket `chat-media` criado com políticas de leitura pública e escrita
+### 1. Edge function `waba-send` criada
+- Actions: `send_text` (envia texto via Graph API) e `download_media` (baixa mídia via media_id)
+- Busca credenciais WABA (`waba_token`, `waba_number_id`) do banco externo por `cod_agent`
+- Tokens nunca expostos ao frontend
 
-### FASE 2 — Edge Functions
-- ✅ `meta-webhook` atualizada: `saveMessageToChat()` + `updateMessageStatus()` — persiste mensagens WABA nas tabelas `chat_contacts`/`chat_messages` com dedup por `external_id`, fire-and-forget para download de mídia
-- ✅ `uazapi-webhook` criada: recebe payloads Baileys, resolve agente por `instance` ou `cod_agent`, UPSERT contatos e INSERT mensagens, forward para N8N
-- ✅ `waba-send` estendida: nova action `download_and_store` — baixa mídia da Graph API, faz upload no Storage `chat-media`, atualiza `media_url` na `chat_messages`
-
-### FASE 3 — Frontend
-- ✅ `src/types/chat.ts` estendido: `ChannelType`, novos `MessageType`s, campos omnichannel em `ChatContact`/`ChatMessage`
-- ✅ `WhatsAppDataContext.tsx` — Realtime expandido de `INSERT` para `*` (INSERT + UPDATE) com dedup e atualização de status em tempo real
-- ✅ `ChatHeader.tsx` — Label de canal ("WA Oficial" / "WhatsApp")
-- ✅ `MessageBubble.tsx` — Indicador de mensagem encaminhada
-- ✅ `ChatContactItem.tsx` — Sem mudanças visuais necessárias (badge já funciona)
-
-### FASE 4 — Popup CRM WABA lendo de chat_messages
-- ✅ `WhatsAppMessagesDialog.tsx` — `loadWabaMessages()` e `loadMoreMessages()` agora lêem de `chat_messages` em vez de `webhook_logs`
-- ✅ Realtime listener WABA escuta INSERT em `chat_messages` filtrado por `contact_id`
-- ✅ Mapper `mapChatMessageToDialogMessage` mapeia colunas de `chat_messages` diretamente
-- ✅ `resolveWabaContactId` busca `contact_id` em `chat_contacts` por `client_id` + `phone`
-
-### FASE 5 — Configuração pendente
-- Configurar webhook URL no servidor UazAPI apontando para `uazapi-webhook?instance={nome}&c={cod_agent}`
-- Meta webhook já configurado (meta-webhook existente)
+### 2. `WhatsAppMessagesDialog` atualizado
+- Detecção automática de provider via campo `hub` na tabela `agents`
+- **UaZapi**: mantém fluxo original intacto (UaZapiClient)
+- **WABA**: carrega mensagens da tabela `webhook_logs`, envia via edge function `waba-send`
+- Parser dedicado para payload Meta (text, image, video, audio, document, sticker, location, contacts)
+- Download de mídia WABA via edge function (proxy da Graph API)
+- Paginação funciona para ambos os providers

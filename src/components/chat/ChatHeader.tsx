@@ -1,5 +1,4 @@
 import React from 'react';
-import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -31,21 +30,9 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
       
       <div className="flex-1 min-w-0">
         <h3 className="font-medium truncate">{contact.name}</h3>
-        <div className="flex items-center gap-1.5">
-          <p className="text-xs text-muted-foreground truncate">
-            {contact.is_group ? 'Grupo' : contact.phone}
-          </p>
-          {(contact as any).channel_type && (
-            <span className={cn(
-              'text-[10px] px-1.5 py-0.5 rounded-full font-medium',
-              (contact as any).channel_type === 'whatsapp_official'
-                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-            )}>
-              {(contact as any).channel_type === 'whatsapp_official' ? 'WA Oficial' : 'WhatsApp'}
-            </span>
-          )}
-        </div>
+        <p className="text-xs text-muted-foreground truncate">
+          {contact.is_group ? 'Grupo' : contact.phone}
+        </p>
       </div>
       
       <div className="flex items-center gap-1">

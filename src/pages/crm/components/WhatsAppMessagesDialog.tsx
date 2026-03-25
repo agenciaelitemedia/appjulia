@@ -768,8 +768,6 @@ export function WhatsAppMessagesDialog({
   const scrollRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
   const [provider, setProvider] = useState<WhatsAppProvider>('uazapi');
-  const [wabaContactId, setWabaContactId] = useState<string | null>(null);
-  const [wabaClientId, setWabaClientId] = useState<string | null>(null);
   
   // Media download state
   const [downloadingMedia, setDownloadingMedia] = useState<Set<string>>(new Set());
@@ -854,41 +852,7 @@ export function WhatsAppMessagesDialog({
     }
   }, [messages]);
 
-  // Realtime listener for WABA messages
-  useEffect(() => {
-    if (!open || provider !== 'waba' || !wabaContactId) return;
-    
-    const channel = supabase
-      .channel(`waba-chat-${wabaContactId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'chat_messages',
-          filter: `contact_id=eq.${wabaContactId}`,
-        },
-        (payload) => {
-          const newMsg = mapChatMessageToDialogMessage(payload.new);
-          setMessages(prev => {
-            if (prev.some(m => m.id === newMsg.id)) return prev;
-            return [...prev, newMsg];
-          });
-          // Auto-scroll to bottom for new messages
-          setTimeout(() => {
-            const scrollContainer = scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
-            if (scrollContainer) {
-              scrollContainer.scrollTop = scrollContainer.scrollHeight;
-            }
-          }, 100);
-        }
-      )
-      .subscribe();
-    
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [open, provider, wabaContactId]);
+  // Handle scroll to load more messages
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.target as HTMLDivElement;
     // If scrolled near top, load more messages
@@ -1030,67 +994,107 @@ export function WhatsAppMessagesDialog({
   };
 
   // ============================================
-  // WABA: Map chat_messages row to Message format
+  // WABA: Parse webhook_logs into Message format
   // ============================================
-
-  const mapChatMessageToDialogMessage = (row: any): Message => {
-    const msgType = (row.type || 'text') as string;
-    const metadata = row.metadata || {};
-    
-    let type: MessageType = 'text';
-    const typeMap: Record<string, MessageType> = {
-      text: 'text', image: 'image', audio: 'audio', ptt: 'audio',
-      video: 'video', document: 'document', sticker: 'sticker',
-      location: 'location', contact: 'contact',
-    };
-    type = typeMap[msgType] || 'text';
-
-    let text = row.text || row.caption || '';
-    if (!text) {
-      const fallbacks: Record<string, string> = {
-        image: '[Imagem]', audio: '[Áudio]', video: '[Vídeo]',
-        document: row.file_name || '[Documento]', sticker: '[Sticker]',
-        location: metadata.location_name || '[Localização]',
-        contact: metadata.contact_name || '[Contato]',
-      };
-      text = fallbacks[type] || '';
-    }
-
-    return {
-      id: row.id,
-      text,
-      fromMe: row.from_me ?? false,
-      timestamp: normalizeTimestamp(row.timestamp || row.created_at),
-      type,
-      mediaUrl: row.media_url || undefined,
-      mimetype: metadata.mimetype,
-      caption: row.caption || undefined,
-      fileName: row.file_name || undefined,
-      seconds: metadata.duration,
-      ptt: msgType === 'ptt' || metadata.is_ptt,
-      latitude: metadata.latitude,
-      longitude: metadata.longitude,
-      wabaMediaId: metadata.media_id,
-      quotedText: metadata.quoted_message?.text,
-      quotedParticipant: metadata.quoted_message?.sender_name,
-    };
-  };
-
-  const resolveWabaContactId = async (clientId: string, phone: string): Promise<string | null> => {
-    const cleanPhone = phone.replace(/\D/g, '');
-    const { data, error } = await supabase
-      .from('chat_contacts')
-      .select('id')
-      .eq('client_id', clientId)
-      .eq('phone', cleanPhone)
-      .limit(1)
-      .maybeSingle();
-    
-    if (error) {
-      console.error('Error resolving contact_id:', error);
+  
+  const parseWabaPayload = (log: any): Message | null => {
+    try {
+      const payload = log.payload;
+      if (!payload) return null;
+      
+      // Messages received from contacts (incoming)
+      const entries = payload?.entry || [];
+      for (const entry of entries) {
+        const changes = entry?.changes || [];
+        for (const change of changes) {
+          const value = change?.value;
+          if (!value) continue;
+          
+          const msgs = value.messages || [];
+          for (const msg of msgs) {
+            const msgType = msg.type as string;
+            let text = '';
+            let mediaId: string | undefined;
+            let caption: string | undefined;
+            let fileName: string | undefined;
+            let mimetype: string | undefined;
+            let type: MessageType = 'text';
+            
+            switch (msgType) {
+              case 'text':
+                text = msg.text?.body || '';
+                type = 'text';
+                break;
+              case 'image':
+                mediaId = msg.image?.id;
+                caption = msg.image?.caption;
+                mimetype = msg.image?.mime_type;
+                text = caption || '[Imagem]';
+                type = 'image';
+                break;
+              case 'video':
+                mediaId = msg.video?.id;
+                caption = msg.video?.caption;
+                mimetype = msg.video?.mime_type;
+                text = caption || '[Vídeo]';
+                type = 'video';
+                break;
+              case 'audio':
+                mediaId = msg.audio?.id;
+                mimetype = msg.audio?.mime_type;
+                text = '[Áudio]';
+                type = 'audio';
+                break;
+              case 'document':
+                mediaId = msg.document?.id;
+                fileName = msg.document?.filename;
+                mimetype = msg.document?.mime_type;
+                caption = msg.document?.caption;
+                text = fileName || '[Documento]';
+                type = 'document';
+                break;
+              case 'sticker':
+                mediaId = msg.sticker?.id;
+                mimetype = msg.sticker?.mime_type;
+                text = '[Sticker]';
+                type = 'sticker';
+                break;
+              case 'location':
+                text = msg.location?.name || '[Localização]';
+                type = 'location';
+                break;
+              case 'contacts':
+                text = msg.contacts?.[0]?.name?.formatted_name || '[Contato]';
+                type = 'contact';
+                break;
+              default:
+                text = `[${msgType || 'desconhecido'}]`;
+                type = 'unknown';
+            }
+            
+            return {
+              id: msg.id || log.id,
+              text,
+              fromMe: false,
+              timestamp: msg.timestamp ? parseInt(msg.timestamp) * 1000 : new Date(log.created_at).getTime(),
+              type,
+              wabaMediaId: mediaId,
+              mimetype,
+              caption,
+              fileName,
+              latitude: msg.location?.latitude,
+              longitude: msg.location?.longitude,
+              ptt: msgType === 'audio' && msg.audio?.voice === true,
+            };
+          }
+        }
+      }
+      
+      return null;
+    } catch (e) {
+      console.warn('Error parsing WABA payload:', e);
       return null;
     }
-    return data?.id || null;
   };
 
   const loadWabaMessages = async () => {
@@ -1100,50 +1104,30 @@ export function WhatsAppMessagesDialog({
     setHasMoreMessages(true);
     
     try {
-      // First resolve agent's client_id
-      const agentResult = await externalDb.raw<{ client_id: string }>({
-        query: `SELECT client_id FROM agents WHERE cod_agent = $1 LIMIT 1`,
-        params: [codAgent],
-      });
+      const cleanNumber = whatsappNumber.replace(/\D/g, '');
+      console.log('🔍 [WABA] Loading messages for:', cleanNumber);
       
-      const clientId = agentResult?.[0]?.client_id;
-      if (!clientId) {
-        console.warn('No client_id found for agent:', codAgent);
-        setMessages([]);
-        setHasMoreMessages(false);
-        return;
-      }
-      setWabaClientId(clientId);
-
-      // Resolve contact_id
-      const contactId = await resolveWabaContactId(clientId, whatsappNumber);
-      setWabaContactId(contactId);
-      
-      if (!contactId) {
-        console.warn('No contact found for:', clientId, whatsappNumber);
-        setMessages([]);
-        setHasMoreMessages(false);
-        return;
-      }
-
-      console.log('🔍 [WABA] Loading messages from chat_messages, contact_id:', contactId);
-      
-      const { data: rows, error } = await supabase
-        .from('chat_messages')
+      const { data: logs, error } = await supabase
+        .from('webhook_logs')
         .select('*')
-        .eq('contact_id', contactId)
-        .order('timestamp', { ascending: false })
+        .eq('from_number', cleanNumber)
+        .not('message_type', 'is', null)
+        .neq('message_type', 'status')
+        .order('created_at', { ascending: false })
         .limit(50);
       
       if (error) throw error;
       
-      if (rows && rows.length > 0) {
-        const parsed = rows.map(mapChatMessageToDialogMessage);
+      if (logs && logs.length > 0) {
+        const parsed = logs
+          .map(parseWabaPayload)
+          .filter((m): m is Message => m !== null);
+        
         parsed.sort((a, b) => a.timestamp - b.timestamp);
         setMessages(parsed);
         setCurrentOffset(50);
-        setHasMoreMessages(rows.length === 50);
-        console.log('✅ [WABA] Loaded messages from chat_messages:', parsed.length);
+        setHasMoreMessages(logs.length === 50);
+        console.log('✅ [WABA] Processed messages:', parsed.length);
       } else {
         setMessages([]);
         setHasMoreMessages(false);
@@ -1248,20 +1232,23 @@ export function WhatsAppMessagesDialog({
     setLoadingMore(true);
     try {
       if (provider === 'waba') {
-        // WABA: paginate from chat_messages
-        if (!wabaContactId) return;
-        
-        const { data: rows, error } = await supabase
-          .from('chat_messages')
+        // WABA: paginate from webhook_logs
+        const cleanNumber = whatsappNumber.replace(/\D/g, '');
+        const { data: logs, error } = await supabase
+          .from('webhook_logs')
           .select('*')
-          .eq('contact_id', wabaContactId)
-          .order('timestamp', { ascending: false })
+          .eq('from_number', cleanNumber)
+          .not('message_type', 'is', null)
+          .neq('message_type', 'status')
+          .order('created_at', { ascending: false })
           .range(currentOffset, currentOffset + 49);
         
         if (error) throw error;
         
-        if (rows && rows.length > 0) {
-          const parsed = rows.map(mapChatMessageToDialogMessage);
+        if (logs && logs.length > 0) {
+          const parsed = logs
+            .map(parseWabaPayload)
+            .filter((m): m is Message => m !== null);
           
           const scrollContainer = scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
           const previousScrollHeight = scrollContainer?.scrollHeight || 0;
@@ -1282,7 +1269,7 @@ export function WhatsAppMessagesDialog({
           }, 50);
           
           setCurrentOffset(prev => prev + 50);
-          setHasMoreMessages(rows.length === 50);
+          setHasMoreMessages(logs.length === 50);
         } else {
           setHasMoreMessages(false);
         }

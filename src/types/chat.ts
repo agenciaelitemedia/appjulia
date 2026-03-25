@@ -3,8 +3,6 @@
 // Types for the WhatsApp chat system
 // ============================================
 
-export type ChannelType = 'whatsapp_uazapi' | 'whatsapp_official';
-
 export type MessageType = 
   | 'text' 
   | 'image' 
@@ -16,9 +14,7 @@ export type MessageType =
   | 'location' 
   | 'contact'
   | 'reaction'
-  | 'revoked'
-  | 'interactive_reply'
-  | 'template';
+  | 'revoked';
 
 export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 
@@ -37,10 +33,6 @@ export interface ChatContact {
   last_message_text?: string;
   created_at: string;
   updated_at: string;
-  // Omnichannel fields
-  channel_type?: ChannelType;
-  channel_source?: string;
-  remote_jid?: string;
 }
 
 export interface ChatMessage {
@@ -59,12 +51,6 @@ export interface ChatMessage {
   metadata?: MessageMetadata;
   timestamp: string;
   created_at: string;
-  // Omnichannel fields
-  channel_type?: ChannelType;
-  external_id?: string;
-  is_forwarded?: boolean;
-  forwarded_score?: number;
-  raw_payload?: any;
 }
 
 export interface MessageMetadata {
@@ -82,7 +68,6 @@ export interface MessageMetadata {
   file_size?: number;
   duration?: number;
   thumbnail?: string;
-  media_id?: string;
   
   // Location info
   latitude?: number;
@@ -151,7 +136,6 @@ export interface UaZapiMessage {
         quotedMessage?: unknown;
         stanzaId?: string;
         participant?: string;
-        isForwarded?: boolean;
       };
     };
     imageMessage?: {

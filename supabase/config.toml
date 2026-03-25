@@ -35,6 +35,3 @@ verify_jwt = false
 
 [functions.waba-send]
 verify_jwt = false
-
-[functions.uazapi-webhook]
-verify_jwt = false
