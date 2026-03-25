@@ -133,9 +133,8 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
           pc?.getReceivers().forEach((receiver) => {
             if (receiver.track) remoteStream.addTrack(receiver.track);
           });
-          if (remoteAudioRef.current) {
-            remoteAudioRef.current.srcObject = remoteStream;
-          }
+          const audioEl = getOrCreateAudio();
+          audioEl.srcObject = remoteStream;
           // Detect remote hangup via ICE disconnection
           if (pc) {
             let iceDisconnectTimer: ReturnType<typeof setTimeout> | null = null;
