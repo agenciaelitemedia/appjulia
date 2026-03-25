@@ -767,6 +767,7 @@ export function WhatsAppMessagesDialog({
   const [currentOffset, setCurrentOffset] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
+  const [provider, setProvider] = useState<WhatsAppProvider>('uazapi');
   
   // Media download state
   const [downloadingMedia, setDownloadingMedia] = useState<Set<string>>(new Set());
