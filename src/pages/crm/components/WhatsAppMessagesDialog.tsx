@@ -863,29 +863,49 @@ export function WhatsAppMessagesDialog({
 
   // Download media from message
   const downloadMedia = async (messageId: string) => {
-    if (!client || downloadingMedia.has(messageId)) return;
+    if (downloadingMedia.has(messageId)) return;
     
     setDownloadingMedia(prev => new Set(prev).add(messageId));
     
     try {
-      console.log('📥 [WhatsApp API] Downloading media for message:', messageId);
-      const response = await client.post<{ fileURL?: string; base64Data?: string; mimetype?: string }>('/message/download', {
-        id: messageId,
-        return_link: true,
-        return_base64: false,
-      });
-      
-      console.log('✅ [WhatsApp API] Media download response:', response);
-      
-      if (response.fileURL) {
-        setMediaUrls(prev => ({ ...prev, [messageId]: response.fileURL! }));
-      } else if (response.base64Data && response.mimetype) {
-        // Fallback to base64 if URL not available
-        const dataUrl = `data:${response.mimetype};base64,${response.base64Data}`;
-        setMediaUrls(prev => ({ ...prev, [messageId]: dataUrl }));
+      if (provider === 'waba') {
+        // WABA: use edge function to download via media_id
+        const message = messages.find(m => m.id === messageId);
+        const mediaId = message?.wabaMediaId;
+        if (!mediaId) {
+          console.warn('No wabaMediaId for message', messageId);
+          return;
+        }
+        
+        console.log('📥 [WABA] Downloading media:', mediaId);
+        const { data, error } = await supabase.functions.invoke('waba-send', {
+          body: { action: 'download_media', cod_agent: codAgent, media_id: mediaId },
+        });
+        
+        if (error) throw error;
+        if (data?.base64 && data?.mimetype) {
+          const dataUrl = `data:${data.mimetype};base64,${data.base64}`;
+          setMediaUrls(prev => ({ ...prev, [messageId]: dataUrl }));
+        }
+      } else {
+        // UaZapi: use client API
+        if (!client) return;
+        console.log('📥 [UaZapi] Downloading media for message:', messageId);
+        const response = await client.post<{ fileURL?: string; base64Data?: string; mimetype?: string }>('/message/download', {
+          id: messageId,
+          return_link: true,
+          return_base64: false,
+        });
+        
+        if (response.fileURL) {
+          setMediaUrls(prev => ({ ...prev, [messageId]: response.fileURL! }));
+        } else if (response.base64Data && response.mimetype) {
+          const dataUrl = `data:${response.mimetype};base64,${response.base64Data}`;
+          setMediaUrls(prev => ({ ...prev, [messageId]: dataUrl }));
+        }
       }
     } catch (error) {
-      console.error('❌ [WhatsApp API] Error downloading media:', error);
+      console.error('❌ Error downloading media:', error);
       toast({
         title: 'Erro ao baixar mídia',
         description: 'Não foi possível baixar o arquivo.',
