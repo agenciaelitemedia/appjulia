@@ -33,6 +33,8 @@ import { formatTimeSaoPaulo, formatDateShortSaoPaulo } from '@/lib/dateUtils';
 
 type MessageType = 'text' | 'image' | 'audio' | 'video' | 'document' | 'sticker' | 'location' | 'contact' | 'unknown';
 
+type WhatsAppProvider = 'uazapi' | 'waba';
+
 interface Message {
   id: string;
   text: string;
@@ -52,12 +54,17 @@ interface Message {
   quotedId?: string;
   quotedText?: string;
   quotedParticipant?: string;
+  // WABA media ID for download
+  wabaMediaId?: string;
 }
 
 interface AgentCredentials {
   api_url: string;
   api_key: string;
   api_instance?: string;
+  hub?: string;
+  waba_id?: string;
+  waba_number_id?: string;
 }
 
 interface WhatsAppMessagesDialogProps {
