@@ -16,36 +16,45 @@ async function getExternalPool() {
   const externalDbUrl = Deno.env.get("EXTERNAL_DB_URL")!;
   const externalDbCa = Deno.env.get("EXTERNAL_DB_CA_CERT");
 
+  let parsedUrl: URL | null = null;
+  try {
+    parsedUrl = new URL(externalDbUrl);
+  } catch {
+    parsedUrl = null;
+  }
+
+  const hostParam = parsedUrl?.searchParams.get("host") ?? "";
+  const socketParam = parsedUrl?.searchParams.get("socket") ?? "";
+  const socketHint = `${hostParam} ${socketParam}`.toLowerCase();
+
   const normalizedUrl = externalDbUrl.toLowerCase();
   const isSocket =
-    normalizedUrl.includes("/.s.pgsql.") ||
+    socketHint.includes("/") ||
+    socketHint.includes(".s.pgsql") ||
+    socketHint.includes("cloudsql") ||
+    normalizedUrl.includes("socket=") ||
     normalizedUrl.includes("host=/") ||
     normalizedUrl.includes("host=%2f") ||
-    normalizedUrl.includes("@/") ||
+    normalizedUrl.includes("/.s.pgsql.") ||
     normalizedUrl.includes("/cloudsql/") ||
-    normalizedUrl.includes("%2fcloudsql%2f");
+    normalizedUrl.includes("%2fcloudsql%2f") ||
+    normalizedUrl.includes("@/");
 
   let connectionString = externalDbUrl;
   if (isSocket) {
-    // Socket URLs cannot carry TLS options in deno-postgres.
-    try {
-      const parsed = new URL(externalDbUrl);
+    if (parsedUrl) {
       ["sslmode", "ssl", "sslcert", "sslkey", "sslrootcert", "sslca"].forEach((param) => {
-        parsed.searchParams.delete(param);
+        parsedUrl!.searchParams.delete(param);
       });
-      connectionString = parsed.toString();
-    } catch {
+      connectionString = parsedUrl.toString();
+    } else {
       connectionString = externalDbUrl
         .replace(/([?&])(sslmode|ssl|sslcert|sslkey|sslrootcert|sslca)=[^&]*/gi, "$1")
         .replace(/[?&]$/, "");
     }
   }
 
-  const poolConfig: any = {
-    connectionString,
-    size: 1,
-  };
-
+  const poolConfig: any = { connectionString, size: 1 };
   if (!isSocket && externalDbCa) {
     poolConfig.tls = { enabled: true, caCertificates: [externalDbCa] };
   }
