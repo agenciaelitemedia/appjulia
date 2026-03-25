@@ -1227,46 +1227,87 @@ export function WhatsAppMessagesDialog({
   };
 
   const loadMoreMessages = async () => {
-    if (!client || !isConfigured || loadingMore || !hasMoreMessages) return;
+    if (!isConfigured || loadingMore || !hasMoreMessages) return;
 
     setLoadingMore(true);
     try {
-      const jid = formatToJid(whatsappNumber);
-      const endpoint = '/message/find';
-      const requestBody = { chatid: jid, limit: 50, offset: currentOffset };
-      
-      console.log('🔍 [WhatsApp API] Loading more messages:', { offset: currentOffset });
-      const response = await client.post<any>(endpoint, requestBody);
-      const messagesArray = Array.isArray(response) ? response : (response?.messages || []);
-      
-      if (messagesArray.length > 0) {
-        const formattedMessages = parseMessages(messagesArray);
+      if (provider === 'waba') {
+        // WABA: paginate from webhook_logs
+        const cleanNumber = whatsappNumber.replace(/\D/g, '');
+        const { data: logs, error } = await supabase
+          .from('webhook_logs')
+          .select('*')
+          .eq('from_number', cleanNumber)
+          .not('message_type', 'is', null)
+          .neq('message_type', 'status')
+          .order('created_at', { ascending: false })
+          .range(currentOffset, currentOffset + 49);
         
-        // Get current scroll position to maintain it after adding messages
-        const scrollContainer = scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
-        const previousScrollHeight = scrollContainer?.scrollHeight || 0;
+        if (error) throw error;
         
-        setMessages(prev => {
-          const existingIds = new Set(prev.map(m => m.id));
-          const newMessages = formattedMessages.filter(m => !existingIds.has(m.id));
-          const combined = [...newMessages, ...prev];
-          combined.sort((a, b) => a.timestamp - b.timestamp);
-          return combined;
-        });
-        
-        // Restore scroll position after messages are added
-        setTimeout(() => {
-          if (scrollContainer) {
-            const newScrollHeight = scrollContainer.scrollHeight;
-            scrollContainer.scrollTop = newScrollHeight - previousScrollHeight;
-          }
-        }, 50);
-        
-        setCurrentOffset(prev => prev + 50);
-        setHasMoreMessages(messagesArray.length === 50);
-        console.log('✅ [WhatsApp API] Loaded more messages:', messagesArray.length);
+        if (logs && logs.length > 0) {
+          const parsed = logs
+            .map(parseWabaPayload)
+            .filter((m): m is Message => m !== null);
+          
+          const scrollContainer = scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+          const previousScrollHeight = scrollContainer?.scrollHeight || 0;
+          
+          setMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const newMessages = parsed.filter(m => !existingIds.has(m.id));
+            const combined = [...newMessages, ...prev];
+            combined.sort((a, b) => a.timestamp - b.timestamp);
+            return combined;
+          });
+          
+          setTimeout(() => {
+            if (scrollContainer) {
+              const newScrollHeight = scrollContainer.scrollHeight;
+              scrollContainer.scrollTop = newScrollHeight - previousScrollHeight;
+            }
+          }, 50);
+          
+          setCurrentOffset(prev => prev + 50);
+          setHasMoreMessages(logs.length === 50);
+        } else {
+          setHasMoreMessages(false);
+        }
       } else {
-        setHasMoreMessages(false);
+        // UaZapi
+        if (!client) return;
+        const jid = formatToJid(whatsappNumber);
+        const requestBody = { chatid: jid, limit: 50, offset: currentOffset };
+        
+        const response = await client.post<any>('/message/find', requestBody);
+        const messagesArray = Array.isArray(response) ? response : (response?.messages || []);
+        
+        if (messagesArray.length > 0) {
+          const formattedMessages = parseMessages(messagesArray);
+          
+          const scrollContainer = scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+          const previousScrollHeight = scrollContainer?.scrollHeight || 0;
+          
+          setMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const newMessages = formattedMessages.filter(m => !existingIds.has(m.id));
+            const combined = [...newMessages, ...prev];
+            combined.sort((a, b) => a.timestamp - b.timestamp);
+            return combined;
+          });
+          
+          setTimeout(() => {
+            if (scrollContainer) {
+              const newScrollHeight = scrollContainer.scrollHeight;
+              scrollContainer.scrollTop = newScrollHeight - previousScrollHeight;
+            }
+          }, 50);
+          
+          setCurrentOffset(prev => prev + 50);
+          setHasMoreMessages(messagesArray.length === 50);
+        } else {
+          setHasMoreMessages(false);
+        }
       }
     } catch (error: any) {
       console.error('Error loading more messages:', error);
@@ -1276,15 +1317,31 @@ export function WhatsAppMessagesDialog({
   };
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !client || sending) return;
+    if (!newMessage.trim() || sending) return;
 
     setSending(true);
     try {
-      // UaZapi uses /send/text endpoint - see docs.uazapi.com
-      await client.post('/send/text', {
-        number: whatsappNumber.replace(/\D/g, ''),
-        text: newMessage.trim(),
-      });
+      if (provider === 'waba') {
+        // WABA: send via edge function
+        const { data, error } = await supabase.functions.invoke('waba-send', {
+          body: {
+            action: 'send_text',
+            cod_agent: codAgent,
+            to: whatsappNumber,
+            text: newMessage.trim(),
+          },
+        });
+        
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error.message || data.error);
+      } else {
+        // UaZapi
+        if (!client) return;
+        await client.post('/send/text', {
+          number: whatsappNumber.replace(/\D/g, ''),
+          text: newMessage.trim(),
+        });
+      }
 
       // Add message to local state
       setMessages(prev => [
