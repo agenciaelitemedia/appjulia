@@ -1,55 +1,76 @@
-# Refatorar meta-webhook: resposta imediata + fila de envio para N8N
+
+
+# Ajustar popup de chat para suportar UaZapi e API Oficial (WABA)
 
 ## Problema atual
 
-A Edge Function faz lookup no banco externo e envia ao N8N **antes** de responder 200 à Meta, causando timeouts e reenvios.
+O `WhatsAppMessagesDialog` só funciona com UaZapi. Quando o agente usa API Oficial da Meta (`hub = 'waba'`), o popup não carrega mensagens nem consegue enviar.
 
-## Arquitetura proposta
+## Diferenças entre os provedores
 
 ```text
-Meta → meta-webhook → INSERT webhook_queue → RESPONDE 200 (imediato)
-                           ↓
-                    processQueue() (background, fire-and-forget)
-                           ↓
-                    Lê pending → envia síncrono ao N8N → atualiza status
+                    UaZapi                          WABA (API Oficial)
+─────────────────────────────────────────────────────────────────────────
+Buscar mensagens    POST /message/find              Sem endpoint de leitura.
+                    (via UaZapiClient)              Mensagens recebidas ficam na
+                                                    tabela webhook_queue/webhook_logs.
+
+Enviar texto        POST /send/text                 POST graph.facebook.com/v22.0/
+                    (via UaZapiClient)              {phone_number_id}/messages
+                                                    (via edge function waba-send)
+
+Download mídia      POST /message/download          GET graph.facebook.com/v22.0/{media_id}
+                    (via UaZapiClient)              (via edge function waba-send)
+
+Credenciais         evo_url, evo_apikey,            waba_token, waba_number_id,
+                    evo_instance                    waba_id
 ```
 
-URL do N8N: `https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start?app=waba&waba_id={waba_id}`
+## Plano de alterações
 
-## Alteracoes
+### 1. Alterar query de credenciais para incluir `hub` e campos WABA
 
-### 1. Nova tabela `webhook_queue`
+No `loadAgentCredentials`, buscar também `hub`, `waba_token`, `waba_number_id`, `waba_id` da tabela `agents`. Armazenar num state `provider` que indica qual API usar.
 
-Campos: `id`, `waba_id`, `phone_number_id`, `from_number`, `message_id` (dedup), `message_type`, `payload` (raw completo), `contacts`, `status` (pending/sent/failed), `retries`, `created_at`, `sent_at`, `error_message`, `n8n_response_status`.
+### 2. Criar edge function `waba-send` (nova)
 
-### 2. Alterar tabela `webhook_logs`
+Para enviar mensagens de texto via WABA e para baixar mídia. Actions:
+- `send_text`: envia texto via Graph API `/{phone_number_id}/messages`
+- `download_media`: baixa mídia via Graph API `/{media_id}` com token do agente
+- `get_media_url`: obtém URL de mídia de um media_id
 
-Adicionar colunas: `message_id` (WhatsApp message ID), `message_type`, `status_type` (para status updates), `waba_id`, `phone_number_id` — para gravar dados mais ricos do webhook.
+Recebe `waba_token`, `phone_number_id` e os dados da mensagem. Valida campos obrigatórios server-side.
 
-### 3. Reescrever `meta-webhook/index.ts`
+### 3. Carregar mensagens WABA da tabela `webhook_logs`
 
-Fluxo no POST:
+Para WABA, buscar mensagens da tabela `webhook_logs` filtradas por `from_number` (número do contato) e `waba_id` do agente. Extrair texto, tipo, timestamp e payload do campo `payload` (JSON raw da Meta).
 
-1. Parse body
-2. Extrair mensagens e statuses do payload
-3. INSERT em `webhook_queue` (itens com status `pending`) — sem lookup no banco externo
-4. INSERT em `webhook_logs` (log completo com metadata)
-5. **Responder 200 imediatamente**
-6. Fire-and-forget: `processQueue()` que:
-  - Para cada item pending na fila, envia síncrono ao N8N na URL `https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start?app=waba&waba_id={waba_id}`
-  - Atualiza status para `sent` ou `failed`
-  - Atualiza o `webhook_logs` correspondente com `forwarded=true` e `cod_agent`
+Parser dedicado para o formato Meta:
+- `payload.entry[].changes[].value.messages[]` → extrai texto, imagem, vídeo, áudio, documento
+- Tipos: `text.body`, `image.id/caption`, `video.id/caption`, `audio.id`, `document.id/filename`
 
-Deduplicação: usa `message_id` do WhatsApp para ignorar mensagens já na fila.
+### 4. Enviar mensagem WABA via edge function
 
-### 4. Action `process_queue` (fallback)
+Quando `hub === 'waba'`, o `handleSendMessage` chama `supabase.functions.invoke('waba-send', ...)` em vez do `UaZapiClient`.
 
-Adicionar action para processar itens pending manualmente ou via cron, caso o fire-and-forget não complete.
+### 5. Download de mídia WABA
+
+Para mídia WABA, os IDs de mídia vêm no payload do webhook. O download usa a edge function `waba-send` com action `download_media` que faz proxy da Graph API.
+
+### 6. Manter parsing UaZapi intacto
+
+Todo o código existente de `detectMessageType`, `extractMediaData`, `parseMessages` continua funcionando para UaZapi. O código WABA é uma branch separada.
 
 ## Arquivos alterados
 
+| Arquivo | O que muda |
+|---|---|
+| `src/pages/crm/components/WhatsAppMessagesDialog.tsx` | Adiciona state `provider`, branch na query de credenciais, `loadMessages` e `handleSendMessage` por provider. Parser WABA para webhook_logs. |
+| `supabase/functions/waba-send/index.ts` | Nova edge function para enviar mensagens e baixar mídia via Graph API |
 
-| Arquivo                                    | O que muda                                               |
-| ------------------------------------------ | -------------------------------------------------------- |
-| Migração SQL                               | Cria `webhook_queue`, adiciona colunas ao `webhook_logs` |
-| `supabase/functions/meta-webhook/index.ts` | Resposta imediata + fila + processamento background      |
+## Segurança
+
+- A edge function `waba-send` valida campos obrigatórios e não expõe tokens ao frontend
+- Credenciais WABA são buscadas server-side na edge function a partir do `cod_agent`
+- Nenhuma alteração em RLS (webhook_logs já tem política adequada)
+
