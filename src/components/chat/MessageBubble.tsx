@@ -316,6 +316,13 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
               : 'bg-muted rounded-bl-none'
           )}
         >
+          {/* Forwarded indicator */}
+          {(message as any).is_forwarded && (
+            <p className="text-[10px] text-muted-foreground italic mb-1">
+              ↪ Encaminhada
+            </p>
+          )}
+
           {/* Sender name (groups) */}
           {!message.from_me && message.metadata?.sender_name && (
             <p className="text-xs font-medium text-primary mb-1">
