@@ -23,13 +23,16 @@ async function getExternalPool() {
     size: 1,
   };
 
-  const isSocketConnection =
+  // Socket DSN cannot accept ANY tls options in deno-postgres
+  const isSocket =
     externalDbUrl.includes("@/") ||
     externalDbUrl.includes("host=/") ||
     externalDbUrl.includes("host=%2F") ||
-    externalDbUrl.includes("/.s.PGSQL.");
+    externalDbUrl.includes("%2F") ||
+    externalDbUrl.includes("/.s.PGSQL.") ||
+    /\/cloudsql\//.test(externalDbUrl);
 
-  if (externalDbCa && !isSocketConnection) {
+  if (!isSocket && externalDbCa) {
     poolConfig.tls = { enabled: true, caCertificates: [externalDbCa] };
   }
   return new Pool(poolConfig, 1);
