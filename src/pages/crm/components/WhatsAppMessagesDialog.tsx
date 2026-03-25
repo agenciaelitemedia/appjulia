@@ -925,9 +925,10 @@ export function WhatsAppMessagesDialog({
     try {
       const result = await externalDb.raw<AgentCredentials>({
         query: `
-          SELECT evo_url as api_url, evo_apikey as api_key, evo_instance as api_instance 
+          SELECT evo_url as api_url, evo_apikey as api_key, evo_instance as api_instance,
+                 hub, waba_id, waba_number_id
           FROM agents 
-          WHERE cod_agent = $1 AND evo_url IS NOT NULL
+          WHERE cod_agent = $1
           LIMIT 1
         `,
         params: [codAgent],
@@ -935,21 +936,41 @@ export function WhatsAppMessagesDialog({
 
       if (result && result.length > 0) {
         const creds = result[0];
-        if (creds.api_url && creds.api_key) {
-          const newClient = new UaZapiClient({
-            baseUrl: creds.api_url,
-            token: creds.api_key,
-            instance: creds.api_instance,
-          });
-          setClient(newClient);
-          setIsConfigured(true);
+        const agentHub = creds.hub || 'uazapi';
+        
+        if (agentHub === 'waba') {
+          // WABA provider
+          setProvider('waba');
+          setClient(null);
+          if (creds.waba_id && creds.waba_number_id) {
+            setIsConfigured(true);
+          } else {
+            setIsConfigured(false);
+            toast({
+              title: 'WABA não configurado',
+              description: 'Este agente não possui credenciais WABA completas.',
+              variant: 'destructive',
+            });
+          }
         } else {
-          setIsConfigured(false);
-          toast({
-            title: 'API não configurada',
-            description: 'Este agente não possui credenciais UaZapi configuradas.',
-            variant: 'destructive',
-          });
+          // UaZapi provider
+          setProvider('uazapi');
+          if (creds.api_url && creds.api_key) {
+            const newClient = new UaZapiClient({
+              baseUrl: creds.api_url,
+              token: creds.api_key,
+              instance: creds.api_instance,
+            });
+            setClient(newClient);
+            setIsConfigured(true);
+          } else {
+            setIsConfigured(false);
+            toast({
+              title: 'API não configurada',
+              description: 'Este agente não possui credenciais UaZapi configuradas.',
+              variant: 'destructive',
+            });
+          }
         }
       } else {
         setIsConfigured(false);
@@ -965,6 +986,157 @@ export function WhatsAppMessagesDialog({
       toast({
         title: 'Erro ao carregar credenciais',
         description: error.message || 'Não foi possível carregar as credenciais do agente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ============================================
+  // WABA: Parse webhook_logs into Message format
+  // ============================================
+  
+  const parseWabaPayload = (log: any): Message | null => {
+    try {
+      const payload = log.payload;
+      if (!payload) return null;
+      
+      // Messages received from contacts (incoming)
+      const entries = payload?.entry || [];
+      for (const entry of entries) {
+        const changes = entry?.changes || [];
+        for (const change of changes) {
+          const value = change?.value;
+          if (!value) continue;
+          
+          const msgs = value.messages || [];
+          for (const msg of msgs) {
+            const msgType = msg.type as string;
+            let text = '';
+            let mediaId: string | undefined;
+            let caption: string | undefined;
+            let fileName: string | undefined;
+            let mimetype: string | undefined;
+            let type: MessageType = 'text';
+            
+            switch (msgType) {
+              case 'text':
+                text = msg.text?.body || '';
+                type = 'text';
+                break;
+              case 'image':
+                mediaId = msg.image?.id;
+                caption = msg.image?.caption;
+                mimetype = msg.image?.mime_type;
+                text = caption || '[Imagem]';
+                type = 'image';
+                break;
+              case 'video':
+                mediaId = msg.video?.id;
+                caption = msg.video?.caption;
+                mimetype = msg.video?.mime_type;
+                text = caption || '[Vídeo]';
+                type = 'video';
+                break;
+              case 'audio':
+                mediaId = msg.audio?.id;
+                mimetype = msg.audio?.mime_type;
+                text = '[Áudio]';
+                type = 'audio';
+                break;
+              case 'document':
+                mediaId = msg.document?.id;
+                fileName = msg.document?.filename;
+                mimetype = msg.document?.mime_type;
+                caption = msg.document?.caption;
+                text = fileName || '[Documento]';
+                type = 'document';
+                break;
+              case 'sticker':
+                mediaId = msg.sticker?.id;
+                mimetype = msg.sticker?.mime_type;
+                text = '[Sticker]';
+                type = 'sticker';
+                break;
+              case 'location':
+                text = msg.location?.name || '[Localização]';
+                type = 'location';
+                break;
+              case 'contacts':
+                text = msg.contacts?.[0]?.name?.formatted_name || '[Contato]';
+                type = 'contact';
+                break;
+              default:
+                text = `[${msgType || 'desconhecido'}]`;
+                type = 'unknown';
+            }
+            
+            return {
+              id: msg.id || log.id,
+              text,
+              fromMe: false,
+              timestamp: msg.timestamp ? parseInt(msg.timestamp) * 1000 : new Date(log.created_at).getTime(),
+              type,
+              wabaMediaId: mediaId,
+              mimetype,
+              caption,
+              fileName,
+              latitude: msg.location?.latitude,
+              longitude: msg.location?.longitude,
+              ptt: msgType === 'audio' && msg.audio?.voice === true,
+            };
+          }
+        }
+      }
+      
+      return null;
+    } catch (e) {
+      console.warn('Error parsing WABA payload:', e);
+      return null;
+    }
+  };
+
+  const loadWabaMessages = async () => {
+    setLoading(true);
+    isInitialLoad.current = true;
+    setCurrentOffset(0);
+    setHasMoreMessages(true);
+    
+    try {
+      const cleanNumber = whatsappNumber.replace(/\D/g, '');
+      console.log('🔍 [WABA] Loading messages for:', cleanNumber);
+      
+      const { data: logs, error } = await supabase
+        .from('webhook_logs')
+        .select('*')
+        .eq('from_number', cleanNumber)
+        .not('message_type', 'is', null)
+        .neq('message_type', 'status')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      
+      if (error) throw error;
+      
+      if (logs && logs.length > 0) {
+        const parsed = logs
+          .map(parseWabaPayload)
+          .filter((m): m is Message => m !== null);
+        
+        parsed.sort((a, b) => a.timestamp - b.timestamp);
+        setMessages(parsed);
+        setCurrentOffset(50);
+        setHasMoreMessages(logs.length === 50);
+        console.log('✅ [WABA] Processed messages:', parsed.length);
+      } else {
+        setMessages([]);
+        setHasMoreMessages(false);
+      }
+    } catch (error: any) {
+      console.error('Error loading WABA messages:', error);
+      toast({
+        title: 'Erro ao carregar mensagens',
+        description: error.message || 'Não foi possível carregar as mensagens.',
         variant: 'destructive',
       });
     } finally {
