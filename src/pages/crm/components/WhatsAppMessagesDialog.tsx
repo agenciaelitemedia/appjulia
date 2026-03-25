@@ -828,10 +828,14 @@ export function WhatsAppMessagesDialog({
 
   // Load messages after credentials are loaded
   useEffect(() => {
-    if (open && whatsappNumber && client && isConfigured) {
-      loadMessages();
+    if (open && whatsappNumber && isConfigured) {
+      if (provider === 'waba') {
+        loadWabaMessages();
+      } else if (client) {
+        loadMessages();
+      }
     }
-  }, [open, whatsappNumber, client, isConfigured]);
+  }, [open, whatsappNumber, client, isConfigured, provider]);
 
   // Scroll to bottom only on initial load
   useEffect(() => {
