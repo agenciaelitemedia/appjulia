@@ -614,17 +614,41 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'chat_messages',
           filter: `client_id=eq.${clientId}`,
         },
         (payload) => {
-          const newMessage = payload.new as ChatMessage;
-          setMessages(prev => ({
-            ...prev,
-            [newMessage.contact_id]: [...(prev[newMessage.contact_id] || []), newMessage],
-          }));
+          if (payload.eventType === 'INSERT') {
+            const newMessage = payload.new as ChatMessage;
+            // Avoid duplicates (optimistic updates)
+            setMessages(prev => {
+              const existing = prev[newMessage.contact_id] || [];
+              const alreadyExists = existing.some(m => 
+                m.id === newMessage.id || 
+                (m.external_id && m.external_id === newMessage.external_id) ||
+                (m.message_id && m.message_id === newMessage.message_id)
+              );
+              if (alreadyExists) return prev;
+              return {
+                ...prev,
+                [newMessage.contact_id]: [...existing, newMessage],
+              };
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = payload.new as ChatMessage;
+            setMessages(prev => {
+              const contactMsgs = prev[updated.contact_id];
+              if (!contactMsgs) return prev;
+              return {
+                ...prev,
+                [updated.contact_id]: contactMsgs.map(m =>
+                  m.id === updated.id ? { ...m, ...updated } : m
+                ),
+              };
+            });
+          }
         }
       )
       .subscribe();
