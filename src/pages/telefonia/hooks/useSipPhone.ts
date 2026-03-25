@@ -77,14 +77,19 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
   onCallEndedRef.current = onCallEnded;
   const durationRef = useRef(0);
 
-  // Create audio element for remote audio
-  useEffect(() => {
+  // Lazily create audio element only when needed
+  const getOrCreateAudio = useCallback(() => {
     if (!remoteAudioRef.current) {
       const audio = new Audio();
       audio.autoplay = true;
       document.body.appendChild(audio);
       remoteAudioRef.current = audio;
     }
+    return remoteAudioRef.current;
+  }, []);
+
+  // Cleanup audio on unmount
+  useEffect(() => {
     return () => {
       if (remoteAudioRef.current) {
         document.body.removeChild(remoteAudioRef.current);
@@ -128,9 +133,8 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
           pc?.getReceivers().forEach((receiver) => {
             if (receiver.track) remoteStream.addTrack(receiver.track);
           });
-          if (remoteAudioRef.current) {
-            remoteAudioRef.current.srcObject = remoteStream;
-          }
+          const audioEl = getOrCreateAudio();
+          audioEl.srcObject = remoteStream;
           // Detect remote hangup via ICE disconnection
           if (pc) {
             let iceDisconnectTimer: ReturnType<typeof setTimeout> | null = null;
