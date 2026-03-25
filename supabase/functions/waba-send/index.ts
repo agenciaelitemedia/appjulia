@@ -20,13 +20,16 @@ async function getExternalPool() {
     size: 1,
   };
 
-  const isSocketConnection =
-    externalDbUrl.includes("@/") ||
+  const isSocket =
+    externalDbUrl.includes("/.s.PGSQL.") ||
+    externalDbUrl.includes("%2F") ||
     externalDbUrl.includes("host=/") ||
-    externalDbUrl.includes("host=%2F") ||
-    externalDbUrl.includes("/.s.PGSQL.");
+    externalDbUrl.includes("@/") ||
+    /\/cloudsql\//.test(externalDbUrl);
 
-  if (externalDbCa && !isSocketConnection) {
+  if (isSocket) {
+    poolConfig.tls = { enabled: false };
+  } else if (externalDbCa) {
     poolConfig.tls = { enabled: true, caCertificates: [externalDbCa] };
   }
   return new Pool(poolConfig, 1);
