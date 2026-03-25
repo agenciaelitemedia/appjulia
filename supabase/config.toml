@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.waba-admin]
 verify_jwt = false
+
+[functions.waba-send]
+verify_jwt = false

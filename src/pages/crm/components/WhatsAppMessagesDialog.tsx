@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 import { externalDb } from '@/lib/externalDb';
 import { SessionStatusDialog } from './SessionStatusDialog';
 import { UaZapiClient } from '@/lib/uazapi';
+import { supabase } from '@/integrations/supabase/client';
 import { formatTimeSaoPaulo, formatDateShortSaoPaulo } from '@/lib/dateUtils';
 
 // ============================================
@@ -31,6 +32,8 @@ import { formatTimeSaoPaulo, formatDateShortSaoPaulo } from '@/lib/dateUtils';
 // ============================================
 
 type MessageType = 'text' | 'image' | 'audio' | 'video' | 'document' | 'sticker' | 'location' | 'contact' | 'unknown';
+
+type WhatsAppProvider = 'uazapi' | 'waba';
 
 interface Message {
   id: string;
@@ -51,12 +54,17 @@ interface Message {
   quotedId?: string;
   quotedText?: string;
   quotedParticipant?: string;
+  // WABA media ID for download
+  wabaMediaId?: string;
 }
 
 interface AgentCredentials {
   api_url: string;
   api_key: string;
   api_instance?: string;
+  hub?: string;
+  waba_id?: string;
+  waba_number_id?: string;
 }
 
 interface WhatsAppMessagesDialogProps {
@@ -759,6 +767,7 @@ export function WhatsAppMessagesDialog({
   const [currentOffset, setCurrentOffset] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
+  const [provider, setProvider] = useState<WhatsAppProvider>('uazapi');
   
   // Media download state
   const [downloadingMedia, setDownloadingMedia] = useState<Set<string>>(new Set());
@@ -819,10 +828,14 @@ export function WhatsAppMessagesDialog({
 
   // Load messages after credentials are loaded
   useEffect(() => {
-    if (open && whatsappNumber && client && isConfigured) {
-      loadMessages();
+    if (open && whatsappNumber && isConfigured) {
+      if (provider === 'waba') {
+        loadWabaMessages();
+      } else if (client) {
+        loadMessages();
+      }
     }
-  }, [open, whatsappNumber, client, isConfigured]);
+  }, [open, whatsappNumber, client, isConfigured, provider]);
 
   // Scroll to bottom only on initial load
   useEffect(() => {
@@ -850,29 +863,49 @@ export function WhatsAppMessagesDialog({
 
   // Download media from message
   const downloadMedia = async (messageId: string) => {
-    if (!client || downloadingMedia.has(messageId)) return;
+    if (downloadingMedia.has(messageId)) return;
     
     setDownloadingMedia(prev => new Set(prev).add(messageId));
     
     try {
-      console.log('📥 [WhatsApp API] Downloading media for message:', messageId);
-      const response = await client.post<{ fileURL?: string; base64Data?: string; mimetype?: string }>('/message/download', {
-        id: messageId,
-        return_link: true,
-        return_base64: false,
-      });
-      
-      console.log('✅ [WhatsApp API] Media download response:', response);
-      
-      if (response.fileURL) {
-        setMediaUrls(prev => ({ ...prev, [messageId]: response.fileURL! }));
-      } else if (response.base64Data && response.mimetype) {
-        // Fallback to base64 if URL not available
-        const dataUrl = `data:${response.mimetype};base64,${response.base64Data}`;
-        setMediaUrls(prev => ({ ...prev, [messageId]: dataUrl }));
+      if (provider === 'waba') {
+        // WABA: use edge function to download via media_id
+        const message = messages.find(m => m.id === messageId);
+        const mediaId = message?.wabaMediaId;
+        if (!mediaId) {
+          console.warn('No wabaMediaId for message', messageId);
+          return;
+        }
+        
+        console.log('📥 [WABA] Downloading media:', mediaId);
+        const { data, error } = await supabase.functions.invoke('waba-send', {
+          body: { action: 'download_media', cod_agent: codAgent, media_id: mediaId },
+        });
+        
+        if (error) throw error;
+        if (data?.base64 && data?.mimetype) {
+          const dataUrl = `data:${data.mimetype};base64,${data.base64}`;
+          setMediaUrls(prev => ({ ...prev, [messageId]: dataUrl }));
+        }
+      } else {
+        // UaZapi: use client API
+        if (!client) return;
+        console.log('📥 [UaZapi] Downloading media for message:', messageId);
+        const response = await client.post<{ fileURL?: string; base64Data?: string; mimetype?: string }>('/message/download', {
+          id: messageId,
+          return_link: true,
+          return_base64: false,
+        });
+        
+        if (response.fileURL) {
+          setMediaUrls(prev => ({ ...prev, [messageId]: response.fileURL! }));
+        } else if (response.base64Data && response.mimetype) {
+          const dataUrl = `data:${response.mimetype};base64,${response.base64Data}`;
+          setMediaUrls(prev => ({ ...prev, [messageId]: dataUrl }));
+        }
       }
     } catch (error) {
-      console.error('❌ [WhatsApp API] Error downloading media:', error);
+      console.error('❌ Error downloading media:', error);
       toast({
         title: 'Erro ao baixar mídia',
         description: 'Não foi possível baixar o arquivo.',
@@ -892,9 +925,10 @@ export function WhatsAppMessagesDialog({
     try {
       const result = await externalDb.raw<AgentCredentials>({
         query: `
-          SELECT evo_url as api_url, evo_apikey as api_key, evo_instance as api_instance 
+          SELECT evo_url as api_url, evo_apikey as api_key, evo_instance as api_instance,
+                 hub, waba_id, waba_number_id
           FROM agents 
-          WHERE cod_agent = $1 AND evo_url IS NOT NULL
+          WHERE cod_agent = $1
           LIMIT 1
         `,
         params: [codAgent],
@@ -902,21 +936,41 @@ export function WhatsAppMessagesDialog({
 
       if (result && result.length > 0) {
         const creds = result[0];
-        if (creds.api_url && creds.api_key) {
-          const newClient = new UaZapiClient({
-            baseUrl: creds.api_url,
-            token: creds.api_key,
-            instance: creds.api_instance,
-          });
-          setClient(newClient);
-          setIsConfigured(true);
+        const agentHub = creds.hub || 'uazapi';
+        
+        if (agentHub === 'waba') {
+          // WABA provider
+          setProvider('waba');
+          setClient(null);
+          if (creds.waba_id && creds.waba_number_id) {
+            setIsConfigured(true);
+          } else {
+            setIsConfigured(false);
+            toast({
+              title: 'WABA não configurado',
+              description: 'Este agente não possui credenciais WABA completas.',
+              variant: 'destructive',
+            });
+          }
         } else {
-          setIsConfigured(false);
-          toast({
-            title: 'API não configurada',
-            description: 'Este agente não possui credenciais UaZapi configuradas.',
-            variant: 'destructive',
-          });
+          // UaZapi provider
+          setProvider('uazapi');
+          if (creds.api_url && creds.api_key) {
+            const newClient = new UaZapiClient({
+              baseUrl: creds.api_url,
+              token: creds.api_key,
+              instance: creds.api_instance,
+            });
+            setClient(newClient);
+            setIsConfigured(true);
+          } else {
+            setIsConfigured(false);
+            toast({
+              title: 'API não configurada',
+              description: 'Este agente não possui credenciais UaZapi configuradas.',
+              variant: 'destructive',
+            });
+          }
         }
       } else {
         setIsConfigured(false);
@@ -932,6 +986,157 @@ export function WhatsAppMessagesDialog({
       toast({
         title: 'Erro ao carregar credenciais',
         description: error.message || 'Não foi possível carregar as credenciais do agente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ============================================
+  // WABA: Parse webhook_logs into Message format
+  // ============================================
+  
+  const parseWabaPayload = (log: any): Message | null => {
+    try {
+      const payload = log.payload;
+      if (!payload) return null;
+      
+      // Messages received from contacts (incoming)
+      const entries = payload?.entry || [];
+      for (const entry of entries) {
+        const changes = entry?.changes || [];
+        for (const change of changes) {
+          const value = change?.value;
+          if (!value) continue;
+          
+          const msgs = value.messages || [];
+          for (const msg of msgs) {
+            const msgType = msg.type as string;
+            let text = '';
+            let mediaId: string | undefined;
+            let caption: string | undefined;
+            let fileName: string | undefined;
+            let mimetype: string | undefined;
+            let type: MessageType = 'text';
+            
+            switch (msgType) {
+              case 'text':
+                text = msg.text?.body || '';
+                type = 'text';
+                break;
+              case 'image':
+                mediaId = msg.image?.id;
+                caption = msg.image?.caption;
+                mimetype = msg.image?.mime_type;
+                text = caption || '[Imagem]';
+                type = 'image';
+                break;
+              case 'video':
+                mediaId = msg.video?.id;
+                caption = msg.video?.caption;
+                mimetype = msg.video?.mime_type;
+                text = caption || '[Vídeo]';
+                type = 'video';
+                break;
+              case 'audio':
+                mediaId = msg.audio?.id;
+                mimetype = msg.audio?.mime_type;
+                text = '[Áudio]';
+                type = 'audio';
+                break;
+              case 'document':
+                mediaId = msg.document?.id;
+                fileName = msg.document?.filename;
+                mimetype = msg.document?.mime_type;
+                caption = msg.document?.caption;
+                text = fileName || '[Documento]';
+                type = 'document';
+                break;
+              case 'sticker':
+                mediaId = msg.sticker?.id;
+                mimetype = msg.sticker?.mime_type;
+                text = '[Sticker]';
+                type = 'sticker';
+                break;
+              case 'location':
+                text = msg.location?.name || '[Localização]';
+                type = 'location';
+                break;
+              case 'contacts':
+                text = msg.contacts?.[0]?.name?.formatted_name || '[Contato]';
+                type = 'contact';
+                break;
+              default:
+                text = `[${msgType || 'desconhecido'}]`;
+                type = 'unknown';
+            }
+            
+            return {
+              id: msg.id || log.id,
+              text,
+              fromMe: false,
+              timestamp: msg.timestamp ? parseInt(msg.timestamp) * 1000 : new Date(log.created_at).getTime(),
+              type,
+              wabaMediaId: mediaId,
+              mimetype,
+              caption,
+              fileName,
+              latitude: msg.location?.latitude,
+              longitude: msg.location?.longitude,
+              ptt: msgType === 'audio' && msg.audio?.voice === true,
+            };
+          }
+        }
+      }
+      
+      return null;
+    } catch (e) {
+      console.warn('Error parsing WABA payload:', e);
+      return null;
+    }
+  };
+
+  const loadWabaMessages = async () => {
+    setLoading(true);
+    isInitialLoad.current = true;
+    setCurrentOffset(0);
+    setHasMoreMessages(true);
+    
+    try {
+      const cleanNumber = whatsappNumber.replace(/\D/g, '');
+      console.log('🔍 [WABA] Loading messages for:', cleanNumber);
+      
+      const { data: logs, error } = await supabase
+        .from('webhook_logs')
+        .select('*')
+        .eq('from_number', cleanNumber)
+        .not('message_type', 'is', null)
+        .neq('message_type', 'status')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      
+      if (error) throw error;
+      
+      if (logs && logs.length > 0) {
+        const parsed = logs
+          .map(parseWabaPayload)
+          .filter((m): m is Message => m !== null);
+        
+        parsed.sort((a, b) => a.timestamp - b.timestamp);
+        setMessages(parsed);
+        setCurrentOffset(50);
+        setHasMoreMessages(logs.length === 50);
+        console.log('✅ [WABA] Processed messages:', parsed.length);
+      } else {
+        setMessages([]);
+        setHasMoreMessages(false);
+      }
+    } catch (error: any) {
+      console.error('Error loading WABA messages:', error);
+      toast({
+        title: 'Erro ao carregar mensagens',
+        description: error.message || 'Não foi possível carregar as mensagens.',
         variant: 'destructive',
       });
     } finally {
@@ -1022,46 +1227,87 @@ export function WhatsAppMessagesDialog({
   };
 
   const loadMoreMessages = async () => {
-    if (!client || !isConfigured || loadingMore || !hasMoreMessages) return;
+    if (!isConfigured || loadingMore || !hasMoreMessages) return;
 
     setLoadingMore(true);
     try {
-      const jid = formatToJid(whatsappNumber);
-      const endpoint = '/message/find';
-      const requestBody = { chatid: jid, limit: 50, offset: currentOffset };
-      
-      console.log('🔍 [WhatsApp API] Loading more messages:', { offset: currentOffset });
-      const response = await client.post<any>(endpoint, requestBody);
-      const messagesArray = Array.isArray(response) ? response : (response?.messages || []);
-      
-      if (messagesArray.length > 0) {
-        const formattedMessages = parseMessages(messagesArray);
+      if (provider === 'waba') {
+        // WABA: paginate from webhook_logs
+        const cleanNumber = whatsappNumber.replace(/\D/g, '');
+        const { data: logs, error } = await supabase
+          .from('webhook_logs')
+          .select('*')
+          .eq('from_number', cleanNumber)
+          .not('message_type', 'is', null)
+          .neq('message_type', 'status')
+          .order('created_at', { ascending: false })
+          .range(currentOffset, currentOffset + 49);
         
-        // Get current scroll position to maintain it after adding messages
-        const scrollContainer = scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
-        const previousScrollHeight = scrollContainer?.scrollHeight || 0;
+        if (error) throw error;
         
-        setMessages(prev => {
-          const existingIds = new Set(prev.map(m => m.id));
-          const newMessages = formattedMessages.filter(m => !existingIds.has(m.id));
-          const combined = [...newMessages, ...prev];
-          combined.sort((a, b) => a.timestamp - b.timestamp);
-          return combined;
-        });
-        
-        // Restore scroll position after messages are added
-        setTimeout(() => {
-          if (scrollContainer) {
-            const newScrollHeight = scrollContainer.scrollHeight;
-            scrollContainer.scrollTop = newScrollHeight - previousScrollHeight;
-          }
-        }, 50);
-        
-        setCurrentOffset(prev => prev + 50);
-        setHasMoreMessages(messagesArray.length === 50);
-        console.log('✅ [WhatsApp API] Loaded more messages:', messagesArray.length);
+        if (logs && logs.length > 0) {
+          const parsed = logs
+            .map(parseWabaPayload)
+            .filter((m): m is Message => m !== null);
+          
+          const scrollContainer = scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+          const previousScrollHeight = scrollContainer?.scrollHeight || 0;
+          
+          setMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const newMessages = parsed.filter(m => !existingIds.has(m.id));
+            const combined = [...newMessages, ...prev];
+            combined.sort((a, b) => a.timestamp - b.timestamp);
+            return combined;
+          });
+          
+          setTimeout(() => {
+            if (scrollContainer) {
+              const newScrollHeight = scrollContainer.scrollHeight;
+              scrollContainer.scrollTop = newScrollHeight - previousScrollHeight;
+            }
+          }, 50);
+          
+          setCurrentOffset(prev => prev + 50);
+          setHasMoreMessages(logs.length === 50);
+        } else {
+          setHasMoreMessages(false);
+        }
       } else {
-        setHasMoreMessages(false);
+        // UaZapi
+        if (!client) return;
+        const jid = formatToJid(whatsappNumber);
+        const requestBody = { chatid: jid, limit: 50, offset: currentOffset };
+        
+        const response = await client.post<any>('/message/find', requestBody);
+        const messagesArray = Array.isArray(response) ? response : (response?.messages || []);
+        
+        if (messagesArray.length > 0) {
+          const formattedMessages = parseMessages(messagesArray);
+          
+          const scrollContainer = scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+          const previousScrollHeight = scrollContainer?.scrollHeight || 0;
+          
+          setMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const newMessages = formattedMessages.filter(m => !existingIds.has(m.id));
+            const combined = [...newMessages, ...prev];
+            combined.sort((a, b) => a.timestamp - b.timestamp);
+            return combined;
+          });
+          
+          setTimeout(() => {
+            if (scrollContainer) {
+              const newScrollHeight = scrollContainer.scrollHeight;
+              scrollContainer.scrollTop = newScrollHeight - previousScrollHeight;
+            }
+          }, 50);
+          
+          setCurrentOffset(prev => prev + 50);
+          setHasMoreMessages(messagesArray.length === 50);
+        } else {
+          setHasMoreMessages(false);
+        }
       }
     } catch (error: any) {
       console.error('Error loading more messages:', error);
@@ -1071,15 +1317,31 @@ export function WhatsAppMessagesDialog({
   };
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !client || sending) return;
+    if (!newMessage.trim() || sending) return;
 
     setSending(true);
     try {
-      // UaZapi uses /send/text endpoint - see docs.uazapi.com
-      await client.post('/send/text', {
-        number: whatsappNumber.replace(/\D/g, ''),
-        text: newMessage.trim(),
-      });
+      if (provider === 'waba') {
+        // WABA: send via edge function
+        const { data, error } = await supabase.functions.invoke('waba-send', {
+          body: {
+            action: 'send_text',
+            cod_agent: codAgent,
+            to: whatsappNumber,
+            text: newMessage.trim(),
+          },
+        });
+        
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error.message || data.error);
+      } else {
+        // UaZapi
+        if (!client) return;
+        await client.post('/send/text', {
+          number: whatsappNumber.replace(/\D/g, ''),
+          text: newMessage.trim(),
+        });
+      }
 
       // Add message to local state
       setMessages(prev => [
