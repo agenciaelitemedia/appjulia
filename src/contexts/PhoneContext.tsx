@@ -43,7 +43,8 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   const [isDialing, setIsDialing] = useState(false);
   const [dialContactName, setDialContactName] = useState('');
   const autoConnected = useRef(false);
-
+  const retryCount = useRef(0);
+  const maxRetries = 8; // max ~5min backoff (5*2^7 = 640s capped at 300s)
   // Listen for sync-queue-done events to invalidate queries
   useEffect(() => {
     const handler = () => {
