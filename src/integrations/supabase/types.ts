@@ -77,15 +77,20 @@ export type Database = {
       chat_messages: {
         Row: {
           caption: string | null
+          channel_type: string
           client_id: string
           contact_id: string
           created_at: string | null
+          external_id: string | null
           file_name: string | null
+          forwarded_score: number | null
           from_me: boolean | null
           id: string
+          is_forwarded: boolean | null
           media_url: string | null
           message_id: string | null
           metadata: Json | null
+          raw_payload: Json | null
           reply_to: string | null
           status: string | null
           text: string | null
@@ -94,15 +99,20 @@ export type Database = {
         }
         Insert: {
           caption?: string | null
+          channel_type?: string
           client_id: string
           contact_id: string
           created_at?: string | null
+          external_id?: string | null
           file_name?: string | null
+          forwarded_score?: number | null
           from_me?: boolean | null
           id?: string
+          is_forwarded?: boolean | null
           media_url?: string | null
           message_id?: string | null
           metadata?: Json | null
+          raw_payload?: Json | null
           reply_to?: string | null
           status?: string | null
           text?: string | null
@@ -111,15 +121,20 @@ export type Database = {
         }
         Update: {
           caption?: string | null
+          channel_type?: string
           client_id?: string
           contact_id?: string
           created_at?: string | null
+          external_id?: string | null
           file_name?: string | null
+          forwarded_score?: number | null
           from_me?: boolean | null
           id?: string
+          is_forwarded?: boolean | null
           media_url?: string | null
           message_id?: string | null
           metadata?: Json | null
+          raw_payload?: Json | null
           reply_to?: string | null
           status?: string | null
           text?: string | null
@@ -1153,6 +1168,7 @@ export type Database = {
       webhook_logs: {
         Row: {
           cod_agent: string | null
+          contact_id: string | null
           created_at: string
           forwarded: boolean | null
           from_number: string | null
@@ -1168,6 +1184,7 @@ export type Database = {
         }
         Insert: {
           cod_agent?: string | null
+          contact_id?: string | null
           created_at?: string
           forwarded?: boolean | null
           from_number?: string | null
@@ -1183,6 +1200,7 @@ export type Database = {
         }
         Update: {
           cod_agent?: string | null
+          contact_id?: string | null
           created_at?: string
           forwarded?: boolean | null
           from_number?: string | null
