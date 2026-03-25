@@ -17,6 +17,8 @@ export type Database = {
       chat_contacts: {
         Row: {
           avatar: string | null
+          channel_source: string | null
+          channel_type: string
           client_id: string
           cod_agent: string | null
           created_at: string | null
@@ -28,11 +30,14 @@ export type Database = {
           last_message_text: string | null
           name: string
           phone: string
+          remote_jid: string | null
           unread_count: number | null
           updated_at: string | null
         }
         Insert: {
           avatar?: string | null
+          channel_source?: string | null
+          channel_type?: string
           client_id: string
           cod_agent?: string | null
           created_at?: string | null
@@ -44,11 +49,14 @@ export type Database = {
           last_message_text?: string | null
           name: string
           phone: string
+          remote_jid?: string | null
           unread_count?: number | null
           updated_at?: string | null
         }
         Update: {
           avatar?: string | null
+          channel_source?: string | null
+          channel_type?: string
           client_id?: string
           cod_agent?: string | null
           created_at?: string | null
@@ -60,6 +68,7 @@ export type Database = {
           last_message_text?: string | null
           name?: string
           phone?: string
+          remote_jid?: string | null
           unread_count?: number | null
           updated_at?: string | null
         }
