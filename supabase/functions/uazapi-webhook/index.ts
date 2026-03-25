@@ -22,7 +22,8 @@ async function getExternalPool() {
     connectionString: externalDbUrl,
     size: 1,
   };
-  if (externalDbCa) {
+  const isSocket = externalDbUrl.includes('/.s.PGSQL.') || externalDbUrl.includes('%2F');
+  if (externalDbCa && !isSocket) {
     poolConfig.tls = { enabled: true, caCertificates: [externalDbCa] };
   }
   return new Pool(poolConfig, 1);
