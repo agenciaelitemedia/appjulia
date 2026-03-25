@@ -18,30 +18,44 @@ async function getExternalPool() {
   const { Pool } = await import("https://deno.land/x/postgres@v0.19.3/mod.ts");
   const externalDbUrl = Deno.env.get("EXTERNAL_DB_URL")!;
   const externalDbCa = Deno.env.get("EXTERNAL_DB_CA_CERT");
-  
+
   const poolConfig: any = {
     connectionString: externalDbUrl,
     size: 1,
   };
 
-  // Only add TLS if CA cert exists AND the URL is not a socket connection
-  const isSocket = externalDbUrl.includes('/.s.PGSQL.') || externalDbUrl.includes('%2F');
-  if (externalDbCa && !isSocket) {
+  // Socket DSN (host via unix path) cannot accept tls options in deno-postgres
+  const isSocketConnection =
+    externalDbUrl.includes("@/") ||
+    externalDbUrl.includes("host=/") ||
+    externalDbUrl.includes("host=%2F") ||
+    externalDbUrl.includes("/.s.PGSQL.");
+
+  if (externalDbCa && !isSocketConnection) {
     poolConfig.tls = { enabled: true, caCertificates: [externalDbCa] };
   }
+
   return new Pool(poolConfig, 1);
 }
 
-// ─── Resolve cod_agent and client_id from phone_number_id ──
-async function resolveAgent(phoneNumberId: string): Promise<{ cod_agent: string; client_id: string } | null> {
+// ─── Resolve cod_agent and client_id from phone_number_id / waba_id ──
+async function resolveAgent(phoneNumberId: string, wabaId: string): Promise<{ cod_agent: string; client_id: string } | null> {
   let pool: any;
   try {
     pool = await getExternalPool();
     const conn = await pool.connect();
     try {
       const result = await conn.queryObject<{ cod_agent: string; client_id: string }>(
-        "SELECT cod_agent, COALESCE(client_id::text, cod_agent) as client_id FROM agents WHERE waba_number_id = $1 AND hub = 'waba' LIMIT 1",
-        [phoneNumberId]
+        `SELECT cod_agent, COALESCE(client_id::text, cod_agent) as client_id
+         FROM agents
+         WHERE hub = 'waba'
+           AND (
+             ($1 IS NOT NULL AND waba_number_id = $1)
+             OR ($2 IS NOT NULL AND waba_id = $2)
+           )
+         ORDER BY CASE WHEN waba_number_id = $1 THEN 0 ELSE 1 END
+         LIMIT 1`,
+        [phoneNumberId || null, wabaId || null]
       );
       return result.rows.length > 0 ? result.rows[0] : null;
     } finally {
@@ -109,9 +123,9 @@ async function saveMessageToChat(
   contacts: any[]
 ) {
   try {
-    const agent = await resolveAgent(phoneNumberId);
+    const agent = await resolveAgent(phoneNumberId, wabaId);
     if (!agent) {
-      console.log('saveMessageToChat: no agent found for phone_number_id', phoneNumberId);
+      console.log('saveMessageToChat: no agent found for phone_number_id/waba_id', phoneNumberId, wabaId);
       return;
     }
 
