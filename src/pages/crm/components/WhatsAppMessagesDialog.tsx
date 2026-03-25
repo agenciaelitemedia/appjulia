@@ -768,6 +768,8 @@ export function WhatsAppMessagesDialog({
   const scrollRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
   const [provider, setProvider] = useState<WhatsAppProvider>('uazapi');
+  const [wabaContactId, setWabaContactId] = useState<string | null>(null);
+  const [wabaClientId, setWabaClientId] = useState<string | null>(null);
   
   // Media download state
   const [downloadingMedia, setDownloadingMedia] = useState<Set<string>>(new Set());
