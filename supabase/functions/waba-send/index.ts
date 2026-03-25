@@ -11,75 +11,37 @@ const GRAPH_API = "https://graph.facebook.com/v22.0";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-async function getExternalPool() {
-  const { Pool } = await import("https://deno.land/x/postgres@v0.19.3/mod.ts");
-  const externalDbUrl = Deno.env.get("EXTERNAL_DB_URL")!;
-  const externalDbCa = Deno.env.get("EXTERNAL_DB_CA_CERT");
-
-  let parsedUrl: URL | null = null;
-  try {
-    parsedUrl = new URL(externalDbUrl);
-  } catch {
-    parsedUrl = null;
-  }
-
-  const hostParam = parsedUrl?.searchParams.get("host") ?? "";
-  const socketParam = parsedUrl?.searchParams.get("socket") ?? "";
-  const socketHint = `${hostParam} ${socketParam}`.toLowerCase();
-
-  const normalizedUrl = externalDbUrl.toLowerCase();
-  const isSocket =
-    socketHint.includes("/") ||
-    socketHint.includes(".s.pgsql") ||
-    socketHint.includes("cloudsql") ||
-    normalizedUrl.includes("socket=") ||
-    normalizedUrl.includes("host=/") ||
-    normalizedUrl.includes("host=%2f") ||
-    normalizedUrl.includes("/.s.pgsql.") ||
-    normalizedUrl.includes("/cloudsql/") ||
-    normalizedUrl.includes("%2fcloudsql%2f") ||
-    normalizedUrl.includes("@/");
-
-  let connectionString = externalDbUrl;
-  if (isSocket) {
-    if (parsedUrl) {
-      ["sslmode", "ssl", "sslcert", "sslkey", "sslrootcert", "sslca"].forEach((param) => {
-        parsedUrl!.searchParams.delete(param);
-      });
-      connectionString = parsedUrl.toString();
-    } else {
-      connectionString = externalDbUrl
-        .replace(/([?&])(sslmode|ssl|sslcert|sslkey|sslrootcert|sslca)=[^&]*/gi, "$1")
-        .replace(/[?&]$/, "");
-    }
-  }
-
-  const poolConfig: any = { connectionString, size: 1 };
-  if (!isSocket && externalDbCa) {
-    poolConfig.tls = { enabled: true, caCertificates: [externalDbCa] };
-  }
-
-  return new Pool(poolConfig, 1);
-}
-
 async function getWabaCredentials(codAgent: string) {
-  const pool = await getExternalPool();
-  const conn = await pool.connect();
-  try {
-    const result = await conn.queryObject<{
-      waba_token: string;
-      waba_number_id: string;
-      waba_id: string;
-    }>(
-      "SELECT waba_token, waba_number_id, waba_id FROM agents WHERE cod_agent = $1 AND hub = 'waba' LIMIT 1",
-      [codAgent],
-    );
-    if (!result.rows.length) return null;
-    return result.rows[0];
-  } finally {
-    conn.release();
-    await pool.end();
+  const response = await fetch(`${supabaseUrl}/functions/v1/db-query`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: supabaseServiceKey,
+      Authorization: `Bearer ${supabaseServiceKey}`,
+    },
+    body: JSON.stringify({
+      action: "raw",
+      data: {
+        query: "SELECT waba_token, waba_number_id, waba_id FROM agents WHERE cod_agent = $1 AND hub = 'waba' LIMIT 1",
+        params: [codAgent],
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`db-query failed: ${errorBody}`);
   }
+
+  const payload = await response.json();
+  const row = payload?.data?.[0];
+  if (!row) return null;
+
+  return {
+    waba_token: row.waba_token as string,
+    waba_number_id: row.waba_number_id as string,
+    waba_id: row.waba_id as string,
+  };
 }
 
 // Resolve credentials from media_id's associated agent via external_id lookup
