@@ -1214,23 +1214,20 @@ export function WhatsAppMessagesDialog({
     setLoadingMore(true);
     try {
       if (provider === 'waba') {
-        // WABA: paginate from webhook_logs
-        const cleanNumber = whatsappNumber.replace(/\D/g, '');
-        const { data: logs, error } = await supabase
-          .from('webhook_logs')
+        // WABA: paginate from chat_messages
+        if (!wabaContactId) return;
+        
+        const { data: rows, error } = await supabase
+          .from('chat_messages')
           .select('*')
-          .eq('from_number', cleanNumber)
-          .not('message_type', 'is', null)
-          .neq('message_type', 'status')
-          .order('created_at', { ascending: false })
+          .eq('contact_id', wabaContactId)
+          .order('timestamp', { ascending: false })
           .range(currentOffset, currentOffset + 49);
         
         if (error) throw error;
         
-        if (logs && logs.length > 0) {
-          const parsed = logs
-            .map(parseWabaPayload)
-            .filter((m): m is Message => m !== null);
+        if (rows && rows.length > 0) {
+          const parsed = rows.map(mapChatMessageToDialogMessage);
           
           const scrollContainer = scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
           const previousScrollHeight = scrollContainer?.scrollHeight || 0;
@@ -1251,7 +1248,7 @@ export function WhatsAppMessagesDialog({
           }, 50);
           
           setCurrentOffset(prev => prev + 50);
-          setHasMoreMessages(logs.length === 50);
+          setHasMoreMessages(rows.length === 50);
         } else {
           setHasMoreMessages(false);
         }
