@@ -118,7 +118,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, j
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-1.5 mb-1">
-                <Target className="h-3.5 w-3.5 text-chart-1" />
+                <Bot className="h-3.5 w-3.5 text-chart-1" />
                 <p className="text-xs text-muted-foreground font-medium">Atendimentos</p>
               </div>
               <p className="text-2xl font-bold text-foreground">{stats.totalSessions}</p>
