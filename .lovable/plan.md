@@ -23,6 +23,12 @@
 - ✅ `MessageBubble.tsx` — Indicador de mensagem encaminhada
 - ✅ `ChatContactItem.tsx` — Sem mudanças visuais necessárias (badge já funciona)
 
-### FASE 4 — Configuração pendente
+### FASE 4 — Popup CRM WABA lendo de chat_messages
+- ✅ `WhatsAppMessagesDialog.tsx` — `loadWabaMessages()` e `loadMoreMessages()` agora lêem de `chat_messages` em vez de `webhook_logs`
+- ✅ Realtime listener WABA escuta INSERT em `chat_messages` filtrado por `contact_id`
+- ✅ Mapper `mapChatMessageToDialogMessage` mapeia colunas de `chat_messages` diretamente
+- ✅ `resolveWabaContactId` busca `contact_id` em `chat_contacts` por `client_id` + `phone`
+
+### FASE 5 — Configuração pendente
 - Configurar webhook URL no servidor UazAPI apontando para `uazapi-webhook?instance={nome}&c={cod_agent}`
 - Meta webhook já configurado (meta-webhook existente)
