@@ -996,121 +996,67 @@ export function WhatsAppMessagesDialog({
   };
 
   // ============================================
-  // WABA: Parse webhook_logs into Message format
+  // WABA: Map chat_messages row to Message format
   // ============================================
 
-  const mapWabaMessageToDialogMessage = (msg: any, log: any): Message => {
-    const msgType = (msg?.type || log?.message_type || 'text') as string;
-    let text = '';
-    let mediaId: string | undefined;
-    let caption: string | undefined;
-    let fileName: string | undefined;
-    let mimetype: string | undefined;
+  const mapChatMessageToDialogMessage = (row: any): Message => {
+    const msgType = (row.type || 'text') as string;
+    const metadata = row.metadata || {};
+    
     let type: MessageType = 'text';
+    const typeMap: Record<string, MessageType> = {
+      text: 'text', image: 'image', audio: 'audio', ptt: 'audio',
+      video: 'video', document: 'document', sticker: 'sticker',
+      location: 'location', contact: 'contact',
+    };
+    type = typeMap[msgType] || 'text';
 
-    switch (msgType) {
-      case 'text':
-        text = msg?.text?.body || log?.message || '';
-        type = 'text';
-        break;
-      case 'image':
-        mediaId = msg?.image?.id;
-        caption = msg?.image?.caption;
-        mimetype = msg?.image?.mime_type;
-        text = caption || log?.message || '[Imagem]';
-        type = 'image';
-        break;
-      case 'video':
-        mediaId = msg?.video?.id;
-        caption = msg?.video?.caption;
-        mimetype = msg?.video?.mime_type;
-        text = caption || log?.message || '[Vídeo]';
-        type = 'video';
-        break;
-      case 'audio':
-        mediaId = msg?.audio?.id;
-        mimetype = msg?.audio?.mime_type;
-        text = log?.message || '[Áudio]';
-        type = 'audio';
-        break;
-      case 'document':
-        mediaId = msg?.document?.id;
-        fileName = msg?.document?.filename;
-        mimetype = msg?.document?.mime_type;
-        caption = msg?.document?.caption;
-        text = fileName || caption || log?.message || '[Documento]';
-        type = 'document';
-        break;
-      case 'sticker':
-        mediaId = msg?.sticker?.id;
-        mimetype = msg?.sticker?.mime_type;
-        text = log?.message || '[Sticker]';
-        type = 'sticker';
-        break;
-      case 'location':
-        text = msg?.location?.name || log?.message || '[Localização]';
-        type = 'location';
-        break;
-      case 'contacts':
-        text = msg?.contacts?.[0]?.name?.formatted_name || log?.message || '[Contato]';
-        type = 'contact';
-        break;
-      case 'interactive':
-      case 'button':
-      case 'order':
-        text = msg?.interactive?.button_reply?.title || msg?.interactive?.list_reply?.title || log?.message || '[Interativo]';
-        type = 'text';
-        break;
-      default:
-        text = log?.message || `[${msgType || 'desconhecido'}]`;
-        type = 'unknown';
+    let text = row.text || row.caption || '';
+    if (!text) {
+      const fallbacks: Record<string, string> = {
+        image: '[Imagem]', audio: '[Áudio]', video: '[Vídeo]',
+        document: row.file_name || '[Documento]', sticker: '[Sticker]',
+        location: metadata.location_name || '[Localização]',
+        contact: metadata.contact_name || '[Contato]',
+      };
+      text = fallbacks[type] || '';
     }
 
-    const timestampRaw = msg?.timestamp || log?.created_at;
-
     return {
-      id: msg?.id || log?.message_id || log?.id,
+      id: row.id,
       text,
-      fromMe: false,
-      timestamp: normalizeTimestamp(timestampRaw),
+      fromMe: row.from_me ?? false,
+      timestamp: normalizeTimestamp(row.timestamp || row.created_at),
       type,
-      wabaMediaId: mediaId,
-      mimetype,
-      caption,
-      fileName,
-      latitude: msg?.location?.latitude,
-      longitude: msg?.location?.longitude,
-      ptt: msgType === 'audio' && msg?.audio?.voice === true,
+      mediaUrl: row.media_url || undefined,
+      mimetype: metadata.mimetype,
+      caption: row.caption || undefined,
+      fileName: row.file_name || undefined,
+      seconds: metadata.duration,
+      ptt: msgType === 'ptt' || metadata.is_ptt,
+      latitude: metadata.latitude,
+      longitude: metadata.longitude,
+      wabaMediaId: metadata.media_id,
+      quotedText: metadata.quoted_message?.text,
+      quotedParticipant: metadata.quoted_message?.sender_name,
     };
   };
 
-  const parseWabaPayload = (log: any): Message | null => {
-    try {
-      const payload = log?.payload;
-      if (!payload) return null;
-
-      // Formato antigo/completo do webhook (entry/changes)
-      const entries = payload?.entry || [];
-      for (const entry of entries) {
-        const changes = entry?.changes || [];
-        for (const change of changes) {
-          const msgs = change?.value?.messages || [];
-          if (msgs.length > 0) {
-            return mapWabaMessageToDialogMessage(msgs[0], log);
-          }
-        }
-      }
-
-      // Formato atual salvo na tabela: payload já é a mensagem da Meta
-      if (payload?.id || payload?.type || log?.message_type) {
-        return mapWabaMessageToDialogMessage(payload, log);
-      }
-
-      return null;
-    } catch (e) {
-      console.warn('Error parsing WABA payload:', e);
+  const resolveWabaContactId = async (clientId: string, phone: string): Promise<string | null> => {
+    const cleanPhone = phone.replace(/\D/g, '');
+    const { data, error } = await supabase
+      .from('chat_contacts')
+      .select('id')
+      .eq('client_id', clientId)
+      .eq('phone', cleanPhone)
+      .limit(1)
+      .maybeSingle();
+    
+    if (error) {
+      console.error('Error resolving contact_id:', error);
       return null;
     }
+    return data?.id || null;
   };
 
   const loadWabaMessages = async () => {
@@ -1120,30 +1066,50 @@ export function WhatsAppMessagesDialog({
     setHasMoreMessages(true);
     
     try {
-      const cleanNumber = whatsappNumber.replace(/\D/g, '');
-      console.log('🔍 [WABA] Loading messages for:', cleanNumber);
+      // First resolve agent's client_id
+      const agentResult = await externalDb.raw<{ client_id: string }>({
+        query: `SELECT client_id FROM agents WHERE cod_agent = $1 LIMIT 1`,
+        params: [codAgent],
+      });
       
-      const { data: logs, error } = await supabase
-        .from('webhook_logs')
+      const clientId = agentResult?.[0]?.client_id;
+      if (!clientId) {
+        console.warn('No client_id found for agent:', codAgent);
+        setMessages([]);
+        setHasMoreMessages(false);
+        return;
+      }
+      setWabaClientId(clientId);
+
+      // Resolve contact_id
+      const contactId = await resolveWabaContactId(clientId, whatsappNumber);
+      setWabaContactId(contactId);
+      
+      if (!contactId) {
+        console.warn('No contact found for:', clientId, whatsappNumber);
+        setMessages([]);
+        setHasMoreMessages(false);
+        return;
+      }
+
+      console.log('🔍 [WABA] Loading messages from chat_messages, contact_id:', contactId);
+      
+      const { data: rows, error } = await supabase
+        .from('chat_messages')
         .select('*')
-        .eq('from_number', cleanNumber)
-        .not('message_type', 'is', null)
-        .neq('message_type', 'status')
-        .order('created_at', { ascending: false })
+        .eq('contact_id', contactId)
+        .order('timestamp', { ascending: false })
         .limit(50);
       
       if (error) throw error;
       
-      if (logs && logs.length > 0) {
-        const parsed = logs
-          .map(parseWabaPayload)
-          .filter((m): m is Message => m !== null);
-        
+      if (rows && rows.length > 0) {
+        const parsed = rows.map(mapChatMessageToDialogMessage);
         parsed.sort((a, b) => a.timestamp - b.timestamp);
         setMessages(parsed);
         setCurrentOffset(50);
-        setHasMoreMessages(logs.length === 50);
-        console.log('✅ [WABA] Processed messages:', parsed.length);
+        setHasMoreMessages(rows.length === 50);
+        console.log('✅ [WABA] Loaded messages from chat_messages:', parsed.length);
       } else {
         setMessages([]);
         setHasMoreMessages(false);
