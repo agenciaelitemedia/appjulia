@@ -23,7 +23,10 @@ async function getExternalPool() {
     connectionString: externalDbUrl,
     size: 1,
   };
-  if (externalDbCa) {
+
+  // Only add TLS if CA cert exists AND the URL is not a socket connection
+  const isSocket = externalDbUrl.includes('/.s.PGSQL.') || externalDbUrl.includes('%2F');
+  if (externalDbCa && !isSocket) {
     poolConfig.tls = { enabled: true, caCertificates: [externalDbCa] };
   }
   return new Pool(poolConfig, 1);
