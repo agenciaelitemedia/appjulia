@@ -26,10 +26,8 @@ async function getExternalPool() {
     externalDbUrl.includes("host=/") ||
     externalDbUrl.includes("@/") ||
     /\/cloudsql\//.test(externalDbUrl);
-
-  if (isSocket) {
-    poolConfig.tls = { enabled: false };
-  } else if (externalDbCa) {
+  // For socket connections: do NOT set any tls options (library rejects them entirely)
+  if (!isSocket && externalDbCa) {
     poolConfig.tls = { enabled: true, caCertificates: [externalDbCa] };
   }
   return new Pool(poolConfig, 1);
