@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 import { externalDb } from '@/lib/externalDb';
 import { SessionStatusDialog } from './SessionStatusDialog';
 import { UaZapiClient } from '@/lib/uazapi';
+import { supabase } from '@/integrations/supabase/client';
 import { formatTimeSaoPaulo, formatDateShortSaoPaulo } from '@/lib/dateUtils';
 
 // ============================================
