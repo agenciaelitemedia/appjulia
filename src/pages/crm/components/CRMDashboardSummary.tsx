@@ -125,7 +125,7 @@ export function CRMDashboardSummary({ cards, stages, isLoading, juliaSessions, j
               <p className="text-xs text-muted-foreground">Conversas com a Julia</p>
             </div>
             <div className="p-2 bg-chart-1/10 rounded-full">
-              <Target className="h-5 w-5 text-chart-1" />
+              <Bot className="h-5 w-5 text-chart-1" />
             </div>
           </div>
         </CardContent>
