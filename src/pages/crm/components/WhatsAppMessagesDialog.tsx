@@ -854,7 +854,41 @@ export function WhatsAppMessagesDialog({
     }
   }, [messages]);
 
-  // Handle scroll to load more messages
+  // Realtime listener for WABA messages
+  useEffect(() => {
+    if (!open || provider !== 'waba' || !wabaContactId) return;
+    
+    const channel = supabase
+      .channel(`waba-chat-${wabaContactId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `contact_id=eq.${wabaContactId}`,
+        },
+        (payload) => {
+          const newMsg = mapChatMessageToDialogMessage(payload.new);
+          setMessages(prev => {
+            if (prev.some(m => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
+          });
+          // Auto-scroll to bottom for new messages
+          setTimeout(() => {
+            const scrollContainer = scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+            if (scrollContainer) {
+              scrollContainer.scrollTop = scrollContainer.scrollHeight;
+            }
+          }, 100);
+        }
+      )
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [open, provider, wabaContactId]);
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.target as HTMLDivElement;
     // If scrolled near top, load more messages
