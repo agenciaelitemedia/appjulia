@@ -25,7 +25,8 @@ export type ModuleCode =
   | 'copilot_admin'
   | 'telephony_admin'
   | 'telephony'
-  | 'settings';
+  | 'settings'
+  | 'prompt_generator';
 
 export interface Module {
   id: number;

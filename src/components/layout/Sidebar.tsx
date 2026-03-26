@@ -38,6 +38,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   useEnsureMonitoramentoModule();
   useEnsureCopilotModule();
   useEnsureTelefoniaModule();
+  useEnsurePromptGeneratorModule();
 
   const isTimeUser = user?.role === "time";
   

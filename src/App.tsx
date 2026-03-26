@@ -50,6 +50,7 @@ import TelefoniaPage from "./pages/telefonia/TelefoniaPage";
 import TelefoniaAdminPage from "./pages/admin/telefonia/TelefoniaAdminPage";
 import RedirectPage from "./pages/RedirectPage";
 import NotFound from "./pages/NotFound";
+import PromptGeneratorPage from "./pages/admin/prompts/PromptGeneratorPage";
 
 const queryClient = new QueryClient();
 
@@ -106,6 +107,7 @@ const App = () => (
                   <Route path="/admin/copiloto" element={<ProtectedRoute module="copilot_admin"><CopilotAdminPage /></ProtectedRoute>} />
                   <Route path="/admin/telefonia" element={<ProtectedRoute module="telephony_admin"><TelefoniaAdminPage /></ProtectedRoute>} />
                   <Route path="/admin/webhook-monitor" element={<ProtectedRoute module="admin_agents"><WebhookMonitorPage /></ProtectedRoute>} />
+                  <Route path="/admin/prompts" element={<ProtectedRoute module="prompt_generator"><PromptGeneratorPage /></ProtectedRoute>} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>
