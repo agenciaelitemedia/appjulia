@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { Plus, Search, Pencil, Trash2, Eye } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export function TemplatesTab() {
+  const { user } = useAuth();
   const { templates, isLoading, createTemplate, updateTemplate, deleteTemplate } = useTemplates();
   const [search, setSearch] = useState('');
 
@@ -76,9 +78,9 @@ export function TemplatesTab() {
         name: formName.trim(),
         description: formDescription.trim() || null,
         prompt_text: formPrompt,
-      });
+      }, user?.name);
     } else {
-      ok = await createTemplate(formName.trim(), formDescription.trim() || null, formPrompt);
+      ok = await createTemplate(formName.trim(), formDescription.trim() || null, formPrompt, user?.name);
     }
     setSaving(false);
     if (ok) setDialogOpen(false);
