@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Plus, Search, Pencil, Trash2, Eye } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Eye, History } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
 import { useTemplates, Template } from '../hooks/useTemplates';
+import { TemplateHistoryDialog } from './TemplateHistoryDialog';
+import { TemplateVersion } from '../hooks/useTemplateVersions';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -42,6 +44,9 @@ export function TemplatesTab() {
 
   // Edit confirm dialog
   const [editConfirmTemplate, setEditConfirmTemplate] = useState<Template | null>(null);
+
+  // History dialog
+  const [historyTemplate, setHistoryTemplate] = useState<Template | null>(null);
 
   const filtered = templates.filter(t =>
     t.name.toLowerCase().includes(search.toLowerCase())
