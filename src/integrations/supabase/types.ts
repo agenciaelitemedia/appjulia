@@ -857,6 +857,75 @@ export type Database = {
         }
         Relationships: []
       }
+      generation_legal_cases: {
+        Row: {
+          case_info: string | null
+          case_name: string
+          category: string
+          created_at: string
+          created_by: string | null
+          fees_info: string | null
+          id: string
+          is_active: boolean
+          qualification_script: string | null
+          updated_at: string
+        }
+        Insert: {
+          case_info?: string | null
+          case_name: string
+          category: string
+          created_at?: string
+          created_by?: string | null
+          fees_info?: string | null
+          id?: string
+          is_active?: boolean
+          qualification_script?: string | null
+          updated_at?: string
+        }
+        Update: {
+          case_info?: string | null
+          case_name?: string
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          fees_info?: string | null
+          id?: string
+          is_active?: boolean
+          qualification_script?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      generation_prompt_config: {
+        Row: {
+          config_key: string
+          created_at: string
+          description: string | null
+          id: string
+          prompt_text: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          config_key: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          prompt_text: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          config_key?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          prompt_text?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       phone_call_logs: {
         Row: {
           answered_at: string | null
