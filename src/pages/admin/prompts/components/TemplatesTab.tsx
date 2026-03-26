@@ -298,6 +298,14 @@ export function TemplatesTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* History Dialog */}
+      <TemplateHistoryDialog
+        template={historyTemplate}
+        open={!!historyTemplate}
+        onOpenChange={(open) => !open && setHistoryTemplate(null)}
+        onRestore={handleRestore}
+      />
     </Card>
   );
 }
