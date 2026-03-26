@@ -857,6 +857,178 @@ export type Database = {
         }
         Relationships: []
       }
+      generation_agent_prompt_cases: {
+        Row: {
+          agent_prompt_id: string
+          case_id: string
+          case_info: string | null
+          case_name: string | null
+          closing_model_text: string | null
+          contract_fields: Json | null
+          created_at: string | null
+          ctas: Json | null
+          fees_text: string | null
+          id: string
+          negotiation_text: string | null
+          position: number | null
+          qualification_script: string | null
+          semantic_words: string | null
+          zapsign_doc_token: string | null
+          zapsign_token: string | null
+        }
+        Insert: {
+          agent_prompt_id: string
+          case_id: string
+          case_info?: string | null
+          case_name?: string | null
+          closing_model_text?: string | null
+          contract_fields?: Json | null
+          created_at?: string | null
+          ctas?: Json | null
+          fees_text?: string | null
+          id?: string
+          negotiation_text?: string | null
+          position?: number | null
+          qualification_script?: string | null
+          semantic_words?: string | null
+          zapsign_doc_token?: string | null
+          zapsign_token?: string | null
+        }
+        Update: {
+          agent_prompt_id?: string
+          case_id?: string
+          case_info?: string | null
+          case_name?: string | null
+          closing_model_text?: string | null
+          contract_fields?: Json | null
+          created_at?: string | null
+          ctas?: Json | null
+          fees_text?: string | null
+          id?: string
+          negotiation_text?: string | null
+          position?: number | null
+          qualification_script?: string | null
+          semantic_words?: string | null
+          zapsign_doc_token?: string | null
+          zapsign_token?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generation_agent_prompt_cases_agent_prompt_id_fkey"
+            columns: ["agent_prompt_id"]
+            isOneToOne: false
+            referencedRelation: "generation_agent_prompts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generation_agent_prompt_cases_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "generation_legal_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generation_agent_prompt_versions: {
+        Row: {
+          change_summary: string | null
+          changed_by: string | null
+          created_at: string | null
+          id: string
+          prompt_id: string
+          snapshot: Json | null
+          version_number: number
+        }
+        Insert: {
+          change_summary?: string | null
+          changed_by?: string | null
+          created_at?: string | null
+          id?: string
+          prompt_id: string
+          snapshot?: Json | null
+          version_number: number
+        }
+        Update: {
+          change_summary?: string | null
+          changed_by?: string | null
+          created_at?: string | null
+          id?: string
+          prompt_id?: string
+          snapshot?: Json | null
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generation_agent_prompt_versions_prompt_id_fkey"
+            columns: ["prompt_id"]
+            isOneToOne: false
+            referencedRelation: "generation_agent_prompts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generation_agent_prompts: {
+        Row: {
+          agent_name: string | null
+          ai_name: string | null
+          business_name: string | null
+          cod_agent: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean | null
+          office_info: string | null
+          practice_areas: string | null
+          template_id: string | null
+          updated_at: string | null
+          updated_by: string | null
+          welcome_message: string | null
+          working_hours: string | null
+        }
+        Insert: {
+          agent_name?: string | null
+          ai_name?: string | null
+          business_name?: string | null
+          cod_agent: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          office_info?: string | null
+          practice_areas?: string | null
+          template_id?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          welcome_message?: string | null
+          working_hours?: string | null
+        }
+        Update: {
+          agent_name?: string | null
+          ai_name?: string | null
+          business_name?: string | null
+          cod_agent?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          office_info?: string | null
+          practice_areas?: string | null
+          template_id?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          welcome_message?: string | null
+          working_hours?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generation_agent_prompts_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "generation_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       generation_legal_cases: {
         Row: {
           case_info: string | null

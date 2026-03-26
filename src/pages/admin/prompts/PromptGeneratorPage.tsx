@@ -1,9 +1,10 @@
-import { FileText, Clock } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GenerateScriptTab } from './components/GenerateScriptTab';
 import { LegalCasesTab } from './components/LegalCasesTab';
 import { PromptConfigTab } from './components/PromptConfigTab';
 import { TemplatesTab } from './components/TemplatesTab';
+import { PromptsTab } from './components/PromptsTab';
 
 export default function PromptGeneratorPage() {
   return (
@@ -23,9 +24,7 @@ export default function PromptGeneratorPage() {
           <TabsTrigger value="generate">Gerar Roteiros</TabsTrigger>
           <TabsTrigger value="cases">Casos Jurídicos</TabsTrigger>
           <TabsTrigger value="config">Configuração</TabsTrigger>
-          <TabsTrigger value="prompts" disabled>
-            <span className="flex items-center gap-1">Prompts <Clock className="h-3 w-3" /></span>
-          </TabsTrigger>
+          <TabsTrigger value="prompts">Prompts</TabsTrigger>
           <TabsTrigger value="templates">Templates</TabsTrigger>
         </TabsList>
 
@@ -39,6 +38,10 @@ export default function PromptGeneratorPage() {
 
         <TabsContent value="config">
           <PromptConfigTab />
+        </TabsContent>
+
+        <TabsContent value="prompts">
+          <PromptsTab />
         </TabsContent>
 
         <TabsContent value="templates">
