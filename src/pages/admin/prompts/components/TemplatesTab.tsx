@@ -148,9 +148,18 @@ export function TemplatesTab() {
                 </CardHeader>
                 <CardContent className="pt-0">
                   <p className="text-xs text-muted-foreground font-mono line-clamp-3">{t.prompt_text}</p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Criado em {format(new Date(t.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                  </p>
+                  <div className="mt-2 space-y-0.5">
+                    <p className="text-xs text-muted-foreground">
+                      Criado em {format(new Date(t.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      {t.created_by ? ` por ${t.created_by}` : ''}
+                    </p>
+                    {t.updated_at && t.updated_at !== t.created_at && (
+                      <p className="text-xs text-muted-foreground">
+                        Atualizado em {format(new Date(t.updated_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        {t.updated_by ? ` por ${t.updated_by}` : ''}
+                      </p>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             ))}
