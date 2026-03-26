@@ -86,6 +86,17 @@ export function CaseCustomizeDialog({ open, onOpenChange, caseData, onSave, temp
         </DialogHeader>
 
         <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>ZapSign Token</Label>
+              <Input value={data.zapsign_token} onChange={e => update('zapsign_token', e.target.value)} className="font-mono text-xs" />
+            </div>
+            <div>
+              <Label>ZapSign Documento Token</Label>
+              <Input value={data.zapsign_doc_token} onChange={e => update('zapsign_doc_token', e.target.value)} className="font-mono text-xs" />
+            </div>
+          </div>
+
           <div>
             <Label>CTAs do Caso</Label>
             <TagInput value={data.ctas} onChange={v => update('ctas', v)} placeholder="Digite um CTA e pressione Enter..." />
@@ -104,17 +115,6 @@ export function CaseCustomizeDialog({ open, onOpenChange, caseData, onSave, temp
           <div>
             <Label>Roteiro de Qualificação</Label>
             <Textarea value={data.qualification_script} onChange={e => update('qualification_script', e.target.value)} rows={8} className="font-mono text-sm" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>ZapSign Token</Label>
-              <Input value={data.zapsign_token} onChange={e => update('zapsign_token', e.target.value)} className="font-mono text-xs" />
-            </div>
-            <div>
-              <Label>ZapSign Documento Token</Label>
-              <Input value={data.zapsign_doc_token} onChange={e => update('zapsign_doc_token', e.target.value)} className="font-mono text-xs" />
-            </div>
           </div>
 
           <div>
