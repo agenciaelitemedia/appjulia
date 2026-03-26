@@ -8,6 +8,7 @@ export interface Template {
   name: string;
   description: string | null;
   prompt_text: string;
+  closing_model_text: string | null;
   is_active: boolean;
   created_by: string | null;
   created_at: string;
@@ -40,10 +41,10 @@ export function useTemplates() {
 
   useEffect(() => { fetchTemplates(); }, [fetchTemplates]);
 
-  const createTemplate = async (name: string, description: string | null, prompt_text: string, userName?: string) => {
+  const createTemplate = async (name: string, description: string | null, prompt_text: string, closing_model_text: string | null, userName?: string) => {
     const { error } = await supabase
       .from('generation_templates')
-      .insert({ name, description, prompt_text, created_by: userName || null } as any);
+      .insert({ name, description, prompt_text, closing_model_text, created_by: userName || null } as any);
 
     if (error) {
       toast({ title: 'Erro', description: 'Falha ao criar template', variant: 'destructive' });
@@ -54,7 +55,7 @@ export function useTemplates() {
     return true;
   };
 
-  const updateTemplate = async (id: string, updates: Partial<Pick<Template, 'name' | 'description' | 'prompt_text'>>, userName?: string) => {
+  const updateTemplate = async (id: string, updates: Partial<Pick<Template, 'name' | 'description' | 'prompt_text' | 'closing_model_text'>>, userName?: string) => {
     // Save current version before updating
     const current = templates.find(t => t.id === id);
     if (current) {
@@ -62,8 +63,9 @@ export function useTemplates() {
       if (updates.name && updates.name !== current.name) changes.push('Nome');
       if (updates.description !== undefined && updates.description !== current.description) changes.push('Descrição');
       if (updates.prompt_text && updates.prompt_text !== current.prompt_text) changes.push('Prompt');
+      if (updates.closing_model_text !== undefined && updates.closing_model_text !== current.closing_model_text) changes.push('Modelo de Fechamento');
       const summary = changes.length > 0 ? `${changes.join(' e ')} alterado${changes.length > 1 ? 's' : ''}` : 'Atualização';
-      await saveVersion(id, { name: current.name, description: current.description, prompt_text: current.prompt_text }, userName || null, summary);
+      await saveVersion(id, { name: current.name, description: current.description, prompt_text: current.prompt_text, closing_model_text: current.closing_model_text }, userName || null, summary);
     }
 
     const { error } = await supabase
