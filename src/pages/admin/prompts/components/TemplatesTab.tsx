@@ -166,7 +166,7 @@ export function TemplatesTab() {
                 </CardHeader>
                 <CardContent className="pt-0">
                   <p className="text-xs text-muted-foreground font-mono line-clamp-3">{t.prompt_text}</p>
-                  <div className="mt-2 space-y-0.5">
+                  <div className="mt-4 space-y-0.5">
                     <p className="text-[11px] text-muted-foreground/70">
                       Criado em {format(new Date(t.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                       {t.created_by ? ` por ${t.created_by}` : ''}
