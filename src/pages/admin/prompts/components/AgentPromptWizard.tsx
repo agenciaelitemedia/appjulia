@@ -93,7 +93,7 @@ export function AgentPromptWizard({ onClose, onSaved }: AgentPromptWizardProps) 
   };
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col h-full min-h-[calc(100vh-120px)] space-y-4">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={onClose}>
           <ArrowLeft className="h-4 w-4" />
@@ -102,7 +102,7 @@ export function AgentPromptWizard({ onClose, onSaved }: AgentPromptWizardProps) 
       </div>
 
       {/* Stepper */}
-      <div className="flex items-center gap-2 mb-6">
+      <div className="flex items-center gap-2">
         {STEPS.map((label, i) => (
           <div key={label} className="flex items-center gap-2">
             <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold ${
@@ -117,8 +117,8 @@ export function AgentPromptWizard({ onClose, onSaved }: AgentPromptWizardProps) 
         ))}
       </div>
 
-      <Card>
-        <CardContent className="p-6">
+      <Card className="flex-1">
+        <CardContent className="p-6 h-full">
           {step === 0 && (
             <StepAgentSearch
               selected={selectedAgent}
