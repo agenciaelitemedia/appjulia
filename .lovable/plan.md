@@ -1,61 +1,62 @@
 
 
-# Aba Templates -- Cadastro de Prompts Base da Julia
+# Sistema de Versionamento para Templates de Prompt (revisado)
 
-## O que sera construido
+## Alteração em relação ao plano anterior
 
-Uma aba funcional "Templates" dentro do modulo Gerador de Prompt para cadastrar, listar, editar e excluir prompts base da Julia. Cada template tem: nome, descricao e prompt (texto longo).
+- **Formatação visual**: textos "Criado em..." e "Atualizado em..." nos cards serão exibidos em tamanho menor (`text-[11px]` ou equivalente) e cor mais suave para não competir visualmente com o conteúdo principal.
 
-## Tabela (migracao SQL)
+## Tabela nova (migração SQL)
 
-### `generation_templates`
+### `generation_template_versions`
 
 | Coluna | Tipo |
 |---|---|
 | id | uuid PK default gen_random_uuid() |
+| template_id | uuid FK → generation_templates(id) ON DELETE CASCADE |
+| version_number | integer not null |
 | name | text not null |
 | description | text |
 | prompt_text | text not null |
-| is_active | boolean default true |
-| created_by | text |
+| changed_by | text |
+| change_summary | text |
 | created_at | timestamptz default now() |
-| updated_at | timestamptz default now() |
 
-RLS: allow all (padrao do projeto).
+RLS: allow all (padrão do projeto).
+
+## Como funciona
+
+1. Ao editar um template, **antes** do UPDATE, o hook grava um snapshot dos dados atuais em `generation_template_versions` com version_number incrementado
+2. `change_summary` é calculado no frontend comparando campos antigos vs novos (ex: "Nome e Prompt alterados")
+3. Histórico acessível via botão History no card
+
+## Interface
+
+### Cards — formatação de metadados
+- "Criado em..." e "Atualizado em..." com `text-[11px] text-muted-foreground/70` para ficarem visivelmente menores e mais discretos que o restante
+
+### Botão Histórico (ícone History) nos cards
+- Junto aos botões Visualizar/Editar/Excluir
+
+### Dialog de Histórico
+- Timeline de versões (mais recente → mais antiga): Versão #N + data + autor + resumo
+- Ao clicar: expande conteúdo daquela versão
+- Botão "Comparar com atual": diff visual lado a lado
+- Botão "Restaurar esta versão" com confirmação
+
+### Diff visual (DiffViewer)
+- Comparação linha-a-linha simples (split por `\n`)
+- Linhas removidas em vermelho, adicionadas em verde
+- Sem dependência externa
 
 ## Arquivos
 
-| Arquivo | Acao |
+| Arquivo | Ação |
 |---|---|
-| Migracao SQL | Criar `generation_templates` |
-| `src/pages/admin/prompts/components/TemplatesTab.tsx` | Nova aba com listagem + CRUD |
-| `src/pages/admin/prompts/hooks/useTemplates.ts` | Hook CRUD (fetch, create, update, delete) |
-| `src/pages/admin/prompts/PromptGeneratorPage.tsx` | Habilitar aba Templates, importar componente |
-
-## Interface (TemplatesTab)
-
-- **Topo**: botao "Novo Template"
-- **Busca**: input de pesquisa por nome
-- **Lista**: cards com nome, descricao truncada e data de criacao
-  - Botoes: visualizar/editar, excluir
-- **Dialog de criacao/edicao**:
-  - Input: Nome do Template (obrigatorio)
-  - Textarea: Descricao (opcional)
-  - Textarea grande (min-h-[400px]): Prompt (obrigatorio, font-mono)
-  - Botao Salvar / Cancelar
-- Toast de confirmacao ao salvar/excluir
-
-## Hook `useTemplates`
-
-- `templates`: lista ordenada por created_at desc
-- `isLoading`
-- `createTemplate(name, description, prompt_text)`
-- `updateTemplate(id, fields)`
-- `deleteTemplate(id)` com toast de confirmacao
-
-## Alteracao no PromptGeneratorPage
-
-- Remover `disabled` da aba Templates
-- Remover icone Clock
-- Adicionar `TabsContent` com `<TemplatesTab />`
+| Migração SQL | Criar `generation_template_versions` |
+| `src/pages/admin/prompts/hooks/useTemplateVersions.ts` | Hook para buscar versões e restaurar |
+| `src/pages/admin/prompts/hooks/useTemplates.ts` | Gravar versão antes de atualizar |
+| `src/pages/admin/prompts/components/TemplateHistoryDialog.tsx` | Dialog com timeline + diff |
+| `src/pages/admin/prompts/components/DiffViewer.tsx` | Componente de comparação visual |
+| `src/pages/admin/prompts/components/TemplatesTab.tsx` | Botão Histórico + reduzir fonte dos metadados |
 
