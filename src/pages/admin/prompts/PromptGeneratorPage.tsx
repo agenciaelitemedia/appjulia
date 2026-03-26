@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GenerateScriptTab } from './components/GenerateScriptTab';
 import { LegalCasesTab } from './components/LegalCasesTab';
 import { PromptConfigTab } from './components/PromptConfigTab';
+import { TemplatesTab } from './components/TemplatesTab';
 
 export default function PromptGeneratorPage() {
   return (
