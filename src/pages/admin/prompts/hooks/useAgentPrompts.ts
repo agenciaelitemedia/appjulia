@@ -13,6 +13,7 @@ export interface AgentPrompt {
   working_hours: string | null;
   office_info: string | null;
   welcome_message: string | null;
+  generated_prompt: string | null;
   is_active: boolean;
   created_by: string | null;
   updated_by: string | null;

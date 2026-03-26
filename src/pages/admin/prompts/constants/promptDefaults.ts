@@ -81,3 +81,76 @@ export function processNegotiationText(
 
   return result;
 }
+
+export interface CaseDataForPrompt {
+  case_name: string;
+  ctas: string[];
+  semantic_words: string;
+  case_info: string;
+  qualification_script: string;
+  negotiation_text: string;
+}
+
+export function processFinalPrompt(
+  templatePromptText: string,
+  aiConfig: {
+    aiName: string;
+    practiceAreas: string;
+    workingHours: string;
+    officeInfo: string;
+    welcomeMessage: string;
+  },
+  cases: CaseDataForPrompt[]
+): string {
+  let result = templatePromptText;
+
+  // Direct replacements
+  result = result.replace(/\[\[NOME_IA\]\]/g, aiConfig.aiName);
+  result = result.replace(/\[\[HORARIO_FUNCIONAMENTO\]\]/g, aiConfig.workingHours);
+  result = result.replace(/\[\[INFORMACOES_ESCRITORIO\]\]/g, aiConfig.officeInfo);
+  result = result.replace(/\[\[AREAS_ATUACOES\]\]/g, aiConfig.practiceAreas);
+  result = result.replace(/\[\[BOAS_VINDAS\]\]/g, aiConfig.welcomeMessage);
+
+  // CTAs - all cases combined
+  const ctasText = cases
+    .flatMap(c => c.ctas.map(cta => `  | "${cta}" | ${c.case_name}  |`))
+    .join('\n');
+  result = result.replace(/\[\[CTAS_JURIDICOS\]\]/g, ctasText);
+
+  // Semantic words - all cases concatenated
+  const allSemanticWords = cases
+    .map(c => c.semantic_words)
+    .filter(Boolean)
+    .join(', ');
+  result = result.replace(/\[\[PALAVRAS_SEMANTICAS\]\]/g, allSemanticWords);
+
+  // Case list - case_info with renumbered titles
+  let caseCounter = 0;
+  const casesListText = cases
+    .map(c => {
+      let info = c.case_info || '';
+      // Renumber ### headers like "### 🤰 1." -> sequential
+      info = info.replace(/^(### .+? )\d+\./gm, () => {
+        caseCounter++;
+        return `### ${caseCounter}.`;
+      });
+      return info;
+    })
+    .join('\n\n---\n\n');
+  result = result.replace(/\[\[LISTA_CASOS\]\]/g, casesListText);
+
+  // Scripts - qualification_script + negotiation_text with renumbered CASO N:
+  let scriptCounter = 0;
+  const scriptsText = cases
+    .map(c => {
+      const combined = [c.qualification_script, c.negotiation_text].filter(Boolean).join('\n\n');
+      return combined.replace(/CASO \d+:/g, () => {
+        scriptCounter++;
+        return `CASO ${scriptCounter}:`;
+      });
+    })
+    .join('\n\n---\n\n');
+  result = result.replace(/\[\[ROTEIROS_CASOS\]\]/g, scriptsText);
+
+  return result;
+}
