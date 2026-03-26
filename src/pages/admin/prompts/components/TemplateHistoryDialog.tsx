@@ -117,12 +117,26 @@ export function TemplateHistoryDialog({ template, open, onOpenChange, onRestore 
                         </Button>
                       </div>
                       {showDiff && template && (
-                        <DiffViewer
-                          oldText={v.prompt_text}
-                          newText={template.prompt_text}
-                          oldLabel={`Versão #${v.version_number}`}
-                          newLabel="Versão atual"
-                        />
+                        <div className="space-y-4">
+                          <div>
+                            <p className="text-[11px] font-semibold text-muted-foreground mb-1">Diff — Prompt</p>
+                            <DiffViewer
+                              oldText={v.prompt_text}
+                              newText={template.prompt_text}
+                              oldLabel={`Versão #${v.version_number}`}
+                              newLabel="Versão atual"
+                            />
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-semibold text-muted-foreground mb-1">Diff — Modelo de Fechamento</p>
+                            <DiffViewer
+                              oldText={v.closing_model_text || ''}
+                              newText={template.closing_model_text || ''}
+                              oldLabel={`Versão #${v.version_number}`}
+                              newLabel="Versão atual"
+                            />
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}
