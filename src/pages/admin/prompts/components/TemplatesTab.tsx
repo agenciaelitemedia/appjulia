@@ -1,13 +1,18 @@
 import { useState } from 'react';
-import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Eye } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 import { useTemplates, Template } from '../hooks/useTemplates';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -15,12 +20,26 @@ import { ptBR } from 'date-fns/locale';
 export function TemplatesTab() {
   const { templates, isLoading, createTemplate, updateTemplate, deleteTemplate } = useTemplates();
   const [search, setSearch] = useState('');
+
+  // Create/Edit dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Template | null>(null);
   const [formName, setFormName] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formPrompt, setFormPrompt] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // View dialog
+  const [viewing, setViewing] = useState<Template | null>(null);
+
+  // Delete dialog
+  const [deleting, setDeleting] = useState<Template | null>(null);
+  const [deleteTypedName, setDeleteTypedName] = useState('');
+  const [deleteConfirmed, setDeleteConfirmed] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Edit confirm dialog
+  const [editConfirmTemplate, setEditConfirmTemplate] = useState<Template | null>(null);
 
   const filtered = templates.filter(t =>
     t.name.toLowerCase().includes(search.toLowerCase())
@@ -34,11 +53,17 @@ export function TemplatesTab() {
     setDialogOpen(true);
   };
 
-  const openEdit = (t: Template) => {
-    setEditing(t);
-    setFormName(t.name);
-    setFormDescription(t.description || '');
-    setFormPrompt(t.prompt_text);
+  const confirmEdit = (t: Template) => {
+    setEditConfirmTemplate(t);
+  };
+
+  const proceedEdit = () => {
+    if (!editConfirmTemplate) return;
+    setEditing(editConfirmTemplate);
+    setFormName(editConfirmTemplate.name);
+    setFormDescription(editConfirmTemplate.description || '');
+    setFormPrompt(editConfirmTemplate.prompt_text);
+    setEditConfirmTemplate(null);
     setDialogOpen(true);
   };
 
@@ -59,10 +84,22 @@ export function TemplatesTab() {
     if (ok) setDialogOpen(false);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este template?')) return;
-    await deleteTemplate(id);
+  const openDelete = (t: Template) => {
+    setDeleting(t);
+    setDeleteTypedName('');
+    setDeleteConfirmed(false);
   };
+
+  const handleDelete = async () => {
+    if (!deleting) return;
+    setDeleteLoading(true);
+    await deleteTemplate(deleting.id);
+    setDeleteLoading(false);
+    setDeleting(null);
+  };
+
+  const deleteNameMatch = deleting ? deleteTypedName === deleting.name : false;
+  const canDelete = deleteNameMatch && deleteConfirmed && !deleteLoading;
 
   return (
     <Card>
@@ -78,12 +115,7 @@ export function TemplatesTab() {
         </div>
         <div className="relative mt-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nome..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-10"
-          />
+          <Input placeholder="Buscar por nome..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
         </div>
       </CardHeader>
       <CardContent>
@@ -101,17 +133,18 @@ export function TemplatesTab() {
                   <div className="flex items-start justify-between">
                     <CardTitle className="text-base">{t.name}</CardTitle>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button size="icon" variant="ghost" onClick={() => openEdit(t)}>
+                      <Button size="icon" variant="ghost" title="Visualizar" onClick={() => setViewing(t)}>
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" title="Editar" onClick={() => confirmEdit(t)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button size="icon" variant="ghost" onClick={() => handleDelete(t.id)}>
+                      <Button size="icon" variant="ghost" title="Excluir" onClick={() => openDelete(t)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
                   </div>
-                  {t.description && (
-                    <CardDescription className="line-clamp-2">{t.description}</CardDescription>
-                  )}
+                  {t.description && <CardDescription className="line-clamp-2">{t.description}</CardDescription>}
                 </CardHeader>
                 <CardContent className="pt-0">
                   <p className="text-xs text-muted-foreground font-mono line-clamp-3">{t.prompt_text}</p>
@@ -125,6 +158,24 @@ export function TemplatesTab() {
         )}
       </CardContent>
 
+      {/* View Dialog */}
+      <Dialog open={!!viewing} onOpenChange={open => !open && setViewing(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{viewing?.name}</DialogTitle>
+            {viewing?.description && <DialogDescription>{viewing.description}</DialogDescription>}
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Prompt</Label>
+            <Textarea value={viewing?.prompt_text || ''} readOnly className="min-h-[400px] font-mono text-sm bg-muted" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewing(null)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -144,12 +195,7 @@ export function TemplatesTab() {
             </div>
             <div>
               <Label>Prompt *</Label>
-              <Textarea
-                value={formPrompt}
-                onChange={e => setFormPrompt(e.target.value)}
-                placeholder="Cole o prompt completo aqui..."
-                className="min-h-[400px] font-mono text-sm"
-              />
+              <Textarea value={formPrompt} onChange={e => setFormPrompt(e.target.value)} placeholder="Cole o prompt completo aqui..." className="min-h-[400px] font-mono text-sm" />
             </div>
           </div>
           <DialogFooter>
@@ -160,6 +206,71 @@ export function TemplatesTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Confirm Dialog */}
+      <AlertDialog open={!!editConfirmTemplate} onOpenChange={open => !open && setEditConfirmTemplate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Edição</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja editar o template <strong>"{editConfirmTemplate?.name}"</strong>? As alterações substituirão os dados atuais.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <Button onClick={proceedEdit}>Sim, Editar</Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirm Dialog */}
+      <AlertDialog open={!!deleting} onOpenChange={open => !open && setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive">Excluir Template</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação é irreversível. Para confirmar, digite o nome do template abaixo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Nome do template:</Label>
+              <Input value={deleting?.name || ''} readOnly className="bg-muted font-mono text-sm" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="delete-confirm-name" className="text-sm font-medium">Digite o nome para confirmar:</Label>
+              <Input
+                id="delete-confirm-name"
+                value={deleteTypedName}
+                onChange={e => setDeleteTypedName(e.target.value)}
+                placeholder="Digite o nome exato..."
+                className={deleteTypedName && !deleteNameMatch ? 'border-destructive' : ''}
+                disabled={deleteLoading}
+              />
+              {deleteTypedName && !deleteNameMatch && (
+                <p className="text-xs text-destructive">O nome não corresponde</p>
+              )}
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="delete-confirm-check"
+                checked={deleteConfirmed}
+                onCheckedChange={checked => setDeleteConfirmed(checked === true)}
+                disabled={deleteLoading}
+              />
+              <Label htmlFor="delete-confirm-check" className="text-sm font-medium leading-none">
+                Confirmo que desejo excluir este template permanentemente
+              </Label>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteLoading}>Cancelar</AlertDialogCancel>
+            <Button variant="destructive" onClick={handleDelete} disabled={!canDelete}>
+              {deleteLoading ? 'Excluindo...' : 'Excluir Template'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
