@@ -149,9 +149,7 @@ export function StepCaseSelect({ cases, onChange, templateClosingModel, onBack, 
 
       <div className="flex justify-between pt-4">
         <Button variant="outline" onClick={onBack}>Voltar</Button>
-        <Button onClick={onSave} disabled={saving}>
-          {saving ? 'Salvando...' : 'Salvar Prompt'}
-        </Button>
+        <Button onClick={onSave}>Próximo</Button>
       </div>
 
       {/* View Dialog */}

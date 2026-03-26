@@ -10,6 +10,7 @@ import { StepAgentSearch } from './wizard/StepAgentSearch';
 import { StepTemplateSelect } from './wizard/StepTemplateSelect';
 import { StepAIConfig } from './wizard/StepAIConfig';
 import { StepCaseSelect } from './wizard/StepCaseSelect';
+import { StepFinalPrompt } from './wizard/StepFinalPrompt';
 import { CaseData } from './wizard/CaseCustomizeDialog';
 import {
   DEFAULT_AI_NAME,
@@ -24,7 +25,7 @@ interface AgentPromptWizardProps {
   onSaved: () => void;
 }
 
-const STEPS = ['Agente', 'Template', 'Informações', 'Casos'];
+const STEPS = ['Agente', 'Template', 'Informações', 'Casos', 'Prompt Final'];
 
 export function AgentPromptWizard({ onClose, onSaved }: AgentPromptWizardProps) {
   const { user } = useAuth();
@@ -32,13 +33,8 @@ export function AgentPromptWizard({ onClose, onSaved }: AgentPromptWizardProps) 
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
 
-  // Step A
   const [selectedAgent, setSelectedAgent] = useState<SearchedAgent | null>(null);
-
-  // Step B
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
-
-  // Step C
   const [aiConfig, setAiConfig] = useState({
     aiName: DEFAULT_AI_NAME,
     practiceAreas: DEFAULT_PRACTICE_AREAS,
@@ -46,11 +42,9 @@ export function AgentPromptWizard({ onClose, onSaved }: AgentPromptWizardProps) 
     officeInfo: DEFAULT_OFFICE_INFO,
     welcomeMessage: DEFAULT_WELCOME_MESSAGE,
   });
-
-  // Step D
   const [cases, setCases] = useState<CaseData[]>([]);
 
-  const handleSave = async () => {
+  const handleSave = async (generatedPrompt: string) => {
     if (!selectedAgent || !selectedTemplate) return;
     setSaving(true);
 
@@ -64,6 +58,7 @@ export function AgentPromptWizard({ onClose, onSaved }: AgentPromptWizardProps) 
       working_hours: aiConfig.workingHours,
       office_info: aiConfig.officeInfo,
       welcome_message: aiConfig.welcomeMessage,
+      generated_prompt: generatedPrompt,
       created_by: user?.name || null,
       updated_by: user?.name || null,
     };
@@ -148,6 +143,16 @@ export function AgentPromptWizard({ onClose, onSaved }: AgentPromptWizardProps) 
               onChange={setCases}
               templateClosingModel={selectedTemplate?.closing_model_text || ''}
               onBack={() => setStep(2)}
+              onSave={() => setStep(4)}
+              saving={false}
+            />
+          )}
+          {step === 4 && (
+            <StepFinalPrompt
+              templatePromptText={selectedTemplate?.prompt_text || ''}
+              aiConfig={aiConfig}
+              cases={cases}
+              onBack={() => setStep(3)}
               onSave={handleSave}
               saving={saving}
             />

@@ -1,0 +1,1 @@
+ALTER TABLE public.generation_agent_prompts ADD COLUMN generated_prompt text;
