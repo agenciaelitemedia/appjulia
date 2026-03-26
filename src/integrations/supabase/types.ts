@@ -930,6 +930,7 @@ export type Database = {
         Row: {
           change_summary: string | null
           changed_by: string | null
+          closing_model_text: string | null
           created_at: string | null
           description: string | null
           id: string
@@ -941,6 +942,7 @@ export type Database = {
         Insert: {
           change_summary?: string | null
           changed_by?: string | null
+          closing_model_text?: string | null
           created_at?: string | null
           description?: string | null
           id?: string
@@ -952,6 +954,7 @@ export type Database = {
         Update: {
           change_summary?: string | null
           changed_by?: string | null
+          closing_model_text?: string | null
           created_at?: string | null
           description?: string | null
           id?: string
@@ -972,6 +975,7 @@ export type Database = {
       }
       generation_templates: {
         Row: {
+          closing_model_text: string | null
           created_at: string
           created_by: string | null
           description: string | null
@@ -983,6 +987,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          closing_model_text?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -994,6 +999,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          closing_model_text?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
