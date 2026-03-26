@@ -78,9 +78,9 @@ export function TemplatesTab() {
         name: formName.trim(),
         description: formDescription.trim() || null,
         prompt_text: formPrompt,
-      });
+      }, user?.name);
     } else {
-      ok = await createTemplate(formName.trim(), formDescription.trim() || null, formPrompt);
+      ok = await createTemplate(formName.trim(), formDescription.trim() || null, formPrompt, user?.name);
     }
     setSaving(false);
     if (ok) setDialogOpen(false);
