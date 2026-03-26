@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GenerateScriptTab } from './components/GenerateScriptTab';
 import { LegalCasesTab } from './components/LegalCasesTab';
 import { PromptConfigTab } from './components/PromptConfigTab';
+import { TemplatesTab } from './components/TemplatesTab';
 
 export default function PromptGeneratorPage() {
   return (
@@ -25,9 +26,7 @@ export default function PromptGeneratorPage() {
           <TabsTrigger value="prompts" disabled>
             <span className="flex items-center gap-1">Prompts <Clock className="h-3 w-3" /></span>
           </TabsTrigger>
-          <TabsTrigger value="templates" disabled>
-            <span className="flex items-center gap-1">Templates <Clock className="h-3 w-3" /></span>
-          </TabsTrigger>
+          <TabsTrigger value="templates">Templates</TabsTrigger>
         </TabsList>
 
         <TabsContent value="generate">
@@ -40,6 +39,10 @@ export default function PromptGeneratorPage() {
 
         <TabsContent value="config">
           <PromptConfigTab />
+        </TabsContent>
+
+        <TabsContent value="templates">
+          <TemplatesTab />
         </TabsContent>
       </Tabs>
     </div>
