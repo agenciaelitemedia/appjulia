@@ -9,6 +9,7 @@ export interface TemplateVersion {
   name: string;
   description: string | null;
   prompt_text: string;
+  closing_model_text: string | null;
   changed_by: string | null;
   change_summary: string | null;
   created_at: string;
@@ -38,7 +39,7 @@ export function useTemplateVersions() {
 
   const saveVersion = async (
     templateId: string,
-    currentData: { name: string; description: string | null; prompt_text: string },
+    currentData: { name: string; description: string | null; prompt_text: string; closing_model_text: string | null },
     changedBy: string | null,
     changeSummary: string
   ) => {
@@ -60,6 +61,7 @@ export function useTemplateVersions() {
         name: currentData.name,
         description: currentData.description,
         prompt_text: currentData.prompt_text,
+        closing_model_text: currentData.closing_model_text,
         changed_by: changedBy,
         change_summary: changeSummary,
       } as any);

@@ -84,9 +84,20 @@ export function TemplateHistoryDialog({ template, open, onOpenChange, onRestore 
 
                   {selectedVersion?.id === v.id && (
                     <div className="mt-3 space-y-3">
-                      <div className="text-xs font-mono bg-muted/50 rounded p-2 max-h-[200px] overflow-y-auto whitespace-pre-wrap">
-                        {v.prompt_text}
+                      <div>
+                        <p className="text-[11px] font-semibold text-muted-foreground mb-1">Prompt</p>
+                        <div className="text-xs font-mono bg-muted/50 rounded p-2 max-h-[150px] overflow-y-auto whitespace-pre-wrap">
+                          {v.prompt_text}
+                        </div>
                       </div>
+                      {v.closing_model_text && (
+                        <div>
+                          <p className="text-[11px] font-semibold text-muted-foreground mb-1">Modelo de Fechamento</p>
+                          <div className="text-xs font-mono bg-muted/50 rounded p-2 max-h-[150px] overflow-y-auto whitespace-pre-wrap">
+                            {v.closing_model_text}
+                          </div>
+                        </div>
+                      )}
                       <div className="flex gap-2">
                         <Button
                           size="sm"
