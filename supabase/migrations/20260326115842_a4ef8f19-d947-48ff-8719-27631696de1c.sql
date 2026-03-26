@@ -1,0 +1,1 @@
+ALTER TABLE public.generation_templates ADD COLUMN IF NOT EXISTS updated_by text;

@@ -936,6 +936,7 @@ export type Database = {
           name: string
           prompt_text: string
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           created_at?: string
@@ -946,6 +947,7 @@ export type Database = {
           name: string
           prompt_text: string
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           created_at?: string
@@ -956,6 +958,7 @@ export type Database = {
           name?: string
           prompt_text?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
