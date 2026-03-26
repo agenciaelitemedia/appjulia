@@ -31,6 +31,7 @@ export function TemplatesTab() {
   const [formName, setFormName] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formPrompt, setFormPrompt] = useState('');
+  const [formClosingModel, setFormClosingModel] = useState('');
   const [saving, setSaving] = useState(false);
 
   // View dialog
@@ -57,6 +58,7 @@ export function TemplatesTab() {
     setFormName('');
     setFormDescription('');
     setFormPrompt('');
+    setFormClosingModel('');
     setDialogOpen(true);
   };
 
@@ -70,6 +72,7 @@ export function TemplatesTab() {
     setFormName(editConfirmTemplate.name);
     setFormDescription(editConfirmTemplate.description || '');
     setFormPrompt(editConfirmTemplate.prompt_text);
+    setFormClosingModel(editConfirmTemplate.closing_model_text || '');
     setEditConfirmTemplate(null);
     setDialogOpen(true);
   };
@@ -83,9 +86,10 @@ export function TemplatesTab() {
         name: formName.trim(),
         description: formDescription.trim() || null,
         prompt_text: formPrompt,
+        closing_model_text: formClosingModel.trim() || null,
       }, user?.name);
     } else {
-      ok = await createTemplate(formName.trim(), formDescription.trim() || null, formPrompt, user?.name);
+      ok = await createTemplate(formName.trim(), formDescription.trim() || null, formPrompt, formClosingModel.trim() || null, user?.name);
     }
     setSaving(false);
     if (ok) setDialogOpen(false);
@@ -113,6 +117,7 @@ export function TemplatesTab() {
       name: version.name,
       description: version.description,
       prompt_text: version.prompt_text,
+      closing_model_text: version.closing_model_text,
     }, user?.name);
   };
 
@@ -194,7 +199,11 @@ export function TemplatesTab() {
           </DialogHeader>
           <div className="space-y-2">
             <Label>Prompt</Label>
-            <Textarea value={viewing?.prompt_text || ''} readOnly className="min-h-[400px] font-mono text-sm bg-muted" />
+            <Textarea value={viewing?.prompt_text || ''} readOnly className="min-h-[300px] font-mono text-sm bg-muted" />
+          </div>
+          <div className="space-y-2">
+            <Label>Modelo de Fechamento</Label>
+            <Textarea value={viewing?.closing_model_text || ''} readOnly className="min-h-[200px] font-mono text-sm bg-muted" />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewing(null)}>Fechar</Button>
@@ -222,7 +231,11 @@ export function TemplatesTab() {
             </div>
             <div>
               <Label>Prompt *</Label>
-              <Textarea value={formPrompt} onChange={e => setFormPrompt(e.target.value)} placeholder="Cole o prompt completo aqui..." className="min-h-[400px] font-mono text-sm" />
+              <Textarea value={formPrompt} onChange={e => setFormPrompt(e.target.value)} placeholder="Cole o prompt completo aqui..." className="min-h-[300px] font-mono text-sm" />
+            </div>
+            <div>
+              <Label>Modelo de Fechamento</Label>
+              <Textarea value={formClosingModel} onChange={e => setFormClosingModel(e.target.value)} placeholder="Cole o modelo de fechamento aqui..." className="min-h-[200px] font-mono text-sm" />
             </div>
           </div>
           <DialogFooter>
