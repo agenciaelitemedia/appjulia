@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Plus, Search, Pencil, Trash2, Eye } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Eye, History } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
 import { useTemplates, Template } from '../hooks/useTemplates';
+import { TemplateHistoryDialog } from './TemplateHistoryDialog';
+import { TemplateVersion } from '../hooks/useTemplateVersions';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -42,6 +44,9 @@ export function TemplatesTab() {
 
   // Edit confirm dialog
   const [editConfirmTemplate, setEditConfirmTemplate] = useState<Template | null>(null);
+
+  // History dialog
+  const [historyTemplate, setHistoryTemplate] = useState<Template | null>(null);
 
   const filtered = templates.filter(t =>
     t.name.toLowerCase().includes(search.toLowerCase())
@@ -103,6 +108,14 @@ export function TemplatesTab() {
   const deleteNameMatch = deleting ? deleteTypedName === deleting.name : false;
   const canDelete = deleteNameMatch && deleteConfirmed && !deleteLoading;
 
+  const handleRestore = async (version: TemplateVersion) => {
+    await updateTemplate(version.template_id, {
+      name: version.name,
+      description: version.description,
+      prompt_text: version.prompt_text,
+    }, user?.name);
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -138,6 +151,9 @@ export function TemplatesTab() {
                       <Button size="icon" variant="ghost" title="Visualizar" onClick={() => setViewing(t)}>
                         <Eye className="h-4 w-4" />
                       </Button>
+                      <Button size="icon" variant="ghost" title="Histórico" onClick={() => setHistoryTemplate(t)}>
+                        <History className="h-4 w-4" />
+                      </Button>
                       <Button size="icon" variant="ghost" title="Editar" onClick={() => confirmEdit(t)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -151,12 +167,12 @@ export function TemplatesTab() {
                 <CardContent className="pt-0">
                   <p className="text-xs text-muted-foreground font-mono line-clamp-3">{t.prompt_text}</p>
                   <div className="mt-2 space-y-0.5">
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-[11px] text-muted-foreground/70">
                       Criado em {format(new Date(t.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                       {t.created_by ? ` por ${t.created_by}` : ''}
                     </p>
                     {t.updated_at && t.updated_at !== t.created_at && (
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-[11px] text-muted-foreground/70">
                         Atualizado em {format(new Date(t.updated_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                         {t.updated_by ? ` por ${t.updated_by}` : ''}
                       </p>
@@ -282,6 +298,14 @@ export function TemplatesTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* History Dialog */}
+      <TemplateHistoryDialog
+        template={historyTemplate}
+        open={!!historyTemplate}
+        onOpenChange={(open) => !open && setHistoryTemplate(null)}
+        onRestore={handleRestore}
+      />
     </Card>
   );
 }

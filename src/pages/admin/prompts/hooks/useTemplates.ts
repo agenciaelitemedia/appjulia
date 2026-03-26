@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useTemplateVersions } from './useTemplateVersions';
 
 export interface Template {
   id: string;
@@ -18,6 +19,7 @@ export function useTemplates() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { saveVersion } = useTemplateVersions();
 
   const fetchTemplates = useCallback(async () => {
     setIsLoading(true);
@@ -53,6 +55,17 @@ export function useTemplates() {
   };
 
   const updateTemplate = async (id: string, updates: Partial<Pick<Template, 'name' | 'description' | 'prompt_text'>>, userName?: string) => {
+    // Save current version before updating
+    const current = templates.find(t => t.id === id);
+    if (current) {
+      const changes: string[] = [];
+      if (updates.name && updates.name !== current.name) changes.push('Nome');
+      if (updates.description !== undefined && updates.description !== current.description) changes.push('Descrição');
+      if (updates.prompt_text && updates.prompt_text !== current.prompt_text) changes.push('Prompt');
+      const summary = changes.length > 0 ? `${changes.join(' e ')} alterado${changes.length > 1 ? 's' : ''}` : 'Atualização';
+      await saveVersion(id, { name: current.name, description: current.description, prompt_text: current.prompt_text }, userName || null, summary);
+    }
+
     const { error } = await supabase
       .from('generation_templates')
       .update({ ...updates, updated_at: new Date().toISOString(), updated_by: userName || null } as any)

@@ -926,6 +926,50 @@ export type Database = {
         }
         Relationships: []
       }
+      generation_template_versions: {
+        Row: {
+          change_summary: string | null
+          changed_by: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          prompt_text: string
+          template_id: string
+          version_number: number
+        }
+        Insert: {
+          change_summary?: string | null
+          changed_by?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          prompt_text: string
+          template_id: string
+          version_number: number
+        }
+        Update: {
+          change_summary?: string | null
+          changed_by?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          prompt_text?: string
+          template_id?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generation_template_versions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "generation_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       generation_templates: {
         Row: {
           created_at: string
