@@ -975,6 +975,7 @@ export type Database = {
           cod_agent: string
           created_at: string | null
           created_by: string | null
+          generated_prompt: string | null
           id: string
           is_active: boolean | null
           office_info: string | null
@@ -992,6 +993,7 @@ export type Database = {
           cod_agent: string
           created_at?: string | null
           created_by?: string | null
+          generated_prompt?: string | null
           id?: string
           is_active?: boolean | null
           office_info?: string | null
@@ -1009,6 +1011,7 @@ export type Database = {
           cod_agent?: string
           created_at?: string | null
           created_by?: string | null
+          generated_prompt?: string | null
           id?: string
           is_active?: boolean | null
           office_info?: string | null
