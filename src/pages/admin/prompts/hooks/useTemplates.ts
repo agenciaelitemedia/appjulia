@@ -11,6 +11,7 @@ export interface Template {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  updated_by: string | null;
 }
 
 export function useTemplates() {
@@ -37,10 +38,10 @@ export function useTemplates() {
 
   useEffect(() => { fetchTemplates(); }, [fetchTemplates]);
 
-  const createTemplate = async (name: string, description: string | null, prompt_text: string) => {
+  const createTemplate = async (name: string, description: string | null, prompt_text: string, userName?: string) => {
     const { error } = await supabase
       .from('generation_templates')
-      .insert({ name, description, prompt_text } as any);
+      .insert({ name, description, prompt_text, created_by: userName || null } as any);
 
     if (error) {
       toast({ title: 'Erro', description: 'Falha ao criar template', variant: 'destructive' });
@@ -51,10 +52,10 @@ export function useTemplates() {
     return true;
   };
 
-  const updateTemplate = async (id: string, updates: Partial<Pick<Template, 'name' | 'description' | 'prompt_text'>>) => {
+  const updateTemplate = async (id: string, updates: Partial<Pick<Template, 'name' | 'description' | 'prompt_text'>>, userName?: string) => {
     const { error } = await supabase
       .from('generation_templates')
-      .update({ ...updates, updated_at: new Date().toISOString() } as any)
+      .update({ ...updates, updated_at: new Date().toISOString(), updated_by: userName || null } as any)
       .eq('id', id);
 
     if (error) {
