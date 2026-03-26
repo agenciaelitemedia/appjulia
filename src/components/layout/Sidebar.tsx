@@ -13,6 +13,7 @@ import { useEnsureDataJudModule } from "@/pages/datajud/hooks/useEnsureDataJudMo
 import { useEnsureMonitoramentoModule } from "@/pages/admin/monitoramento/hooks/useEnsureMonitoramentoModule";
 import { useEnsureCopilotModule } from "@/hooks/useEnsureCopilotModule";
 import { useEnsureTelefoniaModule } from "@/hooks/useEnsureTelefoniaModule";
+import { useEnsurePromptGeneratorModule } from "@/hooks/useEnsurePromptGeneratorModule";
 import {
   Tooltip,
   TooltipContent,
@@ -38,6 +39,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   useEnsureMonitoramentoModule();
   useEnsureCopilotModule();
   useEnsureTelefoniaModule();
+  useEnsurePromptGeneratorModule();
 
   const isTimeUser = user?.role === "time";
   
