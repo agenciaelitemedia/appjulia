@@ -48,13 +48,37 @@ export function StepCaseSelect({ cases, onChange, templateClosingModel, onBack, 
     setSearching(false);
   };
 
+  const extractKeywords = (text: string, caseName: string): string => {
+    if (!text) return '';
+    const stopwords = new Set([
+      'de','do','da','dos','das','em','no','na','nos','nas','um','uma','uns','umas',
+      'o','a','os','as','e','ou','que','para','por','com','se','ao','à','pelo','pela',
+      'são','ser','ter','foi','está','como','mais','mas','não','sim','já','também',
+      'esse','essa','este','esta','isso','aquilo','ele','ela','eles','elas','seu','sua',
+      'seus','suas','qual','quais','quando','onde','pode','deve','caso','sobre','entre',
+      'até','sem','após','durante','cada','todo','toda','todos','todas','outro','outra',
+      'outros','outras','mesmo','mesma','muito','muita','muitos','muitas','bem','ainda',
+    ]);
+    const words = text
+      .replace(/[^a-záàâãéèêíïóôõöúçñ\s-]/gi, ' ')
+      .split(/\s+/)
+      .map(w => w.toLowerCase().trim())
+      .filter(w => w.length > 3 && !stopwords.has(w));
+    const freq = new Map<string, number>();
+    words.forEach(w => freq.set(w, (freq.get(w) || 0) + 1));
+    const sorted = [...freq.entries()].sort((a, b) => b[1] - a[1]);
+    const top5 = sorted.slice(0, 5).map(([w]) => `"${w}"`);
+    return top5.length > 0 ? `${top5.join(', ')} → ${caseName}` : '';
+  };
+
   const addCase = (legalCase: LegalCase) => {
     if (cases.some(c => c.case_id === legalCase.id)) return;
+    const semanticWords = extractKeywords(legalCase.case_info || '', legalCase.case_name);
     const newCase: CaseData = {
       case_id: legalCase.id,
       case_name: legalCase.case_name,
       ctas: [],
-      semantic_words: '',
+      semantic_words: semanticWords,
       case_info: legalCase.case_info || '',
       qualification_script: legalCase.qualification_script || '',
       zapsign_token: DEFAULT_ZAPSIGN_TOKEN,
