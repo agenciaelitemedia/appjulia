@@ -150,5 +150,8 @@ export function processFinalPrompt(
     .join('\n\n---\n\n');
   result = result.replace(/\[\[ROTEIROS_CASOS\]\]/g, scriptsText);
 
+  // [[NOME]] must be the LAST replacement to avoid conflicts with other placeholders containing "NOME"
+  result = result.replace(/\[\[NOME\]\]/g, aiConfig.aiName);
+
   return result;
 }
