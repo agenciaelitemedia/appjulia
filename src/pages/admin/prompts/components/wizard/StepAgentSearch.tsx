@@ -4,13 +4,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAgentSearch, SearchedAgent } from '@/pages/agents/hooks/useAgentSearch';
 
-interface StepAgentSearchProps {
+export interface StepAgentSearchProps {
   selected: SearchedAgent | null;
   onSelect: (agent: SearchedAgent) => void;
   onNext: () => void;
+  readOnly?: boolean;
 }
 
-export function StepAgentSearch({ selected, onSelect, onNext }: StepAgentSearchProps) {
+export function StepAgentSearch({ selected, onSelect, onNext, readOnly }: StepAgentSearchProps) {
   const { searchTerm, setSearchTerm, results, isLoading, error } = useAgentSearch();
 
   return (

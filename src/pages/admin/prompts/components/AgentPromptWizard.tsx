@@ -80,7 +80,7 @@ export function AgentPromptWizard({ onClose, onSaved, editingPrompt, editingCase
 
     // Convert cases
     if (editingCases && editingCases.length > 0) {
-      const converted: CaseData[] = editingCases.map(c => ({
+      const converted: CaseData[] = editingCases.map((c, i) => ({
         case_id: c.case_id,
         case_name: c.case_name || '',
         ctas: Array.isArray(c.ctas) ? c.ctas : [],
@@ -93,6 +93,7 @@ export function AgentPromptWizard({ onClose, onSaved, editingPrompt, editingCase
         fees_text: c.fees_text || '',
         closing_model_text: c.closing_model_text || '',
         negotiation_text: c.negotiation_text || '',
+        position: c.position ?? i,
       }));
       setCases(converted);
     }
