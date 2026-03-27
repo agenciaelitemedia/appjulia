@@ -23,8 +23,7 @@ import { ptBR } from 'date-fns/locale';
 
 export function PromptsTab() {
   const { user } = useAuth();
-  const { prompts, isLoading, fetchPrompts, fetchCases, deletePrompt } = useAgentPrompts();
-  const { versions, isLoading: versionsLoading, fetchVersions } = useAgentPromptVersions();
+  const { prompts, isLoading, fetchPrompts, fetchCases, deletePrompt, updatePrompt } = useAgentPrompts();
   const [search, setSearch] = useState('');
   const [showWizard, setShowWizard] = useState(false);
   const [copied, setCopied] = useState(false);
