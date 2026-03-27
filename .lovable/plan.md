@@ -1,49 +1,35 @@
 
 
-# Correção da substituição [[ROTEIROS_CASOS]]
+# Visualizar Prompt Final + Editar Prompt
 
-## Problema atual
-A regex `CASO \d+:` não captura o formato real dos títulos que inclui emoji e nome do caso, como `### 🤕 CASO 1: AUXÍLIO-ACIDENTE`. O resultado é que a renumeração não funciona corretamente.
+## 1. Visualizar — Mostrar Prompt Final
 
-## Correção
+Alterar o dialog de visualizacao em `PromptsTab.tsx` para exibir o `generated_prompt` em uma textarea readonly grande (font-mono), substituindo os campos individuais (ai_name, practice_areas, etc.) que sao menos uteis para visualizacao rapida.
 
-Alterar a regex em `promptDefaults.ts` (linhas 142-152) para capturar o padrão completo `### .+ CASO \d+:` preservando o emoji e o texto antes de "CASO", e renumerando sequencialmente.
+O dialog mantera o titulo `[cod_agent] - agent_name` e subtitulo `business_name`, seguido do prompt final completo. Botao "Copiar" para clipboard.
 
-Nova regex: `/^(### .+ )CASO \d+:/gm` — captura o prefixo (ex: `### 🤕 `) e substitui apenas o número do CASO.
+## 2. Editar — Reutilizar o Wizard em modo edicao
 
-```typescript
-// Scripts - qualification_script + negotiation_text with renumbered CASO N:
-let scriptCounter = 0;
-const scriptsText = cases
-  .map(c => {
-    const combined = [c.qualification_script, c.negotiation_text].filter(Boolean).join('\n\n');
-    return combined.replace(/^(### .+ )CASO \d+:/gm, () => {
-      scriptCounter++;
-      return `### CASO ${scriptCounter}:`;
-    }).replace(/(?<!### .+ )CASO \d+:/g, () => {
-      return `CASO ${scriptCounter}:`;
-    });
-  })
-  .join('\n\n---\n\n');
-```
+### Alteracoes no `AgentPromptWizard.tsx`
+- Aceitar props opcionais `editingPrompt: AgentPrompt` e `editingCases: AgentPromptCase[]`
+- Quando presente, pre-preencher todos os estados (selectedAgent, selectedTemplate, aiConfig, cases) com os dados existentes
+- Titulo muda de "Novo Prompt" para "Editar Prompt"
+- No step 0 (Agente), mostrar o agente ja selecionado (somente leitura — nao permite trocar agente na edicao)
+- No save, chamar `updatePrompt` ao inves de `createPrompt`
 
-Abordagem simplificada: usar uma regex que capture qualquer ocorrência de `CASO \d+:` (com ou sem `### emoji`) e renumere tudo sequencialmente por caso (cada bloco de caso = 1 número):
+### Alteracoes no `PromptsTab.tsx`
+- Adicionar botao Editar (Pencil) nos cards (ja tem o import mas nao esta sendo usado)
+- Estado `editingPrompt` + `editingCases` para controlar modo edicao
+- Ao clicar Editar: buscar cases via `fetchCases`, converter para `CaseData[]`, abrir wizard com dados pre-carregados
+- Hook `useAgentPrompts` ja possui `updatePrompt` — sera usado no wizard
 
-```typescript
-let scriptCounter = 0;
-const scriptsText = cases
-  .map(c => {
-    scriptCounter++;
-    const combined = [c.qualification_script, c.negotiation_text].filter(Boolean).join('\n\n');
-    return combined.replace(/CASO \d+:/g, `CASO ${scriptCounter}:`);
-  })
-  .join('\n\n---\n\n');
-```
+### Conversao de `AgentPromptCase` para `CaseData`
+Funcao utilitaria que mapeia os campos do banco para o formato do wizard, incluindo parse de `contract_fields` (jsonb) e `ctas` (jsonb array).
 
-Isso atribui o mesmo número a todas as ocorrências de "CASO N:" dentro do mesmo caso (qualification_script + negotiation_text), incrementando por caso adicionado.
+## Arquivos modificados
 
-## Arquivo modificado
-| Arquivo | Alteracao |
+| Arquivo | Acao |
 |---|---|
-| `src/pages/admin/prompts/constants/promptDefaults.ts` | Corrigir regex linhas 142-152 |
+| `PromptsTab.tsx` | Dialog visualizar → prompt final + botao copiar; adicionar botao Editar nos cards; estado de edicao |
+| `AgentPromptWizard.tsx` | Props opcionais para modo edicao; pre-preencher estados; titulo dinamico; chamar updatePrompt |
 
