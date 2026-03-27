@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Plus, Search, Pencil, Trash2, Eye, History } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Eye, History, Copy, Check } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,10 +26,15 @@ export function PromptsTab() {
   const { versions, isLoading: versionsLoading, fetchVersions } = useAgentPromptVersions();
   const [search, setSearch] = useState('');
   const [showWizard, setShowWizard] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // View
   const [viewing, setViewing] = useState<AgentPrompt | null>(null);
   const [viewCases, setViewCases] = useState<AgentPromptCase[]>([]);
+
+  // Edit
+  const [editingPrompt, setEditingPrompt] = useState<AgentPrompt | null>(null);
+  const [editingCases, setEditingCases] = useState<AgentPromptCase[]>([]);
 
   // Delete
   const [deleting, setDeleting] = useState<AgentPrompt | null>(null);
@@ -74,6 +79,31 @@ export function PromptsTab() {
     setSelectedVersion(null);
     await fetchVersions(p.id);
   };
+
+  const openEdit = async (p: AgentPrompt) => {
+    const c = await fetchCases(p.id);
+    setEditingPrompt(p);
+    setEditingCases(c);
+  };
+
+  const handleCopyPrompt = async () => {
+    if (viewing?.generated_prompt) {
+      await navigator.clipboard.writeText(viewing.generated_prompt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  if (editingPrompt) {
+    return (
+      <AgentPromptWizard
+        onClose={() => { setEditingPrompt(null); setEditingCases([]); }}
+        onSaved={() => fetchPrompts()}
+        editingPrompt={editingPrompt}
+        editingCases={editingCases}
+      />
+    );
+  }
 
   if (showWizard) {
     return (
@@ -122,6 +152,9 @@ export function PromptsTab() {
                       <Button size="icon" variant="ghost" title="Visualizar" onClick={() => openView(p)}>
                         <Eye className="h-4 w-4" />
                       </Button>
+                      <Button size="icon" variant="ghost" title="Editar" onClick={() => openEdit(p)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
                       <Button size="icon" variant="ghost" title="Histórico" onClick={() => openHistory(p)}>
                         <History className="h-4 w-4" />
                       </Button>
@@ -153,30 +186,28 @@ export function PromptsTab() {
       </CardContent>
 
       {/* View Dialog */}
-      <Dialog open={!!viewing} onOpenChange={o => !o && setViewing(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <Dialog open={!!viewing} onOpenChange={o => { if (!o) { setViewing(null); setCopied(false); } }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>[{viewing?.cod_agent}] - {viewing?.agent_name}</DialogTitle>
             {viewing?.business_name && <DialogDescription>{viewing.business_name}</DialogDescription>}
           </DialogHeader>
-          <div className="space-y-3 text-sm">
-            <div><Label className="text-xs">Nome da IA</Label><p>{viewing?.ai_name}</p></div>
-            <div><Label className="text-xs">Áreas de Atuação</Label><pre className="text-xs bg-muted p-2 rounded whitespace-pre-wrap">{viewing?.practice_areas}</pre></div>
-            <div><Label className="text-xs">Horário</Label><pre className="text-xs bg-muted p-2 rounded whitespace-pre-wrap">{viewing?.working_hours}</pre></div>
-            <div><Label className="text-xs">Escritório</Label><pre className="text-xs bg-muted p-2 rounded whitespace-pre-wrap">{viewing?.office_info}</pre></div>
-            <div><Label className="text-xs">Boas-vindas</Label><pre className="text-xs bg-muted p-2 rounded whitespace-pre-wrap">{viewing?.welcome_message}</pre></div>
-            {viewCases.length > 0 && (
-              <div>
-                <Label className="text-xs font-semibold">Casos ({viewCases.length})</Label>
-                {viewCases.map(c => (
-                  <div key={c.id} className="border rounded p-2 mt-1">
-                    <p className="font-medium text-xs">{c.case_name}</p>
-                    {c.negotiation_text && (
-                      <pre className="text-[10px] bg-muted p-1 rounded mt-1 whitespace-pre-wrap max-h-[100px] overflow-y-auto">{c.negotiation_text}</pre>
-                    )}
-                  </div>
-                ))}
-              </div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-semibold">Prompt Final Gerado</Label>
+              <Button variant="outline" size="sm" onClick={handleCopyPrompt}>
+                {copied ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+                {copied ? 'Copiado!' : 'Copiar'}
+              </Button>
+            </div>
+            {viewing?.generated_prompt ? (
+              <Textarea
+                value={viewing.generated_prompt}
+                readOnly
+                className="font-mono text-xs min-h-[400px] resize-y bg-muted"
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground py-8 text-center">Nenhum prompt gerado ainda.</p>
             )}
           </div>
           <DialogFooter>

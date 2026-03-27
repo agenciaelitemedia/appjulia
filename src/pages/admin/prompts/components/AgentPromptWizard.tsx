@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { SearchedAgent } from '@/pages/agents/hooks/useAgentSearch';
 import { Template } from '../hooks/useTemplates';
-import { useAgentPrompts } from '../hooks/useAgentPrompts';
+import { useAgentPrompts, AgentPrompt, AgentPromptCase } from '../hooks/useAgentPrompts';
 import { StepAgentSearch } from './wizard/StepAgentSearch';
 import { StepTemplateSelect } from './wizard/StepTemplateSelect';
 import { StepAIConfig } from './wizard/StepAIConfig';
@@ -19,19 +19,23 @@ import {
   DEFAULT_OFFICE_INFO,
   DEFAULT_WELCOME_MESSAGE,
 } from '../constants/promptDefaults';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AgentPromptWizardProps {
   onClose: () => void;
   onSaved: () => void;
+  editingPrompt?: AgentPrompt;
+  editingCases?: AgentPromptCase[];
 }
 
 const STEPS = ['Agente', 'Template', 'Informações', 'Casos', 'Prompt Final'];
 
-export function AgentPromptWizard({ onClose, onSaved }: AgentPromptWizardProps) {
+export function AgentPromptWizard({ onClose, onSaved, editingPrompt, editingCases }: AgentPromptWizardProps) {
   const { user } = useAuth();
-  const { createPrompt } = useAgentPrompts();
+  const { createPrompt, updatePrompt } = useAgentPrompts();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  const isEditing = !!editingPrompt;
 
   const [selectedAgent, setSelectedAgent] = useState<SearchedAgent | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
@@ -44,24 +48,60 @@ export function AgentPromptWizard({ onClose, onSaved }: AgentPromptWizardProps) 
   });
   const [cases, setCases] = useState<CaseData[]>([]);
 
+  // Pre-fill when editing
+  useEffect(() => {
+    if (!editingPrompt) return;
+
+    setSelectedAgent({
+      cod_agent: editingPrompt.cod_agent,
+      client_name: editingPrompt.agent_name || '',
+      business_name: editingPrompt.business_name || '',
+    } as SearchedAgent);
+
+    setAiConfig({
+      aiName: editingPrompt.ai_name || DEFAULT_AI_NAME,
+      practiceAreas: editingPrompt.practice_areas || DEFAULT_PRACTICE_AREAS,
+      workingHours: editingPrompt.working_hours || DEFAULT_WORKING_HOURS,
+      officeInfo: editingPrompt.office_info || DEFAULT_OFFICE_INFO,
+      welcomeMessage: editingPrompt.welcome_message || DEFAULT_WELCOME_MESSAGE,
+    });
+
+    // Load template
+    if (editingPrompt.template_id) {
+      supabase
+        .from('generation_templates')
+        .select('*')
+        .eq('id', editingPrompt.template_id)
+        .single()
+        .then(({ data }) => {
+          if (data) setSelectedTemplate(data as any);
+        });
+    }
+
+    // Convert cases
+    if (editingCases && editingCases.length > 0) {
+      const converted: CaseData[] = editingCases.map((c, i) => ({
+        case_id: c.case_id,
+        case_name: c.case_name || '',
+        ctas: Array.isArray(c.ctas) ? c.ctas : [],
+        semantic_words: c.semantic_words || '',
+        case_info: c.case_info || '',
+        qualification_script: c.qualification_script || '',
+        zapsign_token: c.zapsign_token || '',
+        zapsign_doc_token: c.zapsign_doc_token || '',
+        contract_fields: c.contract_fields || {},
+        fees_text: c.fees_text || '',
+        closing_model_text: c.closing_model_text || '',
+        negotiation_text: c.negotiation_text || '',
+        position: c.position ?? i,
+      }));
+      setCases(converted);
+    }
+  }, [editingPrompt, editingCases]);
+
   const handleSave = async (generatedPrompt: string) => {
     if (!selectedAgent || !selectedTemplate) return;
     setSaving(true);
-
-    const promptData = {
-      cod_agent: selectedAgent.cod_agent,
-      agent_name: selectedAgent.client_name,
-      business_name: selectedAgent.business_name,
-      template_id: selectedTemplate.id,
-      ai_name: aiConfig.aiName,
-      practice_areas: aiConfig.practiceAreas,
-      working_hours: aiConfig.workingHours,
-      office_info: aiConfig.officeInfo,
-      welcome_message: aiConfig.welcomeMessage,
-      generated_prompt: generatedPrompt,
-      created_by: user?.name || null,
-      updated_by: user?.name || null,
-    };
 
     const casesData = cases.map((c, i) => ({
       case_id: c.case_id,
@@ -79,7 +119,41 @@ export function AgentPromptWizard({ onClose, onSaved }: AgentPromptWizardProps) 
       position: i,
     }));
 
-    const ok = await createPrompt(promptData as any, casesData as any);
+    let ok: boolean | undefined;
+
+    if (isEditing && editingPrompt) {
+      ok = await updatePrompt(
+        editingPrompt.id,
+        {
+          template_id: selectedTemplate.id,
+          ai_name: aiConfig.aiName,
+          practice_areas: aiConfig.practiceAreas,
+          working_hours: aiConfig.workingHours,
+          office_info: aiConfig.officeInfo,
+          welcome_message: aiConfig.welcomeMessage,
+          generated_prompt: generatedPrompt,
+        },
+        casesData as any,
+        user?.name
+      );
+    } else {
+      const promptData = {
+        cod_agent: selectedAgent.cod_agent,
+        agent_name: selectedAgent.client_name,
+        business_name: selectedAgent.business_name,
+        template_id: selectedTemplate.id,
+        ai_name: aiConfig.aiName,
+        practice_areas: aiConfig.practiceAreas,
+        working_hours: aiConfig.workingHours,
+        office_info: aiConfig.officeInfo,
+        welcome_message: aiConfig.welcomeMessage,
+        generated_prompt: generatedPrompt,
+        created_by: user?.name || null,
+        updated_by: user?.name || null,
+      };
+      ok = await createPrompt(promptData as any, casesData as any);
+    }
+
     setSaving(false);
     if (ok) {
       onSaved();
@@ -93,7 +167,7 @@ export function AgentPromptWizard({ onClose, onSaved }: AgentPromptWizardProps) 
         <Button variant="ghost" size="icon" onClick={onClose}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h2 className="text-xl font-bold">Novo Prompt</h2>
+        <h2 className="text-xl font-bold">{isEditing ? 'Editar Prompt' : 'Novo Prompt'}</h2>
       </div>
 
       {/* Stepper */}
@@ -119,6 +193,7 @@ export function AgentPromptWizard({ onClose, onSaved }: AgentPromptWizardProps) 
               selected={selectedAgent}
               onSelect={setSelectedAgent}
               onNext={() => setStep(1)}
+              readOnly={isEditing}
             />
           )}
           {step === 1 && (
