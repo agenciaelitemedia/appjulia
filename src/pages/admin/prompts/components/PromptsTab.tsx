@@ -44,7 +44,6 @@ export function PromptsTab() {
 
   // History
   const [historyPrompt, setHistoryPrompt] = useState<AgentPrompt | null>(null);
-  const [selectedVersion, setSelectedVersion] = useState<AgentPromptVersion | null>(null);
 
   const filtered = prompts.filter(p =>
     `${p.cod_agent} ${p.agent_name} ${p.business_name}`.toLowerCase().includes(search.toLowerCase())
@@ -74,10 +73,19 @@ export function PromptsTab() {
   const deleteNameMatch = deleting ? deleteTypedName === deleteLabel : false;
   const canDelete = deleteNameMatch && deleteConfirmed && !deleteLoading;
 
-  const openHistory = async (p: AgentPrompt) => {
+  const openHistory = (p: AgentPrompt) => {
     setHistoryPrompt(p);
-    setSelectedVersion(null);
-    await fetchVersions(p.id);
+  };
+
+  const handleRestoreVersion = async (version: AgentPromptVersion) => {
+    const snap = version.snapshot as any;
+    if (!snap?.prompt || !historyPrompt) return;
+    const { id, is_active, created_at, updated_at, ...promptData } = snap.prompt;
+    const cases = (snap.cases || []).map((c: any) => {
+      const { id: _id, agent_prompt_id: _apId, created_at: _ca, ...rest } = c;
+      return rest;
+    });
+    await updatePrompt(historyPrompt.id, promptData, cases, snap.prompt.updated_by || null);
   };
 
   const openEdit = async (p: AgentPrompt) => {
