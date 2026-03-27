@@ -80,6 +80,31 @@ export function PromptsTab() {
     await fetchVersions(p.id);
   };
 
+  const openEdit = async (p: AgentPrompt) => {
+    const c = await fetchCases(p.id);
+    setEditingPrompt(p);
+    setEditingCases(c);
+  };
+
+  const handleCopyPrompt = async () => {
+    if (viewing?.generated_prompt) {
+      await navigator.clipboard.writeText(viewing.generated_prompt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  if (editingPrompt) {
+    return (
+      <AgentPromptWizard
+        onClose={() => { setEditingPrompt(null); setEditingCases([]); }}
+        onSaved={() => fetchPrompts()}
+        editingPrompt={editingPrompt}
+        editingCases={editingCases}
+      />
+    );
+  }
+
   if (showWizard) {
     return (
       <AgentPromptWizard
