@@ -200,7 +200,51 @@ export function PromptsTab() {
             <DialogTitle>[{viewing?.cod_agent}] - {viewing?.agent_name}</DialogTitle>
             {viewing?.business_name && <DialogDescription>{viewing.business_name}</DialogDescription>}
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4">
+            {/* ZapSign Links Card */}
+            {viewCases.some(c => c.zapsign_doc_token) && (
+              <div className="w-full rounded-lg bg-muted p-4 space-y-2">
+                <p className="text-sm font-semibold flex items-center gap-2">🔗 ZapSign Links</p>
+                {viewCases.filter(c => c.zapsign_doc_token).map(c => (
+                  <div key={c.id} className="flex items-center gap-2 text-xs">
+                    <span className="font-medium">{c.case_name}:</span>
+                    <a
+                      href={`https://app.zapsign.com.br/verificar/${c.zapsign_doc_token}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline break-all"
+                    >
+                      https://app.zapsign.com.br/verificar/{c.zapsign_doc_token}
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Cases with CTAs */}
+            {viewCases.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Casos vinculados ({viewCases.length})</Label>
+                <div className="border rounded-lg divide-y">
+                  {viewCases.map(c => (
+                    <div key={c.id} className="p-3">
+                      <p className="text-sm font-medium">{c.case_name}</p>
+                      {Array.isArray(c.ctas) && c.ctas.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(c.ctas as string[]).map((cta, i) => (
+                            <span key={i} className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                              {cta}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Prompt Final */}
             <div className="flex items-center justify-between">
               <Label className="text-sm font-semibold">Prompt Final Gerado</Label>
               <Button variant="outline" size="sm" onClick={handleCopyPrompt}>
