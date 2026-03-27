@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Plus, Search, Pencil, Trash2, Eye, History } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Eye, History, Copy, Check } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,10 +26,15 @@ export function PromptsTab() {
   const { versions, isLoading: versionsLoading, fetchVersions } = useAgentPromptVersions();
   const [search, setSearch] = useState('');
   const [showWizard, setShowWizard] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // View
   const [viewing, setViewing] = useState<AgentPrompt | null>(null);
   const [viewCases, setViewCases] = useState<AgentPromptCase[]>([]);
+
+  // Edit
+  const [editingPrompt, setEditingPrompt] = useState<AgentPrompt | null>(null);
+  const [editingCases, setEditingCases] = useState<AgentPromptCase[]>([]);
 
   // Delete
   const [deleting, setDeleting] = useState<AgentPrompt | null>(null);
