@@ -16,13 +16,15 @@ export interface LegalCase {
 }
 
 export const CASE_CATEGORIES = [
-  'DIREITO PREVIDENCIÁRIO',
-  'DIREITO TRABALHISTA',
-  'DIREITO DO CONSUMIDOR',
-  'DIREITO DE FAMÍLIA',
-  'DIREITO CÍVIL',
-  'DIREITO PENAL',
-  'GERAL',
+  'Digital',
+  'Direito Civil',
+  'Direito de Família',
+  'Direito do Consumidor',
+  'Direito Imobiliário',
+  'Direito Previdenciário',
+  'Direito Trabalhista',
+  'Direito Tributário',
+  'Empresarial',
 ] as const;
 
 export function useLegalCases() {
