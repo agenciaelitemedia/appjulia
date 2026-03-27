@@ -1,35 +1,31 @@
 
 
-# Visualizar Prompt Final + Editar Prompt
+# Versionamento com Diff para Prompts de Agentes
 
-## 1. Visualizar — Mostrar Prompt Final
+## Situacao atual
 
-Alterar o dialog de visualizacao em `PromptsTab.tsx` para exibir o `generated_prompt` em uma textarea readonly grande (font-mono), substituindo os campos individuais (ai_name, practice_areas, etc.) que sao menos uteis para visualizacao rapida.
+O historico de versoes dos prompts de agentes ja existe (tabela `generation_agent_prompt_versions` com coluna `snapshot` JSONB), mas a UI apenas mostra o JSON bruto. Nao ha comparacao visual (diff) nem restauracao, diferente dos templates que tem `TemplateHistoryDialog` completo com `DiffViewer`.
 
-O dialog mantera o titulo `[cod_agent] - agent_name` e subtitulo `business_name`, seguido do prompt final completo. Botao "Copiar" para clipboard.
+## O que sera feito
 
-## 2. Editar — Reutilizar o Wizard em modo edicao
+Criar um `AgentPromptHistoryDialog` seguindo o mesmo padrao do `TemplateHistoryDialog`, com:
 
-### Alteracoes no `AgentPromptWizard.tsx`
-- Aceitar props opcionais `editingPrompt: AgentPrompt` e `editingCases: AgentPromptCase[]`
-- Quando presente, pre-preencher todos os estados (selectedAgent, selectedTemplate, aiConfig, cases) com os dados existentes
-- Titulo muda de "Novo Prompt" para "Editar Prompt"
-- No step 0 (Agente), mostrar o agente ja selecionado (somente leitura — nao permite trocar agente na edicao)
-- No save, chamar `updatePrompt` ao inves de `createPrompt`
+1. **Listagem de versoes** — cada versao mostra numero, data, autor e resumo
+2. **Visualizacao do prompt salvo** — ao clicar na versao, exibe o `generated_prompt` do snapshot (em vez do JSON bruto)
+3. **Comparacao visual (Diff)** — botao "Comparar com atual" usando o `DiffViewer` existente, comparando o `snapshot.prompt.generated_prompt` da versao com o `generated_prompt` atual do prompt
+4. **Restauracao** — botao "Restaurar esta versao" que recarrega os dados do snapshot (prompt + cases) via `updatePrompt`
 
-### Alteracoes no `PromptsTab.tsx`
-- Adicionar botao Editar (Pencil) nos cards (ja tem o import mas nao esta sendo usado)
-- Estado `editingPrompt` + `editingCases` para controlar modo edicao
-- Ao clicar Editar: buscar cases via `fetchCases`, converter para `CaseData[]`, abrir wizard com dados pre-carregados
-- Hook `useAgentPrompts` ja possui `updatePrompt` — sera usado no wizard
-
-### Conversao de `AgentPromptCase` para `CaseData`
-Funcao utilitaria que mapeia os campos do banco para o formato do wizard, incluindo parse de `contract_fields` (jsonb) e `ctas` (jsonb array).
-
-## Arquivos modificados
+## Alteracoes
 
 | Arquivo | Acao |
 |---|---|
-| `PromptsTab.tsx` | Dialog visualizar → prompt final + botao copiar; adicionar botao Editar nos cards; estado de edicao |
-| `AgentPromptWizard.tsx` | Props opcionais para modo edicao; pre-preencher estados; titulo dinamico; chamar updatePrompt |
+| `components/AgentPromptHistoryDialog.tsx` | **Novo** — Dialog com listagem, diff e restauracao, replicando o padrao do `TemplateHistoryDialog` |
+| `components/PromptsTab.tsx` | Substituir o dialog inline de historico (linhas 256-303) pelo novo `AgentPromptHistoryDialog`, adicionando logica de restauracao via `updatePrompt` |
+| `hooks/useAgentPrompts.ts` | Sem alteracao — `updatePrompt` ja salva versao antes de atualizar |
+
+## Detalhes tecnicos
+
+- O snapshot salvo em `generation_agent_prompt_versions.snapshot` tem formato `{ prompt: AgentPrompt, cases: AgentPromptCase[] }`. O diff compara `snapshot.prompt.generated_prompt` (versao antiga) vs `prompt.generated_prompt` (versao atual).
+- A restauracao chama `updatePrompt` passando os dados do snapshot, o que automaticamente cria uma nova versao antes de sobrescrever.
+- O `DiffViewer` (LCS-based, side-by-side) ja existente sera reutilizado sem alteracoes.
 
