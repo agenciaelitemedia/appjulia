@@ -143,11 +143,9 @@ export function processFinalPrompt(
   let scriptCounter = 0;
   const scriptsText = cases
     .map(c => {
+      scriptCounter++;
       const combined = [c.qualification_script, c.negotiation_text].filter(Boolean).join('\n\n');
-      return combined.replace(/CASO \d+:/g, () => {
-        scriptCounter++;
-        return `CASO ${scriptCounter}:`;
-      });
+      return combined.replace(/CASO \d+:/g, `CASO ${scriptCounter}:`);
     })
     .join('\n\n---\n\n');
   result = result.replace(/\[\[ROTEIROS_CASOS\]\]/g, scriptsText);
