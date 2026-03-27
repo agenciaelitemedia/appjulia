@@ -106,7 +106,6 @@ export function processFinalPrompt(
 
   // Direct replacements
   result = result.replace(/\[\[NOME_IA\]\]/g, aiConfig.aiName);
-  result = result.replace(/\[\[NOME\]\]/g, aiConfig.aiName);
   result = result.replace(/\[\[HORARIO_FUNCIONAMENTO\]\]/g, aiConfig.workingHours);
   result = result.replace(/\[\[INFORMACOES_ESCRITORIO\]\]/g, aiConfig.officeInfo);
   result = result.replace(/\[\[AREAS_ATUACOES\]\]/g, aiConfig.practiceAreas);
@@ -150,6 +149,9 @@ export function processFinalPrompt(
     })
     .join('\n\n---\n\n');
   result = result.replace(/\[\[ROTEIROS_CASOS\]\]/g, scriptsText);
+
+  // [[NOME]] must be the LAST replacement to avoid conflicts with other placeholders containing "NOME"
+  result = result.replace(/\[\[NOME\]\]/g, aiConfig.aiName);
 
   return result;
 }
