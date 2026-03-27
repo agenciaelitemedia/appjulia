@@ -1,59 +1,49 @@
 
 
-# Etapa 5 — Prompt Final (Preview + Salvar)
+# Correção da substituição [[ROTEIROS_CASOS]]
 
-## O que sera construido
+## Problema atual
+A regex `CASO \d+:` não captura o formato real dos títulos que inclui emoji e nome do caso, como `### 🤕 CASO 1: AUXÍLIO-ACIDENTE`. O resultado é que a renumeração não funciona corretamente.
 
-Nova etapa no wizard (step 4, total 5 etapas) que processa o template base substituindo placeholders com os dados informados nas etapas anteriores, exibe o resultado em textarea readonly e salva o prompt gerado no banco.
+## Correção
 
-## Migracao SQL
+Alterar a regex em `promptDefaults.ts` (linhas 142-152) para capturar o padrão completo `### .+ CASO \d+:` preservando o emoji e o texto antes de "CASO", e renumerando sequencialmente.
 
-Adicionar coluna `generated_prompt` (text, nullable) na tabela `generation_agent_prompts` para persistir o prompt final processado.
+Nova regex: `/^(### .+ )CASO \d+:/gm` — captura o prefixo (ex: `### 🤕 `) e substitui apenas o número do CASO.
 
-## Funcao de processamento (`promptDefaults.ts`)
+```typescript
+// Scripts - qualification_script + negotiation_text with renumbered CASO N:
+let scriptCounter = 0;
+const scriptsText = cases
+  .map(c => {
+    const combined = [c.qualification_script, c.negotiation_text].filter(Boolean).join('\n\n');
+    return combined.replace(/^(### .+ )CASO \d+:/gm, () => {
+      scriptCounter++;
+      return `### CASO ${scriptCounter}:`;
+    }).replace(/(?<!### .+ )CASO \d+:/g, () => {
+      return `CASO ${scriptCounter}:`;
+    });
+  })
+  .join('\n\n---\n\n');
+```
 
-Nova funcao `processFinalPrompt` que recebe o `prompt_text` do template + dados da AI config + casos e faz as substituicoes:
+Abordagem simplificada: usar uma regex que capture qualquer ocorrência de `CASO \d+:` (com ou sem `### emoji`) e renumere tudo sequencialmente por caso (cada bloco de caso = 1 número):
 
-| Placeholder | Fonte |
+```typescript
+let scriptCounter = 0;
+const scriptsText = cases
+  .map(c => {
+    scriptCounter++;
+    const combined = [c.qualification_script, c.negotiation_text].filter(Boolean).join('\n\n');
+    return combined.replace(/CASO \d+:/g, `CASO ${scriptCounter}:`);
+  })
+  .join('\n\n---\n\n');
+```
+
+Isso atribui o mesmo número a todas as ocorrências de "CASO N:" dentro do mesmo caso (qualification_script + negotiation_text), incrementando por caso adicionado.
+
+## Arquivo modificado
+| Arquivo | Alteracao |
 |---|---|
-| `[[NOME_IA]]` | Campo Nome da IA |
-| `[[HORARIO_FUNCIONAMENTO]]` | Campo Horario |
-| `[[INFORMACOES_ESCRITORIO]]` | Campo Info Escritorio |
-| `[[AREAS_ATUACOES]]` | Campo Areas de Atuacao |
-| `[[BOAS_VINDAS]]` | Campo Mensagem Boas Vindas |
-| `[[CTAS_JURIDICOS]]` | CTAs de todos os casos → formato `\| "cta" \| Nome Caso \|` |
-| `[[PALAVRAS_SEMANTICAS]]` | semantic_words de todos os casos concatenados |
-| `[[LISTA_CASOS]]` | case_info de todos os casos, renumerando titulos `### X N.` |
-| `[[ROTEIROS_CASOS]]` | qualification_script + negotiation_text de todos os casos, renumerando `CASO N:` |
-
-Logica de renumeracao: regex nos titulos `### .+ \d+\.` e `CASO \d+:` substituindo pelo indice sequencial (1, 2, 3...).
-
-## Componente `StepFinalPrompt.tsx`
-
-- Textarea readonly grande (min-h-[500px], font-mono) com o prompt processado
-- Botao "Copiar" para clipboard
-- Botoes Voltar / Salvar Prompt
-
-## Alteracoes no Wizard
-
-- `STEPS` passa de 4 para 5: `['Agente', 'Template', 'Informacoes', 'Casos', 'Prompt Final']`
-- Step 3 (Casos): botao muda de "Salvar" para "Proximo" → vai para step 4
-- Step 4 (Prompt Final): ao montar, chama `processFinalPrompt` com template.prompt_text + aiConfig + cases
-- Botao "Salvar" no step 4 chama `createPrompt` incluindo o campo `generated_prompt`
-
-## Alteracao no hook `useAgentPrompts`
-
-- `AgentPrompt` interface ganha campo `generated_prompt: string | null`
-- `createPrompt` e `updatePrompt` passam o campo `generated_prompt` ao inserir/atualizar
-
-## Arquivos modificados
-
-| Arquivo | Acao |
-|---|---|
-| Migracao SQL | `ALTER TABLE generation_agent_prompts ADD COLUMN generated_prompt text` |
-| `constants/promptDefaults.ts` | Nova funcao `processFinalPrompt` |
-| `components/wizard/StepFinalPrompt.tsx` | Novo componente etapa 5 |
-| `components/AgentPromptWizard.tsx` | Adicionar step 5, ajustar stepper e navegacao |
-| `components/wizard/StepCaseSelect.tsx` | Trocar "Salvar" por "Proximo" |
-| `hooks/useAgentPrompts.ts` | Adicionar `generated_prompt` na interface e CRUD |
+| `src/pages/admin/prompts/constants/promptDefaults.ts` | Corrigir regex linhas 142-152 |
 
