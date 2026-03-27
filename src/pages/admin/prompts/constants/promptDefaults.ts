@@ -106,7 +106,6 @@ export function processFinalPrompt(
 
   // Direct replacements
   result = result.replace(/\[\[NOME_IA\]\]/g, aiConfig.aiName);
-  result = result.replace(/\[\[NOME\]\]/g, aiConfig.aiName);
   result = result.replace(/\[\[HORARIO_FUNCIONAMENTO\]\]/g, aiConfig.workingHours);
   result = result.replace(/\[\[INFORMACOES_ESCRITORIO\]\]/g, aiConfig.officeInfo);
   result = result.replace(/\[\[AREAS_ATUACOES\]\]/g, aiConfig.practiceAreas);
