@@ -15,15 +15,15 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
 import { useAgentPrompts, AgentPrompt, AgentPromptCase } from '../hooks/useAgentPrompts';
-import { useAgentPromptVersions, AgentPromptVersion } from '../hooks/useAgentPromptVersions';
 import { AgentPromptWizard } from './AgentPromptWizard';
+import { AgentPromptHistoryDialog } from './AgentPromptHistoryDialog';
+import { AgentPromptVersion } from '../hooks/useAgentPromptVersions';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export function PromptsTab() {
   const { user } = useAuth();
-  const { prompts, isLoading, fetchPrompts, fetchCases, deletePrompt } = useAgentPrompts();
-  const { versions, isLoading: versionsLoading, fetchVersions } = useAgentPromptVersions();
+  const { prompts, isLoading, fetchPrompts, fetchCases, deletePrompt, updatePrompt } = useAgentPrompts();
   const [search, setSearch] = useState('');
   const [showWizard, setShowWizard] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -44,7 +44,6 @@ export function PromptsTab() {
 
   // History
   const [historyPrompt, setHistoryPrompt] = useState<AgentPrompt | null>(null);
-  const [selectedVersion, setSelectedVersion] = useState<AgentPromptVersion | null>(null);
 
   const filtered = prompts.filter(p =>
     `${p.cod_agent} ${p.agent_name} ${p.business_name}`.toLowerCase().includes(search.toLowerCase())
@@ -74,10 +73,19 @@ export function PromptsTab() {
   const deleteNameMatch = deleting ? deleteTypedName === deleteLabel : false;
   const canDelete = deleteNameMatch && deleteConfirmed && !deleteLoading;
 
-  const openHistory = async (p: AgentPrompt) => {
+  const openHistory = (p: AgentPrompt) => {
     setHistoryPrompt(p);
-    setSelectedVersion(null);
-    await fetchVersions(p.id);
+  };
+
+  const handleRestoreVersion = async (version: AgentPromptVersion) => {
+    const snap = version.snapshot as any;
+    if (!snap?.prompt || !historyPrompt) return;
+    const { id, is_active, created_at, updated_at, ...promptData } = snap.prompt;
+    const cases = (snap.cases || []).map((c: any) => {
+      const { id: _id, agent_prompt_id: _apId, created_at: _ca, ...rest } = c;
+      return rest;
+    });
+    await updatePrompt(historyPrompt.id, promptData, cases, snap.prompt.updated_by || null);
   };
 
   const openEdit = async (p: AgentPrompt) => {
@@ -253,54 +261,12 @@ export function PromptsTab() {
       </AlertDialog>
 
       {/* History Dialog */}
-      <Dialog open={!!historyPrompt} onOpenChange={o => !o && setHistoryPrompt(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <History className="h-5 w-5" />
-              Histórico — [{historyPrompt?.cod_agent}] {historyPrompt?.agent_name}
-            </DialogTitle>
-            <DialogDescription>Versões anteriores deste prompt</DialogDescription>
-          </DialogHeader>
-          {versionsLoading ? (
-            <p className="text-center text-muted-foreground py-8">Carregando...</p>
-          ) : versions.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">Nenhuma versão anterior.</p>
-          ) : (
-            <div className="space-y-3">
-              {versions.map(v => (
-                <div
-                  key={v.id}
-                  className={`border rounded-lg p-3 cursor-pointer transition-colors hover:bg-muted/50 ${
-                    selectedVersion?.id === v.id ? 'border-primary bg-muted/30' : ''
-                  }`}
-                  onClick={() => setSelectedVersion(selectedVersion?.id === v.id ? null : v)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="font-semibold text-sm">Versão #{v.version_number}</span>
-                      <span className="text-[11px] text-muted-foreground/70 ml-2">
-                        {format(new Date(v.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                        {v.changed_by ? ` por ${v.changed_by}` : ''}
-                      </span>
-                    </div>
-                    {v.change_summary && (
-                      <span className="text-[11px] text-muted-foreground/70 bg-muted px-2 py-0.5 rounded">{v.change_summary}</span>
-                    )}
-                  </div>
-                  {selectedVersion?.id === v.id && v.snapshot && (
-                    <div className="mt-3">
-                      <pre className="text-xs font-mono bg-muted/50 rounded p-2 max-h-[200px] overflow-y-auto whitespace-pre-wrap">
-                        {JSON.stringify(v.snapshot, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <AgentPromptHistoryDialog
+        prompt={historyPrompt}
+        open={!!historyPrompt}
+        onOpenChange={(o) => !o && setHistoryPrompt(null)}
+        onRestore={handleRestoreVersion}
+      />
     </Card>
   );
 }
