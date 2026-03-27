@@ -117,11 +117,11 @@ export function processFinalPrompt(
     .join('\n');
   result = result.replace(/\[\[CTAS_JURIDICOS\]\]/g, ctasText);
 
-  // Semantic words - all cases concatenated
+  // Semantic words - each case on its own line
   const allSemanticWords = cases
     .map(c => c.semantic_words)
     .filter(Boolean)
-    .join(', ');
+    .join('\n');
   result = result.replace(/\[\[PALAVRAS_SEMANTICAS\]\]/g, allSemanticWords);
 
   // Case list - case_info with renumbered titles
