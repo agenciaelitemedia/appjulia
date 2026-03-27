@@ -15,8 +15,9 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
 import { useAgentPrompts, AgentPrompt, AgentPromptCase } from '../hooks/useAgentPrompts';
-import { useAgentPromptVersions, AgentPromptVersion } from '../hooks/useAgentPromptVersions';
 import { AgentPromptWizard } from './AgentPromptWizard';
+import { AgentPromptHistoryDialog } from './AgentPromptHistoryDialog';
+import { AgentPromptVersion } from '../hooks/useAgentPromptVersions';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
