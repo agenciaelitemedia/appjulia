@@ -1,51 +1,63 @@
 
 
-# Melhorias no Visualizar e Auto-geração de Palavras Semânticas
+# Novo Módulo: Casos Jurídicos
 
-## 1. Dialog de Visualizar — Adicionar info do ZapSign e Casos
+## Visão geral
 
-No `PromptsTab.tsx`, antes do textarea do prompt final, adicionar:
+Módulo dentro do grupo "SISTEMA" que exibe os 103 casos jurídicos cadastrados em cards (3 por linha), com contadores por categoria no topo que funcionam como filtros clicáveis, e modal de detalhes ao clicar em um caso.
 
-- **Card cinza** com link completo do ZapSign montado a partir dos tokens dos casos (ex: `https://app.zapsign.com.br/verificar/DOC_TOKEN`). Cada caso que tiver `zapsign_doc_token` mostra seu link. Card com `bg-muted` 100% largura.
-- **Lista de casos** do prompt com seus CTAs em formato de badges/chips abaixo de cada caso.
+## Arquivos a criar
 
-Para isso, o `openView` já busca os cases via `fetchCases` e armazena em `viewCases`. Basta renderizar esses dados no dialog.
+### 1. `src/pages/legal-cases/LegalCasesPage.tsx`
+Página principal com:
+- **Contadores no topo**: mini cards horizontais com "Todos (103)" + cada categoria com seu total. Ao clicar, filtra. Card ativo recebe destaque visual (borda primary).
+- **Grid de cards** (3 colunas via `grid-cols-1 md:grid-cols-2 lg:grid-cols-3`): cada card mostra nome do caso, badge da categoria (com cores por categoria já existentes em `LegalCasesTab`), e descrição truncada (primeiras 2-3 linhas de `case_info`).
+- **Modal** (Dialog) ao clicar: exibe nome, categoria badge, e seções completas — Informações do Caso, Roteiro de Qualificação, Honorários — em textareas readonly com scroll.
+- Busca por nome no topo.
 
-### Estrutura visual
+### 2. `src/hooks/useEnsureLegalCasesModule.ts`
+Hook padrão `useEnsure*Module` para registrar o módulo:
+- `code`: `'legal_cases'`
+- `name`: `'Casos Jurídicos'`
+- `icon`: `'Scale'`
+- `route`: `'/casos-juridicos'`
+- `menu_group`: `'SISTEMA'`
+- `display_order`: 30
+- `category`: `'sistema'`
+
+### 3. Dados reutilizados
+Reutiliza o hook `useLegalCases` existente (já busca da tabela `generation_legal_cases`).
+
+## Arquivos a modificar
+
+### 4. `src/types/permissions.ts`
+Adicionar `'legal_cases'` ao type `ModuleCode`.
+
+### 5. `src/App.tsx`
+Adicionar rota: `<Route path="/casos-juridicos" element={<LegalCasesPage />} />`
+
+### 6. `src/components/layout/Sidebar.tsx`
+Importar e chamar `useEnsureLegalCasesModule()`.
+
+## Layout dos contadores
+
 ```text
-┌─────────────────────────────────────────┐
-│  Card cinza (bg-muted rounded p-4)      │
-│  🔗 ZapSign Links:                      │
-│  Caso 1: https://app.zapsign.com.br/... │
-│  Caso 2: https://app.zapsign.com.br/... │
-└─────────────────────────────────────────┘
-
-Casos vinculados:
-┌─────────────────────────────────────────┐
-│ AUXÍLIO-ACIDENTE                        │
-│ [CTA 1] [CTA 2] [CTA 3]               │
-├─────────────────────────────────────────┤
-│ SALÁRIO-MATERNIDADE                     │
-│ [CTA 1] [CTA 2]                        │
-└─────────────────────────────────────────┘
-
-Prompt Final Gerado:
-[textarea readonly com o prompt]
+┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ...
+│  Todos   │ │ Digital  │ │ D.Civil  │ │ D.Família│
+│   103    │ │    9     │ │   10     │ │   12     │
+└──────────┘ └──────────┘ └──────────┘ └──────────┘
 ```
 
-## 2. Auto-geração de Palavras Semânticas ao adicionar caso
+Mini cards horizontais com scroll, estilo similar ao `CRMTotalizers`. O filtro ativo recebe `border-primary bg-primary/5`.
 
-No `StepCaseSelect.tsx`, na função `addCase`:
+## Layout dos cards de caso
 
-- Quando um caso é adicionado, extrair automaticamente 5 palavras-chave relevantes do campo `case_info` do caso jurídico.
-- Lógica local simples: analisar o texto do `case_info` e gerar palavras no formato `"palavra1", "palavra2", ... → Nome do Caso`.
-- Abordagem: usar heurística local — pegar substantivos/termos relevantes do texto (excluindo stopwords comuns em português) e selecionar os 5 mais representativos. Isso evita chamada de API e funciona instantaneamente.
-- O campo `semantic_words` do `CaseData` será pré-preenchido com essas palavras, editável pelo usuário depois na personalização.
-
-## Arquivos modificados
-
-| Arquivo | Ação |
-|---|---|
-| `PromptsTab.tsx` | Adicionar card ZapSign + lista de casos com CTAs no dialog de visualização |
-| `StepCaseSelect.tsx` | Auto-gerar 5 palavras semânticas ao adicionar caso via extração de keywords do `case_info` |
+```text
+┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+│ Auxílio-Acidente│ │ Aposentadoria   │ │ BPC LOAS        │
+│ [Previdenciário]│ │ [Previdenciário]│ │ [Previdenciário] │
+│ Breve descrição │ │ Breve descrição │ │ Breve descrição  │
+│ do caso...      │ │ do caso...      │ │ do caso...       │
+└─────────────────┘ └─────────────────┘ └─────────────────┘
+```
 
