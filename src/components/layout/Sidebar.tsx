@@ -41,6 +41,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   useEnsureCopilotModule();
   useEnsureTelefoniaModule();
   useEnsurePromptGeneratorModule();
+  useEnsureLegalCasesModule();
 
   const isTimeUser = user?.role === "time";
   
