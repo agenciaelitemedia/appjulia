@@ -14,6 +14,7 @@ import { useEnsureMonitoramentoModule } from "@/pages/admin/monitoramento/hooks/
 import { useEnsureCopilotModule } from "@/hooks/useEnsureCopilotModule";
 import { useEnsureTelefoniaModule } from "@/hooks/useEnsureTelefoniaModule";
 import { useEnsurePromptGeneratorModule } from "@/hooks/useEnsurePromptGeneratorModule";
+import { useEnsureLegalCasesModule } from "@/hooks/useEnsureLegalCasesModule";
 import {
   Tooltip,
   TooltipContent,
@@ -40,6 +41,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   useEnsureCopilotModule();
   useEnsureTelefoniaModule();
   useEnsurePromptGeneratorModule();
+  useEnsureLegalCasesModule();
 
   const isTimeUser = user?.role === "time";
   

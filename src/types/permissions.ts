@@ -26,7 +26,8 @@ export type ModuleCode =
   | 'telephony_admin'
   | 'telephony'
   | 'settings'
-  | 'prompt_generator';
+  | 'prompt_generator'
+  | 'legal_cases';
 
 export interface Module {
   id: number;
