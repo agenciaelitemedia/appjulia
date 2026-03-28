@@ -74,37 +74,38 @@ export default function LegalCasesPage() {
       </div>
 
       {/* Category counters */}
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-10 gap-2">
         <Card
-          className={`cursor-pointer transition-all hover:shadow-md ${
+          className={`cursor-pointer transition-all hover:shadow-md bg-gray-100 dark:bg-gray-800 ${
             selectedCategory === 'all'
-              ? 'border-primary bg-primary/5 ring-1 ring-primary'
+              ? 'ring-2 ring-primary ring-offset-2'
               : ''
           }`}
           onClick={() => setSelectedCategory('all')}
         >
-          <CardContent className="p-3 text-center">
-            <p className="text-xl font-bold">{cases.length}</p>
-            <p className="text-xs text-muted-foreground whitespace-nowrap">Todos</p>
+          <CardContent className="p-3 text-center min-w-[100px]">
+            <p className="text-xl font-bold text-gray-800 dark:text-gray-200">{cases.length}</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">Todos</p>
           </CardContent>
         </Card>
 
         {CASE_CATEGORIES.map(cat => {
           const count = categoryCounts[cat] || 0;
           if (count === 0) return null;
+          const colorClass = CATEGORY_COLORS[cat] || '';
           return (
             <Card
               key={cat}
-              className={`cursor-pointer transition-all hover:shadow-md ${
+              className={`cursor-pointer transition-all hover:shadow-md ${colorClass} ${
                 selectedCategory === cat
-                  ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                  ? 'ring-2 ring-primary ring-offset-2'
                   : ''
               }`}
               onClick={() => setSelectedCategory(cat)}
             >
-              <CardContent className="p-3 text-center">
+              <CardContent className="p-3 text-center min-w-[100px]">
                 <p className="text-xl font-bold">{count}</p>
-                <p className="text-xs text-muted-foreground whitespace-nowrap">{cat}</p>
+                <p className="text-xs whitespace-nowrap">{cat}</p>
               </CardContent>
             </Card>
           );
