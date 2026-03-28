@@ -127,9 +127,9 @@ export default function LegalCasesPage() {
                 {legalCase.category}
               </Badge>
               {legalCase.case_info && (
-                <p className="text-xs text-muted-foreground line-clamp-3">
-                  {legalCase.case_info}
-                </p>
+                <div className="text-xs text-muted-foreground line-clamp-3 prose prose-xs dark:prose-invert max-w-none">
+                  <ReactMarkdown>{legalCase.case_info}</ReactMarkdown>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -160,33 +160,9 @@ export default function LegalCasesPage() {
                 {selectedCase.case_info && (
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Informações do Caso</label>
-                    <Textarea
-                      readOnly
-                      value={selectedCase.case_info}
-                      className="mt-1 font-mono text-xs min-h-[120px] resize-none bg-muted/30"
-                    />
-                  </div>
-                )}
-
-                {selectedCase.qualification_script && (
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Roteiro de Qualificação</label>
-                    <Textarea
-                      readOnly
-                      value={selectedCase.qualification_script}
-                      className="mt-1 font-mono text-xs min-h-[150px] resize-none bg-muted/30"
-                    />
-                  </div>
-                )}
-
-                {selectedCase.fees_info && (
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Honorários</label>
-                    <Textarea
-                      readOnly
-                      value={selectedCase.fees_info}
-                      className="mt-1 font-mono text-xs min-h-[100px] resize-none bg-muted/30"
-                    />
+                    <div className="mt-1 prose prose-sm dark:prose-invert max-w-none">
+                      <ReactMarkdown>{selectedCase.case_info}</ReactMarkdown>
+                    </div>
                   </div>
                 )}
               </div>
