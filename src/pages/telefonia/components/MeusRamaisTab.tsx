@@ -32,7 +32,7 @@ export function MeusRamaisTab({ codAgent }: Props) {
     queryFn: async () => {
       const { data } = await supabase
         .from('phone_config')
-        .select('provider')
+        .select('*')
         .eq('cod_agent', codAgent)
         .eq('is_active', true)
         .limit(1)
@@ -41,7 +41,7 @@ export function MeusRamaisTab({ codAgent }: Props) {
     },
     enabled: !!codAgent,
   });
-  const provider: ProviderType = (configData?.provider as ProviderType) || 'api4com';
+  const provider: ProviderType = ((configData as any)?.provider as ProviderType) || 'api4com';
 
   const { extensions, extensionsLoading, maxExtensions, usedExtensions, canCreateExtension, plan, createExtension, updateExtension, deleteExtension, syncExtensions } = useTelefoniaData(codAgent, provider);
   const [dialogOpen, setDialogOpen] = useState(false);
