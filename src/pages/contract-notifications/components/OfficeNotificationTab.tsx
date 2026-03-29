@@ -4,7 +4,7 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Save, Info, X } from 'lucide-react';
 import { ContractNotificationConfig, useUpsertContractNotificationConfig } from '@/hooks/useContractNotificationConfig';
 import { ContractCadenceStepEditor } from './ContractCadenceStepEditor';
@@ -14,6 +14,17 @@ interface Props {
   codAgent: string;
   config?: ContractNotificationConfig;
 }
+
+interface NumberConfig {
+  phone: string;
+  trigger: string;
+}
+
+const TRIGGER_LABELS: Record<string, string> = {
+  GENERATED: 'Ao Gerar',
+  SIGNED: 'Ao Assinar',
+  BOTH: 'Ambos',
+};
 
 const DEFAULT_STEPS: CadenceStep[] = [
   { key: 'cadence_1', interval: '5 minutes', title: 'Alerta imediato', message: '📋 *Novo contrato {trigger_label}*\n\n👤 Lead: {client_name}\n📱 Telefone: {client_phone}\n📌 Caso: {case_title}\n\n📝 Resumo:\n{case_summary}' },
@@ -39,9 +50,9 @@ function stepsFromConfig(config: ContractNotificationConfig): CadenceStep[] {
 
 export function OfficeNotificationTab({ codAgent, config }: Props) {
   const [isActive, setIsActive] = useState(false);
-  const [triggerEvent, setTriggerEvent] = useState('BOTH');
-  const [targetNumbers, setTargetNumbers] = useState<string[]>([]);
+  const [numbersConfig, setNumbersConfig] = useState<NumberConfig[]>([]);
   const [newNumber, setNewNumber] = useState('');
+  const [newTrigger, setNewTrigger] = useState('BOTH');
   const [steps, setSteps] = useState<CadenceStep[]>(DEFAULT_STEPS);
 
   const upsert = useUpsertContractNotificationConfig();
@@ -49,22 +60,32 @@ export function OfficeNotificationTab({ codAgent, config }: Props) {
   useEffect(() => {
     if (config) {
       setIsActive(config.is_active);
-      setTriggerEvent(config.trigger_event || 'BOTH');
-      setTargetNumbers(config.target_numbers || []);
       setSteps(stepsFromConfig(config));
+
+      // Load from target_numbers_config (new) or fallback to target_numbers (old)
+      const tnc = config.target_numbers_config;
+      if (tnc && Array.isArray(tnc) && tnc.length > 0) {
+        setNumbersConfig(tnc);
+      } else if (config.target_numbers && config.target_numbers.length > 0) {
+        setNumbersConfig(config.target_numbers.map(phone => ({
+          phone,
+          trigger: config.trigger_event || 'BOTH',
+        })));
+      }
     }
   }, [config]);
 
   const handleAddNumber = () => {
     const cleaned = newNumber.replace(/\D/g, '');
-    if (cleaned.length >= 10 && !targetNumbers.includes(cleaned)) {
-      setTargetNumbers([...targetNumbers, cleaned]);
+    if (cleaned.length >= 10 && !numbersConfig.some(n => n.phone === cleaned)) {
+      setNumbersConfig([...numbersConfig, { phone: cleaned, trigger: newTrigger }]);
       setNewNumber('');
+      setNewTrigger('BOTH');
     }
   };
 
-  const handleRemoveNumber = (num: string) => {
-    setTargetNumbers(targetNumbers.filter((n) => n !== num));
+  const handleRemoveNumber = (phone: string) => {
+    setNumbersConfig(numbersConfig.filter((n) => n.phone !== phone));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -89,8 +110,8 @@ export function OfficeNotificationTab({ codAgent, config }: Props) {
       cod_agent: codAgent,
       type: 'OFFICE_ALERT',
       is_active: isActive,
-      trigger_event: triggerEvent,
-      target_numbers: targetNumbers,
+      target_numbers: numbersConfig.map(n => n.phone),
+      target_numbers_config: numbersConfig,
       stages_count: steps.length,
       step_cadence,
       msg_cadence,
@@ -113,24 +134,6 @@ export function OfficeNotificationTab({ codAgent, config }: Props) {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="space-y-3">
-            <Label>Disparar Quando</Label>
-            <RadioGroup value={triggerEvent} onValueChange={setTriggerEvent}>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="GENERATED" id="generated" />
-                <Label htmlFor="generated" className="font-normal">Ao Gerar Contrato</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="SIGNED" id="signed" />
-                <Label htmlFor="signed" className="font-normal">Ao Assinar Contrato</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="BOTH" id="both" />
-                <Label htmlFor="both" className="font-normal">Ambos</Label>
-              </div>
-            </RadioGroup>
-          </div>
-
           <div className="space-y-2">
             <Label>Números WhatsApp do Escritório</Label>
             <div className="flex gap-2">
@@ -139,20 +142,32 @@ export function OfficeNotificationTab({ codAgent, config }: Props) {
                 value={newNumber}
                 onChange={(e) => setNewNumber(e.target.value)}
                 onKeyDown={handleKeyDown}
+                className="flex-1"
               />
+              <Select value={newTrigger} onValueChange={setNewTrigger}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="GENERATED">Ao Gerar</SelectItem>
+                  <SelectItem value="SIGNED">Ao Assinar</SelectItem>
+                  <SelectItem value="BOTH">Ambos</SelectItem>
+                </SelectContent>
+              </Select>
               <Button variant="outline" onClick={handleAddNumber} type="button">
                 Adicionar
               </Button>
             </div>
-            {targetNumbers.length > 0 && (
+            {numbersConfig.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
-                {targetNumbers.map((num) => (
+                {numbersConfig.map((item) => (
                   <span
-                    key={num}
+                    key={item.phone}
                     className="inline-flex items-center gap-1 bg-primary/10 text-primary px-3 py-1 rounded-full text-sm"
                   >
-                    {num}
-                    <button onClick={() => handleRemoveNumber(num)} className="hover:text-destructive">
+                    {item.phone}
+                    <span className="text-xs opacity-70">· {TRIGGER_LABELS[item.trigger] || item.trigger}</span>
+                    <button onClick={() => handleRemoveNumber(item.phone)} className="hover:text-destructive">
                       <X className="h-3 w-3" />
                     </button>
                   </span>

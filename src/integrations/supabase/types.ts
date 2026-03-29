@@ -164,6 +164,7 @@ export type Database = {
           stages_count: number | null
           step_cadence: Json | null
           target_numbers: string[] | null
+          target_numbers_config: Json | null
           title_cadence: Json | null
           trigger_event: string | null
           type: string
@@ -181,6 +182,7 @@ export type Database = {
           stages_count?: number | null
           step_cadence?: Json | null
           target_numbers?: string[] | null
+          target_numbers_config?: Json | null
           title_cadence?: Json | null
           trigger_event?: string | null
           type: string
@@ -198,6 +200,7 @@ export type Database = {
           stages_count?: number | null
           step_cadence?: Json | null
           target_numbers?: string[] | null
+          target_numbers_config?: Json | null
           title_cadence?: Json | null
           trigger_event?: string | null
           type?: string
