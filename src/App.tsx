@@ -53,6 +53,7 @@ import RedirectPage from "./pages/RedirectPage";
 import NotFound from "./pages/NotFound";
 import PromptGeneratorPage from "./pages/admin/prompts/PromptGeneratorPage";
 import LegalCasesPage from "./pages/legal-cases/LegalCasesPage";
+import ContractNotificationsPage from "./pages/contract-notifications/ContractNotificationsPage";
 
 const queryClient = new QueryClient();
 
@@ -96,6 +97,7 @@ const App = () => (
                   <Route path="/crm-builder/:boardId" element={<BoardPage />} />
                   <Route path="/datajud" element={<DataJudSearchPage />} />
                   <Route path="/casos-juridicos" element={<LegalCasesPage />} />
+                  <Route path="/notificacoes-contrato" element={<ContractNotificationsPage />} />
                   <Route path="/telefonia" element={<ProtectedRoute module="telephony"><TelefoniaPage /></ProtectedRoute>} />
                   
                   {/* Admin routes - protected by module permission */}

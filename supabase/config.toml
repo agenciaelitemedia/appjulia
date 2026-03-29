@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.waba-send]
 verify_jwt = false
+
+[functions.contract-notifications-cron]
+verify_jwt = false

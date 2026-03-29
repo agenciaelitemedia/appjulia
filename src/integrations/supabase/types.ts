@@ -151,6 +151,104 @@ export type Database = {
           },
         ]
       }
+      contract_notification_configs: {
+        Row: {
+          cod_agent: string
+          created_at: string
+          delay_interval_minutes: number | null
+          id: string
+          is_active: boolean
+          message_template: string | null
+          office_repeat_count: number | null
+          stages_count: number | null
+          target_numbers: string[] | null
+          trigger_event: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          cod_agent: string
+          created_at?: string
+          delay_interval_minutes?: number | null
+          id?: string
+          is_active?: boolean
+          message_template?: string | null
+          office_repeat_count?: number | null
+          stages_count?: number | null
+          target_numbers?: string[] | null
+          trigger_event?: string | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          cod_agent?: string
+          created_at?: string
+          delay_interval_minutes?: number | null
+          id?: string
+          is_active?: boolean
+          message_template?: string | null
+          office_repeat_count?: number | null
+          stages_count?: number | null
+          target_numbers?: string[] | null
+          trigger_event?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      contract_notification_logs: {
+        Row: {
+          cod_agent: string | null
+          config_id: string | null
+          contract_cod_document: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          message_text: string | null
+          recipient_phone: string | null
+          sent_at: string | null
+          status: string
+          step_number: number | null
+          type: string | null
+        }
+        Insert: {
+          cod_agent?: string | null
+          config_id?: string | null
+          contract_cod_document?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message_text?: string | null
+          recipient_phone?: string | null
+          sent_at?: string | null
+          status?: string
+          step_number?: number | null
+          type?: string | null
+        }
+        Update: {
+          cod_agent?: string | null
+          config_id?: string | null
+          contract_cod_document?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message_text?: string | null
+          recipient_phone?: string | null
+          sent_at?: string | null
+          status?: string
+          step_number?: number | null
+          type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_notification_logs_config_id_fkey"
+            columns: ["config_id"]
+            isOneToOne: false
+            referencedRelation: "contract_notification_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_automation_logs: {
         Row: {
           deal_id: string
