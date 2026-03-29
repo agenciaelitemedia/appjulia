@@ -16,11 +16,11 @@ export function useEnsureContractNotificationsModule() {
         const mod = modules.find((m: any) => m.code === 'contract_notifications');
 
         if (mod) {
-          if (mod.route !== '/notificacoes-contrato' || !mod.is_menu_visible) {
+          if (mod.route !== '/notificacoes-contrato' || !mod.is_menu_visible || mod.menu_group !== 'AGENTES DA JULIA') {
             await externalDb.updateModule(mod.id, {
               route: '/notificacoes-contrato',
               is_menu_visible: true,
-              menu_group: 'SISTEMA',
+              menu_group: 'AGENTES DA JULIA',
             });
             queryClient.invalidateQueries({ queryKey: ['menu-modules'] });
           }
