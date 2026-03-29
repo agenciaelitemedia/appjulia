@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 // Helper: makes authenticated request to 3C+ API
@@ -385,7 +385,7 @@ serve(async (req) => {
 
       // ------------------------------------------------------------------
       // setup_webhook — registra webhook no 3C+
-      // POST /webhooks or PATCH /webhooks
+      // POST /webhooks
       // ------------------------------------------------------------------
       case 'setup_webhook': {
         const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/3cplus-webhook`;
@@ -539,7 +539,7 @@ serve(async (req) => {
 // ------------------------------------------------------------------
 function buildCallLog(
   cdr: any,
-  codAgent: number,
+  codAgent: string,
   fixTz: (ts: string | null | undefined) => string | null
 ): Record<string, any> {
   const cdrId = cdr.id ? String(cdr.id) : null;
