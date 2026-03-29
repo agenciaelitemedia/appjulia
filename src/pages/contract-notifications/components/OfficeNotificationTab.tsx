@@ -185,6 +185,9 @@ export function OfficeNotificationTab({ codAgent, config }: Props) {
               steps={steps}
               onChange={setSteps}
               variables={['client_name', 'client_phone', 'case_title', 'case_summary', 'trigger_label']}
+              showTriggerSelect
+              stepTriggers={triggerCadence}
+              onTriggersChange={setTriggerCadence}
             />
           </div>
 

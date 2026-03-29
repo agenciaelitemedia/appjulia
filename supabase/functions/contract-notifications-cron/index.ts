@@ -166,10 +166,10 @@ async function processOfficeAlert(supabase: any, cfg: any, contracts: Contract[]
 
   const stepCadence = cfg.step_cadence || {};
   const msgCadence = cfg.msg_cadence || {};
+  const triggerCadence = cfg.trigger_cadence || {};
   const totalSteps = Object.keys(stepCadence).length || cfg.office_repeat_count || 1;
 
   for (const contract of contracts) {
-    // Check existing logs for this contract
     const { data: existingLogs } = await supabase
       .from("contract_notification_logs")
       .select("*")
@@ -186,6 +186,13 @@ async function processOfficeAlert(supabase: any, cfg: any, contracts: Contract[]
 
     const nextStep = lastStep + 1;
     const cadenceKey = `cadence_${nextStep}`;
+
+    // Check step-level trigger filter
+    const stepTrigger = triggerCadence[cadenceKey] || 'BOTH';
+    if (stepTrigger !== 'BOTH') {
+      if (stepTrigger === 'GENERATED' && contract.status_document !== 'Gerado') continue;
+      if (stepTrigger === 'SIGNED' && contract.status_document !== 'Assinado') continue;
+    }
 
     if (lastSentAt && lastStep > 0) {
       const elapsed = Date.now() - new Date(lastSentAt).getTime();
