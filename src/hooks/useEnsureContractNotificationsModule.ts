@@ -33,11 +33,11 @@ export function useEnsureContractNotificationsModule() {
           description: 'Followup automático e alertas de contratos',
           icon: 'Bell',
           route: '/notificacoes-contrato',
-          menu_group: 'SISTEMA',
+          menu_group: 'AGENTES DA JULIA',
           is_menu_visible: true,
           display_order: 31,
           is_active: true,
-          category: 'sistema',
+          category: 'agente',
         });
 
         queryClient.invalidateQueries({ queryKey: ['menu-modules'] });
