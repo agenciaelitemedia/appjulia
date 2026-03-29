@@ -15,6 +15,7 @@ import { useEnsureCopilotModule } from "@/hooks/useEnsureCopilotModule";
 import { useEnsureTelefoniaModule } from "@/hooks/useEnsureTelefoniaModule";
 import { useEnsurePromptGeneratorModule } from "@/hooks/useEnsurePromptGeneratorModule";
 import { useEnsureLegalCasesModule } from "@/hooks/useEnsureLegalCasesModule";
+import { useEnsureContractNotificationsModule } from "@/hooks/useEnsureContractNotificationsModule";
 import {
   Tooltip,
   TooltipContent,
