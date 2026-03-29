@@ -1255,11 +1255,7 @@ export type Database = {
           created_at: string
           id: number
           is_active: boolean
-          provider: string
           sip_domain: string | null
-          threecplus_base_url: string | null
-          threecplus_token: string | null
-          threecplus_ws_url: string | null
           updated_at: string
         }
         Insert: {
@@ -1269,11 +1265,7 @@ export type Database = {
           created_at?: string
           id?: number
           is_active?: boolean
-          provider?: string
           sip_domain?: string | null
-          threecplus_base_url?: string | null
-          threecplus_token?: string | null
-          threecplus_ws_url?: string | null
           updated_at?: string
         }
         Update: {
@@ -1283,11 +1275,7 @@ export type Database = {
           created_at?: string
           id?: number
           is_active?: boolean
-          provider?: string
           sip_domain?: string | null
-          threecplus_base_url?: string | null
-          threecplus_token?: string | null
-          threecplus_ws_url?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -1356,13 +1344,6 @@ export type Database = {
           id: number
           is_active: boolean
           label: string | null
-          provider: string
-          threecplus_agent_id: string | null
-          threecplus_extension: string | null
-          threecplus_raw: Json | null
-          threecplus_sip_domain: string | null
-          threecplus_sip_password: string | null
-          threecplus_sip_username: string | null
           updated_at: string
         }
         Insert: {
@@ -1380,13 +1361,6 @@ export type Database = {
           id?: number
           is_active?: boolean
           label?: string | null
-          provider?: string
-          threecplus_agent_id?: string | null
-          threecplus_extension?: string | null
-          threecplus_raw?: Json | null
-          threecplus_sip_domain?: string | null
-          threecplus_sip_password?: string | null
-          threecplus_sip_username?: string | null
           updated_at?: string
         }
         Update: {
@@ -1404,13 +1378,6 @@ export type Database = {
           id?: number
           is_active?: boolean
           label?: string | null
-          provider?: string
-          threecplus_agent_id?: string | null
-          threecplus_extension?: string | null
-          threecplus_raw?: Json | null
-          threecplus_sip_domain?: string | null
-          threecplus_sip_password?: string | null
-          threecplus_sip_username?: string | null
           updated_at?: string
         }
         Relationships: []
