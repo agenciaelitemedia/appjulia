@@ -12,21 +12,34 @@ interface Props {
   onChange: (steps: CadenceStep[]) => void;
   variables?: string[];
   maxSteps?: number;
+  showTriggerSelect?: boolean;
+  stepTriggers?: Record<string, string>;
+  onTriggersChange?: (triggers: Record<string, string>) => void;
 }
 
-export function ContractCadenceStepEditor({ steps, onChange, variables = [], maxSteps = 10 }: Props) {
+const TRIGGER_OPTIONS = [
+  { value: 'BOTH', label: 'Ambos' },
+  { value: 'GENERATED', label: 'Contrato Gerado' },
+  { value: 'SIGNED', label: 'Contrato Assinado' },
+];
+
+export function ContractCadenceStepEditor({ steps, onChange, variables = [], maxSteps = 10, showTriggerSelect, stepTriggers = {}, onTriggersChange }: Props) {
   const handleAddStep = () => {
     if (steps.length >= maxSteps) return;
     const idx = steps.length + 1;
+    const key = `cadence_${idx}`;
     onChange([
       ...steps,
       {
-        key: `cadence_${idx}`,
+        key,
         interval: '1440 minutes',
         title: `Etapa ${idx}`,
         message: '',
       },
     ]);
+    if (showTriggerSelect && onTriggersChange) {
+      onTriggersChange({ ...stepTriggers, [key]: 'BOTH' });
+    }
   };
 
   const handleRemoveStep = (index: number) => {
@@ -35,6 +48,14 @@ export function ContractCadenceStepEditor({ steps, onChange, variables = [], max
       key: `cadence_${i + 1}`,
     }));
     onChange(updated);
+    if (showTriggerSelect && onTriggersChange) {
+      const newTriggers: Record<string, string> = {};
+      updated.forEach((s, i) => {
+        const oldKey = steps[i < index ? i : i + 1]?.key;
+        newTriggers[s.key] = stepTriggers[oldKey || ''] || 'BOTH';
+      });
+      onTriggersChange(newTriggers);
+    }
   };
 
   const handleChangeInterval = (index: number, value: number, unit: string) => {
@@ -53,6 +74,12 @@ export function ContractCadenceStepEditor({ steps, onChange, variables = [], max
     const updated = [...steps];
     updated[index] = { ...updated[index], message };
     onChange(updated);
+  };
+
+  const handleChangeTrigger = (key: string, trigger: string) => {
+    if (onTriggersChange) {
+      onTriggersChange({ ...stepTriggers, [key]: trigger });
+    }
   };
 
   return (
@@ -89,7 +116,7 @@ export function ContractCadenceStepEditor({ steps, onChange, variables = [], max
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className={`grid gap-2 ${showTriggerSelect ? 'grid-cols-3' : 'grid-cols-2'}`}>
                 <div className="space-y-1">
                   <Label className="text-xs">Intervalo</Label>
                   <Input
@@ -113,6 +140,21 @@ export function ContractCadenceStepEditor({ steps, onChange, variables = [], max
                     </SelectContent>
                   </Select>
                 </div>
+                {showTriggerSelect && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Disparar Quando</Label>
+                    <Select value={stepTriggers[step.key] || 'BOTH'} onValueChange={(v) => handleChangeTrigger(step.key, v)}>
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TRIGGER_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1">
