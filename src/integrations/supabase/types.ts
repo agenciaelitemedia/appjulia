@@ -166,6 +166,7 @@ export type Database = {
           target_numbers: string[] | null
           target_numbers_config: Json | null
           title_cadence: Json | null
+          trigger_cadence: Json | null
           trigger_event: string | null
           type: string
           updated_at: string
@@ -184,6 +185,7 @@ export type Database = {
           target_numbers?: string[] | null
           target_numbers_config?: Json | null
           title_cadence?: Json | null
+          trigger_cadence?: Json | null
           trigger_event?: string | null
           type: string
           updated_at?: string
@@ -202,6 +204,7 @@ export type Database = {
           target_numbers?: string[] | null
           target_numbers_config?: Json | null
           title_cadence?: Json | null
+          trigger_cadence?: Json | null
           trigger_event?: string | null
           type?: string
           updated_at?: string
