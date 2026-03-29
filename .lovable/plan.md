@@ -1,67 +1,58 @@
 
 
-# Refatorar Notificações de Contrato: Etapas Individuais
+# Trigger Event por Número WhatsApp
 
 ## Resumo
 
-Atualmente o módulo usa uma configuração global (um template, um intervalo, N etapas). A mudanca faz cada etapa ter seu proprio intervalo e mensagem, seguindo o padrao do `FollowupConfig` + `CadenceStepEditor` do modulo de followup.
+Atualmente o "Disparar Quando" (Gerado/Assinado/Ambos) é uma configuração global. A mudança faz cada número WhatsApp cadastrado ter seu próprio trigger event individual.
 
-## 1. Banco de dados — Alterar `contract_notification_configs`
+## Mudança de dados
 
-Adicionar 3 colunas JSONB para armazenar cadencia por etapa (mesmo padrao do followup):
+O campo `target_numbers` (text[]) armazena apenas telefones. Será substituído por um campo JSONB `target_numbers_config` que armazena objetos com número e trigger:
+
+```json
+[
+  { "phone": "11999998888", "trigger": "GENERATED" },
+  { "phone": "11888887777", "trigger": "BOTH" }
+]
+```
+
+O campo `trigger_event` global permanece como fallback mas não será mais usado no frontend.
+
+## Migration
 
 ```sql
 ALTER TABLE contract_notification_configs
-  ADD COLUMN IF NOT EXISTS step_cadence jsonb DEFAULT '{}',
-  ADD COLUMN IF NOT EXISTS msg_cadence jsonb DEFAULT '{}',
-  ADD COLUMN IF NOT EXISTS title_cadence jsonb DEFAULT '{}';
+  ADD COLUMN IF NOT EXISTS target_numbers_config jsonb DEFAULT '[]'::jsonb;
 ```
 
-Formato dos dados:
-- `step_cadence`: `{"cadence_1": "1440 minutes", "cadence_2": "2880 minutes", ...}`
-- `msg_cadence`: `{"cadence_1": "Olá {client_name}...", "cadence_2": "Lembrete...", ...}`
-- `title_cadence`: `{"cadence_1": "Primeiro lembrete", "cadence_2": "Segundo lembrete", ...}`
+Migrar dados existentes: converter cada item de `target_numbers[]` para `{"phone": X, "trigger": trigger_event}`.
 
-As colunas antigas (`stages_count`, `delay_interval_minutes`, `message_template`) permanecem para compatibilidade mas nao serao mais usadas no frontend.
+## Frontend — OfficeNotificationTab
 
-## 2. Frontend — LeadFollowupTab
+- Remover o RadioGroup global de "Disparar Quando"
+- Ao adicionar número, incluir um Select ao lado para escolher o trigger (Ao Gerar / Ao Assinar / Ambos) — default "BOTH"
+- Nos chips de números exibidos, mostrar o trigger como badge menor (ex: "11999998888 · Ambos")
+- Estado interno muda de `string[]` para `Array<{phone: string, trigger: string}>`
+- No save, salvar em `target_numbers_config` (JSONB) e manter `target_numbers` (text[]) sincronizado para compatibilidade
 
-Reescrever para usar o padrao de etapas do FollowupConfig:
-- Switch ativar/desativar (mantem)
-- Remover inputs globais de "quantidade de etapas" e "intervalo"
-- Remover textarea global de template
-- Adicionar lista de etapas com botao "Adicionar Etapa"
-- Cada etapa usa um card com: titulo, intervalo (valor + unidade: minutos/horas/dias), e textarea de mensagem
-- Reutilizar o componente `CadenceStepEditor` existente (ou criar versao local simplificada sem "auto message")
-- Manter a nota do link ZapSign automatico
-- Salvar como `step_cadence`, `msg_cadence`, `title_cadence` + `stages_count` (derivado do total de etapas)
+## Edge Function — contract-notifications-cron
 
-## 3. Frontend — OfficeNotificationTab
+Na seção OFFICE_ALERT:
+- Ler `target_numbers_config` (JSONB) em vez de `target_numbers`
+- Para cada número, filtrar contratos pelo trigger individual daquele número (GENERATED/SIGNED/BOTH) em vez de usar o filtro global
+- Fallback: se `target_numbers_config` estiver vazio, usar `target_numbers` + `trigger_event` global (compatibilidade)
 
-Aplicar o mesmo padrao de etapas:
-- Manter: switch on/off, radio trigger event, input de numeros WhatsApp (chips)
-- Substituir: textarea global de template e input de "repeticoes" por lista de etapas
-- Cada etapa tem: titulo, intervalo, e textarea de mensagem (com variaveis `{client_name}`, `{client_phone}`, `{case_title}`, `{case_summary}`, `{trigger_label}`)
-- Manter a nota de "Dados Automaticos"
-- Salvar como `step_cadence`, `msg_cadence`, `title_cadence` + `stages_count`
+## Hook
 
-## 4. Hook e Edge Function
+- Adicionar `target_numbers_config` à interface `ContractNotificationConfig`
 
-- `useContractNotificationConfig.ts`: Atualizar interface `ContractNotificationConfig` com os 3 novos campos JSONB
-- `contract-notifications-cron/index.ts`: Atualizar logica para ler `step_cadence` e `msg_cadence` por etapa em vez de usar `message_template` e `delay_interval_minutes` globais. Para cada contrato, buscar a etapa atual (step_number do log) e usar o intervalo e mensagem correspondentes de `step_cadence[cadence_N]` e `msg_cadence[cadence_N]`
+## Arquivos alterados
 
-## 5. Componente compartilhado
-
-Criar `ContractCadenceStepEditor.tsx` em `src/pages/contract-notifications/components/` — versao simplificada do `CadenceStepEditor` sem toggle de "auto message" (sempre mensagem manual). Reutiliza types `CadenceStep`, `INTERVAL_UNITS`, `parseInterval`, `formatInterval` de `src/pages/agente/types.ts`.
-
-## Arquivos
-
-| Arquivo | Acao |
+| Arquivo | Ação |
 |---|---|
-| Migration SQL | Adicionar `step_cadence`, `msg_cadence`, `title_cadence` |
-| `src/hooks/useContractNotificationConfig.ts` | Adicionar campos JSONB a interface |
-| `src/pages/contract-notifications/components/ContractCadenceStepEditor.tsx` | Novo — editor de etapa |
-| `src/pages/contract-notifications/components/LeadFollowupTab.tsx` | Reescrever com etapas individuais |
-| `src/pages/contract-notifications/components/OfficeNotificationTab.tsx` | Reescrever com etapas individuais |
-| `supabase/functions/contract-notifications-cron/index.ts` | Atualizar logica para cadencia por etapa |
+| Migration SQL | Adicionar coluna `target_numbers_config` |
+| `src/hooks/useContractNotificationConfig.ts` | Adicionar campo à interface |
+| `src/pages/contract-notifications/components/OfficeNotificationTab.tsx` | Refatorar para trigger por número |
+| `supabase/functions/contract-notifications-cron/index.ts` | Filtrar por trigger individual |
 
