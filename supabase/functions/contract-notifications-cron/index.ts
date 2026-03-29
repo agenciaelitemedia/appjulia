@@ -217,7 +217,6 @@ serve(async (req) => {
               results.push({ type: 'LEAD_FOLLOWUP', contract: contract.cod_document, status });
             }
           } else if (cfg.type === 'OFFICE_ALERT') {
-            // Filter contracts by trigger event
             let filteredContracts = contracts;
             if (cfg.trigger_event === 'GENERATED') {
               filteredContracts = contracts.filter(c => c.status_document === 'Gerado');
@@ -228,21 +227,49 @@ serve(async (req) => {
             const targetNumbers = cfg.target_numbers || [];
             if (targetNumbers.length === 0) continue;
 
+            const stepCadence = cfg.step_cadence || {};
+            const msgCadence = cfg.msg_cadence || {};
+            const totalSteps = Object.keys(stepCadence).length || cfg.office_repeat_count || 1;
+
             for (const contract of filteredContracts) {
-              // Check if already notified
+              // Check existing logs for this contract
               const { data: existingLogs } = await supabase
                 .from("contract_notification_logs")
-                .select("id")
+                .select("*")
                 .eq("config_id", cfg.id)
                 .eq("contract_cod_document", contract.cod_document)
                 .eq("type", "OFFICE_ALERT")
+                .order("step_number", { ascending: false })
                 .limit(1);
 
-              if (existingLogs && existingLogs.length > 0) continue;
+              const lastLog = existingLogs?.[0];
+              const lastStep = lastLog?.step_number || 0;
+              const lastSentAt = lastLog?.sent_at || lastLog?.created_at;
+
+              if (lastStep >= totalSteps) continue;
+
+              const nextStep = lastStep + 1;
+              const cadenceKey = `cadence_${nextStep}`;
+
+              // Check delay for steps > 1
+              if (lastSentAt && lastStep > 0) {
+                const elapsed = Date.now() - new Date(lastSentAt).getTime();
+                let delayMs = 300000; // 5 min default
+                const stepInterval = stepCadence[cadenceKey];
+                if (stepInterval) {
+                  const match = stepInterval.match(/^(\d+)\s+(minutes|hours|days)$/);
+                  if (match) {
+                    const val = parseInt(match[1]);
+                    const unit = match[2];
+                    delayMs = unit === 'days' ? val * 86400000 : unit === 'hours' ? val * 3600000 : val * 60000;
+                  }
+                }
+                if (elapsed < delayMs) continue;
+              }
 
               const triggerLabel = contract.status_document === 'Assinado' ? 'assinado' : 'gerado';
-
-              const message = renderTemplate(cfg.message_template || '', {
+              const template = msgCadence[cadenceKey] || cfg.message_template || '';
+              const message = renderTemplate(template, {
                 client_name: contract.name,
                 client_phone: contract.whatsapp,
                 case_title: contract.case_title,
@@ -284,7 +311,7 @@ serve(async (req) => {
                   cod_agent: codAgent,
                   contract_cod_document: contract.cod_document,
                   type: 'OFFICE_ALERT',
-                  step_number: 1,
+                  step_number: nextStep,
                   recipient_phone: phone,
                   message_text: message,
                   status,
