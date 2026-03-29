@@ -159,9 +159,12 @@ export type Database = {
           id: string
           is_active: boolean
           message_template: string | null
+          msg_cadence: Json | null
           office_repeat_count: number | null
           stages_count: number | null
+          step_cadence: Json | null
           target_numbers: string[] | null
+          title_cadence: Json | null
           trigger_event: string | null
           type: string
           updated_at: string
@@ -173,9 +176,12 @@ export type Database = {
           id?: string
           is_active?: boolean
           message_template?: string | null
+          msg_cadence?: Json | null
           office_repeat_count?: number | null
           stages_count?: number | null
+          step_cadence?: Json | null
           target_numbers?: string[] | null
+          title_cadence?: Json | null
           trigger_event?: string | null
           type: string
           updated_at?: string
@@ -187,9 +193,12 @@ export type Database = {
           id?: string
           is_active?: boolean
           message_template?: string | null
+          msg_cadence?: Json | null
           office_repeat_count?: number | null
           stages_count?: number | null
+          step_cadence?: Json | null
           target_numbers?: string[] | null
+          title_cadence?: Json | null
           trigger_event?: string | null
           type?: string
           updated_at?: string
