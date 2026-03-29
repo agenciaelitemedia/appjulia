@@ -1,111 +1,67 @@
 
 
-# Módulo: Notificações de Contrato
+# Refatorar Notificações de Contrato: Etapas Individuais
 
-## Visao geral
+## Resumo
 
-Novo modulo com duas abas de configuracao por `cod_agent`:
-- **Aba 1 - Followup de Leads**: regua automatica de cobranca para contratos gerados e nao assinados (envia WhatsApp com link do contrato)
-- **Aba 2 - Notificar Escritorio**: alertas para numeros do escritorio quando contrato e gerado ou assinado, incluindo dados do lead e resumo do caso
+Atualmente o módulo usa uma configuração global (um template, um intervalo, N etapas). A mudanca faz cada etapa ter seu proprio intervalo e mensagem, seguindo o padrao do `FollowupConfig` + `CadenceStepEditor` do modulo de followup.
 
-Motor: Edge Function + pg_cron que roda periodicamente, consulta configs ativas e dispara via N8N_HUB_SEND_URL.
+## 1. Banco de dados — Alterar `contract_notification_configs`
 
-## 1. Banco de dados (Supabase — 2 tabelas)
+Adicionar 3 colunas JSONB para armazenar cadencia por etapa (mesmo padrao do followup):
 
-### Tabela `contract_notification_configs`
-| Coluna | Tipo | Notas |
-|---|---|---|
-| id | uuid PK | gen_random_uuid() |
-| cod_agent | text NOT NULL | index |
-| type | text NOT NULL | 'LEAD_FOLLOWUP' ou 'OFFICE_ALERT' |
-| is_active | boolean | default false |
-| stages_count | integer | max etapas (followup) |
-| delay_interval_minutes | integer | tempo entre envios |
-| message_template | text | template da mensagem |
-| target_numbers | text[] | telefones do escritorio |
-| trigger_event | text | 'GENERATED', 'SIGNED', 'BOTH' |
-| office_repeat_count | integer | alertas repetitivos se nao assinou |
-| created_at / updated_at | timestamptz | defaults now() |
+```sql
+ALTER TABLE contract_notification_configs
+  ADD COLUMN IF NOT EXISTS step_cadence jsonb DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS msg_cadence jsonb DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS title_cadence jsonb DEFAULT '{}';
+```
 
-RLS: Allow all (padrao do projeto).
+Formato dos dados:
+- `step_cadence`: `{"cadence_1": "1440 minutes", "cadence_2": "2880 minutes", ...}`
+- `msg_cadence`: `{"cadence_1": "Olá {client_name}...", "cadence_2": "Lembrete...", ...}`
+- `title_cadence`: `{"cadence_1": "Primeiro lembrete", "cadence_2": "Segundo lembrete", ...}`
 
-### Tabela `contract_notification_logs`
-| Coluna | Tipo | Notas |
-|---|---|---|
-| id | uuid PK | gen_random_uuid() |
-| config_id | uuid | ref config |
-| cod_agent | text | |
-| contract_cod_document | text | identificador do contrato |
-| type | text | LEAD_FOLLOWUP ou OFFICE_ALERT |
-| step_number | integer | etapa atual |
-| recipient_phone | text | |
-| message_text | text | mensagem enviada |
-| status | text | pending/sent/failed |
-| sent_at | timestamptz | |
-| error_message | text | |
-| created_at | timestamptz | default now() |
+As colunas antigas (`stages_count`, `delay_interval_minutes`, `message_template`) permanecem para compatibilidade mas nao serao mais usadas no frontend.
 
-RLS: Allow all.
+## 2. Frontend — LeadFollowupTab
 
-## 2. Edge Function: `contract-notifications-cron`
+Reescrever para usar o padrao de etapas do FollowupConfig:
+- Switch ativar/desativar (mantem)
+- Remover inputs globais de "quantidade de etapas" e "intervalo"
+- Remover textarea global de template
+- Adicionar lista de etapas com botao "Adicionar Etapa"
+- Cada etapa usa um card com: titulo, intervalo (valor + unidade: minutos/horas/dias), e textarea de mensagem
+- Reutilizar o componente `CadenceStepEditor` existente (ou criar versao local simplificada sem "auto message")
+- Manter a nota do link ZapSign automatico
+- Salvar como `step_cadence`, `msg_cadence`, `title_cadence` + `stages_count` (derivado do total de etapas)
 
-Logica:
-1. Busca configs ativas do tipo LEAD_FOLLOWUP
-2. Consulta contratos com `status_document = 'Gerado'` (base externa via externalDb pattern — usa Pool postgres igual advbox-notify)
-3. Cruza com logs para determinar ultima etapa enviada e tempo decorrido
-4. Se `(now - ultimo_envio) >= delay_interval_minutes` e `step < stages_count`, renderiza template substituindo variaveis e apenda link do contrato ZapSign
-5. Envia via N8N_HUB_SEND_URL e registra log
+## 3. Frontend — OfficeNotificationTab
 
-Para OFFICE_ALERT:
-1. Busca configs ativas do tipo OFFICE_ALERT
-2. Identifica contratos recentes com evento matching (gerado/assinado)
-3. Busca `resumo_do_caso` do contrato (campo ja existente na base externa)
-4. Envia para cada numero em `target_numbers` com dados do lead injetados
-5. Registra log
+Aplicar o mesmo padrao de etapas:
+- Manter: switch on/off, radio trigger event, input de numeros WhatsApp (chips)
+- Substituir: textarea global de template e input de "repeticoes" por lista de etapas
+- Cada etapa tem: titulo, intervalo, e textarea de mensagem (com variaveis `{client_name}`, `{client_phone}`, `{case_title}`, `{case_summary}`, `{trigger_label}`)
+- Manter a nota de "Dados Automaticos"
+- Salvar como `step_cadence`, `msg_cadence`, `title_cadence` + `stages_count`
 
-Cron via pg_cron: a cada 5 minutos chama a Edge Function.
+## 4. Hook e Edge Function
 
-## 3. Frontend
+- `useContractNotificationConfig.ts`: Atualizar interface `ContractNotificationConfig` com os 3 novos campos JSONB
+- `contract-notifications-cron/index.ts`: Atualizar logica para ler `step_cadence` e `msg_cadence` por etapa em vez de usar `message_template` e `delay_interval_minutes` globais. Para cada contrato, buscar a etapa atual (step_number do log) e usar o intervalo e mensagem correspondentes de `step_cadence[cadence_N]` e `msg_cadence[cadence_N]`
 
-### Arquivos novos
+## 5. Componente compartilhado
 
-| Arquivo | Descricao |
+Criar `ContractCadenceStepEditor.tsx` em `src/pages/contract-notifications/components/` — versao simplificada do `CadenceStepEditor` sem toggle de "auto message" (sempre mensagem manual). Reutiliza types `CadenceStep`, `INTERVAL_UNITS`, `parseInterval`, `formatInterval` de `src/pages/agente/types.ts`.
+
+## Arquivos
+
+| Arquivo | Acao |
 |---|---|
-| `src/pages/contract-notifications/ContractNotificationsPage.tsx` | Pagina principal com seletor de agente + Tabs |
-| `src/pages/contract-notifications/components/LeadFollowupTab.tsx` | Form: on/off, qtd etapas, intervalo, template da mensagem, nota sobre link automatico |
-| `src/pages/contract-notifications/components/OfficeNotificationTab.tsx` | Form: on/off, trigger (gerado/assinado/ambos), numeros WhatsApp (chips), repeticoes, template, nota sobre dados do lead automaticos |
-| `src/hooks/useEnsureContractNotificationsModule.ts` | Registra modulo no menu (code: `contract_notifications`, grupo: SISTEMA, icon: Bell, rota: `/notificacoes-contrato`) |
-| `src/hooks/useContractNotificationConfig.ts` | Hook CRUD com react-query para configs Supabase |
-
-### Arquivos modificados
-
-| Arquivo | Alteracao |
-|---|---|
-| `src/types/permissions.ts` | Adicionar `'contract_notifications'` ao ModuleCode |
-| `src/App.tsx` | Rota `/notificacoes-contrato` |
-| `src/components/layout/Sidebar.tsx` | Chamar useEnsureContractNotificationsModule() |
-
-### UI da Aba Followup
-- Switch ativar/desativar
-- Input numerico: quantidade de etapas (1-10)
-- Input numerico: intervalo em minutos entre envios
-- Textarea: template da mensagem com variaveis `{client_name}`, `{case_title}`
-- Nota fixa: "O link do contrato sera inserido automaticamente no final de cada mensagem."
-
-### UI da Aba Escritorio
-- Switch ativar/desativar
-- Radio/Checkbox: "Ao Gerar Contrato" / "Ao Assinar Contrato" / Ambos
-- Input de chips para numeros WhatsApp do escritorio
-- Input numerico: quantidade de alertas repetitivos (se contrato gerado e nao assinado)
-- Textarea: template do alerta
-- Nota fixa: "Nome do Lead, telefone e Resumo do Caso serao injetados automaticamente."
-
-## 4. Ordem de execucao
-
-1. Criar tabelas via migration
-2. Criar Edge Function `contract-notifications-cron`
-3. Configurar pg_cron para chamar a funcao a cada 5 min
-4. Criar pagina frontend e hooks
-5. Registrar modulo e rota
-6. Deploy da Edge Function
+| Migration SQL | Adicionar `step_cadence`, `msg_cadence`, `title_cadence` |
+| `src/hooks/useContractNotificationConfig.ts` | Adicionar campos JSONB a interface |
+| `src/pages/contract-notifications/components/ContractCadenceStepEditor.tsx` | Novo — editor de etapa |
+| `src/pages/contract-notifications/components/LeadFollowupTab.tsx` | Reescrever com etapas individuais |
+| `src/pages/contract-notifications/components/OfficeNotificationTab.tsx` | Reescrever com etapas individuais |
+| `supabase/functions/contract-notifications-cron/index.ts` | Atualizar logica para cadencia por etapa |
 
