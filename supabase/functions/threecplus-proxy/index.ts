@@ -388,7 +388,7 @@ serve(async (req) => {
       // POST /webhooks
       // ------------------------------------------------------------------
       case 'setup_webhook': {
-        const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/3cplus-webhook`;
+        const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/threecplus-webhook`;
         result = await threecRequest(baseUrl, token, '/webhooks', {
           method: 'POST',
           body: {

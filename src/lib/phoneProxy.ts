@@ -6,5 +6,5 @@ import type { ProviderType } from '@/pages/admin/telefonia/types';
  * so call sites only need to switch the function name, not the payload.
  */
 export function getPhoneProxy(provider: ProviderType | string | null | undefined): string {
-  return provider === '3cplus' ? '3cplus-proxy' : 'api4com-proxy';
+  return provider === '3cplus' ? 'threecplus-proxy' : 'api4com-proxy';
 }
