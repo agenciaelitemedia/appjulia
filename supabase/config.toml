@@ -27,10 +27,10 @@ verify_jwt = false
 [functions.api4com-webhook]
 verify_jwt = false
 
-[functions.3cplus-proxy]
+[functions.threecplus-proxy]
 verify_jwt = false
 
-[functions.3cplus-webhook]
+[functions.threecplus-webhook]
 verify_jwt = false
 
 [functions.meta-webhook]

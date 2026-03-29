@@ -17,7 +17,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
 function getWebhookUrl(provider: ProviderType) {
   return provider === '3cplus'
-    ? `${SUPABASE_URL}/functions/v1/3cplus-webhook`
+    ? `${SUPABASE_URL}/functions/v1/threecplus-webhook`
     : `${SUPABASE_URL}/functions/v1/api4com-webhook`;
 }
 
