@@ -1,4 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
+import { getPhoneProxy } from '@/lib/phoneProxy';
+import type { ProviderType } from '@/pages/admin/telefonia/types';
 
 interface QueueItem {
   callId: string;
@@ -16,11 +18,13 @@ class SyncQueueManager {
   private processing = false;
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private codAgent: string | null = null;
+  private provider: ProviderType = 'api4com';
 
-  init(codAgent: string) {
-    if (this.codAgent === codAgent && this.intervalId) return;
+  init(codAgent: string, provider: ProviderType = 'api4com') {
+    if (this.codAgent === codAgent && this.provider === provider && this.intervalId) return;
     this.destroy();
     this.codAgent = codAgent;
+    this.provider = provider;
     this.intervalId = setInterval(() => this.processNext(), POLL_INTERVAL);
   }
 
@@ -32,6 +36,7 @@ class SyncQueueManager {
     this.queue = [];
     this.processing = false;
     this.codAgent = null;
+    this.provider = 'api4com';
   }
 
   enqueue(callId: string) {
@@ -50,7 +55,7 @@ class SyncQueueManager {
     const item = this.queue.splice(readyIndex, 1)[0];
 
     try {
-      const { data, error } = await supabase.functions.invoke('api4com-proxy', {
+      const { data, error } = await supabase.functions.invoke(getPhoneProxy(this.provider), {
         body: { action: 'sync_call_history', codAgent: this.codAgent, callId: item.callId },
       });
 

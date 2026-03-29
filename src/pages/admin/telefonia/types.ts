@@ -1,3 +1,10 @@
+export type ProviderType = 'api4com' | '3cplus';
+
+export const PROVIDER_LABELS: Record<ProviderType, string> = {
+  api4com: 'Api4Com',
+  '3cplus': '3C+',
+};
+
 export interface PhonePlan {
   id: number;
   name: string;
@@ -65,9 +72,15 @@ export interface PhoneUserPlan {
 export interface PhoneConfig {
   id: number;
   cod_agent: string;
+  provider: ProviderType;
+  // Api4Com fields
   api4com_domain: string;
   api4com_token: string;
   sip_domain: string | null;
+  // 3C+ fields
+  threecplus_token: string | null;
+  threecplus_base_url: string | null;
+  threecplus_ws_url: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -98,6 +111,8 @@ export interface PhoneExtension {
   extension_number: string;
   assigned_member_id: number | null;
   label: string | null;
+  provider: ProviderType;
+  // Api4Com fields
   api4com_id: string | null;
   api4com_ramal: string | null;
   api4com_password: string | null;
@@ -105,6 +120,13 @@ export interface PhoneExtension {
   api4com_first_name: string | null;
   api4com_last_name: string | null;
   api4com_raw: any;
+  // 3C+ fields
+  threecplus_agent_id: string | null;
+  threecplus_extension: string | null;
+  threecplus_sip_username: string | null;
+  threecplus_sip_password: string | null;
+  threecplus_sip_domain: string | null;
+  threecplus_raw: any;
   is_active: boolean;
   created_at: string;
   updated_at: string;

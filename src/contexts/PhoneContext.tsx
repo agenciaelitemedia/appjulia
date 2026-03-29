@@ -3,16 +3,23 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useSipPhone, type SipStatus, type CallEndedInfo } from '@/pages/telefonia/hooks/useSipPhone';
 import { syncQueueManager } from '@/lib/syncQueueManager';
+import { getPhoneProxy } from '@/lib/phoneProxy';
 import { formatPhoneForDialing } from '@/lib/phoneFormat';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import type { ProviderType } from '@/pages/admin/telefonia/types';
 
 interface PhoneExtensionInfo {
   id: number;
   extension_number: string;
   label: string | null;
+  provider: ProviderType;
+  // api4com
   api4com_ramal: string | null;
   api4com_id: string | null;
+  // 3cplus
+  threecplus_agent_id: string | null;
+  threecplus_extension: string | null;
   cod_agent: string;
   assigned_member_id: number | null;
 }
@@ -21,6 +28,7 @@ interface PhoneContextType {
   sip: ReturnType<typeof useSipPhone>;
   myExtension: PhoneExtensionInfo | null;
   codAgent: string | null;
+  provider: ProviderType;
   isAvailable: boolean;
   showSoftphone: boolean;
   setShowSoftphone: (show: boolean) => void;
@@ -38,6 +46,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [myExtension, setMyExtension] = useState<PhoneExtensionInfo | null>(null);
   const [codAgent, setCodAgent] = useState<string | null>(null);
+  const [provider, setProvider] = useState<ProviderType>('api4com');
   const [showSoftphone, setShowSoftphone] = useState(false);
   const [softphoneCentered, setSoftphoneCentered] = useState(false);
   const [isDialing, setIsDialing] = useState(false);
@@ -58,12 +67,12 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     // SIP calls don't have call_id — sync by since
     if (!codAgent) return;
     const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    supabase.functions.invoke('api4com-proxy', {
+    supabase.functions.invoke(getPhoneProxy(provider), {
       body: { action: 'sync_call_history', codAgent, since },
     }).then(() => {
       queryClient.invalidateQueries({ queryKey: ['my-call-history'] });
     }).catch(console.error);
-  }, [codAgent, queryClient]);
+  }, [codAgent, provider, queryClient]);
 
   const sip = useSipPhone(handleCallEnded);
 
@@ -92,9 +101,21 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
           setCodAgent(null);
           return;
         }
+
+        // Fetch provider from phone_config for this agent
+        const { data: configData } = await supabase
+          .from('phone_config')
+          .select('provider')
+          .eq('cod_agent', ext.cod_agent)
+          .eq('is_active', true)
+          .limit(1)
+          .maybeSingle();
+        const resolvedProvider: ProviderType = (configData?.provider as ProviderType) || 'api4com';
+
         setMyExtension(ext);
         setCodAgent(ext.cod_agent);
-        syncQueueManager.init(ext.cod_agent);
+        setProvider(resolvedProvider);
+        syncQueueManager.init(ext.cod_agent, resolvedProvider);
       }
     };
     fetchExtension();
@@ -102,11 +123,17 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
 
   // Auto-connect SIP when extension is found (with retry)
   const connectSip = useCallback(async () => {
-    if (!myExtension || !codAgent || !myExtension.api4com_ramal) {
-      return;
-    }
+    if (!myExtension || !codAgent) return;
+
+    // Provider-aware readiness check
+    const isLinked = provider === '3cplus'
+      ? !!(myExtension.threecplus_agent_id || myExtension.threecplus_extension)
+      : !!myExtension.api4com_ramal;
+
+    if (!isLinked) return;
+
     try {
-      const { data, error } = await supabase.functions.invoke('api4com-proxy', {
+      const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
         body: { action: 'get_sip_credentials', codAgent, extensionId: myExtension.id },
       });
       if (error || data?.error) return;
@@ -114,14 +141,18 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error('SIP connect failed:', err);
     }
-  }, [myExtension, codAgent, sip]);
+  }, [myExtension, codAgent, provider, sip]);
 
   useEffect(() => {
     if (autoConnected.current || !myExtension || !codAgent) return;
-    if (!myExtension.api4com_ramal) return;
+    // Provider-aware: check that extension is linked before auto-connecting
+    const isLinked = provider === '3cplus'
+      ? !!(myExtension.threecplus_agent_id || myExtension.threecplus_extension)
+      : !!myExtension.api4com_ramal;
+    if (!isLinked) return;
     autoConnected.current = true;
     connectSip();
-  }, [myExtension, codAgent, connectSip]);
+  }, [myExtension, codAgent, provider, connectSip]);
 
   // Auto-retry SIP registration with exponential backoff
   useEffect(() => {
@@ -155,8 +186,13 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       toast.error('Nenhum ramal disponível');
       return;
     }
-    if (!myExtension.api4com_ramal) {
-      toast.error('Ramal sem vínculo Api4Com');
+
+    // Provider-aware link check
+    const isLinked = provider === '3cplus'
+      ? !!(myExtension.threecplus_agent_id || myExtension.threecplus_extension)
+      : !!myExtension.api4com_ramal;
+    if (!isLinked) {
+      toast.error(`Ramal sem vínculo ${provider === '3cplus' ? '3C+' : 'Api4Com'}`);
       return;
     }
 
@@ -177,7 +213,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     if (whatsappNumber) metadata.whatsapp_number = whatsappNumber;
 
     try {
-      const { data, error } = await supabase.functions.invoke('api4com-proxy', {
+      const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
         body: { action: 'dial', codAgent, extensionId: myExtension.id, phone: formatted, metadata },
       });
       if (error) throw new Error(error.message || 'Erro ao discar');
@@ -198,14 +234,19 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsDialing(false);
     }
-  }, [myExtension, codAgent, sip.status, connectSip]);
+  }, [myExtension, codAgent, provider, sip.status, connectSip]);
 
-  const isAvailable = !!myExtension && !!myExtension.api4com_ramal;
+  const isAvailable = !!myExtension && (
+    provider === '3cplus'
+      ? !!(myExtension.threecplus_agent_id || myExtension.threecplus_extension)
+      : !!myExtension.api4com_ramal
+  );
 
   const value = useMemo(() => ({
     sip,
     myExtension,
     codAgent,
+    provider,
     isAvailable,
     showSoftphone,
     setShowSoftphone,
@@ -214,7 +255,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     dialNumber,
     isDialing,
     dialContactName,
-  }), [sip, myExtension, codAgent, isAvailable, showSoftphone, softphoneCentered, dialNumber, isDialing, dialContactName]);
+  }), [sip, myExtension, codAgent, provider, isAvailable, showSoftphone, softphoneCentered, dialNumber, isDialing, dialContactName]);
 
   return (
     <PhoneContext.Provider value={value}>

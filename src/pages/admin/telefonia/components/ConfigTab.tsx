@@ -3,12 +3,23 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Copy, Eye, EyeOff, Plus, Save, Trash2, Pencil, Webhook, X } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useTelefoniaAdmin } from '../hooks/useTelefoniaAdmin';
 import { toast } from 'sonner';
-import type { PhoneConfig } from '../types';
+import type { PhoneConfig, ProviderType } from '../types';
+import { PROVIDER_LABELS } from '../types';
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+
+function getWebhookUrl(provider: ProviderType) {
+  return provider === '3cplus'
+    ? `${SUPABASE_URL}/functions/v1/3cplus-webhook`
+    : `${SUPABASE_URL}/functions/v1/api4com-webhook`;
+}
 
 export function ConfigTab() {
   const { configs, configsLoading, saveConfig, deleteConfig } = useTelefoniaAdmin();
@@ -18,26 +29,35 @@ export function ConfigTab() {
 
   // Form state
   const [codAgent, setCodAgent] = useState('');
+  const [provider, setProvider] = useState<ProviderType>('api4com');
+  // api4com fields
   const [domain, setDomain] = useState('');
   const [sipDomain, setSipDomain] = useState('');
   const [token, setToken] = useState('');
-  const [showToken, setShowToken] = useState(false);
+  // 3cplus fields
+  const [threecToken, setThreecToken] = useState('');
+  const [threecBaseUrl, setThreecBaseUrl] = useState('https://app.3c.fluxoti.com/api/v1');
+  const [threecWsUrl, setThreecWsUrl] = useState('wss://events.3c.fluxoti.com/ws/me');
 
-  // Token visibility per row
+  const [showToken, setShowToken] = useState(false);
   const [visibleTokens, setVisibleTokens] = useState<Set<number>>(new Set());
 
-  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/api4com-webhook`;
+  const webhookUrl = getWebhookUrl(provider);
 
-  const handleCopyUrl = () => {
-    navigator.clipboard.writeText(webhookUrl);
+  const handleCopyUrl = (url?: string) => {
+    navigator.clipboard.writeText(url || webhookUrl);
     toast.success('URL copiada');
   };
 
   const resetForm = () => {
     setCodAgent('');
+    setProvider('api4com');
     setDomain('');
     setSipDomain('');
     setToken('');
+    setThreecToken('');
+    setThreecBaseUrl('https://app.3c.fluxoti.com/api/v1');
+    setThreecWsUrl('wss://events.3c.fluxoti.com/ws/me');
     setShowToken(false);
     setEditing(null);
     setIsAdding(false);
@@ -50,26 +70,44 @@ export function ConfigTab() {
 
   const openEdit = (cfg: PhoneConfig) => {
     setCodAgent(cfg.cod_agent);
-    setDomain(cfg.api4com_domain);
+    setProvider(cfg.provider || 'api4com');
+    setDomain(cfg.api4com_domain || '');
     setSipDomain(cfg.sip_domain || '');
-    setToken(cfg.api4com_token);
+    setToken(cfg.api4com_token || '');
+    setThreecToken(cfg.threecplus_token || '');
+    setThreecBaseUrl(cfg.threecplus_base_url || 'https://app.3c.fluxoti.com/api/v1');
+    setThreecWsUrl(cfg.threecplus_ws_url || 'wss://events.3c.fluxoti.com/ws/me');
     setShowToken(false);
     setEditing(cfg);
     setIsAdding(true);
   };
 
+  const isFormValid = () => {
+    if (!codAgent) return false;
+    if (provider === '3cplus') return !!threecToken;
+    return !!(domain && token);
+  };
+
   const handleSave = () => {
-    if (!codAgent || !domain || !token) return;
-    saveConfig.mutate(
-      {
-        ...(editing ? { id: editing.id } : {}),
-        cod_agent: codAgent,
-        api4com_domain: domain,
-        api4com_token: token,
-        sip_domain: sipDomain || undefined,
-      } as any,
-      { onSuccess: resetForm }
-    );
+    if (!isFormValid()) return;
+    const payload: any = {
+      ...(editing ? { id: editing.id } : {}),
+      cod_agent: codAgent,
+      provider,
+    };
+    if (provider === '3cplus') {
+      payload.threecplus_token = threecToken;
+      payload.threecplus_base_url = threecBaseUrl || 'https://app.3c.fluxoti.com/api/v1';
+      payload.threecplus_ws_url = threecWsUrl || 'wss://events.3c.fluxoti.com/ws/me';
+      // Preserve empty api4com fields to avoid DB NOT NULL issues
+      payload.api4com_domain = domain || '';
+      payload.api4com_token = token || '';
+    } else {
+      payload.api4com_domain = domain;
+      payload.api4com_token = token;
+      payload.sip_domain = sipDomain || null;
+    }
+    saveConfig.mutate(payload, { onSuccess: resetForm });
   };
 
   const toggleRowToken = (id: number) => {
@@ -81,7 +119,18 @@ export function ConfigTab() {
     });
   };
 
-  const maskToken = (t: string) => t.length > 8 ? t.slice(0, 4) + '••••••••' + t.slice(-4) : '••••••••';
+  const maskToken = (t: string | null | undefined) => {
+    if (!t) return '—';
+    return t.length > 8 ? t.slice(0, 4) + '••••••••' + t.slice(-4) : '••••••••';
+  };
+
+  const getDisplayToken = (cfg: PhoneConfig) =>
+    cfg.provider === '3cplus' ? cfg.threecplus_token : cfg.api4com_token;
+
+  const getDisplayDomain = (cfg: PhoneConfig) =>
+    cfg.provider === '3cplus'
+      ? (cfg.threecplus_base_url || 'app.3c.fluxoti.com/api/v1')
+      : (cfg.api4com_domain || '—');
 
   if (configsLoading) {
     return <p className="text-sm text-muted-foreground">Carregando...</p>;
@@ -97,18 +146,27 @@ export function ConfigTab() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Configure a URL abaixo no painel do seu provedor de telefonia.
+          </p>
           <div>
-            <Label className="text-xs text-muted-foreground">URL do Webhook (configure manualmente no painel do provedor)</Label>
+            <Label className="text-xs text-muted-foreground">Api4Com</Label>
             <div className="flex gap-2 mt-1">
-              <Input value={webhookUrl} readOnly className="font-mono text-xs" />
-              <Button variant="outline" size="icon" onClick={handleCopyUrl} title="Copiar URL">
+              <Input value={getWebhookUrl('api4com')} readOnly className="font-mono text-xs" />
+              <Button variant="outline" size="icon" onClick={() => handleCopyUrl(getWebhookUrl('api4com'))} title="Copiar URL">
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Eventos capturados: <strong>channel-create</strong>, <strong>channel-answer</strong>, <strong>channel-hangup</strong>
-          </p>
+          <div>
+            <Label className="text-xs text-muted-foreground">3C+</Label>
+            <div className="flex gap-2 mt-1">
+              <Input value={getWebhookUrl('3cplus')} readOnly className="font-mono text-xs" />
+              <Button variant="outline" size="icon" onClick={() => handleCopyUrl(getWebhookUrl('3cplus'))} title="Copiar URL">
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -131,36 +189,85 @@ export function ConfigTab() {
                   <p className="text-sm font-medium">{editing ? 'Editar Configuração' : 'Nova Configuração'}</p>
                   <Button variant="ghost" size="icon" onClick={resetForm}><X className="h-4 w-4" /></Button>
                 </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label>Cód. Agente</Label>
                     <Input value={codAgent} onChange={(e) => setCodAgent(e.target.value)} placeholder="202601001" disabled={!!editing} />
                   </div>
                   <div>
-                    <Label>Domínio API (REST)</Label>
-                    <Input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="api.provedor.com" />
-                  </div>
-                  <div>
-                    <Label>Domínio SIP (WebRTC)</Label>
-                    <Input value={sipDomain} onChange={(e) => setSipDomain(e.target.value)} placeholder="seudominio.provedor.com" />
-                  </div>
-                  <div>
-                    <Label>Token</Label>
-                    <div className="flex gap-1">
-                      <Input
-                        value={token}
-                        onChange={(e) => setToken(e.target.value)}
-                        type={showToken ? 'text' : 'password'}
-                        placeholder="Token de acesso"
-                        className="flex-1"
-                      />
-                      <Button variant="outline" size="icon" onClick={() => setShowToken(!showToken)} type="button">
-                        {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    </div>
+                    <Label>Provedor</Label>
+                    <Select value={provider} onValueChange={(v) => setProvider(v as ProviderType)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="api4com">Api4Com</SelectItem>
+                        <SelectItem value="3cplus">3C+</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-                <Button onClick={handleSave} disabled={saveConfig.isPending || !codAgent || !domain || !token}>
+
+                {/* Api4Com fields */}
+                {provider === 'api4com' && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Domínio API (REST)</Label>
+                      <Input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="api.provedor.com" />
+                    </div>
+                    <div>
+                      <Label>Domínio SIP (WebRTC)</Label>
+                      <Input value={sipDomain} onChange={(e) => setSipDomain(e.target.value)} placeholder="seudominio.provedor.com" />
+                    </div>
+                    <div className="col-span-2">
+                      <Label>Token</Label>
+                      <div className="flex gap-1">
+                        <Input
+                          value={token}
+                          onChange={(e) => setToken(e.target.value)}
+                          type={showToken ? 'text' : 'password'}
+                          placeholder="Token de acesso Api4Com"
+                          className="flex-1"
+                        />
+                        <Button variant="outline" size="icon" onClick={() => setShowToken(!showToken)} type="button">
+                          {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3C+ fields */}
+                {provider === '3cplus' && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                      <Label>Token API 3C+</Label>
+                      <div className="flex gap-1">
+                        <Input
+                          value={threecToken}
+                          onChange={(e) => setThreecToken(e.target.value)}
+                          type={showToken ? 'text' : 'password'}
+                          placeholder="Token de acesso 3C+"
+                          className="flex-1"
+                        />
+                        <Button variant="outline" size="icon" onClick={() => setShowToken(!showToken)} type="button">
+                          {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
+                      <Label>URL Base API</Label>
+                      <Input value={threecBaseUrl} onChange={(e) => setThreecBaseUrl(e.target.value)} placeholder="https://app.3c.fluxoti.com/api/v1" />
+                    </div>
+                    <div>
+                      <Label>URL WebSocket</Label>
+                      <Input value={threecWsUrl} onChange={(e) => setThreecWsUrl(e.target.value)} placeholder="wss://events.3c.fluxoti.com/ws/me" />
+                    </div>
+                  </div>
+                )}
+
+                <Button onClick={handleSave} disabled={saveConfig.isPending || !isFormValid()}>
                   <Save className="h-4 w-4 mr-1" /> {editing ? 'Atualizar' : 'Salvar'}
                 </Button>
               </CardContent>
@@ -175,8 +282,8 @@ export function ConfigTab() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Cód. Agente</TableHead>
-                  <TableHead>Domínio API</TableHead>
-                  <TableHead>Domínio SIP</TableHead>
+                  <TableHead>Provedor</TableHead>
+                  <TableHead>Domínio / URL</TableHead>
                   <TableHead>Token</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -185,12 +292,16 @@ export function ConfigTab() {
                 {configs.map((cfg) => (
                   <TableRow key={cfg.id}>
                     <TableCell className="font-mono text-xs">{cfg.cod_agent}</TableCell>
-                    <TableCell className="text-xs">{cfg.api4com_domain}</TableCell>
-                    <TableCell className="text-xs">{cfg.sip_domain || '—'}</TableCell>
+                    <TableCell>
+                      <Badge variant={cfg.provider === '3cplus' ? 'default' : 'secondary'} className="text-xs">
+                        {PROVIDER_LABELS[cfg.provider] || cfg.provider}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs max-w-[200px] truncate">{getDisplayDomain(cfg)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <span className="font-mono text-xs">
-                          {visibleTokens.has(cfg.id) ? cfg.api4com_token : maskToken(cfg.api4com_token)}
+                          {visibleTokens.has(cfg.id) ? (getDisplayToken(cfg) || '—') : maskToken(getDisplayToken(cfg))}
                         </span>
                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => toggleRowToken(cfg.id)}>
                           {visibleTokens.has(cfg.id) ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}

@@ -1,9 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import type { PhoneExtension, PhoneCallLog } from '../types';
+import { getPhoneProxy } from '@/lib/phoneProxy';
+import type { PhoneExtension, PhoneCallLog, ProviderType } from '../types';
 
-export function useTelefoniaData(codAgent: string | undefined) {
+export function useTelefoniaData(codAgent: string | undefined, provider: ProviderType = 'api4com') {
   const queryClient = useQueryClient();
 
   // Get agent's plan
@@ -52,7 +53,7 @@ export function useTelefoniaData(codAgent: string | undefined) {
   // Create extension via Api4Com API (backend handles DB insert + rollback)
   const createExtension = useMutation({
     mutationFn: async (ext: Partial<PhoneExtension> & { email?: string; memberName?: string }) => {
-      const { data: apiResult, error: apiError } = await supabase.functions.invoke('api4com-proxy', {
+      const { data: apiResult, error: apiError } = await supabase.functions.invoke(getPhoneProxy(provider), {
         body: {
           action: 'create_extension',
           codAgent,
@@ -95,15 +96,17 @@ export function useTelefoniaData(codAgent: string | undefined) {
   const deleteExtension = useMutation({
     mutationFn: async (id: number) => {
       const ext = extensionsQuery.data?.find((e) => e.id === id);
-      if (!ext?.api4com_id) {
+      // Get provider-specific external ID
+      const externalId = provider === '3cplus' ? ext?.threecplus_agent_id : ext?.api4com_id;
+      if (!externalId) {
         // Sem vínculo com provedor, deletar só do banco
         const { error } = await supabase.from('phone_extensions').delete().eq('id', id);
         if (error) throw error;
         return;
       }
-      // Backend faz tudo: Api4Com (extensão + usuário) + banco
-      const { data, error } = await supabase.functions.invoke('api4com-proxy', {
-        body: { action: 'delete_extension', codAgent, extensionId: ext.api4com_id },
+      // Backend faz tudo: provedor + banco
+      const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
+        body: { action: 'delete_extension', codAgent, extensionId: externalId },
       });
       if (error) throw new Error(error.message || 'Erro ao deletar ramal');
       if (data?.error) throw new Error(data.error);
@@ -118,7 +121,7 @@ export function useTelefoniaData(codAgent: string | undefined) {
   // Sync extensions from Api4Com
   const syncExtensions = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('api4com-proxy', {
+      const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
         body: { action: 'sync_extensions', codAgent },
       });
       if (error) throw new Error(error.message || 'Erro ao sincronizar');
@@ -137,7 +140,7 @@ export function useTelefoniaData(codAgent: string | undefined) {
   // Dial via REST (using extensionId for proper resolution)
   const dial = useMutation({
     mutationFn: async ({ extensionId, phone }: { extensionId: number; phone: string }) => {
-      const { data, error } = await supabase.functions.invoke('api4com-proxy', {
+      const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
         body: { action: 'dial', codAgent, extensionId, phone },
       });
       if (error) throw new Error(error.message || 'Erro ao discar');
@@ -150,7 +153,7 @@ export function useTelefoniaData(codAgent: string | undefined) {
 
   // Get SIP credentials for an extension
   const getSipCredentials = async (extensionId: number) => {
-    const { data, error } = await supabase.functions.invoke('api4com-proxy', {
+    const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
       body: { action: 'get_sip_credentials', codAgent, extensionId },
     });
     if (error) throw new Error(error.message || 'Erro ao buscar credenciais SIP');
@@ -161,7 +164,7 @@ export function useTelefoniaData(codAgent: string | undefined) {
   // Sync call history from Api4Com CDR (incremental)
   const syncCallHistory = useMutation({
     mutationFn: async (params?: { callId?: string; since?: string }) => {
-      const { data, error } = await supabase.functions.invoke('api4com-proxy', {
+      const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
         body: {
           action: 'sync_call_history',
           codAgent,

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +9,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Plus, Pencil, Trash2, Phone, RefreshCw, CheckCircle, AlertCircle, Ban, CalendarDays } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { RamalDialog } from './RamalDialog';
-import type { PhoneExtension } from '../types';
+import type { PhoneExtension, ProviderType } from '../types';
+import { PROVIDER_LABELS } from '../types';
+import { supabase } from '@/integrations/supabase/client';
 import { format, isPast, parseISO } from 'date-fns';
 
 const PERIOD_LABELS: Record<string, string> = {
@@ -23,7 +26,24 @@ interface Props {
 }
 
 export function MeusRamaisTab({ codAgent }: Props) {
-  const { extensions, extensionsLoading, maxExtensions, usedExtensions, canCreateExtension, plan, createExtension, updateExtension, deleteExtension, syncExtensions } = useTelefoniaData(codAgent);
+  // Fetch provider from phone_config so we can route mutations correctly
+  const { data: configData } = useQuery({
+    queryKey: ['phone-config-provider', codAgent],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('phone_config')
+        .select('provider')
+        .eq('cod_agent', codAgent)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!codAgent,
+  });
+  const provider: ProviderType = (configData?.provider as ProviderType) || 'api4com';
+
+  const { extensions, extensionsLoading, maxExtensions, usedExtensions, canCreateExtension, plan, createExtension, updateExtension, deleteExtension, syncExtensions } = useTelefoniaData(codAgent, provider);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<PhoneExtension | null>(null);
 
@@ -129,12 +149,23 @@ export function MeusRamaisTab({ codAgent }: Props) {
               </TableHeader>
               <TableBody>
                 {extensions.map((ext) => {
-                  const isLinked = !!ext.api4com_ramal;
+                  const extProvider: ProviderType = (ext.provider as ProviderType) || provider;
+                  const isLinked = extProvider === '3cplus'
+                    ? !!(ext.threecplus_agent_id || ext.threecplus_extension)
+                    : !!ext.api4com_ramal;
+                  const providerNumber = extProvider === '3cplus'
+                    ? (ext.threecplus_extension || ext.threecplus_agent_id)
+                    : ext.api4com_ramal;
                   return (
                     <TableRow key={ext.id}>
                       <TableCell className="font-mono font-medium">{ext.extension_number}</TableCell>
                       <TableCell className="font-mono text-xs">
-                        {ext.api4com_ramal || <span className="text-muted-foreground">—</span>}
+                        <div className="flex items-center gap-1">
+                          {providerNumber || <span className="text-muted-foreground">—</span>}
+                          <Badge variant="outline" className="text-[10px] px-1 py-0 hidden sm:inline-flex">
+                            {PROVIDER_LABELS[extProvider] || extProvider}
+                          </Badge>
+                        </div>
                       </TableCell>
                       <TableCell>{ext.label || '-'}</TableCell>
                       <TableCell>{ext.assigned_member_id || '-'}</TableCell>
