@@ -1649,16 +1649,33 @@ serve(async (req) => {
 
       case 'update_module': {
         const { moduleId, moduleData } = data;
-        const { code, name, description, category, icon, route, menu_group, is_menu_visible, display_order, is_active } = moduleData;
+        
+        // Build dynamic SET clause only for provided fields
+        const fieldMap: Record<string, unknown> = {};
+        if (moduleData.code !== undefined) fieldMap.code = moduleData.code;
+        if (moduleData.name !== undefined) fieldMap.name = moduleData.name;
+        if (moduleData.description !== undefined) fieldMap.description = moduleData.description || null;
+        if (moduleData.category !== undefined) fieldMap.category = moduleData.category;
+        if (moduleData.icon !== undefined) fieldMap.icon = moduleData.icon || null;
+        if (moduleData.route !== undefined) fieldMap.route = moduleData.route || null;
+        if (moduleData.menu_group !== undefined) fieldMap.menu_group = moduleData.menu_group || null;
+        if (moduleData.is_menu_visible !== undefined) fieldMap.is_menu_visible = moduleData.is_menu_visible;
+        if (moduleData.display_order !== undefined) fieldMap.display_order = moduleData.display_order || 0;
+        if (moduleData.is_active !== undefined) fieldMap.is_active = moduleData.is_active;
+        
+        const keys = Object.keys(fieldMap);
+        if (keys.length === 0) {
+          result = await sql.unsafe(`SELECT * FROM modules WHERE id = $1`, [moduleId]);
+          break;
+        }
+        
+        const setClauses = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
+        const values = keys.map(k => fieldMap[k]);
+        values.push(moduleId);
         
         result = await sql.unsafe(
-          `UPDATE modules 
-           SET code = $1, name = $2, description = $3, category = $4, icon = $5, 
-               route = $6, menu_group = $7, is_menu_visible = $8, display_order = $9, 
-               is_active = $10, updated_at = now()
-           WHERE id = $11
-           RETURNING *`,
-          [code, name, description || null, category, icon || null, route || null, menu_group || null, is_menu_visible ?? true, display_order || 0, is_active ?? true, moduleId]
+          `UPDATE modules SET ${setClauses}, updated_at = now() WHERE id = $${values.length} RETURNING *`,
+          values
         );
         break;
       }
