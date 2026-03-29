@@ -8,7 +8,7 @@ import { OfficeNotificationTab } from './components/OfficeNotificationTab';
 
 export default function ContractNotificationsPage() {
   const { user } = useAuth();
-  const codAgent = user?.cod_agent || null;
+  const codAgent = user?.cod_agent ? String(user.cod_agent) : null;
   const { data: configs } = useContractNotificationConfigs(codAgent);
 
   const followupConfig = configs?.find((c) => c.type === 'LEAD_FOLLOWUP');
