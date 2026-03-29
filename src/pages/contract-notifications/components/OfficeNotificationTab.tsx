@@ -2,16 +2,39 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Save, Info, X } from 'lucide-react';
 import { ContractNotificationConfig, useUpsertContractNotificationConfig } from '@/hooks/useContractNotificationConfig';
+import { ContractCadenceStepEditor } from './ContractCadenceStepEditor';
+import { CadenceStep } from '@/pages/agente/types';
 
 interface Props {
   codAgent: string;
   config?: ContractNotificationConfig;
+}
+
+const DEFAULT_STEPS: CadenceStep[] = [
+  { key: 'cadence_1', interval: '5 minutes', title: 'Alerta imediato', message: '📋 *Novo contrato {trigger_label}*\n\n👤 Lead: {client_name}\n📱 Telefone: {client_phone}\n📌 Caso: {case_title}\n\n📝 Resumo:\n{case_summary}' },
+];
+
+function stepsFromConfig(config: ContractNotificationConfig): CadenceStep[] {
+  const stepCadence = config.step_cadence || {};
+  const msgCadence = config.msg_cadence || {};
+  const titleCadence = config.title_cadence || {};
+  const keys = Object.keys(stepCadence).sort((a, b) => {
+    const na = parseInt(a.replace('cadence_', ''));
+    const nb = parseInt(b.replace('cadence_', ''));
+    return na - nb;
+  });
+  if (keys.length === 0) return DEFAULT_STEPS;
+  return keys.map((key) => ({
+    key,
+    interval: stepCadence[key] || '5 minutes',
+    title: titleCadence[key] || key,
+    message: msgCadence[key] || null,
+  }));
 }
 
 export function OfficeNotificationTab({ codAgent, config }: Props) {
@@ -19,10 +42,7 @@ export function OfficeNotificationTab({ codAgent, config }: Props) {
   const [triggerEvent, setTriggerEvent] = useState('BOTH');
   const [targetNumbers, setTargetNumbers] = useState<string[]>([]);
   const [newNumber, setNewNumber] = useState('');
-  const [repeatCount, setRepeatCount] = useState(1);
-  const [messageTemplate, setMessageTemplate] = useState(
-    '📋 *Novo contrato {trigger_label}*\n\n👤 Lead: {client_name}\n📱 Telefone: {client_phone}\n📌 Caso: {case_title}\n\n📝 Resumo:\n{case_summary}'
-  );
+  const [steps, setSteps] = useState<CadenceStep[]>(DEFAULT_STEPS);
 
   const upsert = useUpsertContractNotificationConfig();
 
@@ -31,8 +51,7 @@ export function OfficeNotificationTab({ codAgent, config }: Props) {
       setIsActive(config.is_active);
       setTriggerEvent(config.trigger_event || 'BOTH');
       setTargetNumbers(config.target_numbers || []);
-      setRepeatCount(config.office_repeat_count || 1);
-      if (config.message_template) setMessageTemplate(config.message_template);
+      setSteps(stepsFromConfig(config));
     }
   }, [config]);
 
@@ -56,14 +75,26 @@ export function OfficeNotificationTab({ codAgent, config }: Props) {
   };
 
   const handleSave = () => {
+    const step_cadence: Record<string, string> = {};
+    const msg_cadence: Record<string, string | null> = {};
+    const title_cadence: Record<string, string> = {};
+    steps.forEach((s, i) => {
+      const key = `cadence_${i + 1}`;
+      step_cadence[key] = s.interval;
+      msg_cadence[key] = s.message;
+      title_cadence[key] = s.title;
+    });
+
     upsert.mutate({
       cod_agent: codAgent,
       type: 'OFFICE_ALERT',
       is_active: isActive,
       trigger_event: triggerEvent,
       target_numbers: targetNumbers,
-      office_repeat_count: repeatCount,
-      message_template: messageTemplate,
+      stages_count: steps.length,
+      step_cadence,
+      msg_cadence,
+      title_cadence,
     });
   };
 
@@ -130,34 +161,13 @@ export function OfficeNotificationTab({ codAgent, config }: Props) {
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label>Repetições de Alerta (contrato não assinado)</Label>
-            <Input
-              type="number"
-              min={1}
-              max={10}
-              value={repeatCount}
-              onChange={(e) => setRepeatCount(Number(e.target.value))}
+          <div className="space-y-3">
+            <Label>Etapas de Alerta</Label>
+            <ContractCadenceStepEditor
+              steps={steps}
+              onChange={setSteps}
+              variables={['client_name', 'client_phone', 'case_title', 'case_summary', 'trigger_label']}
             />
-            <p className="text-xs text-muted-foreground">
-              Quantidade de vezes que o alerta será reenviado caso o contrato não seja assinado
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Template do Alerta</Label>
-            <Textarea
-              value={messageTemplate}
-              onChange={(e) => setMessageTemplate(e.target.value)}
-              rows={6}
-            />
-            <div className="flex flex-wrap gap-2 mt-1">
-              <span className="text-xs bg-muted px-2 py-1 rounded">{'{client_name}'}</span>
-              <span className="text-xs bg-muted px-2 py-1 rounded">{'{client_phone}'}</span>
-              <span className="text-xs bg-muted px-2 py-1 rounded">{'{case_title}'}</span>
-              <span className="text-xs bg-muted px-2 py-1 rounded">{'{case_summary}'}</span>
-              <span className="text-xs bg-muted px-2 py-1 rounded">{'{trigger_label}'}</span>
-            </div>
           </div>
 
           <div className="bg-muted/50 border rounded-lg p-4 flex items-start gap-3">

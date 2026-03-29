@@ -13,6 +13,9 @@ export interface ContractNotificationConfig {
   target_numbers: string[];
   trigger_event: string;
   office_repeat_count: number;
+  step_cadence: Record<string, string>;
+  msg_cadence: Record<string, string | null>;
+  title_cadence: Record<string, string>;
   created_at: string;
   updated_at: string;
 }
