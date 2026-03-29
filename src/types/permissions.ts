@@ -27,7 +27,8 @@ export type ModuleCode =
   | 'telephony'
   | 'settings'
   | 'prompt_generator'
-  | 'legal_cases';
+  | 'legal_cases'
+  | 'contract_notifications';
 
 export interface Module {
   id: number;
