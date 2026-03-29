@@ -4,17 +4,13 @@ import { unmask } from '@/lib/inputMasks';
 import { toast } from 'sonner';
 import bcrypt from 'bcryptjs';
 import type { AgentFormData } from '../components/CreateAgentWizard';
+import { generateSecurePassword } from '@/lib/crypto';
 
 interface SaveResult {
   success: boolean;
   agentId?: number;
   tempPassword?: string;
   error?: string;
-}
-
-function generateDefaultPassword(): string {
-  const digits = Math.floor(1000 + Math.random() * 9000);
-  return `Julia@${digits}`;
 }
 
 export function useAgentSave() {
@@ -27,12 +23,9 @@ export function useAgentSave() {
     isNewUser: boolean,
     isNewClient: boolean
   ) => {
-    console.log('Starting rollback...', { agentId, userId, clientId, isNewUser, isNewClient });
-    
     try {
       // 1. Delete agent if created
       if (agentId) {
-        console.log('Deleting agent:', agentId);
         await externalDb.deleteAgent(agentId);
       }
 
@@ -40,7 +33,6 @@ export function useAgentSave() {
       if (userId && isNewUser) {
         const hasAgents = await externalDb.checkUserHasAgents(userId);
         if (!hasAgents) {
-          console.log('Deleting user:', userId);
           await externalDb.deleteUser(userId);
         }
       }
@@ -49,12 +41,9 @@ export function useAgentSave() {
       if (clientId && isNewClient) {
         const hasAgents = await externalDb.checkClientHasAgents(clientId);
         if (!hasAgents) {
-          console.log('Deleting client:', clientId);
           await externalDb.deleteClient(clientId);
         }
       }
-
-      console.log('Rollback completed');
     } catch (rollbackError) {
       console.error('Error during rollback:', rollbackError);
     }
@@ -124,10 +113,8 @@ export function useAgentSave() {
           state: data.client_state || null,
         };
         
-        console.log('Creating new client:', clientData);
         const clientResult = await externalDb.insertClient(clientData);
         createdClientId = clientResult.id;
-        console.log('Client created with ID:', createdClientId);
       } else {
         createdClientId = data.client_id;
       }
@@ -139,10 +126,9 @@ export function useAgentSave() {
       // === CREATE USER (if needed) ===
       if (data.new_user) {
         isNewUser = true;
-        tempPassword = generateDefaultPassword();
+        tempPassword = generateSecurePassword();
         const hashedPassword = await bcrypt.hash(tempPassword, 10);
         
-        console.log('Creating new user:', data.user_name, data.user_email);
         const userResult = await externalDb.insertUser(
           data.user_name,
           data.user_email,
@@ -151,7 +137,6 @@ export function useAgentSave() {
           createdClientId
         );
         createdUserId = userResult.id;
-        console.log('User created with ID:', createdUserId);
       } else {
         createdUserId = data.user_id;
       }
@@ -171,15 +156,11 @@ export function useAgentSave() {
         due_date: data.due_day,
       };
 
-      console.log('Creating agent:', agentData);
       const agentResult = await externalDb.insertAgent(agentData);
       createdAgentId = agentResult.id;
-      console.log('Agent created with ID:', createdAgentId);
 
       // === CREATE USER-AGENT LINK ===
-      console.log('Creating user-agent link:', createdUserId, createdAgentId, data.cod_agent);
       await externalDb.insertUserAgent(createdUserId, createdAgentId, data.cod_agent);
-      console.log('User-agent link created');
 
       return { 
         success: true, 

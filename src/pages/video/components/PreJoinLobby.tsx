@@ -36,7 +36,6 @@ let lobbyCallInstance: ReturnType<typeof DailyIframe.createCallObject> | null = 
 
 async function destroyLobbyInstance() {
   if (lobbyCallInstance) {
-    console.log('[PreJoinLobby] Destruindo instância do lobby...');
     try {
       // Turn off camera/mic before destroying
       lobbyCallInstance.setLocalAudio(false);
@@ -88,12 +87,10 @@ function LobbyContent({
       setCameraError(null);
 
       try {
-        console.log('[PreJoinLobby] Starting camera preview...');
         await daily.startCamera({
           startVideoOff: false,
           startAudioOff: false,
         });
-        console.log('[PreJoinLobby] Camera preview started');
         setIsStartingCamera(false);
       } catch (err: any) {
         console.error('[PreJoinLobby] Camera start error:', err);
@@ -340,7 +337,6 @@ export function PreJoinLobby({ roomUrl, onJoin, onCancel, userName }: PreJoinLob
       if (!mounted) return;
 
       try {
-        console.log('[PreJoinLobby] Creating lobby call object...');
         const call = DailyIframe.createCallObject({
           subscribeToTracksAutomatically: false,
         });

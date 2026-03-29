@@ -29,7 +29,6 @@ let globalLeadCallInstance: ReturnType<typeof DailyIframe.createCallObject> | nu
 // Função helper para destruir instância existente
 async function destroyExistingLeadInstance() {
   if (globalLeadCallInstance) {
-    console.log('[LeadVideoCall] Destruindo instância global anterior...');
     try {
       await globalLeadCallInstance.leave();
       globalLeadCallInstance.destroy();
@@ -57,7 +56,6 @@ function VideoCallJoiner({
 
   // Log de transições de estado
   useEffect(() => {
-    console.log('[LeadVideoCall] meetingState ->', meetingState);
   }, [meetingState]);
 
   // Watchdog: se não conectar em X segundos, dispara timeout
@@ -94,9 +92,7 @@ function VideoCallJoiner({
     const doJoin = async () => {
       hasJoined.current = true;
       try {
-        console.log('[LeadVideoCall] Iniciando join para:', roomUrl);
         await daily.join({ url: roomUrl });
-        console.log('[LeadVideoCall] Join completado com sucesso');
       } catch (err: any) {
         console.error('[LeadVideoCall] Erro no join:', err);
         onJoinError(err?.errorMsg || err?.message || 'Erro ao entrar na chamada');
@@ -117,7 +113,6 @@ function LeadCallContent({ onLeave }: { onLeave: () => void }) {
 
   // Detectar saída via evento
   useDailyEvent('left-meeting', useCallback(() => {
-    console.log('[LeadVideoCall] Evento left-meeting recebido');
     onLeave();
   }, [onLeave]));
 
@@ -198,7 +193,6 @@ export function LeadVideoCall({ roomUrl, onLeave, onError }: LeadVideoCallProps)
   }, [onError]);
 
   const handleTimeout = useCallback(async () => {
-    console.log('[LeadVideoCall] Timeout - destruindo instância...');
     await destroyExistingLeadInstance();
     callRef.current = null;
     setCallObject(null);
@@ -206,7 +200,6 @@ export function LeadVideoCall({ roomUrl, onLeave, onError }: LeadVideoCallProps)
   }, [handleError]);
 
   const handleRetry = useCallback(async () => {
-    console.log('[LeadVideoCall] Retry solicitado');
     // Destruir instância global antes de recriar
     await destroyExistingLeadInstance();
     callRef.current = null;
@@ -231,12 +224,10 @@ export function LeadVideoCall({ roomUrl, onLeave, onError }: LeadVideoCallProps)
       if (!mounted) return;
 
       if (callRef.current) {
-        console.log('[LeadVideoCall] Call object já existe no ref, pulando criação');
         return;
       }
 
       try {
-        console.log('[LeadVideoCall] Criando call object...');
         setDebugState('Criando conexão...');
         
         const call = DailyIframe.createCallObject({

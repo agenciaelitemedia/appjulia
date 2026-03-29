@@ -67,7 +67,6 @@ export default function JoinCallPage() {
   }, [roomName]);
 
   const handleOperatorJoined = useCallback(() => {
-    console.log('Operator joined, transitioning to call...');
     setStatus('ready');
   }, []);
 

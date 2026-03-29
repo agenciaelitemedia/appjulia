@@ -21,8 +21,8 @@ interface WabaSetupDialogProps {
 
 type SetupStep = 'idle' | 'signup' | 'exchanging' | 'saving' | 'verifying' | 'done' | 'error';
 
-const META_APP_ID = '848563184591665';
-const META_CONFIG_ID = '1210464914261747';
+const META_APP_ID = import.meta.env.VITE_META_APP_ID ?? '';
+const META_CONFIG_ID = import.meta.env.VITE_META_CONFIG_ID ?? '';
 
 export function WabaSetupDialog({ open, onOpenChange, agent, onSuccess }: WabaSetupDialogProps) {
   const [step, setStep] = useState<SetupStep>('idle');
@@ -91,7 +91,6 @@ export function WabaSetupDialog({ open, onOpenChange, agent, onSuccess }: WabaSe
               phone_number_id: data.data?.phone_number_id || '',
             };
             signupDataRef.current = info;
-            console.log('WA_EMBEDDED_SIGNUP FINISH received:', info);
             resolveSignupData?.(info);
           }
           if (data.event === 'CANCEL' || data.event === 'ERROR') {
@@ -111,7 +110,6 @@ export function WabaSetupDialog({ open, onOpenChange, agent, onSuccess }: WabaSe
           // Wait up to 5s for sessionInfo, then process (non-async wrapper for FB SDK)
           const timeout = new Promise<{ waba_id: string; phone_number_id: string }>((resolve) =>
             setTimeout(() => {
-              console.log('sessionInfo timeout - using ref data:', signupDataRef.current);
               resolve({
                 waba_id: signupDataRef.current.waba_id || '',
                 phone_number_id: signupDataRef.current.phone_number_id || '',

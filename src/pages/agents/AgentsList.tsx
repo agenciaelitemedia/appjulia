@@ -68,6 +68,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { useAgentsList, AgentListItem } from './hooks/useAgentsList';
 import { usePlans } from './hooks/usePlans';
 import { BusinessHoursBadge } from '@/components/BusinessHoursBadge';
+import { STORAGE_KEYS } from '@/lib/constants';
 
 type SortKey = 'status' | 'cod_agent' | 'business_name' | 'plan_name' | 'leads_received' | 'last_used' | 'due_date';
 
@@ -124,7 +125,7 @@ const getUsageVariant = (used: number, limit: number): 'default' | 'secondary' |
   return 'default';
 };
 
-const STORAGE_KEY = 'agents-list-filters';
+const STORAGE_KEY = STORAGE_KEYS.AGENTS_LIST_FILTERS;
 
 interface StoredFilters {
   showLegacy: boolean;

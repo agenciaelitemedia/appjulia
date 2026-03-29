@@ -1,6 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { lazy } from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
@@ -64,6 +65,7 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
             <UaZapiProvider>
+              <ErrorBoundary>
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/redirect" element={<RedirectPage />} />
@@ -113,6 +115,7 @@ const App = () => (
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              </ErrorBoundary>
               <DebugBar />
             </UaZapiProvider>
           </AuthProvider>

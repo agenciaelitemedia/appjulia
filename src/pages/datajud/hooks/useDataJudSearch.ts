@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { SearchType, TribunalResult, ProcessData } from '../types';
 import { toast } from 'sonner';
+import { STORAGE_KEYS } from '@/lib/constants';
 
 interface SearchParams {
   type: SearchType;
@@ -28,7 +29,7 @@ interface SearchHistory {
   timestamp: number;
 }
 
-const STORAGE_KEY = 'datajud_search_history';
+const STORAGE_KEY = STORAGE_KEYS.DATAJUD_SEARCH_HISTORY;
 const MAX_HISTORY = 20;
 
 // Helper functions for localStorage

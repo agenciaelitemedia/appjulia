@@ -74,7 +74,6 @@ export function LeadWaitingRoom({
       streamRef.current = null;
     }
     
-    console.log('Operator joined! Transitioning to call...');
     onOperatorJoined();
   }, [onOperatorJoined]);
 

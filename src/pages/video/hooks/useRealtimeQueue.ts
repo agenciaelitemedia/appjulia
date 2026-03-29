@@ -40,8 +40,6 @@ export function useRealtimeQueue(options: UseRealtimeQueueOptions) {
 
     // Subscription for specific room (lead waiting for operator)
     if (roomName) {
-      console.log('[useRealtimeQueue] Setting up subscription for room:', roomName);
-      
       const roomChannel = supabase
         .channel(`room-${roomName}`)
         .on(
@@ -53,13 +51,11 @@ export function useRealtimeQueue(options: UseRealtimeQueueOptions) {
             filter: `room_name=eq.${roomName}`,
           },
           (payload) => {
-            console.log('[useRealtimeQueue] Received UPDATE:', payload);
             const newRecord = payload.new as Record<string, unknown>;
             const oldRecord = payload.old as Record<string, unknown>;
 
             // Operator just joined - simplified check (no dependency on oldRecord)
             if (newRecord.operator_joined_at && !hasNotifiedOperatorRef.current) {
-              console.log('[useRealtimeQueue] Operator joined! Notifying...');
               hasNotifiedOperatorRef.current = true;
               onOperatorJoinedRef.current?.();
             }
@@ -70,9 +66,7 @@ export function useRealtimeQueue(options: UseRealtimeQueueOptions) {
             }
           }
         )
-        .subscribe((status) => {
-          console.log('[useRealtimeQueue] Subscription status:', status);
-        });
+        .subscribe();
 
       channelsRef.current.push(roomChannel);
 
@@ -89,7 +83,6 @@ export function useRealtimeQueue(options: UseRealtimeQueueOptions) {
           });
           
           if (data?.room?.operatorJoined && !hasNotifiedOperatorRef.current) {
-            console.log('[useRealtimeQueue] Fallback polling detected operator joined');
             hasNotifiedOperatorRef.current = true;
             onOperatorJoinedRef.current?.();
           }

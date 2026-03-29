@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useCa
 import { externalDb } from '@/lib/externalDb';
 import type { UserPermission, PermissionMap, ModuleCode, AppRole } from '@/types/permissions';
 import { createPermissionMap } from '@/types/permissions';
+import { STORAGE_KEYS } from '@/lib/constants';
 
 interface User {
   id: number;
@@ -65,19 +66,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Check for existing session
-    const storedUser = localStorage.getItem('julia_user');
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-        // Load permissions for existing session
-        loadPermissions(parsedUser.id);
-      } catch {
-        localStorage.removeItem('julia_user');
-        localStorage.removeItem('julia_permissions');
+    const restoreSession = async () => {
+      const storedUser = localStorage.getItem(STORAGE_KEYS.AUTH_USER);
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          // Await permissions so components never render with stale permission state
+          await loadPermissions(parsedUser.id);
+        } catch {
+          localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
+          localStorage.removeItem(STORAGE_KEYS.AUTH_PERMISSIONS);
+        }
       }
-    }
-    setIsLoading(false);
+      setIsLoading(false);
+    };
+    restoreSession();
   }, [loadPermissions]);
 
   const login = async (email: string, password: string) => {
@@ -99,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setUser(authenticatedUser);
-      localStorage.setItem('julia_user', JSON.stringify(authenticatedUser));
+      localStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(authenticatedUser));
       
       // Load permissions after login
       await loadPermissions(authenticatedUser.id);
@@ -116,8 +120,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null);
     setPermissions(null);
-    localStorage.removeItem('julia_user');
-    localStorage.removeItem('julia_permissions');
+    localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
+    localStorage.removeItem(STORAGE_KEYS.AUTH_PERMISSIONS);
   };
 
   const hasPermission = useCallback((moduleCode: ModuleCode, action: 'view' | 'create' | 'edit' | 'delete' = 'view'): boolean => {

@@ -33,7 +33,6 @@ let globalCallInstance: ReturnType<typeof DailyIframe.createCallObject> | null =
 // Função helper para destruir instância existente
 async function destroyExistingInstance() {
   if (globalCallInstance) {
-    console.log('[CustomVideoCall] Destruindo instância global anterior...');
     try {
       await globalCallInstance.leave();
       globalCallInstance.destroy();
@@ -63,7 +62,6 @@ function VideoCallJoiner({
 
   // Log de transições de estado
   useEffect(() => {
-    console.log('[CustomVideoCall] meetingState ->', meetingState);
   }, [meetingState]);
 
   // Watchdog: se não conectar em X segundos, dispara timeout
@@ -103,9 +101,7 @@ function VideoCallJoiner({
     const doJoin = async () => {
       hasJoined.current = true;
       try {
-        console.log('[CustomVideoCall] Iniciando join para:', roomUrl);
         await daily.join({ url: roomUrl });
-        console.log('[CustomVideoCall] Join completado com sucesso');
       } catch (err: any) {
         if (isLeavingRef.current) return;
         console.error('[CustomVideoCall] Erro no join:', err);
@@ -144,7 +140,6 @@ function VideoCallContent({
     if (hasStartedRecording.current || isLeavingRef.current) return;
     hasStartedRecording.current = true;
     
-    console.log('[CustomVideoCall] joined-meeting - starting recording');
     
     if (roomName && operatorId) {
       setRecordingStatus('starting');
@@ -157,7 +152,6 @@ function VideoCallContent({
             operatorName,
           },
         });
-        console.log('[CustomVideoCall] record-start result:', result.data);
         if (result.data?.recordingStarted) {
           setRecordingStatus('recording');
         } else {
@@ -173,17 +167,14 @@ function VideoCallContent({
   // Detectar saída via evento - only call onLeave if we weren't already leaving
   useDailyEvent('left-meeting', useCallback(() => {
     if (isLeavingRef.current) {
-      console.log('[CustomVideoCall] left-meeting event received, but already leaving - ignoring');
       return;
     }
-    console.log('[CustomVideoCall] left-meeting event received - initiating leave');
     isLeavingRef.current = true;
     onLeave();
   }, [onLeave, isLeavingRef]));
 
   // Monitor network connection status
   useDailyEvent('network-connection', useCallback((event: any) => {
-    console.log('[CustomVideoCall] network-connection:', event);
   }, []));
 
   // Log non-fatal errors without disconnecting
@@ -275,7 +266,6 @@ export function CustomVideoCall({ roomUrl, roomName, operatorId, operatorName, o
 
   const handleError = useCallback((msg: string) => {
     if (isLeavingRef.current) {
-      console.log('[CustomVideoCall] handleError ignored (already leaving):', msg);
       return;
     }
     console.error('[CustomVideoCall] handleError:', msg);
@@ -286,7 +276,6 @@ export function CustomVideoCall({ roomUrl, roomName, operatorId, operatorName, o
 
   const handleTimeout = useCallback(async () => {
     if (isLeavingRef.current) return;
-    console.log('[CustomVideoCall] Timeout - destruindo instância...');
     isLeavingRef.current = true;
     await destroyExistingInstance();
     callRef.current = null;
@@ -295,7 +284,6 @@ export function CustomVideoCall({ roomUrl, roomName, operatorId, operatorName, o
   }, [handleError]);
 
   const handleRetry = useCallback(async () => {
-    console.log('[CustomVideoCall] Retry solicitado');
     isLeavingRef.current = true;
     
     // Destruir instância global antes de recriar
@@ -320,7 +308,6 @@ export function CustomVideoCall({ roomUrl, roomName, operatorId, operatorName, o
     const createCallObject = async () => {
       // Don't create if we're leaving
       if (isLeavingRef.current) {
-        console.log('[CustomVideoCall] createCallObject skipped (isLeaving)');
         return;
       }
       
@@ -330,12 +317,10 @@ export function CustomVideoCall({ roomUrl, roomName, operatorId, operatorName, o
       if (!mounted || isLeavingRef.current) return;
 
       if (callRef.current) {
-        console.log('[CustomVideoCall] Call object já existe no ref, pulando criação');
         return;
       }
 
       try {
-        console.log('[CustomVideoCall] Criando call object...');
         setDebugState('Criando conexão...');
         
         const call = DailyIframe.createCallObject({
@@ -369,25 +354,20 @@ export function CustomVideoCall({ roomUrl, roomName, operatorId, operatorName, o
 
         // Diagnostic event listeners
         call.on('joining-meeting', () => {
-          console.log('[CustomVideoCall] Event: joining-meeting');
           if (mounted) setDebugState('Entrando na sala...');
         });
         
         call.on('joined-meeting', () => {
-          console.log('[CustomVideoCall] Event: joined-meeting');
           if (mounted) setDebugState('Conectado');
         });
         
         call.on('participant-joined', (event) => {
-          console.log('[CustomVideoCall] Event: participant-joined', event?.participant?.user_name);
         });
         
         call.on('participant-left', (event) => {
-          console.log('[CustomVideoCall] Event: participant-left', event?.participant?.user_name);
         });
 
         call.on('call-instance-destroyed', () => {
-          console.log('[CustomVideoCall] Event: call-instance-destroyed');
         });
 
         if (mounted && !isLeavingRef.current) {
@@ -408,14 +388,12 @@ export function CustomVideoCall({ roomUrl, roomName, operatorId, operatorName, o
       mounted = false;
       // DON'T destroy on cleanup - let the explicit leave() handle this
       // This prevents premature destruction during re-renders
-      console.log('[CustomVideoCall] useEffect cleanup (mounted=false, NOT destroying)');
     };
   }, [retryKey, handleError]);
 
   // Cleanup on unmount ONLY
   useEffect(() => {
     return () => {
-      console.log('[CustomVideoCall] Component unmounting - cleaning up');
       isLeavingRef.current = true;
       destroyExistingInstance();
       callRef.current = null;

@@ -4,6 +4,7 @@ import type { Module, UserPermission, PermissionUpdate, AppRole } from '@/types/
 import type { UserWithPermissions } from '../types';
 import { toast } from '@/hooks/use-toast';
 import bcrypt from 'bcryptjs';
+import { generateSecurePassword } from '@/lib/crypto';
 
 // Fetch users with permissions info
 export function useUsersWithPermissions(roleFilter?: string) {
@@ -142,21 +143,11 @@ export function useUpdateUserProfile() {
   });
 }
 
-// Generate password in format Julia@XXXX
-function generatePassword(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let suffix = '';
-  for (let i = 0; i < 4; i++) {
-    suffix += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return `Julia@${suffix}`;
-}
-
 // Mutation: reset user password
 export function useResetUserPassword() {
   return useMutation({
     mutationFn: async (userId: number) => {
-      const rawPassword = generatePassword();
+      const rawPassword = generateSecurePassword();
       const hashedPassword = await bcrypt.hash(rawPassword, 10);
       await externalDb.resetUserPassword(userId, hashedPassword, rawPassword);
       return { temporaryPassword: rawPassword };

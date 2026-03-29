@@ -71,14 +71,12 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user?.id) return;
     const fetchExtension = async () => {
-      console.log('[PhoneContext] Looking for extension with assigned_member_id:', user.id, typeof user.id);
       const { data, error: extError } = await supabase
         .from('phone_extensions')
         .select('*')
         .eq('assigned_member_id', Number(user.id))
         .eq('is_active', true)
         .limit(1);
-      console.log('[PhoneContext] Extension query result:', { data, error: extError });
       if (data && data.length > 0) {
         const ext = data[0] as unknown as PhoneExtensionInfo;
         // Check if the agent's telephony plan is active
@@ -105,7 +103,6 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   // Auto-connect SIP when extension is found (with retry)
   const connectSip = useCallback(async () => {
     if (!myExtension || !codAgent || !myExtension.api4com_ramal) {
-      console.log('[PhoneContext] Skipping SIP connect — no extension/ramal');
       return;
     }
     try {
@@ -135,11 +132,9 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     }
     if (sip.status === 'error' || (sip.status === 'idle' && autoConnected.current)) {
       if (retryCount.current >= maxRetries) {
-        console.log(`[PhoneContext] SIP max retries (${maxRetries}) reached, stopping auto-reconnect`);
         return;
       }
       const delay = Math.min(5000 * Math.pow(2, retryCount.current), 300_000); // 5s, 10s, 20s, ... max 5min
-      console.log(`[PhoneContext] SIP retry #${retryCount.current + 1} in ${delay / 1000}s`);
       const retryTimer = setTimeout(() => {
         retryCount.current += 1;
         connectSip();

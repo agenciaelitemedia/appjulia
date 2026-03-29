@@ -28,7 +28,7 @@ Nosso Instagram: @atendejulia
 Somos 5 Estrelas no Google e REFERÊNCIA NACIONAL em benefícios  no INSS, e em especial em Salário-Maternidade!
 Já ajudamos muitas pessoas a conseguirem o benefício, a próxima pode ser você. \\n\\nVamos iniciar o seu atendimento.`;
 
-export const DEFAULT_ZAPSIGN_TOKEN = 'Bearer 1c34c87a-37d6-42c3-add9-b3ceaed8eb1d13d47d17-4386-407b-aee9-665af342b622';
+export const DEFAULT_ZAPSIGN_TOKEN = import.meta.env.VITE_ZAPSIGN_TOKEN ?? '';
 
 export const DEFAULT_FEES_TEXT = `{nome_completo}, Pelo que você nos informou, você pode ter direito sim. Atuamos da seguinte forma.
 

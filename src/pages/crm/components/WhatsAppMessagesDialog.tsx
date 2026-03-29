@@ -877,7 +877,6 @@ export function WhatsAppMessagesDialog({
           return;
         }
         
-        console.log('📥 [WABA] Downloading media:', mediaId);
         const { data, error } = await supabase.functions.invoke('waba-send', {
           body: { action: 'download_media', cod_agent: codAgent, media_id: mediaId },
         });
@@ -890,7 +889,6 @@ export function WhatsAppMessagesDialog({
       } else {
         // UaZapi: use client API
         if (!client) return;
-        console.log('📥 [UaZapi] Downloading media for message:', messageId);
         const response = await client.post<{ fileURL?: string; base64Data?: string; mimetype?: string }>('/message/download', {
           id: messageId,
           return_link: true,
@@ -1105,8 +1103,6 @@ export function WhatsAppMessagesDialog({
     
     try {
       const cleanNumber = whatsappNumber.replace(/\D/g, '');
-      console.log('🔍 [WABA] Loading messages for:', cleanNumber);
-      
       const { data: logs, error } = await supabase
         .from('webhook_logs')
         .select('*')
@@ -1127,7 +1123,6 @@ export function WhatsAppMessagesDialog({
         setMessages(parsed);
         setCurrentOffset(50);
         setHasMoreMessages(logs.length === 50);
-        console.log('✅ [WABA] Processed messages:', parsed.length);
       } else {
         setMessages([]);
         setHasMoreMessages(false);
@@ -1197,19 +1192,15 @@ export function WhatsAppMessagesDialog({
       const endpoint = '/message/find';
       const requestBody = { chatid: jid, limit: 50, offset: 0 };
       
-      console.log('🔍 [WhatsApp API] Loading messages:', { endpoint, requestBody });
       const response = await client.post<any>(endpoint, requestBody);
       const messagesArray = Array.isArray(response) ? response : (response?.messages || []);
-      
-      console.log('📨 [WhatsApp API] Raw messages:', messagesArray.length);
-      
+
       if (messagesArray.length > 0) {
         const formattedMessages = parseMessages(messagesArray);
         formattedMessages.sort((a, b) => a.timestamp - b.timestamp);
         setMessages(formattedMessages);
         setCurrentOffset(50);
         setHasMoreMessages(messagesArray.length === 50);
-        console.log('✅ [WhatsApp API] Processed messages:', formattedMessages.length);
       } else {
         setMessages([]);
         setHasMoreMessages(false);

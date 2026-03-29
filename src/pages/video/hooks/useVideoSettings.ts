@@ -48,7 +48,6 @@ export function useVideoSettings() {
 
   // Listen for network quality changes
   useDailyEvent('network-quality-change', useCallback((event: any) => {
-    console.log('[useVideoSettings] network-quality-change:', event);
     setSettings(prev => ({
       ...prev,
       networkQuality: event?.threshold || 'unknown',
@@ -85,7 +84,6 @@ export function useVideoSettings() {
         noiseCancellation: newValue,
       }));
       
-      console.log('[useVideoSettings] Noise cancellation:', newValue ? 'ON' : 'OFF');
     } catch (err) {
       console.error('[useVideoSettings] Error toggling noise cancellation:', err);
     }
@@ -139,7 +137,6 @@ export function useVideoSettings() {
         }));
       }
       
-      console.log('[useVideoSettings] Background type:', type, imageUrl ? `(${imageUrl})` : '');
     } catch (err) {
       console.error('[useVideoSettings] Error setting background:', err);
     }
@@ -174,7 +171,6 @@ export function useVideoSettings() {
             },
           },
         });
-        console.log('[useVideoSettings] Background blur strength:', strength);
       } catch (err) {
         console.error('[useVideoSettings] Error setting blur strength:', err);
       }

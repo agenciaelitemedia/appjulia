@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from 'react';
+import { STORAGE_KEYS } from '@/lib/constants';
 import {
   getTodayInSaoPaulo,
   getYesterdayInSaoPaulo,
@@ -13,7 +14,7 @@ import {
 
 export type QuickPeriod = 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'previousMonth' | 'last3Months' | 'thisYear' | 'custom';
 
-const STORAGE_KEY = 'lovable-quick-period';
+const STORAGE_KEY = STORAGE_KEYS.PERSISTED_PERIOD;
 
 export interface PeriodDates {
   dateFrom: string;

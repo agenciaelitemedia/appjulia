@@ -145,7 +145,6 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
                   iceDisconnectTimer = setTimeout(() => {
                     const currentIce = pc.iceConnectionState;
                     if (currentIce !== 'connected' && currentIce !== 'completed') {
-                      console.log('ICE disconnected/failed for 3s — forcing hangup');
                       try { session.bye(); } catch { /* already terminated */ }
                     }
                     iceDisconnectTimer = null;
