@@ -119,11 +119,12 @@ serve(async (req) => {
 
         for (const cfg of cfgList) {
           if (cfg.type === 'LEAD_FOLLOWUP') {
-            // Process followup for unsigned contracts
             const unsignedContracts = contracts.filter(c => c.status_document === 'Gerado');
+            const stepCadence = cfg.step_cadence || {};
+            const msgCadence = cfg.msg_cadence || {};
+            const totalSteps = Object.keys(stepCadence).length || cfg.stages_count || 3;
 
             for (const contract of unsignedContracts) {
-              // Check existing logs
               const { data: logs } = await supabase
                 .from("contract_notification_logs")
                 .select("*")
@@ -137,27 +138,39 @@ serve(async (req) => {
               const lastStep = lastLog?.step_number || 0;
               const lastSentAt = lastLog?.sent_at || lastLog?.created_at;
 
-              // Check if we should send next step
-              if (lastStep >= cfg.stages_count) continue;
+              if (lastStep >= totalSteps) continue;
+
+              const nextStep = lastStep + 1;
+              const cadenceKey = `cadence_${nextStep}`;
 
               if (lastSentAt) {
                 const elapsed = Date.now() - new Date(lastSentAt).getTime();
-                const delayMs = (cfg.delay_interval_minutes || 1440) * 60 * 1000;
+                // Parse interval from step_cadence or fallback
+                let delayMs = (cfg.delay_interval_minutes || 1440) * 60 * 1000;
+                const stepInterval = stepCadence[cadenceKey];
+                if (stepInterval) {
+                  const match = stepInterval.match(/^(\d+)\s+(minutes|hours|days)$/);
+                  if (match) {
+                    const val = parseInt(match[1]);
+                    const unit = match[2];
+                    delayMs = unit === 'days' ? val * 86400000 : unit === 'hours' ? val * 3600000 : val * 60000;
+                  }
+                }
                 if (elapsed < delayMs) continue;
               }
 
-              // Build message
               const zapSignLink = contract.zapsign_doctoken
                 ? `\nhttps://app.zapsign.com.br/verificar/${contract.zapsign_doctoken}`
                 : '';
 
-              const message = renderTemplate(cfg.message_template || '', {
+              // Use per-step message or fallback to global template
+              const template = msgCadence[cadenceKey] || cfg.message_template || '';
+              const message = renderTemplate(template, {
                 client_name: contract.name,
                 case_title: contract.case_title,
                 contract_date: contract.data_contrato,
               }) + zapSignLink;
 
-              // Send via N8N
               let status = 'failed';
               let errorMessage: string | null = null;
               let sentAt: string | null = null;
@@ -188,13 +201,12 @@ serve(async (req) => {
                 errorMessage = 'N8N_HUB_SEND_URL or whatsapp not configured';
               }
 
-              // Log
               await supabase.from("contract_notification_logs").insert({
                 config_id: cfg.id,
                 cod_agent: codAgent,
                 contract_cod_document: contract.cod_document,
                 type: 'LEAD_FOLLOWUP',
-                step_number: lastStep + 1,
+                step_number: nextStep,
                 recipient_phone: contract.whatsapp,
                 message_text: message,
                 status,
