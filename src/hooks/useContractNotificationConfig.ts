@@ -12,6 +12,7 @@ export interface ContractNotificationConfig {
   message_template: string | null;
   target_numbers: string[];
   trigger_event: string;
+  target_numbers_config: Array<{ phone: string; trigger: string }>;
   office_repeat_count: number;
   step_cadence: Record<string, string>;
   msg_cadence: Record<string, string | null>;
