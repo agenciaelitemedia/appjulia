@@ -54,6 +54,7 @@ export function OfficeNotificationTab({ codAgent, config }: Props) {
   const [newNumber, setNewNumber] = useState('');
   const [newTrigger, setNewTrigger] = useState('BOTH');
   const [steps, setSteps] = useState<CadenceStep[]>(DEFAULT_STEPS);
+  const [triggerCadence, setTriggerCadence] = useState<Record<string, string>>({ cadence_1: 'BOTH' });
 
   const upsert = useUpsertContractNotificationConfig();
 
@@ -61,6 +62,7 @@ export function OfficeNotificationTab({ codAgent, config }: Props) {
     if (config) {
       setIsActive(config.is_active);
       setSteps(stepsFromConfig(config));
+      setTriggerCadence(config.trigger_cadence || {});
 
       // Load from target_numbers_config (new) or fallback to target_numbers (old)
       const tnc = config.target_numbers_config;
@@ -116,6 +118,7 @@ export function OfficeNotificationTab({ codAgent, config }: Props) {
       step_cadence,
       msg_cadence,
       title_cadence,
+      trigger_cadence: triggerCadence,
     });
   };
 
