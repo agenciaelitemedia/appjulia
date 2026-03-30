@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useContractNotificationConfigs } from '@/hooks/useContractNotificationConfig';
 import { LeadFollowupTab } from './components/LeadFollowupTab';
 import { OfficeNotificationTab } from './components/OfficeNotificationTab';
+import { NotificationLogsTab } from './components/NotificationLogsTab';
 
 export default function ContractNotificationsPage() {
   const { user } = useAuth();
