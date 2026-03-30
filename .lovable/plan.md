@@ -1,58 +1,30 @@
 
 
-# Trigger Event por Número WhatsApp
+# Aba de Histórico de Envios — Notificações de Contrato
 
 ## Resumo
 
-Atualmente o "Disparar Quando" (Gerado/Assinado/Ambos) é uma configuração global. A mudança faz cada número WhatsApp cadastrado ter seu próprio trigger event individual.
+Adicionar uma terceira aba "Histórico" no módulo de Notificações de Contrato que exibe os logs de envios já registrados na tabela `contract_notification_logs`. O hook `useContractNotificationLogs` já existe.
 
-## Mudança de dados
+## Arquivos
 
-O campo `target_numbers` (text[]) armazena apenas telefones. Será substituído por um campo JSONB `target_numbers_config` que armazena objetos com número e trigger:
+### 1. Criar `src/pages/contract-notifications/components/NotificationLogsTab.tsx`
 
-```json
-[
-  { "phone": "11999998888", "trigger": "GENERATED" },
-  { "phone": "11888887777", "trigger": "BOTH" }
-]
-```
+Componente que:
+- Usa `useContractNotificationLogs(codAgent)` para buscar os logs
+- Exibe uma tabela com colunas: Data/Hora, Tipo (badge LEAD_FOLLOWUP / OFFICE_ALERT), Contrato, Destinatário, Etapa, Status (badge sent/failed/pending), e Erro (se houver)
+- Formatação de data com `format` do date-fns
+- Badge colorido para status: verde (sent), vermelho (failed), amarelo (pending)
+- Badge para tipo: azul (LEAD_FOLLOWUP), roxo (OFFICE_ALERT)
+- Estado vazio com mensagem "Nenhum envio registrado"
+- Botão de refresh para recarregar os logs
 
-O campo `trigger_event` global permanece como fallback mas não será mais usado no frontend.
+### 2. Editar `ContractNotificationsPage.tsx`
 
-## Migration
+- Importar `NotificationLogsTab`
+- Adicionar terceiro `TabsTrigger` "Histórico" e `TabsContent` correspondente
 
-```sql
-ALTER TABLE contract_notification_configs
-  ADD COLUMN IF NOT EXISTS target_numbers_config jsonb DEFAULT '[]'::jsonb;
-```
+## Sem alteração de banco
 
-Migrar dados existentes: converter cada item de `target_numbers[]` para `{"phone": X, "trigger": trigger_event}`.
-
-## Frontend — OfficeNotificationTab
-
-- Remover o RadioGroup global de "Disparar Quando"
-- Ao adicionar número, incluir um Select ao lado para escolher o trigger (Ao Gerar / Ao Assinar / Ambos) — default "BOTH"
-- Nos chips de números exibidos, mostrar o trigger como badge menor (ex: "11999998888 · Ambos")
-- Estado interno muda de `string[]` para `Array<{phone: string, trigger: string}>`
-- No save, salvar em `target_numbers_config` (JSONB) e manter `target_numbers` (text[]) sincronizado para compatibilidade
-
-## Edge Function — contract-notifications-cron
-
-Na seção OFFICE_ALERT:
-- Ler `target_numbers_config` (JSONB) em vez de `target_numbers`
-- Para cada número, filtrar contratos pelo trigger individual daquele número (GENERATED/SIGNED/BOTH) em vez de usar o filtro global
-- Fallback: se `target_numbers_config` estiver vazio, usar `target_numbers` + `trigger_event` global (compatibilidade)
-
-## Hook
-
-- Adicionar `target_numbers_config` à interface `ContractNotificationConfig`
-
-## Arquivos alterados
-
-| Arquivo | Ação |
-|---|---|
-| Migration SQL | Adicionar coluna `target_numbers_config` |
-| `src/hooks/useContractNotificationConfig.ts` | Adicionar campo à interface |
-| `src/pages/contract-notifications/components/OfficeNotificationTab.tsx` | Refatorar para trigger por número |
-| `supabase/functions/contract-notifications-cron/index.ts` | Filtrar por trigger individual |
+A tabela `contract_notification_logs` e o hook `useContractNotificationLogs` já existem. Nenhuma migration necessária.
 
