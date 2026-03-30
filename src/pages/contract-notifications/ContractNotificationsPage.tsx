@@ -41,6 +41,7 @@ export default function ContractNotificationsPage() {
         <TabsList>
           <TabsTrigger value="followup">Followup de Leads</TabsTrigger>
           <TabsTrigger value="office">Notificar Escritório</TabsTrigger>
+          <TabsTrigger value="logs">Histórico</TabsTrigger>
         </TabsList>
 
         <TabsContent value="followup">
