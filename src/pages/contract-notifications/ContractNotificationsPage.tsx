@@ -6,6 +6,7 @@ import { useContractNotificationConfigs } from '@/hooks/useContractNotificationC
 import { LeadFollowupTab } from './components/LeadFollowupTab';
 import { OfficeNotificationTab } from './components/OfficeNotificationTab';
 import { NotificationLogsTab } from './components/NotificationLogsTab';
+import { NotificationQueueTab } from './components/NotificationQueueTab';
 
 export default function ContractNotificationsPage() {
   const { user } = useAuth();
@@ -41,6 +42,7 @@ export default function ContractNotificationsPage() {
         <TabsList>
           <TabsTrigger value="followup">Followup de Leads</TabsTrigger>
           <TabsTrigger value="office">Notificar Escritório</TabsTrigger>
+          <TabsTrigger value="queue">Fila</TabsTrigger>
           <TabsTrigger value="logs">Histórico</TabsTrigger>
         </TabsList>
 
@@ -50,6 +52,10 @@ export default function ContractNotificationsPage() {
 
         <TabsContent value="office">
           <OfficeNotificationTab codAgent={codAgent} config={officeConfig} />
+        </TabsContent>
+
+        <TabsContent value="queue">
+          <NotificationQueueTab codAgent={codAgent} />
         </TabsContent>
 
         <TabsContent value="logs">
