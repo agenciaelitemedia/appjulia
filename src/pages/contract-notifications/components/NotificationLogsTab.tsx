@@ -1,4 +1,5 @@
-import { RefreshCw, Inbox } from 'lucide-react';
+import { useState } from 'react';
+import { RefreshCw, Inbox, Filter } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useQueryClient } from '@tanstack/react-query';
@@ -30,13 +31,37 @@ const typeConfig: Record<string, { label: string; className: string }> = {
   OFFICE_ALERT: { label: 'Escritório', className: 'bg-purple-500/15 text-purple-700 border-purple-300' },
 };
 
+type TypeFilter = 'ALL' | 'LEAD_FOLLOWUP' | 'OFFICE_ALERT';
+type StatusFilter = 'ALL' | 'sent' | 'failed' | 'pending';
+
+const typeFilterOptions: { value: TypeFilter; label: string }[] = [
+  { value: 'ALL', label: 'Todos' },
+  { value: 'LEAD_FOLLOWUP', label: 'Followup' },
+  { value: 'OFFICE_ALERT', label: 'Escritório' },
+];
+
+const statusFilterOptions: { value: StatusFilter; label: string }[] = [
+  { value: 'ALL', label: 'Todos' },
+  { value: 'sent', label: 'Enviado' },
+  { value: 'failed', label: 'Falhou' },
+  { value: 'pending', label: 'Pendente' },
+];
+
 export function NotificationLogsTab({ codAgent }: NotificationLogsTabProps) {
   const { data: logs, isLoading } = useContractNotificationLogs(codAgent);
   const queryClient = useQueryClient();
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('ALL');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['contract-notification-logs', codAgent] });
   };
+
+  const filteredLogs = (logs || []).filter((log) => {
+    if (typeFilter !== 'ALL' && log.type !== typeFilter) return false;
+    if (statusFilter !== 'ALL' && log.status !== statusFilter) return false;
+    return true;
+  });
 
   return (
     <Card>
@@ -47,13 +72,50 @@ export function NotificationLogsTab({ codAgent }: NotificationLogsTabProps) {
           Atualizar
         </Button>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        {/* Filters */}
+        <div className="flex flex-wrap gap-4 items-center">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground font-medium">Tipo:</span>
+            <div className="flex gap-1">
+              {typeFilterOptions.map((opt) => (
+                <Button
+                  key={opt.value}
+                  variant={typeFilter === opt.value ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setTypeFilter(opt.value)}
+                >
+                  {opt.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground font-medium">Status:</span>
+            <div className="flex gap-1">
+              {statusFilterOptions.map((opt) => (
+                <Button
+                  key={opt.value}
+                  variant={statusFilter === opt.value ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setStatusFilter(opt.value)}
+                >
+                  {opt.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {isLoading ? (
           <div className="text-center py-8 text-muted-foreground">Carregando...</div>
-        ) : !logs || logs.length === 0 ? (
+        ) : filteredLogs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
             <Inbox className="h-10 w-10" />
-            <p>Nenhum envio registrado</p>
+            <p>{logs && logs.length > 0 ? 'Nenhum resultado com os filtros selecionados' : 'Nenhum envio registrado'}</p>
           </div>
         ) : (
           <div className="overflow-auto">
@@ -70,7 +132,7 @@ export function NotificationLogsTab({ codAgent }: NotificationLogsTabProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {logs.map((log) => {
+                {filteredLogs.map((log) => {
                   const status = statusConfig[log.status] || statusConfig.pending;
                   const type = typeConfig[log.type || ''] || { label: log.type || '-', className: '' };
 
