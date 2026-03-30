@@ -1,28 +1,18 @@
 
 
-# Adicionar Seletor de Agente na Página de Notificações de Contrato
+# Corrigir Tabela, Colunas, Status e Janela Temporal nas Edge Functions
 
-## Resumo
+## Problemas atuais
 
-Replicar o padrão do FollowUp: adicionar o componente `AgentSearchSelect` no header da página, usando `useJuliaAgents()` para listar os agentes disponíveis. O `codAgent` passa a ser controlado pelo seletor em vez de vir fixo do `user.cod_agent`.
+1. **Tabela errada**: `julia_sessions_contracts` — deve ser `sing_document`
+2. **Status errados**: `'Gerado'`/`'Assinado'` — deve ser `'CREATED'`/`'SIGNED'`
+3. **Colunas erradas**: `whatsapp` → `whatsapp_number`, `name` → `signer_name`, `resumo_do_caso` → `resume_case`, `data_contrato` → `created_at`, JOIN com `case_categories` → usar `document_case` direto
+4. **Janela fixa de 30 dias**: se a soma das cadências ultrapassar 30 dias, o contrato some da query antes de completar todas as etapas
 
-## Alterações
+## Solucao para a janela temporal
 
-### `ContractNotificationsPage.tsx`
+Em vez de `created_at >= NOW() - INTERVAL '30 days'` fixo, calcular dinamicamente a janela máxima necessária baseado na configuração de cadência do agente. A lógica:
 
-1. Importar `AgentSearchSelect`, `useJuliaAgents`, `Label`, `RefreshCw`, `Button`, e helpers de persistência (`getSavedAgentCodes`, `saveAgentCodes`)
-2. Substituir `const codAgent = user?.cod_agent` por estado local `selectedAgent` controlado pelo seletor
-3. Adicionar `useEffect` para selecionar o primeiro agente ao carregar (ou restaurar o salvo), idêntico ao FollowUp
-4. Adicionar `useEffect` para persistir a seleção via `saveAgentCodes`
-5. Reorganizar o header para layout flex com título à esquerda e seletor de agente + botão refresh à direita (mesmo padrão visual do screenshot)
-6. Remover o guard `if (!codAgent)` que mostrava "Nenhum agente selecionado" — agora o seletor sempre aparece
-7. Todos os componentes filhos (`LeadFollowupTab`, `OfficeNotificationTab`, `NotificationQueueTab`, `NotificationLogsTab`) já recebem `codAgent` como prop, então funcionam automaticamente com o agente selecionado
-
-## Arquivo afetado
-
-| Arquivo | Ação |
-|---|---|
-| `src/pages/contract-notifications/ContractNotificationsPage.tsx` | Refatorar para usar seletor de agente |
-
-Nenhuma migration ou edge function necessária.
-
+- Para cada config ativa do agente, somar todos os intervalos das etapas (`step_cadence`)
+- Usar o maior valor total como janela da query
+- Adicionar margem de segurança (
