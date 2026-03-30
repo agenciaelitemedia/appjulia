@@ -51,6 +51,10 @@ export default function ContractNotificationsPage() {
         <TabsContent value="office">
           <OfficeNotificationTab codAgent={codAgent} config={officeConfig} />
         </TabsContent>
+
+        <TabsContent value="logs">
+          <NotificationLogsTab codAgent={codAgent} />
+        </TabsContent>
       </Tabs>
     </div>
   );
