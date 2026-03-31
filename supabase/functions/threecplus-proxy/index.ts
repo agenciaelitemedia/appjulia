@@ -301,8 +301,12 @@ serve(async (req) => {
           body: userBody,
         });
 
-        const agentId = apiResult?.id ? String(apiResult.id) : null;
-        const ext = apiResult?.extension || extensionNumber || null;
+        const apiUser = apiResult?.data ?? apiResult;
+        const agentId = apiUser?.id ? String(apiUser.id) : null;
+        const apiExtension = apiUser?.extension?.extension_number ?? apiUser?.extension_number ?? apiUser?.extension;
+        const ext = apiExtension !== undefined && apiExtension !== null
+          ? String(apiExtension)
+          : (extensionNumber || null);
 
         if (!agentId) {
           throw new Error('3C+ não retornou ID do agente. Resposta: ' + JSON.stringify(apiResult));
