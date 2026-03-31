@@ -15,11 +15,13 @@ async function threecRequest(
 ) {
   const separator = path.includes('?') ? '&' : '?';
   const url = `${baseUrl}${path}${separator}api_token=${token}`;
+  const headers: Record<string, string> = { 'Accept': 'application/json' };
   const fetchOptions: RequestInit = {
     method: options.method || 'GET',
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    headers,
   };
   if (options.body !== undefined) {
+    headers['Content-Type'] = 'application/json';
     fetchOptions.body = JSON.stringify(options.body);
   }
 
