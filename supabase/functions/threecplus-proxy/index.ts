@@ -308,10 +308,10 @@ serve(async (req) => {
 
         const deleteResults: Record<string, unknown> = {};
 
-        // Delete from 3C+
+        // Delete from 3C+ (endpoint is /users, not /agents)
         if (extensionId) {
           try {
-            await threecRequest(baseUrl, token, `/agents/${extensionId}`, { method: 'DELETE' });
+            await threecRequest(baseUrl, token, `/users/${extensionId}`, { method: 'DELETE' });
             deleteResults.agent = { success: true };
           } catch (e: any) {
             if (!e.message?.includes('404')) throw e;
