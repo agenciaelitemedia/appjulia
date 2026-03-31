@@ -459,7 +459,7 @@ serve(async (req) => {
 
         const { data: ext } = await supabase
           .from('phone_extensions')
-          .select('threecplus_agent_id')
+          .select('threecplus_agent_id, threecplus_extension, extension_number, threecplus_raw')
           .eq('id', extensionId)
           .eq('cod_agent', codAgent)
           .single();
@@ -468,12 +468,25 @@ serve(async (req) => {
           throw new Error('Ramal sem vínculo 3C+ (threecplus_agent_id ausente).');
         }
 
-        const patchResult = await threecRequest(baseUrl, token, `/users/${ext.threecplus_agent_id}`, {
+        const userId = ext.threecplus_agent_id;
+
+        // Fetch current user data for full PUT payload
+        const userData = await threecRequest(baseUrl, token, `/users/${userId}`);
+        const u = userData?.data ?? userData;
+
+        const putResult = await threecRequest(baseUrl, token, `/users/${userId}`, {
           method: 'PUT',
-          body: { webphone: true },
+          body: {
+            name: u?.name || 'Agente',
+            email: u?.email || `agente_${Date.now()}@atendejulia.com.br`,
+            role: u?.role?.name || u?.role || 'agent',
+            timezone: u?.settings?.timezone || 'America/Sao_Paulo',
+            extension_number: u?.extension?.extension_number ?? ext.threecplus_extension ?? ext.extension_number,
+            webphone: true,
+          },
         });
 
-        result = { userId: ext.threecplus_agent_id, webphoneEnabled: true, raw: patchResult };
+        result = { userId, webphoneEnabled: true, raw: putResult };
         break;
       }
 
