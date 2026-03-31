@@ -704,6 +704,48 @@ serve(async (req) => {
         break;
       }
 
+      case 'diagnose_token': {
+        const endpoints = [
+          { name: 'users_list',     method: 'GET',  path: '/users?per_page=1' },
+          { name: 'agents_list',    method: 'GET',  path: '/agents?per_page=1' },
+          { name: 'webphone_login', method: 'POST', path: '/agent/webphone/login', body: { agent_id: 0 } },
+          { name: 'campaigns_list', method: 'GET',  path: '/campaigns?per_page=1' },
+        ];
+
+        const diagResults: Record<string, { status: number; ok: boolean; detail?: string }> = {};
+
+        for (const ep of endpoints) {
+          try {
+            const separator = ep.path.includes('?') ? '&' : '?';
+            const diagUrl = `${baseUrl}${ep.path}${separator}api_token=${token}`;
+            const diagHeaders: Record<string, string> = { 'Accept': 'application/json' };
+            const diagOpts: RequestInit = { method: ep.method, headers: diagHeaders };
+            if ((ep as any).body) {
+              diagHeaders['Content-Type'] = 'application/json';
+              diagOpts.body = JSON.stringify((ep as any).body);
+            }
+            const res = await fetch(diagUrl, diagOpts);
+            const txt = await res.text();
+            diagResults[ep.name] = {
+              status: res.status,
+              ok: res.ok,
+              detail: res.ok ? undefined : txt.substring(0, 200),
+            };
+          } catch (err) {
+            diagResults[ep.name] = { status: 0, ok: false, detail: String(err).substring(0, 200) };
+          }
+        }
+
+        result = {
+          token_prefix: token.substring(0, 10) + '...',
+          base_url: baseUrl,
+          cod_agent: codAgent,
+          permissions: diagResults,
+          summary: Object.entries(diagResults).map(([k, v]) => `${k}: ${v.ok ? '✅' : '❌'} (${v.status})`).join(', '),
+        };
+        break;
+      }
+
       default:
         throw new Error(`Ação desconhecida: ${action}`);
     }
