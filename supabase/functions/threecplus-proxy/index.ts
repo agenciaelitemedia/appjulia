@@ -407,7 +407,7 @@ serve(async (req) => {
         // Enable webphone for this user
         try {
           await threecRequest(baseUrl, token, `/users/${agentId}`, {
-            method: 'PATCH',
+            method: 'PUT',
             body: { webphone: true },
           });
           console.log(`3C+ webphone habilitado para user ${agentId}`);
