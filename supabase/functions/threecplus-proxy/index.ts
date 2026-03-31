@@ -47,6 +47,12 @@ async function threecRequest(
   return result;
 }
 
+function getThreecErrorStatus(error: unknown): number | null {
+  const message = String((error as any)?.message || error || '');
+  const match = message.match(/3C\+ erro\s+(\d+)/i);
+  return match ? Number(match[1]) : null;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -424,41 +430,78 @@ serve(async (req) => {
       }
 
       // ------------------------------------------------------------------
-      // delete_extension — remove agente do 3C+ e do DB
-      // DELETE /agents/{id}
+      // delete_extension — remove usuário/ramal do 3C+ e do DB
+      // Prefer /users/{id} com threecplus_extension e fallback para /agents/{id}
       // ------------------------------------------------------------------
       case 'delete_extension': {
         const { extensionId } = params;
+        const incomingId = String(extensionId || '').trim();
 
         // Fetch DB record
         const { data: extRecord } = await supabase
           .from('phone_extensions')
-          .select('id, threecplus_agent_id')
-          .eq('threecplus_agent_id', extensionId)
+          .select('id, threecplus_agent_id, threecplus_extension, extension_number, threecplus_raw')
+          .or(`threecplus_agent_id.eq.${incomingId},threecplus_extension.eq.${incomingId},extension_number.eq.${incomingId}`)
           .eq('cod_agent', codAgent)
           .maybeSingle();
 
         const deleteResults: Record<string, unknown> = {};
 
-        // Delete from 3C+ — try /agents first, fallback to /users
-        if (extensionId) {
+        const rawData = (extRecord?.threecplus_raw as any)?.data || extRecord?.threecplus_raw || {};
+        const userCandidates = Array.from(new Set([
+          extRecord?.threecplus_extension,
+          extRecord?.extension_number,
+          rawData?.id,
+          incomingId,
+        ].filter(Boolean).map((v) => String(v).trim())));
+
+        const agentCandidates = Array.from(new Set([
+          extRecord?.threecplus_agent_id,
+          rawData?.agent_id,
+          incomingId,
+        ].filter(Boolean).map((v) => String(v).trim())));
+
+        let remoteDeleted = false;
+        let lastHardError: Error | null = null;
+
+        for (const userId of userCandidates) {
           try {
-            await threecRequest(baseUrl, token, `/agents/${extensionId}`, { method: 'DELETE' });
-            deleteResults.agent = { success: true };
-          } catch (e: any) {
-            if (e.message?.includes('404') || e.message?.includes('405')) {
-              // Try /users endpoint as fallback
-              try {
-                await threecRequest(baseUrl, token, `/users/${extensionId}`, { method: 'DELETE' });
-                deleteResults.agent = { success: true, note: 'deleted_via_users' };
-              } catch (e2: any) {
-                if (!e2.message?.includes('404')) throw e2;
-                deleteResults.agent = { success: true, note: 'already_gone' };
-              }
-            } else {
-              throw e;
+            await threecRequest(baseUrl, token, `/users/${userId}`, { method: 'DELETE' });
+            deleteResults.provider = { success: true, endpoint: 'users', id: userId };
+            remoteDeleted = true;
+            break;
+          } catch (error) {
+            const status = getThreecErrorStatus(error);
+            if (status === 400 || status === 404 || status === 405) continue;
+            lastHardError = error as Error;
+            break;
+          }
+        }
+
+        if (!remoteDeleted && !lastHardError) {
+          for (const agentId of agentCandidates) {
+            try {
+              await threecRequest(baseUrl, token, `/agents/${agentId}`, { method: 'DELETE' });
+              deleteResults.provider = { success: true, endpoint: 'agents', id: agentId };
+              remoteDeleted = true;
+              break;
+            } catch (error) {
+              const status = getThreecErrorStatus(error);
+              if (status === 400 || status === 404 || status === 405) continue;
+              lastHardError = error as Error;
+              break;
             }
           }
+        }
+
+        if (lastHardError) throw lastHardError;
+        if (!remoteDeleted) {
+          deleteResults.provider = {
+            success: true,
+            note: 'resource_not_found_or_incompatible_id',
+            triedUsers: userCandidates,
+            triedAgents: agentCandidates,
+          };
         }
 
         // Delete from DB
@@ -468,7 +511,8 @@ serve(async (req) => {
           if (dbError) throw new Error(`Erro ao deletar do banco: ${dbError.message}`);
         } else {
           await supabase.from('phone_extensions').delete()
-            .eq('threecplus_agent_id', extensionId).eq('cod_agent', codAgent);
+            .or(`threecplus_agent_id.eq.${incomingId},threecplus_extension.eq.${incomingId},extension_number.eq.${incomingId}`)
+            .eq('cod_agent', codAgent);
         }
         deleteResults.database = { success: true };
         result = deleteResults;
