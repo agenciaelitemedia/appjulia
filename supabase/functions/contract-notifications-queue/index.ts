@@ -323,6 +323,7 @@ serve(async (req) => {
     // Check agent connection status
     const creds = await getAgentCredentials(sql, cod_agent);
     const connectionStatus = creds ? 'connected' : 'no_credentials';
+    const providerHub = creds?.hub || null;
 
     return new Response(JSON.stringify({ queue, connectionStatus }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
