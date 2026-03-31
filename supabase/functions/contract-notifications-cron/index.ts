@@ -1,8 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
-import { UaZapiAdapter } from "../_shared/uazapi-adapter.ts";
 import { getAgentCredentials } from "../_shared/get-agent-credentials.ts";
+import { createMessagingAdapter } from "../_shared/messaging-factory.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -325,8 +325,8 @@ serve(async (req) => {
         continue;
       }
 
-      const adapter = new UaZapiAdapter(creds.evo_url, creds.evo_apikey);
-      console.log(`[cron] Processing agent ${codAgent} via ${creds.evo_url}`);
+      const adapter = createMessagingAdapter(creds);
+      console.log(`[cron] Processing agent ${codAgent} via ${creds.hub} provider`);
 
       const contracts = await sql.unsafe(
         `SELECT DISTINCT ON (s.cod_document)
