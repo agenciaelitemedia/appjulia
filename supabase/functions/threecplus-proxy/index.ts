@@ -222,8 +222,16 @@ serve(async (req) => {
       // POST /agents
       // ------------------------------------------------------------------
       case 'create_extension': {
-        const { firstName, lastName, email, assignedMemberId, label } = params;
-        const extensionNumber = String(params.extensionNumber ?? params.extension_number ?? params.extension ?? params.number ?? '').trim();
+        const createPayload = (params?.params && typeof params.params === 'object') ? params.params : params;
+        const { firstName, lastName, email, assignedMemberId, label } = createPayload;
+        let extensionNumber = String(
+          createPayload.extensionNumber
+          ?? createPayload.extension_number
+          ?? createPayload.extension
+          ?? createPayload.number
+          ?? createPayload.ramal
+          ?? ''
+        ).trim();
 
         // Validate uniqueness
         if (assignedMemberId) {
@@ -255,7 +263,27 @@ serve(async (req) => {
         const randomPass = `${upper}${lower}${nums}${spec1}${spec2}`;
 
         if (!extensionNumber) {
-          throw new Error('Número do ramal é obrigatório para criar usuário no 3C+.');
+          const { data: existingExts, error: extError } = await supabase
+            .from('phone_extensions')
+            .select('extension_number')
+            .eq('cod_agent', codAgent)
+            .eq('provider', '3cplus');
+
+          if (extError) {
+            throw new Error(`Erro ao definir ramal automaticamente: ${extError.message}`);
+          }
+
+          const used = new Set<number>(
+            (existingExts || [])
+              .map((row: any) => Number.parseInt(String(row.extension_number), 10))
+              .filter((n: number) => Number.isFinite(n) && n > 0)
+          );
+
+          let candidate = 1000;
+          while (used.has(candidate)) candidate++;
+          extensionNumber = String(candidate);
+
+          console.log(`3C+ create_extension: ramal ausente no payload, usando ${extensionNumber}`);
         }
 
         // Create user in 3C+ (endpoint is /users, not /agents)
