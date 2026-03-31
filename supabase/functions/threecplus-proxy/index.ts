@@ -123,14 +123,42 @@ serve(async (req) => {
           break;
         }
 
-        // Otherwise, call 3C+ webphone login to obtain fresh SIP credentials
+        // Try to extract SIP credentials from threecplus_raw (saved during creation)
+        // The raw data contains extension_password and telephony_id
+        const { data: extFull } = await supabase
+          .from('phone_extensions')
+          .select('threecplus_raw')
+          .eq('id', extensionId)
+          .eq('cod_agent', codAgent)
+          .single();
+
+        const rawData = (extFull?.threecplus_raw as any)?.data || extFull?.threecplus_raw;
+        if (rawData?.telephony_id && rawData?.extension_password) {
+          // Use credentials from raw creation response
+          const sipDomainFromRaw = config.sip_domain || 'pbx01.3c.fluxoti.com';
+          const sipUsernameFromRaw = rawData.telephony_id;
+          const sipPasswordFromRaw = rawData.extension_password;
+
+          // Cache for future use
+          await supabase.from('phone_extensions').update({
+            threecplus_sip_domain: sipDomainFromRaw,
+            threecplus_sip_username: sipUsernameFromRaw,
+            threecplus_sip_password: sipPasswordFromRaw,
+          }).eq('id', extensionId);
+
+          const wsUrlFromRaw = config.threecplus_ws_url || `wss://${sipDomainFromRaw}`;
+          result = { domain: sipDomainFromRaw, username: sipUsernameFromRaw, password: sipPasswordFromRaw, wsUrl: wsUrlFromRaw };
+          break;
+        }
+
+        // Fallback: call 3C+ webphone login to obtain fresh SIP credentials
         if (!ext.threecplus_agent_id) {
           throw new Error('ID do agente 3C+ não configurado neste ramal.');
         }
 
         const loginResp = await threecRequest(baseUrl, token, '/agent/webphone/login', {
           method: 'POST',
-          body: { agent_id: ext.threecplus_agent_id },
+          body: { agent_id: Number(ext.threecplus_agent_id) },
         });
 
         // 3C+ returns: { sip_server, sip_user, sip_password, ... }
@@ -410,14 +438,24 @@ serve(async (req) => {
 
         const deleteResults: Record<string, unknown> = {};
 
-        // Delete from 3C+ (endpoint is /users, not /agents)
+        // Delete from 3C+ — try /agents first, fallback to /users
         if (extensionId) {
           try {
-            await threecRequest(baseUrl, token, `/users/${extensionId}`, { method: 'DELETE' });
+            await threecRequest(baseUrl, token, `/agents/${extensionId}`, { method: 'DELETE' });
             deleteResults.agent = { success: true };
           } catch (e: any) {
-            if (!e.message?.includes('404')) throw e;
-            deleteResults.agent = { success: true, note: 'already_gone' };
+            if (e.message?.includes('404') || e.message?.includes('405')) {
+              // Try /users endpoint as fallback
+              try {
+                await threecRequest(baseUrl, token, `/users/${extensionId}`, { method: 'DELETE' });
+                deleteResults.agent = { success: true, note: 'deleted_via_users' };
+              } catch (e2: any) {
+                if (!e2.message?.includes('404')) throw e2;
+                deleteResults.agent = { success: true, note: 'already_gone' };
+              }
+            } else {
+              throw e;
+            }
           }
         }
 
