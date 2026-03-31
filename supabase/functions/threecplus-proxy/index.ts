@@ -154,7 +154,7 @@ serve(async (req) => {
             threecplus_sip_password: sipPasswordFromRaw,
           }).eq('id', extensionId);
 
-          const wsUrlFromRaw = config.threecplus_ws_url || `wss://${sipDomainFromRaw}`;
+          const wsUrlFromRaw = `wss://${sipDomainFromRaw}:8089/ws`;
           result = { domain: sipDomainFromRaw, username: sipUsernameFromRaw, password: sipPasswordFromRaw, wsUrl: wsUrlFromRaw };
           break;
         }
