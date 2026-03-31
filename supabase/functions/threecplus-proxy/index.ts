@@ -441,6 +441,33 @@ serve(async (req) => {
       }
 
       // ------------------------------------------------------------------
+      // enable_webphone — habilita webphone para um usuário 3C+ existente
+      // PATCH /users/{id} { webphone: true }
+      // ------------------------------------------------------------------
+      case 'enable_webphone': {
+        const { extensionId } = params;
+
+        const { data: ext } = await supabase
+          .from('phone_extensions')
+          .select('threecplus_agent_id')
+          .eq('id', extensionId)
+          .eq('cod_agent', codAgent)
+          .single();
+
+        if (!ext?.threecplus_agent_id) {
+          throw new Error('Ramal sem vínculo 3C+ (threecplus_agent_id ausente).');
+        }
+
+        const patchResult = await threecRequest(baseUrl, token, `/users/${ext.threecplus_agent_id}`, {
+          method: 'PATCH',
+          body: { webphone: true },
+        });
+
+        result = { userId: ext.threecplus_agent_id, webphoneEnabled: true, raw: patchResult };
+        break;
+      }
+
+      // ------------------------------------------------------------------
       // delete_extension — remove usuário/ramal do 3C+ e do DB
       // Prefer /users/{id} com threecplus_extension e fallback para /agents/{id}
       // ------------------------------------------------------------------
