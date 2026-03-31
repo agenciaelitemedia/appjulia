@@ -241,17 +241,30 @@ serve(async (req) => {
         const lName = lastName || String(codAgent);
         const emailToUse = email || `agente_${Date.now()}@atendejulia.com.br`;
 
-        // Generate random password
-        const randomPass = Array.from(crypto.getRandomValues(new Uint8Array(6)))
-          .map(b => String.fromCharCode(65 + (b % 26))).join('') +
-          String(crypto.getRandomValues(new Uint8Array(1))[0] % 900 + 100);
+        // Generate strong random password (12+ chars, uppercase, number, special)
+        const upper = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+          .map(b => String.fromCharCode(65 + (b % 26))).join('');
+        const lower = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+          .map(b => String.fromCharCode(97 + (b % 26))).join('');
+        const nums = Array.from(crypto.getRandomValues(new Uint8Array(2)))
+          .map(b => String(b % 10)).join('');
+        const specials = ['@', '#', '$', '!', '%'];
+        const spec1 = specials[crypto.getRandomValues(new Uint8Array(1))[0] % specials.length];
+        const spec2 = specials[crypto.getRandomValues(new Uint8Array(1))[0] % specials.length];
+        const randomPass = `${upper}${lower}${nums}${spec1}${spec2}`;
+
+        if (!extensionNumber) {
+          throw new Error('Número do ramal é obrigatório para criar usuário no 3C+.');
+        }
 
         // Create user in 3C+ (endpoint is /users, not /agents)
         const userBody: Record<string, any> = {
           name: `${fName} ${lName}`.trim(),
           email: emailToUse,
           password: randomPass,
-          ...(extensionNumber ? { extension: extensionNumber } : {}),
+          role: 'agent',
+          timezone: 'America/Sao_Paulo',
+          extension_number: String(extensionNumber),
         };
 
         const apiResult = await threecRequest(baseUrl, token, '/users', {
