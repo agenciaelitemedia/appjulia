@@ -459,7 +459,7 @@ serve(async (req) => {
         }
 
         const patchResult = await threecRequest(baseUrl, token, `/users/${ext.threecplus_agent_id}`, {
-          method: 'PATCH',
+          method: 'PUT',
           body: { webphone: true },
         });
 
