@@ -126,7 +126,7 @@ serve(async (req) => {
             domain: ext.threecplus_sip_domain,
             username: ext.threecplus_sip_username,
             password: ext.threecplus_sip_password,
-            wsUrl: config.threecplus_ws_url || `wss://${ext.threecplus_sip_domain}`,
+            wsUrl: `wss://${ext.threecplus_sip_domain}:8089/ws`,
           };
           break;
         }
@@ -154,7 +154,7 @@ serve(async (req) => {
             threecplus_sip_password: sipPasswordFromRaw,
           }).eq('id', extensionId);
 
-          const wsUrlFromRaw = config.threecplus_ws_url || `wss://${sipDomainFromRaw}`;
+          const wsUrlFromRaw = `wss://${sipDomainFromRaw}:8089/ws`;
           result = { domain: sipDomainFromRaw, username: sipUsernameFromRaw, password: sipPasswordFromRaw, wsUrl: wsUrlFromRaw };
           break;
         }
@@ -185,7 +185,7 @@ serve(async (req) => {
           threecplus_sip_password: sipPassword,
         }).eq('id', extensionId);
 
-        const wsUrl = config.threecplus_ws_url || `wss://${sipDomain}`;
+        const wsUrl = `wss://${sipDomain}:8089/ws`;
 
         result = { domain: sipDomain, username: sipUsername, password: sipPassword, wsUrl };
         break;
