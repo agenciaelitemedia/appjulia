@@ -1,21 +1,69 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Pool } from "https://deno.land/x/postgres@v0.19.3/mod.ts";
+import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const EXTERNAL_DB_HOST = Deno.env.get("EXTERNAL_DB_HOST");
-const EXTERNAL_DB_PORT = Deno.env.get("EXTERNAL_DB_PORT");
-const EXTERNAL_DB_USERNAME = Deno.env.get("EXTERNAL_DB_USERNAME");
-const EXTERNAL_DB_PASSWORD = Deno.env.get("EXTERNAL_DB_PASSWORD");
-const EXTERNAL_DB_DATABASE = Deno.env.get("EXTERNAL_DB_DATABASE");
-const EXTERNAL_DB_CA_CERT = Deno.env.get("EXTERNAL_DB_CA_CERT");
 const N8N_HUB_SEND_URL = Deno.env.get("N8N_HUB_SEND_URL");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+function normalizeCaCert(input: string): string[] {
+  let text = input.trim();
+  text = text.replace(/\\n/g, "\n").replace(/\r\n/g, "\n");
+
+  if (!text.includes("BEGIN CERTIFICATE")) {
+    try {
+      const decoded = atob(text);
+      if (decoded.includes("BEGIN CERTIFICATE")) text = decoded;
+    } catch { /* ignore */ }
+  }
+
+  text = text
+    .replace(/-----BEGIN CERTIFICATE-----\s+/g, "-----BEGIN CERTIFICATE-----\n")
+    .replace(/\s+-----END CERTIFICATE-----/g, "\n-----END CERTIFICATE-----")
+    .replace(/-----END CERTIFICATE-----\s+/g, "-----END CERTIFICATE-----\n");
+
+  const blocks = text.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g);
+  if (!blocks || blocks.length === 0) return [];
+
+  const wrap64 = (s: string) => s.match(/.{1,64}/g)?.join("\n") ?? s;
+
+  return blocks.map((block) => {
+    const b64 = block
+      .replace(/-----BEGIN CERTIFICATE-----/g, "")
+      .replace(/-----END CERTIFICATE-----/g, "")
+      .replace(/\s+/g, "")
+      .trim();
+    return `-----BEGIN CERTIFICATE-----\n${wrap64(b64)}\n-----END CERTIFICATE-----\n`;
+  });
+}
+
+function createConnection() {
+  const externalDbUrl = (Deno.env.get("EXTERNAL_DB_URL") ?? "").trim();
+  const rawCert = Deno.env.get("EXTERNAL_DB_CA_CERT") ?? "";
+  const caCerts = rawCert ? normalizeCaCert(rawCert) : [];
+
+  const ssl = caCerts.length > 0
+    ? { caCerts, rejectUnauthorized: true }
+    : "require" as const;
+
+  return externalDbUrl
+    ? postgres(externalDbUrl, { ssl, connect_timeout: 15, idle_timeout: 20, max_lifetime: 60 * 30 })
+    : postgres({
+        host: Deno.env.get("EXTERNAL_DB_HOST"),
+        port: parseInt(Deno.env.get("EXTERNAL_DB_PORT") || "25061"),
+        user: Deno.env.get("EXTERNAL_DB_USERNAME"),
+        password: Deno.env.get("EXTERNAL_DB_PASSWORD"),
+        database: Deno.env.get("EXTERNAL_DB_DATABASE"),
+        ssl,
+        connect_timeout: 15,
+        idle_timeout: 20,
+      });
+}
 
 function renderTemplate(template: string, vars: Record<string, string>): string {
   let result = template;
@@ -33,33 +81,14 @@ function parseIntervalMs(interval: string, fallbackMs: number): number {
   return unit === 'days' ? val * 86400000 : unit === 'hours' ? val * 3600000 : val * 60000;
 }
 
-function createExternalPool(): Pool {
-  const connUrl = Deno.env.get("EXTERNAL_DB_URL") || "";
-  const isSocket = connUrl.includes("/.s.PGSQL.") || connUrl.includes("%2F");
-  const caCert = EXTERNAL_DB_CA_CERT ? EXTERNAL_DB_CA_CERT.replace(/\\n/g, "\n") : undefined;
-
-  return new Pool(
-    {
-      hostname: EXTERNAL_DB_HOST,
-      port: parseInt(EXTERNAL_DB_PORT || "5432"),
-      user: EXTERNAL_DB_USERNAME,
-      password: EXTERNAL_DB_PASSWORD,
-      database: EXTERNAL_DB_DATABASE,
-      tls: isSocket ? { enabled: false } : caCert ? { enabled: true, caCertificates: [caCert] } : { enabled: true },
-    },
-    1,
-    true
-  );
-}
-
 interface Contract {
   cod_document: string;
-  whatsapp: string;
-  name: string;
-  case_title: string;
+  whatsapp_number: string;
+  signer_name: string;
+  document_case: string;
   zapsign_doctoken: string | null;
-  resumo_do_caso: string | null;
-  data_contrato: string;
+  resume_case: string | null;
+  created_at: string;
   status_document: string;
 }
 
@@ -83,7 +112,7 @@ async function sendWhatsApp(phone: string, message: string, codAgent: string, so
 
 async function processLeadFollowup(supabase: any, cfg: any, contracts: Contract[], codAgent: string) {
   const results: any[] = [];
-  const unsignedContracts = contracts.filter(c => c.status_document === 'Gerado');
+  const unsignedContracts = contracts.filter(c => c.status_document === 'CREATED');
   const stepCadence = cfg.step_cadence || {};
   const msgCadence = cfg.msg_cadence || {};
   const totalSteps = Object.keys(stepCadence).length || cfg.stages_count || 3;
@@ -118,13 +147,13 @@ async function processLeadFollowup(supabase: any, cfg: any, contracts: Contract[
 
     const template = msgCadence[cadenceKey] || cfg.message_template || '';
     const message = renderTemplate(template, {
-      client_name: contract.name,
-      case_title: contract.case_title,
-      contract_date: contract.data_contrato,
+      client_name: contract.signer_name,
+      case_title: contract.document_case,
+      contract_date: contract.created_at,
     }) + zapSignLink;
 
-    const sendResult = contract.whatsapp
-      ? await sendWhatsApp(contract.whatsapp, message, codAgent, "contract_followup")
+    const sendResult = contract.whatsapp_number
+      ? await sendWhatsApp(contract.whatsapp_number, message, codAgent, "contract_followup")
       : { status: 'failed', error: 'whatsapp not configured' };
 
     await supabase.from("contract_notification_logs").insert({
@@ -133,7 +162,7 @@ async function processLeadFollowup(supabase: any, cfg: any, contracts: Contract[
       contract_cod_document: contract.cod_document,
       type: 'LEAD_FOLLOWUP',
       step_number: nextStep,
-      recipient_phone: contract.whatsapp,
+      recipient_phone: contract.whatsapp_number,
       message_text: message,
       status: sendResult.status,
       sent_at: sendResult.status === 'sent' ? new Date().toISOString() : null,
@@ -148,7 +177,6 @@ async function processLeadFollowup(supabase: any, cfg: any, contracts: Contract[
 async function processOfficeAlert(supabase: any, cfg: any, contracts: Contract[], codAgent: string) {
   const results: any[] = [];
 
-  // Build per-number config with individual triggers
   interface NumberEntry { phone: string; trigger: string }
   let numberEntries: NumberEntry[] = [];
 
@@ -156,7 +184,6 @@ async function processOfficeAlert(supabase: any, cfg: any, contracts: Contract[]
   if (tnc && Array.isArray(tnc) && tnc.length > 0) {
     numberEntries = tnc;
   } else {
-    // Fallback to old target_numbers + global trigger_event
     const targetNumbers = cfg.target_numbers || [];
     const globalTrigger = cfg.trigger_event || 'BOTH';
     numberEntries = targetNumbers.map((phone: string) => ({ phone, trigger: globalTrigger }));
@@ -187,11 +214,10 @@ async function processOfficeAlert(supabase: any, cfg: any, contracts: Contract[]
     const nextStep = lastStep + 1;
     const cadenceKey = `cadence_${nextStep}`;
 
-    // Check step-level trigger filter
     const stepTrigger = triggerCadence[cadenceKey] || 'BOTH';
     if (stepTrigger !== 'BOTH') {
-      if (stepTrigger === 'GENERATED' && contract.status_document !== 'Gerado') continue;
-      if (stepTrigger === 'SIGNED' && contract.status_document !== 'Assinado') continue;
+      if (stepTrigger === 'GENERATED' && contract.status_document !== 'CREATED') continue;
+      if (stepTrigger === 'SIGNED' && contract.status_document !== 'SIGNED') continue;
     }
 
     if (lastSentAt && lastStep > 0) {
@@ -200,21 +226,20 @@ async function processOfficeAlert(supabase: any, cfg: any, contracts: Contract[]
       if (elapsed < delayMs) continue;
     }
 
-    const triggerLabel = contract.status_document === 'Assinado' ? 'assinado' : 'gerado';
+    const triggerLabel = contract.status_document === 'SIGNED' ? 'assinado' : 'gerado';
     const template = msgCadence[cadenceKey] || cfg.message_template || '';
     const message = renderTemplate(template, {
-      client_name: contract.name,
-      client_phone: contract.whatsapp,
-      case_title: contract.case_title,
-      case_summary: contract.resumo_do_caso || 'Sem resumo disponível',
+      client_name: contract.signer_name,
+      client_phone: contract.whatsapp_number,
+      case_title: contract.document_case,
+      case_summary: contract.resume_case || 'Sem resumo disponível',
       trigger_label: triggerLabel,
     });
 
-    // Filter numbers by individual trigger matching the contract status
     const matchingNumbers = numberEntries.filter(entry => {
       if (entry.trigger === 'BOTH') return true;
-      if (entry.trigger === 'GENERATED' && contract.status_document === 'Gerado') return true;
-      if (entry.trigger === 'SIGNED' && contract.status_document === 'Assinado') return true;
+      if (entry.trigger === 'GENERATED' && contract.status_document === 'CREATED') return true;
+      if (entry.trigger === 'SIGNED' && contract.status_document === 'SIGNED') return true;
       return false;
     });
 
@@ -246,7 +271,7 @@ serve(async (req) => {
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  let extPool: Pool | null = null;
+  let sql: ReturnType<typeof postgres> | null = null;
 
   try {
     const { data: configs, error: cfgErr } = await supabase
@@ -261,50 +286,54 @@ serve(async (req) => {
       });
     }
 
-    extPool = createExternalPool();
-    const extClient = await extPool.connect();
+    // Calculate dynamic time window
+    let maxWindowMs = 30 * 86400000;
+    for (const cfg of configs) {
+      const sc = cfg.step_cadence || {};
+      let totalMs = 0;
+      for (const key of Object.keys(sc)) {
+        totalMs += parseIntervalMs(sc[key] || '', 86400000);
+      }
+      if (totalMs > maxWindowMs) maxWindowMs = totalMs;
+    }
+    const windowDays = Math.ceil(maxWindowMs / 86400000) + 2;
+
+    sql = createConnection();
     const results: any[] = [];
 
-    try {
-      const agentConfigs = new Map<string, any[]>();
-      for (const cfg of configs) {
-        const list = agentConfigs.get(cfg.cod_agent) || [];
-        list.push(cfg);
-        agentConfigs.set(cfg.cod_agent, list);
-      }
+    const agentConfigs = new Map<string, any[]>();
+    for (const cfg of configs) {
+      const list = agentConfigs.get(cfg.cod_agent) || [];
+      list.push(cfg);
+      agentConfigs.set(cfg.cod_agent, list);
+    }
 
-      for (const [codAgent, cfgList] of agentConfigs) {
-        const contractsResult = await extClient.queryObject<Contract>(
-          `SELECT DISTINCT ON (s.cod_document)
-            s.cod_document,
-            s.whatsapp,
-            s.name,
-            COALESCE(cc.name, '') as case_title,
-            s.zapsing_doctoken as zapsign_doctoken,
-            s.resumo_do_caso,
-            s.data_contrato,
-            s.status_document
-          FROM julia_sessions_contracts s
-          LEFT JOIN case_categories cc ON cc.id = s.case_category_id
-          WHERE s.cod_agent = $1
-            AND s.status_document IN ('Gerado', 'Assinado')
-            AND s.data_contrato >= NOW() - INTERVAL '30 days'
-          ORDER BY s.cod_document, s.data_contrato DESC`,
-          [codAgent]
-        );
+    for (const [codAgent, cfgList] of agentConfigs) {
+      const contracts = await sql.unsafe(
+        `SELECT DISTINCT ON (s.cod_document)
+          s.cod_document,
+          s.whatsapp_number,
+          s.signer_name,
+          COALESCE(s.document_case, '') as document_case,
+          s.zapsing_doctoken as zapsign_doctoken,
+          s.resume_case,
+          s.created_at,
+          s.status_document
+        FROM sing_document s
+        WHERE s.cod_agent = $1
+          AND s.status_document IN ('CREATED', 'SIGNED')
+          AND s.created_at >= NOW() - INTERVAL '${windowDays} days'
+        ORDER BY s.cod_document, s.created_at DESC`,
+        [codAgent]
+      ) as Contract[];
 
-        const contracts = contractsResult.rows;
-
-        for (const cfg of cfgList) {
-          if (cfg.type === 'LEAD_FOLLOWUP') {
-            results.push(...await processLeadFollowup(supabase, cfg, contracts, codAgent));
-          } else if (cfg.type === 'OFFICE_ALERT') {
-            results.push(...await processOfficeAlert(supabase, cfg, contracts, codAgent));
-          }
+      for (const cfg of cfgList) {
+        if (cfg.type === 'LEAD_FOLLOWUP') {
+          results.push(...await processLeadFollowup(supabase, cfg, contracts, codAgent));
+        } else if (cfg.type === 'OFFICE_ALERT') {
+          results.push(...await processOfficeAlert(supabase, cfg, contracts, codAgent));
         }
       }
-    } finally {
-      extClient.release();
     }
 
     return new Response(JSON.stringify({ success: true, processed: results.length, results }), {
@@ -317,6 +346,6 @@ serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } finally {
-    if (extPool) await extPool.end();
+    if (sql) await sql.end();
   }
 });
