@@ -404,6 +404,27 @@ serve(async (req) => {
           throw new Error('3C+ não retornou ID do agente. Resposta: ' + JSON.stringify(apiResult));
         }
 
+        // Enable webphone for this user
+        try {
+          // Fetch current user data to build full PUT payload
+          const userData = await threecRequest(baseUrl, token, `/users/${agentId}`);
+          const u = userData?.data ?? userData;
+          await threecRequest(baseUrl, token, `/users/${agentId}`, {
+            method: 'PUT',
+            body: {
+              name: u?.name || `${fName} ${lName}`.trim(),
+              email: u?.email || currentEmail,
+              role: u?.role?.name || u?.role || 'agent',
+              timezone: u?.settings?.timezone || 'America/Sao_Paulo',
+              extension_number: u?.extension?.extension_number ?? ext ?? currentExtension,
+              webphone: true,
+            },
+          });
+          console.log(`3C+ webphone habilitado para user ${agentId}`);
+        } catch (wpErr: any) {
+          console.warn(`3C+ falha ao habilitar webphone para user ${agentId}:`, wpErr?.message);
+        }
+
         // Persist in DB
         const { error: dbError } = await supabase.from('phone_extensions').insert({
           cod_agent: codAgent,
@@ -425,7 +446,47 @@ serve(async (req) => {
           throw new Error(`Erro ao salvar ramal no banco: ${dbError.message}`);
         }
 
-        result = { agentId, extension: ext, raw: apiResult };
+        result = { agentId, extension: ext, webphoneEnabled: true, raw: apiResult };
+        break;
+      }
+
+      // ------------------------------------------------------------------
+      // enable_webphone — habilita webphone para um usuário 3C+ existente
+      // PATCH /users/{id} { webphone: true }
+      // ------------------------------------------------------------------
+      case 'enable_webphone': {
+        const { extensionId } = params;
+
+        const { data: ext } = await supabase
+          .from('phone_extensions')
+          .select('threecplus_agent_id, threecplus_extension, extension_number, threecplus_raw')
+          .eq('id', extensionId)
+          .eq('cod_agent', codAgent)
+          .single();
+
+        if (!ext?.threecplus_agent_id) {
+          throw new Error('Ramal sem vínculo 3C+ (threecplus_agent_id ausente).');
+        }
+
+        const userId = ext.threecplus_agent_id;
+
+        // Fetch current user data for full PUT payload
+        const userData = await threecRequest(baseUrl, token, `/users/${userId}`);
+        const u = userData?.data ?? userData;
+
+        const putResult = await threecRequest(baseUrl, token, `/users/${userId}`, {
+          method: 'PUT',
+          body: {
+            name: u?.name || 'Agente',
+            email: u?.email || `agente_${Date.now()}@atendejulia.com.br`,
+            role: u?.role?.name || u?.role || 'agent',
+            timezone: u?.settings?.timezone || 'America/Sao_Paulo',
+            extension_number: u?.extension?.extension_number ?? ext.threecplus_extension ?? ext.extension_number,
+            webphone: true,
+          },
+        });
+
+        result = { userId, webphoneEnabled: true, raw: putResult };
         break;
       }
 
