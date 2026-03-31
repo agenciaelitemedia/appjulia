@@ -438,14 +438,24 @@ serve(async (req) => {
 
         const deleteResults: Record<string, unknown> = {};
 
-        // Delete from 3C+ (endpoint is /users, not /agents)
+        // Delete from 3C+ — try /agents first, fallback to /users
         if (extensionId) {
           try {
-            await threecRequest(baseUrl, token, `/users/${extensionId}`, { method: 'DELETE' });
+            await threecRequest(baseUrl, token, `/agents/${extensionId}`, { method: 'DELETE' });
             deleteResults.agent = { success: true };
           } catch (e: any) {
-            if (!e.message?.includes('404')) throw e;
-            deleteResults.agent = { success: true, note: 'already_gone' };
+            if (e.message?.includes('404') || e.message?.includes('405')) {
+              // Try /users endpoint as fallback
+              try {
+                await threecRequest(baseUrl, token, `/users/${extensionId}`, { method: 'DELETE' });
+                deleteResults.agent = { success: true, note: 'deleted_via_users' };
+              } catch (e2: any) {
+                if (!e2.message?.includes('404')) throw e2;
+                deleteResults.agent = { success: true, note: 'already_gone' };
+              }
+            } else {
+              throw e;
+            }
           }
         }
 
