@@ -246,17 +246,17 @@ serve(async (req) => {
           .map(b => String.fromCharCode(65 + (b % 26))).join('') +
           String(crypto.getRandomValues(new Uint8Array(1))[0] % 900 + 100);
 
-        // Create agent in 3C+
-        const agentBody: Record<string, any> = {
+        // Create user in 3C+ (endpoint is /users, not /agents)
+        const userBody: Record<string, any> = {
           name: `${fName} ${lName}`.trim(),
           email: emailToUse,
           password: randomPass,
           ...(extensionNumber ? { extension: extensionNumber } : {}),
         };
 
-        const apiResult = await threecRequest(baseUrl, token, '/agents', {
+        const apiResult = await threecRequest(baseUrl, token, '/users', {
           method: 'POST',
-          body: agentBody,
+          body: userBody,
         });
 
         const agentId = apiResult?.id ? String(apiResult.id) : null;
@@ -280,9 +280,9 @@ serve(async (req) => {
         });
 
         if (dbError) {
-          // Best-effort rollback: delete agent from 3C+
+          // Best-effort rollback: delete user from 3C+
           try {
-            await threecRequest(baseUrl, token, `/agents/${agentId}`, { method: 'DELETE' });
+            await threecRequest(baseUrl, token, `/users/${agentId}`, { method: 'DELETE' });
           } catch {}
           throw new Error(`Erro ao salvar ramal no banco: ${dbError.message}`);
         }
@@ -308,10 +308,10 @@ serve(async (req) => {
 
         const deleteResults: Record<string, unknown> = {};
 
-        // Delete from 3C+
+        // Delete from 3C+ (endpoint is /users, not /agents)
         if (extensionId) {
           try {
-            await threecRequest(baseUrl, token, `/agents/${extensionId}`, { method: 'DELETE' });
+            await threecRequest(baseUrl, token, `/users/${extensionId}`, { method: 'DELETE' });
             deleteResults.agent = { success: true };
           } catch (e: any) {
             if (!e.message?.includes('404')) throw e;
