@@ -262,27 +262,43 @@ serve(async (req) => {
         const spec2 = specials[crypto.getRandomValues(new Uint8Array(1))[0] % specials.length];
         const randomPass = `${upper}${lower}${nums}${spec1}${spec2}`;
 
-        if (!extensionNumber) {
-          const { data: existingExts, error: extError } = await supabase
-            .from('phone_extensions')
-            .select('extension_number')
-            .eq('cod_agent', codAgent)
-            .eq('provider', '3cplus');
+        const usedExtensions = new Set<number>();
 
-          if (extError) {
-            throw new Error(`Erro ao definir ramal automaticamente: ${extError.message}`);
+        // Collect used extension numbers from local DB
+        const { data: existingExts, error: extError } = await supabase
+          .from('phone_extensions')
+          .select('extension_number')
+          .eq('cod_agent', codAgent)
+          .eq('provider', '3cplus');
+
+        if (extError) {
+          throw new Error(`Erro ao consultar ramais existentes: ${extError.message}`);
+        }
+
+        for (const row of (existingExts || [])) {
+          const n = Number.parseInt(String((row as any).extension_number), 10);
+          if (Number.isFinite(n) && n > 0) usedExtensions.add(n);
+        }
+
+        // Also collect used extension numbers from 3C+ itself (source of truth)
+        try {
+          const remoteAgents = await threecRequest(baseUrl, token, '/agents');
+          const agentList: any[] = Array.isArray(remoteAgents)
+            ? remoteAgents
+            : (remoteAgents?.data || remoteAgents?.agents || []);
+
+          for (const agent of agentList) {
+            const n = Number.parseInt(String(agent?.extension), 10);
+            if (Number.isFinite(n) && n > 0) usedExtensions.add(n);
           }
+        } catch (e) {
+          console.warn('3C+ create_extension: falha ao consultar /agents para detectar ramais ocupados', e);
+        }
 
-          const used = new Set<number>(
-            (existingExts || [])
-              .map((row: any) => Number.parseInt(String(row.extension_number), 10))
-              .filter((n: number) => Number.isFinite(n) && n > 0)
-          );
-
+        if (!extensionNumber) {
           let candidate = 1000;
-          while (used.has(candidate)) candidate++;
+          while (usedExtensions.has(candidate)) candidate++;
           extensionNumber = String(candidate);
-
           console.log(`3C+ create_extension: ramal ausente no payload, usando ${extensionNumber}`);
         }
 
@@ -299,7 +315,7 @@ serve(async (req) => {
           return `${localPart}+${Date.now()}${attempt}@${domainPart || 'atendejulia.com.br'}`;
         };
 
-        for (let attempt = 0; attempt < 3; attempt++) {
+        for (let attempt = 0; attempt < 20; attempt++) {
           const userBody: Record<string, any> = {
             name: `${fName} ${lName}`.trim(),
             email: currentEmail,
@@ -320,7 +336,7 @@ serve(async (req) => {
             const emailInUse = msg.includes('e-mail já está sendo utilizado');
             const extensionInUse = msg.includes('Ramal já se encontra utilizado') || msg.includes('campo Ramal já se encontra utilizado') || msg.includes('extension_number');
 
-            const isLastAttempt = attempt === 2;
+            const isLastAttempt = attempt === 19;
             if (isLastAttempt || (!emailInUse && !extensionInUse)) {
               throw e;
             }
@@ -330,8 +346,11 @@ serve(async (req) => {
             }
 
             if (extensionInUse) {
-              const nextExt = Number.parseInt(String(currentExtension), 10);
-              currentExtension = String(Number.isFinite(nextExt) ? nextExt + 1 : (1000 + attempt + 1));
+              const current = Number.parseInt(String(currentExtension), 10);
+              let next = Number.isFinite(current) && current > 0 ? current + 1 : 1000;
+              while (usedExtensions.has(next)) next++;
+              usedExtensions.add(next);
+              currentExtension = String(next);
             }
 
             console.warn(`3C+ create_extension retry #${attempt + 1}: email=${currentEmail}, extension=${currentExtension}`);
