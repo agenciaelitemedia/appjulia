@@ -222,7 +222,8 @@ serve(async (req) => {
       // POST /agents
       // ------------------------------------------------------------------
       case 'create_extension': {
-        const { firstName, lastName, email, assignedMemberId, label, extensionNumber } = params;
+        const { firstName, lastName, email, assignedMemberId, label } = params;
+        const extensionNumber = String(params.extensionNumber ?? params.extension_number ?? params.extension ?? params.number ?? '').trim();
 
         // Validate uniqueness
         if (assignedMemberId) {
