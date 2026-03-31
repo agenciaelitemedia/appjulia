@@ -126,7 +126,7 @@ serve(async (req) => {
             domain: ext.threecplus_sip_domain,
             username: ext.threecplus_sip_username,
             password: ext.threecplus_sip_password,
-            wsUrl: config.threecplus_ws_url || `wss://${ext.threecplus_sip_domain}`,
+            wsUrl: `wss://${ext.threecplus_sip_domain}:8089/ws`,
           };
           break;
         }
