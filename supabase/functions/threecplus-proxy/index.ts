@@ -404,6 +404,17 @@ serve(async (req) => {
           throw new Error('3C+ não retornou ID do agente. Resposta: ' + JSON.stringify(apiResult));
         }
 
+        // Enable webphone for this user
+        try {
+          await threecRequest(baseUrl, token, `/users/${agentId}`, {
+            method: 'PATCH',
+            body: { webphone: true },
+          });
+          console.log(`3C+ webphone habilitado para user ${agentId}`);
+        } catch (wpErr: any) {
+          console.warn(`3C+ falha ao habilitar webphone para user ${agentId}:`, wpErr?.message);
+        }
+
         // Persist in DB
         const { error: dbError } = await supabase.from('phone_extensions').insert({
           cod_agent: codAgent,
@@ -425,7 +436,7 @@ serve(async (req) => {
           throw new Error(`Erro ao salvar ramal no banco: ${dbError.message}`);
         }
 
-        result = { agentId, extension: ext, raw: apiResult };
+        result = { agentId, extension: ext, webphoneEnabled: true, raw: apiResult };
         break;
       }
 
