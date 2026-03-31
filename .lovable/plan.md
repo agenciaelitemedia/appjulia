@@ -1,83 +1,89 @@
 
 
-# Adapter UaZapi Server-Side + Envio Direto nas Edge Functions
+# Arquitetura Multi-Provider: Adapter WABA + Factory de Mensageria
 
 ## Resumo
 
-Substituir o envio via N8N por chamadas diretas à API UaZapi usando as credenciais (`evo_url`, `evo_apikey`) do agente armazenadas na tabela externa `agents`. Criar um módulo adaptador reutilizável para as Edge Functions.
+Criar um adapter para a API Oficial da Meta (WABA) com a mesma interface do `UaZapiAdapter`, e um factory (`getMessagingAdapter`) que retorna o adapter correto baseado no campo `hub` do agente. O cron e demais funções passam a usar o factory em vez de instanciar `UaZapiAdapter` diretamente.
 
 ## Arquivos
 
-### 1. Criar `supabase/functions/_shared/uazapi-adapter.ts`
+### 1. Criar `supabase/functions/_shared/waba-adapter.ts`
 
-Módulo reutilizável (importado pelas Edge Functions) com:
+Adapter WABA implementando a mesma interface `SendResult`:
 
 ```typescript
-class UaZapiAdapter {
-  constructor(baseUrl: string, token: string)
+class WabaAdapter {
+  constructor(accessToken: string, phoneNumberId: string)
   
-  // Mensagens
   sendText(number: string, text: string): Promise<SendResult>
   sendMedia(number: string, mediaUrl: string, caption?: string, type?: string): Promise<SendResult>
   sendLocation(number: string, lat: number, lng: number, name?: string): Promise<SendResult>
-  sendContact(number: string, contact: {name: string, phone: string}): Promise<SendResult>
-  sendMenu(number: string, text: string, buttons: any[]): Promise<SendResult>
-  
-  // Instância
+  sendContact(number: string, contactName: string, contactPhone: string): Promise<SendResult>
   getStatus(): Promise<InstanceStatus>
-  
-  // Chat
-  checkNumbers(numbers: string[]): Promise<CheckResult[]>
 }
 ```
 
-- Autenticação via header `token`
+- Usa `https://graph.facebook.com/v22.0/{phoneNumberId}/messages`
+- Header `Authorization: Bearer {accessToken}`
+- Body segue formato Meta: `{ messaging_product: "whatsapp", to, type: "text", text: { body } }`
 - Retry com backoff (2 tentativas)
-- Logging de request/response para debug
-- Formato: `POST {baseUrl}/send/text` com body `{ number, text }`
 
-### 2. Criar `supabase/functions/_shared/get-agent-credentials.ts`
+### 2. Criar `supabase/functions/_shared/messaging-factory.ts`
 
-Função helper que busca `evo_url` e `evo_apikey` do agente no banco externo:
+Interface unificada + factory:
 
 ```typescript
-async function getAgentCredentials(sql, codAgent: string): Promise<{evo_url: string, evo_apikey: string} | null>
+interface MessagingAdapter {
+  sendText(number: string, text: string): Promise<SendResult>
+  sendMedia(...): Promise<SendResult>
+}
+
+interface AgentMessagingCredentials {
+  hub: string;
+  evo_url?: string;
+  evo_apikey?: string;
+  waba_token?: string;
+  waba_number_id?: string;
+}
+
+function createMessagingAdapter(creds: AgentMessagingCredentials): MessagingAdapter
 ```
 
-- Query: `SELECT evo_url, evo_apikey FROM agents WHERE cod_agent = $1 AND hub = 'uazapi'`
-- Retorna null se agente não tem credenciais
+- Se `hub === 'uazapi'` → retorna `UaZapiAdapter`
+- Se `hub === 'waba'` → retorna `WabaAdapter`
+- Senão → throw error
 
-### 3. Editar `supabase/functions/contract-notifications-cron/index.ts`
+### 3. Refatorar `supabase/functions/_shared/get-agent-credentials.ts`
 
-- Remover referência a `N8N_HUB_SEND_URL`
-- Importar `UaZapiAdapter` e `getAgentCredentials`
-- No loop por agente, buscar credenciais e instanciar adapter
-- Substituir `sendWhatsApp()` por `adapter.sendText(phone, message)`
-- Se agente sem credenciais, logar e pular
+- Remover filtro `hub = 'uazapi'`
+- Query: `SELECT evo_url, evo_apikey, hub, waba_token, waba_number_id FROM agents WHERE cod_agent = $1 LIMIT 1`
+- Retornar `AgentMessagingCredentials` com o campo `hub`
 
-### 4. Editar `supabase/functions/contract-notifications-queue/index.ts`
+### 4. Editar `supabase/functions/contract-notifications-cron/index.ts`
 
-- Mesmo padrão: buscar credenciais do agente e incluir info de conexão na resposta da fila
+- Importar `createMessagingAdapter` em vez de `UaZapiAdapter`
+- Onde faz `new UaZapiAdapter(creds.evo_url, creds.evo_apikey)`, trocar por `createMessagingAdapter(creds)`
+- O resto do código (chamadas a `adapter.sendText()`) permanece idêntico
 
-## Fluxo de envio atualizado
+### 5. Editar `supabase/functions/contract-notifications-queue/index.ts`
+
+- Mesmo padrão: usar factory para determinar status de conexão
+
+## Fluxo
 
 ```text
-cron trigger
-  → busca configs ativas (Supabase)
-  → agrupa por agente
+cron → busca configs ativas
   → para cada agente:
-      → busca evo_url + evo_apikey da tabela agents (DB externo)
-      → instancia UaZapiAdapter(evo_url, evo_apikey)
-      → busca contratos (DB externo)
-      → para cada contrato elegível:
-          → adapter.sendText(phone, message)
-          → registra log no Supabase
+      → getAgentCredentials(sql, codAgent)
+        → retorna { hub, evo_url, evo_apikey, waba_token, waba_number_id }
+      → createMessagingAdapter(creds)
+        → hub === 'uazapi' → UaZapiAdapter
+        → hub === 'waba'   → WabaAdapter
+      → adapter.sendText(phone, message)  ← mesma interface
 ```
 
-## Benefícios
+## Extensibilidade
 
-- Elimina dependência do N8N para envio
-- Envio direto pela instância conectada do agente
-- Adapter reutilizável para qualquer funcionalidade futura que precise enviar mensagem
-- Logging detalhado da resposta real da API UaZapi
+Para adicionar um novo provider no futuro (ex: Evolution V2), basta criar o adapter e adicionar um `case` no factory.
 
