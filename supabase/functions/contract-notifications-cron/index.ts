@@ -1,13 +1,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
+import { UaZapiAdapter } from "../_shared/uazapi-adapter.ts";
+import { getAgentCredentials } from "../_shared/get-agent-credentials.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const N8N_HUB_SEND_URL = Deno.env.get("N8N_HUB_SEND_URL");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -92,25 +93,13 @@ interface Contract {
   status_document: string;
 }
 
-async function sendWhatsApp(phone: string, message: string, codAgent: string, source: string) {
-  if (!N8N_HUB_SEND_URL) return { status: 'failed', error: 'N8N_HUB_SEND_URL not configured' };
-  try {
-    const resp = await fetch(N8N_HUB_SEND_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone, message, cod_agent: codAgent, source }),
-    });
-    const result = await resp.json();
-    if (resp.ok && result.success) {
-      return { status: 'sent', error: null };
-    }
-    return { status: 'failed', error: result.error || 'Send failed' };
-  } catch (e) {
-    return { status: 'failed', error: e instanceof Error ? e.message : 'Unknown error' };
-  }
-}
-
-async function processLeadFollowup(supabase: any, cfg: any, contracts: Contract[], codAgent: string) {
+async function processLeadFollowup(
+  supabase: any,
+  cfg: any,
+  contracts: Contract[],
+  codAgent: string,
+  adapter: UaZapiAdapter,
+) {
   const results: any[] = [];
   const unsignedContracts = contracts.filter(c => c.status_document === 'CREATED');
   const stepCadence = cfg.step_cadence || {};
@@ -152,9 +141,18 @@ async function processLeadFollowup(supabase: any, cfg: any, contracts: Contract[
       contract_date: contract.created_at,
     }) + zapSignLink;
 
-    const sendResult = contract.whatsapp_number
-      ? await sendWhatsApp(contract.whatsapp_number, message, codAgent, "contract_followup")
-      : { status: 'failed', error: 'whatsapp not configured' };
+    let sendResult: { status: string; error: string | null };
+
+    if (!contract.whatsapp_number) {
+      sendResult = { status: 'failed', error: 'whatsapp not configured' };
+    } else {
+      const result = await adapter.sendText(contract.whatsapp_number, message);
+      sendResult = {
+        status: result.success ? 'sent' : 'failed',
+        error: result.error || null,
+      };
+      console.log(`[LEAD_FOLLOWUP] ${contract.cod_document} → ${contract.whatsapp_number}: ${sendResult.status}`);
+    }
 
     await supabase.from("contract_notification_logs").insert({
       config_id: cfg.id,
@@ -174,7 +172,13 @@ async function processLeadFollowup(supabase: any, cfg: any, contracts: Contract[
   return results;
 }
 
-async function processOfficeAlert(supabase: any, cfg: any, contracts: Contract[], codAgent: string) {
+async function processOfficeAlert(
+  supabase: any,
+  cfg: any,
+  contracts: Contract[],
+  codAgent: string,
+  adapter: UaZapiAdapter,
+) {
   const results: any[] = [];
 
   interface NumberEntry { phone: string; trigger: string }
@@ -244,7 +248,12 @@ async function processOfficeAlert(supabase: any, cfg: any, contracts: Contract[]
     });
 
     for (const entry of matchingNumbers) {
-      const sendResult = await sendWhatsApp(entry.phone, message, codAgent, "contract_office_alert");
+      const result = await adapter.sendText(entry.phone, message);
+      const sendResult = {
+        status: result.success ? 'sent' : 'failed',
+        error: result.error || null,
+      };
+      console.log(`[OFFICE_ALERT] ${contract.cod_document} → ${entry.phone}: ${sendResult.status}`);
 
       await supabase.from("contract_notification_logs").insert({
         config_id: cfg.id,
@@ -309,6 +318,16 @@ serve(async (req) => {
     }
 
     for (const [codAgent, cfgList] of agentConfigs) {
+      // Get agent credentials from external DB
+      const creds = await getAgentCredentials(sql, codAgent);
+      if (!creds) {
+        console.log(`[cron] Skipping agent ${codAgent}: no UaZapi credentials`);
+        continue;
+      }
+
+      const adapter = new UaZapiAdapter(creds.evo_url, creds.evo_apikey);
+      console.log(`[cron] Processing agent ${codAgent} via ${creds.evo_url}`);
+
       const contracts = await sql.unsafe(
         `SELECT DISTINCT ON (s.cod_document)
           s.cod_document,
@@ -329,9 +348,9 @@ serve(async (req) => {
 
       for (const cfg of cfgList) {
         if (cfg.type === 'LEAD_FOLLOWUP') {
-          results.push(...await processLeadFollowup(supabase, cfg, contracts, codAgent));
+          results.push(...await processLeadFollowup(supabase, cfg, contracts, codAgent, adapter));
         } else if (cfg.type === 'OFFICE_ALERT') {
-          results.push(...await processOfficeAlert(supabase, cfg, contracts, codAgent));
+          results.push(...await processOfficeAlert(supabase, cfg, contracts, codAgent, adapter));
         }
       }
     }
