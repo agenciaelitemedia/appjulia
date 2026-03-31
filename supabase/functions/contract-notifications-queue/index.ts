@@ -325,7 +325,7 @@ serve(async (req) => {
     const connectionStatus = creds ? 'connected' : 'no_credentials';
     const providerHub = creds?.hub || null;
 
-    return new Response(JSON.stringify({ queue, connectionStatus }), {
+    return new Response(JSON.stringify({ queue, connectionStatus, providerHub }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {

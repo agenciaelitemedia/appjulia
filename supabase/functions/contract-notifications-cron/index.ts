@@ -325,8 +325,8 @@ serve(async (req) => {
         continue;
       }
 
-      const adapter = new UaZapiAdapter(creds.evo_url, creds.evo_apikey);
-      console.log(`[cron] Processing agent ${codAgent} via ${creds.evo_url}`);
+      const adapter = createMessagingAdapter(creds);
+      console.log(`[cron] Processing agent ${codAgent} via ${creds.hub} provider`);
 
       const contracts = await sql.unsafe(
         `SELECT DISTINCT ON (s.cod_document)
