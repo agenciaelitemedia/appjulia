@@ -222,8 +222,16 @@ serve(async (req) => {
       // POST /agents
       // ------------------------------------------------------------------
       case 'create_extension': {
-        const { firstName, lastName, email, assignedMemberId, label } = params;
-        const extensionNumber = String(params.extensionNumber ?? params.extension_number ?? params.extension ?? params.number ?? '').trim();
+        const createPayload = (params?.params && typeof params.params === 'object') ? params.params : params;
+        const { firstName, lastName, email, assignedMemberId, label } = createPayload;
+        let extensionNumber = String(
+          createPayload.extensionNumber
+          ?? createPayload.extension_number
+          ?? createPayload.extension
+          ?? createPayload.number
+          ?? createPayload.ramal
+          ?? ''
+        ).trim();
 
         // Validate uniqueness
         if (assignedMemberId) {
@@ -254,27 +262,107 @@ serve(async (req) => {
         const spec2 = specials[crypto.getRandomValues(new Uint8Array(1))[0] % specials.length];
         const randomPass = `${upper}${lower}${nums}${spec1}${spec2}`;
 
+        const usedExtensions = new Set<number>();
+
+        // Collect used extension numbers from local DB
+        const { data: existingExts, error: extError } = await supabase
+          .from('phone_extensions')
+          .select('extension_number')
+          .eq('cod_agent', codAgent)
+          .eq('provider', '3cplus');
+
+        if (extError) {
+          throw new Error(`Erro ao consultar ramais existentes: ${extError.message}`);
+        }
+
+        for (const row of (existingExts || [])) {
+          const n = Number.parseInt(String((row as any).extension_number), 10);
+          if (Number.isFinite(n) && n > 0) usedExtensions.add(n);
+        }
+
+        // Also collect used extension numbers from 3C+ itself (source of truth)
+        try {
+          const remoteAgents = await threecRequest(baseUrl, token, '/agents');
+          const agentList: any[] = Array.isArray(remoteAgents)
+            ? remoteAgents
+            : (remoteAgents?.data || remoteAgents?.agents || []);
+
+          for (const agent of agentList) {
+            const n = Number.parseInt(String(agent?.extension), 10);
+            if (Number.isFinite(n) && n > 0) usedExtensions.add(n);
+          }
+        } catch (e) {
+          console.warn('3C+ create_extension: falha ao consultar /agents para detectar ramais ocupados', e);
+        }
+
         if (!extensionNumber) {
-          throw new Error('Número do ramal é obrigatório para criar usuário no 3C+.');
+          let candidate = 1000;
+          while (usedExtensions.has(candidate)) candidate++;
+          extensionNumber = String(candidate);
+          console.log(`3C+ create_extension: ramal ausente no payload, usando ${extensionNumber}`);
         }
 
         // Create user in 3C+ (endpoint is /users, not /agents)
-        const userBody: Record<string, any> = {
-          name: `${fName} ${lName}`.trim(),
-          email: emailToUse,
-          password: randomPass,
-          role: 'agent',
-          timezone: 'America/Sao_Paulo',
-          extension_number: String(extensionNumber),
+        let currentExtension = extensionNumber;
+        let currentEmail = emailToUse;
+        let apiResult: any = null;
+
+        const makeUniqueEmail = (baseEmail: string, attempt: number): string => {
+          if (attempt <= 0) return baseEmail;
+          const [localPart, domainPart] = baseEmail.includes('@')
+            ? baseEmail.split('@')
+            : [baseEmail, 'atendejulia.com.br'];
+          return `${localPart}+${Date.now()}${attempt}@${domainPart || 'atendejulia.com.br'}`;
         };
 
-        const apiResult = await threecRequest(baseUrl, token, '/users', {
-          method: 'POST',
-          body: userBody,
-        });
+        for (let attempt = 0; attempt < 20; attempt++) {
+          const userBody: Record<string, any> = {
+            name: `${fName} ${lName}`.trim(),
+            email: currentEmail,
+            password: randomPass,
+            role: 'agent',
+            timezone: 'America/Sao_Paulo',
+            extension_number: String(currentExtension),
+          };
 
-        const agentId = apiResult?.id ? String(apiResult.id) : null;
-        const ext = apiResult?.extension || extensionNumber || null;
+          try {
+            apiResult = await threecRequest(baseUrl, token, '/users', {
+              method: 'POST',
+              body: userBody,
+            });
+            break;
+          } catch (e: any) {
+            const msg = String(e?.message || '');
+            const emailInUse = msg.includes('e-mail já está sendo utilizado');
+            const extensionInUse = msg.includes('Ramal já se encontra utilizado') || msg.includes('campo Ramal já se encontra utilizado') || msg.includes('extension_number');
+
+            const isLastAttempt = attempt === 19;
+            if (isLastAttempt || (!emailInUse && !extensionInUse)) {
+              throw e;
+            }
+
+            if (emailInUse) {
+              currentEmail = makeUniqueEmail(emailToUse, attempt + 1);
+            }
+
+            if (extensionInUse) {
+              const current = Number.parseInt(String(currentExtension), 10);
+              let next = Number.isFinite(current) && current > 0 ? current + 1 : 1000;
+              while (usedExtensions.has(next)) next++;
+              usedExtensions.add(next);
+              currentExtension = String(next);
+            }
+
+            console.warn(`3C+ create_extension retry #${attempt + 1}: email=${currentEmail}, extension=${currentExtension}`);
+          }
+        }
+
+        const apiUser = apiResult?.data ?? apiResult;
+        const agentId = apiUser?.id ? String(apiUser.id) : null;
+        const apiExtension = apiUser?.extension?.extension_number ?? apiUser?.extension_number ?? apiUser?.extension;
+        const ext = apiExtension !== undefined && apiExtension !== null
+          ? String(apiExtension)
+          : (currentExtension || null);
 
         if (!agentId) {
           throw new Error('3C+ não retornou ID do agente. Resposta: ' + JSON.stringify(apiResult));
