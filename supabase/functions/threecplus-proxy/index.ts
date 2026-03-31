@@ -287,19 +287,56 @@ serve(async (req) => {
         }
 
         // Create user in 3C+ (endpoint is /users, not /agents)
-        const userBody: Record<string, any> = {
-          name: `${fName} ${lName}`.trim(),
-          email: emailToUse,
-          password: randomPass,
-          role: 'agent',
-          timezone: 'America/Sao_Paulo',
-          extension_number: String(extensionNumber),
+        let currentExtension = extensionNumber;
+        let currentEmail = emailToUse;
+        let apiResult: any = null;
+
+        const makeUniqueEmail = (baseEmail: string, attempt: number): string => {
+          if (attempt <= 0) return baseEmail;
+          const [localPart, domainPart] = baseEmail.includes('@')
+            ? baseEmail.split('@')
+            : [baseEmail, 'atendejulia.com.br'];
+          return `${localPart}+${Date.now()}${attempt}@${domainPart || 'atendejulia.com.br'}`;
         };
 
-        const apiResult = await threecRequest(baseUrl, token, '/users', {
-          method: 'POST',
-          body: userBody,
-        });
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const userBody: Record<string, any> = {
+            name: `${fName} ${lName}`.trim(),
+            email: currentEmail,
+            password: randomPass,
+            role: 'agent',
+            timezone: 'America/Sao_Paulo',
+            extension_number: String(currentExtension),
+          };
+
+          try {
+            apiResult = await threecRequest(baseUrl, token, '/users', {
+              method: 'POST',
+              body: userBody,
+            });
+            break;
+          } catch (e: any) {
+            const msg = String(e?.message || '');
+            const emailInUse = msg.includes('e-mail já está sendo utilizado');
+            const extensionInUse = msg.includes('Ramal já se encontra utilizado') || msg.includes('campo Ramal já se encontra utilizado') || msg.includes('extension_number');
+
+            const isLastAttempt = attempt === 2;
+            if (isLastAttempt || (!emailInUse && !extensionInUse)) {
+              throw e;
+            }
+
+            if (emailInUse) {
+              currentEmail = makeUniqueEmail(emailToUse, attempt + 1);
+            }
+
+            if (extensionInUse) {
+              const nextExt = Number.parseInt(String(currentExtension), 10);
+              currentExtension = String(Number.isFinite(nextExt) ? nextExt + 1 : (1000 + attempt + 1));
+            }
+
+            console.warn(`3C+ create_extension retry #${attempt + 1}: email=${currentEmail}, extension=${currentExtension}`);
+          }
+        }
 
         const apiUser = apiResult?.data ?? apiResult;
         const agentId = apiUser?.id ? String(apiUser.id) : null;
