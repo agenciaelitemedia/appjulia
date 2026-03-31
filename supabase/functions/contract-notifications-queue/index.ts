@@ -320,7 +320,11 @@ serve(async (req) => {
 
     queue.sort((a, b) => new Date(a.estimated_at).getTime() - new Date(b.estimated_at).getTime());
 
-    return new Response(JSON.stringify({ queue }), {
+    // Check agent connection status
+    const creds = await getAgentCredentials(sql, cod_agent);
+    const connectionStatus = creds ? 'connected' : 'no_credentials';
+
+    return new Response(JSON.stringify({ queue, connectionStatus }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
