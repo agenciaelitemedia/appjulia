@@ -406,9 +406,19 @@ serve(async (req) => {
 
         // Enable webphone for this user
         try {
+          // Fetch current user data to build full PUT payload
+          const userData = await threecRequest(baseUrl, token, `/users/${agentId}`);
+          const u = userData?.data ?? userData;
           await threecRequest(baseUrl, token, `/users/${agentId}`, {
             method: 'PUT',
-            body: { webphone: true },
+            body: {
+              name: u?.name || `${fName} ${lName}`.trim(),
+              email: u?.email || currentEmail,
+              role: u?.role?.name || u?.role || 'agent',
+              timezone: u?.settings?.timezone || 'America/Sao_Paulo',
+              extension_number: u?.extension?.extension_number ?? ext ?? currentExtension,
+              webphone: true,
+            },
           });
           console.log(`3C+ webphone habilitado para user ${agentId}`);
         } catch (wpErr: any) {
