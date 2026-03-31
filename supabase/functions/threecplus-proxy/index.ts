@@ -246,17 +246,17 @@ serve(async (req) => {
           .map(b => String.fromCharCode(65 + (b % 26))).join('') +
           String(crypto.getRandomValues(new Uint8Array(1))[0] % 900 + 100);
 
-        // Create agent in 3C+
-        const agentBody: Record<string, any> = {
+        // Create user in 3C+ (endpoint is /users, not /agents)
+        const userBody: Record<string, any> = {
           name: `${fName} ${lName}`.trim(),
           email: emailToUse,
           password: randomPass,
           ...(extensionNumber ? { extension: extensionNumber } : {}),
         };
 
-        const apiResult = await threecRequest(baseUrl, token, '/agents', {
+        const apiResult = await threecRequest(baseUrl, token, '/users', {
           method: 'POST',
-          body: agentBody,
+          body: userBody,
         });
 
         const agentId = apiResult?.id ? String(apiResult.id) : null;
