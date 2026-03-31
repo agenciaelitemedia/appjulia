@@ -1,78 +1,40 @@
 
 
-# Diagnóstico de Permissões do Token 3C+
+# Fix SIP WebSocket URL for 3C+
 
-## Resumo
+## Problem
 
-Adicionar uma nova action `diagnose_token` ao `threecplus-proxy` que testa endpoints-chave da API 3C+ e retorna um mapa de permissões, sem lançar erro se algum endpoint retornar 403.
+The SIP client connects to `wss://events.3c.fluxoti.com/ws/me` — this is the 3C+ **events** WebSocket, not a SIP/WebRTC endpoint. It rejects the connection (code 1006) because it doesn't speak SIP.
 
-## Implementação
+The correct SIP WebSocket is derived from the SIP domain: `wss://pbx01.3c.fluxoti.com:8089/ws`.
 
-### Arquivo: `supabase/functions/threecplus-proxy/index.ts`
+## Root Cause
 
-Adicionar novo case no switch (após o bloco de config, antes do default):
+In `threecplus-proxy/index.ts`, the `get_sip_credentials` action returns `config.threecplus_ws_url` (which holds the events URL) as the SIP WebSocket URL. The `useSipPhone` hook then uses this URL to open its SIP WebSocket — wrong endpoint entirely.
+
+## Fix
+
+### 1. `supabase/functions/threecplus-proxy/index.ts`
+
+In all three code paths of `get_sip_credentials`, construct the SIP WebSocket URL from the SIP domain instead of using `config.threecplus_ws_url`:
 
 ```typescript
-case 'diagnose_token': {
-  const endpoints = [
-    { name: 'users_list',     method: 'GET',  path: '/users?per_page=1' },
-    { name: 'agents_list',    method: 'GET',  path: '/agents?per_page=1' },
-    { name: 'webphone_login', method: 'POST', path: '/agent/webphone/login', body: { agent_id: 0 } },
-    { name: 'campaigns_list', method: 'GET',  path: '/campaigns?per_page=1' },
-  ];
+// BEFORE (3 places):
+const wsUrl = config.threecplus_ws_url || `wss://${sipDomain}`;
 
-  const results: Record<string, { status: number; ok: boolean; detail?: string }> = {};
-
-  for (const ep of endpoints) {
-    try {
-      const separator = ep.path.includes('?') ? '&' : '?';
-      const url = `${baseUrl}${ep.path}${separator}api_token=${token}`;
-      const headers: Record<string, string> = { 'Accept': 'application/json' };
-      const fetchOpts: RequestInit = { method: ep.method, headers };
-      if (ep.body) {
-        headers['Content-Type'] = 'application/json';
-        fetchOpts.body = JSON.stringify(ep.body);
-      }
-      const res = await fetch(url, fetchOpts);
-      const text = await res.text();
-      results[ep.name] = {
-        status: res.status,
-        ok: res.ok,
-        detail: res.ok ? undefined : text.substring(0, 200),
-      };
-    } catch (err) {
-      results[ep.name] = { status: 0, ok: false, detail: String(err).substring(0, 200) };
-    }
-  }
-
-  result = {
-    token_prefix: token.substring(0, 10) + '...',
-    base_url: baseUrl,
-    cod_agent: codAgent,
-    permissions: results,
-    summary: Object.entries(results).map(([k, v]) => `${k}: ${v.ok ? '✅' : '❌'} (${v.status})`).join(', '),
-  };
-  break;
-}
+// AFTER (all 3):
+const wsUrl = `wss://${sipDomain}:8089/ws`;
 ```
 
-## Resultado Esperado
+This applies to lines ~129, ~157, and ~188.
 
-Chamando com `{ action: 'diagnose_token', codAgent: '202601003' }`, retorna:
+### 2. `src/pages/admin/telefonia/components/ConfigTab.tsx`
 
-```json
-{
-  "token_prefix": "57nwW8YhKU...",
-  "base_url": "https://app.3c.fluxoti.com/api/v1",
-  "permissions": {
-    "users_list":     { "status": 200, "ok": true },
-    "agents_list":    { "status": 200, "ok": true },
-    "webphone_login": { "status": 403, "ok": false, "detail": "..." },
-    "campaigns_list": { "status": 200, "ok": true }
-  },
-  "summary": "users_list: ✅ (200), agents_list: ✅ (200), webphone_login: ❌ (403), campaigns_list: ✅ (200)"
-}
-```
+Rename/relabel the `threecplus_ws_url` field to clarify it's for **events**, not SIP. Add a helper tooltip: "URL do WebSocket de eventos 3C+ (não é o WebSocket SIP)". No functional change needed — this field stays for future events integration.
 
-Isso permite identificar exatamente quais permissões o token possui sem precisar testar cada operação individualmente.
+## Technical Detail
+
+- SIP domain: `pbx01.3c.fluxoti.com`
+- Correct SIP WS: `wss://pbx01.3c.fluxoti.com:8089/ws` (standard Obexi/Obexa PBX port)
+- Events WS: `wss://events.3c.fluxoti.com/ws/me` (3C+ platform events, not SIP)
 
