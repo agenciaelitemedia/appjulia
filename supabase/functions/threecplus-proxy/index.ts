@@ -280,9 +280,9 @@ serve(async (req) => {
         });
 
         if (dbError) {
-          // Best-effort rollback: delete agent from 3C+
+          // Best-effort rollback: delete user from 3C+
           try {
-            await threecRequest(baseUrl, token, `/agents/${agentId}`, { method: 'DELETE' });
+            await threecRequest(baseUrl, token, `/users/${agentId}`, { method: 'DELETE' });
           } catch {}
           throw new Error(`Erro ao salvar ramal no banco: ${dbError.message}`);
         }
