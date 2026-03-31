@@ -1,89 +1,78 @@
 
 
-# Arquitetura Multi-Provider: Adapter WABA + Factory de Mensageria
+# Diagnóstico de Permissões do Token 3C+
 
 ## Resumo
 
-Criar um adapter para a API Oficial da Meta (WABA) com a mesma interface do `UaZapiAdapter`, e um factory (`getMessagingAdapter`) que retorna o adapter correto baseado no campo `hub` do agente. O cron e demais funções passam a usar o factory em vez de instanciar `UaZapiAdapter` diretamente.
+Adicionar uma nova action `diagnose_token` ao `threecplus-proxy` que testa endpoints-chave da API 3C+ e retorna um mapa de permissões, sem lançar erro se algum endpoint retornar 403.
 
-## Arquivos
+## Implementação
 
-### 1. Criar `supabase/functions/_shared/waba-adapter.ts`
+### Arquivo: `supabase/functions/threecplus-proxy/index.ts`
 
-Adapter WABA implementando a mesma interface `SendResult`:
-
-```typescript
-class WabaAdapter {
-  constructor(accessToken: string, phoneNumberId: string)
-  
-  sendText(number: string, text: string): Promise<SendResult>
-  sendMedia(number: string, mediaUrl: string, caption?: string, type?: string): Promise<SendResult>
-  sendLocation(number: string, lat: number, lng: number, name?: string): Promise<SendResult>
-  sendContact(number: string, contactName: string, contactPhone: string): Promise<SendResult>
-  getStatus(): Promise<InstanceStatus>
-}
-```
-
-- Usa `https://graph.facebook.com/v22.0/{phoneNumberId}/messages`
-- Header `Authorization: Bearer {accessToken}`
-- Body segue formato Meta: `{ messaging_product: "whatsapp", to, type: "text", text: { body } }`
-- Retry com backoff (2 tentativas)
-
-### 2. Criar `supabase/functions/_shared/messaging-factory.ts`
-
-Interface unificada + factory:
+Adicionar novo case no switch (após o bloco de config, antes do default):
 
 ```typescript
-interface MessagingAdapter {
-  sendText(number: string, text: string): Promise<SendResult>
-  sendMedia(...): Promise<SendResult>
-}
+case 'diagnose_token': {
+  const endpoints = [
+    { name: 'users_list',     method: 'GET',  path: '/users?per_page=1' },
+    { name: 'agents_list',    method: 'GET',  path: '/agents?per_page=1' },
+    { name: 'webphone_login', method: 'POST', path: '/agent/webphone/login', body: { agent_id: 0 } },
+    { name: 'campaigns_list', method: 'GET',  path: '/campaigns?per_page=1' },
+  ];
 
-interface AgentMessagingCredentials {
-  hub: string;
-  evo_url?: string;
-  evo_apikey?: string;
-  waba_token?: string;
-  waba_number_id?: string;
-}
+  const results: Record<string, { status: number; ok: boolean; detail?: string }> = {};
 
-function createMessagingAdapter(creds: AgentMessagingCredentials): MessagingAdapter
+  for (const ep of endpoints) {
+    try {
+      const separator = ep.path.includes('?') ? '&' : '?';
+      const url = `${baseUrl}${ep.path}${separator}api_token=${token}`;
+      const headers: Record<string, string> = { 'Accept': 'application/json' };
+      const fetchOpts: RequestInit = { method: ep.method, headers };
+      if (ep.body) {
+        headers['Content-Type'] = 'application/json';
+        fetchOpts.body = JSON.stringify(ep.body);
+      }
+      const res = await fetch(url, fetchOpts);
+      const text = await res.text();
+      results[ep.name] = {
+        status: res.status,
+        ok: res.ok,
+        detail: res.ok ? undefined : text.substring(0, 200),
+      };
+    } catch (err) {
+      results[ep.name] = { status: 0, ok: false, detail: String(err).substring(0, 200) };
+    }
+  }
+
+  result = {
+    token_prefix: token.substring(0, 10) + '...',
+    base_url: baseUrl,
+    cod_agent: codAgent,
+    permissions: results,
+    summary: Object.entries(results).map(([k, v]) => `${k}: ${v.ok ? '✅' : '❌'} (${v.status})`).join(', '),
+  };
+  break;
+}
 ```
 
-- Se `hub === 'uazapi'` → retorna `UaZapiAdapter`
-- Se `hub === 'waba'` → retorna `WabaAdapter`
-- Senão → throw error
+## Resultado Esperado
 
-### 3. Refatorar `supabase/functions/_shared/get-agent-credentials.ts`
+Chamando com `{ action: 'diagnose_token', codAgent: '202601003' }`, retorna:
 
-- Remover filtro `hub = 'uazapi'`
-- Query: `SELECT evo_url, evo_apikey, hub, waba_token, waba_number_id FROM agents WHERE cod_agent = $1 LIMIT 1`
-- Retornar `AgentMessagingCredentials` com o campo `hub`
-
-### 4. Editar `supabase/functions/contract-notifications-cron/index.ts`
-
-- Importar `createMessagingAdapter` em vez de `UaZapiAdapter`
-- Onde faz `new UaZapiAdapter(creds.evo_url, creds.evo_apikey)`, trocar por `createMessagingAdapter(creds)`
-- O resto do código (chamadas a `adapter.sendText()`) permanece idêntico
-
-### 5. Editar `supabase/functions/contract-notifications-queue/index.ts`
-
-- Mesmo padrão: usar factory para determinar status de conexão
-
-## Fluxo
-
-```text
-cron → busca configs ativas
-  → para cada agente:
-      → getAgentCredentials(sql, codAgent)
-        → retorna { hub, evo_url, evo_apikey, waba_token, waba_number_id }
-      → createMessagingAdapter(creds)
-        → hub === 'uazapi' → UaZapiAdapter
-        → hub === 'waba'   → WabaAdapter
-      → adapter.sendText(phone, message)  ← mesma interface
+```json
+{
+  "token_prefix": "57nwW8YhKU...",
+  "base_url": "https://app.3c.fluxoti.com/api/v1",
+  "permissions": {
+    "users_list":     { "status": 200, "ok": true },
+    "agents_list":    { "status": 200, "ok": true },
+    "webphone_login": { "status": 403, "ok": false, "detail": "..." },
+    "campaigns_list": { "status": 200, "ok": true }
+  },
+  "summary": "users_list: ✅ (200), agents_list: ✅ (200), webphone_login: ❌ (403), campaigns_list: ✅ (200)"
+}
 ```
 
-## Extensibilidade
-
-Para adicionar um novo provider no futuro (ex: Evolution V2), basta criar o adapter e adicionar um `case` no factory.
+Isso permite identificar exatamente quais permissões o token possui sem precisar testar cada operação individualmente.
 
