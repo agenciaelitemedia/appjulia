@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, CreditCard, Loader2, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, CreditCard, Loader2, ShieldCheck, ExternalLink } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import type { OrderData } from '../ComprarPage';
 
@@ -13,6 +13,7 @@ interface Props {
 export const CheckoutStep = ({ orderData, onBack }: Props) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [checkoutUrl, setCheckoutUrl] = useState('');
 
   const formatPrice = (cents: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
@@ -28,7 +29,6 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
     setError('');
 
     try {
-      // Update the draft with plan info
       await supabase
         .from('julia_orders')
         .update({
@@ -38,7 +38,6 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
         })
         .eq('id', orderData.id);
 
-      // Call checkout edge function
       const { data, error: fnError } = await supabase.functions.invoke('infinitypay-checkout', {
         body: { order_id: orderData.id },
       });
@@ -46,12 +45,7 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
       if (fnError) throw fnError;
 
       if (data?.checkout_url) {
-        // Open in new tab to avoid iframe blocking
-        const win = window.open(data.checkout_url, '_blank');
-        if (!win) {
-          // Fallback: try top-level navigation
-          (window.top || window).location.href = data.checkout_url;
-        }
+        setCheckoutUrl(data.checkout_url);
       } else {
         setError('Não foi possível gerar o link de pagamento. Tente novamente.');
       }
@@ -63,13 +57,46 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
     }
   };
 
+  if (checkoutUrl) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Button variant="outline" onClick={() => setCheckoutUrl('')} className="h-10 rounded-xl border-gray-200">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Voltar ao resumo
+          </Button>
+          <a
+            href={checkoutUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-[#6C3AED] hover:underline flex items-center gap-1"
+          >
+            Abrir em nova aba <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+        <div className="rounded-2xl overflow-hidden border border-[#6C3AED]/20 shadow-xl shadow-[#6C3AED]/10 bg-white">
+          <iframe
+            src={checkoutUrl}
+            className="w-full border-0"
+            style={{ height: '680px' }}
+            title="Pagamento InfinityPay"
+            allow="payment"
+          />
+        </div>
+        <div className="flex items-center gap-2 justify-center text-gray-400 text-xs">
+          <ShieldCheck className="w-4 h-4" />
+          Pagamento seguro via InfinityPay
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Card className="border-0 shadow-xl shadow-[#6C3AED]/5 bg-white/80 backdrop-blur">
       <CardHeader className="text-center pb-2">
         <CardTitle className="text-2xl text-[#1a1a2e]">Resumo do pedido</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6 pt-4">
-        {/* Order summary */}
         <div className="rounded-xl bg-gradient-to-br from-[#F8F7FF] to-[#F0EAFF] p-5 space-y-3">
           <div className="flex justify-between items-center">
             <span className="text-gray-600">Plano</span>
@@ -97,7 +124,6 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
           <div className="p-3 rounded-lg bg-red-50 text-red-600 text-sm">{error}</div>
         )}
 
-        {/* Security badge */}
         <div className="flex items-center gap-2 justify-center text-gray-400 text-xs">
           <ShieldCheck className="w-4 h-4" />
           Pagamento seguro via InfinityPay
