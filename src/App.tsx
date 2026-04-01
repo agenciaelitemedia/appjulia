@@ -73,6 +73,8 @@ const App = () => (
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/redirect" element={<RedirectPage />} />
+                <Route path="/comprar" element={<ComprarPage />} />
+                <Route path="/comprar/sucesso" element={<ComprarSucessoPage />} />
                 <Route path="/call/:roomName" element={<JoinCallPage />} />
                 <Route element={<MainLayout />}>
                   <Route path="/" element={<Dashboard />} />
