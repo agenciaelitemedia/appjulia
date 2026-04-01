@@ -99,6 +99,7 @@ export function ConfigTab() {
       payload.threecplus_token = threecToken;
       payload.threecplus_base_url = threecBaseUrl || 'https://app.3c.fluxoti.com/api/v1';
       payload.threecplus_ws_url = threecWsUrl || 'wss://events.3c.fluxoti.com/ws/me';
+      payload.sip_domain = sipDomain || null;
       // Preserve empty api4com fields to avoid DB NOT NULL issues
       payload.api4com_domain = domain || '';
       payload.api4com_token = token || '';
@@ -257,10 +258,15 @@ export function ConfigTab() {
                       </div>
                     </div>
                     <div>
+                      <Label>Domínio SIP (WebRTC)</Label>
+                      <Input value={sipDomain} onChange={(e) => setSipDomain(e.target.value)} placeholder="assessoria.3c.fluxoti.com" />
+                      <p className="text-xs text-muted-foreground mt-1">Domínio SIP do PBX 3C+ (usado para conexão WebRTC)</p>
+                    </div>
+                    <div>
                       <Label>URL Base API</Label>
                       <Input value={threecBaseUrl} onChange={(e) => setThreecBaseUrl(e.target.value)} placeholder="https://app.3c.fluxoti.com/api/v1" />
                     </div>
-                    <div>
+                    <div className="col-span-2">
                       <Label>URL WebSocket de Eventos</Label>
                       <Input value={threecWsUrl} onChange={(e) => setThreecWsUrl(e.target.value)} placeholder="wss://events.3c.fluxoti.com/ws/me" />
                       <p className="text-xs text-muted-foreground mt-1">WebSocket de eventos da plataforma (não é o WebSocket SIP)</p>
