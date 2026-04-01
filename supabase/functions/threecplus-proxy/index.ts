@@ -2,8 +2,9 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 // Helper: makes authenticated request to 3C+ API
@@ -11,17 +12,17 @@ async function threecRequest(
   baseUrl: string,
   token: string,
   path: string,
-  options: { method?: string; body?: any } = {}
+  options: { method?: string; body?: any } = {},
 ) {
-  const separator = path.includes('?') ? '&' : '?';
+  const separator = path.includes("?") ? "&" : "?";
   const url = `${baseUrl}${path}${separator}api_token=${token}`;
-  const headers: Record<string, string> = { 'Accept': 'application/json' };
+  const headers: Record<string, string> = { "Accept": "application/json" };
   const fetchOptions: RequestInit = {
-    method: options.method || 'GET',
+    method: options.method || "GET",
     headers,
   };
   if (options.body !== undefined) {
-    headers['Content-Type'] = 'application/json';
+    headers["Content-Type"] = "application/json";
     fetchOptions.body = JSON.stringify(options.body);
   }
 
@@ -48,7 +49,7 @@ async function threecRequest(
 }
 
 function getThreecErrorStatus(error: unknown): number | null {
-  const message = String((error as any)?.message || error || '');
+  const message = String((error as any)?.message || error || "");
   const match = message.match(/3C\+ erro\s+(\d+)/i);
   return match ? Number(match[1]) : null;
 }
@@ -58,76 +59,84 @@ function isRecoverableDeleteStatus(status: number | null): boolean {
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const { action, codAgent, ...params } = await req.json();
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Get 3C+ config — try agent-specific first, then fallback to global
     let { data: config } = await supabase
-      .from('phone_config')
-      .select('*')
-      .eq('cod_agent', codAgent)
-      .eq('is_active', true)
-      .eq('provider', '3cplus')
-      .order('created_at', { ascending: false })
+      .from("phone_config")
+      .select("*")
+      .eq("cod_agent", codAgent)
+      .eq("is_active", true)
+      .eq("provider", "3cplus")
+      .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (!config) {
       const { data: globalConfig } = await supabase
-        .from('phone_config')
-        .select('*')
-        .eq('is_active', true)
-        .eq('provider', '3cplus')
-        .order('created_at', { ascending: false })
+        .from("phone_config")
+        .select("*")
+        .eq("is_active", true)
+        .eq("provider", "3cplus")
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       config = globalConfig;
     }
 
     if (!config) {
-      throw new Error('Configuração 3C+ não encontrada. Configure o provedor de telefonia.');
+      throw new Error(
+        "Configuração 3C+ não encontrada. Configure o provedor de telefonia.",
+      );
     }
 
     if (!config.threecplus_token) {
-      throw new Error('Token da API 3C+ não configurado.');
+      throw new Error("Token da API 3C+ não configurado.");
     }
 
-    const baseUrl = config.threecplus_base_url || 'https://app.3c.fluxoti.com/api/v1';
+    const baseUrl = config.threecplus_base_url ||
+      "https://app.3c.fluxoti.com/api/v1";
     const token = config.threecplus_token;
 
     let result: any;
 
     switch (action) {
-
       // ------------------------------------------------------------------
       // get_sip_credentials — login agente no webphone 3C+
       // POST /agent/webphone/login  → { domain, username, password, port }
       // ------------------------------------------------------------------
-      case 'get_sip_credentials': {
+      case "get_sip_credentials": {
         const { extensionId } = params;
 
         // Fetch extension record from DB
         const { data: ext } = await supabase
-          .from('phone_extensions')
-          .select('threecplus_agent_id, threecplus_sip_username, threecplus_sip_password, threecplus_sip_domain, threecplus_extension')
-          .eq('id', extensionId)
-          .eq('cod_agent', codAgent)
+          .from("phone_extensions")
+          .select(
+            "threecplus_agent_id, threecplus_sip_username, threecplus_sip_password, threecplus_sip_domain, threecplus_extension",
+          )
+          .eq("id", extensionId)
+          .eq("cod_agent", codAgent)
           .single();
 
-        if (!ext) throw new Error('Ramal não encontrado.');
+        if (!ext) throw new Error("Ramal não encontrado.");
 
         // If we already have cached SIP credentials, return them
         // Always prefer config.sip_domain over cached domain for flexibility
-        if (ext.threecplus_sip_username && ext.threecplus_sip_password && ext.threecplus_sip_domain) {
-          const preferredDomain = config.sip_domain || ext.threecplus_sip_domain;
+        if (
+          ext.threecplus_sip_username && ext.threecplus_sip_password &&
+          ext.threecplus_sip_domain
+        ) {
+          const preferredDomain = config.sip_domain ||
+            ext.threecplus_sip_domain;
           result = {
             domain: preferredDomain,
             username: ext.threecplus_sip_username,
@@ -140,60 +149,81 @@ serve(async (req) => {
         // Try to extract SIP credentials from threecplus_raw (saved during creation)
         // The raw data contains extension_password and telephony_id
         const { data: extFull } = await supabase
-          .from('phone_extensions')
-          .select('threecplus_raw')
-          .eq('id', extensionId)
-          .eq('cod_agent', codAgent)
+          .from("phone_extensions")
+          .select("threecplus_raw")
+          .eq("id", extensionId)
+          .eq("cod_agent", codAgent)
           .single();
 
-        const rawData = (extFull?.threecplus_raw as any)?.data || extFull?.threecplus_raw;
+        const rawData = (extFull?.threecplus_raw as any)?.data ||
+          extFull?.threecplus_raw;
         if (rawData?.telephony_id && rawData?.extension_password) {
           // Use credentials from raw creation response
-          const sipDomainFromRaw = config.sip_domain || 'pbx01.3c.fluxoti.com';
+          const sipDomainFromRaw = config.sip_domain || "pbx01.3c.fluxoti.com";
           const sipUsernameFromRaw = rawData.telephony_id;
           const sipPasswordFromRaw = rawData.extension_password;
 
           // Cache for future use
-          await supabase.from('phone_extensions').update({
+          await supabase.from("phone_extensions").update({
             threecplus_sip_domain: sipDomainFromRaw,
             threecplus_sip_username: sipUsernameFromRaw,
             threecplus_sip_password: sipPasswordFromRaw,
-          }).eq('id', extensionId);
+          }).eq("id", extensionId);
 
           const wsUrlFromRaw = `wss://${sipDomainFromRaw}:8089/ws`;
-          result = { domain: sipDomainFromRaw, username: sipUsernameFromRaw, password: sipPasswordFromRaw, wsUrl: wsUrlFromRaw };
+          result = {
+            domain: sipDomainFromRaw,
+            username: sipUsernameFromRaw,
+            password: sipPasswordFromRaw,
+            wsUrl: wsUrlFromRaw,
+          };
           break;
         }
 
         // Fallback: call 3C+ webphone login to obtain fresh SIP credentials
         if (!ext.threecplus_agent_id) {
-          throw new Error('ID do agente 3C+ não configurado neste ramal.');
+          throw new Error("ID do agente 3C+ não configurado neste ramal.");
         }
 
-        const loginResp = await threecRequest(baseUrl, token, '/agent/webphone/login', {
-          method: 'POST',
-          body: { agent_id: Number(ext.threecplus_agent_id) },
-        });
+        const loginResp = await threecRequest(
+          baseUrl,
+          token,
+          "/agent/webphone/login",
+          {
+            method: "POST",
+            body: { agent_id: Number(ext.threecplus_agent_id) },
+          },
+        );
 
         // 3C+ returns: { sip_server, sip_user, sip_password, ... }
-        const sipDomain = loginResp.sip_server || loginResp.domain || loginResp.host;
-        const sipUsername = loginResp.sip_user || loginResp.username || loginResp.extension;
+        const sipDomain = loginResp.sip_server || loginResp.domain ||
+          loginResp.host;
+        const sipUsername = loginResp.sip_user || loginResp.username ||
+          loginResp.extension;
         const sipPassword = loginResp.sip_password || loginResp.password;
 
         if (!sipDomain || !sipUsername || !sipPassword) {
-          throw new Error('3C+ não retornou credenciais SIP válidas: ' + JSON.stringify(loginResp));
+          throw new Error(
+            "3C+ não retornou credenciais SIP válidas: " +
+              JSON.stringify(loginResp),
+          );
         }
 
         // Cache credentials in DB
-        await supabase.from('phone_extensions').update({
+        await supabase.from("phone_extensions").update({
           threecplus_sip_domain: sipDomain,
           threecplus_sip_username: sipUsername,
           threecplus_sip_password: sipPassword,
-        }).eq('id', extensionId);
+        }).eq("id", extensionId);
 
         const wsUrl = `wss://${sipDomain}:8089/ws`;
 
-        result = { domain: sipDomain, username: sipUsername, password: sipPassword, wsUrl };
+        result = {
+          domain: sipDomain,
+          username: sipUsername,
+          password: sipPassword,
+          wsUrl,
+        };
         break;
       }
 
@@ -201,7 +231,7 @@ serve(async (req) => {
       // dial — realiza chamada click-to-call
       // POST /click2call
       // ------------------------------------------------------------------
-      case 'dial': {
+      case "dial": {
         const { extensionId, phone, metadata } = params;
 
         // Resolve extension record
@@ -210,14 +240,16 @@ serve(async (req) => {
 
         if (extensionId) {
           const { data: ext } = await supabase
-            .from('phone_extensions')
-            .select('threecplus_agent_id, threecplus_extension')
-            .eq('id', extensionId)
-            .eq('cod_agent', codAgent)
+            .from("phone_extensions")
+            .select("threecplus_agent_id, threecplus_extension")
+            .eq("id", extensionId)
+            .eq("cod_agent", codAgent)
             .single();
 
           if (!ext?.threecplus_agent_id && !ext?.threecplus_extension) {
-            throw new Error('Ramal sem vínculo 3C+. Sincronize ou recrie o ramal.');
+            throw new Error(
+              "Ramal sem vínculo 3C+. Sincronize ou recrie o ramal.",
+            );
           }
           agentId = ext.threecplus_agent_id || null;
           extension = ext.threecplus_extension || null;
@@ -227,11 +259,15 @@ serve(async (req) => {
           phone_number: phone,
           ...(agentId ? { agent_id: agentId } : {}),
           ...(extension ? { extension } : {}),
-          metadata: { ...(metadata || {}), gateway: 'atende-julia', cod_agent: codAgent },
+          metadata: {
+            ...(metadata || {}),
+            gateway: "atende-julia",
+            cod_agent: codAgent,
+          },
         };
 
-        result = await threecRequest(baseUrl, token, '/click2call', {
-          method: 'POST',
+        result = await threecRequest(baseUrl, token, "/click2call", {
+          method: "POST",
           body: dialBody,
         });
         break;
@@ -241,12 +277,17 @@ serve(async (req) => {
       // hangup — desliga chamada ativa
       // POST /agent/call/{callId}/hangup
       // ------------------------------------------------------------------
-      case 'hangup': {
+      case "hangup": {
         const { callId } = params;
-        result = await threecRequest(baseUrl, token, `/agent/call/${callId}/hangup`, {
-          method: 'POST',
-          body: {},
-        });
+        result = await threecRequest(
+          baseUrl,
+          token,
+          `/agent/call/${callId}/hangup`,
+          {
+            method: "POST",
+            body: {},
+          },
+        );
         break;
       }
 
@@ -254,8 +295,8 @@ serve(async (req) => {
       // list_extensions — lista agentes no 3C+
       // GET /agents
       // ------------------------------------------------------------------
-      case 'list_extensions': {
-        result = await threecRequest(baseUrl, token, '/agents');
+      case "list_extensions": {
+        result = await threecRequest(baseUrl, token, "/agents");
         break;
       }
 
@@ -263,58 +304,68 @@ serve(async (req) => {
       // create_extension — cria agente no 3C+ e persiste no DB
       // POST /agents
       // ------------------------------------------------------------------
-      case 'create_extension': {
-        const createPayload = (params?.params && typeof params.params === 'object') ? params.params : params;
-        const { firstName, lastName, email, assignedMemberId, label } = createPayload;
+      case "create_extension": {
+        const createPayload =
+          (params?.params && typeof params.params === "object")
+            ? params.params
+            : params;
+        const { firstName, lastName, email, assignedMemberId, label } =
+          createPayload;
         let extensionNumber = String(
-          createPayload.extensionNumber
-          ?? createPayload.extension_number
-          ?? createPayload.extension
-          ?? createPayload.number
-          ?? createPayload.ramal
-          ?? ''
+          createPayload.extensionNumber ??
+            createPayload.extension_number ??
+            createPayload.extension ??
+            createPayload.number ??
+            createPayload.ramal ??
+            "",
         ).trim();
 
         // Validate uniqueness
         if (assignedMemberId) {
           const { data: existingMember } = await supabase
-            .from('phone_extensions')
-            .select('id')
-            .eq('cod_agent', codAgent)
-            .eq('assigned_member_id', assignedMemberId)
+            .from("phone_extensions")
+            .select("id")
+            .eq("cod_agent", codAgent)
+            .eq("assigned_member_id", assignedMemberId)
             .maybeSingle();
           if (existingMember) {
-            throw new Error('Este membro já possui um ramal vinculado.');
+            throw new Error("Este membro já possui um ramal vinculado.");
           }
         }
 
-        const fName = firstName || 'Agente';
+        const fName = firstName || "Agente";
         const lName = lastName || String(codAgent);
         const emailToUse = email || `agente_${Date.now()}@atendejulia.com.br`;
 
         // Generate strong random password (12+ chars, uppercase, number, special)
         const upper = Array.from(crypto.getRandomValues(new Uint8Array(4)))
-          .map(b => String.fromCharCode(65 + (b % 26))).join('');
+          .map((b) => String.fromCharCode(65 + (b % 26))).join("");
         const lower = Array.from(crypto.getRandomValues(new Uint8Array(4)))
-          .map(b => String.fromCharCode(97 + (b % 26))).join('');
+          .map((b) => String.fromCharCode(97 + (b % 26))).join("");
         const nums = Array.from(crypto.getRandomValues(new Uint8Array(2)))
-          .map(b => String(b % 10)).join('');
-        const specials = ['@', '#', '$', '!', '%'];
-        const spec1 = specials[crypto.getRandomValues(new Uint8Array(1))[0] % specials.length];
-        const spec2 = specials[crypto.getRandomValues(new Uint8Array(1))[0] % specials.length];
+          .map((b) => String(b % 10)).join("");
+        const specials = ["@", "#", "$", "!", "%"];
+        const spec1 = specials[
+          crypto.getRandomValues(new Uint8Array(1))[0] % specials.length
+        ];
+        const spec2 = specials[
+          crypto.getRandomValues(new Uint8Array(1))[0] % specials.length
+        ];
         const randomPass = `${upper}${lower}${nums}${spec1}${spec2}`;
 
         const usedExtensions = new Set<number>();
 
         // Collect used extension numbers from local DB
         const { data: existingExts, error: extError } = await supabase
-          .from('phone_extensions')
-          .select('extension_number')
-          .eq('cod_agent', codAgent)
-          .eq('provider', '3cplus');
+          .from("phone_extensions")
+          .select("extension_number")
+          .eq("cod_agent", codAgent)
+          .eq("provider", "3cplus");
 
         if (extError) {
-          throw new Error(`Erro ao consultar ramais existentes: ${extError.message}`);
+          throw new Error(
+            `Erro ao consultar ramais existentes: ${extError.message}`,
+          );
         }
 
         for (const row of (existingExts || [])) {
@@ -324,7 +375,7 @@ serve(async (req) => {
 
         // Also collect used extension numbers from 3C+ itself (source of truth)
         try {
-          const remoteAgents = await threecRequest(baseUrl, token, '/agents');
+          const remoteAgents = await threecRequest(baseUrl, token, "/agents");
           const agentList: any[] = Array.isArray(remoteAgents)
             ? remoteAgents
             : (remoteAgents?.data || remoteAgents?.agents || []);
@@ -334,14 +385,19 @@ serve(async (req) => {
             if (Number.isFinite(n) && n > 0) usedExtensions.add(n);
           }
         } catch (e) {
-          console.warn('3C+ create_extension: falha ao consultar /agents para detectar ramais ocupados', e);
+          console.warn(
+            "3C+ create_extension: falha ao consultar /agents para detectar ramais ocupados",
+            e,
+          );
         }
 
         if (!extensionNumber) {
           let candidate = 1000;
           while (usedExtensions.has(candidate)) candidate++;
           extensionNumber = String(candidate);
-          console.log(`3C+ create_extension: ramal ausente no payload, usando ${extensionNumber}`);
+          console.log(
+            `3C+ create_extension: ramal ausente no payload, usando ${extensionNumber}`,
+          );
         }
 
         // Create user in 3C+ (endpoint is /users, not /agents)
@@ -349,12 +405,17 @@ serve(async (req) => {
         let currentEmail = emailToUse;
         let apiResult: any = null;
 
-        const makeUniqueEmail = (baseEmail: string, attempt: number): string => {
+        const makeUniqueEmail = (
+          baseEmail: string,
+          attempt: number,
+        ): string => {
           if (attempt <= 0) return baseEmail;
-          const [localPart, domainPart] = baseEmail.includes('@')
-            ? baseEmail.split('@')
-            : [baseEmail, 'atendejulia.com.br'];
-          return `${localPart}+${Date.now()}${attempt}@${domainPart || 'atendejulia.com.br'}`;
+          const [localPart, domainPart] = baseEmail.includes("@")
+            ? baseEmail.split("@")
+            : [baseEmail, "atendejulia.com.br"];
+          return `${localPart}+${Date.now()}${attempt}@${
+            domainPart || "atendejulia.com.br"
+          }`;
         };
 
         for (let attempt = 0; attempt < 20; attempt++) {
@@ -362,21 +423,24 @@ serve(async (req) => {
             name: `${fName} ${lName}`.trim(),
             email: currentEmail,
             password: randomPass,
-            role: 'agent',
-            timezone: 'America/Sao_Paulo',
+            role: "agent",
+            timezone: "America/Sao_Paulo",
             extension_number: String(currentExtension),
           };
 
           try {
-            apiResult = await threecRequest(baseUrl, token, '/users', {
-              method: 'POST',
+            apiResult = await threecRequest(baseUrl, token, "/users", {
+              method: "POST",
               body: userBody,
             });
             break;
           } catch (e: any) {
-            const msg = String(e?.message || '');
-            const emailInUse = msg.includes('e-mail já está sendo utilizado');
-            const extensionInUse = msg.includes('Ramal já se encontra utilizado') || msg.includes('campo Ramal já se encontra utilizado') || msg.includes('extension_number');
+            const msg = String(e?.message || "");
+            const emailInUse = msg.includes("e-mail já está sendo utilizado");
+            const extensionInUse =
+              msg.includes("Ramal já se encontra utilizado") ||
+              msg.includes("campo Ramal já se encontra utilizado") ||
+              msg.includes("extension_number");
 
             const isLastAttempt = attempt === 19;
             if (isLastAttempt || (!emailInUse && !extensionInUse)) {
@@ -389,70 +453,96 @@ serve(async (req) => {
 
             if (extensionInUse) {
               const current = Number.parseInt(String(currentExtension), 10);
-              let next = Number.isFinite(current) && current > 0 ? current + 1 : 1000;
+              let next = Number.isFinite(current) && current > 0
+                ? current + 1
+                : 1000;
               while (usedExtensions.has(next)) next++;
               usedExtensions.add(next);
               currentExtension = String(next);
             }
 
-            console.warn(`3C+ create_extension retry #${attempt + 1}: email=${currentEmail}, extension=${currentExtension}`);
+            console.warn(
+              `3C+ create_extension retry #${
+                attempt + 1
+              }: email=${currentEmail}, extension=${currentExtension}`,
+            );
           }
         }
 
         const apiUser = apiResult?.data ?? apiResult;
         const agentId = apiUser?.id ? String(apiUser.id) : null;
-        const apiExtension = apiUser?.extension?.extension_number ?? apiUser?.extension_number ?? apiUser?.extension;
+        const apiExtension = apiUser?.extension?.extension_number ??
+          apiUser?.extension_number ?? apiUser?.extension;
         const ext = apiExtension !== undefined && apiExtension !== null
           ? String(apiExtension)
           : (currentExtension || null);
 
         if (!agentId) {
-          throw new Error('3C+ não retornou ID do agente. Resposta: ' + JSON.stringify(apiResult));
+          throw new Error(
+            "3C+ não retornou ID do agente. Resposta: " +
+              JSON.stringify(apiResult),
+          );
         }
 
         // Enable webphone for this user
         try {
           // Fetch current user data to build full PUT payload
-          const userData = await threecRequest(baseUrl, token, `/users/${agentId}`);
+          const userData = await threecRequest(
+            baseUrl,
+            token,
+            `/users/${agentId}`,
+          );
           const u = userData?.data ?? userData;
           await threecRequest(baseUrl, token, `/users/${agentId}`, {
-            method: 'PUT',
+            method: "PUT",
             body: {
               name: u?.name || `${fName} ${lName}`.trim(),
               email: u?.email || currentEmail,
-              role: u?.role?.name || u?.role || 'agent',
-              timezone: u?.settings?.timezone || 'America/Sao_Paulo',
-              extension_number: u?.extension?.extension_number ?? ext ?? currentExtension,
+              role: u?.role?.name || u?.role || "agent",
+              timezone: u?.settings?.timezone || "America/Sao_Paulo",
+              extension_number: u?.extension?.extension_number ?? ext ??
+                currentExtension,
               webphone: true,
             },
           });
           console.log(`3C+ webphone habilitado para user ${agentId}`);
         } catch (wpErr: any) {
-          console.warn(`3C+ falha ao habilitar webphone para user ${agentId}:`, wpErr?.message);
+          console.warn(
+            `3C+ falha ao habilitar webphone para user ${agentId}:`,
+            wpErr?.message,
+          );
         }
 
         // Persist in DB
-        const { error: dbError } = await supabase.from('phone_extensions').insert({
-          cod_agent: codAgent,
-          extension_number: ext || agentId,
-          label: label || fName || null,
-          assigned_member_id: assignedMemberId || null,
-          provider: '3cplus',
-          threecplus_agent_id: agentId,
-          threecplus_extension: ext,
-          threecplus_raw: apiResult,
-          is_active: true,
-        });
+        const { error: dbError } = await supabase.from("phone_extensions")
+          .insert({
+            cod_agent: codAgent,
+            extension_number: ext || agentId,
+            label: label || fName || null,
+            assigned_member_id: assignedMemberId || null,
+            provider: "3cplus",
+            threecplus_agent_id: agentId,
+            threecplus_extension: ext,
+            threecplus_raw: apiResult,
+            is_active: true,
+          });
 
         if (dbError) {
           // Best-effort rollback: delete user from 3C+
           try {
-            await threecRequest(baseUrl, token, `/users/${agentId}`, { method: 'DELETE' });
+            await threecRequest(baseUrl, token, `/users/${agentId}`, {
+              method: "DELETE",
+            });
           } catch {}
           throw new Error(`Erro ao salvar ramal no banco: ${dbError.message}`);
         }
 
-        result = { agentId, extension: ext, webphoneEnabled: true, raw: apiResult };
+        result = {
+          agentId,
+          extension: ext,
+          webphoneEnabled: true,
+          raw: apiResult,
+        };
         break;
       }
 
@@ -460,37 +550,51 @@ serve(async (req) => {
       // enable_webphone — habilita webphone para um usuário 3C+ existente
       // PATCH /users/{id} { webphone: true }
       // ------------------------------------------------------------------
-      case 'enable_webphone': {
+      case "enable_webphone": {
         const { extensionId } = params;
 
         const { data: ext } = await supabase
-          .from('phone_extensions')
-          .select('threecplus_agent_id, threecplus_extension, extension_number, threecplus_raw')
-          .eq('id', extensionId)
-          .eq('cod_agent', codAgent)
+          .from("phone_extensions")
+          .select(
+            "threecplus_agent_id, threecplus_extension, extension_number, threecplus_raw",
+          )
+          .eq("id", extensionId)
+          .eq("cod_agent", codAgent)
           .single();
 
         if (!ext?.threecplus_agent_id) {
-          throw new Error('Ramal sem vínculo 3C+ (threecplus_agent_id ausente).');
+          throw new Error(
+            "Ramal sem vínculo 3C+ (threecplus_agent_id ausente).",
+          );
         }
 
         const userId = ext.threecplus_agent_id;
 
         // Fetch current user data for full PUT payload
-        const userData = await threecRequest(baseUrl, token, `/users/${userId}`);
+        const userData = await threecRequest(
+          baseUrl,
+          token,
+          `/users/${userId}`,
+        );
         const u = userData?.data ?? userData;
 
-        const putResult = await threecRequest(baseUrl, token, `/users/${userId}`, {
-          method: 'PUT',
-          body: {
-            name: u?.name || 'Agente',
-            email: u?.email || `agente_${Date.now()}@atendejulia.com.br`,
-            role: u?.role?.name || u?.role || 'agent',
-            timezone: u?.settings?.timezone || 'America/Sao_Paulo',
-            extension_number: u?.extension?.extension_number ?? ext.threecplus_extension ?? ext.extension_number,
-            webphone: true,
+        const putResult = await threecRequest(
+          baseUrl,
+          token,
+          `/users/${userId}`,
+          {
+            method: "PUT",
+            body: {
+              name: u?.name || "Agente",
+              email: u?.email || `agente_${Date.now()}@atendejulia.com.br`,
+              role: u?.role?.name || u?.role || "agent",
+              timezone: u?.settings?.timezone || "America/Sao_Paulo",
+              extension_number: u?.extension?.extension_number ??
+                ext.threecplus_extension ?? ext.extension_number,
+              webphone: true,
+            },
           },
-        });
+        );
 
         result = { userId, webphoneEnabled: true, raw: putResult };
         break;
@@ -500,43 +604,62 @@ serve(async (req) => {
       // delete_extension — remove usuário/ramal do 3C+ e do DB
       // Prefer /users/{id} com threecplus_extension e fallback para /agents/{id}
       // ------------------------------------------------------------------
-      case 'delete_extension': {
+      case "delete_extension": {
         const { extensionId } = params;
-        const incomingId = String(extensionId || '').trim();
+        const incomingId = String(extensionId || "").trim();
 
         // Fetch DB record
         const { data: extRecord } = await supabase
-          .from('phone_extensions')
-          .select('id, threecplus_agent_id, threecplus_extension, extension_number, threecplus_raw')
-          .or(`threecplus_agent_id.eq.${incomingId},threecplus_extension.eq.${incomingId},extension_number.eq.${incomingId}`)
-          .eq('cod_agent', codAgent)
+          .from("phone_extensions")
+          .select(
+            "id, threecplus_agent_id, threecplus_extension, extension_number, threecplus_raw",
+          )
+          .or(
+            `threecplus_agent_id.eq.${incomingId},threecplus_extension.eq.${incomingId},extension_number.eq.${incomingId}`,
+          )
+          .eq("cod_agent", codAgent)
           .maybeSingle();
 
         const deleteResults: Record<string, unknown> = {};
 
-        const rawData = (extRecord?.threecplus_raw as any)?.data || extRecord?.threecplus_raw || {};
-        const userCandidates = Array.from(new Set([
-          rawData?.id,
-          extRecord?.threecplus_agent_id,
-          extRecord?.threecplus_extension,
-          extRecord?.extension_number,
-          incomingId,
-        ].filter(Boolean).map((v) => String(v).trim())));
+        const rawData = (extRecord?.threecplus_raw as any)?.data ||
+          extRecord?.threecplus_raw || {};
+        const userCandidates = Array.from(
+          new Set(
+            [
+              rawData?.id,
+              extRecord?.threecplus_agent_id,
+              extRecord?.threecplus_extension,
+              extRecord?.extension_number,
+              incomingId,
+            ].filter(Boolean).map((v) => String(v).trim()),
+          ),
+        );
 
-        const agentCandidates = Array.from(new Set([
-          extRecord?.threecplus_agent_id,
-          rawData?.agent_id,
-          rawData?.id,
-          incomingId,
-        ].filter(Boolean).map((v) => String(v).trim())));
+        const agentCandidates = Array.from(
+          new Set(
+            [
+              extRecord?.threecplus_agent_id,
+              rawData?.agent_id,
+              rawData?.id,
+              incomingId,
+            ].filter(Boolean).map((v) => String(v).trim()),
+          ),
+        );
 
         let remoteDeleted = false;
         let lastHardError: Error | null = null;
 
         for (const userId of userCandidates) {
           try {
-            await threecRequest(baseUrl, token, `/users/${userId}`, { method: 'DELETE' });
-            deleteResults.provider = { success: true, endpoint: 'users', id: userId };
+            await threecRequest(baseUrl, token, `/users/${userId}`, {
+              method: "DELETE",
+            });
+            deleteResults.provider = {
+              success: true,
+              endpoint: "users",
+              id: userId,
+            };
             remoteDeleted = true;
             break;
           } catch (error) {
@@ -550,8 +673,14 @@ serve(async (req) => {
         if (!remoteDeleted && !lastHardError) {
           for (const agentId of agentCandidates) {
             try {
-              await threecRequest(baseUrl, token, `/agents/${agentId}`, { method: 'DELETE' });
-              deleteResults.provider = { success: true, endpoint: 'agents', id: agentId };
+              await threecRequest(baseUrl, token, `/agents/${agentId}`, {
+                method: "DELETE",
+              });
+              deleteResults.provider = {
+                success: true,
+                endpoint: "agents",
+                id: agentId,
+              };
               remoteDeleted = true;
               break;
             } catch (error) {
@@ -567,7 +696,7 @@ serve(async (req) => {
         if (!remoteDeleted) {
           deleteResults.provider = {
             success: true,
-            note: 'resource_not_found_or_incompatible_id',
+            note: "resource_not_found_or_incompatible_id",
             triedUsers: userCandidates,
             triedAgents: agentCandidates,
           };
@@ -576,12 +705,16 @@ serve(async (req) => {
         // Delete from DB
         if (extRecord?.id) {
           const { error: dbError } = await supabase
-            .from('phone_extensions').delete().eq('id', extRecord.id);
-          if (dbError) throw new Error(`Erro ao deletar do banco: ${dbError.message}`);
+            .from("phone_extensions").delete().eq("id", extRecord.id);
+          if (dbError) {
+            throw new Error(`Erro ao deletar do banco: ${dbError.message}`);
+          }
         } else {
-          await supabase.from('phone_extensions').delete()
-            .or(`threecplus_agent_id.eq.${incomingId},threecplus_extension.eq.${incomingId},extension_number.eq.${incomingId}`)
-            .eq('cod_agent', codAgent);
+          await supabase.from("phone_extensions").delete()
+            .or(
+              `threecplus_agent_id.eq.${incomingId},threecplus_extension.eq.${incomingId},extension_number.eq.${incomingId}`,
+            )
+            .eq("cod_agent", codAgent);
         }
         deleteResults.database = { success: true };
         result = deleteResults;
@@ -592,8 +725,8 @@ serve(async (req) => {
       // sync_extensions — sincroniza agentes do 3C+ com o DB local
       // GET /agents
       // ------------------------------------------------------------------
-      case 'sync_extensions': {
-        const agentsData = await threecRequest(baseUrl, token, '/agents');
+      case "sync_extensions": {
+        const agentsData = await threecRequest(baseUrl, token, "/agents");
         const agentList: any[] = Array.isArray(agentsData)
           ? agentsData
           : (agentsData?.data || agentsData?.agents || []);
@@ -607,21 +740,23 @@ serve(async (req) => {
           if (!agentId) continue;
 
           const { data: existing } = await supabase
-            .from('phone_extensions').select('id')
-            .eq('cod_agent', codAgent).eq('threecplus_agent_id', agentId)
+            .from("phone_extensions").select("id")
+            .eq("cod_agent", codAgent).eq("threecplus_agent_id", agentId)
             .maybeSingle();
 
           if (existing) {
-            await supabase.from('phone_extensions').update({
+            await supabase.from("phone_extensions").update({
               threecplus_extension: ext,
               threecplus_raw: agent,
               updated_at: new Date().toISOString(),
-            }).eq('id', existing.id);
+            }).eq("id", existing.id);
           } else {
-            const { error: insertError } = await supabase.from('phone_extensions').insert({
+            const { error: insertError } = await supabase.from(
+              "phone_extensions",
+            ).insert({
               cod_agent: codAgent,
               extension_number: ext || agentId,
-              provider: '3cplus',
+              provider: "3cplus",
               threecplus_agent_id: agentId,
               threecplus_extension: ext,
               threecplus_raw: agent,
@@ -642,13 +777,19 @@ serve(async (req) => {
       // setup_webhook — registra webhook no 3C+
       // POST /webhooks
       // ------------------------------------------------------------------
-      case 'setup_webhook': {
-        const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/threecplus-webhook`;
-        result = await threecRequest(baseUrl, token, '/webhooks', {
-          method: 'POST',
+      case "setup_webhook": {
+        const webhookUrl = `${
+          Deno.env.get("SUPABASE_URL")
+        }/functions/v1/threecplus-webhook`;
+        result = await threecRequest(baseUrl, token, "/webhooks", {
+          method: "POST",
           body: {
             url: webhookUrl,
-            events: ['call-was-answered', 'call-was-ended', 'agent-status-changed'],
+            events: [
+              "call-was-answered",
+              "call-was-ended",
+              "agent-status-changed",
+            ],
             active: true,
           },
         });
@@ -659,8 +800,8 @@ serve(async (req) => {
       // get_account — retorna informações da conta 3C+
       // GET /account
       // ------------------------------------------------------------------
-      case 'get_account': {
-        result = await threecRequest(baseUrl, token, '/account');
+      case "get_account": {
+        result = await threecRequest(baseUrl, token, "/account");
         break;
       }
 
@@ -668,7 +809,7 @@ serve(async (req) => {
       // sync_call_history — sincroniza histórico de chamadas
       // GET /agent/calls (com paginação)
       // ------------------------------------------------------------------
-      case 'sync_call_history': {
+      case "sync_call_history": {
         const { callId, since } = params;
         let totalSynced = 0;
         let totalRecords = 0;
@@ -678,7 +819,7 @@ serve(async (req) => {
         const fixTz = (ts: string | null | undefined): string | null => {
           if (!ts) return null;
           const s = String(ts).trim();
-          if (/[+-]\d{2}:\d{2}$/.test(s) || s.endsWith('Z')) return s;
+          if (/[+-]\d{2}:\d{2}$/.test(s) || s.endsWith("Z")) return s;
           return `${s}-03:00`;
         };
 
@@ -690,8 +831,14 @@ serve(async (req) => {
             const maxPages = 3;
 
             while (!found && page <= maxPages) {
-              const data = await threecRequest(baseUrl, token, `/agent/calls?page=${page}`);
-              const records: any[] = Array.isArray(data) ? data : (data?.data || []);
+              const data = await threecRequest(
+                baseUrl,
+                token,
+                `/agent/calls?page=${page}`,
+              );
+              const records: any[] = Array.isArray(data)
+                ? data
+                : (data?.data || []);
               if (records.length === 0) break;
               totalRecords += records.length;
 
@@ -701,8 +848,8 @@ serve(async (req) => {
                 found = true;
 
                 const logEntry = buildCallLog(cdr, codAgent, fixTz);
-                await supabase.from('phone_call_logs')
-                  .upsert(logEntry, { onConflict: 'call_id' });
+                await supabase.from("phone_call_logs")
+                  .upsert(logEntry, { onConflict: "call_id" });
                 totalSynced = 1;
                 break;
               }
@@ -718,11 +865,12 @@ serve(async (req) => {
             let sinceDate = since;
             if (!sinceDate) {
               const { data: lastLog } = await supabase
-                .from('phone_call_logs').select('started_at')
-                .eq('cod_agent', codAgent)
-                .order('started_at', { ascending: false })
+                .from("phone_call_logs").select("started_at")
+                .eq("cod_agent", codAgent)
+                .order("started_at", { ascending: false })
                 .limit(1).maybeSingle();
-              sinceDate = lastLog?.started_at || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+              sinceDate = lastLog?.started_at ||
+                new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
             }
 
             let page = 1;
@@ -730,14 +878,23 @@ serve(async (req) => {
             const maxPages = 5;
 
             while (hasMore && page <= maxPages) {
-              const data = await threecRequest(baseUrl, token, `/agent/calls?page=${page}`);
-              const records: any[] = Array.isArray(data) ? data : (data?.data || []);
+              const data = await threecRequest(
+                baseUrl,
+                token,
+                `/agent/calls?page=${page}`,
+              );
+              const records: any[] = Array.isArray(data)
+                ? data
+                : (data?.data || []);
               if (records.length === 0) break;
               totalRecords += records.length;
 
               for (const cdr of records) {
                 const cdrStarted = cdr.started_at || cdr.created_at;
-                if (sinceDate && cdrStarted && new Date(cdrStarted) < new Date(sinceDate)) {
+                if (
+                  sinceDate && cdrStarted &&
+                  new Date(cdrStarted) < new Date(sinceDate)
+                ) {
                   hasMore = false;
                   continue;
                 }
@@ -746,15 +903,18 @@ serve(async (req) => {
                 const cdrId = cdr.id ? String(cdr.id) : null;
 
                 if (cdrId) {
-                  await supabase.from('phone_call_logs')
-                    .upsert(logEntry, { onConflict: 'call_id' });
+                  await supabase.from("phone_call_logs")
+                    .upsert(logEntry, { onConflict: "call_id" });
                 } else {
-                  const { data: dup } = await supabase.from('phone_call_logs').select('id')
-                    .eq('cod_agent', codAgent)
-                    .eq('caller', logEntry.caller || '')
-                    .eq('started_at', logEntry.started_at || '')
+                  const { data: dup } = await supabase.from("phone_call_logs")
+                    .select("id")
+                    .eq("cod_agent", codAgent)
+                    .eq("caller", logEntry.caller || "")
+                    .eq("started_at", logEntry.started_at || "")
                     .maybeSingle();
-                  if (!dup) await supabase.from('phone_call_logs').insert(logEntry);
+                  if (!dup) {
+                    await supabase.from("phone_call_logs").insert(logEntry);
+                  }
                 }
                 totalSynced++;
               }
@@ -769,28 +929,51 @@ serve(async (req) => {
           syncErrors.push(e.message);
         }
 
-        result = { synced: totalSynced, total: totalRecords, errors: syncErrors, notFound };
+        result = {
+          synced: totalSynced,
+          total: totalRecords,
+          errors: syncErrors,
+          notFound,
+        };
         break;
       }
 
-      case 'diagnose_token': {
+      case "diagnose_token": {
         const endpoints = [
-          { name: 'users_list',     method: 'GET',  path: '/users?per_page=1' },
-          { name: 'agents_list',    method: 'GET',  path: '/agents?per_page=1' },
-          { name: 'webphone_login', method: 'POST', path: '/agent/webphone/login', body: { agent_id: 0 } },
-          { name: 'campaigns_list', method: 'GET',  path: '/campaigns?per_page=1' },
+          { name: "users_list", method: "GET", path: "/users?per_page=1" },
+          { name: "agents_list", method: "GET", path: "/agents?per_page=1" },
+          {
+            name: "webphone_login",
+            method: "POST",
+            path: "/agent/webphone/login",
+            body: { agent_id: 0 },
+          },
+          {
+            name: "campaigns_list",
+            method: "GET",
+            path: "/campaigns?per_page=1",
+          },
         ];
 
-        const diagResults: Record<string, { status: number; ok: boolean; detail?: string }> = {};
+        const diagResults: Record<
+          string,
+          { status: number; ok: boolean; detail?: string }
+        > = {};
 
         for (const ep of endpoints) {
           try {
-            const separator = ep.path.includes('?') ? '&' : '?';
-            const diagUrl = `${baseUrl}${ep.path}${separator}api_token=${token}`;
-            const diagHeaders: Record<string, string> = { 'Accept': 'application/json' };
-            const diagOpts: RequestInit = { method: ep.method, headers: diagHeaders };
+            const separator = ep.path.includes("?") ? "&" : "?";
+            const diagUrl =
+              `${baseUrl}${ep.path}${separator}api_token=${token}`;
+            const diagHeaders: Record<string, string> = {
+              "Accept": "application/json",
+            };
+            const diagOpts: RequestInit = {
+              method: ep.method,
+              headers: diagHeaders,
+            };
             if ((ep as any).body) {
-              diagHeaders['Content-Type'] = 'application/json';
+              diagHeaders["Content-Type"] = "application/json";
               diagOpts.body = JSON.stringify((ep as any).body);
             }
             const res = await fetch(diagUrl, diagOpts);
@@ -801,16 +984,22 @@ serve(async (req) => {
               detail: res.ok ? undefined : txt.substring(0, 200),
             };
           } catch (err) {
-            diagResults[ep.name] = { status: 0, ok: false, detail: String(err).substring(0, 200) };
+            diagResults[ep.name] = {
+              status: 0,
+              ok: false,
+              detail: String(err).substring(0, 200),
+            };
           }
         }
 
         result = {
-          token_prefix: token.substring(0, 10) + '...',
+          token_prefix: token.substring(0, 10) + "...",
           base_url: baseUrl,
           cod_agent: codAgent,
           permissions: diagResults,
-          summary: Object.entries(diagResults).map(([k, v]) => `${k}: ${v.ok ? '✅' : '❌'} (${v.status})`).join(', '),
+          summary: Object.entries(diagResults).map(([k, v]) =>
+            `${k}: ${v.ok ? "✅" : "❌"} (${v.status})`
+          ).join(", "),
         };
         break;
       }
@@ -820,13 +1009,16 @@ serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ data: result }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
-    console.error('3cplus-proxy error:', error);
+    console.error("3cplus-proxy error:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });
@@ -837,14 +1029,14 @@ serve(async (req) => {
 function buildCallLog(
   cdr: any,
   codAgent: string,
-  fixTz: (ts: string | null | undefined) => string | null
+  fixTz: (ts: string | null | undefined) => string | null,
 ): Record<string, any> {
   const cdrId = cdr.id ? String(cdr.id) : null;
-  const direction = cdr.direction || cdr.call_type || 'outbound';
-  const caller = cdr.from || cdr.caller || cdr.origin || '';
-  const called = cdr.to || cdr.destination || cdr.phone_number || '';
+  const direction = cdr.direction || cdr.call_type || "outbound";
+  const caller = cdr.from || cdr.caller || cdr.origin || "";
+  const called = cdr.to || cdr.destination || cdr.phone_number || "";
 
-  const metadata: Record<string, any> = { provider: '3cplus' };
+  const metadata: Record<string, any> = { provider: "3cplus" };
   if (cdr.agent_id) metadata.agent_id = cdr.agent_id;
   if (cdr.campaign_id) metadata.campaign_id = cdr.campaign_id;
   if (cdr.metadata) metadata.raw_metadata = cdr.metadata;
@@ -862,7 +1054,7 @@ function buildCallLog(
     record_url: cdr.record_url || cdr.recording_url || null,
     cost: Number(cdr.cost ?? cdr.call_price ?? 0),
     hangup_cause: cdr.hangup_cause || cdr.end_reason || null,
-    status: 'hangup',
+    status: "hangup",
     metadata,
   };
 
