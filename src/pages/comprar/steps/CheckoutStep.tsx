@@ -46,7 +46,12 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
       if (fnError) throw fnError;
 
       if (data?.checkout_url) {
-        window.location.href = data.checkout_url;
+        // Open in new tab to avoid iframe blocking
+        const win = window.open(data.checkout_url, '_blank');
+        if (!win) {
+          // Fallback: try top-level navigation
+          (window.top || window).location.href = data.checkout_url;
+        }
       } else {
         setError('Não foi possível gerar o link de pagamento. Tente novamente.');
       }
