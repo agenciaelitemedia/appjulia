@@ -37,6 +37,10 @@ const ComprarPage = () => {
   const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, 3));
   const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 0));
 
+  if (currentStep === 3) {
+    return <CheckoutStep orderData={orderData} onBack={prevStep} />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F8F7FF] via-white to-[#F0EAFF]">
       {/* Header */}
@@ -90,9 +94,6 @@ const ComprarPage = () => {
         )}
         {currentStep === 2 && (
           <PlanStep orderData={orderData} updateOrder={updateOrder} onNext={nextStep} onBack={prevStep} />
-        )}
-        {currentStep === 3 && (
-          <CheckoutStep orderData={orderData} onBack={prevStep} />
         )}
       </div>
 
