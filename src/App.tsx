@@ -54,6 +54,9 @@ import NotFound from "./pages/NotFound";
 import PromptGeneratorPage from "./pages/admin/prompts/PromptGeneratorPage";
 import LegalCasesPage from "./pages/legal-cases/LegalCasesPage";
 import ContractNotificationsPage from "./pages/contract-notifications/ContractNotificationsPage";
+import ComprarPage from "./pages/comprar/ComprarPage";
+import ComprarSucessoPage from "./pages/comprar/ComprarSucessoPage";
+import PedidosPage from "./pages/admin/pedidos/PedidosPage";
 
 const queryClient = new QueryClient();
 
