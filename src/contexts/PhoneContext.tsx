@@ -121,16 +121,13 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     fetchExtension();
   }, [user?.id]);
 
-  // Auto-connect SIP when extension is found (with retry)
+  // Auto-connect SIP when extension is found (with retry) — Api4Com only
   const connectSip = useCallback(async () => {
     if (!myExtension || !codAgent) return;
+    // Only Api4Com uses SIP.js — 3C+ uses official webphone
+    if (provider === '3cplus') return;
 
-    // Provider-aware readiness check
-    const isLinked = provider === '3cplus'
-      ? !!(myExtension.threecplus_agent_id || myExtension.threecplus_extension)
-      : !!myExtension.api4com_ramal;
-
-    if (!isLinked) return;
+    if (!myExtension.api4com_ramal) return;
 
     try {
       const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
@@ -145,34 +142,33 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (autoConnected.current || !myExtension || !codAgent) return;
-    // Provider-aware: check that extension is linked before auto-connecting
-    const isLinked = provider === '3cplus'
-      ? !!(myExtension.threecplus_agent_id || myExtension.threecplus_extension)
-      : !!myExtension.api4com_ramal;
-    if (!isLinked) return;
+    // Only Api4Com auto-connects SIP
+    if (provider === '3cplus') return;
+    if (!myExtension.api4com_ramal) return;
     autoConnected.current = true;
     connectSip();
   }, [myExtension, codAgent, provider, connectSip]);
 
-  // Auto-retry SIP registration with exponential backoff
+  // Auto-retry SIP registration with exponential backoff — Api4Com only
   useEffect(() => {
     if (!autoConnected.current || !myExtension) return;
+    if (provider === '3cplus') return;
     if (sip.status === 'registered' || sip.status === 'in-call' || sip.status === 'calling' || sip.status === 'ringing') {
-      retryCount.current = 0; // reset on successful connection
+      retryCount.current = 0;
       return;
     }
     if (sip.status === 'error' || (sip.status === 'idle' && autoConnected.current)) {
       if (retryCount.current >= maxRetries) {
         return;
       }
-      const delay = Math.min(5000 * Math.pow(2, retryCount.current), 300_000); // 5s, 10s, 20s, ... max 5min
+      const delay = Math.min(5000 * Math.pow(2, retryCount.current), 300_000);
       const retryTimer = setTimeout(() => {
         retryCount.current += 1;
         connectSip();
       }, delay);
       return () => clearTimeout(retryTimer);
     }
-  }, [sip.status, myExtension, connectSip]);
+  }, [sip.status, myExtension, provider, connectSip]);
 
   // Cleanup on unmount
   useEffect(() => {
