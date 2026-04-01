@@ -106,7 +106,7 @@ export function useTelefoniaData(codAgent: string | undefined, provider: Provide
       }
       // Backend faz tudo: provedor + banco
       const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
-        body: { action: 'delete_extension', codAgent, extensionId: externalId },
+        body: { action: 'delete_extension', codAgent, extensionId: id },
       });
       if (error) throw new Error(error.message || 'Erro ao deletar ramal');
       if (data?.error) throw new Error(data.error);
