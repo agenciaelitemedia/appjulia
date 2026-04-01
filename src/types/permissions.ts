@@ -29,7 +29,8 @@ export type ModuleCode =
   | 'prompt_generator'
   | 'legal_cases'
   | 'contract_notifications'
-  | 'julia_orders';
+  | 'julia_orders'
+  | 'julia_plans';
 
 export interface Module {
   id: number;

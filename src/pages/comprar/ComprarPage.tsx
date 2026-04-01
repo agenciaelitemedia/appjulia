@@ -14,6 +14,7 @@ export interface OrderData {
   customer_address: string;
   plan_name: string;
   plan_price: number;
+  checkout_url?: string;
 }
 
 const steps = ['Documento', 'Dados', 'Plano', 'Pagamento'];
@@ -34,12 +35,12 @@ const ComprarPage = () => {
     setOrderData(prev => ({ ...prev, ...data }));
   };
 
+  const goToStep = (step: number) => setCurrentStep(step);
   const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, 3));
   const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 0));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F8F7FF] via-white to-[#F0EAFF]">
-      {/* Header */}
       <header className="w-full py-6 px-4 flex justify-center">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[#6C3AED] flex items-center justify-center">
@@ -51,7 +52,6 @@ const ComprarPage = () => {
         </div>
       </header>
 
-      {/* Stepper */}
       <div className="max-w-2xl mx-auto px-4 mb-8">
         <div className="flex items-center justify-between">
           {steps.map((label, i) => (
@@ -80,10 +80,9 @@ const ComprarPage = () => {
         </div>
       </div>
 
-      {/* Content */}
       <div className="max-w-2xl mx-auto px-4 pb-12">
         {currentStep === 0 && (
-          <DocumentStep orderData={orderData} updateOrder={updateOrder} onNext={nextStep} />
+          <DocumentStep orderData={orderData} updateOrder={updateOrder} onNext={nextStep} goToStep={goToStep} />
         )}
         {currentStep === 1 && (
           <CustomerStep orderData={orderData} updateOrder={updateOrder} onNext={nextStep} onBack={prevStep} />
@@ -96,7 +95,6 @@ const ComprarPage = () => {
         )}
       </div>
 
-      {/* Footer */}
       <footer className="text-center py-6 text-sm text-gray-400">
         © {new Date().getFullYear()} AtendeJulIA — Todos os direitos reservados
       </footer>

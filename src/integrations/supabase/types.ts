@@ -1375,6 +1375,51 @@ export type Database = {
         }
         Relationships: []
       }
+      julia_plans: {
+        Row: {
+          color: string
+          created_at: string
+          features: Json
+          icon: string
+          id: string
+          is_active: boolean
+          is_popular: boolean
+          name: string
+          position: number
+          price: number
+          price_display: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          features?: Json
+          icon?: string
+          id?: string
+          is_active?: boolean
+          is_popular?: boolean
+          name: string
+          position?: number
+          price?: number
+          price_display?: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          features?: Json
+          icon?: string
+          id?: string
+          is_active?: boolean
+          is_popular?: boolean
+          name?: string
+          position?: number
+          price?: number
+          price_display?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       phone_call_logs: {
         Row: {
           answered_at: string | null

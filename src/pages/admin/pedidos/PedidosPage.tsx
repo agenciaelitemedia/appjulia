@@ -1,9 +1,13 @@
-import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useEffect, useMemo } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { useOrders } from './hooks/useOrders';
-import { Search, DollarSign, Clock, CheckCircle, FileText, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useOrders, type JuliaOrder } from './hooks/useOrders';
+import { OrderDetailSheet } from './components/OrderDetailSheet';
+import { supabase } from '@/integrations/supabase/client';
+import { Search, DollarSign, Clock, CheckCircle, FileText, Loader2, Eye, Filter, X } from 'lucide-react';
 
 const statusMap: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   draft: { label: 'Rascunho', variant: 'outline' },
@@ -19,75 +23,102 @@ const formatCurrency = (cents: number) =>
 const PedidosPage = () => {
   const { orders, isLoading, stats } = useOrders();
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [planFilter, setPlanFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [selectedOrder, setSelectedOrder] = useState<JuliaOrder | null>(null);
+  const [planNames, setPlanNames] = useState<string[]>([]);
 
-  const filtered = orders.filter(o =>
-    !search ||
-    o.customer_name.toLowerCase().includes(search.toLowerCase()) ||
-    o.customer_document.includes(search.replace(/\D/g, '')) ||
-    o.order_nsu?.toLowerCase().includes(search.toLowerCase())
-  );
+  useEffect(() => {
+    supabase.from('julia_plans').select('name').eq('is_active', true).order('position').then(({ data }) => {
+      if (data) setPlanNames(data.map(p => p.name));
+    });
+  }, []);
+
+  const filtered = useMemo(() => {
+    return orders.filter(o => {
+      if (search) {
+        const s = search.toLowerCase();
+        const match = o.customer_name.toLowerCase().includes(s) ||
+          o.customer_document.includes(search.replace(/\D/g, '')) ||
+          o.order_nsu?.toLowerCase().includes(s) ||
+          o.customer_email.toLowerCase().includes(s);
+        if (!match) return false;
+      }
+      if (statusFilter !== 'all' && o.status !== statusFilter) return false;
+      if (planFilter !== 'all' && o.plan_name !== planFilter) return false;
+      if (dateFrom && new Date(o.created_at) < new Date(dateFrom)) return false;
+      if (dateTo && new Date(o.created_at) > new Date(dateTo + 'T23:59:59')) return false;
+      return true;
+    });
+  }, [orders, search, statusFilter, planFilter, dateFrom, dateTo]);
+
+  const hasFilters = statusFilter !== 'all' || planFilter !== 'all' || dateFrom || dateTo;
+
+  const clearFilters = () => {
+    setStatusFilter('all');
+    setPlanFilter('all');
+    setDateFrom('');
+    setDateTo('');
+  };
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Pedidos da Julia</h1>
+      <h1 className="text-2xl font-bold">Pedidos</h1>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <FileText className="w-8 h-8 text-blue-500" />
-              <div>
-                <p className="text-sm text-muted-foreground">Total</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {[
+          { icon: FileText, color: 'text-blue-500', label: 'Total', value: stats.total },
+          { icon: CheckCircle, color: 'text-green-500', label: 'Pagos', value: stats.paid },
+          { icon: Clock, color: 'text-yellow-500', label: 'Pendentes', value: stats.pending },
+          { icon: FileText, color: 'text-gray-400', label: 'Rascunhos', value: stats.draft },
+          { icon: DollarSign, color: 'text-[#6C3AED]', label: 'Receita', value: formatCurrency(stats.totalRevenue) },
+        ].map(({ icon: Icon, color, label, value }) => (
+          <Card key={label}>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <Icon className={`w-8 h-8 ${color}`} />
+                <div>
+                  <p className="text-sm text-muted-foreground">{label}</p>
+                  <p className="text-2xl font-bold">{value}</p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <CheckCircle className="w-8 h-8 text-green-500" />
-              <div>
-                <p className="text-sm text-muted-foreground">Pagos</p>
-                <p className="text-2xl font-bold">{stats.paid}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <Clock className="w-8 h-8 text-yellow-500" />
-              <div>
-                <p className="text-sm text-muted-foreground">Pendentes</p>
-                <p className="text-2xl font-bold">{stats.pending}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <DollarSign className="w-8 h-8 text-[#6C3AED]" />
-              <div>
-                <p className="text-sm text-muted-foreground">Receita</p>
-                <p className="text-2xl font-bold">{formatCurrency(stats.totalRevenue)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por nome, CPF/CNPJ ou NSU..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-10"
-        />
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 items-end">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Buscar nome, CPF/CNPJ, NSU..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            {Object.entries(statusMap).map(([k, v]) => (
+              <SelectItem key={k} value={k}>{v.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={planFilter} onValueChange={setPlanFilter}>
+          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Plano" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os planos</SelectItem>
+            {planNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[150px]" placeholder="Data início" />
+        <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[150px]" placeholder="Data fim" />
+        {hasFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
+            <X className="w-4 h-4 mr-1" /> Limpar
+          </Button>
+        )}
       </div>
 
       {/* Table */}
@@ -107,6 +138,7 @@ const PedidosPage = () => {
                   <th className="pb-3 font-medium text-muted-foreground">Valor</th>
                   <th className="pb-3 font-medium text-muted-foreground">Status</th>
                   <th className="pb-3 font-medium text-muted-foreground">Data</th>
+                  <th className="pb-3 font-medium text-muted-foreground"></th>
                 </tr>
               </thead>
               <tbody>
@@ -123,20 +155,19 @@ const PedidosPage = () => {
                       <td className="py-3 font-mono text-xs">{order.customer_document}</td>
                       <td className="py-3">{order.plan_name || '-'}</td>
                       <td className="py-3 font-medium">{order.plan_price ? formatCurrency(order.plan_price) : '-'}</td>
+                      <td className="py-3"><Badge variant={st.variant}>{st.label}</Badge></td>
+                      <td className="py-3 text-muted-foreground text-xs">{new Date(order.created_at).toLocaleDateString('pt-BR')}</td>
                       <td className="py-3">
-                        <Badge variant={st.variant}>{st.label}</Badge>
-                      </td>
-                      <td className="py-3 text-muted-foreground text-xs">
-                        {new Date(order.created_at).toLocaleDateString('pt-BR')}
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedOrder(order)}>
+                          <Eye className="w-4 h-4" />
+                        </Button>
                       </td>
                     </tr>
                   );
                 })}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-10 text-center text-muted-foreground">
-                      Nenhum pedido encontrado
-                    </td>
+                    <td colSpan={7} className="py-10 text-center text-muted-foreground">Nenhum pedido encontrado</td>
                   </tr>
                 )}
               </tbody>
@@ -144,6 +175,8 @@ const PedidosPage = () => {
           )}
         </CardContent>
       </Card>
+
+      <OrderDetailSheet order={selectedOrder} open={!!selectedOrder} onClose={() => setSelectedOrder(null)} />
     </div>
   );
 };
