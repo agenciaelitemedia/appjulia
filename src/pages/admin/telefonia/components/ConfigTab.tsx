@@ -267,9 +267,9 @@ export function ConfigTab() {
                       <Input value={threecBaseUrl} onChange={(e) => setThreecBaseUrl(e.target.value)} placeholder="https://app.3c.fluxoti.com/api/v1" />
                     </div>
                     <div className="col-span-2">
-                      <Label>URL WebSocket de Eventos</Label>
-                      <Input value={threecWsUrl} onChange={(e) => setThreecWsUrl(e.target.value)} placeholder="wss://events.3c.fluxoti.com/ws/me" />
-                      <p className="text-xs text-muted-foreground mt-1">WebSocket de eventos da plataforma (não é o WebSocket SIP)</p>
+                      <Label>URL WebSocket SIP/WebRTC</Label>
+                      <Input value={threecWsUrl} onChange={(e) => setThreecWsUrl(e.target.value)} placeholder="wss://pbx01.3c.fluxoti.com:8089/ws" />
+                      <p className="text-xs text-muted-foreground mt-1">WebSocket do PBX para conexão SIP (ex: wss://pbx01.3c.fluxoti.com:8089/ws)</p>
                     </div>
                   </div>
                 )}

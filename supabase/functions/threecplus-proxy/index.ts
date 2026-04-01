@@ -129,6 +129,10 @@ serve(async (req) => {
 
         if (!ext) throw new Error("Ramal não encontrado.");
 
+        // Helper: resolve wsUrl from config or derive from domain
+        const resolveWsUrl = (domain: string) =>
+          config.threecplus_ws_url || `wss://${domain}:8089/ws`;
+
         // If we already have cached SIP credentials, return them
         // Always prefer config.sip_domain over cached domain for flexibility
         if (
@@ -141,7 +145,7 @@ serve(async (req) => {
             domain: preferredDomain,
             username: ext.threecplus_sip_username,
             password: ext.threecplus_sip_password,
-            wsUrl: `wss://${preferredDomain}:8089/ws`,
+            wsUrl: resolveWsUrl(preferredDomain),
           };
           break;
         }
@@ -170,12 +174,11 @@ serve(async (req) => {
             threecplus_sip_password: sipPasswordFromRaw,
           }).eq("id", extensionId);
 
-          const wsUrlFromRaw = `wss://${sipDomainFromRaw}:8089/ws`;
           result = {
             domain: sipDomainFromRaw,
             username: sipUsernameFromRaw,
             password: sipPasswordFromRaw,
-            wsUrl: wsUrlFromRaw,
+            wsUrl: resolveWsUrl(sipDomainFromRaw),
           };
           break;
         }
@@ -216,13 +219,11 @@ serve(async (req) => {
           threecplus_sip_password: sipPassword,
         }).eq("id", extensionId);
 
-        const wsUrl = `wss://${sipDomain}:8089/ws`;
-
         result = {
           domain: sipDomain,
           username: sipUsername,
           password: sipPassword,
-          wsUrl,
+          wsUrl: resolveWsUrl(sipDomain),
         };
         break;
       }
