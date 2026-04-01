@@ -44,3 +44,9 @@ verify_jwt = false
 
 [functions.contract-notifications-cron]
 verify_jwt = false
+
+[functions.infinitypay-checkout]
+verify_jwt = false
+
+[functions.infinitypay-webhook]
+verify_jwt = false

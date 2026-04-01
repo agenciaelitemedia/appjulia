@@ -54,6 +54,9 @@ import NotFound from "./pages/NotFound";
 import PromptGeneratorPage from "./pages/admin/prompts/PromptGeneratorPage";
 import LegalCasesPage from "./pages/legal-cases/LegalCasesPage";
 import ContractNotificationsPage from "./pages/contract-notifications/ContractNotificationsPage";
+import ComprarPage from "./pages/comprar/ComprarPage";
+import ComprarSucessoPage from "./pages/comprar/ComprarSucessoPage";
+import PedidosPage from "./pages/admin/pedidos/PedidosPage";
 
 const queryClient = new QueryClient();
 
@@ -70,6 +73,8 @@ const App = () => (
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/redirect" element={<RedirectPage />} />
+                <Route path="/comprar" element={<ComprarPage />} />
+                <Route path="/comprar/sucesso" element={<ComprarSucessoPage />} />
                 <Route path="/call/:roomName" element={<JoinCallPage />} />
                 <Route element={<MainLayout />}>
                   <Route path="/" element={<Dashboard />} />
@@ -114,6 +119,7 @@ const App = () => (
                   <Route path="/admin/telefonia" element={<ProtectedRoute module="telephony_admin"><TelefoniaAdminPage /></ProtectedRoute>} />
                   <Route path="/admin/webhook-monitor" element={<ProtectedRoute module="admin_agents"><WebhookMonitorPage /></ProtectedRoute>} />
                   <Route path="/admin/prompts" element={<ProtectedRoute module="prompt_generator"><PromptGeneratorPage /></ProtectedRoute>} />
+                  <Route path="/admin/pedidos" element={<ProtectedRoute module="julia_orders"><PedidosPage /></ProtectedRoute>} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>
