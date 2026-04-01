@@ -53,6 +53,10 @@ function getThreecErrorStatus(error: unknown): number | null {
   return match ? Number(match[1]) : null;
 }
 
+function isRecoverableDeleteStatus(status: number | null): boolean {
+  return status === 400 || status === 403 || status === 404 || status === 405;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
