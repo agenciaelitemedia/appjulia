@@ -1,62 +1,140 @@
 
 
-# Checkout Integrado na Tela — Cartão + Pix com InfinityPay
+# Formulário de Compra Julia + Checkout InfinityPay
 
 ## Resumo
 
-Substituir o iframe/redirect do CheckoutStep por uma tela de pagamento completa integrada na própria página, baseada no componente JSX fornecido. Inclui: seleção Cartão/Pix, preview interativo do cartão com detecção de bandeira, parcelamento até 12x, QR Code Pix, tela de processamento animada e confirmação de sucesso. O fluxo real continua usando a edge function `infinitypay-checkout` para gerar o link de pagamento.
+Página pública `/comprar` com fluxo: **CPF/CNPJ → Dados do cliente → Seleção de plano → Checkout InfinityPay**. Design inspirado no atendejulia.com.br (roxo #6C3AED). Módulo admin "Pedidos da Julia" em `/admin/pedidos`.
 
-## Fluxo
+## API InfinityPay — Formato Confirmado
+
+O checkout usa a API pública sem autenticação, apenas com o `handle`:
+
+```json
+POST https://api.infinitepay.io/invoices/public/checkout/links
+{
+  "handle": "masterchat-inova",
+  "items": [
+    { "quantity": 1, "price": 1000, "description": "Plano Essencial" }
+  ],
+  "webhook_url": "https://zenizgyrwlonmufxnjqt.supabase.co/functions/v1/infinitypay-webhook",
+  "customer": {
+    "name": "Mario castro",
+    "email": "mario.r.castro@gmail.com",
+    "phone_number": "+5534988860163"
+  }
+}
+```
+
+- `handle`: identificador da conta InfinityPay (`masterchat-inova`)
+- `price`: valor em **centavos** (1000 = R$10,00)
+- `webhook_url`: já definida, aponta para a edge function
+- Sem necessidade de API key — apenas o handle
+
+## Fluxo do Usuário
 
 ```text
-CheckoutStep (Step 4)
-├── Resumo do pedido (sidebar direita)
-├── Método: Cartão de Crédito | Pix (tabs)
-│   ├── Cartão: preview animado + form (número, nome, validade, CVV, CPF, parcelas)
-│   └── Pix: QR Code placeholder + código copiável + email recibo
-├── Botão "Pagar R$ X" → chama edge function → tela processing
-└── Tela de sucesso com NSU e detalhes
+Step 1: CPF/CNPJ         Step 2: Dados           Step 3: Plano           Step 4: Checkout
+┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+│ Input CPF/CNPJ   │──▶│ Nome completo    │──▶│ Cards visuais    │──▶│ Resumo pedido    │
+│ (auto-detect)    │    │ E-mail           │    │ dos planos       │    │ Botão "Pagar"    │
+│ Se já existe:    │    │ WhatsApp         │    │ com features     │    │ → redireciona    │
+│ preenche dados   │    │ Endereço         │    │ Badge "Popular"  │    │   InfinityPay    │
+└──────────────────┘    │ → Salva draft DB │    └──────────────────┘    └──────────────────┘
 ```
 
 ## Implementação
 
-### 1. Reescrever `src/pages/comprar/steps/CheckoutStep.tsx`
+### 1. Migração — Tabela `julia_orders`
 
-Converter o JSX fornecido (inline styles) para Tailwind CSS + componentes shadcn, adaptando ao design da página `/comprar`:
+```sql
+CREATE TABLE public.julia_orders (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_name text NOT NULL,
+  customer_document text NOT NULL,
+  customer_address text NOT NULL,
+  customer_email text NOT NULL,
+  customer_whatsapp text NOT NULL,
+  plan_name text NOT NULL DEFAULT '',
+  plan_price integer NOT NULL DEFAULT 0,
+  billing_period text DEFAULT 'monthly',
+  status text NOT NULL DEFAULT 'draft',
+  order_nsu text UNIQUE,
+  checkout_url text,
+  infinitypay_transaction_nsu text,
+  receipt_url text,
+  paid_amount integer,
+  installments integer,
+  webhook_payload jsonb,
+  cod_agent text,
+  notes text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  paid_at timestamptz
+);
+ALTER TABLE public.julia_orders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public access julia_orders" ON public.julia_orders FOR ALL USING (true) WITH CHECK (true);
+```
 
-- **Layout**: Duas colunas (form esquerda, resumo direita) com fundo escuro `#0a0f1a` gradiente — similar ao componente fornecido
-- **Tabs Cartão/Pix**: Botões com borda verde `#00D26A` quando ativo
-- **Card preview**: Div interativa com gradiente baseado na bandeira, flip no CVV
-- **Form fields**: Inputs estilizados com foco verde, formatação automática (número do cartão, validade, CPF)
-- **Parcelas**: Select com cálculo automático até 12x
-- **Pix**: QR Code placeholder + código copia-e-cola + campo email
-- **Sidebar**: Resumo do pedido com itens, total, trust badges (SSL, antifraude, recebimento)
-- **Botão pagar**: Gradiente verde `#00D26A`, chama a edge function existente
-- **Processing**: Spinner + barra de progresso animada
-- **Success**: Check icon + NSU + detalhes da transação
+### 2. Edge Function `infinitypay-checkout`
 
-### 2. Integração com API
+Recebe `order_id` do frontend. Busca o pedido no DB, monta o payload exato:
 
-O botão "Pagar" continua chamando `supabase.functions.invoke('infinitypay-checkout')` como hoje. A diferença é que:
-- Os dados visuais do cartão ficam apenas no frontend (a InfinityPay processa pelo checkout link)
-- Após gerar o checkout_url, abre em nova aba (a API pública não aceita dados de cartão diretamente)
-- A tela de processing/success é exibida localmente enquanto aguarda
+```typescript
+const body = {
+  handle: "masterchat-inova",
+  items: [{ quantity: 1, price: order.plan_price, description: order.plan_name }],
+  webhook_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/infinitypay-webhook`,
+  customer: {
+    name: order.customer_name,
+    email: order.customer_email,
+    phone_number: `+55${order.customer_whatsapp.replace(/\D/g, '')}`
+  }
+};
+const resp = await fetch('https://api.infinitepay.io/invoices/public/checkout/links', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body)
+});
+```
 
-### 3. Helpers (no mesmo arquivo)
+Atualiza pedido com `checkout_url` e status `pending`. Retorna URL ao frontend.
 
-- `formatCardNumber()` — formata com espaços a cada 4 dígitos
-- `formatExpiry()` — formata MM/AA
-- `cardBrand()` — detecta Visa, Mastercard, Elo, Amex etc.
-- `formatCurrency()` — formata centavos para R$
+### 3. Edge Function `infinitypay-webhook`
 
-### 4. Ajustar `ComprarPage.tsx`
+Recebe POST da InfinityPay. Localiza pedido pelo `order_nsu`. Atualiza status para `paid`, salva `paid_amount`, `receipt_url`, payload completo.
 
-Quando step === 3 (Pagamento), esconder o header/stepper/footer padrão para dar espaço à tela de checkout full-screen com fundo escuro.
+### 4. Páginas Públicas (fora do MainLayout)
 
-## Arquivos alterados
-
-| Arquivo | Ação |
+| Arquivo | Descrição |
 |---|---|
-| `src/pages/comprar/steps/CheckoutStep.tsx` | Reescrever completamente |
-| `src/pages/comprar/ComprarPage.tsx` | Condicional para esconder stepper no step 3 |
+| `src/pages/comprar/ComprarPage.tsx` | Stepper 4 etapas, design roxo/gradiente |
+| `src/pages/comprar/steps/DocumentStep.tsx` | CPF/CNPJ com máscara, busca existente |
+| `src/pages/comprar/steps/CustomerStep.tsx` | Nome, email, WhatsApp, endereço → salva draft |
+| `src/pages/comprar/steps/PlanStep.tsx` | Cards visuais dos planos |
+| `src/pages/comprar/steps/CheckoutStep.tsx` | Resumo + botão pagar |
+| `src/pages/comprar/ComprarSucessoPage.tsx` | Confirmação pós-pagamento |
+
+### 5. Módulo Admin `/admin/pedidos`
+
+| Arquivo | Descrição |
+|---|---|
+| `src/pages/admin/pedidos/PedidosPage.tsx` | Dashboard + listagem filtrada |
+| `src/pages/admin/pedidos/hooks/useOrders.ts` | Hook CRUD `julia_orders` |
+
+### 6. Rotas (App.tsx)
+
+```tsx
+<Route path="/comprar" element={<ComprarPage />} />
+<Route path="/comprar/sucesso" element={<ComprarSucessoPage />} />
+<Route path="/admin/pedidos" element={<ProtectedRoute module="julia_orders"><PedidosPage /></ProtectedRoute>} />
+```
+
+### 7. Tipos
+
+Adicionar `julia_orders` ao `ModuleCode` em `src/types/permissions.ts`.
+
+## Handle
+
+O handle `masterchat-inova` será hardcoded na edge function (já fornecido). Sem necessidade de secret adicional — a API é pública.
 
