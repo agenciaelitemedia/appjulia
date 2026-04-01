@@ -99,6 +99,7 @@ export function ConfigTab() {
       payload.threecplus_token = threecToken;
       payload.threecplus_base_url = threecBaseUrl || 'https://app.3c.fluxoti.com/api/v1';
       payload.threecplus_ws_url = threecWsUrl || 'wss://events.3c.fluxoti.com/ws/me';
+      payload.sip_domain = sipDomain || null;
       // Preserve empty api4com fields to avoid DB NOT NULL issues
       payload.api4com_domain = domain || '';
       payload.api4com_token = token || '';
