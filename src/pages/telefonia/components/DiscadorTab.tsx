@@ -6,6 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { AlertCircle, ChevronDown, Activity, PhoneForwarded, PhoneOff, Ban } from 'lucide-react';
 import { usePhone } from '@/contexts/PhoneContext';
 import { DiscadorPad } from './DiscadorPad';
+import { ThreeCPlusWebphone } from './ThreeCPlusWebphone';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { formatPhoneForDialing } from '@/lib/phoneFormat';
 
@@ -24,7 +25,7 @@ const statusColors: Record<string, string> = {
 };
 
 export function DiscadorTab({ codAgent }: Props) {
-  const { sip, myExtension, isAvailable, dialNumber, isDialing, setSoftphoneCentered } = usePhone();
+  const { sip, myExtension, provider, isAvailable, dialNumber, isDialing, setSoftphoneCentered } = usePhone();
   const { plan, planLoading } = useTelefoniaData(codAgent);
   const [number, setNumber] = useState('');
   const planDeactivated = !plan && !planLoading;
@@ -39,6 +40,30 @@ export function DiscadorTab({ codAgent }: Props) {
     setSoftphoneCentered(true);
     dialNumber(number, undefined, 'DISCADOR');
   }, [number, myExtension, dialNumber, setSoftphoneCentered]);
+
+  // 3C+ provider uses official webphone instead of SIP
+  if (provider === '3cplus' && myExtension) {
+    return (
+      <div className="max-w-md mx-auto">
+        {planDeactivated && (
+          <Alert variant="destructive" className="mb-4">
+            <Ban className="h-4 w-4" />
+            <AlertDescription>
+              A telefonia está desativada para este agente. Entre em contato com o administrador.
+            </AlertDescription>
+          </Alert>
+        )}
+        <div className={planDeactivated ? 'opacity-50 pointer-events-none' : ''}>
+          <ThreeCPlusWebphone
+            codAgent={codAgent}
+            extensionId={myExtension.id}
+            extensionLabel={myExtension.label || undefined}
+            extensionNumber={myExtension.extension_number}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-md mx-auto">
