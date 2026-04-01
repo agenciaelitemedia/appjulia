@@ -39,7 +39,7 @@ export const DocumentStep = ({ orderData, updateOrder, onNext }: Props) => {
     const digits = unmask(document);
 
     try {
-      // Check if customer already exists
+      // 1. Check if customer already exists in julia_orders
       const { data: existing } = await supabase
         .from('julia_orders')
         .select('*')
@@ -56,9 +56,34 @@ export const DocumentStep = ({ orderData, updateOrder, onNext }: Props) => {
           customer_whatsapp: prev.customer_whatsapp || '',
           customer_address: prev.customer_address || '',
         });
-      } else {
-        updateOrder({ customer_document: digits });
+        onNext();
+        return;
       }
+
+      // 2. Not found locally — query external API for name/data
+      try {
+        const { data: apiResult, error: apiError } = await supabase.functions.invoke('consulta-documento', {
+          body: { document: digits },
+        });
+
+        if (!apiError && apiResult?.success && apiResult.data) {
+          const d = apiResult.data;
+          updateOrder({
+            customer_document: digits,
+            customer_name: d.name || '',
+            customer_email: d.email || '',
+            customer_whatsapp: d.phone || '',
+            customer_address: d.address || '',
+          });
+          onNext();
+          return;
+        }
+      } catch (e) {
+        console.warn('External lookup failed, continuing without data:', e);
+      }
+
+      // 3. Fallback — just save the document
+      updateOrder({ customer_document: digits });
       onNext();
     } catch {
       updateOrder({ customer_document: digits });
@@ -94,7 +119,7 @@ export const DocumentStep = ({ orderData, updateOrder, onNext }: Props) => {
           </div>
           {error && <p className="text-sm text-red-500">{error}</p>}
           <p className="text-xs text-gray-400">
-            Se já fez um pedido antes, seus dados serão preenchidos automaticamente.
+            Seus dados serão preenchidos automaticamente quando possível.
           </p>
         </div>
 
