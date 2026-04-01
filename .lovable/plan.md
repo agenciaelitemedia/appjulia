@@ -1,99 +1,97 @@
 
-# Correção do erro SIP 3C+ (WebSocket 1006)
+# Correção do 3C+ Websoftphone
 
 ## Diagnóstico confirmado
 
-Analisei o código, os dados atuais e os logs. O problema principal não está mais nas credenciais do ramal, e sim na camada de transporte WebRTC/SIP.
+O erro atual não está mais no cadastro do ramal nem na escolha do host. Pelos logs e pela pesquisa:
 
-### O que ficou comprovado
-- O frontend está tentando conectar em:
-  - domínio SIP: `assessoria.3c.fluxoti.com`
-  - WebSocket: `wss://assessoria.3c.fluxoti.com:8089/ws`
-- O erro é `WebSocket closed ... (code: 1006)` com timeout de conexão.
-- Esse tipo de erro acontece antes do registro SIP, então é falha de host/porta/TLS/handshake, não de usuário/senha.
-- No banco, a configuração atual do agente `202601003` está assim:
-  - `threecplus_base_url = https://assessoria.3c.fluxoti.com/api/v1`
-  - `sip_domain = assessoria.3c.fluxoti.com`
-- O ramal `1000` também está cacheado com `threecplus_sip_domain = assessoria.3c.fluxoti.com`.
-- No `threecplus-proxy`, a action `get_sip_credentials` monta o socket como `wss://${domain}:8089/ws`.
-- O campo `threecplus_ws_url` já existe no banco/UI, mas hoje não é usado no softphone; a UI ainda o descreve como “WebSocket de eventos”, o que induz configuração errada.
+- o frontend já está tentando exatamente:
+  - `sip:SD9uLTKkWr@pbx01.3c.fluxoti.com`
+  - `wss://pbx01.3c.fluxoti.com:8089/ws`
+- a edge function está retornando esses dados corretamente
+- o fechamento `WebSocket closed ... (code: 1006)` acontece antes do `REGISTER`, então usuário/senha do ramal nem chegaram a ser validados
+- a documentação do Asterisk confirma que `1006` nesse cenário costuma ser handshake/TLS/endpoint/proxy no WSS
+- mais importante: a documentação oficial da 3C+ encontrada indica outro fluxo para CRM:
+  - usar Socket.io para eventos do agente
+  - usar a URL oficial do ramal web: `https://{dominio}.3c.plus/extension?api_token={token_do_agente}`
+  - depois fazer login do agente/campanha via API
+- a própria doc da 3C+ diz que token de gestor não executa ações “como agente”; para operar o agente, deve-se usar o token do agente
+- o retorno salvo no banco ainda mostra `webphone: false`, reforçando que o fluxo atual não está alinhado com o modo oficial deles
 
-### Causa mais provável
-O host da API do tenant 3C+ (`assessoria.3c.fluxoti.com`) foi reutilizado como host SIP/WebSocket. Em 3C+, isso frequentemente é separado:
-- API REST: tenant/app host
-- SIP/WebRTC WSS: PBX host, tipicamente algo como `pbx01.3c.fluxoti.com`
+Conclusão: o problema mais provável não é “qual domínio SIP usar”, e sim que estamos tentando integrar o 3C+ como um softphone SIP nativo via `sip.js`, enquanto a integração oficialmente suportada pela 3C+ para CRM é incorporar o ramal web deles e usar Socket.io + API.
 
-Ou seja: a API pode estar correta em `assessoria...`, mas o WSS do softphone precisa apontar para o PBX.
+## Melhor abordagem
 
-## Plano de correção
+Trocar a integração 3C+ de “SIP nativo pelo browser” para “Ramal Web oficial da 3C+ embutido no CRM”.
 
-### 1. Corrigir a configuração persistida do agente
-Atualizar a configuração do agente `202601003` para separar API de SIP/WebSocket:
-- `threecplus_base_url = https://assessoria.3c.fluxoti.com/api/v1`
-- `sip_domain = pbx01.3c.fluxoti.com`
-- `threecplus_ws_url = wss://pbx01.3c.fluxoti.com:8089/ws`
+Isso evita depender do `wss://pbx01...:8089/ws` diretamente no nosso `sip.js`, que é justamente onde está quebrando.
 
-Também vou alinhar o cache do ramal para evitar inconsistência visual/futura.
+## Plano de implementação
 
-### 2. Corrigir a lógica do `threecplus-proxy`
-Hoje o proxy ignora `threecplus_ws_url` e sempre deriva o socket a partir do domínio. Vou ajustar para:
-- usar `config.threecplus_ws_url` como prioridade para `wsUrl`
-- usar `config.sip_domain` como domínio SIP/registrar
-- aplicar isso em todos os caminhos:
-  - cacheado no banco
-  - extração do `threecplus_raw`
-  - resposta do `/agent/webphone/login`
+### 1. Separar Api4Com e 3C+ no `PhoneContext`
+- manter `useSipPhone` apenas para Api4Com
+- criar um fluxo específico para 3C+ no contexto global
+- parar de chamar `get_sip_credentials`/`sip.js` quando o provedor for `3cplus`
 
-Isso elimina o acoplamento incorreto entre “domínio SIP” e “host WSS”.
+### 2. Implementar launcher oficial do Ramal Web 3C+
+No backend do 3C+:
+- adicionar uma action para montar a URL oficial do extension web usando o token do agente
+- garantir que o usuário 3C+ esteja com webphone habilitado antes de abrir
+- usar o token do próprio agente, não o token do gestor, para as ações de agente
 
-### 3. Ajustar a tela administrativa de configuração
-Na aba de configuração 3C+:
-- renomear o campo `threecplus_ws_url` para algo claro como:
-  - `URL WebSocket SIP/WebRTC`
-- manter `URL Base API` separado
-- manter `Domínio SIP (PBX/Registrar)` separado
-- remover o texto atual de “WebSocket de eventos”, porque hoje esse campo não está servindo para isso
+No frontend:
+- abrir o ramal web oficial dentro do CRM
+- tentativa principal: iframe persistente com `allow="microphone"`
+- fallback seguro: popup/janela controlada caso o 3C+ bloqueie iframe por CSP/X-Frame-Options
 
-### 4. Melhorar o diagnóstico no frontend
-Ajustar o diagnóstico SIP para deixar explícito:
-- domínio SIP/registrar
-- URL WebSocket efetiva
-- opcionalmente a origem das credenciais (`cache`, `raw`, `login`)
-Assim, se falhar de novo, ficará claro qual host o softphone realmente tentou usar.
+### 3. Adotar o fluxo oficial da 3C+ para estado do agente
+Implementar cliente Socket.io para 3C+ e refletir no UI:
+- `agent-is-idle`
+- `agent-login-failed`
+- `call-was-connected`
+- `call-was-finished`
+- `agent-in-acw`
 
-## Arquivos envolvidos
+Assim, o status da telefonia deixa de depender de `REGISTER` SIP do `sip.js` e passa a refletir o estado real do agente 3C+.
+
+### 4. Ajustar a tela `/telefonia`
+- trocar o bloco de diagnóstico SIP por diagnóstico 3C+:
+  - modo de conexão: `Ramal Web oficial`
+  - origem: `iframe` ou `popup`
+  - status do agente via Socket.io
+  - campanha/logado/ocioso/em chamada/TPA
+- manter o widget visual de softphone, mas como shell do 3C+, não como SIP nativo
+
+### 5. Corrigir segurança dos dados sensíveis
+Hoje o frontend consulta `phone_extensions` com `select('*')`, e isso expõe dados sensíveis do 3C+ no cliente.
+
+Vou ajustar para:
+- parar de buscar colunas sensíveis no frontend
+- deixar token do agente/segredos apenas no backend
+- retornar ao cliente só o necessário para abrir/controlar o ramal oficial
+
+## Arquivos principais
+
+- `src/contexts/PhoneContext.tsx`
+- `src/pages/telefonia/hooks/useSipPhone.ts` (Api4Com somente)
+- `src/pages/telefonia/components/DiscadorTab.tsx`
+- `src/pages/telefonia/components/SoftphoneWidget.tsx`
 - `supabase/functions/threecplus-proxy/index.ts`
-- `src/pages/admin/telefonia/components/ConfigTab.tsx`
-- possível ajuste leve em tipos, se necessário:
-  - `src/pages/admin/telefonia/types.ts`
-
-## Detalhes técnicos
-- Não precisa criar nova tabela nem nova coluna: os campos necessários já existem.
-- A correção central é fazer o softphone usar:
-  - API: `assessoria.3c.fluxoti.com/api/v1`
-  - SIP/WSS: `pbx01.3c.fluxoti.com`
-- O código atual monta:
-```text
-wsUrl = wss://<sip_domain>:8089/ws
-```
-e isso está errado para este cenário.
-- Após a correção, a resposta de `get_sip_credentials` deve retornar algo equivalente a:
-```json
-{
-  "domain": "pbx01.3c.fluxoti.com",
-  "username": "SD9uLTKkWr",
-  "password": "...",
-  "wsUrl": "wss://pbx01.3c.fluxoti.com:8089/ws"
-}
-```
-
-## Validação após implementar
-1. Abrir `/telefonia`
-2. Verificar no diagnóstico SIP:
-   - Domínio: `pbx01.3c.fluxoti.com`
-   - WebSocket: `wss://pbx01.3c.fluxoti.com:8089/ws`
-3. Confirmar que o erro `1006` deixa de ocorrer
-4. Se ainda houver falha, o próximo erro esperado já será de autenticação/registro SIP, o que indicará que a camada de transporte foi corrigida e o problema restante será outro
+- possivelmente novo hook/componente para 3C+ webphone e socket
 
 ## Resultado esperado
-O ramal 3C+ volta a conectar no softphone usando o host correto do PBX, sem depender do domínio do tenant web/API.
+
+Para 3C+:
+- o sistema deixa de depender de `wss://pbx01.3c.fluxoti.com:8089/ws` diretamente no browser
+- o ramal passa a conectar pelo método oficialmente documentado pela 3C+
+- o status da telefonia passa a ser guiado por eventos reais do agente
+- some o erro recorrente `WebSocket closed ... code 1006` do fluxo atual
+
+## Validação após implementar
+
+1. Abrir `/telefonia`
+2. Confirmar abertura do ramal oficial 3C+
+3. Verificar permissão de microfone
+4. Confirmar estado `ocioso/disponível` via evento 3C+
+5. Testar ligação manual e recebimento
+6. Confirmar que não há mais tentativa de conexão SIP nativa para 3C+ no console
