@@ -121,6 +121,7 @@ const App = () => (
                   <Route path="/admin/webhook-monitor" element={<ProtectedRoute module="admin_agents"><WebhookMonitorPage /></ProtectedRoute>} />
                   <Route path="/admin/prompts" element={<ProtectedRoute module="prompt_generator"><PromptGeneratorPage /></ProtectedRoute>} />
                   <Route path="/admin/pedidos" element={<ProtectedRoute module="julia_orders"><PedidosPage /></ProtectedRoute>} />
+                  <Route path="/admin/planos" element={<ProtectedRoute module="julia_plans"><PlanosPage /></ProtectedRoute>} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>

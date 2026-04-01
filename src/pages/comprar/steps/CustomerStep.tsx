@@ -39,39 +39,51 @@ export const CustomerStep = ({ orderData, updateOrder, onNext, onBack }: Props) 
     if (!validate()) return;
 
     setLoading(true);
-    try {
-      // Save draft to DB
-      const { data, error } = await supabase
-        .from('julia_orders')
-        .insert({
-          customer_document: orderData.customer_document,
-          customer_name: form.name.trim(),
-          customer_email: form.email.trim(),
-          customer_whatsapp: form.whatsapp.replace(/\D/g, ''),
-          customer_address: form.address.trim(),
-          status: 'draft',
-        })
-        .select('id')
-        .single();
+    const payload = {
+      customer_document: orderData.customer_document,
+      customer_name: form.name.trim(),
+      customer_email: form.email.trim(),
+      customer_whatsapp: form.whatsapp.replace(/\D/g, ''),
+      customer_address: form.address.trim(),
+      status: 'draft' as const,
+    };
 
-      if (error) throw error;
+    try {
+      let orderId = orderData.id;
+
+      if (orderId) {
+        // Update existing order
+        const { error } = await supabase
+          .from('julia_orders')
+          .update({ ...payload, updated_at: new Date().toISOString() })
+          .eq('id', orderId);
+        if (error) throw error;
+      } else {
+        // Insert new order
+        const { data, error } = await supabase
+          .from('julia_orders')
+          .insert(payload)
+          .select('id')
+          .single();
+        if (error) throw error;
+        orderId = data.id;
+      }
 
       updateOrder({
-        id: data.id,
-        customer_name: form.name.trim(),
-        customer_email: form.email.trim(),
-        customer_whatsapp: form.whatsapp.replace(/\D/g, ''),
-        customer_address: form.address.trim(),
+        id: orderId,
+        customer_name: payload.customer_name,
+        customer_email: payload.customer_email,
+        customer_whatsapp: payload.customer_whatsapp,
+        customer_address: payload.customer_address,
       });
       onNext();
     } catch (err) {
       console.error('Error saving draft:', err);
-      // Continue even if save fails
       updateOrder({
-        customer_name: form.name.trim(),
-        customer_email: form.email.trim(),
-        customer_whatsapp: form.whatsapp.replace(/\D/g, ''),
-        customer_address: form.address.trim(),
+        customer_name: payload.customer_name,
+        customer_email: payload.customer_email,
+        customer_whatsapp: payload.customer_whatsapp,
+        customer_address: payload.customer_address,
       });
       onNext();
     } finally {
@@ -94,12 +106,7 @@ export const CustomerStep = ({ orderData, updateOrder, onNext, onBack }: Props) 
           <Label className="text-[#1a1a2e] font-medium">Nome completo / Razão Social</Label>
           <div className="relative">
             <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              value={form.name}
-              onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
-              placeholder="Seu nome completo"
-              className={inputClass}
-            />
+            <Input value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Seu nome completo" className={inputClass} />
           </div>
           {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
         </div>
@@ -108,13 +115,7 @@ export const CustomerStep = ({ orderData, updateOrder, onNext, onBack }: Props) 
           <Label className="text-[#1a1a2e] font-medium">E-mail</Label>
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
-              placeholder="seu@email.com"
-              className={inputClass}
-            />
+            <Input type="email" value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} placeholder="seu@email.com" className={inputClass} />
           </div>
           {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
         </div>
@@ -123,12 +124,7 @@ export const CustomerStep = ({ orderData, updateOrder, onNext, onBack }: Props) 
           <Label className="text-[#1a1a2e] font-medium">WhatsApp</Label>
           <div className="relative">
             <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              value={form.whatsapp}
-              onChange={(e) => setForm(f => ({ ...f, whatsapp: maskPhone(e.target.value) }))}
-              placeholder="(00) 00000-0000"
-              className={inputClass}
-            />
+            <Input value={form.whatsapp} onChange={(e) => setForm(f => ({ ...f, whatsapp: maskPhone(e.target.value) }))} placeholder="(00) 00000-0000" className={inputClass} />
           </div>
           {errors.whatsapp && <p className="text-xs text-red-500">{errors.whatsapp}</p>}
         </div>
@@ -137,12 +133,7 @@ export const CustomerStep = ({ orderData, updateOrder, onNext, onBack }: Props) 
           <Label className="text-[#1a1a2e] font-medium">Endereço</Label>
           <div className="relative">
             <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              value={form.address}
-              onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))}
-              placeholder="Rua, número, cidade - UF"
-              className={inputClass}
-            />
+            <Input value={form.address} onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Rua, número, cidade - UF" className={inputClass} />
           </div>
           {errors.address && <p className="text-xs text-red-500">{errors.address}</p>}
         </div>
@@ -152,14 +143,8 @@ export const CustomerStep = ({ orderData, updateOrder, onNext, onBack }: Props) 
             <ArrowLeft className="w-4 h-4 mr-2" />
             Voltar
           </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="flex-1 h-12 bg-[#6C3AED] hover:bg-[#5B2BD4] text-white font-semibold rounded-xl"
-          >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-              <>Continuar <ArrowRight className="w-5 h-5 ml-2" /></>
-            )}
+          <Button onClick={handleSubmit} disabled={loading} className="flex-1 h-12 bg-[#6C3AED] hover:bg-[#5B2BD4] text-white font-semibold rounded-xl">
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (<>Continuar <ArrowRight className="w-5 h-5 ml-2" /></>)}
           </Button>
         </div>
       </CardContent>

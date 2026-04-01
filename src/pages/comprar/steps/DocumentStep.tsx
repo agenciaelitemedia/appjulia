@@ -12,9 +12,10 @@ interface Props {
   orderData: OrderData;
   updateOrder: (data: Partial<OrderData>) => void;
   onNext: () => void;
+  goToStep: (step: number) => void;
 }
 
-export const DocumentStep = ({ orderData, updateOrder, onNext }: Props) => {
+export const DocumentStep = ({ orderData, updateOrder, onNext, goToStep }: Props) => {
   const [document, setDocument] = useState(orderData.customer_document);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -39,16 +40,52 @@ export const DocumentStep = ({ orderData, updateOrder, onNext }: Props) => {
     const digits = unmask(document);
 
     try {
-      // 1. Check if customer already exists in julia_orders
-      const { data: existing } = await supabase
+      // 1. Check for existing draft/pending order
+      const { data: existingOrder } = await supabase
+        .from('julia_orders')
+        .select('*')
+        .eq('customer_document', digits)
+        .in('status', ['draft', 'pending'])
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (existingOrder && existingOrder.length > 0) {
+        const prev = existingOrder[0];
+        updateOrder({
+          id: prev.id,
+          customer_document: digits,
+          customer_name: prev.customer_name || '',
+          customer_email: prev.customer_email || '',
+          customer_whatsapp: prev.customer_whatsapp || '',
+          customer_address: prev.customer_address || '',
+          plan_name: prev.plan_name || '',
+          plan_price: prev.plan_price || 0,
+          checkout_url: prev.checkout_url || '',
+        });
+
+        // Skip to correct step based on order state
+        if (prev.status === 'pending' && prev.checkout_url) {
+          goToStep(3); // Go to checkout
+        } else if (prev.plan_name && prev.plan_price > 0) {
+          goToStep(2); // Go to plan selection (can change)
+        } else if (prev.customer_name) {
+          goToStep(1); // Go to customer data
+        } else {
+          onNext();
+        }
+        return;
+      }
+
+      // 2. Check past orders for autofill
+      const { data: pastOrder } = await supabase
         .from('julia_orders')
         .select('*')
         .eq('customer_document', digits)
         .order('created_at', { ascending: false })
         .limit(1);
 
-      if (existing && existing.length > 0) {
-        const prev = existing[0];
+      if (pastOrder && pastOrder.length > 0) {
+        const prev = pastOrder[0];
         updateOrder({
           customer_document: digits,
           customer_name: prev.customer_name || '',
@@ -60,7 +97,7 @@ export const DocumentStep = ({ orderData, updateOrder, onNext }: Props) => {
         return;
       }
 
-      // 2. Not found locally — query external API for name/data
+      // 3. External API lookup
       try {
         const { data: apiResult, error: apiError } = await supabase.functions.invoke('consulta-documento', {
           body: { document: digits },
@@ -79,10 +116,10 @@ export const DocumentStep = ({ orderData, updateOrder, onNext }: Props) => {
           return;
         }
       } catch (e) {
-        console.warn('External lookup failed, continuing without data:', e);
+        console.warn('External lookup failed:', e);
       }
 
-      // 3. Fallback — just save the document
+      // 4. Fallback
       updateOrder({ customer_document: digits });
       onNext();
     } catch {
