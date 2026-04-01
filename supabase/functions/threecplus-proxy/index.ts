@@ -548,6 +548,59 @@ serve(async (req) => {
       }
 
       // ------------------------------------------------------------------
+      // get_extension_url — returns the official 3C+ webphone URL for the agent
+      // Uses the agent's own api_token (not the manager token)
+      // ------------------------------------------------------------------
+      case "get_extension_url": {
+        const { extensionId: extUrlId } = params;
+
+        const { data: extUrl } = await supabase
+          .from("phone_extensions")
+          .select("threecplus_agent_id, threecplus_raw")
+          .eq("id", extUrlId)
+          .eq("cod_agent", codAgent)
+          .single();
+
+        if (!extUrl?.threecplus_agent_id) {
+          throw new Error("Ramal sem vínculo 3C+.");
+        }
+
+        // Extract agent's own api_token from raw data
+        const rawAgent = (extUrl.threecplus_raw as any)?.data ?? extUrl.threecplus_raw;
+        let agentApiToken = rawAgent?.api_token;
+
+        // If no cached token, fetch fresh from API
+        if (!agentApiToken) {
+          const freshUser = await threecRequest(baseUrl, token, `/users/${extUrl.threecplus_agent_id}`);
+          const freshData = freshUser?.data ?? freshUser;
+          agentApiToken = freshData?.api_token;
+
+          if (agentApiToken) {
+            // Update raw cache
+            await supabase.from("phone_extensions").update({
+              threecplus_raw: freshUser,
+            }).eq("id", extUrlId);
+          }
+        }
+
+        if (!agentApiToken) {
+          throw new Error("Token do agente 3C+ não encontrado. Recrie o ramal.");
+        }
+
+        // Build the official extension URL from the base URL tenant domain
+        // baseUrl is like "https://assessoria.3c.fluxoti.com/api/v1"
+        // Extension URL is "https://assessoria.3c.fluxoti.com/extension?api_token=..."
+        const tenantOrigin = baseUrl.replace(/\/api\/v\d+\/?$/, "");
+        const extensionUrl = `${tenantOrigin}/extension?api_token=${agentApiToken}`;
+
+        result = {
+          extensionUrl,
+          agentId: extUrl.threecplus_agent_id,
+        };
+        break;
+      }
+
+      // ------------------------------------------------------------------
       // enable_webphone — habilita webphone para um usuário 3C+ existente
       // PATCH /users/{id} { webphone: true }
       // ------------------------------------------------------------------
