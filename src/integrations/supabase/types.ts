@@ -1300,6 +1300,81 @@ export type Database = {
         }
         Relationships: []
       }
+      julia_orders: {
+        Row: {
+          billing_period: string | null
+          checkout_url: string | null
+          cod_agent: string | null
+          created_at: string
+          customer_address: string
+          customer_document: string
+          customer_email: string
+          customer_name: string
+          customer_whatsapp: string
+          id: string
+          infinitypay_transaction_nsu: string | null
+          installments: number | null
+          notes: string | null
+          order_nsu: string | null
+          paid_amount: number | null
+          paid_at: string | null
+          plan_name: string
+          plan_price: number
+          receipt_url: string | null
+          status: string
+          updated_at: string
+          webhook_payload: Json | null
+        }
+        Insert: {
+          billing_period?: string | null
+          checkout_url?: string | null
+          cod_agent?: string | null
+          created_at?: string
+          customer_address?: string
+          customer_document: string
+          customer_email?: string
+          customer_name: string
+          customer_whatsapp?: string
+          id?: string
+          infinitypay_transaction_nsu?: string | null
+          installments?: number | null
+          notes?: string | null
+          order_nsu?: string | null
+          paid_amount?: number | null
+          paid_at?: string | null
+          plan_name?: string
+          plan_price?: number
+          receipt_url?: string | null
+          status?: string
+          updated_at?: string
+          webhook_payload?: Json | null
+        }
+        Update: {
+          billing_period?: string | null
+          checkout_url?: string | null
+          cod_agent?: string | null
+          created_at?: string
+          customer_address?: string
+          customer_document?: string
+          customer_email?: string
+          customer_name?: string
+          customer_whatsapp?: string
+          id?: string
+          infinitypay_transaction_nsu?: string | null
+          installments?: number | null
+          notes?: string | null
+          order_nsu?: string | null
+          paid_amount?: number | null
+          paid_at?: string | null
+          plan_name?: string
+          plan_price?: number
+          receipt_url?: string | null
+          status?: string
+          updated_at?: string
+          webhook_payload?: Json | null
+        }
+        Relationships: []
+      }
       phone_call_logs: {
         Row: {
           answered_at: string | null
