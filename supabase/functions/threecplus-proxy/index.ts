@@ -121,12 +121,14 @@ serve(async (req) => {
         if (!ext) throw new Error('Ramal não encontrado.');
 
         // If we already have cached SIP credentials, return them
+        // Always prefer config.sip_domain over cached domain for flexibility
         if (ext.threecplus_sip_username && ext.threecplus_sip_password && ext.threecplus_sip_domain) {
+          const preferredDomain = config.sip_domain || ext.threecplus_sip_domain;
           result = {
-            domain: ext.threecplus_sip_domain,
+            domain: preferredDomain,
             username: ext.threecplus_sip_username,
             password: ext.threecplus_sip_password,
-            wsUrl: `wss://${ext.threecplus_sip_domain}:8089/ws`,
+            wsUrl: `wss://${preferredDomain}:8089/ws`,
           };
           break;
         }
