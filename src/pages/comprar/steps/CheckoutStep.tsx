@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, CreditCard, Loader2, ShieldCheck, ExternalLink } from 'lucide-react';
+import { ArrowLeft, CreditCard, Loader2, ShieldCheck, ExternalLink, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import type { OrderData } from '../ComprarPage';
 
@@ -14,9 +15,55 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [checkoutUrl, setCheckoutUrl] = useState('');
+  const [checking, setChecking] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const navigate = useNavigate();
 
   const formatPrice = (cents: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
+  };
+
+  // Poll for payment confirmation
+  useEffect(() => {
+    if (!checkoutUrl || !orderData.id) return;
+
+    pollingRef.current = setInterval(async () => {
+      const { data } = await supabase
+        .from('julia_orders')
+        .select('status')
+        .eq('id', orderData.id!)
+        .single();
+
+      if (data?.status === 'paid') {
+        if (pollingRef.current) clearInterval(pollingRef.current);
+        navigate('/comprar/sucesso');
+      }
+    }, 5000);
+
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [checkoutUrl, orderData.id, navigate]);
+
+  const handleCheckPayment = async () => {
+    if (!orderData.id) return;
+    setChecking(true);
+    try {
+      const { data } = await supabase
+        .from('julia_orders')
+        .select('status')
+        .eq('id', orderData.id)
+        .single();
+
+      if (data?.status === 'paid') {
+        navigate('/comprar/sucesso');
+      } else {
+        setError('Pagamento ainda não confirmado. Aguarde alguns instantes e tente novamente.');
+        setTimeout(() => setError(''), 4000);
+      }
+    } finally {
+      setChecking(false);
+    }
   };
 
   const handlePay = async () => {
@@ -61,19 +108,35 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <Button variant="outline" onClick={() => setCheckoutUrl('')} className="h-10 rounded-xl border-gray-200">
+          <Button variant="outline" onClick={() => { setCheckoutUrl(''); if (pollingRef.current) clearInterval(pollingRef.current); }} className="h-10 rounded-xl border-gray-200">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Voltar ao resumo
           </Button>
-          <a
-            href={checkoutUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-[#6C3AED] hover:underline flex items-center gap-1"
-          >
-            Abrir em nova aba <ExternalLink className="w-3 h-3" />
-          </a>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              onClick={handleCheckPayment}
+              disabled={checking}
+              className="h-10 rounded-xl border-green-300 text-green-700 hover:bg-green-50"
+            >
+              {checking ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+              Já paguei
+            </Button>
+            <a
+              href={checkoutUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-[#6C3AED] hover:underline flex items-center gap-1"
+            >
+              Abrir em nova aba <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
         </div>
+
+        {error && (
+          <div className="p-3 rounded-lg bg-amber-50 text-amber-700 text-sm text-center">{error}</div>
+        )}
+
         <div className="rounded-2xl overflow-hidden border border-[#6C3AED]/20 shadow-xl shadow-[#6C3AED]/10 bg-white">
           <iframe
             src={checkoutUrl}
@@ -85,7 +148,7 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
         </div>
         <div className="flex items-center gap-2 justify-center text-gray-400 text-xs">
           <ShieldCheck className="w-4 h-4" />
-          Pagamento seguro via InfinityPay
+          Pagamento seguro via InfinityPay • Verificação automática ativa
         </div>
       </div>
     );

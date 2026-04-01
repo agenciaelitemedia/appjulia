@@ -18,39 +18,71 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // Try to find order by NSU or transaction reference
-    const orderNsu = payload.order_nsu || payload.nsu || payload.reference
-    const transactionNsu = payload.transaction_nsu || payload.transaction_id || payload.id
+    let order: any = null
 
-    if (!orderNsu && !transactionNsu) {
-      console.log('[infinitypay-webhook] No identifier found in payload')
-      return new Response(JSON.stringify({ received: true, warning: 'no identifier' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    // Strategy 1: Match by invoice_slug in checkout_url
+    const invoiceSlug = payload.invoice_slug || payload.slug
+    if (invoiceSlug) {
+      console.log('[infinitypay-webhook] Trying match by invoice_slug:', invoiceSlug)
+      const { data } = await supabase
+        .from('julia_orders')
+        .select('*')
+        .ilike('checkout_url', `%${invoiceSlug}%`)
+        .eq('status', 'pending')
+        .limit(1)
+      if (data?.length) {
+        order = data[0]
+        console.log('[infinitypay-webhook] Matched by invoice_slug, order:', order.id)
+      }
     }
 
-    // Find the order
-    let query = supabase.from('julia_orders').select('*')
-    if (orderNsu) {
-      query = query.eq('order_nsu', orderNsu)
+    // Strategy 2: Match by order_nsu (InfinityPay's own NSU)
+    if (!order) {
+      const orderNsu = payload.order_nsu || payload.nsu || payload.reference
+      if (orderNsu) {
+        console.log('[infinitypay-webhook] Trying match by order_nsu:', orderNsu)
+        const { data } = await supabase
+          .from('julia_orders')
+          .select('*')
+          .eq('order_nsu', orderNsu)
+          .limit(1)
+        if (data?.length) {
+          order = data[0]
+          console.log('[infinitypay-webhook] Matched by order_nsu, order:', order.id)
+        }
+      }
     }
 
-    const { data: orders, error: fetchError } = await query.limit(1)
+    // Strategy 3: Fallback - match by amount + pending status (most recent)
+    if (!order && payload.amount) {
+      console.log('[infinitypay-webhook] Trying fallback match by amount:', payload.amount)
+      const { data } = await supabase
+        .from('julia_orders')
+        .select('*')
+        .eq('plan_price', payload.amount)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+      if (data?.length) {
+        order = data[0]
+        console.log('[infinitypay-webhook] Matched by amount fallback, order:', order.id)
+      }
+    }
 
-    if (fetchError || !orders?.length) {
-      console.log('[infinitypay-webhook] Order not found for NSU:', orderNsu)
+    if (!order) {
+      console.log('[infinitypay-webhook] No order found for payload')
       return new Response(JSON.stringify({ received: true, warning: 'order not found' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    const order = orders[0]
     const status = payload.status === 'approved' || payload.status === 'paid' ? 'paid' : payload.status || 'paid'
+    const transactionNsu = payload.transaction_nsu || payload.transaction_id || payload.id
 
     const updateData: any = {
       status,
       webhook_payload: payload,
-      infinitypay_transaction_nsu: transactionNsu || null,
+      infinitypay_transaction_nsu: transactionNsu || payload.order_nsu || null,
       updated_at: new Date().toISOString(),
     }
 
