@@ -516,15 +516,17 @@ serve(async (req) => {
 
         const rawData = (extRecord?.threecplus_raw as any)?.data || extRecord?.threecplus_raw || {};
         const userCandidates = Array.from(new Set([
+          rawData?.id,
+          extRecord?.threecplus_agent_id,
           extRecord?.threecplus_extension,
           extRecord?.extension_number,
-          rawData?.id,
           incomingId,
         ].filter(Boolean).map((v) => String(v).trim())));
 
         const agentCandidates = Array.from(new Set([
           extRecord?.threecplus_agent_id,
           rawData?.agent_id,
+          rawData?.id,
           incomingId,
         ].filter(Boolean).map((v) => String(v).trim())));
 
@@ -539,7 +541,7 @@ serve(async (req) => {
             break;
           } catch (error) {
             const status = getThreecErrorStatus(error);
-            if (status === 400 || status === 404 || status === 405) continue;
+            if (isRecoverableDeleteStatus(status)) continue;
             lastHardError = error as Error;
             break;
           }
@@ -554,7 +556,7 @@ serve(async (req) => {
               break;
             } catch (error) {
               const status = getThreecErrorStatus(error);
-              if (status === 400 || status === 404 || status === 405) continue;
+              if (isRecoverableDeleteStatus(status)) continue;
               lastHardError = error as Error;
               break;
             }
