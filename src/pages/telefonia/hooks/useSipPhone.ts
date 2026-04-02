@@ -32,6 +32,7 @@ interface SipCredentials {
   password: string;
   wsUrl: string;
   wsUrlSource?: string;
+  wsUrlCandidates?: string[];
 }
 
 interface UseSipPhoneReturn {
