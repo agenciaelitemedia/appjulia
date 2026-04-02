@@ -1121,17 +1121,38 @@ serve(async (req) => {
 
         const rawData = (ext.threecplus_raw as any)?.data || ext.threecplus_raw;
 
-        // Try webphone login to get fresh SIP info from 3C+
+        // Try webphone login to get fresh SIP info from 3C+ using AGENT token
         let loginResult: any = null;
         let loginError: string | null = null;
+        let usedAgentToken = false;
+        let webphoneStatus: boolean | null = null;
+
         if (ext.threecplus_agent_id) {
+          // Get agent token
+          const valAgentToken = await getAgentToken(supabase, extensionId, codAgent, baseUrl, token);
+          
+          // Check webphone status
           try {
-            loginResult = await threecRequest(baseUrl, token, "/agent/webphone/login", {
-              method: "POST",
-              body: { agent_id: Number(ext.threecplus_agent_id) },
-            });
-          } catch (e: any) {
-            loginError = e.message || String(e);
+            const userData = await threecRequest(baseUrl, token, `/users/${ext.threecplus_agent_id}`);
+            const u = userData?.data ?? userData;
+            webphoneStatus = u?.webphone ?? null;
+          } catch {}
+
+          if (valAgentToken) {
+            usedAgentToken = true;
+            // Ensure webphone is enabled first
+            await ensureWebphoneEnabled(supabase, baseUrl, token, valAgentToken, ext.threecplus_agent_id, extensionId, codAgent);
+
+            try {
+              loginResult = await threecRequest(baseUrl, valAgentToken, "/agent/webphone/login", {
+                method: "POST",
+                body: {},
+              });
+            } catch (e: any) {
+              loginError = e.message || String(e);
+            }
+          } else {
+            loginError = "Token do agente não encontrado em threecplus_raw.data.api_token";
           }
         }
 
