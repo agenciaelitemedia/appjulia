@@ -16,6 +16,8 @@ import { useEnsureTelefoniaModule } from "@/hooks/useEnsureTelefoniaModule";
 import { useEnsurePromptGeneratorModule } from "@/hooks/useEnsurePromptGeneratorModule";
 import { useEnsureLegalCasesModule } from "@/hooks/useEnsureLegalCasesModule";
 import { useEnsureContractNotificationsModule } from "@/hooks/useEnsureContractNotificationsModule";
+import { useEnsureJuliaOrdersModule } from "@/hooks/useEnsureJuliaOrdersModule";
+import { useEnsureJuliaPlansModule } from "@/hooks/useEnsureJuliaPlansModule";
 import {
   Tooltip,
   TooltipContent,
