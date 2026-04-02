@@ -207,29 +207,6 @@ const PlanosPage = () => {
     return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin" /></div>;
   }
 
-  // Contract state
-  const [contractBody, setContractBody] = useState('');
-  const [contractLoading, setContractLoading] = useState(true);
-  const [contractSaving, setContractSaving] = useState(false);
-  const [contractId, setContractId] = useState<string | null>(null);
-  const [contractMode, setContractMode] = useState<'edit' | 'preview'>('edit');
-
-  useEffect(() => {
-    const fetchContract = async () => {
-      const { data } = await supabase
-        .from('julia_contract_template')
-        .select('*')
-        .limit(1)
-        .single();
-      if (data) {
-        setContractId(data.id);
-        setContractBody(data.body_markdown);
-      }
-      setContractLoading(false);
-    };
-    fetchContract();
-  }, []);
-
   const handleSaveContract = async () => {
     if (!contractId) return;
     setContractSaving(true);
