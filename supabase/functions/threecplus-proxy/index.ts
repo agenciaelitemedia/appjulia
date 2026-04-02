@@ -177,11 +177,21 @@ serve(async (req) => {
           extFull?.threecplus_raw;
         if (rawData?.telephony_id && rawData?.extension_password) {
           // Use credentials from raw creation response
-          let sipDomainFromRaw = "pbx01.3c.fluxoti.com";
-          let rawDomainSource = "fallback padrão (pbx01.3c.fluxoti.com)";
+          // Priority: 1) config.sip_domain (manual override), 2) derive from base_url hostname, 3) hardcoded fallback
+          let sipDomainFromRaw: string;
+          let rawDomainSource: string;
           if (config.sip_domain) {
             sipDomainFromRaw = config.sip_domain;
             rawDomainSource = "phone_config.sip_domain (override manual)";
+          } else {
+            // Derive from tenant base_url: https://assessoria.3c.fluxoti.com/api/v1 → assessoria.3c.fluxoti.com
+            try {
+              sipDomainFromRaw = new URL(baseUrl).hostname;
+              rawDomainSource = `derivado de threecplus_base_url (${baseUrl})`;
+            } catch {
+              sipDomainFromRaw = "pbx01.3c.fluxoti.com";
+              rawDomainSource = "fallback padrão (pbx01.3c.fluxoti.com)";
+            }
           }
           const sipUsernameFromRaw = rawData.telephony_id;
           const sipPasswordFromRaw = rawData.extension_password;
