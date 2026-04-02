@@ -30,6 +30,7 @@ const ComprarPage = () => {
     customer_address: '',
     plan_name: '',
     plan_price: 0,
+    billing_period: 'monthly',
   });
 
   const updateOrder = (data: Partial<OrderData>) => {

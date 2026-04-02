@@ -81,6 +81,7 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
         .update({
           plan_name: orderData.plan_name,
           plan_price: orderData.plan_price,
+          billing_period: orderData.billing_period || 'monthly',
           updated_at: new Date().toISOString(),
         })
         .eq('id', orderData.id);
