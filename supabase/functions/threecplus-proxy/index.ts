@@ -1269,8 +1269,30 @@ serve(async (req) => {
           }
         }
 
-        const resolveWs = (domain: string) =>
-          config.threecplus_ws_url || `wss://${domain}:8089/ws`;
+        // Determine resolved domain from login first, then cache, then fallback
+        const loginSipServer = loginResult?.sip_server || loginResult?.domain || loginResult?.host || loginResult?.data?.sip_server || null;
+        const hasOfficialCache = !!(ext.threecplus_raw as any)?.last_webphone_login;
+        
+        let resolvedDomain: string;
+        let resolvedSource: string;
+        if (config.sip_domain) {
+          resolvedDomain = config.sip_domain;
+          resolvedSource = "phone_config.sip_domain (override manual)";
+        } else if (loginSipServer) {
+          resolvedDomain = loginSipServer;
+          resolvedSource = "3C+ webphone login (oficial)";
+        } else if (hasOfficialCache && ext.threecplus_sip_domain) {
+          resolvedDomain = ext.threecplus_sip_domain;
+          resolvedSource = "cache oficial (last_webphone_login)";
+        } else if (ext.threecplus_sip_domain) {
+          resolvedDomain = ext.threecplus_sip_domain;
+          resolvedSource = "cache antigo (pode ser incorreto)";
+        } else {
+          resolvedDomain = "pbx01.3c.fluxoti.com";
+          resolvedSource = "fallback genérico";
+        }
+
+        const resolvedWsUrl = config.threecplus_ws_url || `wss://${resolvedDomain}:8089/ws`;
 
         result = {
           config: {
@@ -1286,22 +1308,25 @@ serve(async (req) => {
             raw_telephony_id: rawData?.telephony_id || null,
             raw_extension_password: rawData?.extension_password ? '***' : null,
             webphone_enabled: webphoneStatus,
+            has_official_cache: hasOfficialCache,
           },
           tokenInfo: {
             usedAgentToken,
             hasAgentToken: !!rawData?.api_token,
           },
           login: loginResult ? {
-            sip_server: loginResult.sip_server || loginResult.domain || loginResult.host || null,
-            sip_user: loginResult.sip_user || loginResult.username || loginResult.extension || null,
-            has_sip_password: !!(loginResult.sip_password || loginResult.password),
+            sip_server: loginSipServer,
+            sip_user: loginResult.sip_user || loginResult.username || loginResult.extension || loginResult?.data?.sip_user || null,
+            has_sip_password: !!(loginResult.sip_password || loginResult.password || loginResult?.data?.sip_password),
+            ws_url: loginResult.websocket || loginResult.ws_url || loginResult?.data?.websocket || null,
             full_response_keys: Object.keys(loginResult),
             raw_login: loginResult,
           } : null,
           loginError,
           resolved: {
-            domain: config.sip_domain || ext.threecplus_sip_domain || (loginResult?.sip_server) || "pbx01.3c.fluxoti.com",
-            wsUrl: resolveWs(config.sip_domain || ext.threecplus_sip_domain || "pbx01.3c.fluxoti.com"),
+            domain: resolvedDomain,
+            domainSource: resolvedSource,
+            wsUrl: resolvedWsUrl,
           },
         };
         break;
