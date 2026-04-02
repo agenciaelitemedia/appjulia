@@ -19,7 +19,7 @@ export interface OrderData {
   checkout_url?: string;
 }
 
-const steps = ['Documento', 'Dados', 'Plano', 'Pagamento'];
+const steps = ['Documento', 'Dados', 'Plano', 'Contrato', 'Pagamento'];
 
 const ComprarPage = () => {
   const [currentStep, setCurrentStep] = useState(0);
