@@ -178,7 +178,9 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
             <span className="text-lg font-bold text-[#1a1a2e]">Total</span>
             <span className="text-2xl font-extrabold text-[#6C3AED]">
               {formatPrice(orderData.plan_price)}
-              <span className="text-sm font-normal text-gray-400">/mês</span>
+              <span className="text-sm font-normal text-gray-400">
+                {orderData.billing_period === 'annual' ? '/ano' : orderData.billing_period === 'semiannual' ? '/semestre' : '/mês'}
+              </span>
             </span>
           </div>
         </div>
