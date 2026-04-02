@@ -15,7 +15,9 @@ export type OnCallEndedCallback = (info: CallEndedInfo) => void;
 
 export interface SipDiagnostics {
   domain: string;
+  domainSource: string;
   wsUrl: string;
+  wsUrlSource: string;
   username: string;
   registrationStatus: string;
   lastError: string;
@@ -25,9 +27,11 @@ export interface SipDiagnostics {
 
 interface SipCredentials {
   domain: string;
+  domainSource?: string;
   username: string;
   password: string;
   wsUrl: string;
+  wsUrlSource?: string;
 }
 
 interface UseSipPhoneReturn {
@@ -54,7 +58,7 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
   const [isHeld, setIsHeld] = useState(false);
   const [callerInfo, setCallerInfo] = useState('');
   const [diagnostics, setDiagnostics] = useState<SipDiagnostics>({
-    domain: '', wsUrl: '', username: '', registrationStatus: 'none',
+    domain: '', domainSource: '', wsUrl: '', wsUrlSource: '', username: '', registrationStatus: 'none',
     lastError: '', wsState: 'disconnected', events: [],
   });
 
@@ -212,7 +216,9 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
     setDiagnostics(prev => ({
       ...prev,
       domain: creds.domain,
+      domainSource: creds.domainSource || '',
       wsUrl: creds.wsUrl,
+      wsUrlSource: creds.wsUrlSource || '',
       username: creds.username,
       registrationStatus: 'connecting',
       wsState: 'connecting',

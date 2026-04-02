@@ -127,10 +127,14 @@ export function DiscadorTab({ codAgent }: Props) {
                 <CollapsibleContent>
                   <div className="mt-2 rounded-md border bg-muted/30 p-3 space-y-2 text-xs font-mono">
                     <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-                      <span className="text-muted-foreground">Domínio:</span>
+                      <span className="text-muted-foreground">Domínio SIP:</span>
                       <span className="truncate">{sip.diagnostics.domain || '—'}</span>
+                      <span className="text-muted-foreground">Origem:</span>
+                      <span className="truncate text-muted-foreground">{sip.diagnostics.domainSource || '—'}</span>
                       <span className="text-muted-foreground">WebSocket:</span>
                       <span className="truncate">{sip.diagnostics.wsUrl || '—'}</span>
+                      <span className="text-muted-foreground">Origem WS:</span>
+                      <span className="truncate text-muted-foreground">{sip.diagnostics.wsUrlSource || '—'}</span>
                       <span className="text-muted-foreground">Usuário:</span>
                       <span>{sip.diagnostics.username || '—'}</span>
                       <span className="text-muted-foreground">WS Estado:</span>

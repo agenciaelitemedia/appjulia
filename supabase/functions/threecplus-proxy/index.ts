@@ -130,22 +130,36 @@ serve(async (req) => {
         if (!ext) throw new Error("Ramal não encontrado.");
 
         // Helper: resolve wsUrl from config or derive from domain
-        const resolveWsUrl = (domain: string) =>
-          config.threecplus_ws_url || `wss://${domain}:8089/ws`;
+        const resolveWsUrl = (domain: string): { wsUrl: string; wsUrlSource: string } => {
+          if (config.threecplus_ws_url) {
+            return { wsUrl: config.threecplus_ws_url, wsUrlSource: 'phone_config.threecplus_ws_url' };
+          }
+          return { wsUrl: `wss://${domain}:8089/ws`, wsUrlSource: `derivado do domínio SIP: ${domain}` };
+        };
 
         // If we already have cached SIP credentials, return them
-        // Always prefer config.sip_domain over cached domain for flexibility
+        // Prefer extension cached domain, config.sip_domain only as override
         if (
           ext.threecplus_sip_username && ext.threecplus_sip_password &&
           ext.threecplus_sip_domain
         ) {
-          const preferredDomain = config.sip_domain ||
-            ext.threecplus_sip_domain;
+          let preferredDomain = ext.threecplus_sip_domain;
+          let domainSource = 'phone_extensions.threecplus_sip_domain (cache)';
+          if (config.sip_domain) {
+            preferredDomain = config.sip_domain;
+            domainSource = 'phone_config.sip_domain (override manual)';
+          }
+          const ws = resolveWsUrl(preferredDomain);
           result = {
             domain: preferredDomain,
+            domainSource,
             username: ext.threecplus_sip_username,
             password: ext.threecplus_sip_password,
-            wsUrl: resolveWsUrl(preferredDomain),
+            wsUrl: ws.wsUrl,
+            wsUrlSource: ws.wsUrlSource,
+            configSipDomain: config.sip_domain || null,
+            extensionSipDomain: ext.threecplus_sip_domain || null,
+            baseUrl: baseUrl,
           };
           break;
         }
@@ -163,7 +177,22 @@ serve(async (req) => {
           extFull?.threecplus_raw;
         if (rawData?.telephony_id && rawData?.extension_password) {
           // Use credentials from raw creation response
-          const sipDomainFromRaw = config.sip_domain || "pbx01.3c.fluxoti.com";
+          // Priority: 1) config.sip_domain (manual override), 2) derive from base_url hostname, 3) hardcoded fallback
+          let sipDomainFromRaw: string;
+          let rawDomainSource: string;
+          if (config.sip_domain) {
+            sipDomainFromRaw = config.sip_domain;
+            rawDomainSource = "phone_config.sip_domain (override manual)";
+          } else {
+            // Derive from tenant base_url: https://assessoria.3c.fluxoti.com/api/v1 → assessoria.3c.fluxoti.com
+            try {
+              sipDomainFromRaw = new URL(baseUrl).hostname;
+              rawDomainSource = `derivado de threecplus_base_url (${baseUrl})`;
+            } catch {
+              sipDomainFromRaw = "pbx01.3c.fluxoti.com";
+              rawDomainSource = "fallback padrão (pbx01.3c.fluxoti.com)";
+            }
+          }
           const sipUsernameFromRaw = rawData.telephony_id;
           const sipPasswordFromRaw = rawData.extension_password;
 
@@ -174,11 +203,15 @@ serve(async (req) => {
             threecplus_sip_password: sipPasswordFromRaw,
           }).eq("id", extensionId);
 
+          const ws = resolveWsUrl(sipDomainFromRaw);
           result = {
             domain: sipDomainFromRaw,
+            domainSource: rawDomainSource,
             username: sipUsernameFromRaw,
             password: sipPasswordFromRaw,
-            wsUrl: resolveWsUrl(sipDomainFromRaw),
+            wsUrl: ws.wsUrl,
+            wsUrlSource: ws.wsUrlSource,
+            baseUrl,
           };
           break;
         }
@@ -219,11 +252,15 @@ serve(async (req) => {
           threecplus_sip_password: sipPassword,
         }).eq("id", extensionId);
 
+        const ws = resolveWsUrl(sipDomain);
         result = {
           domain: sipDomain,
+          domainSource: "3C+ webphone login (sip_server)",
           username: sipUsername,
           password: sipPassword,
-          wsUrl: resolveWsUrl(sipDomain),
+          wsUrl: ws.wsUrl,
+          wsUrlSource: ws.wsUrlSource,
+          baseUrl,
         };
         break;
       }
@@ -1054,6 +1091,69 @@ serve(async (req) => {
           summary: Object.entries(diagResults).map(([k, v]) =>
             `${k}: ${v.ok ? "✅" : "❌"} (${v.status})`
           ).join(", "),
+        };
+        break;
+      }
+
+      // ------------------------------------------------------------------
+      // validate_sip — diagnóstico administrativo de conectividade SIP
+      // ------------------------------------------------------------------
+      case "validate_sip": {
+        const { extensionId } = params;
+
+        const { data: ext } = await supabase
+          .from("phone_extensions")
+          .select("threecplus_agent_id, threecplus_sip_username, threecplus_sip_password, threecplus_sip_domain, threecplus_extension, threecplus_raw")
+          .eq("id", extensionId)
+          .eq("cod_agent", codAgent)
+          .single();
+
+        if (!ext) throw new Error("Ramal não encontrado.");
+
+        const rawData = (ext.threecplus_raw as any)?.data || ext.threecplus_raw;
+
+        // Try webphone login to get fresh SIP info from 3C+
+        let loginResult: any = null;
+        let loginError: string | null = null;
+        if (ext.threecplus_agent_id) {
+          try {
+            loginResult = await threecRequest(baseUrl, token, "/agent/webphone/login", {
+              method: "POST",
+              body: { agent_id: Number(ext.threecplus_agent_id) },
+            });
+          } catch (e: any) {
+            loginError = e.message || String(e);
+          }
+        }
+
+        const resolveWs = (domain: string) =>
+          config.threecplus_ws_url || `wss://${domain}:8089/ws`;
+
+        result = {
+          config: {
+            sip_domain: config.sip_domain || null,
+            threecplus_ws_url: config.threecplus_ws_url || null,
+            threecplus_base_url: config.threecplus_base_url || null,
+          },
+          extension: {
+            threecplus_sip_domain: ext.threecplus_sip_domain || null,
+            threecplus_sip_username: ext.threecplus_sip_username || null,
+            has_password: !!ext.threecplus_sip_password,
+            threecplus_agent_id: ext.threecplus_agent_id,
+            raw_telephony_id: rawData?.telephony_id || null,
+            raw_extension_password: rawData?.extension_password ? '***' : null,
+          },
+          login: loginResult ? {
+            sip_server: loginResult.sip_server || loginResult.domain || loginResult.host || null,
+            sip_user: loginResult.sip_user || loginResult.username || loginResult.extension || null,
+            has_sip_password: !!(loginResult.sip_password || loginResult.password),
+            full_response_keys: Object.keys(loginResult),
+          } : null,
+          loginError,
+          resolved: {
+            domain: config.sip_domain || ext.threecplus_sip_domain || (loginResult?.sip_server) || "pbx01.3c.fluxoti.com",
+            wsUrl: resolveWs(config.sip_domain || ext.threecplus_sip_domain || "pbx01.3c.fluxoti.com"),
+          },
         };
         break;
       }

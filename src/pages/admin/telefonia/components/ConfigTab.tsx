@@ -258,18 +258,19 @@ export function ConfigTab() {
                       </div>
                     </div>
                     <div>
-                      <Label>Domínio SIP (WebRTC)</Label>
-                      <Input value={sipDomain} onChange={(e) => setSipDomain(e.target.value)} placeholder="assessoria.3c.fluxoti.com" />
-                      <p className="text-xs text-muted-foreground mt-1">Domínio SIP do PBX 3C+ (usado para conexão WebRTC)</p>
+                      <Label>URL Base API (Tenant)</Label>
+                      <Input value={threecBaseUrl} onChange={(e) => setThreecBaseUrl(e.target.value)} placeholder="https://assessoria.3c.fluxoti.com/api/v1" />
+                      <p className="text-xs text-muted-foreground mt-1">URL da API REST do seu tenant 3C+ (ex: https://assessoria.3c.fluxoti.com/api/v1)</p>
                     </div>
                     <div>
-                      <Label>URL Base API</Label>
-                      <Input value={threecBaseUrl} onChange={(e) => setThreecBaseUrl(e.target.value)} placeholder="https://app.3c.fluxoti.com/api/v1" />
+                      <Label>Domínio SIP/PBX (override)</Label>
+                      <Input value={sipDomain} onChange={(e) => setSipDomain(e.target.value)} placeholder="Deixe vazio para usar o retornado pelo 3C+" />
+                      <p className="text-xs text-muted-foreground mt-1">Override manual do domínio SIP. Se vazio, usa o domínio retornado pelo login do webphone.</p>
                     </div>
                     <div className="col-span-2">
-                      <Label>URL WebSocket SIP/WebRTC</Label>
-                      <Input value={threecWsUrl} onChange={(e) => setThreecWsUrl(e.target.value)} placeholder="wss://pbx01.3c.fluxoti.com:8089/ws" />
-                      <p className="text-xs text-muted-foreground mt-1">WebSocket do PBX para conexão SIP (ex: wss://pbx01.3c.fluxoti.com:8089/ws)</p>
+                      <Label>URL WebSocket SIP (override)</Label>
+                      <Input value={threecWsUrl} onChange={(e) => setThreecWsUrl(e.target.value)} placeholder="Deixe vazio para derivar do domínio SIP" />
+                      <p className="text-xs text-muted-foreground mt-1">Override manual do WSS. Se vazio, usa wss://{'{domínio SIP}'}:8089/ws. Tenant ≠ PBX: assessoria.3c.fluxoti.com é API, não SIP.</p>
                     </div>
                   </div>
                 )}
