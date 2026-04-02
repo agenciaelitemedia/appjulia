@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { DocumentStep } from './steps/DocumentStep';
 import { CustomerStep } from './steps/CustomerStep';
 import { PlanStep } from './steps/PlanStep';
+import { ContractStep } from './steps/ContractStep';
 import { CheckoutStep } from './steps/CheckoutStep';
 import { Check } from 'lucide-react';
 
