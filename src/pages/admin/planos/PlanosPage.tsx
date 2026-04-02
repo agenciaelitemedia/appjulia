@@ -404,6 +404,58 @@ const PlanosPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="contrato">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Placeholders: {'{{customer_name}}'}, {'{{customer_document}}'}, {'{{customer_email}}'}, {'{{customer_whatsapp}}'}, {'{{customer_address}}'}, {'{{plan_name}}'}, {'{{plan_price}}'}, {'{{billing_period}}'}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setContractMode(contractMode === 'edit' ? 'preview' : 'edit')}
+                >
+                  {contractMode === 'edit' ? <Eye className="mr-2 h-4 w-4" /> : <Edit className="mr-2 h-4 w-4" />}
+                  {contractMode === 'edit' ? 'Preview' : 'Editar'}
+                </Button>
+                <Button onClick={handleSaveContract} disabled={contractSaving}>
+                  {contractSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  Salvar
+                </Button>
+              </div>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>{contractMode === 'edit' ? 'Editor Markdown' : 'Pré-visualização'}</CardTitle>
+                <CardDescription>
+                  {contractMode === 'edit'
+                    ? 'Escreva o contrato usando Markdown. Os placeholders serão substituídos pelos dados do cliente.'
+                    : 'Assim ficará o contrato para o cliente (placeholders não substituídos).'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {contractLoading ? (
+                  <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin" /></div>
+                ) : contractMode === 'edit' ? (
+                  <Textarea
+                    value={contractBody}
+                    onChange={(e) => setContractBody(e.target.value)}
+                    className="min-h-[500px] font-mono text-sm"
+                    placeholder="# Contrato..."
+                  />
+                ) : (
+                  <div className="prose prose-sm max-w-none border rounded-lg p-6 bg-muted/30 min-h-[500px]">
+                    <ReactMarkdown>{contractBody}</ReactMarkdown>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
