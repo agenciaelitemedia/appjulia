@@ -236,7 +236,7 @@ serve(async (req) => {
           
           if (agentToken) {
             // Ensure webphone is enabled
-            await ensureWebphoneEnabled(supabase, baseUrl, token, agentToken, ext.threecplus_agent_id, extensionId, codAgent);
+            await ensureWebphoneEnabled(baseUrl, token, agentToken, ext.threecplus_agent_id);
 
             try {
               const loginResp = await threecRequest(
