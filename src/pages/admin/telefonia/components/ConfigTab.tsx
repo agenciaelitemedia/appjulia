@@ -76,7 +76,7 @@ export function ConfigTab() {
     setToken(cfg.api4com_token || '');
     setThreecToken(cfg.threecplus_token || '');
     setThreecBaseUrl(cfg.threecplus_base_url || 'https://app.3c.fluxoti.com/api/v1');
-    setThreecWsUrl(cfg.threecplus_ws_url || 'wss://events.3c.fluxoti.com/ws/me');
+    setThreecWsUrl(cfg.threecplus_ws_url || '');
     setShowToken(false);
     setEditing(cfg);
     setIsAdding(true);
