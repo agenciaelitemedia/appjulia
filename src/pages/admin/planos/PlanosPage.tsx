@@ -163,7 +163,11 @@ const PlanosPage = () => {
                       {plan.is_popular && <Badge variant="secondary" className="text-xs">Popular</Badge>}
                     </div>
                   </td>
-                  <td className="py-3 font-medium">{plan.price_display}</td>
+                  <td className="py-3 font-medium text-xs">
+                    <div>M: R$ {(plan.price_monthly / 100).toFixed(0)}</div>
+                    <div>S: R$ {(plan.price_semiannual / 100).toFixed(0)}</div>
+                    <div>A: R$ {(plan.price_annual / 100).toFixed(0)}</div>
+                  </td>
                   <td className="py-3 text-muted-foreground text-xs">{plan.features.length} items</td>
                   <td className="py-3">
                     <Badge variant={plan.is_active ? 'default' : 'outline'}>
