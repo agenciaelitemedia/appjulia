@@ -1,0 +1,1 @@
+UPDATE phone_extensions SET threecplus_sip_domain = NULL, threecplus_sip_username = NULL, threecplus_sip_password = NULL WHERE id = 31 AND cod_agent = '202601003' AND provider = '3cplus';
