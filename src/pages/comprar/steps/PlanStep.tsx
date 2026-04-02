@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, ArrowRight, Check, Star, Zap, Crown, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,7 +11,6 @@ interface PlanFromDB {
   price_monthly: number;
   price_semiannual: number;
   price_annual: number;
-  price_display: string;
   icon: string;
   color: string;
   features: string[];
@@ -58,9 +56,9 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
         const mapped = data.map(p => ({
           ...p,
           features: (p.features as any) || [],
-          price_monthly: (p as any).price_monthly ?? p.price,
-          price_semiannual: (p as any).price_semiannual ?? 0,
-          price_annual: (p as any).price_annual ?? 0,
+          price_monthly: p.price_monthly ?? 0,
+          price_semiannual: p.price_semiannual ?? 0,
+          price_annual: p.price_annual ?? 0,
         }));
         setPlans(mapped);
         if (orderData.plan_name) {
@@ -73,19 +71,41 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
     fetchPlans();
   }, [orderData.plan_name]);
 
+  // Detect which periods have at least one plan with price > 0
+  const availablePeriods = useMemo(() => {
+    const periods: BillingPeriod[] = [];
+    if (plans.some(p => p.price_monthly > 0)) periods.push('monthly');
+    if (plans.some(p => p.price_semiannual > 0)) periods.push('semiannual');
+    if (plans.some(p => p.price_annual > 0)) periods.push('annual');
+    return periods;
+  }, [plans]);
+
+  // Auto-select first available period
+  useEffect(() => {
+    if (availablePeriods.length > 0 && !availablePeriods.includes(billingPeriod)) {
+      setBillingPeriod(availablePeriods[0]);
+    }
+  }, [availablePeriods, billingPeriod]);
+
   const getPriceByPeriod = (plan: PlanFromDB): number => {
     if (billingPeriod === 'annual') return plan.price_annual;
     if (billingPeriod === 'semiannual') return plan.price_semiannual;
     return plan.price_monthly;
   };
 
+  // Filter plans that have price > 0 for selected period
+  const filteredPlans = useMemo(() => {
+    return plans.filter(p => getPriceByPeriod(p) > 0);
+  }, [plans, billingPeriod]);
+
   const formatPrice = (cents: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
   };
 
-  const handleSelect = (index: number) => {
-    setSelected(index);
-    const plan = plans[index];
+  const handleSelect = (planId: string) => {
+    const idx = plans.findIndex(p => p.id === planId);
+    setSelected(idx);
+    const plan = plans[idx];
     updateOrder({
       plan_name: plan.name,
       plan_price: getPriceByPeriod(plan),
@@ -95,10 +115,16 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
 
   const handlePeriodChange = (period: BillingPeriod) => {
     setBillingPeriod(period);
+    // Reset selection if current plan has no price in new period
     if (selected >= 0) {
       const plan = plans[selected];
       const price = period === 'annual' ? plan.price_annual : period === 'semiannual' ? plan.price_semiannual : plan.price_monthly;
-      updateOrder({ plan_price: price, billing_period: period });
+      if (price > 0) {
+        updateOrder({ plan_price: price, billing_period: period });
+      } else {
+        setSelected(-1);
+        updateOrder({ plan_name: '', plan_price: 0, billing_period: period });
+      }
     }
   };
 
@@ -117,39 +143,42 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
         <p className="text-gray-500 mt-1">Selecione o plano ideal para o seu escritório</p>
       </div>
 
-      {/* Period selector */}
-      <div className="flex justify-center">
-        <div className="inline-flex bg-gray-100 rounded-xl p-1 gap-1">
-          {(['monthly', 'semiannual', 'annual'] as BillingPeriod[]).map(period => (
-            <button
-              key={period}
-              onClick={() => handlePeriodChange(period)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                billingPeriod === period
-                  ? 'bg-[#6C3AED] text-white shadow-sm'
-                  : 'text-gray-600 hover:text-[#6C3AED]'
-              }`}
-            >
-              {periodLabels[period].label}
-              {period === 'annual' && (
-                <span className={`ml-1 text-xs ${billingPeriod === period ? 'text-white/80' : 'text-green-600'}`}>
-                  💰
-                </span>
-              )}
-            </button>
-          ))}
+      {/* Period selector — only show if more than 1 period available */}
+      {availablePeriods.length > 1 && (
+        <div className="flex justify-center">
+          <div className="inline-flex bg-gray-100 rounded-xl p-1 gap-1">
+            {availablePeriods.map(period => (
+              <button
+                key={period}
+                onClick={() => handlePeriodChange(period)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  billingPeriod === period
+                    ? 'bg-[#6C3AED] text-white shadow-sm'
+                    : 'text-gray-600 hover:text-[#6C3AED]'
+                }`}
+              >
+                {periodLabels[period].label}
+                {period === 'annual' && (
+                  <span className={`ml-1 text-xs ${billingPeriod === period ? 'text-white/80' : 'text-green-600'}`}>
+                    💰
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-3">
-        {plans.map((plan, i) => {
+        {filteredPlans.map((plan) => {
           const price = getPriceByPeriod(plan);
+          const isSelected = selected >= 0 && plans[selected]?.id === plan.id;
           return (
             <div
               key={plan.id}
-              onClick={() => handleSelect(i)}
+              onClick={() => handleSelect(plan.id)}
               className={`relative cursor-pointer rounded-2xl border-2 p-5 transition-all duration-200 bg-white ${
-                selected === i
+                isSelected
                   ? 'border-[#6C3AED] shadow-lg shadow-[#6C3AED]/10 scale-[1.02]'
                   : 'border-gray-100 hover:border-[#6C3AED]/30 hover:shadow-md'
               }`}
@@ -179,7 +208,7 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
                 ))}
               </ul>
 
-              {selected === i && (
+              {isSelected && (
                 <div className="absolute top-4 right-4 w-6 h-6 rounded-full bg-[#6C3AED] flex items-center justify-center">
                   <Check className="w-4 h-4 text-white" />
                 </div>
@@ -188,6 +217,10 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
           );
         })}
       </div>
+
+      {filteredPlans.length === 0 && (
+        <p className="text-center text-gray-400 py-8">Nenhum plano disponível para este período.</p>
+      )}
 
       <div className="flex gap-3">
         <Button variant="outline" onClick={onBack} className="h-12 rounded-xl border-gray-200">
