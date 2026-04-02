@@ -28,7 +28,8 @@ interface Plan {
 }
 
 const emptyPlan: Omit<Plan, 'id'> = {
-  name: '', price: 0, price_display: '', icon: 'zap', color: 'from-blue-500 to-blue-600',
+  name: '', price: 0, price_monthly: 0, price_semiannual: 0, price_annual: 0,
+  price_display: '', icon: 'zap', color: 'from-blue-500 to-blue-600',
   features: [], is_popular: false, is_active: true, position: 0,
 };
 
