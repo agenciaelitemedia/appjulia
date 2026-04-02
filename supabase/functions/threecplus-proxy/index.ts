@@ -1085,6 +1085,69 @@ serve(async (req) => {
         break;
       }
 
+      // ------------------------------------------------------------------
+      // validate_sip — diagnóstico administrativo de conectividade SIP
+      // ------------------------------------------------------------------
+      case "validate_sip": {
+        const { extensionId } = params;
+
+        const { data: ext } = await supabase
+          .from("phone_extensions")
+          .select("threecplus_agent_id, threecplus_sip_username, threecplus_sip_password, threecplus_sip_domain, threecplus_extension, threecplus_raw")
+          .eq("id", extensionId)
+          .eq("cod_agent", codAgent)
+          .single();
+
+        if (!ext) throw new Error("Ramal não encontrado.");
+
+        const rawData = (ext.threecplus_raw as any)?.data || ext.threecplus_raw;
+
+        // Try webphone login to get fresh SIP info from 3C+
+        let loginResult: any = null;
+        let loginError: string | null = null;
+        if (ext.threecplus_agent_id) {
+          try {
+            loginResult = await threecRequest(baseUrl, token, "/agent/webphone/login", {
+              method: "POST",
+              body: { agent_id: Number(ext.threecplus_agent_id) },
+            });
+          } catch (e: any) {
+            loginError = e.message || String(e);
+          }
+        }
+
+        const resolveWs = (domain: string) =>
+          config.threecplus_ws_url || `wss://${domain}:8089/ws`;
+
+        result = {
+          config: {
+            sip_domain: config.sip_domain || null,
+            threecplus_ws_url: config.threecplus_ws_url || null,
+            threecplus_base_url: config.threecplus_base_url || null,
+          },
+          extension: {
+            threecplus_sip_domain: ext.threecplus_sip_domain || null,
+            threecplus_sip_username: ext.threecplus_sip_username || null,
+            has_password: !!ext.threecplus_sip_password,
+            threecplus_agent_id: ext.threecplus_agent_id,
+            raw_telephony_id: rawData?.telephony_id || null,
+            raw_extension_password: rawData?.extension_password ? '***' : null,
+          },
+          login: loginResult ? {
+            sip_server: loginResult.sip_server || loginResult.domain || loginResult.host || null,
+            sip_user: loginResult.sip_user || loginResult.username || loginResult.extension || null,
+            has_sip_password: !!(loginResult.sip_password || loginResult.password),
+            full_response_keys: Object.keys(loginResult),
+          } : null,
+          loginError,
+          resolved: {
+            domain: config.sip_domain || ext.threecplus_sip_domain || (loginResult?.sip_server) || "pbx01.3c.fluxoti.com",
+            wsUrl: resolveWs(config.sip_domain || ext.threecplus_sip_domain || "pbx01.3c.fluxoti.com"),
+          },
+        };
+        break;
+      }
+
       default:
         throw new Error(`Ação desconhecida: ${action}`);
     }
