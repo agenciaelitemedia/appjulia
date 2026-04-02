@@ -58,6 +58,7 @@ import ComprarPage from "./pages/comprar/ComprarPage";
 import ComprarSucessoPage from "./pages/comprar/ComprarSucessoPage";
 import PedidosPage from "./pages/admin/pedidos/PedidosPage";
 import PlanosPage from "./pages/admin/planos/PlanosPage";
+import ContratoTemplatePage from "./pages/admin/contrato/ContratoTemplatePage";
 
 const queryClient = new QueryClient();
 
