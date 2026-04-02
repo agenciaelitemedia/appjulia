@@ -6,7 +6,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { AlertCircle, ChevronDown, Activity, PhoneForwarded, PhoneOff, Ban } from 'lucide-react';
 import { usePhone } from '@/contexts/PhoneContext';
 import { DiscadorPad } from './DiscadorPad';
-import { ThreeCPlusWebphone } from './ThreeCPlusWebphone';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { formatPhoneForDialing } from '@/lib/phoneFormat';
 

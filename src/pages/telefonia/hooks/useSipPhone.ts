@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import JsSIP from 'jssip';
+import type { RTCSession } from 'jssip/lib/RTCSession';
 
 export type SipStatus = 'idle' | 'registering' | 'registered' | 'calling' | 'ringing' | 'in-call' | 'error';
 
