@@ -130,22 +130,36 @@ serve(async (req) => {
         if (!ext) throw new Error("Ramal não encontrado.");
 
         // Helper: resolve wsUrl from config or derive from domain
-        const resolveWsUrl = (domain: string) =>
-          config.threecplus_ws_url || `wss://${domain}:8089/ws`;
+        const resolveWsUrl = (domain: string): { wsUrl: string; wsUrlSource: string } => {
+          if (config.threecplus_ws_url) {
+            return { wsUrl: config.threecplus_ws_url, wsUrlSource: 'phone_config.threecplus_ws_url' };
+          }
+          return { wsUrl: `wss://${domain}:8089/ws`, wsUrlSource: `derivado do domínio SIP: ${domain}` };
+        };
 
         // If we already have cached SIP credentials, return them
-        // Always prefer config.sip_domain over cached domain for flexibility
+        // Prefer extension cached domain, config.sip_domain only as override
         if (
           ext.threecplus_sip_username && ext.threecplus_sip_password &&
           ext.threecplus_sip_domain
         ) {
-          const preferredDomain = config.sip_domain ||
-            ext.threecplus_sip_domain;
+          let preferredDomain = ext.threecplus_sip_domain;
+          let domainSource = 'phone_extensions.threecplus_sip_domain (cache)';
+          if (config.sip_domain) {
+            preferredDomain = config.sip_domain;
+            domainSource = 'phone_config.sip_domain (override manual)';
+          }
+          const ws = resolveWsUrl(preferredDomain);
           result = {
             domain: preferredDomain,
+            domainSource,
             username: ext.threecplus_sip_username,
             password: ext.threecplus_sip_password,
-            wsUrl: resolveWsUrl(preferredDomain),
+            wsUrl: ws.wsUrl,
+            wsUrlSource: ws.wsUrlSource,
+            configSipDomain: config.sip_domain || null,
+            extensionSipDomain: ext.threecplus_sip_domain || null,
+            baseUrl: baseUrl,
           };
           break;
         }

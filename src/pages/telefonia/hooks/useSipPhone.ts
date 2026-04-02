@@ -216,7 +216,9 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
     setDiagnostics(prev => ({
       ...prev,
       domain: creds.domain,
+      domainSource: creds.domainSource || '',
       wsUrl: creds.wsUrl,
+      wsUrlSource: creds.wsUrlSource || '',
       username: creds.username,
       registrationStatus: 'connecting',
       wsState: 'connecting',
