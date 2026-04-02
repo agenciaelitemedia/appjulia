@@ -1,68 +1,91 @@
 
-Diagnóstico confirmado
 
-- Hoje o sistema não está tentando conectar o ramal 3C+ usando `assessoria.3c.fluxoti.com` como SIP.
-- No banco, a configuração ativa do agente `202601003` está assim:
-  - `threecplus_base_url = https://assessoria.3c.fluxoti.com/api/v1`
-  - `sip_domain = pbx01.3c.fluxoti.com`
-  - `threecplus_ws_url = wss://pbx01.3c.fluxoti.com:8089/ws`
-- O ramal 3C+ ativo também já está cacheado com `threecplus_sip_domain = pbx01.3c.fluxoti.com`.
-- O `threecplus-proxy` monta as credenciais SIP a partir desses campos e o `PhoneContext` apenas consome o retorno. Ou seja: a escolha do host SIP/WSS está vindo da configuração/back-end, não do componente React do discador.
-- O erro atual (`WebSocket 1006`) acontece antes do registro SIP. Isso indica falha na camada WSS/WebRTC: endpoint incorreto, WebRTC/WSS não habilitado no tenant, TLS/origin bloqueado, ou acesso SIP WebRTC não provisionado pela 3C.
+# Correção da Conexão SIP 3C+ - Token do Agente
 
-Onde entra o “assessoria”
+## Causa raiz confirmada
 
-- `assessoria.3c.fluxoti.com` entra hoje como URL base da API/tenant (`threecplus_base_url`).
-- Ele também é usado no código que monta a URL oficial `/extension?...`.
-- E aparece como placeholder no campo “Domínio SIP” da tela admin, o que é confuso.
-- No fluxo SIP ativo atual, o host em uso é `pbx01.3c.fluxoti.com`, não `assessoria.3c.fluxoti.com`.
+Analisei a documentação oficial da 3C+ (`api-docs.3c.fluxoti.com`), os dados do banco, e testei os endpoints diretamente. O problema tem **duas causas**:
 
-Plano de correção
+### 1. Token errado no `/agent/webphone/login`
 
-1. Corrigir a modelagem visual da configuração 3C+
-- Separar claramente na tela:
-  - URL da API/Tenant
-  - Domínio SIP/PBX
-  - URL WSS do PBX
-- Remover o placeholder `assessoria.3c.fluxoti.com` do campo SIP.
-- Explicar no formulário que tenant/API e SIP/WSS podem ser hosts diferentes.
+O endpoint `POST /agent/webphone/login` pertence ao grupo **Agent** da API 3C+. Endpoints `/agent/*` exigem o **token do próprio agente**, não o token do gestor/admin.
 
-2. Expor a origem real das credenciais no diagnóstico
-- Ajustar `threecplus-proxy` para retornar também:
-  - `baseUrl`
-  - origem do SIP domain
-  - origem do WS URL
-  - domínio salvo na extensão
-  - domínio salvo na configuração
-- Mostrar isso no “Diagnóstico SIP” da `/telefonia`.
+Hoje o `threecplus-proxy` usa sempre `config.threecplus_token` (token do gestor: `57nwW8Y...`) para todas as chamadas. Quando chama `/agent/webphone/login`, recebe:
 
-3. Parar de sobrescrever credencial boa com configuração manual
-- Hoje `config.sip_domain` tem prioridade sobre o domínio cacheado/retornado.
-- Ajustar para priorizar o domínio real vindo do login/credencial do provedor, usando `config.sip_domain` só como override avançado.
+```
+403: "Você não tem permissão para acessar esse recurso."
+```
 
-4. Adicionar uma validação administrativa da 3C+
-- Criar uma ação de “Validar 3C+” para comparar:
-  - host SIP retornado pela 3C
-  - host SIP salvo
-  - WSS salvo
-- Isso deve gerar um diagnóstico objetivo sem depender do navegador.
+O token correto do agente está salvo em `threecplus_raw.data.api_token`: `DTunnpulesthWRDPsOKVm7oo5hGqM8JWVhP8qqOQdDsHZMeWS9hznqEL3x0B`
 
-5. Fechar o bloqueio externo com evidência técnica
-- Se a validação confirmar que `pbx01.3c.fluxoti.com:8089/ws` é mesmo o endpoint correto e o browser continuar no `1006`, o bloqueio restante é da infraestrutura da 3C/PBX:
-  - WSS/WebRTC não habilitado para o tenant
-  - porta/path diferentes
-  - certificado/TLS/origin não aceitos
-  - serviço SIP WebRTC do tenant não provisionado
+### 2. Webphone não habilitado
 
-Arquivos principais
+A resposta da 3C+ mostra `webphone: false` no agente. O sistema tentou habilitar via `PUT /users/{id}` com `webphone: true`, mas o campo permaneceu `false` na resposta. Isso pode ser um campo que precisa ser habilitado no painel da 3C+, ou a habilitação requer o token do agente.
 
-- `supabase/functions/threecplus-proxy/index.ts`
-- `src/pages/admin/telefonia/components/ConfigTab.tsx`
-- `src/pages/telefonia/components/DiscadorTab.tsx`
-- `src/contexts/PhoneContext.tsx`
+### 3. Consequência
 
-Resultado esperado
+Sem o login correto no webphone, não obtemos o `sip_server` real da 3C+. O sistema deriva o domínio de `threecplus_base_url` (`assessoria.3c.fluxoti.com`), que é o host do **tenant/API**, e pode ou não ser o mesmo host do PBX/SIP. O WebSocket fecha com 1006 porque pode estar tentando conectar no host errado ou sem as credenciais corretas.
 
-- Fica claro no sistema que `assessoria` é URL de tenant/API e que o SIP/WSS atual vem de `pbx01`.
-- O diagnóstico passa a mostrar exatamente de onde o sistema tirou cada valor.
-- Se ainda falhar, a evidência técnica fica suficiente para cobrar da 3C a liberação correta do acesso WebRTC/SIP.
+## Plano de correção
+
+### 1. Usar token do agente para endpoints `/agent/*`
+
+No `threecplus-proxy`, para as actions que chamam endpoints do grupo `/agent/*`:
+- `get_sip_credentials` (chama `/agent/webphone/login`)
+- `validate_sip` (chama `/agent/webphone/login`)
+
+Extrair o `api_token` do agente a partir de `threecplus_raw.data.api_token` e usar esse token em vez do token do gestor.
+
+```text
+Antes:  threecRequest(baseUrl, managerToken, "/agent/webphone/login", ...)
+Depois: threecRequest(baseUrl, agentToken,   "/agent/webphone/login", ...)
+```
+
+O token do gestor continua sendo usado para endpoints administrativos (`/users/*`, `/agents`, `/click2call`, etc.).
+
+### 2. Forçar habilitação do webphone com token do agente
+
+Tentar habilitar webphone usando o token do agente ao invés do gestor, via PUT no endpoint do próprio usuário. Se ainda não funcionar, adicionar um aviso claro no diagnóstico para que o administrador habilite manualmente no painel 3C+.
+
+### 3. Usar credenciais retornadas pelo login
+
+Quando `/agent/webphone/login` retornar sucesso, a resposta contém os campos reais:
+- `sip_server` / `domain` / `host` - domínio SIP correto do PBX
+- `sip_user` / `username` - usuário SIP
+- `sip_password` / `password` - senha SIP
+- Possivelmente `port` e `ws_url`
+
+Essas credenciais devem ser cacheadas e usadas pelo JsSIP, substituindo qualquer derivação manual.
+
+### 4. Atualizar diagnóstico
+
+Mostrar no diagnóstico SIP:
+- Se o webphone está habilitado (`webphone: true/false`)
+- Se o login usou token do agente
+- Quais campos a resposta do login retornou
+
+### 5. Remover `sip.js` do package.json
+
+O pacote `sip.js` (0.21.2) ainda está listado no `package.json` embora já tenhamos migrado para `jssip`. Limpar essa dependência residual.
+
+## Arquivos alterados
+
+| Arquivo | Mudança |
+|---|---|
+| `supabase/functions/threecplus-proxy/index.ts` | Usar agent token para `/agent/*` endpoints; melhorar enable_webphone |
+| `package.json` | Remover `sip.js` residual |
+
+## Resultado esperado
+
+1. O `/agent/webphone/login` passa a retornar 200 com as credenciais SIP reais
+2. O JsSIP conecta usando o `sip_server` correto retornado pela 3C+
+3. O WebSocket 1006 desaparece porque o domínio/porta serão os corretos
+4. Se webphone estiver desabilitado, o diagnóstico indica claramente o que fazer
+
+## Validação
+
+Após deploy:
+1. Chamar `validate_sip` para confirmar que o login retorna credenciais
+2. Recarregar `/telefonia` e verificar o diagnóstico SIP
+3. Confirmar que o WS Estado muda para `connected` e Registro para `registered`
+
