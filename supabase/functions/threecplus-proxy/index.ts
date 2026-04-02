@@ -231,12 +231,28 @@ serve(async (req) => {
 
         if (!ext) throw new Error("Ramal não encontrado.");
 
-        // Helper: resolve wsUrl from config or derive from domain
-        const resolveWsUrl = (domain: string): { wsUrl: string; wsUrlSource: string } => {
+        // Helper: resolve wsUrl and candidates from config or derive from domain
+        const resolveWsUrl = (domain: string): { wsUrl: string; wsUrlSource: string; wsUrlCandidates: string[] } => {
           if (config.threecplus_ws_url) {
-            return { wsUrl: config.threecplus_ws_url, wsUrlSource: 'phone_config.threecplus_ws_url' };
+            return { wsUrl: config.threecplus_ws_url, wsUrlSource: 'phone_config.threecplus_ws_url', wsUrlCandidates: [config.threecplus_ws_url] };
           }
-          return { wsUrl: `wss://${domain}:8089/ws`, wsUrlSource: `derivado do domínio SIP: ${domain}` };
+          // Generate multiple candidates for the client to probe
+          const candidates = [
+            `wss://${domain}/ws`,
+            `wss://${domain}:443/ws`,
+            `wss://${domain}:8089/ws`,
+            `wss://${domain}:8088/ws`,
+            `wss://${domain}:7443/ws`,
+            `wss://${domain}:5location`,
+          ].filter(u => !u.includes('5location')); // clean list
+          const candidatesFinal = [
+            `wss://${domain}/ws`,
+            `wss://${domain}:443/ws`,
+            `wss://${domain}:8089/ws`,
+            `wss://${domain}:8088/ws`,
+            `wss://${domain}:7443/ws`,
+          ];
+          return { wsUrl: candidatesFinal[0], wsUrlSource: `auto-discovery (${candidatesFinal.length} candidatos)`, wsUrlCandidates: candidatesFinal };
         };
 
         // If we already have cached SIP credentials, return them
