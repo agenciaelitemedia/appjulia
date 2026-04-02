@@ -58,7 +58,109 @@ function isRecoverableDeleteStatus(status: number | null): boolean {
   return status === 400 || status === 403 || status === 404 || status === 405;
 }
 
-serve(async (req) => {
+// Helper: extract agent's own api_token from threecplus_raw or fetch fresh
+async function getAgentToken(
+  supabase: any,
+  extensionId: number | string,
+  codAgent: string,
+  baseUrl: string,
+  managerToken: string,
+): Promise<string | null> {
+  const { data: extFull } = await supabase
+    .from("phone_extensions")
+    .select("threecplus_raw, threecplus_agent_id")
+    .eq("id", extensionId)
+    .eq("cod_agent", codAgent)
+    .single();
+
+  if (!extFull) return null;
+
+  const rawData = (extFull.threecplus_raw as any)?.data ?? extFull.threecplus_raw;
+  let agentApiToken = rawData?.api_token;
+
+  // If no cached token, fetch fresh from API using manager token
+  if (!agentApiToken && extFull.threecplus_agent_id) {
+    try {
+      const freshUser = await threecRequest(baseUrl, managerToken, `/users/${extFull.threecplus_agent_id}`);
+      const freshData = freshUser?.data ?? freshUser;
+      agentApiToken = freshData?.api_token;
+
+      if (agentApiToken) {
+        // Update raw cache with fresh data
+        await supabase.from("phone_extensions").update({
+          threecplus_raw: freshUser,
+        }).eq("id", extensionId);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch fresh agent token:", e);
+    }
+  }
+
+  return agentApiToken || null;
+}
+
+// Helper: ensure webphone is enabled for the agent
+async function ensureWebphoneEnabled(
+  supabase: any,
+  baseUrl: string,
+  managerToken: string,
+  agentToken: string,
+  agentId: string,
+  extensionId: number | string,
+  codAgent: string,
+): Promise<void> {
+  try {
+    // Check current status
+    const userData = await threecRequest(baseUrl, managerToken, `/users/${agentId}`);
+    const u = userData?.data ?? userData;
+    
+    if (u?.webphone === true) {
+      console.log(`Webphone already enabled for agent ${agentId}`);
+      return;
+    }
+
+    console.log(`Enabling webphone for agent ${agentId}...`);
+    
+    // Try with manager token first
+    try {
+      await threecRequest(baseUrl, managerToken, `/users/${agentId}`, {
+        method: "PUT",
+        body: {
+          name: u?.name || "Agente",
+          email: u?.email || `agente_${Date.now()}@atendejulia.com.br`,
+          role: u?.role?.name || u?.role || "agent",
+          timezone: u?.settings?.timezone || "America/Sao_Paulo",
+          extension_number: u?.extension?.extension_number,
+          webphone: true,
+        },
+      });
+      console.log(`Webphone enabled via manager token for agent ${agentId}`);
+    } catch (e: any) {
+      console.warn(`Manager token failed to enable webphone: ${e.message}`);
+      // Try with agent token as fallback
+      try {
+        await threecRequest(baseUrl, agentToken, `/users/${agentId}`, {
+          method: "PUT",
+          body: {
+            name: u?.name || "Agente",
+            email: u?.email || `agente_${Date.now()}@atendejulia.com.br`,
+            role: u?.role?.name || u?.role || "agent",
+            timezone: u?.settings?.timezone || "America/Sao_Paulo",
+            extension_number: u?.extension?.extension_number,
+            webphone: true,
+          },
+        });
+        console.log(`Webphone enabled via agent token for agent ${agentId}`);
+      } catch (e2: any) {
+        console.warn(`Agent token also failed to enable webphone: ${e2.message}`);
+      }
+    }
+  } catch (e: any) {
+    console.warn(`ensureWebphoneEnabled error: ${e.message}`);
+  }
+}
+
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
