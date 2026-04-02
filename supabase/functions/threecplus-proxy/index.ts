@@ -389,6 +389,7 @@ serve(async (req) => {
           password: sipPassword,
           wsUrl: ws.wsUrl,
           wsUrlSource: ws.wsUrlSource,
+          wsUrlCandidates: ws.wsUrlCandidates,
           baseUrl,
         };
         break;
