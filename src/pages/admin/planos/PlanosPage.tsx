@@ -84,6 +84,13 @@ const PlanosPage = () => {
   const [featureInput, setFeatureInput] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Contract state
+  const [contractBody, setContractBody] = useState('');
+  const [contractLoading, setContractLoading] = useState(true);
+  const [contractSaving, setContractSaving] = useState(false);
+  const [contractId, setContractId] = useState<string | null>(null);
+  const [contractMode, setContractMode] = useState<'edit' | 'preview'>('edit');
+
   const fetchPlans = async () => {
     const { data } = await supabase.from('julia_plans').select('*').order('position');
     if (data) setPlans(data.map(p => ({ ...p, features: (p.features as any) || [], price_monthly: p.price_monthly ?? 0, price_semiannual: p.price_semiannual ?? 0, price_annual: p.price_annual ?? 0 })));
@@ -91,6 +98,22 @@ const PlanosPage = () => {
   };
 
   useEffect(() => { fetchPlans(); }, []);
+
+  useEffect(() => {
+    const fetchContract = async () => {
+      const { data } = await supabase
+        .from('julia_contract_template')
+        .select('*')
+        .limit(1)
+        .single();
+      if (data) {
+        setContractId(data.id);
+        setContractBody(data.body_markdown);
+      }
+      setContractLoading(false);
+    };
+    fetchContract();
+  }, []);
 
   const centsToDisplay = (cents: number) => cents > 0 ? (cents / 100).toFixed(2) : '';
 
