@@ -95,6 +95,9 @@ const PlanosPage = () => {
       const payload = {
         name: form.name,
         price: form.price,
+        price_monthly: form.price_monthly,
+        price_semiannual: form.price_semiannual,
+        price_annual: form.price_annual,
         price_display: form.price_display || `R$ ${(form.price / 100).toFixed(0)}`,
         icon: form.icon,
         color: form.color,
