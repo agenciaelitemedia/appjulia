@@ -1,53 +1,34 @@
 
 
-# Adicionar Preços por Período (Mensal/Semestral/Anual) aos Planos Julia
+# Correção dos Planos: Preços em Reais + Agrupamento por Período
 
-## Resumo
+## Mudanças
 
-Atualmente a tabela `julia_plans` tem apenas `price` (único valor em centavos) e `price_display`. O usuário quer que cada plano tenha preços diferenciados por período: **mensal**, **semestral** e **anual** — igual ao modelo já usado em `phone_extension_plans`.
+### 1. Admin `PlanosPage.tsx` — Entrada de preço em Reais (R$)
 
-## Alterações
+**Problema atual**: Os campos pedem valores em centavos, o que é confuso.
 
-### 1. Migração SQL — Adicionar colunas de preço por período
+**Solução**: 
+- Campos de preço aceitam valor em Reais (ex: `297.00`)
+- Ao abrir para edição, divide o valor por 100 para exibir em Reais
+- Ao salvar, multiplica por 100 para gravar em centavos no banco
+- Remover campos redundantes (`price` base e `price_display`) — o `price` será calculado como o menor preço definido, e `price_display` será gerado automaticamente
+- Na tabela de listagem, mostrar apenas os períodos que têm valor > 0
 
-```sql
-ALTER TABLE julia_plans 
-  ADD COLUMN price_monthly integer NOT NULL DEFAULT 0,
-  ADD COLUMN price_semiannual integer NOT NULL DEFAULT 0,
-  ADD COLUMN price_annual integer NOT NULL DEFAULT 0;
+### 2. Checkout `PlanStep.tsx` — Mostrar só períodos com preço e agrupar
 
--- Copiar o preço atual para mensal
-UPDATE julia_plans SET price_monthly = price;
-```
+**Problema atual**: Sempre mostra os 3 períodos mesmo sem preço definido.
 
-### 2. Admin — `PlanosPage.tsx`
+**Solução**:
+- Detectar quais períodos têm pelo menos 1 plano com preço > 0
+- Mostrar apenas as abas de períodos que existem
+- Cada aba mostra o bloco de planos daquele período (só planos com preço > 0 naquele período)
+- Se só 1 período tem preços, não mostra seletor — vai direto
 
-- Adicionar campos no formulário: **Mensal (R$)**, **Semestral (R$)**, **Anual (R$)** (em centavos)
-- Salvar/carregar os três novos campos
-- Exibir na tabela os 3 preços
-
-### 3. Checkout — `PlanStep.tsx`
-
-- Adicionar seletor de período (Mensal / Semestral / Anual) com toggle ou tabs
-- Mostrar o preço correspondente ao período selecionado no card do plano
-- Passar `billing_period` e o preço correto para `OrderData`
-
-### 4. `ComprarPage.tsx` — OrderData
-
-- Adicionar campo `billing_period: 'monthly' | 'semiannual' | 'annual'` ao tipo `OrderData`
-
-### 5. `CheckoutStep.tsx`
-
-- Exibir o período selecionado no resumo (ex: "/mês", "/semestre", "/ano")
-- Salvar `billing_period` no pedido ao criar/atualizar `julia_orders`
-
-### Arquivos alterados
+## Arquivos alterados
 
 | Arquivo | Mudança |
 |---|---|
-| Migração SQL | 3 novas colunas em `julia_plans` |
-| `src/pages/admin/planos/PlanosPage.tsx` | Campos de preço por período no CRUD |
-| `src/pages/comprar/ComprarPage.tsx` | `billing_period` no OrderData |
-| `src/pages/comprar/steps/PlanStep.tsx` | Seletor de período + preço dinâmico |
-| `src/pages/comprar/steps/CheckoutStep.tsx` | Exibir período no resumo |
+| `src/pages/admin/planos/PlanosPage.tsx` | Campos em R$ com conversão automática para centavos ao salvar |
+| `src/pages/comprar/steps/PlanStep.tsx` | Filtrar períodos disponíveis e agrupar planos por bloco |
 
