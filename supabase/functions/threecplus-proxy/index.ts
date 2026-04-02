@@ -1274,12 +1274,18 @@ async function ensureWebphoneEnabled(
             threecplus_agent_id: ext.threecplus_agent_id,
             raw_telephony_id: rawData?.telephony_id || null,
             raw_extension_password: rawData?.extension_password ? '***' : null,
+            webphone_enabled: webphoneStatus,
+          },
+          tokenInfo: {
+            usedAgentToken,
+            hasAgentToken: !!rawData?.api_token,
           },
           login: loginResult ? {
             sip_server: loginResult.sip_server || loginResult.domain || loginResult.host || null,
             sip_user: loginResult.sip_user || loginResult.username || loginResult.extension || null,
             has_sip_password: !!(loginResult.sip_password || loginResult.password),
             full_response_keys: Object.keys(loginResult),
+            raw_login: loginResult,
           } : null,
           loginError,
           resolved: {
