@@ -121,13 +121,15 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     fetchExtension();
   }, [user?.id]);
 
-  // Auto-connect SIP when extension is found (with retry) — Api4Com only
+  // Auto-connect SIP when extension is found (with retry)
   const connectSip = useCallback(async () => {
     if (!myExtension || !codAgent) return;
-    // Only Api4Com uses SIP.js — 3C+ uses official webphone
-    if (provider === '3cplus') return;
 
-    if (!myExtension.api4com_ramal) return;
+    // Provider-aware link check
+    const isLinked = provider === '3cplus'
+      ? !!(myExtension.threecplus_agent_id || myExtension.threecplus_extension)
+      : !!myExtension.api4com_ramal;
+    if (!isLinked) return;
 
     try {
       const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
