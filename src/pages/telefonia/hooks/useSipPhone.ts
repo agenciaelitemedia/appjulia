@@ -32,6 +32,7 @@ interface SipCredentials {
   password: string;
   wsUrl: string;
   wsUrlSource?: string;
+  wsUrlCandidates?: string[];
 }
 
 interface UseSipPhoneReturn {
@@ -204,7 +205,34 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
     });
   }, [startTimer, cleanupSession, getOrCreateAudio, addDiagEvent]);
 
-  const connect = useCallback((creds: SipCredentials) => {
+  // Probe a single WebSocket URL — resolves true if connection opens, false on error/timeout
+  const probeWs = useCallback((url: string, timeoutMs = 4000): Promise<boolean> => {
+    return new Promise((resolve) => {
+      try {
+        const ws = new WebSocket(url);
+        const timer = setTimeout(() => { try { ws.close(); } catch {} resolve(false); }, timeoutMs);
+        ws.onopen = () => { clearTimeout(timer); try { ws.close(); } catch {} resolve(true); };
+        ws.onerror = () => { clearTimeout(timer); try { ws.close(); } catch {} resolve(false); };
+        ws.onclose = () => { clearTimeout(timer); resolve(false); };
+      } catch { resolve(false); }
+    });
+  }, []);
+
+  // Probe multiple WSS URLs and return the first that connects
+  const findWorkingWss = useCallback(async (candidates: string[]): Promise<{ url: string; index: number } | null> => {
+    for (let i = 0; i < candidates.length; i++) {
+      addDiagEvent(`Testando WSS: ${candidates[i]}...`);
+      const ok = await probeWs(candidates[i]);
+      if (ok) {
+        addDiagEvent(`✓ WSS funcionando: ${candidates[i]}`);
+        return { url: candidates[i], index: i };
+      }
+      addDiagEvent(`✗ WSS falhou: ${candidates[i]}`);
+    }
+    return null;
+  }, [probeWs, addDiagEvent]);
+
+  const connect = useCallback(async (creds: SipCredentials) => {
     // Disconnect existing UA if any
     if (uaRef.current) {
       try { uaRef.current.stop(); } catch { /* ignore */ }
@@ -224,9 +252,34 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
       wsState: 'connecting',
       lastError: '',
     }));
-    addDiagEvent(`Connecting to ${creds.wsUrl} as ${creds.username}@${creds.domain}`);
 
-    const socket = new JsSIP.WebSocketInterface(creds.wsUrl);
+    // If we have WSS candidates, probe them to find a working one
+    let finalWsUrl = creds.wsUrl;
+    let finalWsSource = creds.wsUrlSource || '';
+
+    if (creds.wsUrlCandidates && creds.wsUrlCandidates.length > 0) {
+      addDiagEvent(`Iniciando auto-discovery WSS (${creds.wsUrlCandidates.length} candidatos)...`);
+      const found = await findWorkingWss(creds.wsUrlCandidates);
+      if (found) {
+        finalWsUrl = found.url;
+        finalWsSource = `auto-discovery candidato #${found.index + 1}`;
+        addDiagEvent(`WSS selecionado: ${finalWsUrl}`);
+      } else {
+        addDiagEvent('Nenhum WSS candidato respondeu. Usando primeiro como fallback.');
+        finalWsUrl = creds.wsUrlCandidates[0];
+        finalWsSource = 'fallback (nenhum respondeu)';
+      }
+    }
+
+    setDiagnostics(prev => ({
+      ...prev,
+      wsUrl: finalWsUrl,
+      wsUrlSource: finalWsSource,
+    }));
+
+    addDiagEvent(`Connecting to ${finalWsUrl} as ${creds.username}@${creds.domain}`);
+
+    const socket = new JsSIP.WebSocketInterface(finalWsUrl);
 
     const ua = new JsSIP.UA({
       sockets: [socket],
@@ -307,7 +360,7 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
       addDiagEvent(`ERROR start: ${msg}`);
       setDiagnostics(prev => ({ ...prev, lastError: msg, wsState: 'error', registrationStatus: 'error' }));
     }
-  }, [attachSessionEvents, addDiagEvent]);
+  }, [attachSessionEvents, addDiagEvent, findWorkingWss]);
 
   const disconnect = useCallback(() => {
     if (sessionRef.current) {
