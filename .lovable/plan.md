@@ -1,97 +1,102 @@
 
-# Correção do 3C+ Websoftphone
 
-## Diagnóstico confirmado
+# Softphone Universal SIP via JsSIP
 
-O erro atual não está mais no cadastro do ramal nem na escolha do host. Pelos logs e pela pesquisa:
+## Problema raiz
 
-- o frontend já está tentando exatamente:
-  - `sip:SD9uLTKkWr@pbx01.3c.fluxoti.com`
-  - `wss://pbx01.3c.fluxoti.com:8089/ws`
-- a edge function está retornando esses dados corretamente
-- o fechamento `WebSocket closed ... (code: 1006)` acontece antes do `REGISTER`, então usuário/senha do ramal nem chegaram a ser validados
-- a documentação do Asterisk confirma que `1006` nesse cenário costuma ser handshake/TLS/endpoint/proxy no WSS
-- mais importante: a documentação oficial da 3C+ encontrada indica outro fluxo para CRM:
-  - usar Socket.io para eventos do agente
-  - usar a URL oficial do ramal web: `https://{dominio}.3c.plus/extension?api_token={token_do_agente}`
-  - depois fazer login do agente/campanha via API
-- a própria doc da 3C+ diz que token de gestor não executa ações “como agente”; para operar o agente, deve-se usar o token do agente
-- o retorno salvo no banco ainda mostra `webphone: false`, reforçando que o fluxo atual não está alinhado com o modo oficial deles
+O sistema atual usa `sip.js` (v0.21.2) para conexão SIP. A investigação revelou que o SDK oficial da 3C+ (`3cplusv2-sdk-js`) usa **JsSIP** internamente (`jssip ^3.7.3`). As duas bibliotecas geram mensagens SIP com headers e formatos diferentes. O PBX Asterisk da 3C+ espera o formato JsSIP, causando o erro WebSocket 1006 (rejeição no handshake).
 
-Conclusão: o problema mais provável não é “qual domínio SIP usar”, e sim que estamos tentando integrar o 3C+ como um softphone SIP nativo via `sip.js`, enquanto a integração oficialmente suportada pela 3C+ para CRM é incorporar o ramal web deles e usar Socket.io + API.
+JsSIP tambem funciona perfeitamente com Api4Com e qualquer outro PBX Asterisk/FreeSWITCH, sendo a escolha mais universal.
 
-## Melhor abordagem
+## Solucao
 
-Trocar a integração 3C+ de “SIP nativo pelo browser” para “Ramal Web oficial da 3C+ embutido no CRM”.
+Substituir `sip.js` por `jssip` como biblioteca SIP universal. Um unico hook `useSipPhone` funciona para **todos** os provedores (3C+, Api4Com, qualquer PBX com WSS).
 
-Isso evita depender do `wss://pbx01...:8089/ws` diretamente no nosso `sip.js`, que é justamente onde está quebrando.
+## Arquitetura
 
-## Plano de implementação
+```text
+PhoneContext
+  └── useSipPhone (JsSIP) ← universal, provider-agnostic
+       ├── Api4Com: wss://pbx.api4com.com:8089/ws
+       ├── 3C+:    wss://pbx01.3c.fluxoti.com:8089/ws
+       └── Outro:  qualquer wss://...
+```
 
-### 1. Separar Api4Com e 3C+ no `PhoneContext`
-- manter `useSipPhone` apenas para Api4Com
-- criar um fluxo específico para 3C+ no contexto global
-- parar de chamar `get_sip_credentials`/`sip.js` quando o provedor for `3cplus`
+Nao ha mais fluxo separado para 3C+ (popup/iframe). Tudo via SIP nativo no browser.
 
-### 2. Implementar launcher oficial do Ramal Web 3C+
-No backend do 3C+:
-- adicionar uma action para montar a URL oficial do extension web usando o token do agente
-- garantir que o usuário 3C+ esteja com webphone habilitado antes de abrir
-- usar o token do próprio agente, não o token do gestor, para as ações de agente
+## Plano de implementacao
 
-No frontend:
-- abrir o ramal web oficial dentro do CRM
-- tentativa principal: iframe persistente com `allow="microphone"`
-- fallback seguro: popup/janela controlada caso o 3C+ bloqueie iframe por CSP/X-Frame-Options
+### 1. Substituir sip.js por jssip no package.json
+- Remover `sip.js` (0.21.2)
+- Adicionar `jssip` (^3.10.0 ou mais recente)
 
-### 3. Adotar o fluxo oficial da 3C+ para estado do agente
-Implementar cliente Socket.io para 3C+ e refletir no UI:
-- `agent-is-idle`
-- `agent-login-failed`
-- `call-was-connected`
-- `call-was-finished`
-- `agent-in-acw`
+### 2. Reescrever `useSipPhone.ts` com JsSIP
+O hook mantem a mesma interface publica (`SipStatus`, `connect`, `call`, `answer`, `hangup`, `toggleMute`, `toggleHold`, `sendDTMF`, `diagnostics`).
 
-Assim, o status da telefonia deixa de depender de `REGISTER` SIP do `sip.js` e passa a refletir o estado real do agente 3C+.
+Mudancas internas:
+- `JsSIP.WebSocketInterface` para transporte (em vez de `UserAgent` do sip.js)
+- `JsSIP.UA` para registro e gerenciamento de sessoes
+- `RTCSession` events (`progress`, `accepted`, `ended`, `failed`, `peerconnection`) para controle de chamada
+- DTMF via `session.sendDTMF()` com suporte RFC2833 e SIP INFO
+- Hold/Unhold via `session.hold()` / `session.unhold()` (nativo no JsSIP, diferente do hack manual atual)
+- Audio remoto via evento `peerconnection` + `addstream`/`track`
+- Debug mode: `JsSIP.debug.enable('JsSIP:*')` condicional
 
-### 4. Ajustar a tela `/telefonia`
-- trocar o bloco de diagnóstico SIP por diagnóstico 3C+:
-  - modo de conexão: `Ramal Web oficial`
-  - origem: `iframe` ou `popup`
-  - status do agente via Socket.io
-  - campanha/logado/ocioso/em chamada/TPA
-- manter o widget visual de softphone, mas como shell do 3C+, não como SIP nativo
+Configuracao critica do UA:
+```typescript
+const socket = new JsSIP.WebSocketInterface(creds.wsUrl);
+const config = {
+  sockets: [socket],
+  uri: `sip:${creds.username}@${creds.domain}`,
+  password: creds.password,
+  register: true,
+  register_expires: 600,
+  session_timers: false,
+  connection_recovery_min_interval: 2,
+  connection_recovery_max_interval: 30,
+};
+```
 
-### 5. Corrigir segurança dos dados sensíveis
-Hoje o frontend consulta `phone_extensions` com `select('*')`, e isso expõe dados sensíveis do 3C+ no cliente.
+### 3. Restaurar DiscadorTab unificado
+- Remover o branch `if (provider === '3cplus')` que renderiza `ThreeCPlusWebphone`
+- Usar o mesmo `DiscadorPad` + diagnostico SIP para todos os provedores
+- Remover ou deprecar `ThreeCPlusWebphone.tsx`
 
-Vou ajustar para:
-- parar de buscar colunas sensíveis no frontend
-- deixar token do agente/segredos apenas no backend
-- retornar ao cliente só o necessário para abrir/controlar o ramal oficial
+### 4. Restaurar PhoneContext para 3C+ via SIP
+- Remover os guards `if (provider === '3cplus') return;` em `connectSip` e auto-retry
+- Manter a action `get_sip_credentials` do `threecplus-proxy` (ja funciona, retorna domain/username/password/wsUrl)
+- 3C+ passa a usar o mesmo fluxo SIP que Api4Com
 
-## Arquivos principais
+### 5. Auto-answer para chamadas integradas
+- Api4Com usa header `X-Api4comintegratedcall`
+- 3C+ pode usar headers similares
+- Manter logica de auto-answer por header no `onInvite`
 
-- `src/contexts/PhoneContext.tsx`
-- `src/pages/telefonia/hooks/useSipPhone.ts` (Api4Com somente)
-- `src/pages/telefonia/components/DiscadorTab.tsx`
-- `src/pages/telefonia/components/SoftphoneWidget.tsx`
-- `supabase/functions/threecplus-proxy/index.ts`
-- possivelmente novo hook/componente para 3C+ webphone e socket
+## Vantagens do JsSIP sobre SIP.js
+
+| Feature | sip.js | JsSIP |
+|---|---|---|
+| Hold/Unhold | Manual (hack RTP) | Nativo `hold()`/`unhold()` |
+| DTMF | Apenas RFC2833 | RFC2833 + SIP INFO |
+| Reconexao WS | Manual | Built-in recovery |
+| Compatibilidade Asterisk | Boa | Excelente (padrao de facto) |
+| Usado pelo 3C+ | Nao | Sim (SDK oficial) |
+| Tamanho | ~150KB | ~50KB |
+
+## Arquivos alterados
+
+| Arquivo | Mudanca |
+|---|---|
+| `package.json` | Trocar `sip.js` por `jssip` |
+| `src/pages/telefonia/hooks/useSipPhone.ts` | Reescrita completa com JsSIP |
+| `src/pages/telefonia/components/DiscadorTab.tsx` | Remover branch 3C+ popup |
+| `src/contexts/PhoneContext.tsx` | Remover guards `3cplus` do SIP |
+| `src/pages/telefonia/components/ThreeCPlusWebphone.tsx` | Remover (nao mais necessario) |
 
 ## Resultado esperado
 
-Para 3C+:
-- o sistema deixa de depender de `wss://pbx01.3c.fluxoti.com:8089/ws` diretamente no browser
-- o ramal passa a conectar pelo método oficialmente documentado pela 3C+
-- o status da telefonia passa a ser guiado por eventos reais do agente
-- some o erro recorrente `WebSocket closed ... code 1006` do fluxo atual
+- Softphone SIP nativo funciona para 3C+ e Api4Com identicamente
+- Sem janela separada, tudo inline no sistema
+- Hold, mute, DTMF, reconexao automatica funcionam nativamente
+- O erro WebSocket 1006 desaparece porque JsSIP e a biblioteca que o PBX 3C+ espera
 
-## Validação após implementar
-
-1. Abrir `/telefonia`
-2. Confirmar abertura do ramal oficial 3C+
-3. Verificar permissão de microfone
-4. Confirmar estado `ocioso/disponível` via evento 3C+
-5. Testar ligação manual e recebimento
-6. Confirmar que não há mais tentativa de conexão SIP nativa para 3C+ no console
