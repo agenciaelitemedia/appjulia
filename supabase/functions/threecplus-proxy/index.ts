@@ -442,8 +442,8 @@ serve(async (req) => {
           },
         };
 
-        // Use agent token for click2call (agent must be authenticated)
-        result = await threecRequest(baseUrl, agentToken, "/click2call", {
+        // click2call uses MANAGER token; the agent just needs to be webphone-logged (done above)
+        result = await threecRequest(baseUrl, token, "/click2call", {
           method: "POST",
           body: dialBody,
         });
