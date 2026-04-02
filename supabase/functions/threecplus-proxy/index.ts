@@ -1243,7 +1243,7 @@ serve(async (req) => {
           if (valAgentToken) {
             usedAgentToken = true;
             // Ensure webphone is enabled first
-            await ensureWebphoneEnabled(supabase, baseUrl, token, valAgentToken, ext.threecplus_agent_id, extensionId, codAgent);
+            await ensureWebphoneEnabled(baseUrl, token, valAgentToken, ext.threecplus_agent_id);
 
             try {
               loginResult = await threecRequest(baseUrl, valAgentToken, "/agent/webphone/login", {
