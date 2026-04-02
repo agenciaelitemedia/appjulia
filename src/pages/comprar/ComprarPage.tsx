@@ -94,6 +94,9 @@ const ComprarPage = () => {
           <PlanStep orderData={orderData} updateOrder={updateOrder} onNext={nextStep} onBack={prevStep} />
         )}
         {currentStep === 3 && (
+          <ContractStep orderData={orderData} onNext={nextStep} onBack={prevStep} />
+        )}
+        {currentStep === 4 && (
           <CheckoutStep orderData={orderData} onBack={prevStep} />
         )}
       </div>
