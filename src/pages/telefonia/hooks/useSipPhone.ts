@@ -67,7 +67,7 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
   }, []);
 
   const uaRef = useRef<JsSIP.UA | null>(null);
-  const sessionRef = useRef<JsSIP.RTCSession | null>(null);
+  const sessionRef = useRef<RTCSession | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const credsRef = useRef<SipCredentials | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
