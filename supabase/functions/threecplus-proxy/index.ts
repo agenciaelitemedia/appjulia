@@ -127,6 +127,7 @@ async function ensureWebphoneEnabled(
     try {
       await threecRequest(baseUrl, managerToken, `/users/${agentId}/enable/web_extension`, {
         method: "PUT",
+        body: { enable: true },
       });
       console.log(`Webphone enabled via /enable/web_extension for agent ${agentId}`);
       
