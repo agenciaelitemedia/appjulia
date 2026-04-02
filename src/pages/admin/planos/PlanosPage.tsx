@@ -15,6 +15,9 @@ interface Plan {
   id: string;
   name: string;
   price: number;
+  price_monthly: number;
+  price_semiannual: number;
+  price_annual: number;
   price_display: string;
   icon: string;
   color: string;
