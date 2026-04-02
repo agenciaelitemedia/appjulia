@@ -424,7 +424,7 @@ serve(async (req) => {
         }
 
         const dialBody: Record<string, any> = {
-          phone_number: phone,
+          phone: phone,
           ...(agentId ? { agent_id: agentId } : {}),
           ...(extension ? { extension } : {}),
           metadata: {
