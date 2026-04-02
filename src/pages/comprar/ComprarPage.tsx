@@ -14,6 +14,7 @@ export interface OrderData {
   customer_address: string;
   plan_name: string;
   plan_price: number;
+  billing_period: 'monthly' | 'semiannual' | 'annual';
   checkout_url?: string;
 }
 
