@@ -203,12 +203,26 @@ const PlanosPage = () => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Preço (centavos)</Label>
+                <Label>Preço base (centavos)</Label>
                 <Input type="number" value={form.price} onChange={e => setForm(f => ({ ...f, price: parseInt(e.target.value) || 0 }))} />
               </div>
               <div>
                 <Label>Exibição do preço</Label>
                 <Input value={form.price_display} onChange={e => setForm(f => ({ ...f, price_display: e.target.value }))} placeholder="R$ 497" />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label>Mensal (¢)</Label>
+                <Input type="number" value={form.price_monthly} onChange={e => setForm(f => ({ ...f, price_monthly: parseInt(e.target.value) || 0 }))} />
+              </div>
+              <div>
+                <Label>Semestral (¢)</Label>
+                <Input type="number" value={form.price_semiannual} onChange={e => setForm(f => ({ ...f, price_semiannual: parseInt(e.target.value) || 0 }))} />
+              </div>
+              <div>
+                <Label>Anual (¢)</Label>
+                <Input type="number" value={form.price_annual} onChange={e => setForm(f => ({ ...f, price_annual: parseInt(e.target.value) || 0 }))} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
