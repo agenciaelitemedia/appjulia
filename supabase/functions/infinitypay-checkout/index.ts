@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
 
     // Build InfinityPay payload
     const infinitypayPayload = {
-      handle: 'masterchat-inova',
+      handle: 'atendejulia-masterchat',
       items: [
         {
           quantity: 1,
