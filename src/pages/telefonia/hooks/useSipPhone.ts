@@ -15,7 +15,9 @@ export type OnCallEndedCallback = (info: CallEndedInfo) => void;
 
 export interface SipDiagnostics {
   domain: string;
+  domainSource: string;
   wsUrl: string;
+  wsUrlSource: string;
   username: string;
   registrationStatus: string;
   lastError: string;
