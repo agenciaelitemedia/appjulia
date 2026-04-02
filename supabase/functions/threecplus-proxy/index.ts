@@ -221,13 +221,22 @@ serve(async (req) => {
           throw new Error("ID do agente 3C+ não configurado neste ramal.");
         }
 
+        // Use agent's own api_token for /agent/* endpoints (manager token returns 403)
+        const agentToken = await getAgentToken(supabase, extensionId, codAgent, baseUrl, token);
+        if (!agentToken) {
+          throw new Error("Token do agente 3C+ não encontrado. Recrie o ramal ou atualize os dados.");
+        }
+
+        // First ensure webphone is enabled
+        await ensureWebphoneEnabled(supabase, baseUrl, token, agentToken, ext.threecplus_agent_id, extensionId, codAgent);
+
         const loginResp = await threecRequest(
           baseUrl,
-          token,
+          agentToken,
           "/agent/webphone/login",
           {
             method: "POST",
-            body: { agent_id: Number(ext.threecplus_agent_id) },
+            body: {},
           },
         );
 
