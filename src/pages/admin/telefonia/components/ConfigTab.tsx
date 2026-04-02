@@ -37,7 +37,7 @@ export function ConfigTab() {
   // 3cplus fields
   const [threecToken, setThreecToken] = useState('');
   const [threecBaseUrl, setThreecBaseUrl] = useState('https://app.3c.fluxoti.com/api/v1');
-  const [threecWsUrl, setThreecWsUrl] = useState('wss://events.3c.fluxoti.com/ws/me');
+  const [threecWsUrl, setThreecWsUrl] = useState('');
 
   const [showToken, setShowToken] = useState(false);
   const [visibleTokens, setVisibleTokens] = useState<Set<number>>(new Set());
@@ -57,7 +57,7 @@ export function ConfigTab() {
     setToken('');
     setThreecToken('');
     setThreecBaseUrl('https://app.3c.fluxoti.com/api/v1');
-    setThreecWsUrl('wss://events.3c.fluxoti.com/ws/me');
+    setThreecWsUrl('');
     setShowToken(false);
     setEditing(null);
     setIsAdding(false);
@@ -76,7 +76,7 @@ export function ConfigTab() {
     setToken(cfg.api4com_token || '');
     setThreecToken(cfg.threecplus_token || '');
     setThreecBaseUrl(cfg.threecplus_base_url || 'https://app.3c.fluxoti.com/api/v1');
-    setThreecWsUrl(cfg.threecplus_ws_url || 'wss://events.3c.fluxoti.com/ws/me');
+    setThreecWsUrl(cfg.threecplus_ws_url || '');
     setShowToken(false);
     setEditing(cfg);
     setIsAdding(true);
@@ -98,7 +98,7 @@ export function ConfigTab() {
     if (provider === '3cplus') {
       payload.threecplus_token = threecToken;
       payload.threecplus_base_url = threecBaseUrl || 'https://app.3c.fluxoti.com/api/v1';
-      payload.threecplus_ws_url = threecWsUrl || 'wss://events.3c.fluxoti.com/ws/me';
+      payload.threecplus_ws_url = threecWsUrl || null;
       payload.sip_domain = sipDomain || null;
       // Preserve empty api4com fields to avoid DB NOT NULL issues
       payload.api4com_domain = domain || '';
