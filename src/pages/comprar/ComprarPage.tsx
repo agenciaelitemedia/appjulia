@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { DocumentStep } from './steps/DocumentStep';
 import { CustomerStep } from './steps/CustomerStep';
 import { PlanStep } from './steps/PlanStep';
+import { ContractStep } from './steps/ContractStep';
 import { CheckoutStep } from './steps/CheckoutStep';
 import { Check } from 'lucide-react';
 
@@ -18,7 +19,7 @@ export interface OrderData {
   checkout_url?: string;
 }
 
-const steps = ['Documento', 'Dados', 'Plano', 'Pagamento'];
+const steps = ['Documento', 'Dados', 'Plano', 'Contrato', 'Pagamento'];
 
 const ComprarPage = () => {
   const [currentStep, setCurrentStep] = useState(0);
@@ -38,7 +39,7 @@ const ComprarPage = () => {
   };
 
   const goToStep = (step: number) => setCurrentStep(step);
-  const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, 3));
+  const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, 4));
   const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 0));
 
   return (
@@ -93,6 +94,9 @@ const ComprarPage = () => {
           <PlanStep orderData={orderData} updateOrder={updateOrder} onNext={nextStep} onBack={prevStep} />
         )}
         {currentStep === 3 && (
+          <ContractStep orderData={orderData} onNext={nextStep} onBack={prevStep} />
+        )}
+        {currentStep === 4 && (
           <CheckoutStep orderData={orderData} onBack={prevStep} />
         )}
       </div>

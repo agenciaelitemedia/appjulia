@@ -1300,6 +1300,30 @@ export type Database = {
         }
         Relationships: []
       }
+      julia_contract_template: {
+        Row: {
+          body_markdown: string
+          id: string
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          body_markdown?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          body_markdown?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       julia_orders: {
         Row: {
           billing_period: string | null
