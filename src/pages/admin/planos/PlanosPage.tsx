@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,9 +7,12 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Pencil, Loader2, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Loader2, Trash2, Save, Eye, Edit } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 interface Plan {
   id: string;
@@ -81,6 +84,13 @@ const PlanosPage = () => {
   const [featureInput, setFeatureInput] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Contract state
+  const [contractBody, setContractBody] = useState('');
+  const [contractLoading, setContractLoading] = useState(true);
+  const [contractSaving, setContractSaving] = useState(false);
+  const [contractId, setContractId] = useState<string | null>(null);
+  const [contractMode, setContractMode] = useState<'edit' | 'preview'>('edit');
+
   const fetchPlans = async () => {
     const { data } = await supabase.from('julia_plans').select('*').order('position');
     if (data) setPlans(data.map(p => ({ ...p, features: (p.features as any) || [], price_monthly: p.price_monthly ?? 0, price_semiannual: p.price_semiannual ?? 0, price_annual: p.price_annual ?? 0 })));
@@ -88,6 +98,22 @@ const PlanosPage = () => {
   };
 
   useEffect(() => { fetchPlans(); }, []);
+
+  useEffect(() => {
+    const fetchContract = async () => {
+      const { data } = await supabase
+        .from('julia_contract_template')
+        .select('*')
+        .limit(1)
+        .single();
+      if (data) {
+        setContractId(data.id);
+        setContractBody(data.body_markdown);
+      }
+      setContractLoading(false);
+    };
+    fetchContract();
+  }, []);
 
   const centsToDisplay = (cents: number) => cents > 0 ? (cents / 100).toFixed(2) : '';
 
@@ -181,10 +207,33 @@ const PlanosPage = () => {
     return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin" /></div>;
   }
 
+  const handleSaveContract = async () => {
+    if (!contractId) return;
+    setContractSaving(true);
+    const { error } = await supabase
+      .from('julia_contract_template')
+      .update({ body_markdown: contractBody, updated_at: new Date().toISOString() })
+      .eq('id', contractId);
+    if (error) {
+      toast.error('Erro ao salvar: ' + error.message);
+    } else {
+      toast.success('Contrato salvo com sucesso');
+    }
+    setContractSaving(false);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Planos</h1>
+      <h1 className="text-2xl font-bold">Planos & Contrato</h1>
+
+      <Tabs defaultValue="planos">
+        <TabsList>
+          <TabsTrigger value="planos">Planos</TabsTrigger>
+          <TabsTrigger value="contrato">Contrato</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="planos">
+      <div className="flex items-center justify-end">
         <Button onClick={openNew}><Plus className="w-4 h-4 mr-2" /> Novo Plano</Button>
       </div>
 
@@ -355,6 +404,58 @@ const PlanosPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="contrato">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Placeholders: {'{{customer_name}}'}, {'{{customer_document}}'}, {'{{customer_email}}'}, {'{{customer_whatsapp}}'}, {'{{customer_address}}'}, {'{{plan_name}}'}, {'{{plan_price}}'}, {'{{billing_period}}'}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setContractMode(contractMode === 'edit' ? 'preview' : 'edit')}
+                >
+                  {contractMode === 'edit' ? <Eye className="mr-2 h-4 w-4" /> : <Edit className="mr-2 h-4 w-4" />}
+                  {contractMode === 'edit' ? 'Preview' : 'Editar'}
+                </Button>
+                <Button onClick={handleSaveContract} disabled={contractSaving}>
+                  {contractSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  Salvar
+                </Button>
+              </div>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>{contractMode === 'edit' ? 'Editor Markdown' : 'Pré-visualização'}</CardTitle>
+                <CardDescription>
+                  {contractMode === 'edit'
+                    ? 'Escreva o contrato usando Markdown. Os placeholders serão substituídos pelos dados do cliente.'
+                    : 'Assim ficará o contrato para o cliente (placeholders não substituídos).'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {contractLoading ? (
+                  <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin" /></div>
+                ) : contractMode === 'edit' ? (
+                  <Textarea
+                    value={contractBody}
+                    onChange={(e) => setContractBody(e.target.value)}
+                    className="min-h-[500px] font-mono text-sm"
+                    placeholder="# Contrato..."
+                  />
+                ) : (
+                  <div className="prose prose-sm max-w-none border rounded-lg p-6 bg-muted/30 min-h-[500px]">
+                    <ReactMarkdown>{contractBody}</ReactMarkdown>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
