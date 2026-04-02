@@ -101,15 +101,12 @@ async function getAgentToken(
 
 // Helper: ensure webphone is enabled for the agent
 // Uses the dedicated endpoint PUT /users/{id}/enable/web_extension
-// (the generic PUT /users/{id} with webphone:true is silently ignored by 3C+)
+// IMPORTANT: Never clears existing SIP credentials — they may be manually configured
 async function ensureWebphoneEnabled(
-  supabase: any,
   baseUrl: string,
   managerToken: string,
   agentToken: string,
   agentId: string,
-  extensionId: number | string,
-  codAgent: string,
 ): Promise<void> {
   try {
     // Check current status
@@ -123,39 +120,14 @@ async function ensureWebphoneEnabled(
 
     console.log(`Enabling webphone for agent ${agentId} via /enable/web_extension...`);
     
-    // Use the dedicated endpoint to enable web_extension (webphone)
     try {
       await threecRequest(baseUrl, managerToken, `/users/${agentId}/enable/web_extension`, {
         method: "PUT",
         body: { enable: true },
       });
       console.log(`Webphone enabled via /enable/web_extension for agent ${agentId}`);
-      
-      // Clear cached SIP credentials to force fresh login with correct server
-      await supabase.from("phone_extensions").update({
-        threecplus_sip_domain: null,
-        threecplus_sip_username: null,
-        threecplus_sip_password: null,
-      }).eq("id", extensionId).eq("cod_agent", codAgent);
-      console.log(`Cleared cached SIP credentials for extension ${extensionId}`);
     } catch (e: any) {
-      console.warn(`Manager token /enable/web_extension failed: ${e.message}`);
-      // Fallback: try with agent token
-      try {
-        await threecRequest(baseUrl, agentToken, `/users/${agentId}/enable/web_extension`, {
-          method: "PUT",
-          body: { enable: true },
-        });
-        console.log(`Webphone enabled via agent token /enable/web_extension for agent ${agentId}`);
-        
-        await supabase.from("phone_extensions").update({
-          threecplus_sip_domain: null,
-          threecplus_sip_username: null,
-          threecplus_sip_password: null,
-        }).eq("id", extensionId).eq("cod_agent", codAgent);
-      } catch (e2: any) {
-        console.warn(`Agent token /enable/web_extension also failed: ${e2.message}`);
-      }
+      console.warn(`/enable/web_extension failed: ${e.message}`);
     }
   } catch (e: any) {
     console.warn(`ensureWebphoneEnabled error: ${e.message}`);
@@ -264,7 +236,7 @@ serve(async (req) => {
           
           if (agentToken) {
             // Ensure webphone is enabled
-            await ensureWebphoneEnabled(supabase, baseUrl, token, agentToken, ext.threecplus_agent_id, extensionId, codAgent);
+            await ensureWebphoneEnabled(baseUrl, token, agentToken, ext.threecplus_agent_id);
 
             try {
               const loginResp = await threecRequest(
@@ -1271,7 +1243,7 @@ serve(async (req) => {
           if (valAgentToken) {
             usedAgentToken = true;
             // Ensure webphone is enabled first
-            await ensureWebphoneEnabled(supabase, baseUrl, token, valAgentToken, ext.threecplus_agent_id, extensionId, codAgent);
+            await ensureWebphoneEnabled(baseUrl, token, valAgentToken, ext.threecplus_agent_id);
 
             try {
               loginResult = await threecRequest(baseUrl, valAgentToken, "/agent/webphone/login", {
