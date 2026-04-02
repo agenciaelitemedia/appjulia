@@ -5,11 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Pencil, Loader2, Star, Zap, Crown, Trash2, GripVertical } from 'lucide-react';
+import { Plus, Pencil, Loader2, Trash2 } from 'lucide-react';
 
 interface Plan {
   id: string;
@@ -27,10 +27,30 @@ interface Plan {
   position: number;
 }
 
-const emptyPlan: Omit<Plan, 'id'> = {
-  name: '', price: 0, price_monthly: 0, price_semiannual: 0, price_annual: 0,
-  price_display: '', icon: 'zap', color: 'from-blue-500 to-blue-600',
-  features: [], is_popular: false, is_active: true, position: 0,
+interface FormState {
+  name: string;
+  display_monthly: string;
+  display_semiannual: string;
+  display_annual: string;
+  icon: string;
+  color: string;
+  features: string[];
+  is_popular: boolean;
+  is_active: boolean;
+  position: number;
+}
+
+const emptyForm: FormState = {
+  name: '',
+  display_monthly: '',
+  display_semiannual: '',
+  display_annual: '',
+  icon: 'zap',
+  color: 'from-blue-500 to-blue-600',
+  features: [],
+  is_popular: false,
+  is_active: true,
+  position: 0,
 };
 
 const iconOptions = [
@@ -47,33 +67,51 @@ const colorOptions = [
   { value: 'from-red-500 to-red-600', label: 'Vermelho' },
 ];
 
+const formatBRL = (cents: number) => {
+  if (!cents) return '—';
+  return `R$ ${(cents / 100).toFixed(2).replace('.', ',')}`;
+};
+
 const PlanosPage = () => {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Plan | null>(null);
-  const [form, setForm] = useState(emptyPlan);
+  const [form, setForm] = useState<FormState>(emptyForm);
   const [featureInput, setFeatureInput] = useState('');
   const [saving, setSaving] = useState(false);
 
   const fetchPlans = async () => {
     const { data } = await supabase.from('julia_plans').select('*').order('position');
-    if (data) setPlans(data.map(p => ({ ...p, features: (p.features as any) || [], price_monthly: (p as any).price_monthly ?? 0, price_semiannual: (p as any).price_semiannual ?? 0, price_annual: (p as any).price_annual ?? 0 })));
+    if (data) setPlans(data.map(p => ({ ...p, features: (p.features as any) || [], price_monthly: p.price_monthly ?? 0, price_semiannual: p.price_semiannual ?? 0, price_annual: p.price_annual ?? 0 })));
     setLoading(false);
   };
 
   useEffect(() => { fetchPlans(); }, []);
 
+  const centsToDisplay = (cents: number) => cents > 0 ? (cents / 100).toFixed(2) : '';
+
   const openNew = () => {
     setEditing(null);
-    setForm({ ...emptyPlan, position: plans.length });
+    setForm({ ...emptyForm, position: plans.length });
     setFeatureInput('');
     setDialogOpen(true);
   };
 
   const openEdit = (plan: Plan) => {
     setEditing(plan);
-    setForm({ name: plan.name, price: plan.price, price_monthly: plan.price_monthly, price_semiannual: plan.price_semiannual, price_annual: plan.price_annual, price_display: plan.price_display, icon: plan.icon, color: plan.color, features: plan.features, is_popular: plan.is_popular, is_active: plan.is_active, position: plan.position });
+    setForm({
+      name: plan.name,
+      display_monthly: centsToDisplay(plan.price_monthly),
+      display_semiannual: centsToDisplay(plan.price_semiannual),
+      display_annual: centsToDisplay(plan.price_annual),
+      icon: plan.icon,
+      color: plan.color,
+      features: plan.features,
+      is_popular: plan.is_popular,
+      is_active: plan.is_active,
+      position: plan.position,
+    });
     setFeatureInput('');
     setDialogOpen(true);
   };
@@ -88,17 +126,27 @@ const PlanosPage = () => {
     setForm(f => ({ ...f, features: f.features.filter((_, i) => i !== idx) }));
   };
 
+  const parseToCents = (val: string) => {
+    const num = parseFloat(val.replace(',', '.'));
+    return isNaN(num) ? 0 : Math.round(num * 100);
+  };
+
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error('Nome é obrigatório'); return; }
     setSaving(true);
     try {
+      const priceMonthly = parseToCents(form.display_monthly);
+      const priceSemiannual = parseToCents(form.display_semiannual);
+      const priceAnnual = parseToCents(form.display_annual);
+      const minPrice = Math.min(...[priceMonthly, priceSemiannual, priceAnnual].filter(p => p > 0)) || 0;
+
       const payload = {
         name: form.name,
-        price: form.price,
-        price_monthly: form.price_monthly,
-        price_semiannual: form.price_semiannual,
-        price_annual: form.price_annual,
-        price_display: form.price_display || `R$ ${(form.price / 100).toFixed(0)}`,
+        price: minPrice,
+        price_monthly: priceMonthly,
+        price_semiannual: priceSemiannual,
+        price_annual: priceAnnual,
+        price_display: minPrice > 0 ? `R$ ${(minPrice / 100).toFixed(0)}` : '',
         icon: form.icon,
         color: form.color,
         features: form.features as any,
@@ -147,7 +195,9 @@ const PlanosPage = () => {
               <tr className="border-b text-left">
                 <th className="pb-3 font-medium text-muted-foreground">#</th>
                 <th className="pb-3 font-medium text-muted-foreground">Nome</th>
-                <th className="pb-3 font-medium text-muted-foreground">Preço</th>
+                <th className="pb-3 font-medium text-muted-foreground">Mensal</th>
+                <th className="pb-3 font-medium text-muted-foreground">Semestral</th>
+                <th className="pb-3 font-medium text-muted-foreground">Anual</th>
                 <th className="pb-3 font-medium text-muted-foreground">Features</th>
                 <th className="pb-3 font-medium text-muted-foreground">Status</th>
                 <th className="pb-3 font-medium text-muted-foreground"></th>
@@ -163,11 +213,9 @@ const PlanosPage = () => {
                       {plan.is_popular && <Badge variant="secondary" className="text-xs">Popular</Badge>}
                     </div>
                   </td>
-                  <td className="py-3 font-medium text-xs">
-                    <div>M: R$ {(plan.price_monthly / 100).toFixed(0)}</div>
-                    <div>S: R$ {(plan.price_semiannual / 100).toFixed(0)}</div>
-                    <div>A: R$ {(plan.price_annual / 100).toFixed(0)}</div>
-                  </td>
+                  <td className="py-3 text-sm">{formatBRL(plan.price_monthly)}</td>
+                  <td className="py-3 text-sm">{formatBRL(plan.price_semiannual)}</td>
+                  <td className="py-3 text-sm">{formatBRL(plan.price_annual)}</td>
                   <td className="py-3 text-muted-foreground text-xs">{plan.features.length} items</td>
                   <td className="py-3">
                     <Badge variant={plan.is_active ? 'default' : 'outline'}>
@@ -201,28 +249,48 @@ const PlanosPage = () => {
               <Label>Nome</Label>
               <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Plano Profissional" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Preço base (centavos)</Label>
-                <Input type="number" value={form.price} onChange={e => setForm(f => ({ ...f, price: parseInt(e.target.value) || 0 }))} />
-              </div>
-              <div>
-                <Label>Exibição do preço</Label>
-                <Input value={form.price_display} onChange={e => setForm(f => ({ ...f, price_display: e.target.value }))} placeholder="R$ 497" />
-              </div>
-            </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <Label>Mensal (¢)</Label>
-                <Input type="number" value={form.price_monthly} onChange={e => setForm(f => ({ ...f, price_monthly: parseInt(e.target.value) || 0 }))} />
+                <Label>Mensal (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.display_monthly}
+                  onChange={e => setForm(f => ({ ...f, display_monthly: e.target.value }))}
+                  placeholder="297.00"
+                />
+                {form.display_monthly && (
+                  <p className="text-xs text-muted-foreground mt-1">{parseToCents(form.display_monthly)} centavos</p>
+                )}
               </div>
               <div>
-                <Label>Semestral (¢)</Label>
-                <Input type="number" value={form.price_semiannual} onChange={e => setForm(f => ({ ...f, price_semiannual: parseInt(e.target.value) || 0 }))} />
+                <Label>Semestral (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.display_semiannual}
+                  onChange={e => setForm(f => ({ ...f, display_semiannual: e.target.value }))}
+                  placeholder="1497.00"
+                />
+                {form.display_semiannual && (
+                  <p className="text-xs text-muted-foreground mt-1">{parseToCents(form.display_semiannual)} centavos</p>
+                )}
               </div>
               <div>
-                <Label>Anual (¢)</Label>
-                <Input type="number" value={form.price_annual} onChange={e => setForm(f => ({ ...f, price_annual: parseInt(e.target.value) || 0 }))} />
+                <Label>Anual (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.display_annual}
+                  onChange={e => setForm(f => ({ ...f, display_annual: e.target.value }))}
+                  placeholder="2697.00"
+                />
+                {form.display_annual && (
+                  <p className="text-xs text-muted-foreground mt-1">{parseToCents(form.display_annual)} centavos</p>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
