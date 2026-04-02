@@ -275,6 +275,7 @@ serve(async (req) => {
             password: ext.threecplus_sip_password,
             wsUrl: ws.wsUrl,
             wsUrlSource: ws.wsUrlSource,
+            wsUrlCandidates: ws.wsUrlCandidates,
             configSipDomain: config.sip_domain || null,
             extensionSipDomain: ext.threecplus_sip_domain || null,
             baseUrl: baseUrl,
