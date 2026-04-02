@@ -105,53 +105,69 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
     }
   };
 
+  // Auto-open checkout in new tab when URL is obtained
+  useEffect(() => {
+    if (checkoutUrl) {
+      window.open(checkoutUrl, '_blank', 'noopener,noreferrer');
+    }
+  }, [checkoutUrl]);
+
   if (checkoutUrl) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <Button variant="outline" onClick={() => { setCheckoutUrl(''); if (pollingRef.current) clearInterval(pollingRef.current); }} className="h-10 rounded-xl border-gray-200">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Voltar ao resumo
-          </Button>
-          <div className="flex items-center gap-3">
+      <Card className="border-0 shadow-xl shadow-[#6C3AED]/5 bg-white/80 backdrop-blur">
+        <CardContent className="py-12 space-y-6 text-center">
+          <div className="flex justify-center">
+            <div className="w-16 h-16 rounded-full bg-[#6C3AED]/10 flex items-center justify-center">
+              <Loader2 className="w-8 h-8 text-[#6C3AED] animate-spin" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold text-[#1a1a2e]">Aguardando confirmação do pagamento...</h2>
+            <p className="text-gray-500 text-sm">
+              O checkout foi aberto em uma nova aba. Conclua o pagamento por lá.
+            </p>
+          </div>
+
+          {error && (
+            <div className="p-3 rounded-lg bg-amber-50 text-amber-700 text-sm">{error}</div>
+          )}
+
+          <div className="flex flex-col gap-3 items-center">
             <Button
-              variant="outline"
               onClick={handleCheckPayment}
               disabled={checking}
-              className="h-10 rounded-xl border-green-300 text-green-700 hover:bg-green-50"
+              className="h-12 bg-[#6C3AED] hover:bg-[#5B2BD4] text-white font-bold rounded-xl px-8"
             >
-              {checking ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+              {checking ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <CheckCircle2 className="w-5 h-5 mr-2" />}
               Já paguei
             </Button>
+
             <a
               href={checkoutUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-[#6C3AED] hover:underline flex items-center gap-1"
             >
-              Abrir em nova aba <ExternalLink className="w-3 h-3" />
+              Reabrir página de pagamento <ExternalLink className="w-3 h-3" />
             </a>
+
+            <Button
+              variant="ghost"
+              onClick={() => { setCheckoutUrl(''); if (pollingRef.current) clearInterval(pollingRef.current); }}
+              className="text-gray-400 text-sm"
+            >
+              <ArrowLeft className="w-4 h-4 mr-1" />
+              Voltar ao resumo
+            </Button>
           </div>
-        </div>
 
-        {error && (
-          <div className="p-3 rounded-lg bg-amber-50 text-amber-700 text-sm text-center">{error}</div>
-        )}
-
-        <div className="rounded-2xl overflow-hidden border border-[#6C3AED]/20 shadow-xl shadow-[#6C3AED]/10 bg-white">
-          <iframe
-            src={checkoutUrl}
-            className="w-full border-0"
-            style={{ height: '680px' }}
-            title="Pagamento InfinityPay"
-            allow="payment"
-          />
-        </div>
-        <div className="flex items-center gap-2 justify-center text-gray-400 text-xs">
-          <ShieldCheck className="w-4 h-4" />
-          Pagamento seguro via InfinityPay • Verificação automática ativa
-        </div>
-      </div>
+          <div className="flex items-center gap-2 justify-center text-gray-400 text-xs">
+            <ShieldCheck className="w-4 h-4" />
+            Pagamento seguro via InfinityPay • Verificação automática ativa
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
