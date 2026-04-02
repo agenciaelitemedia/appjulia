@@ -151,7 +151,7 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
     }
   }, [stopTimer, fireCallEnded]);
 
-  const attachSessionEvents = useCallback((session: JsSIP.RTCSession) => {
+  const attachSessionEvents = useCallback((session: RTCSession) => {
     session.on('progress', () => {
       setStatus('ringing');
       addDiagEvent('Call progress (ringing)');
