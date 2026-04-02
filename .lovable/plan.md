@@ -1,34 +1,29 @@
 
 
-# Correção dos Planos: Preços em Reais + Agrupamento por Período
+# Correção: InfinityPay recusa iframe — Redirecionar para nova aba
 
-## Mudanças
+## Problema
 
-### 1. Admin `PlanosPage.tsx` — Entrada de preço em Reais (R$)
+O `checkout.infinitepay.io` bloqueia embedding via iframe (headers `X-Frame-Options` ou `Content-Security-Policy`). Por isso o iframe mostra "conexão recusada".
 
-**Problema atual**: Os campos pedem valores em centavos, o que é confuso.
+## Solução
 
-**Solução**: 
-- Campos de preço aceitam valor em Reais (ex: `297.00`)
-- Ao abrir para edição, divide o valor por 100 para exibir em Reais
-- Ao salvar, multiplica por 100 para gravar em centavos no banco
-- Remover campos redundantes (`price` base e `price_display`) — o `price` será calculado como o menor preço definido, e `price_display` será gerado automaticamente
-- Na tabela de listagem, mostrar apenas os períodos que têm valor > 0
+Substituir o iframe por um redirecionamento automático para nova aba + tela de "aguardando pagamento" com polling.
 
-### 2. Checkout `PlanStep.tsx` — Mostrar só períodos com preço e agrupar
+### Alterações em `CheckoutStep.tsx`
 
-**Problema atual**: Sempre mostra os 3 períodos mesmo sem preço definido.
+Quando `checkoutUrl` é obtido:
+1. Abrir automaticamente em nova aba via `window.open(checkoutUrl, '_blank')`
+2. Em vez do iframe, mostrar uma tela de status com:
+   - Mensagem "Aguardando confirmação do pagamento..."
+   - Animação de loading
+   - Link para reabrir o checkout caso a aba tenha sido bloqueada
+   - Botão "Já paguei" (já existe)
+3. Manter o polling de 5s que já existe para detectar `status: 'paid'`
 
-**Solução**:
-- Detectar quais períodos têm pelo menos 1 plano com preço > 0
-- Mostrar apenas as abas de períodos que existem
-- Cada aba mostra o bloco de planos daquele período (só planos com preço > 0 naquele período)
-- Se só 1 período tem preços, não mostra seletor — vai direto
-
-## Arquivos alterados
+### Arquivo alterado
 
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/admin/planos/PlanosPage.tsx` | Campos em R$ com conversão automática para centavos ao salvar |
-| `src/pages/comprar/steps/PlanStep.tsx` | Filtrar períodos disponíveis e agrupar planos por bloco |
+| `src/pages/comprar/steps/CheckoutStep.tsx` | Remover iframe, abrir URL em nova aba, mostrar tela de espera |
 
