@@ -177,7 +177,12 @@ serve(async (req) => {
           extFull?.threecplus_raw;
         if (rawData?.telephony_id && rawData?.extension_password) {
           // Use credentials from raw creation response
-          const sipDomainFromRaw = config.sip_domain || "pbx01.3c.fluxoti.com";
+          let sipDomainFromRaw = "pbx01.3c.fluxoti.com";
+          let rawDomainSource = "fallback padrão (pbx01.3c.fluxoti.com)";
+          if (config.sip_domain) {
+            sipDomainFromRaw = config.sip_domain;
+            rawDomainSource = "phone_config.sip_domain (override manual)";
+          }
           const sipUsernameFromRaw = rawData.telephony_id;
           const sipPasswordFromRaw = rawData.extension_password;
 
@@ -188,11 +193,15 @@ serve(async (req) => {
             threecplus_sip_password: sipPasswordFromRaw,
           }).eq("id", extensionId);
 
+          const ws = resolveWsUrl(sipDomainFromRaw);
           result = {
             domain: sipDomainFromRaw,
+            domainSource: rawDomainSource,
             username: sipUsernameFromRaw,
             password: sipPasswordFromRaw,
-            wsUrl: resolveWsUrl(sipDomainFromRaw),
+            wsUrl: ws.wsUrl,
+            wsUrlSource: ws.wsUrlSource,
+            baseUrl,
           };
           break;
         }
