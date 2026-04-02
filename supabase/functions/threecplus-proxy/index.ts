@@ -242,11 +242,15 @@ serve(async (req) => {
           threecplus_sip_password: sipPassword,
         }).eq("id", extensionId);
 
+        const ws = resolveWsUrl(sipDomain);
         result = {
           domain: sipDomain,
+          domainSource: "3C+ webphone login (sip_server)",
           username: sipUsername,
           password: sipPassword,
-          wsUrl: resolveWsUrl(sipDomain),
+          wsUrl: ws.wsUrl,
+          wsUrlSource: ws.wsUrlSource,
+          baseUrl,
         };
         break;
       }
