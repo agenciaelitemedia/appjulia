@@ -37,7 +37,7 @@ export function ConfigTab() {
   // 3cplus fields
   const [threecToken, setThreecToken] = useState('');
   const [threecBaseUrl, setThreecBaseUrl] = useState('https://app.3c.fluxoti.com/api/v1');
-  const [threecWsUrl, setThreecWsUrl] = useState('wss://events.3c.fluxoti.com/ws/me');
+  const [threecWsUrl, setThreecWsUrl] = useState('');
 
   const [showToken, setShowToken] = useState(false);
   const [visibleTokens, setVisibleTokens] = useState<Set<number>>(new Set());
