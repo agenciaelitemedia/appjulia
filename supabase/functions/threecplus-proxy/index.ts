@@ -403,24 +403,32 @@ serve(async (req) => {
         const { extensionId, phone, metadata } = params;
 
         // Resolve extension record
-        let agentId: string | null = null;
-        let extension: string | null = null;
+        const { data: ext } = await supabase
+          .from("phone_extensions")
+          .select("threecplus_agent_id, threecplus_extension, threecplus_raw, threecplus_sip_username, threecplus_sip_password")
+          .eq("id", extensionId)
+          .eq("cod_agent", codAgent)
+          .single();
 
-        if (extensionId) {
-          const { data: ext } = await supabase
-            .from("phone_extensions")
-            .select("threecplus_agent_id, threecplus_extension")
-            .eq("id", extensionId)
-            .eq("cod_agent", codAgent)
-            .single();
+        if (!ext?.threecplus_agent_id && !ext?.threecplus_extension) {
+          throw new Error("Ramal sem vínculo 3C+. Sincronize ou recrie o ramal.");
+        }
 
-          if (!ext?.threecplus_agent_id && !ext?.threecplus_extension) {
-            throw new Error(
-              "Ramal sem vínculo 3C+. Sincronize ou recrie o ramal.",
-            );
-          }
-          agentId = ext.threecplus_agent_id || null;
-          extension = ext.threecplus_extension || null;
+        const agentId = ext.threecplus_agent_id || null;
+        const extension = ext.threecplus_extension || null;
+
+        // Get agent's own token — required for click2call (agent must be "logged in")
+        const agentToken = await getAgentToken(supabase, extensionId, codAgent, baseUrl, token);
+        if (!agentToken) {
+          throw new Error("Token do agente não encontrado. Reconfigure o ramal 3C+.");
+        }
+
+        // Ensure agent is logged in via webphone before dialing
+        try {
+          await threecRequest(baseUrl, agentToken, "/agent/webphone/login", { method: "POST", body: {} });
+          console.log("Agent webphone login OK before dial");
+        } catch (e: any) {
+          console.warn(`Agent webphone login before dial failed: ${e.message}`);
         }
 
         const dialBody: Record<string, any> = {
@@ -434,7 +442,8 @@ serve(async (req) => {
           },
         };
 
-        result = await threecRequest(baseUrl, token, "/click2call", {
+        // Use agent token for click2call (agent must be authenticated)
+        result = await threecRequest(baseUrl, agentToken, "/click2call", {
           method: "POST",
           body: dialBody,
         });
