@@ -279,9 +279,9 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
       attachSessionEvents(session);
 
       // Auto-answer for integrated calls (check custom headers)
-      const request = session.request;
+      const request = (session as any).request;
       if (request) {
-        const integratedHeader = request.getHeader('X-Api4comintegratedcall');
+        const integratedHeader = request.getHeader?.('X-Api4comintegratedcall');
         if (integratedHeader === 'true') {
           addDiagEvent('Auto-answering integrated call');
           session.answer({
