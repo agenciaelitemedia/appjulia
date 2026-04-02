@@ -100,6 +100,8 @@ async function getAgentToken(
 }
 
 // Helper: ensure webphone is enabled for the agent
+// Uses the dedicated endpoint PUT /users/{id}/enable/web_extension
+// (the generic PUT /users/{id} with webphone:true is silently ignored by 3C+)
 async function ensureWebphoneEnabled(
   supabase: any,
   baseUrl: string,
@@ -119,40 +121,38 @@ async function ensureWebphoneEnabled(
       return;
     }
 
-    console.log(`Enabling webphone for agent ${agentId}...`);
+    console.log(`Enabling webphone for agent ${agentId} via /enable/web_extension...`);
     
-    // Try with manager token first
+    // Use the dedicated endpoint to enable web_extension (webphone)
     try {
-      await threecRequest(baseUrl, managerToken, `/users/${agentId}`, {
+      await threecRequest(baseUrl, managerToken, `/users/${agentId}/enable/web_extension`, {
         method: "PUT",
-        body: {
-          name: u?.name || "Agente",
-          email: u?.email || `agente_${Date.now()}@atendejulia.com.br`,
-          role: u?.role?.name || u?.role || "agent",
-          timezone: u?.settings?.timezone || "America/Sao_Paulo",
-          extension_number: u?.extension?.extension_number,
-          webphone: true,
-        },
       });
-      console.log(`Webphone enabled via manager token for agent ${agentId}`);
+      console.log(`Webphone enabled via /enable/web_extension for agent ${agentId}`);
+      
+      // Clear cached SIP credentials to force fresh login with correct server
+      await supabase.from("phone_extensions").update({
+        threecplus_sip_domain: null,
+        threecplus_sip_username: null,
+        threecplus_sip_password: null,
+      }).eq("id", extensionId).eq("cod_agent", codAgent);
+      console.log(`Cleared cached SIP credentials for extension ${extensionId}`);
     } catch (e: any) {
-      console.warn(`Manager token failed to enable webphone: ${e.message}`);
-      // Try with agent token as fallback
+      console.warn(`Manager token /enable/web_extension failed: ${e.message}`);
+      // Fallback: try with agent token
       try {
-        await threecRequest(baseUrl, agentToken, `/users/${agentId}`, {
+        await threecRequest(baseUrl, agentToken, `/users/${agentId}/enable/web_extension`, {
           method: "PUT",
-          body: {
-            name: u?.name || "Agente",
-            email: u?.email || `agente_${Date.now()}@atendejulia.com.br`,
-            role: u?.role?.name || u?.role || "agent",
-            timezone: u?.settings?.timezone || "America/Sao_Paulo",
-            extension_number: u?.extension?.extension_number,
-            webphone: true,
-          },
         });
-        console.log(`Webphone enabled via agent token for agent ${agentId}`);
+        console.log(`Webphone enabled via agent token /enable/web_extension for agent ${agentId}`);
+        
+        await supabase.from("phone_extensions").update({
+          threecplus_sip_domain: null,
+          threecplus_sip_username: null,
+          threecplus_sip_password: null,
+        }).eq("id", extensionId).eq("cod_agent", codAgent);
       } catch (e2: any) {
-        console.warn(`Agent token also failed to enable webphone: ${e2.message}`);
+        console.warn(`Agent token /enable/web_extension also failed: ${e2.message}`);
       }
     }
   } catch (e: any) {
