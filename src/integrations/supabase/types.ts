@@ -1387,7 +1387,10 @@ export type Database = {
           name: string
           position: number
           price: number
+          price_annual: number
           price_display: string
+          price_monthly: number
+          price_semiannual: number
           updated_at: string
         }
         Insert: {
@@ -1401,7 +1404,10 @@ export type Database = {
           name: string
           position?: number
           price?: number
+          price_annual?: number
           price_display?: string
+          price_monthly?: number
+          price_semiannual?: number
           updated_at?: string
         }
         Update: {
@@ -1415,7 +1421,10 @@ export type Database = {
           name?: string
           position?: number
           price?: number
+          price_annual?: number
           price_display?: string
+          price_monthly?: number
+          price_semiannual?: number
           updated_at?: string
         }
         Relationships: []

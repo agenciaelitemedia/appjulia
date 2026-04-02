@@ -15,6 +15,9 @@ interface Plan {
   id: string;
   name: string;
   price: number;
+  price_monthly: number;
+  price_semiannual: number;
+  price_annual: number;
   price_display: string;
   icon: string;
   color: string;
@@ -25,7 +28,8 @@ interface Plan {
 }
 
 const emptyPlan: Omit<Plan, 'id'> = {
-  name: '', price: 0, price_display: '', icon: 'zap', color: 'from-blue-500 to-blue-600',
+  name: '', price: 0, price_monthly: 0, price_semiannual: 0, price_annual: 0,
+  price_display: '', icon: 'zap', color: 'from-blue-500 to-blue-600',
   features: [], is_popular: false, is_active: true, position: 0,
 };
 
@@ -54,7 +58,7 @@ const PlanosPage = () => {
 
   const fetchPlans = async () => {
     const { data } = await supabase.from('julia_plans').select('*').order('position');
-    if (data) setPlans(data.map(p => ({ ...p, features: (p.features as any) || [] })));
+    if (data) setPlans(data.map(p => ({ ...p, features: (p.features as any) || [], price_monthly: (p as any).price_monthly ?? 0, price_semiannual: (p as any).price_semiannual ?? 0, price_annual: (p as any).price_annual ?? 0 })));
     setLoading(false);
   };
 
@@ -69,7 +73,7 @@ const PlanosPage = () => {
 
   const openEdit = (plan: Plan) => {
     setEditing(plan);
-    setForm({ name: plan.name, price: plan.price, price_display: plan.price_display, icon: plan.icon, color: plan.color, features: plan.features, is_popular: plan.is_popular, is_active: plan.is_active, position: plan.position });
+    setForm({ name: plan.name, price: plan.price, price_monthly: plan.price_monthly, price_semiannual: plan.price_semiannual, price_annual: plan.price_annual, price_display: plan.price_display, icon: plan.icon, color: plan.color, features: plan.features, is_popular: plan.is_popular, is_active: plan.is_active, position: plan.position });
     setFeatureInput('');
     setDialogOpen(true);
   };
@@ -91,6 +95,9 @@ const PlanosPage = () => {
       const payload = {
         name: form.name,
         price: form.price,
+        price_monthly: form.price_monthly,
+        price_semiannual: form.price_semiannual,
+        price_annual: form.price_annual,
         price_display: form.price_display || `R$ ${(form.price / 100).toFixed(0)}`,
         icon: form.icon,
         color: form.color,
@@ -156,7 +163,11 @@ const PlanosPage = () => {
                       {plan.is_popular && <Badge variant="secondary" className="text-xs">Popular</Badge>}
                     </div>
                   </td>
-                  <td className="py-3 font-medium">{plan.price_display}</td>
+                  <td className="py-3 font-medium text-xs">
+                    <div>M: R$ {(plan.price_monthly / 100).toFixed(0)}</div>
+                    <div>S: R$ {(plan.price_semiannual / 100).toFixed(0)}</div>
+                    <div>A: R$ {(plan.price_annual / 100).toFixed(0)}</div>
+                  </td>
                   <td className="py-3 text-muted-foreground text-xs">{plan.features.length} items</td>
                   <td className="py-3">
                     <Badge variant={plan.is_active ? 'default' : 'outline'}>
@@ -192,12 +203,26 @@ const PlanosPage = () => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Preço (centavos)</Label>
+                <Label>Preço base (centavos)</Label>
                 <Input type="number" value={form.price} onChange={e => setForm(f => ({ ...f, price: parseInt(e.target.value) || 0 }))} />
               </div>
               <div>
                 <Label>Exibição do preço</Label>
                 <Input value={form.price_display} onChange={e => setForm(f => ({ ...f, price_display: e.target.value }))} placeholder="R$ 497" />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label>Mensal (¢)</Label>
+                <Input type="number" value={form.price_monthly} onChange={e => setForm(f => ({ ...f, price_monthly: parseInt(e.target.value) || 0 }))} />
+              </div>
+              <div>
+                <Label>Semestral (¢)</Label>
+                <Input type="number" value={form.price_semiannual} onChange={e => setForm(f => ({ ...f, price_semiannual: parseInt(e.target.value) || 0 }))} />
+              </div>
+              <div>
+                <Label>Anual (¢)</Label>
+                <Input type="number" value={form.price_annual} onChange={e => setForm(f => ({ ...f, price_annual: parseInt(e.target.value) || 0 }))} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">

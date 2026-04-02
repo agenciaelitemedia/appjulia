@@ -9,6 +9,9 @@ interface PlanFromDB {
   id: string;
   name: string;
   price: number;
+  price_monthly: number;
+  price_semiannual: number;
+  price_annual: number;
   price_display: string;
   icon: string;
   color: string;
@@ -22,6 +25,14 @@ const iconMap: Record<string, React.ReactNode> = {
   crown: <Crown className="w-6 h-6" />,
 };
 
+type BillingPeriod = 'monthly' | 'semiannual' | 'annual';
+
+const periodLabels: Record<BillingPeriod, { label: string; suffix: string }> = {
+  monthly: { label: 'Mensal', suffix: '/mês' },
+  semiannual: { label: 'Semestral', suffix: '/semestre' },
+  annual: { label: 'Anual', suffix: '/ano' },
+};
+
 interface Props {
   orderData: OrderData;
   updateOrder: (data: Partial<OrderData>) => void;
@@ -33,6 +44,7 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
   const [plans, setPlans] = useState<PlanFromDB[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(-1);
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(orderData.billing_period || 'monthly');
 
   useEffect(() => {
     const fetchPlans = async () => {
@@ -46,6 +58,9 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
         const mapped = data.map(p => ({
           ...p,
           features: (p.features as any) || [],
+          price_monthly: (p as any).price_monthly ?? p.price,
+          price_semiannual: (p as any).price_semiannual ?? 0,
+          price_annual: (p as any).price_annual ?? 0,
         }));
         setPlans(mapped);
         if (orderData.plan_name) {
@@ -58,10 +73,33 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
     fetchPlans();
   }, [orderData.plan_name]);
 
+  const getPriceByPeriod = (plan: PlanFromDB): number => {
+    if (billingPeriod === 'annual') return plan.price_annual;
+    if (billingPeriod === 'semiannual') return plan.price_semiannual;
+    return plan.price_monthly;
+  };
+
+  const formatPrice = (cents: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
+  };
+
   const handleSelect = (index: number) => {
     setSelected(index);
     const plan = plans[index];
-    updateOrder({ plan_name: plan.name, plan_price: plan.price });
+    updateOrder({
+      plan_name: plan.name,
+      plan_price: getPriceByPeriod(plan),
+      billing_period: billingPeriod,
+    });
+  };
+
+  const handlePeriodChange = (period: BillingPeriod) => {
+    setBillingPeriod(period);
+    if (selected >= 0) {
+      const plan = plans[selected];
+      const price = period === 'annual' ? plan.price_annual : period === 'semiannual' ? plan.price_semiannual : plan.price_monthly;
+      updateOrder({ plan_price: price, billing_period: period });
+    }
   };
 
   if (loading) {
@@ -79,49 +117,76 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
         <p className="text-gray-500 mt-1">Selecione o plano ideal para o seu escritório</p>
       </div>
 
+      {/* Period selector */}
+      <div className="flex justify-center">
+        <div className="inline-flex bg-gray-100 rounded-xl p-1 gap-1">
+          {(['monthly', 'semiannual', 'annual'] as BillingPeriod[]).map(period => (
+            <button
+              key={period}
+              onClick={() => handlePeriodChange(period)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                billingPeriod === period
+                  ? 'bg-[#6C3AED] text-white shadow-sm'
+                  : 'text-gray-600 hover:text-[#6C3AED]'
+              }`}
+            >
+              {periodLabels[period].label}
+              {period === 'annual' && (
+                <span className={`ml-1 text-xs ${billingPeriod === period ? 'text-white/80' : 'text-green-600'}`}>
+                  💰
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-3">
-        {plans.map((plan, i) => (
-          <div
-            key={plan.id}
-            onClick={() => handleSelect(i)}
-            className={`relative cursor-pointer rounded-2xl border-2 p-5 transition-all duration-200 bg-white ${
-              selected === i
-                ? 'border-[#6C3AED] shadow-lg shadow-[#6C3AED]/10 scale-[1.02]'
-                : 'border-gray-100 hover:border-[#6C3AED]/30 hover:shadow-md'
-            }`}
-          >
-            {plan.is_popular && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#6C3AED] text-white text-xs font-bold px-3 py-1 rounded-full">
-                POPULAR
+        {plans.map((plan, i) => {
+          const price = getPriceByPeriod(plan);
+          return (
+            <div
+              key={plan.id}
+              onClick={() => handleSelect(i)}
+              className={`relative cursor-pointer rounded-2xl border-2 p-5 transition-all duration-200 bg-white ${
+                selected === i
+                  ? 'border-[#6C3AED] shadow-lg shadow-[#6C3AED]/10 scale-[1.02]'
+                  : 'border-gray-100 hover:border-[#6C3AED]/30 hover:shadow-md'
+              }`}
+            >
+              {plan.is_popular && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#6C3AED] text-white text-xs font-bold px-3 py-1 rounded-full">
+                  POPULAR
+                </div>
+              )}
+
+              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${plan.color} flex items-center justify-center text-white mb-4`}>
+                {iconMap[plan.icon] || <Zap className="w-6 h-6" />}
               </div>
-            )}
 
-            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${plan.color} flex items-center justify-center text-white mb-4`}>
-              {iconMap[plan.icon] || <Zap className="w-6 h-6" />}
-            </div>
-
-            <h3 className="font-bold text-lg text-[#1a1a2e]">{plan.name}</h3>
-            <div className="mt-2 mb-4">
-              <span className="text-3xl font-extrabold text-[#1a1a2e]">{plan.price_display}</span>
-              <span className="text-gray-400 text-sm">/mês</span>
-            </div>
-
-            <ul className="space-y-2">
-              {plan.features.map((f) => (
-                <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
-                  <Check className="w-4 h-4 text-[#6C3AED] mt-0.5 shrink-0" />
-                  {f}
-                </li>
-              ))}
-            </ul>
-
-            {selected === i && (
-              <div className="absolute top-4 right-4 w-6 h-6 rounded-full bg-[#6C3AED] flex items-center justify-center">
-                <Check className="w-4 h-4 text-white" />
+              <h3 className="font-bold text-lg text-[#1a1a2e]">{plan.name}</h3>
+              <div className="mt-2 mb-4">
+                <span className="text-3xl font-extrabold text-[#1a1a2e]">{formatPrice(price)}</span>
+                <span className="text-gray-400 text-sm">{periodLabels[billingPeriod].suffix}</span>
               </div>
-            )}
-          </div>
-        ))}
+
+              <ul className="space-y-2">
+                {plan.features.map((f) => (
+                  <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
+                    <Check className="w-4 h-4 text-[#6C3AED] mt-0.5 shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+
+              {selected === i && (
+                <div className="absolute top-4 right-4 w-6 h-6 rounded-full bg-[#6C3AED] flex items-center justify-center">
+                  <Check className="w-4 h-4 text-white" />
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <div className="flex gap-3">

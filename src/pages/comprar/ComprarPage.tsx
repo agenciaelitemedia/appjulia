@@ -14,6 +14,7 @@ export interface OrderData {
   customer_address: string;
   plan_name: string;
   plan_price: number;
+  billing_period: 'monthly' | 'semiannual' | 'annual';
   checkout_url?: string;
 }
 
@@ -29,6 +30,7 @@ const ComprarPage = () => {
     customer_address: '',
     plan_name: '',
     plan_price: 0,
+    billing_period: 'monthly',
   });
 
   const updateOrder = (data: Partial<OrderData>) => {
