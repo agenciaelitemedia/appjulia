@@ -265,7 +265,7 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
     });
 
     ua.on('newRTCSession', (evt: any) => {
-      const session: JsSIP.RTCSession = evt.session;
+      const session: RTCSession = evt.session;
 
       // Only handle incoming calls here
       if (session.direction !== 'incoming') return;
