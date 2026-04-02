@@ -41,28 +41,7 @@ export function DiscadorTab({ codAgent }: Props) {
   }, [number, myExtension, dialNumber, setSoftphoneCentered]);
 
   // 3C+ provider uses official webphone instead of SIP
-  if (provider === '3cplus' && myExtension) {
-    return (
-      <div className="max-w-md mx-auto">
-        {planDeactivated && (
-          <Alert variant="destructive" className="mb-4">
-            <Ban className="h-4 w-4" />
-            <AlertDescription>
-              A telefonia está desativada para este agente. Entre em contato com o administrador.
-            </AlertDescription>
-          </Alert>
-        )}
-        <div className={planDeactivated ? 'opacity-50 pointer-events-none' : ''}>
-          <ThreeCPlusWebphone
-            codAgent={codAgent}
-            extensionId={myExtension.id}
-            extensionLabel={myExtension.label || undefined}
-            extensionNumber={myExtension.extension_number}
-          />
-        </div>
-      </div>
-    );
-  }
+  // Unified SIP flow for all providers
 
   return (
     <div className="max-w-md mx-auto">
