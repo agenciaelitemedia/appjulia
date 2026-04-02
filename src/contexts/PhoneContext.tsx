@@ -152,10 +152,9 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     connectSip();
   }, [myExtension, codAgent, provider, connectSip]);
 
-  // Auto-retry SIP registration with exponential backoff — Api4Com only
+  // Auto-retry SIP registration with exponential backoff
   useEffect(() => {
     if (!autoConnected.current || !myExtension) return;
-    if (provider === '3cplus') return;
     if (sip.status === 'registered' || sip.status === 'in-call' || sip.status === 'calling' || sip.status === 'ringing') {
       retryCount.current = 0;
       return;

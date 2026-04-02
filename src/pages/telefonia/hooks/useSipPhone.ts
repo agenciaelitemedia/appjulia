@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Invitation, Inviter, Registerer, RegistererState, SessionState, UserAgent, UserAgentOptions } from 'sip.js';
+import JsSIP from 'jssip';
 
 export type SipStatus = 'idle' | 'registering' | 'registered' | 'calling' | 'ringing' | 'in-call' | 'error';
 
@@ -61,13 +61,12 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
     const ts = new Date().toLocaleTimeString('pt-BR');
     setDiagnostics(prev => ({
       ...prev,
-      events: [`[${ts}] ${msg}`, ...prev.events].slice(0, 20),
+      events: [`[${ts}] ${msg}`, ...prev.events].slice(0, 30),
     }));
   }, []);
 
-  const uaRef = useRef<UserAgent | null>(null);
-  const registererRef = useRef<Registerer | null>(null);
-  const sessionRef = useRef<Inviter | Invitation | null>(null);
+  const uaRef = useRef<JsSIP.UA | null>(null);
+  const sessionRef = useRef<JsSIP.RTCSession | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const credsRef = useRef<SipCredentials | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -77,7 +76,6 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
   onCallEndedRef.current = onCallEnded;
   const durationRef = useRef(0);
 
-  // Lazily create audio element only when needed
   const getOrCreateAudio = useCallback(() => {
     if (!remoteAudioRef.current) {
       const audio = new Audio();
@@ -88,7 +86,6 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
     return remoteAudioRef.current;
   }, []);
 
-  // Cleanup audio on unmount
   useEffect(() => {
     return () => {
       if (remoteAudioRef.current) {
@@ -117,86 +114,98 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
     setDuration(0);
   }, []);
 
-  const setupSessionListeners = useCallback((session: Inviter | Invitation) => {
-    session.stateChange.addListener((state: SessionState) => {
-      switch (state) {
-        case SessionState.Establishing:
-          setStatus('ringing');
-          break;
-        case SessionState.Established:
-          setStatus('in-call');
-          callStartedAtRef.current = new Date().toISOString();
-          startTimer();
-          // Attach remote audio
-          const remoteStream = new MediaStream();
-          const pc = (session.sessionDescriptionHandler as any)?.peerConnection as RTCPeerConnection | undefined;
-          pc?.getReceivers().forEach((receiver) => {
-            if (receiver.track) remoteStream.addTrack(receiver.track);
-          });
-          const audioEl = getOrCreateAudio();
-          audioEl.srcObject = remoteStream;
-          // Detect remote hangup via ICE disconnection
-          if (pc) {
-            let iceDisconnectTimer: ReturnType<typeof setTimeout> | null = null;
-            pc.oniceconnectionstatechange = () => {
-              const iceState = pc.iceConnectionState;
-              if (iceState === 'disconnected' || iceState === 'failed') {
-                if (!iceDisconnectTimer) {
-                  iceDisconnectTimer = setTimeout(() => {
-                    const currentIce = pc.iceConnectionState;
-                    if (currentIce !== 'connected' && currentIce !== 'completed') {
-                      try { session.bye(); } catch { /* already terminated */ }
-                    }
-                    iceDisconnectTimer = null;
-                  }, 3000);
-                }
-              } else if (iceState === 'connected' || iceState === 'completed') {
-                if (iceDisconnectTimer) {
-                  clearTimeout(iceDisconnectTimer);
-                  iceDisconnectTimer = null;
-                }
-              }
-            };
-          }
-          break;
-        case SessionState.Terminated: {
-          const endedAt = new Date().toISOString();
-          const callDuration = durationRef.current;
-          const savedCallerInfo = callerInfoRef.current;
-          const savedStartedAt = callStartedAtRef.current;
+  const fireCallEnded = useCallback(() => {
+    const endedAt = new Date().toISOString();
+    const callDuration = durationRef.current;
+    const savedCallerInfo = callerInfoRef.current;
+    const savedStartedAt = callStartedAtRef.current;
 
-          // Fire callback with call data
-          if (onCallEndedRef.current && (savedStartedAt || savedCallerInfo)) {
-            try {
-              onCallEndedRef.current({
-                duration: callDuration,
-                callerInfo: savedCallerInfo,
-                startedAt: savedStartedAt,
-                endedAt,
-              });
-            } catch (e) {
-              console.error('onCallEnded callback error:', e);
-            }
-          }
-
-          setStatus(registererRef.current?.state === RegistererState.Registered ? 'registered' : 'idle');
-          stopTimer();
-          setIsMuted(false);
-          setIsHeld(false);
-          setCallerInfo('');
-          sessionRef.current = null;
-          callStartedAtRef.current = null;
-          callerInfoRef.current = '';
-          if (remoteAudioRef.current) {
-            remoteAudioRef.current.srcObject = null;
-          }
-          break;
-        }
+    if (onCallEndedRef.current && (savedStartedAt || savedCallerInfo)) {
+      try {
+        onCallEndedRef.current({
+          duration: callDuration,
+          callerInfo: savedCallerInfo,
+          startedAt: savedStartedAt,
+          endedAt,
+        });
+      } catch (e) {
+        console.error('onCallEnded callback error:', e);
       }
+    }
+  }, []);
+
+  const cleanupSession = useCallback(() => {
+    fireCallEnded();
+    const isRegistered = uaRef.current?.isRegistered();
+    setStatus(isRegistered ? 'registered' : 'idle');
+    stopTimer();
+    setIsMuted(false);
+    setIsHeld(false);
+    setCallerInfo('');
+    sessionRef.current = null;
+    callStartedAtRef.current = null;
+    callerInfoRef.current = '';
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = null;
+    }
+  }, [stopTimer, fireCallEnded]);
+
+  const attachSessionEvents = useCallback((session: JsSIP.RTCSession) => {
+    session.on('progress', () => {
+      setStatus('ringing');
+      addDiagEvent('Call progress (ringing)');
     });
-  }, [startTimer, stopTimer]);
+
+    session.on('accepted', () => {
+      setStatus('in-call');
+      callStartedAtRef.current = new Date().toISOString();
+      startTimer();
+      addDiagEvent('Call accepted');
+    });
+
+    session.on('peerconnection', (evt: any) => {
+      const pc: RTCPeerConnection = evt.peerconnection;
+      pc.ontrack = (trackEvt) => {
+        const audioEl = getOrCreateAudio();
+        if (trackEvt.streams && trackEvt.streams[0]) {
+          audioEl.srcObject = trackEvt.streams[0];
+        } else {
+          const stream = new MediaStream();
+          stream.addTrack(trackEvt.track);
+          audioEl.srcObject = stream;
+        }
+      };
+    });
+
+    session.on('ended', () => {
+      addDiagEvent('Call ended');
+      cleanupSession();
+    });
+
+    session.on('failed', (evt: any) => {
+      const cause = evt?.cause || 'Unknown';
+      addDiagEvent(`Call failed: ${cause}`);
+      cleanupSession();
+    });
+
+    session.on('hold', () => {
+      setIsHeld(true);
+      addDiagEvent('Call on hold');
+    });
+
+    session.on('unhold', () => {
+      setIsHeld(false);
+      addDiagEvent('Call resumed');
+    });
+  }, [startTimer, cleanupSession, getOrCreateAudio, addDiagEvent]);
 
   const connect = useCallback((creds: SipCredentials) => {
+    // Disconnect existing UA if any
+    if (uaRef.current) {
+      try { uaRef.current.stop(); } catch { /* ignore */ }
+      uaRef.current = null;
+    }
+
     credsRef.current = creds;
     setStatus('registering');
     setDiagnostics(prev => ({
@@ -210,87 +219,97 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
     }));
     addDiagEvent(`Connecting to ${creds.wsUrl} as ${creds.username}@${creds.domain}`);
 
-    const uri = UserAgent.makeURI(`sip:${creds.username}@${creds.domain}`);
-    if (!uri) {
+    const socket = new JsSIP.WebSocketInterface(creds.wsUrl);
+
+    const ua = new JsSIP.UA({
+      sockets: [socket],
+      uri: `sip:${creds.username}@${creds.domain}`,
+      password: creds.password,
+      display_name: creds.username,
+      register: true,
+      register_expires: 600,
+      session_timers: false,
+      connection_recovery_min_interval: 2,
+      connection_recovery_max_interval: 30,
+      user_agent: 'JuliaWebphone/1.0',
+    });
+
+    ua.on('connected', () => {
+      addDiagEvent('WebSocket connected');
+      setDiagnostics(prev => ({ ...prev, wsState: 'connected' }));
+    });
+
+    ua.on('disconnected', () => {
+      addDiagEvent('WebSocket disconnected');
+      setDiagnostics(prev => ({ ...prev, wsState: 'disconnected' }));
+    });
+
+    ua.on('registered', () => {
+      setStatus('registered');
+      addDiagEvent('✓ SIP Registered');
+      setDiagnostics(prev => ({ ...prev, registrationStatus: 'registered', wsState: 'connected' }));
+    });
+
+    ua.on('unregistered', () => {
+      setStatus('idle');
+      addDiagEvent('SIP Unregistered');
+      setDiagnostics(prev => ({ ...prev, registrationStatus: 'unregistered' }));
+    });
+
+    ua.on('registrationFailed', (evt: any) => {
+      const cause = evt?.cause || 'Registration failed';
       setStatus('error');
-      addDiagEvent('ERROR: Invalid SIP URI');
-      setDiagnostics(prev => ({ ...prev, lastError: 'Invalid SIP URI', registrationStatus: 'error' }));
-      return;
-    }
+      addDiagEvent(`ERROR register: ${cause}`);
+      setDiagnostics(prev => ({ ...prev, lastError: cause, registrationStatus: 'error' }));
+    });
 
-    const uaOptions: UserAgentOptions = {
-      uri,
-      transportOptions: {
-        server: creds.wsUrl,
-      },
-      authorizationUsername: creds.username,
-      authorizationPassword: creds.password,
-      displayName: creds.username,
-      delegate: {
-        onInvite: (invitation: Invitation) => {
-          sessionRef.current = invitation;
-          const incomingCaller = invitation.remoteIdentity?.uri?.user || 'Desconhecido';
-          setCallerInfo(incomingCaller);
-          callerInfoRef.current = incomingCaller;
-          setStatus('ringing');
-          addDiagEvent(`Incoming call from ${invitation.remoteIdentity?.uri?.user || '?'}`);
-          setupSessionListeners(invitation);
+    ua.on('newRTCSession', (evt: any) => {
+      const session: JsSIP.RTCSession = evt.session;
 
-          const headers = invitation.request.getHeaders('X-Api4comintegratedcall');
-          if (headers?.length && headers[0] === 'true') {
-            addDiagEvent('Auto-answering integrated call');
-            invitation.accept();
-          }
-        },
-      },
-    };
+      // Only handle incoming calls here
+      if (session.direction !== 'incoming') return;
 
-    const ua = new UserAgent(uaOptions);
-    uaRef.current = ua;
+      sessionRef.current = session;
+      const incomingCaller = session.remote_identity?.uri?.user || 'Desconhecido';
+      setCallerInfo(incomingCaller);
+      callerInfoRef.current = incomingCaller;
+      setStatus('ringing');
+      addDiagEvent(`Incoming call from ${incomingCaller}`);
+      attachSessionEvents(session);
 
-    const registerer = new Registerer(ua, { expires: 600 });
-    registererRef.current = registerer;
-
-    registerer.stateChange.addListener((state: RegistererState) => {
-      switch (state) {
-        case RegistererState.Registered:
-          setStatus('registered');
-          addDiagEvent('✓ SIP Registered');
-          setDiagnostics(prev => ({ ...prev, registrationStatus: 'registered', wsState: 'connected' }));
-          break;
-        case RegistererState.Unregistered:
-          setStatus('idle');
-          addDiagEvent('SIP Unregistered');
-          setDiagnostics(prev => ({ ...prev, registrationStatus: 'unregistered' }));
-          break;
+      // Auto-answer for integrated calls (check custom headers)
+      const request = session.request;
+      if (request) {
+        const integratedHeader = request.getHeader('X-Api4comintegratedcall');
+        if (integratedHeader === 'true') {
+          addDiagEvent('Auto-answering integrated call');
+          session.answer({
+            mediaConstraints: { audio: true, video: false },
+          });
+        }
       }
     });
 
-    ua.start().then(() => {
-      addDiagEvent('WebSocket connected, registering...');
-      setDiagnostics(prev => ({ ...prev, wsState: 'connected', registrationStatus: 'registering' }));
-      registerer.register().catch((err) => {
-        setStatus('error');
-        const msg = err?.message || 'Registration failed';
-        addDiagEvent(`ERROR register: ${msg}`);
-        setDiagnostics(prev => ({ ...prev, lastError: msg, registrationStatus: 'error' }));
-      });
-    }).catch((err) => {
+    uaRef.current = ua;
+
+    try {
+      ua.start();
+    } catch (err: any) {
       setStatus('error');
-      const msg = err?.message || 'WebSocket connection failed';
-      addDiagEvent(`ERROR connect: ${msg}`);
+      const msg = err?.message || 'Failed to start UA';
+      addDiagEvent(`ERROR start: ${msg}`);
       setDiagnostics(prev => ({ ...prev, lastError: msg, wsState: 'error', registrationStatus: 'error' }));
-    });
-  }, [setupSessionListeners, addDiagEvent]);
+    }
+  }, [attachSessionEvents, addDiagEvent]);
 
   const disconnect = useCallback(() => {
-    if (sessionRef.current?.state === SessionState.Established) {
-      sessionRef.current.bye();
+    if (sessionRef.current) {
+      try { sessionRef.current.terminate(); } catch { /* ignore */ }
     }
-    registererRef.current?.unregister().catch(() => {});
-    uaRef.current?.stop().catch(() => {});
-    uaRef.current = null;
-    registererRef.current = null;
+    if (uaRef.current) {
+      try { uaRef.current.stop(); } catch { /* ignore */ }
+      uaRef.current = null;
+    }
     sessionRef.current = null;
     setStatus('idle');
     stopTimer();
@@ -298,81 +317,61 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
 
   const call = useCallback((target: string) => {
     if (!uaRef.current || !credsRef.current) return;
-    const targetUri = UserAgent.makeURI(`sip:${target}@${credsRef.current.domain}`);
-    if (!targetUri) return;
 
-    const inviter = new Inviter(uaRef.current, targetUri, {
-      sessionDescriptionHandlerOptions: {
-        constraints: { audio: true, video: false },
-      },
-    });
-    sessionRef.current = inviter;
     setCallerInfo(target);
     callerInfoRef.current = target;
     setStatus('calling');
-    setupSessionListeners(inviter);
 
-    inviter.invite().catch(() => setStatus('error'));
-  }, [setupSessionListeners]);
+    const session = uaRef.current.call(`sip:${target}@${credsRef.current.domain}`, {
+      mediaConstraints: { audio: true, video: false },
+      rtcOfferConstraints: { offerToReceiveAudio: true, offerToReceiveVideo: false },
+    });
+
+    sessionRef.current = session;
+    attachSessionEvents(session);
+  }, [attachSessionEvents]);
 
   const answer = useCallback(() => {
-    if (sessionRef.current && 'accept' in sessionRef.current) {
-      (sessionRef.current as Invitation).accept();
+    if (sessionRef.current && sessionRef.current.direction === 'incoming') {
+      sessionRef.current.answer({
+        mediaConstraints: { audio: true, video: false },
+      });
     }
   }, []);
 
   const hangup = useCallback(() => {
     if (!sessionRef.current) return;
-    const state = sessionRef.current.state;
-    if (state === SessionState.Established) {
-      sessionRef.current.bye();
-    } else if (state === SessionState.Establishing || state === SessionState.Initial) {
-      if ('cancel' in sessionRef.current) {
-        (sessionRef.current as Inviter).cancel();
-      } else if ('reject' in sessionRef.current) {
-        (sessionRef.current as Invitation).reject();
-      }
-    }
+    try {
+      sessionRef.current.terminate();
+    } catch { /* already terminated */ }
   }, []);
 
   const toggleMute = useCallback(() => {
     if (!sessionRef.current) return;
-    const pc = (sessionRef.current.sessionDescriptionHandler as any)?.peerConnection as RTCPeerConnection | undefined;
-    if (!pc) return;
-    pc.getSenders().forEach((sender) => {
-      if (sender.track?.kind === 'audio') {
-        sender.track.enabled = isMuted;
-      }
-    });
-    setIsMuted(!isMuted);
-  }, [isMuted]);
+    if (sessionRef.current.isMuted().audio) {
+      sessionRef.current.unmute({ audio: true });
+      setIsMuted(false);
+    } else {
+      sessionRef.current.mute({ audio: true });
+      setIsMuted(true);
+    }
+  }, []);
 
   const toggleHold = useCallback(() => {
-    // Hold via re-invite is complex; for now toggle audio direction
     if (!sessionRef.current) return;
-    const pc = (sessionRef.current.sessionDescriptionHandler as any)?.peerConnection as RTCPeerConnection | undefined;
-    if (!pc) return;
-    pc.getSenders().forEach((sender) => {
-      if (sender.track?.kind === 'audio') {
-        sender.track.enabled = isHeld;
-      }
-    });
-    pc.getReceivers().forEach((receiver) => {
-      if (receiver.track?.kind === 'audio') {
-        receiver.track.enabled = isHeld;
-      }
-    });
-    setIsHeld(!isHeld);
-  }, [isHeld]);
+    if (sessionRef.current.isOnHold().local) {
+      sessionRef.current.unhold();
+    } else {
+      sessionRef.current.hold();
+    }
+  }, []);
 
   const sendDTMF = useCallback((digit: string) => {
-    if (!sessionRef.current || sessionRef.current.state !== SessionState.Established) return;
-    const pc = (sessionRef.current.sessionDescriptionHandler as any)?.peerConnection as RTCPeerConnection | undefined;
-    if (!pc) return;
-    const sender = pc.getSenders().find((s) => s.track?.kind === 'audio');
-    if (sender?.dtmf) {
-      sender.dtmf.insertDTMF(digit, 100, 70);
-    }
+    if (!sessionRef.current || !sessionRef.current.isEstablished()) return;
+    sessionRef.current.sendDTMF(digit, {
+      duration: 100,
+      interToneGap: 70,
+    });
   }, []);
 
   // Cleanup on unmount
