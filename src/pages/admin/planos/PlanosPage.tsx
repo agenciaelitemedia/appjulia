@@ -184,10 +184,56 @@ const PlanosPage = () => {
     return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin" /></div>;
   }
 
+  // Contract state
+  const [contractBody, setContractBody] = useState('');
+  const [contractLoading, setContractLoading] = useState(true);
+  const [contractSaving, setContractSaving] = useState(false);
+  const [contractId, setContractId] = useState<string | null>(null);
+  const [contractMode, setContractMode] = useState<'edit' | 'preview'>('edit');
+
+  useEffect(() => {
+    const fetchContract = async () => {
+      const { data } = await supabase
+        .from('julia_contract_template')
+        .select('*')
+        .limit(1)
+        .single();
+      if (data) {
+        setContractId(data.id);
+        setContractBody(data.body_markdown);
+      }
+      setContractLoading(false);
+    };
+    fetchContract();
+  }, []);
+
+  const handleSaveContract = async () => {
+    if (!contractId) return;
+    setContractSaving(true);
+    const { error } = await supabase
+      .from('julia_contract_template')
+      .update({ body_markdown: contractBody, updated_at: new Date().toISOString() })
+      .eq('id', contractId);
+    if (error) {
+      toast.error('Erro ao salvar: ' + error.message);
+    } else {
+      toast.success('Contrato salvo com sucesso');
+    }
+    setContractSaving(false);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Planos</h1>
+      <h1 className="text-2xl font-bold">Planos & Contrato</h1>
+
+      <Tabs defaultValue="planos">
+        <TabsList>
+          <TabsTrigger value="planos">Planos</TabsTrigger>
+          <TabsTrigger value="contrato">Contrato</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="planos">
+      <div className="flex items-center justify-end">
         <Button onClick={openNew}><Plus className="w-4 h-4 mr-2" /> Novo Plano</Button>
       </div>
 
