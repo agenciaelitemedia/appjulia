@@ -237,14 +237,20 @@ serve(async (req) => {
           if (config.threecplus_ws_url) {
             return { wsUrl: config.threecplus_ws_url, wsUrlSource: 'phone_config.threecplus_ws_url (override)', wsUrlCandidates: [config.threecplus_ws_url] };
           }
+          // 3C+ uses vox-socket.3c.fluxoti.com:4443 for WebRTC/SIP (discovered from CSP headers)
+          // Extract tenant prefix from domain (e.g. assessoria.3c.fluxoti.com -> assessoria)
+          const tenantMatch = domain.match(/^([^.]+)\.3c\.fluxoti\.com$/);
           const candidates = [
+            // Priority: 3C+ shared PBX WebSocket server on port 4443
+            `wss://vox-socket.3c.fluxoti.com:4443/ws`,
+            `wss://vox-socket.3c.fluxoti.com:4443`,
+            // Tenant-specific attempts
+            `wss://${domain}:4443/ws`,
             `wss://${domain}/ws`,
             `wss://${domain}:443/ws`,
             `wss://${domain}:8089/ws`,
-            `wss://${domain}:8088/ws`,
-            `wss://${domain}:7443/ws`,
           ];
-          return { wsUrl: candidates[0], wsUrlSource: `auto-discovery (${candidates.length} candidatos)`, wsUrlCandidates: candidates };
+          return { wsUrl: candidates[0], wsUrlSource: `auto-discovery (${candidates.length} candidatos, prioridade vox-socket:4443)`, wsUrlCandidates: candidates };
         };
 
         // ============================================================
