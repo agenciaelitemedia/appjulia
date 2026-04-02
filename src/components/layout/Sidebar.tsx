@@ -46,6 +46,8 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   useEnsurePromptGeneratorModule();
   useEnsureLegalCasesModule();
   useEnsureContractNotificationsModule();
+  useEnsureJuliaOrdersModule();
+  useEnsureJuliaPlansModule();
 
   const isTimeUser = user?.role === "time";
   
