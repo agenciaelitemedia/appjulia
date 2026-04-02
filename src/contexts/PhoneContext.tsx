@@ -144,9 +144,10 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (autoConnected.current || !myExtension || !codAgent) return;
-    // Only Api4Com auto-connects SIP
-    if (provider === '3cplus') return;
-    if (!myExtension.api4com_ramal) return;
+    const isLinked = provider === '3cplus'
+      ? !!(myExtension.threecplus_agent_id || myExtension.threecplus_extension)
+      : !!myExtension.api4com_ramal;
+    if (!isLinked) return;
     autoConnected.current = true;
     connectSip();
   }, [myExtension, codAgent, provider, connectSip]);
