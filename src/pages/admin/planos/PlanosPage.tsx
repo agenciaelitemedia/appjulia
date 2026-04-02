@@ -73,7 +73,7 @@ const PlanosPage = () => {
 
   const openEdit = (plan: Plan) => {
     setEditing(plan);
-    setForm({ name: plan.name, price: plan.price, price_display: plan.price_display, icon: plan.icon, color: plan.color, features: plan.features, is_popular: plan.is_popular, is_active: plan.is_active, position: plan.position });
+    setForm({ name: plan.name, price: plan.price, price_monthly: plan.price_monthly, price_semiannual: plan.price_semiannual, price_annual: plan.price_annual, price_display: plan.price_display, icon: plan.icon, color: plan.color, features: plan.features, is_popular: plan.is_popular, is_active: plan.is_active, position: plan.position });
     setFeatureInput('');
     setDialogOpen(true);
   };
