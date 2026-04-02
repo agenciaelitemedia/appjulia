@@ -223,7 +223,7 @@ serve(async (req) => {
         const { data: ext } = await supabase
           .from("phone_extensions")
           .select(
-            "threecplus_agent_id, threecplus_sip_username, threecplus_sip_password, threecplus_sip_domain, threecplus_extension",
+            "threecplus_agent_id, threecplus_sip_username, threecplus_sip_password, threecplus_sip_domain, threecplus_extension, threecplus_raw",
           )
           .eq("id", extensionId)
           .eq("cod_agent", codAgent)
@@ -231,38 +231,101 @@ serve(async (req) => {
 
         if (!ext) throw new Error("Ramal não encontrado.");
 
-        // Helper: resolve wsUrl and candidates from config or derive from domain
+        // Helper: resolve wsUrl candidates from a SIP domain
         const resolveWsUrl = (domain: string): { wsUrl: string; wsUrlSource: string; wsUrlCandidates: string[] } => {
+          // Manual override from config takes priority
           if (config.threecplus_ws_url) {
-            return { wsUrl: config.threecplus_ws_url, wsUrlSource: 'phone_config.threecplus_ws_url', wsUrlCandidates: [config.threecplus_ws_url] };
+            return { wsUrl: config.threecplus_ws_url, wsUrlSource: 'phone_config.threecplus_ws_url (override)', wsUrlCandidates: [config.threecplus_ws_url] };
           }
-          // Generate multiple candidates for the client to probe
           const candidates = [
             `wss://${domain}/ws`,
             `wss://${domain}:443/ws`,
             `wss://${domain}:8089/ws`,
             `wss://${domain}:8088/ws`,
             `wss://${domain}:7443/ws`,
-            `wss://${domain}:5location`,
-          ].filter(u => !u.includes('5location')); // clean list
-          const candidatesFinal = [
-            `wss://${domain}/ws`,
-            `wss://${domain}:443/ws`,
-            `wss://${domain}:8089/ws`,
-            `wss://${domain}:8088/ws`,
-            `wss://${domain}:7443/ws`,
           ];
-          return { wsUrl: candidatesFinal[0], wsUrlSource: `auto-discovery (${candidatesFinal.length} candidatos)`, wsUrlCandidates: candidatesFinal };
+          return { wsUrl: candidates[0], wsUrlSource: `auto-discovery (${candidates.length} candidatos)`, wsUrlCandidates: candidates };
         };
 
-        // If we already have cached SIP credentials, return them
-        // Prefer extension cached domain, config.sip_domain only as override
-        if (
-          ext.threecplus_sip_username && ext.threecplus_sip_password &&
-          ext.threecplus_sip_domain
-        ) {
+        // ============================================================
+        // PRIORITY 1: Try official 3C+ webphone login (source of truth)
+        // ============================================================
+        let loginSucceeded = false;
+        if (ext.threecplus_agent_id) {
+          const agentToken = await getAgentToken(supabase, extensionId, codAgent, baseUrl, token);
+          
+          if (agentToken) {
+            // Ensure webphone is enabled
+            await ensureWebphoneEnabled(supabase, baseUrl, token, agentToken, ext.threecplus_agent_id, extensionId, codAgent);
+
+            try {
+              const loginResp = await threecRequest(
+                baseUrl,
+                agentToken,
+                "/agent/webphone/login",
+                { method: "POST", body: {} },
+              );
+
+              const d = loginResp?.data ?? loginResp;
+              const sipDomain = d.sip_server || d.domain || d.host;
+              const sipUsername = d.sip_user || d.username || d.extension;
+              const sipPassword = d.sip_password || d.password;
+              const officialWsUrl = d.websocket || d.ws_url || d.wss_url || null;
+
+              if (sipDomain && sipUsername && sipPassword) {
+                // Persist official credentials
+                await supabase.from("phone_extensions").update({
+                  threecplus_sip_domain: sipDomain,
+                  threecplus_sip_username: sipUsername,
+                  threecplus_sip_password: sipPassword,
+                  threecplus_raw: { ...(ext.threecplus_raw || {}), last_webphone_login: d },
+                }).eq("id", extensionId);
+
+                let preferredDomain = sipDomain;
+                let domainSource = "3C+ webphone login (oficial)";
+                if (config.sip_domain) {
+                  preferredDomain = config.sip_domain;
+                  domainSource = "phone_config.sip_domain (override manual)";
+                }
+
+                const ws = officialWsUrl && !config.threecplus_ws_url
+                  ? { wsUrl: officialWsUrl, wsUrlSource: '3C+ webphone login (ws_url)', wsUrlCandidates: [officialWsUrl] }
+                  : resolveWsUrl(preferredDomain);
+
+                result = {
+                  domain: preferredDomain,
+                  domainSource,
+                  username: sipUsername,
+                  password: sipPassword,
+                  wsUrl: ws.wsUrl,
+                  wsUrlSource: ws.wsUrlSource,
+                  wsUrlCandidates: ws.wsUrlCandidates,
+                  officialSipServer: sipDomain,
+                  source: "official_login",
+                  baseUrl,
+                };
+                loginSucceeded = true;
+              } else {
+                console.warn("3C+ webphone login returned incomplete SIP data:", JSON.stringify(loginResp));
+              }
+            } catch (e: any) {
+              console.warn(`3C+ webphone login failed: ${e.message}`);
+            }
+          }
+        }
+
+        if (loginSucceeded) break;
+
+        // ============================================================
+        // PRIORITY 2: Use cached credentials from a previous OFFICIAL login
+        // (only if threecplus_raw.last_webphone_login exists — proves cache is official)
+        // ============================================================
+        const rawData = (ext.threecplus_raw as any)?.data ?? ext.threecplus_raw;
+        const hasOfficialCache = !!(ext.threecplus_raw as any)?.last_webphone_login;
+
+        if (hasOfficialCache && ext.threecplus_sip_username && ext.threecplus_sip_password && ext.threecplus_sip_domain) {
           let preferredDomain = ext.threecplus_sip_domain;
-          let domainSource = 'phone_extensions.threecplus_sip_domain (cache)';
+          let domainSource = 'cache oficial (last_webphone_login)';
           if (config.sip_domain) {
             preferredDomain = config.sip_domain;
             domainSource = 'phone_config.sip_domain (override manual)';
@@ -276,123 +339,52 @@ serve(async (req) => {
             wsUrl: ws.wsUrl,
             wsUrlSource: ws.wsUrlSource,
             wsUrlCandidates: ws.wsUrlCandidates,
-            configSipDomain: config.sip_domain || null,
-            extensionSipDomain: ext.threecplus_sip_domain || null,
-            baseUrl: baseUrl,
-          };
-          break;
-        }
-
-        // Try to extract SIP credentials from threecplus_raw (saved during creation)
-        // The raw data contains extension_password and telephony_id
-        const { data: extFull } = await supabase
-          .from("phone_extensions")
-          .select("threecplus_raw")
-          .eq("id", extensionId)
-          .eq("cod_agent", codAgent)
-          .single();
-
-        const rawData = (extFull?.threecplus_raw as any)?.data ||
-          extFull?.threecplus_raw;
-        if (rawData?.telephony_id && rawData?.extension_password) {
-          // Use credentials from raw creation response
-          // Priority: 1) config.sip_domain (manual override), 2) derive from base_url hostname, 3) hardcoded fallback
-          let sipDomainFromRaw: string;
-          let rawDomainSource: string;
-          if (config.sip_domain) {
-            sipDomainFromRaw = config.sip_domain;
-            rawDomainSource = "phone_config.sip_domain (override manual)";
-          } else {
-            // Derive from tenant base_url: https://assessoria.3c.fluxoti.com/api/v1 → assessoria.3c.fluxoti.com
-            try {
-              sipDomainFromRaw = new URL(baseUrl).hostname;
-              rawDomainSource = `derivado de threecplus_base_url (${baseUrl})`;
-            } catch {
-              sipDomainFromRaw = "pbx01.3c.fluxoti.com";
-              rawDomainSource = "fallback padrão (pbx01.3c.fluxoti.com)";
-            }
-          }
-          const sipUsernameFromRaw = rawData.telephony_id;
-          const sipPasswordFromRaw = rawData.extension_password;
-
-          // Cache for future use
-          await supabase.from("phone_extensions").update({
-            threecplus_sip_domain: sipDomainFromRaw,
-            threecplus_sip_username: sipUsernameFromRaw,
-            threecplus_sip_password: sipPasswordFromRaw,
-          }).eq("id", extensionId);
-
-          const ws = resolveWsUrl(sipDomainFromRaw);
-          result = {
-            domain: sipDomainFromRaw,
-            domainSource: rawDomainSource,
-            username: sipUsernameFromRaw,
-            password: sipPasswordFromRaw,
-            wsUrl: ws.wsUrl,
-            wsUrlSource: ws.wsUrlSource,
-            wsUrlCandidates: ws.wsUrlCandidates,
+            source: "official_cache",
             baseUrl,
           };
           break;
         }
 
-        // Fallback: call 3C+ webphone login to obtain fresh SIP credentials
-        if (!ext.threecplus_agent_id) {
-          throw new Error("ID do agente 3C+ não configurado neste ramal.");
+        // ============================================================
+        // PRIORITY 3: Last-resort fallback from raw creation data
+        // WARNING: domain derived here may be wrong (tenant != PBX)
+        // ============================================================
+        if (rawData?.telephony_id && rawData?.extension_password) {
+          // Only use config.sip_domain if manually set; NEVER derive from base_url
+          let sipDomainFallback: string;
+          let fallbackDomainSource: string;
+          if (config.sip_domain) {
+            sipDomainFallback = config.sip_domain;
+            fallbackDomainSource = "phone_config.sip_domain (override manual)";
+          } else {
+            // DO NOT derive from threecplus_base_url — that's API tenant, not PBX
+            sipDomainFallback = "pbx01.3c.fluxoti.com";
+            fallbackDomainSource = "fallback genérico (login oficial falhou)";
+          }
+
+          // Cache but mark as fallback
+          await supabase.from("phone_extensions").update({
+            threecplus_sip_domain: sipDomainFallback,
+            threecplus_sip_username: rawData.telephony_id,
+            threecplus_sip_password: rawData.extension_password,
+          }).eq("id", extensionId);
+
+          const ws = resolveWsUrl(sipDomainFallback);
+          result = {
+            domain: sipDomainFallback,
+            domainSource: fallbackDomainSource,
+            username: rawData.telephony_id,
+            password: rawData.extension_password,
+            wsUrl: ws.wsUrl,
+            wsUrlSource: ws.wsUrlSource,
+            wsUrlCandidates: ws.wsUrlCandidates,
+            source: "raw_fallback",
+            baseUrl,
+          };
+          break;
         }
 
-        // Use agent's own api_token for /agent/* endpoints (manager token returns 403)
-        const agentToken = await getAgentToken(supabase, extensionId, codAgent, baseUrl, token);
-        if (!agentToken) {
-          throw new Error("Token do agente 3C+ não encontrado. Recrie o ramal ou atualize os dados.");
-        }
-
-        // First ensure webphone is enabled
-        await ensureWebphoneEnabled(supabase, baseUrl, token, agentToken, ext.threecplus_agent_id, extensionId, codAgent);
-
-        const loginResp = await threecRequest(
-          baseUrl,
-          agentToken,
-          "/agent/webphone/login",
-          {
-            method: "POST",
-            body: {},
-          },
-        );
-
-        // 3C+ returns: { sip_server, sip_user, sip_password, ... }
-        const sipDomain = loginResp.sip_server || loginResp.domain ||
-          loginResp.host;
-        const sipUsername = loginResp.sip_user || loginResp.username ||
-          loginResp.extension;
-        const sipPassword = loginResp.sip_password || loginResp.password;
-
-        if (!sipDomain || !sipUsername || !sipPassword) {
-          throw new Error(
-            "3C+ não retornou credenciais SIP válidas: " +
-              JSON.stringify(loginResp),
-          );
-        }
-
-        // Cache credentials in DB
-        await supabase.from("phone_extensions").update({
-          threecplus_sip_domain: sipDomain,
-          threecplus_sip_username: sipUsername,
-          threecplus_sip_password: sipPassword,
-        }).eq("id", extensionId);
-
-        const ws = resolveWsUrl(sipDomain);
-        result = {
-          domain: sipDomain,
-          domainSource: "3C+ webphone login (sip_server)",
-          username: sipUsername,
-          password: sipPassword,
-          wsUrl: ws.wsUrl,
-          wsUrlSource: ws.wsUrlSource,
-          wsUrlCandidates: ws.wsUrlCandidates,
-          baseUrl,
-        };
-        break;
+        throw new Error("Nenhuma credencial SIP disponível. Verifique se o ramal tem agent_id e webphone habilitado na 3C+.");
       }
 
       // ------------------------------------------------------------------
