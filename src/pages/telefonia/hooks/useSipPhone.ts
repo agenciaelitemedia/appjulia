@@ -27,9 +27,11 @@ export interface SipDiagnostics {
 
 interface SipCredentials {
   domain: string;
+  domainSource?: string;
   username: string;
   password: string;
   wsUrl: string;
+  wsUrlSource?: string;
 }
 
 interface UseSipPhoneReturn {
