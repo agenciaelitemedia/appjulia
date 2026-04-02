@@ -58,7 +58,7 @@ const PlanosPage = () => {
 
   const fetchPlans = async () => {
     const { data } = await supabase.from('julia_plans').select('*').order('position');
-    if (data) setPlans(data.map(p => ({ ...p, features: (p.features as any) || [] })));
+    if (data) setPlans(data.map(p => ({ ...p, features: (p.features as any) || [], price_monthly: (p as any).price_monthly ?? 0, price_semiannual: (p as any).price_semiannual ?? 0, price_annual: (p as any).price_annual ?? 0 })));
     setLoading(false);
   };
 
