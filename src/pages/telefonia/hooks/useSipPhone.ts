@@ -58,7 +58,7 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
   const [isHeld, setIsHeld] = useState(false);
   const [callerInfo, setCallerInfo] = useState('');
   const [diagnostics, setDiagnostics] = useState<SipDiagnostics>({
-    domain: '', wsUrl: '', username: '', registrationStatus: 'none',
+    domain: '', domainSource: '', wsUrl: '', wsUrlSource: '', username: '', registrationStatus: 'none',
     lastError: '', wsState: 'disconnected', events: [],
   });
 
