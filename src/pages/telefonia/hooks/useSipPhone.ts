@@ -193,6 +193,9 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (c
     session.on('failed', (evt: any) => {
       const cause = evt?.cause || 'Unknown';
       addDiagEvent(`Call failed: ${cause}`);
+      if (cause !== 'Canceled') {
+        onCallFailedRef.current?.(cause);
+      }
       cleanupSession();
     });
 
