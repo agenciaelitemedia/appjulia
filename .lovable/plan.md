@@ -1,94 +1,52 @@
 
+# Por que mensagens não chegam no Chat — Diagnóstico e Correção
 
-# Análise Completa do Chat — Problemas e Plano de Correção
+## Problema Raiz
 
-## Problemas Identificados
+O `meta-webhook` recebe mensagens da Meta corretamente (confirmado: "teste mensagem" chegou às 21:17 de hoje), mas **só grava em `webhook_logs` e `webhook_queue`**. As tabelas `chat_contacts` e `chat_messages` estão **completamente vazias** — nenhuma bridge existe entre o webhook e o chat.
 
-### 1. Chat não suporta WABA (API Oficial)
-O `WhatsAppDataContext` depende exclusivamente do `useUaZapi` para envio e busca de mensagens. Agentes com `hub === 'waba'` não conseguem usar o chat, pois não possuem `evo_url`/`evo_apikey` — o `isConfigured` fica `false` e nada funciona.
+Além disso:
+- O webhook **não resolve `cod_agent`** a partir do `phone_number_id` — os registros recentes têm `phone_number_id=667282786474815` e `waba_id=1597096084294505` mas `cod_agent=NULL`
+- O `waba-send` não tem action `send_media` — só `send_text` e `download_media`
 
-### 2. Falta de `cod_agent` no fluxo
-O `loadContacts` filtra por `client_id` (user.id), mas o chat deveria também filtrar por `cod_agent` para separar conversas por agente. Atualmente o `ChatPage` chama `loadContacts()` sem `codAgent`, e não há seleção de agente no chat.
+## Plano de Correção
 
-### 3. Tabelas vazias — sem sincronização automática
-As tabelas `chat_contacts` e `chat_messages` têm 0 registros. Os dados chegam via webhooks (`uazapi-webhook` e `meta-webhook`) mas o chat não busca dados do `webhook_logs` como fallback. A sincronização manual (`syncContacts`) só funciona com UaZapi.
+### 1. Atualizar `meta-webhook` — Persistir no Chat + Resolver `cod_agent`
 
-### 4. `onConflict: 'message_id'` inválido
-Na linha 301 do contexto, o upsert de mensagens usa `onConflict: 'message_id'`, mas `message_id` não tem constraint UNIQUE na tabela `chat_messages`. Isso causa erro silencioso.
+Após inserir em `webhook_logs`/`webhook_queue`, o webhook deve:
 
-### 5. Envio de mídia incompleto
-- `sendMedia` converte para base64 mas não faz optimistic update (mensagem não aparece na tela durante envio)
-- Não salva a mensagem de mídia no Supabase após envio
-- `handleDownload` no `MediaContent` está comentado (linhas 84-86 do MessageBubble)
+1. **Resolver `cod_agent`**: consultar o banco externo via `db-query` para encontrar o agente pelo `waba_number_id` (= `phone_number_id` do webhook)
+2. **Upsert em `chat_contacts`**: criar/atualizar contato usando `phone + client_id` (o `client_id` será buscado junto com o `cod_agent` da tabela `agents` → `user_agents`)
+3. **Insert em `chat_messages`**: persistir a mensagem com `contact_id`, `external_id`, `text`, `type`, `media_url` etc.
+4. **Atualizar `cod_agent`** no `webhook_logs` para rastreabilidade
 
-### 6. Realtime duplica mensagens
-O canal realtime de INSERT em `chat_messages` adiciona mensagens ao state, mas o `sendMessage` já faz optimistic update + save. Quando a mensagem é salva no Supabase, o realtime a adiciona novamente → mensagem duplicada.
+### 2. Adicionar action `send_media` ao `waba-send`
 
-### 7. Botões do header não funcionam
-- "Chamada de voz" e "Chamada de vídeo" no `ChatHeader` não fazem nada
-- "Ver detalhes", "Arquivar", "Silenciar", "Excluir" não têm handlers implementados
+O frontend já chama `waba-send` com `action: 'send_media'`, mas o edge function retorna "Unknown action". Implementar:
+- Upload de mídia para Graph API (`POST /{phone_number_id}/media`)
+- Envio da mensagem com o `media_id` retornado
 
-### 8. Gravação de áudio desabilitada
-O botão de mic no `ChatInput` está `disabled` com tooltip "em breve"
+### 3. Corrigir mapeamento `phone_number_id` → `cod_agent` + `client_id`
 
-### 9. `formatWhatsAppText` com bug de regex
-A regex de URL usa `test()` após `split()` — isso reseta `lastIndex` do regex global, causando detecção intermitente de links.
+Criar uma função interna no `meta-webhook` que:
+- Chama `db-query` com `SELECT cod_agent, user_id FROM agents JOIN user_agents ON ... WHERE waba_number_id = $1`
+- Usa `user_id` como `client_id` para filtrar corretamente no chat
 
-### 10. Audio player sem progresso
-O player de áudio tem barra de progresso estática (`width: 0%`), nunca atualiza durante reprodução.
-
-## Plano de Implementação
-
-### Etapa 1: Seleção de agente no chat + suporte omnichannel
-
-- Adicionar seletor de agente (dropdown com agentes do usuário) no topo do `ChatList`
-- Armazenar `cod_agent` e `hub` selecionado no contexto
-- `loadContacts` sempre filtrar por `cod_agent`
-- Criar lógica condicional: se `hub === 'uazapi'` → usar UaZapi endpoints; se `hub === 'waba'` → usar edge function `waba-send`
-
-**Arquivos**: `WhatsAppDataContext.tsx`, `ChatList.tsx`, `ChatPage.tsx`
-
-### Etapa 2: Corrigir envio e recebimento de mensagens
-
-- **Envio texto WABA**: chamar `supabase.functions.invoke('waba-send', { action: 'send_text', cod_agent, to, text })`
-- **Envio mídia WABA**: chamar `waba-send` com action `send_media`
-- **Envio mídia UaZapi**: adicionar optimistic update + salvar no Supabase após sucesso
-- **Fix duplicação realtime**: no handler de INSERT, verificar se `message.id` já existe no state antes de adicionar
-
-**Arquivos**: `WhatsAppDataContext.tsx`
-
-### Etapa 3: Corrigir constraint e sincronização
-
-- Migração SQL: adicionar `UNIQUE(contact_id, external_id)` ou `UNIQUE(message_id)` na tabela `chat_messages`
-- **Sync WABA**: buscar mensagens de `chat_messages` (já persistidas pelo webhook) em vez de API
-- **Sync UaZapi**: manter lógica atual mas corrigir upsert
-
-**Arquivo**: Migração SQL, `WhatsAppDataContext.tsx`
-
-### Etapa 4: Corrigir componentes de UI
-
-- **Audio player**: adicionar `onTimeUpdate` ao `<audio>` para atualizar barra de progresso
-- **Download de mídia**: implementar `handleDownload` real usando `message.download()` (UaZapi) ou buscar de Storage (WABA)
-- **formatWhatsAppText**: criar nova instância de regex sem flag `g` ou usar `match` sem `test`
-- **Desabilitar botões sem ação**: remover botões de chamada do header ou integrar com telefonia existente
-
-**Arquivos**: `MessageBubble.tsx`, `ChatHeader.tsx`
-
-### Etapa 5: Melhorias de UX
-
-- Passar `onDownloadMedia` real do contexto para `ChatMessages` → `MessageBubble`
-- Mostrar preview de mídia durante envio (optimistic com URL.createObjectURL)
-- Status da conexão do agente visível no chat
-
-## Arquivos alterados/criados
+## Arquivos alterados
 
 | Arquivo | Mudança |
 |---|---|
-| Migração SQL | UNIQUE constraint em `chat_messages.message_id` |
-| `src/contexts/WhatsAppDataContext.tsx` | Seletor de agente, suporte WABA, fix duplicação, fix upsert, optimistic media |
-| `src/components/chat/ChatList.tsx` | Dropdown de seleção de agente |
-| `src/components/chat/ChatPage.tsx` | Passar agentes disponíveis |
-| `src/components/chat/MessageBubble.tsx` | Fix audio player, fix download, fix formatWhatsAppText |
-| `src/components/chat/ChatHeader.tsx` | Remover/desabilitar botões sem funcionalidade |
-| `src/components/chat/ChatMessages.tsx` | Passar onDownloadMedia |
+| `supabase/functions/meta-webhook/index.ts` | Resolver `cod_agent`/`client_id` via `phone_number_id`; upsert `chat_contacts`; insert `chat_messages`; atualizar `cod_agent` no log |
+| `supabase/functions/waba-send/index.ts` | Adicionar action `send_media` (upload + envio via Graph API) |
 
+## Fluxo Corrigido
+
+```text
+Meta Webhook POST
+  → Extrair phone_number_id do payload
+  → Chamar db-query: phone_number_id → cod_agent + user_id (client_id)
+  → Upsert chat_contacts (phone, client_id, cod_agent, name)
+  → Insert chat_messages (text, type, media_url, external_id, contact_id)
+  → Insert webhook_logs + webhook_queue (já existente)
+  → Realtime notifica frontend → mensagem aparece no chat
+```
