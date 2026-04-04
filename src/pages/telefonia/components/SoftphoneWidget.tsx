@@ -289,8 +289,12 @@ export const SoftphoneWidget = React.forwardRef<HTMLDivElement, SoftphoneWidgetP
               <span className={cn('h-2.5 w-2.5 rounded-full', headerCfg.dotColor)} />
               <Badge variant="secondary" className={cn('text-xs font-medium', headerCfg.color)}>{headerCfg.label}</Badge>
             </div>
-            {!isActive && !isDialing && (
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={dialError ? (onDismissError || handleManualClose) : handleManualClose}>
+            {!isActive && (
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={
+                isDialing ? (onCancel || handleManualClose) :
+                dialError ? (onDismissError || handleManualClose) :
+                handleManualClose
+              }>
                 <X className="h-4 w-4" />
               </Button>
             )}
