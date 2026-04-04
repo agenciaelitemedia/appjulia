@@ -81,8 +81,12 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   }, [codAgent, provider, queryClient]);
 
   const handleCallFailed = useCallback((cause: string) => {
-    setDialError(`Falha na chamada: ${cause}`);
+    const friendlyMsg = cause === 'Canceled'
+      ? 'Chamada cancelada ou não atendida'
+      : `Falha na chamada: ${cause}`;
+    setDialError(friendlyMsg);
     setIsDialing(false);
+    isDialingRef.current = false;
   }, []);
 
   const sip = useSipPhone(handleCallEnded, handleCallFailed);
