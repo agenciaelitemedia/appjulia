@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Check, CheckCheck, Clock, AlertCircle, Download, Play, Pause, Loader2, FileText, MapPin, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,24 +11,23 @@ interface MessageBubbleProps {
   onDownloadMedia?: (messageId: string) => Promise<string | undefined>;
 }
 
-// WhatsApp text formatting
+// WhatsApp text formatting - fixed regex bug (no global flag in test)
 function formatWhatsAppText(text: string): React.ReactNode {
-  // Replace formatting patterns
   const patterns = [
-    { regex: /\*([^*]+)\*/g, render: (t: string) => <strong key={t}>{t}</strong> },
-    { regex: /_([^_]+)_/g, render: (t: string) => <em key={t}>{t}</em> },
-    { regex: /~([^~]+)~/g, render: (t: string) => <del key={t}>{t}</del> },
-    { regex: /```([^`]+)```/g, render: (t: string) => <code key={t} className="bg-muted px-1 rounded">{t}</code> },
-    { regex: /`([^`]+)`/g, render: (t: string) => <code key={t} className="bg-muted px-1 rounded">{t}</code> },
+    { regex: /\*([^*]+)\*/g, render: (t: string, i: number) => <strong key={`b-${i}`}>{t}</strong> },
+    { regex: /_([^_]+)_/g, render: (t: string, i: number) => <em key={`i-${i}`}>{t}</em> },
+    { regex: /~([^~]+)~/g, render: (t: string, i: number) => <del key={`s-${i}`}>{t}</del> },
+    { regex: /```([^`]+)```/g, render: (t: string, i: number) => <code key={`c-${i}`} className="bg-muted px-1 rounded">{t}</code> },
+    { regex: /`([^`]+)`/g, render: (t: string, i: number) => <code key={`ic-${i}`} className="bg-muted px-1 rounded">{t}</code> },
   ];
 
-  // URL detection
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
-  
-  const parts = text.split(urlRegex);
+  // Use a non-global regex for splitting to avoid lastIndex issues
+  const urlPattern = /(https?:\/\/[^\s]+)/;
+  const parts = text.split(urlPattern);
   
   return parts.map((part, i) => {
-    if (urlRegex.test(part)) {
+    // Check if this part is a URL (every other part from split is a match)
+    if (i % 2 === 1) {
       return (
         <a
           key={i}
@@ -45,14 +44,24 @@ function formatWhatsAppText(text: string): React.ReactNode {
     // Apply text formatting
     let formatted: React.ReactNode = part;
     for (const { regex, render } of patterns) {
-      if (typeof formatted === 'string') {
-        const matches = formatted.match(regex);
-        if (matches) {
-          formatted = formatted.replace(regex, (_, content) => `%%${content}%%`);
-          formatted = (formatted as string).split('%%').map((segment, j) => 
-            matches.some(m => m.includes(segment)) ? render(segment) : segment
-          );
+      if (typeof formatted === 'string' && regex.test(formatted)) {
+        // Reset lastIndex after test
+        regex.lastIndex = 0;
+        const segments: React.ReactNode[] = [];
+        let lastIndex = 0;
+        let match;
+        while ((match = regex.exec(formatted)) !== null) {
+          if (match.index > lastIndex) {
+            segments.push(formatted.slice(lastIndex, match.index));
+          }
+          segments.push(render(match[1], match.index));
+          lastIndex = match.index + match[0].length;
         }
+        if (lastIndex < formatted.length) {
+          segments.push(formatted.slice(lastIndex));
+        }
+        formatted = segments;
+        regex.lastIndex = 0;
       }
     }
     
@@ -75,15 +84,16 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
   const [isLoading, setIsLoading] = useState(false);
   const [mediaUrl, setMediaUrl] = useState(message.media_url);
   const [isPlaying, setIsPlaying] = useState(false);
-  const audioRef = React.useRef<HTMLAudioElement>(null);
+  const [audioProgress, setAudioProgress] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(message.metadata?.duration || 0);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   const handleDownload = async () => {
     if (!onDownload || mediaUrl) return;
     setIsLoading(true);
     try {
-      // This would call the download function
-      // const url = await onDownload();
-      // if (url) setMediaUrl(url);
+      const url = await (onDownload as any)();
+      if (url) setMediaUrl(url);
     } finally {
       setIsLoading(false);
     }
@@ -98,6 +108,22 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
       }
       setIsPlaying(!isPlaying);
     }
+  };
+
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      const { currentTime, duration } = audioRef.current;
+      if (duration && !isNaN(duration)) {
+        setAudioProgress((currentTime / duration) * 100);
+        setAudioDuration(duration);
+      }
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   switch (message.type) {
@@ -180,16 +206,21 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
               >
                 {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
               </Button>
-              <div className="flex-1 h-1 bg-muted rounded-full">
-                <div className="h-full bg-primary rounded-full" style={{ width: '0%' }} />
+              <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-primary rounded-full transition-all duration-200" 
+                  style={{ width: `${audioProgress}%` }} 
+                />
               </div>
-              <span className="text-xs text-muted-foreground">
-                {message.metadata?.duration ? `${Math.floor(message.metadata.duration / 60)}:${(message.metadata.duration % 60).toString().padStart(2, '0')}` : '0:00'}
+              <span className="text-xs text-muted-foreground min-w-[32px] text-right">
+                {formatDuration(audioDuration)}
               </span>
               <audio
                 ref={audioRef}
                 src={mediaUrl}
-                onEnded={() => setIsPlaying(false)}
+                onTimeUpdate={handleTimeUpdate}
+                onLoadedMetadata={handleTimeUpdate}
+                onEnded={() => { setIsPlaying(false); setAudioProgress(0); }}
                 className="hidden"
               />
             </>
@@ -214,9 +245,17 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
               </p>
             )}
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleDownload}>
-            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          </Button>
+          {mediaUrl ? (
+            <a href={mediaUrl} target="_blank" rel="noopener noreferrer">
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Download className="h-4 w-4" />
+              </Button>
+            </a>
+          ) : (
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleDownload} disabled={isLoading}>
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            </Button>
+          )}
         </div>
       );
 
