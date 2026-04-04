@@ -8,6 +8,10 @@ const corsHeaders = {
 
 const GRAPH_API = "https://graph.facebook.com/v22.0";
 
+const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -23,56 +27,35 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch WABA credentials from external DB
-    const externalDbUrl = Deno.env.get("EXTERNAL_DB_URL")!;
-    const externalDbCa = Deno.env.get("EXTERNAL_DB_CA_CERT");
+    // Fetch WABA credentials via db-query edge function (avoids TLS/socket issues)
+    const { data: dbResult, error: dbError } = await supabase.functions.invoke("db-query", {
+      body: {
+        action: "raw",
+        data: {
+          query: "SELECT waba_token, waba_number_id, waba_id FROM agents WHERE cod_agent = $1 AND hub = 'waba' LIMIT 1",
+          params: [cod_agent],
+        },
+      },
+    });
 
-    const { Pool } = await import("https://deno.land/x/postgres@v0.19.3/mod.ts");
-    
-    const poolConfig: any = {
-      connectionString: externalDbUrl,
-      size: 1,
-    };
-
-    if (externalDbCa) {
-      poolConfig.tls = {
-        enabled: true,
-        caCertificates: [externalDbCa],
-      };
-    }
-
-    const pool = new Pool(poolConfig, 1);
-    const conn = await pool.connect();
-
-    let waba_token: string;
-    let phone_number_id: string;
-    let waba_id: string;
-
-    try {
-      const result = await conn.queryObject<{
-        waba_token: string;
-        waba_number_id: string;
-        waba_id: string;
-      }>(
-        "SELECT waba_token, waba_number_id, waba_id FROM agents WHERE cod_agent = $1 AND hub = 'waba' LIMIT 1",
-        [cod_agent]
+    if (dbError) {
+      return new Response(
+        JSON.stringify({ error: "Failed to fetch agent credentials", details: String(dbError) }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
-
-      if (!result.rows.length) {
-        return new Response(
-          JSON.stringify({ error: "Agent not found or not WABA" }),
-          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      const agent = result.rows[0];
-      waba_token = agent.waba_token;
-      phone_number_id = agent.waba_number_id;
-      waba_id = agent.waba_id;
-    } finally {
-      conn.release();
-      await pool.end();
     }
+
+    const agent = dbResult?.data?.[0];
+    if (!agent) {
+      return new Response(
+        JSON.stringify({ error: "Agent not found or not WABA" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const waba_token = agent.waba_token;
+    const phone_number_id = agent.waba_number_id;
+    const waba_id = agent.waba_id;
 
     if (!waba_token || !phone_number_id) {
       return new Response(
