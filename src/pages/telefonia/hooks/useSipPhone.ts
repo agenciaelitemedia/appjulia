@@ -52,7 +52,7 @@ interface UseSipPhoneReturn {
   sendDTMF: (digit: string) => void;
 }
 
-export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (cause: string) => void): UseSipPhoneReturn {
+export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (cause: string) => void, isDialingRef?: React.RefObject<boolean>): UseSipPhoneReturn {
   const [status, setStatus] = useState<SipStatus>('idle');
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
