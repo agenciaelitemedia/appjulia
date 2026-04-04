@@ -285,7 +285,8 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     dialError,
     clearDialError,
     retryDial,
-  }), [sip, myExtension, codAgent, provider, isAvailable, showSoftphone, softphoneCentered, dialNumber, isDialing, dialContactName, dialError, clearDialError, retryDial]);
+    cancelDial,
+  }), [sip, myExtension, codAgent, provider, isAvailable, showSoftphone, softphoneCentered, dialNumber, isDialing, dialContactName, dialError, clearDialError, retryDial, cancelDial]);
 
   return (
     <PhoneContext.Provider value={value}>
