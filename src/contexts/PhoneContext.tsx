@@ -70,7 +70,6 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const handleCallEnded = useCallback((_info: CallEndedInfo) => {
-    // SIP calls don't have call_id — sync by since
     if (!codAgent) return;
     const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     supabase.functions.invoke(getPhoneProxy(provider), {
@@ -80,7 +79,12 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     }).catch(console.error);
   }, [codAgent, provider, queryClient]);
 
-  const sip = useSipPhone(handleCallEnded);
+  const handleCallFailed = useCallback((cause: string) => {
+    setDialError(`Falha na chamada: ${cause}`);
+    setIsDialing(false);
+  }, []);
+
+  const sip = useSipPhone(handleCallEnded, handleCallFailed);
 
   // Fetch user's extension (only if agent has active plan)
   useEffect(() => {
