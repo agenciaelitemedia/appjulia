@@ -254,7 +254,7 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (c
       setIsHeld(false);
       addDiagEvent('Call resumed');
     });
-  }, [startTimer, cleanupSession, getOrCreateAudio, addDiagEvent]);
+  }, [startTimer, startRingtone, stopRingtone, cleanupSession, getOrCreateAudio, addDiagEvent]);
 
   // Probe a single WebSocket URL — resolves true if connection opens, false on error/timeout
   const probeWs = useCallback((url: string, timeoutMs = 4000): Promise<boolean> => {
