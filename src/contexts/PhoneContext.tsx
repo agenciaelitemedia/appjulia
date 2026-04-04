@@ -254,6 +254,14 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     setSoftphoneCentered(false);
   }, []);
 
+  const cancelDial = useCallback(() => {
+    sip.hangup();
+    setIsDialing(false);
+    setDialError(null);
+    setShowSoftphone(false);
+    setSoftphoneCentered(false);
+  }, [sip]);
+
   const retryDial = useCallback(() => {
     if (lastDialArgs.current) {
       const { phone, contactName, origin, whatsappNumber } = lastDialArgs.current;
