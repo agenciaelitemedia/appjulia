@@ -54,6 +54,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   const [showSoftphone, setShowSoftphone] = useState(false);
   const [softphoneCentered, setSoftphoneCentered] = useState(false);
   const [isDialing, setIsDialing] = useState(false);
+  const isDialingRef = useRef(false);
   const [dialContactName, setDialContactName] = useState('');
   const [dialError, setDialError] = useState<string | null>(null);
   const lastDialArgs = useRef<{ phone: string; contactName?: string; origin?: 'CRM' | 'DISCADOR'; whatsappNumber?: string } | null>(null);
