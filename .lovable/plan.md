@@ -1,49 +1,54 @@
 
 
-# Correção: Cancelamento + Feedback Correto de Erro/Sucesso
+# Correção: Chamada vai para "Ringing" e depois "Canceled"
 
-## Problemas confirmados no código
+## Causa raiz identificada
 
-1. **Toast "sucesso" falso** (PhoneContext.tsx:231): `toast.success("Ligando para...")` dispara quando a API responde OK, mas a chamada SIP ainda não conectou. Se o SIP falhar depois, o usuário já viu mensagem de sucesso.
+O fluxo Api4Com funciona assim: ao discar, a API manda o PBX ligar **primeiro para o ramal do agente** (chamada incoming no SIP). Quando o agente atende, o PBX conecta ao número destino.
 
-2. **Sem botão cancelar durante discagem** (SoftphoneWidget.tsx:108-124): O estado `isDialing` renderiza animação mas nenhum botão de cancelar. O botão X no header está escondido quando `isDialing` (linha 279).
+Dois problemas confirmados no código:
 
-3. **Falha SIP não propagada**: `useSipPhone` chama `cleanupSession()` no evento `session.on('failed')`, que reseta status para `registered`, mas não avisa o PhoneContext. O `dialError` nunca é setado para falhas SIP.
+1. **Auto-answer não funciona**: O `newRTCSession` (linha 346) só faz auto-answer se o header `X-Api4comintegratedcall: true` estiver presente. Se o PBX não envia esse header, a chamada fica tocando sem resposta até o PBX cancelar por timeout. Solução: quando o sistema **acabou de iniciar uma discagem** (`isDialing=true`), deve auto-atender qualquer chamada incoming — pois é certamente a chamada de retorno do PBX.
 
-4. **Sem função `cancelDial`**: Não existe forma de cancelar uma discagem em andamento.
+2. **"Canceled" é silenciado**: No `session.on('failed')` (linha 196), quando `cause === 'Canceled'`, o `onCallFailed` **não é chamado**. O widget some silenciosamente sem mostrar erro. Isso precisa ser propagado.
 
 ## Alterações
 
-### 1. `useSipPhone.ts` — Novo callback `onCallFailed`
+### 1. `useSipPhone.ts` — Auto-answer quando discagem ativa + propagar "Canceled"
 
-- Aceitar parâmetro opcional `onCallFailed?: (cause: string) => void`
-- No evento `session.on('failed')`, chamar `onCallFailed(cause)` antes de `cleanupSession()`
-- Permite que PhoneContext capture falhas SIP
+- Aceitar novo parâmetro `isDialingRef` (ref booleano) para saber se o usuário acabou de iniciar uma discagem
+- No `newRTCSession` handler para incoming: se `isDialingRef.current === true`, fazer auto-answer imediatamente (além do check do header X-Api4comintegratedcall)
+- No `session.on('failed')`: remover o filtro `cause !== 'Canceled'` — sempre chamar `onCallFailedRef.current(cause)` para qualquer falha
 
-### 2. `PhoneContext.tsx` — Corrigir toast + cancelar + capturar falha SIP
+### 2. `PhoneContext.tsx` — Passar ref de isDialing ao hook
 
-- **Trocar** `toast.success(...)` por `toast.info("Discando...")` (linha 231)
-- **Passar** callback `onCallFailed` ao `useSipPhone` que seta `setDialError(causa)` e `setIsDialing(false)`
-- **Nova função** `cancelDial()`: chama `sip.hangup()`, reseta `isDialing`, `dialError`, fecha softphone
-- **Expor** `cancelDial` no contexto
+- Criar `isDialingRef = useRef(false)` sincronizado com `isDialing`
+- Passar ao `useSipPhone` para que o auto-answer funcione
+- No `handleCallFailed`: tratar "Canceled" com mensagem amigável ("Chamada cancelada ou não atendida")
 
-### 3. `SoftphoneWidget.tsx` — Botão cancelar visível
+### 3. `SoftphoneWidget.tsx` — Exibir erro de "Canceled"
 
-- No `renderDialingState()`: adicionar botão "Cancelar" vermelho abaixo da animação
-- No `renderCallingState()`: já tem botão desligar (OK)
-- No header (linha 279): mostrar botão X/Cancelar durante `isDialing` (remover `!isDialing` da condição)
-- Nova prop `onCancel` para chamar `cancelDial`
+- Já funciona se `onCallFailed` for chamado corretamente (o `dialError` será setado)
+- Nenhuma alteração necessária neste arquivo
 
-### 4. `MainLayout.tsx` — Passar `cancelDial`
+## Resumo técnico do fluxo corrigido
 
-- Importar `cancelDial` do contexto e passar como `onCancel` ao `SoftphoneWidget`
+```text
+Clique "Ligar"
+  → isDialing=true, isDialingRef=true
+  → API POST /dialer → PBX liga para ramal do agente
+  → SIP incoming call (newRTCSession)
+  → isDialingRef=true? → AUTO-ANSWER imediato
+  → PBX conecta ao destino → status=in-call
+  
+Se falhar (qualquer causa incluindo "Canceled"):
+  → onCallFailed(cause) → dialError setado → widget mostra erro
+```
 
 ## Arquivos alterados
 
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/telefonia/hooks/useSipPhone.ts` | Novo callback `onCallFailed` no `session.on('failed')` |
-| `src/contexts/PhoneContext.tsx` | `toast.info` em vez de `toast.success`; captura falha SIP; nova `cancelDial` |
-| `src/pages/telefonia/components/SoftphoneWidget.tsx` | Botão cancelar no estado dialing; prop `onCancel`; header X visível |
-| `src/components/layout/MainLayout.tsx` | Passar `cancelDial` como `onCancel` |
+| `src/pages/telefonia/hooks/useSipPhone.ts` | Auto-answer incoming quando isDialing; propagar "Canceled" no onCallFailed |
+| `src/contexts/PhoneContext.tsx` | isDialingRef sincronizado; mensagem amigável para "Canceled" |
 
