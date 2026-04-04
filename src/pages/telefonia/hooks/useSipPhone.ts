@@ -74,6 +74,51 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (c
   const uaRef = useRef<JsSIP.UA | null>(null);
   const sessionRef = useRef<RTCSession | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const ringtoneRef = useRef<{ ctx: AudioContext; osc: OscillatorNode; gain: GainNode; interval: ReturnType<typeof setInterval> } | null>(null);
+
+  const startRingtone = useCallback(() => {
+    stopRingtone();
+    try {
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 440;
+      gain.gain.value = 0;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      // Brazilian phone ring pattern: 1s on, 4s off
+      let on = true;
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      const interval = setInterval(() => {
+        on = !on;
+        gain.gain.setValueAtTime(on ? 0.15 : 0, ctx.currentTime);
+      }, on ? 1000 : 4000);
+      // Use alternating pattern: ring 1s, silence 4s
+      clearInterval(interval);
+      let phase = 0;
+      const ringInterval = setInterval(() => {
+        phase++;
+        const isRing = phase % 5 === 1 || phase % 5 === 2; // ~1s ring out of 2.5s cycle
+        gain.gain.setValueAtTime(isRing ? 0.12 : 0, ctx.currentTime);
+      }, 500);
+      ringtoneRef.current = { ctx, osc, gain, interval: ringInterval };
+    } catch {
+      // AudioContext not available
+    }
+  }, []);
+
+  const stopRingtone = useCallback(() => {
+    if (ringtoneRef.current) {
+      try {
+        ringtoneRef.current.osc.stop();
+        clearInterval(ringtoneRef.current.interval);
+        ringtoneRef.current.ctx.close();
+      } catch { /* ignore */ }
+      ringtoneRef.current = null;
+    }
+  }, []);
   const credsRef = useRef<SipCredentials | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const callStartedAtRef = useRef<string | null>(null);
@@ -144,6 +189,7 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (c
 
   const cleanupSession = useCallback(() => {
     fireCallEnded();
+    stopRingtone();
     const isRegistered = uaRef.current?.isRegistered();
     setStatus(isRegistered ? 'registered' : 'idle');
     stopTimer();
@@ -156,15 +202,17 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (c
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = null;
     }
-  }, [stopTimer, fireCallEnded]);
+  }, [stopTimer, fireCallEnded, stopRingtone]);
 
   const attachSessionEvents = useCallback((session: RTCSession) => {
     session.on('progress', () => {
       setStatus('ringing');
+      startRingtone();
       addDiagEvent('Call progress (ringing)');
     });
 
     session.on('accepted', () => {
+      stopRingtone();
       setStatus('in-call');
       callStartedAtRef.current = new Date().toISOString();
       startTimer();
@@ -206,7 +254,7 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (c
       setIsHeld(false);
       addDiagEvent('Call resumed');
     });
-  }, [startTimer, cleanupSession, getOrCreateAudio, addDiagEvent]);
+  }, [startTimer, startRingtone, stopRingtone, cleanupSession, getOrCreateAudio, addDiagEvent]);
 
   // Probe a single WebSocket URL — resolves true if connection opens, false on error/timeout
   const probeWs = useCallback((url: string, timeoutMs = 4000): Promise<boolean> => {
@@ -451,9 +499,10 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (c
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      stopRingtone();
       disconnect();
     };
-  }, [disconnect]);
+  }, [disconnect, stopRingtone]);
 
   return {
     status,
