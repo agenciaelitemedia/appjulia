@@ -37,6 +37,9 @@ interface PhoneContextType {
   dialNumber: (phone: string, contactName?: string, origin?: 'CRM' | 'DISCADOR', whatsappNumber?: string) => Promise<void>;
   isDialing: boolean;
   dialContactName: string;
+  dialError: string | null;
+  clearDialError: () => void;
+  retryDial: () => void;
 }
 
 const PhoneContext = createContext<PhoneContextType | undefined>(undefined);
