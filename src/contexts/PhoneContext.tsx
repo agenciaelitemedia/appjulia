@@ -40,6 +40,7 @@ interface PhoneContextType {
   dialError: string | null;
   clearDialError: () => void;
   retryDial: () => void;
+  cancelDial: () => void;
 }
 
 const PhoneContext = createContext<PhoneContextType | undefined>(undefined);
