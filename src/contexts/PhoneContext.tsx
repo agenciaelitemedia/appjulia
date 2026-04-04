@@ -243,6 +243,19 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       : !!myExtension.api4com_ramal
   );
 
+  const clearDialError = useCallback(() => {
+    setDialError(null);
+    setShowSoftphone(false);
+    setSoftphoneCentered(false);
+  }, []);
+
+  const retryDial = useCallback(() => {
+    if (lastDialArgs.current) {
+      const { phone, contactName, origin, whatsappNumber } = lastDialArgs.current;
+      dialNumber(phone, contactName, origin, whatsappNumber);
+    }
+  }, [dialNumber]);
+
   const value = useMemo(() => ({
     sip,
     myExtension,
@@ -256,6 +269,9 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     dialNumber,
     isDialing,
     dialContactName,
+    dialError,
+    clearDialError,
+    retryDial,
   }), [sip, myExtension, codAgent, provider, isAvailable, showSoftphone, softphoneCentered, dialNumber, isDialing, dialContactName]);
 
   return (
