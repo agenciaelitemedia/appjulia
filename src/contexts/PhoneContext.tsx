@@ -54,6 +54,8 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   const [softphoneCentered, setSoftphoneCentered] = useState(false);
   const [isDialing, setIsDialing] = useState(false);
   const [dialContactName, setDialContactName] = useState('');
+  const [dialError, setDialError] = useState<string | null>(null);
+  const lastDialArgs = useRef<{ phone: string; contactName?: string; origin?: 'CRM' | 'DISCADOR'; whatsappNumber?: string } | null>(null);
   const autoConnected = useRef(false);
   const retryCount = useRef(0);
   const maxRetries = 8; // max ~5min backoff (5*2^7 = 640s capped at 300s)
