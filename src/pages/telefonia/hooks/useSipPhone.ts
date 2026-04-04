@@ -207,10 +207,12 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (c
   const attachSessionEvents = useCallback((session: RTCSession) => {
     session.on('progress', () => {
       setStatus('ringing');
+      startRingtone();
       addDiagEvent('Call progress (ringing)');
     });
 
     session.on('accepted', () => {
+      stopRingtone();
       setStatus('in-call');
       callStartedAtRef.current = new Date().toISOString();
       startTimer();
