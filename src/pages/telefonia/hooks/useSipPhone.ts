@@ -52,7 +52,7 @@ interface UseSipPhoneReturn {
   sendDTMF: (digit: string) => void;
 }
 
-export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneReturn {
+export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (cause: string) => void): UseSipPhoneReturn {
   const [status, setStatus] = useState<SipStatus>('idle');
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
@@ -80,6 +80,8 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
   const callerInfoRef = useRef<string>('');
   const onCallEndedRef = useRef(onCallEnded);
   onCallEndedRef.current = onCallEnded;
+  const onCallFailedRef = useRef(onCallFailed);
+  onCallFailedRef.current = onCallFailed;
   const durationRef = useRef(0);
 
   const getOrCreateAudio = useCallback(() => {
@@ -191,6 +193,9 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback): UseSipPhoneRetur
     session.on('failed', (evt: any) => {
       const cause = evt?.cause || 'Unknown';
       addDiagEvent(`Call failed: ${cause}`);
+      if (cause !== 'Canceled') {
+        onCallFailedRef.current?.(cause);
+      }
       cleanupSession();
     });
 

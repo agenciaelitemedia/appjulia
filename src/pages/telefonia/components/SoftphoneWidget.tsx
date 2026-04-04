@@ -22,6 +22,7 @@ interface SoftphoneWidgetProps {
   dialError?: string | null;
   onRetry?: () => void;
   onDismissError?: () => void;
+  onCancel?: () => void;
 }
 
 const statusConfig: Record<SipStatus, { label: string; color: string; dotColor: string }> = {
@@ -59,6 +60,7 @@ export const SoftphoneWidget = React.forwardRef<HTMLDivElement, SoftphoneWidgetP
   dialError = null,
   onRetry,
   onDismissError,
+  onCancel,
 }, ref) {
   const [minimized, setMinimized] = useState(false);
   const [showDTMF, setShowDTMF] = useState(false);
@@ -120,6 +122,17 @@ export const SoftphoneWidget = React.forwardRef<HTMLDivElement, SoftphoneWidgetP
           <p className="text-sm text-muted-foreground">Conectando chamada...</p>
         </div>
       </div>
+      {onCancel && (
+        <Button
+          size="sm"
+          variant="destructive"
+          className="gap-1.5"
+          onClick={onCancel}
+        >
+          <PhoneOff className="h-3.5 w-3.5" />
+          Cancelar
+        </Button>
+      )}
     </div>
   );
 
@@ -276,8 +289,12 @@ export const SoftphoneWidget = React.forwardRef<HTMLDivElement, SoftphoneWidgetP
               <span className={cn('h-2.5 w-2.5 rounded-full', headerCfg.dotColor)} />
               <Badge variant="secondary" className={cn('text-xs font-medium', headerCfg.color)}>{headerCfg.label}</Badge>
             </div>
-            {!isActive && !isDialing && (
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={dialError ? (onDismissError || handleManualClose) : handleManualClose}>
+            {!isActive && (
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={
+                isDialing ? (onCancel || handleManualClose) :
+                dialError ? (onDismissError || handleManualClose) :
+                handleManualClose
+              }>
                 <X className="h-4 w-4" />
               </Button>
             )}

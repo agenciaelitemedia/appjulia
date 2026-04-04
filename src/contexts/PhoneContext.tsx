@@ -40,6 +40,7 @@ interface PhoneContextType {
   dialError: string | null;
   clearDialError: () => void;
   retryDial: () => void;
+  cancelDial: () => void;
 }
 
 const PhoneContext = createContext<PhoneContextType | undefined>(undefined);
@@ -69,7 +70,6 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const handleCallEnded = useCallback((_info: CallEndedInfo) => {
-    // SIP calls don't have call_id — sync by since
     if (!codAgent) return;
     const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     supabase.functions.invoke(getPhoneProxy(provider), {
@@ -79,7 +79,12 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     }).catch(console.error);
   }, [codAgent, provider, queryClient]);
 
-  const sip = useSipPhone(handleCallEnded);
+  const handleCallFailed = useCallback((cause: string) => {
+    setDialError(`Falha na chamada: ${cause}`);
+    setIsDialing(false);
+  }, []);
+
+  const sip = useSipPhone(handleCallEnded, handleCallFailed);
 
   // Fetch user's extension (only if agent has active plan)
   useEffect(() => {
@@ -228,7 +233,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       const callId = data?.data?.call_id || data?.data?.id;
       if (callId) syncQueueManager.enqueue(String(callId));
 
-      toast.success(`Ligando para ${contactName || formatted}...`);
+      toast.info(`Discando para ${contactName || formatted}...`);
     } catch (err: any) {
       const msg = err.message || 'Erro ao discar';
       setDialError(msg.includes('not registered') ? 'Ramal SIP não registrado. Verifique se o softphone está conectado.' : msg);
@@ -248,6 +253,14 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     setShowSoftphone(false);
     setSoftphoneCentered(false);
   }, []);
+
+  const cancelDial = useCallback(() => {
+    sip.hangup();
+    setIsDialing(false);
+    setDialError(null);
+    setShowSoftphone(false);
+    setSoftphoneCentered(false);
+  }, [sip]);
 
   const retryDial = useCallback(() => {
     if (lastDialArgs.current) {
@@ -272,7 +285,8 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     dialError,
     clearDialError,
     retryDial,
-  }), [sip, myExtension, codAgent, provider, isAvailable, showSoftphone, softphoneCentered, dialNumber, isDialing, dialContactName, dialError, clearDialError, retryDial]);
+    cancelDial,
+  }), [sip, myExtension, codAgent, provider, isAvailable, showSoftphone, softphoneCentered, dialNumber, isDialing, dialContactName, dialError, clearDialError, retryDial, cancelDial]);
 
   return (
     <PhoneContext.Provider value={value}>
