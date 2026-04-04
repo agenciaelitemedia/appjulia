@@ -340,16 +340,27 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (c
       addDiagEvent(`Incoming call from ${incomingCaller}`);
       attachSessionEvents(session);
 
-      // Auto-answer for integrated calls (check custom headers)
-      const request = (session as any).request;
-      if (request) {
-        const integratedHeader = request.getHeader?.('X-Api4comintegratedcall');
-        if (integratedHeader === 'true') {
-          addDiagEvent('Auto-answering integrated call');
-          session.answer({
-            mediaConstraints: { audio: true, video: false },
-          });
+      // Auto-answer: either integrated call header OR active dialing (PBX callback)
+      const shouldAutoAnswer = (() => {
+        if (isDialingRef?.current) {
+          addDiagEvent('Auto-answering: active dial detected');
+          return true;
         }
+        const request = (session as any).request;
+        if (request) {
+          const integratedHeader = request.getHeader?.('X-Api4comintegratedcall');
+          if (integratedHeader === 'true') {
+            addDiagEvent('Auto-answering: integrated call header');
+            return true;
+          }
+        }
+        return false;
+      })();
+
+      if (shouldAutoAnswer) {
+        session.answer({
+          mediaConstraints: { audio: true, video: false },
+        });
       }
     });
 

@@ -264,6 +264,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   const cancelDial = useCallback(() => {
     sip.hangup();
     setIsDialing(false);
+    isDialingRef.current = false;
     setDialError(null);
     setShowSoftphone(false);
     setSoftphoneCentered(false);
