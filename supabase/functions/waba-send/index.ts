@@ -8,6 +8,10 @@ const corsHeaders = {
 
 const GRAPH_API = "https://graph.facebook.com/v22.0";
 
+const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -23,57 +27,35 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch WABA credentials from external DB
-    const externalDbUrl = Deno.env.get("EXTERNAL_DB_URL")!;
-    const externalDbCa = Deno.env.get("EXTERNAL_DB_CA_CERT");
+    // Fetch WABA credentials via db-query edge function (avoids TLS/socket issues)
+    const { data: dbResult, error: dbError } = await supabase.functions.invoke("db-query", {
+      body: {
+        action: "raw",
+        data: {
+          query: "SELECT waba_token, waba_number_id, waba_id FROM agents WHERE cod_agent = $1 AND hub = 'waba' LIMIT 1",
+          params: [cod_agent],
+        },
+      },
+    });
 
-    // Use pg to query external DB
-    const { Pool } = await import("https://deno.land/x/postgres@v0.19.3/mod.ts");
-    
-    const poolConfig: any = {
-      connectionString: externalDbUrl,
-      size: 1,
-    };
-
-    if (externalDbCa) {
-      poolConfig.tls = {
-        enabled: true,
-        caCertificates: [externalDbCa],
-      };
-    }
-
-    const pool = new Pool(poolConfig, 1);
-    const conn = await pool.connect();
-
-    let waba_token: string;
-    let phone_number_id: string;
-    let waba_id: string;
-
-    try {
-      const result = await conn.queryObject<{
-        waba_token: string;
-        waba_number_id: string;
-        waba_id: string;
-      }>(
-        "SELECT waba_token, waba_number_id, waba_id FROM agents WHERE cod_agent = $1 AND hub = 'waba' LIMIT 1",
-        [cod_agent]
+    if (dbError) {
+      return new Response(
+        JSON.stringify({ error: "Failed to fetch agent credentials", details: String(dbError) }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
-
-      if (!result.rows.length) {
-        return new Response(
-          JSON.stringify({ error: "Agent not found or not WABA" }),
-          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      const agent = result.rows[0];
-      waba_token = agent.waba_token;
-      phone_number_id = agent.waba_number_id;
-      waba_id = agent.waba_id;
-    } finally {
-      conn.release();
-      await pool.end();
     }
+
+    const agent = dbResult?.data?.[0];
+    if (!agent) {
+      return new Response(
+        JSON.stringify({ error: "Agent not found or not WABA" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const waba_token = agent.waba_token;
+    const phone_number_id = agent.waba_number_id;
+    const waba_id = agent.waba_id;
 
     if (!waba_token || !phone_number_id) {
       return new Response(
@@ -115,6 +97,86 @@ Deno.serve(async (req) => {
         });
       }
 
+      case "send_media": {
+        const { to, media_type, base64, mimetype, filename, caption } = params;
+        if (!to || !base64 || !mimetype || !media_type) {
+          return new Response(
+            JSON.stringify({ error: "to, media_type, base64, and mimetype are required" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const cleanNumber = to.replace(/\D/g, "");
+
+        // Step 1: Upload media to Meta
+        const binaryStr = atob(base64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+
+        const formData = new FormData();
+        const blob = new Blob([bytes], { type: mimetype });
+        formData.append("file", blob, filename || "file");
+        formData.append("messaging_product", "whatsapp");
+        formData.append("type", mimetype);
+
+        const uploadResp = await fetch(`${GRAPH_API}/${phone_number_id}/media`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${waba_token}`,
+          },
+          body: formData,
+        });
+
+        const uploadData = await uploadResp.json();
+
+        if (!uploadResp.ok || !uploadData.id) {
+          return new Response(
+            JSON.stringify({ error: "Failed to upload media", details: uploadData }),
+            { status: uploadResp.status || 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const mediaId = uploadData.id;
+
+        // Step 2: Send message with media_id
+        // Map media_type to WhatsApp API type
+        const waType = media_type === "audio" ? "audio"
+          : media_type === "video" ? "video"
+          : media_type === "document" ? "document"
+          : media_type === "sticker" ? "sticker"
+          : "image";
+
+        const mediaPayload: any = { id: mediaId };
+        if (caption && waType !== "audio" && waType !== "sticker") {
+          mediaPayload.caption = caption;
+        }
+        if (waType === "document" && filename) {
+          mediaPayload.filename = filename;
+        }
+
+        const msgResp = await fetch(`${GRAPH_API}/${phone_number_id}/messages`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${waba_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            to: cleanNumber,
+            type: waType,
+            [waType]: mediaPayload,
+          }),
+        });
+
+        const msgData = await msgResp.json();
+        return new Response(JSON.stringify(msgData), {
+          status: msgResp.ok ? 200 : msgResp.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       case "download_media": {
         const { media_id } = params;
         if (!media_id) {
@@ -151,13 +213,13 @@ Deno.serve(async (req) => {
         }
 
         const mediaBuffer = await mediaResp.arrayBuffer();
-        const base64 = btoa(
+        const base64Out = btoa(
           new Uint8Array(mediaBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
         );
 
         return new Response(
           JSON.stringify({
-            base64,
+            base64: base64Out,
             mimetype: mediaInfo.mime_type || mediaResp.headers.get("content-type"),
             file_size: mediaInfo.file_size,
           }),
