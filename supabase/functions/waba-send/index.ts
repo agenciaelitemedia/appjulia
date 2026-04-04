@@ -27,7 +27,6 @@ Deno.serve(async (req) => {
     const externalDbUrl = Deno.env.get("EXTERNAL_DB_URL")!;
     const externalDbCa = Deno.env.get("EXTERNAL_DB_CA_CERT");
 
-    // Use pg to query external DB
     const { Pool } = await import("https://deno.land/x/postgres@v0.19.3/mod.ts");
     
     const poolConfig: any = {
@@ -115,6 +114,86 @@ Deno.serve(async (req) => {
         });
       }
 
+      case "send_media": {
+        const { to, media_type, base64, mimetype, filename, caption } = params;
+        if (!to || !base64 || !mimetype || !media_type) {
+          return new Response(
+            JSON.stringify({ error: "to, media_type, base64, and mimetype are required" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const cleanNumber = to.replace(/\D/g, "");
+
+        // Step 1: Upload media to Meta
+        const binaryStr = atob(base64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+
+        const formData = new FormData();
+        const blob = new Blob([bytes], { type: mimetype });
+        formData.append("file", blob, filename || "file");
+        formData.append("messaging_product", "whatsapp");
+        formData.append("type", mimetype);
+
+        const uploadResp = await fetch(`${GRAPH_API}/${phone_number_id}/media`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${waba_token}`,
+          },
+          body: formData,
+        });
+
+        const uploadData = await uploadResp.json();
+
+        if (!uploadResp.ok || !uploadData.id) {
+          return new Response(
+            JSON.stringify({ error: "Failed to upload media", details: uploadData }),
+            { status: uploadResp.status || 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const mediaId = uploadData.id;
+
+        // Step 2: Send message with media_id
+        // Map media_type to WhatsApp API type
+        const waType = media_type === "audio" ? "audio"
+          : media_type === "video" ? "video"
+          : media_type === "document" ? "document"
+          : media_type === "sticker" ? "sticker"
+          : "image";
+
+        const mediaPayload: any = { id: mediaId };
+        if (caption && waType !== "audio" && waType !== "sticker") {
+          mediaPayload.caption = caption;
+        }
+        if (waType === "document" && filename) {
+          mediaPayload.filename = filename;
+        }
+
+        const msgResp = await fetch(`${GRAPH_API}/${phone_number_id}/messages`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${waba_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            to: cleanNumber,
+            type: waType,
+            [waType]: mediaPayload,
+          }),
+        });
+
+        const msgData = await msgResp.json();
+        return new Response(JSON.stringify(msgData), {
+          status: msgResp.ok ? 200 : msgResp.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       case "download_media": {
         const { media_id } = params;
         if (!media_id) {
@@ -151,13 +230,13 @@ Deno.serve(async (req) => {
         }
 
         const mediaBuffer = await mediaResp.arrayBuffer();
-        const base64 = btoa(
+        const base64Out = btoa(
           new Uint8Array(mediaBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
         );
 
         return new Response(
           JSON.stringify({
-            base64,
+            base64: base64Out,
             mimetype: mediaInfo.mime_type || mediaResp.headers.get("content-type"),
             file_size: mediaInfo.file_size,
           }),
