@@ -215,6 +215,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     setDialContactName(contactName || formatted);
     setDialError(null);
     setIsDialing(true);
+    isDialingRef.current = true;
     setShowSoftphone(true);
     setSoftphoneCentered(true);
 
