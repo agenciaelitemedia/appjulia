@@ -16,8 +16,10 @@ export function useEnsurePromptGeneratorModule() {
         const mod = modules.find((m: any) => m.code === 'prompt_generator');
 
         if (mod) {
-          if (mod.route !== '/admin/prompts' || !mod.is_menu_visible) {
+          if (mod.route !== '/admin/prompts' || !mod.is_menu_visible || mod.name !== 'Prompts Implantação') {
             await externalDb.updateModule(mod.id, {
+              name: 'Prompts Implantação',
+              description: 'Gestão de prompts de implantação e qualificação jurídica com IA',
               route: '/admin/prompts',
               is_menu_visible: true,
               menu_group: 'ADMINISTRATIVO',
