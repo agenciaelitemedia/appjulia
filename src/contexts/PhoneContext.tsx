@@ -37,6 +37,9 @@ interface PhoneContextType {
   dialNumber: (phone: string, contactName?: string, origin?: 'CRM' | 'DISCADOR', whatsappNumber?: string) => Promise<void>;
   isDialing: boolean;
   dialContactName: string;
+  dialError: string | null;
+  clearDialError: () => void;
+  retryDial: () => void;
 }
 
 const PhoneContext = createContext<PhoneContextType | undefined>(undefined);
@@ -51,6 +54,8 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   const [softphoneCentered, setSoftphoneCentered] = useState(false);
   const [isDialing, setIsDialing] = useState(false);
   const [dialContactName, setDialContactName] = useState('');
+  const [dialError, setDialError] = useState<string | null>(null);
+  const lastDialArgs = useRef<{ phone: string; contactName?: string; origin?: 'CRM' | 'DISCADOR'; whatsappNumber?: string } | null>(null);
   const autoConnected = useRef(false);
   const retryCount = useRef(0);
   const maxRetries = 8; // max ~5min backoff (5*2^7 = 640s capped at 300s)
@@ -185,7 +190,6 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Provider-aware link check
     const isLinked = provider === '3cplus'
       ? !!(myExtension.threecplus_agent_id || myExtension.threecplus_extension)
       : !!myExtension.api4com_ramal;
@@ -194,17 +198,21 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Check SIP registration before dialing
-    if (sip.status !== 'registered' && sip.status !== 'in-call' && sip.status !== 'calling' && sip.status !== 'ringing') {
-      toast.info('SIP não registrado. Reconectando...');
-      await connectSip();
-      // Wait briefly for registration
-      await new Promise(r => setTimeout(r, 3000));
-    }
+    // Save args for retry
+    lastDialArgs.current = { phone, contactName, origin, whatsappNumber };
 
     const { formatted } = formatPhoneForDialing(phone);
     setDialContactName(contactName || formatted);
+    setDialError(null);
     setIsDialing(true);
+    setShowSoftphone(true);
+    setSoftphoneCentered(true);
+
+    // Check SIP registration before dialing
+    if (sip.status !== 'registered' && sip.status !== 'in-call' && sip.status !== 'calling' && sip.status !== 'ringing') {
+      await connectSip();
+      await new Promise(r => setTimeout(r, 3000));
+    }
 
     const metadata: Record<string, unknown> = {};
     if (origin) metadata.origin = origin;
@@ -221,14 +229,9 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       if (callId) syncQueueManager.enqueue(String(callId));
 
       toast.success(`Ligando para ${contactName || formatted}...`);
-      setShowSoftphone(true);
     } catch (err: any) {
       const msg = err.message || 'Erro ao discar';
-      if (msg.includes('user not registered') || msg.includes('not registered')) {
-        toast.error('Ramal SIP não registrado. Verifique se o softphone está conectado.');
-      } else {
-        toast.error(msg);
-      }
+      setDialError(msg.includes('not registered') ? 'Ramal SIP não registrado. Verifique se o softphone está conectado.' : msg);
     } finally {
       setIsDialing(false);
     }
@@ -239,6 +242,19 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       ? !!(myExtension.threecplus_agent_id || myExtension.threecplus_extension)
       : !!myExtension.api4com_ramal
   );
+
+  const clearDialError = useCallback(() => {
+    setDialError(null);
+    setShowSoftphone(false);
+    setSoftphoneCentered(false);
+  }, []);
+
+  const retryDial = useCallback(() => {
+    if (lastDialArgs.current) {
+      const { phone, contactName, origin, whatsappNumber } = lastDialArgs.current;
+      dialNumber(phone, contactName, origin, whatsappNumber);
+    }
+  }, [dialNumber]);
 
   const value = useMemo(() => ({
     sip,
@@ -253,7 +269,10 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     dialNumber,
     isDialing,
     dialContactName,
-  }), [sip, myExtension, codAgent, provider, isAvailable, showSoftphone, softphoneCentered, dialNumber, isDialing, dialContactName]);
+    dialError,
+    clearDialError,
+    retryDial,
+  }), [sip, myExtension, codAgent, provider, isAvailable, showSoftphone, softphoneCentered, dialNumber, isDialing, dialContactName, dialError, clearDialError, retryDial]);
 
   return (
     <PhoneContext.Provider value={value}>

@@ -10,9 +10,9 @@ import { SoftphoneWidget } from '@/pages/telefonia/components/SoftphoneWidget';
 import { cn } from '@/lib/utils';
 
 function GlobalSoftphone() {
-  const { sip, showSoftphone, setShowSoftphone, softphoneCentered, setSoftphoneCentered, dialContactName } = usePhone();
+  const { sip, showSoftphone, setShowSoftphone, softphoneCentered, setSoftphoneCentered, dialContactName, isDialing, dialError, clearDialError, retryDial } = usePhone();
 
-  if (!showSoftphone) return null;
+  if (!showSoftphone && !isDialing && !dialError) return null;
 
   return (
     <SoftphoneWidget
@@ -27,6 +27,10 @@ function GlobalSoftphone() {
       onToggleHold={sip.toggleHold}
       onSendDTMF={sip.sendDTMF}
       centered={softphoneCentered}
+      isDialing={isDialing}
+      dialError={dialError}
+      onRetry={retryDial}
+      onDismissError={clearDialError}
       onCallFinished={() => {
         setShowSoftphone(false);
         setSoftphoneCentered(false);
