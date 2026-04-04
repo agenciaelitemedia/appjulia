@@ -80,6 +80,8 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (c
   const callerInfoRef = useRef<string>('');
   const onCallEndedRef = useRef(onCallEnded);
   onCallEndedRef.current = onCallEnded;
+  const onCallFailedRef = useRef(onCallFailed);
+  onCallFailedRef.current = onCallFailed;
   const durationRef = useRef(0);
 
   const getOrCreateAudio = useCallback(() => {
