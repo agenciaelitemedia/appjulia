@@ -259,7 +259,7 @@ export const SoftphoneWidget = React.forwardRef<HTMLDivElement, SoftphoneWidgetP
     if (status === 'ringing') return renderRingingState();
     if (status === 'in-call') return renderInCallState();
     if (status === 'registered') return (
-      <p className="text-center text-sm text-muted-foreground py-4">Softphone pronto</p>
+      <p className="text-center text-sm text-muted-foreground py-4">Ligação Finalizada</p>
     );
     return null;
   };
