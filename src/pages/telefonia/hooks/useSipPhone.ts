@@ -189,6 +189,7 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (c
 
   const cleanupSession = useCallback(() => {
     fireCallEnded();
+    stopRingtone();
     const isRegistered = uaRef.current?.isRegistered();
     setStatus(isRegistered ? 'registered' : 'idle');
     stopTimer();
@@ -201,7 +202,7 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (c
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = null;
     }
-  }, [stopTimer, fireCallEnded]);
+  }, [stopTimer, fireCallEnded, stopRingtone]);
 
   const attachSessionEvents = useCallback((session: RTCSession) => {
     session.on('progress', () => {
