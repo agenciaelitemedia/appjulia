@@ -60,6 +60,7 @@ export const SoftphoneWidget = React.forwardRef<HTMLDivElement, SoftphoneWidgetP
   dialError = null,
   onRetry,
   onDismissError,
+  onCancel,
 }, ref) {
   const [minimized, setMinimized] = useState(false);
   const [showDTMF, setShowDTMF] = useState(false);
