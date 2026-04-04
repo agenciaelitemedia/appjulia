@@ -89,7 +89,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     isDialingRef.current = false;
   }, []);
 
-  const sip = useSipPhone(handleCallEnded, handleCallFailed);
+  const sip = useSipPhone(handleCallEnded, handleCallFailed, isDialingRef);
 
   // Fetch user's extension (only if agent has active plan)
   useEffect(() => {
