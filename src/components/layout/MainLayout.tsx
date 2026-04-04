@@ -31,6 +31,7 @@ function GlobalSoftphone() {
       dialError={dialError}
       onRetry={retryDial}
       onDismissError={clearDialError}
+      onCancel={cancelDial}
       onCallFinished={() => {
         setShowSoftphone(false);
         setSoftphoneCentered(false);
