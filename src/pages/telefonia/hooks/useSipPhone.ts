@@ -52,7 +52,7 @@ interface UseSipPhoneReturn {
   sendDTMF: (digit: string) => void;
 }
 
-export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (cause: string) => void): UseSipPhoneReturn {
+export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (cause: string) => void, isDialingRef?: React.RefObject<boolean>): UseSipPhoneReturn {
   const [status, setStatus] = useState<SipStatus>('idle');
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
@@ -193,9 +193,7 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (c
     session.on('failed', (evt: any) => {
       const cause = evt?.cause || 'Unknown';
       addDiagEvent(`Call failed: ${cause}`);
-      if (cause !== 'Canceled') {
-        onCallFailedRef.current?.(cause);
-      }
+      onCallFailedRef.current?.(cause);
       cleanupSession();
     });
 
@@ -342,16 +340,27 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (c
       addDiagEvent(`Incoming call from ${incomingCaller}`);
       attachSessionEvents(session);
 
-      // Auto-answer for integrated calls (check custom headers)
-      const request = (session as any).request;
-      if (request) {
-        const integratedHeader = request.getHeader?.('X-Api4comintegratedcall');
-        if (integratedHeader === 'true') {
-          addDiagEvent('Auto-answering integrated call');
-          session.answer({
-            mediaConstraints: { audio: true, video: false },
-          });
+      // Auto-answer: either integrated call header OR active dialing (PBX callback)
+      const shouldAutoAnswer = (() => {
+        if (isDialingRef?.current) {
+          addDiagEvent('Auto-answering: active dial detected');
+          return true;
         }
+        const request = (session as any).request;
+        if (request) {
+          const integratedHeader = request.getHeader?.('X-Api4comintegratedcall');
+          if (integratedHeader === 'true') {
+            addDiagEvent('Auto-answering: integrated call header');
+            return true;
+          }
+        }
+        return false;
+      })();
+
+      if (shouldAutoAnswer) {
+        session.answer({
+          mediaConstraints: { audio: true, video: false },
+        });
       }
     });
 

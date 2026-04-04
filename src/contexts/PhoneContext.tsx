@@ -54,6 +54,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   const [showSoftphone, setShowSoftphone] = useState(false);
   const [softphoneCentered, setSoftphoneCentered] = useState(false);
   const [isDialing, setIsDialing] = useState(false);
+  const isDialingRef = useRef(false);
   const [dialContactName, setDialContactName] = useState('');
   const [dialError, setDialError] = useState<string | null>(null);
   const lastDialArgs = useRef<{ phone: string; contactName?: string; origin?: 'CRM' | 'DISCADOR'; whatsappNumber?: string } | null>(null);
@@ -80,11 +81,15 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   }, [codAgent, provider, queryClient]);
 
   const handleCallFailed = useCallback((cause: string) => {
-    setDialError(`Falha na chamada: ${cause}`);
+    const friendlyMsg = cause === 'Canceled'
+      ? 'Chamada cancelada ou não atendida'
+      : `Falha na chamada: ${cause}`;
+    setDialError(friendlyMsg);
     setIsDialing(false);
+    isDialingRef.current = false;
   }, []);
 
-  const sip = useSipPhone(handleCallEnded, handleCallFailed);
+  const sip = useSipPhone(handleCallEnded, handleCallFailed, isDialingRef);
 
   // Fetch user's extension (only if agent has active plan)
   useEffect(() => {
@@ -210,6 +215,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     setDialContactName(contactName || formatted);
     setDialError(null);
     setIsDialing(true);
+    isDialingRef.current = true;
     setShowSoftphone(true);
     setSoftphoneCentered(true);
 
@@ -239,6 +245,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       setDialError(msg.includes('not registered') ? 'Ramal SIP não registrado. Verifique se o softphone está conectado.' : msg);
     } finally {
       setIsDialing(false);
+      isDialingRef.current = false;
     }
   }, [myExtension, codAgent, provider, sip.status, connectSip]);
 
@@ -257,6 +264,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   const cancelDial = useCallback(() => {
     sip.hangup();
     setIsDialing(false);
+    isDialingRef.current = false;
     setDialError(null);
     setShowSoftphone(false);
     setSoftphoneCentered(false);
