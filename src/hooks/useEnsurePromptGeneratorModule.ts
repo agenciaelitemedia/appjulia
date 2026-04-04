@@ -28,9 +28,9 @@ export function useEnsurePromptGeneratorModule() {
         }
 
         await externalDb.createModule({
-          name: 'Gerador de Prompt',
+          name: 'Prompts Implantação',
           code: 'prompt_generator' as any,
-          description: 'Gerador de roteiros de qualificação jurídica com IA',
+          description: 'Gestão de prompts de implantação e qualificação jurídica com IA',
           icon: 'FileText',
           route: '/admin/prompts',
           menu_group: 'ADMINISTRATIVO',
