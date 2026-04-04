@@ -1,54 +1,94 @@
 
 
-# Correção: Chamada vai para "Ringing" e depois "Canceled"
+# Análise Completa do Chat — Problemas e Plano de Correção
 
-## Causa raiz identificada
+## Problemas Identificados
 
-O fluxo Api4Com funciona assim: ao discar, a API manda o PBX ligar **primeiro para o ramal do agente** (chamada incoming no SIP). Quando o agente atende, o PBX conecta ao número destino.
+### 1. Chat não suporta WABA (API Oficial)
+O `WhatsAppDataContext` depende exclusivamente do `useUaZapi` para envio e busca de mensagens. Agentes com `hub === 'waba'` não conseguem usar o chat, pois não possuem `evo_url`/`evo_apikey` — o `isConfigured` fica `false` e nada funciona.
 
-Dois problemas confirmados no código:
+### 2. Falta de `cod_agent` no fluxo
+O `loadContacts` filtra por `client_id` (user.id), mas o chat deveria também filtrar por `cod_agent` para separar conversas por agente. Atualmente o `ChatPage` chama `loadContacts()` sem `codAgent`, e não há seleção de agente no chat.
 
-1. **Auto-answer não funciona**: O `newRTCSession` (linha 346) só faz auto-answer se o header `X-Api4comintegratedcall: true` estiver presente. Se o PBX não envia esse header, a chamada fica tocando sem resposta até o PBX cancelar por timeout. Solução: quando o sistema **acabou de iniciar uma discagem** (`isDialing=true`), deve auto-atender qualquer chamada incoming — pois é certamente a chamada de retorno do PBX.
+### 3. Tabelas vazias — sem sincronização automática
+As tabelas `chat_contacts` e `chat_messages` têm 0 registros. Os dados chegam via webhooks (`uazapi-webhook` e `meta-webhook`) mas o chat não busca dados do `webhook_logs` como fallback. A sincronização manual (`syncContacts`) só funciona com UaZapi.
 
-2. **"Canceled" é silenciado**: No `session.on('failed')` (linha 196), quando `cause === 'Canceled'`, o `onCallFailed` **não é chamado**. O widget some silenciosamente sem mostrar erro. Isso precisa ser propagado.
+### 4. `onConflict: 'message_id'` inválido
+Na linha 301 do contexto, o upsert de mensagens usa `onConflict: 'message_id'`, mas `message_id` não tem constraint UNIQUE na tabela `chat_messages`. Isso causa erro silencioso.
 
-## Alterações
+### 5. Envio de mídia incompleto
+- `sendMedia` converte para base64 mas não faz optimistic update (mensagem não aparece na tela durante envio)
+- Não salva a mensagem de mídia no Supabase após envio
+- `handleDownload` no `MediaContent` está comentado (linhas 84-86 do MessageBubble)
 
-### 1. `useSipPhone.ts` — Auto-answer quando discagem ativa + propagar "Canceled"
+### 6. Realtime duplica mensagens
+O canal realtime de INSERT em `chat_messages` adiciona mensagens ao state, mas o `sendMessage` já faz optimistic update + save. Quando a mensagem é salva no Supabase, o realtime a adiciona novamente → mensagem duplicada.
 
-- Aceitar novo parâmetro `isDialingRef` (ref booleano) para saber se o usuário acabou de iniciar uma discagem
-- No `newRTCSession` handler para incoming: se `isDialingRef.current === true`, fazer auto-answer imediatamente (além do check do header X-Api4comintegratedcall)
-- No `session.on('failed')`: remover o filtro `cause !== 'Canceled'` — sempre chamar `onCallFailedRef.current(cause)` para qualquer falha
+### 7. Botões do header não funcionam
+- "Chamada de voz" e "Chamada de vídeo" no `ChatHeader` não fazem nada
+- "Ver detalhes", "Arquivar", "Silenciar", "Excluir" não têm handlers implementados
 
-### 2. `PhoneContext.tsx` — Passar ref de isDialing ao hook
+### 8. Gravação de áudio desabilitada
+O botão de mic no `ChatInput` está `disabled` com tooltip "em breve"
 
-- Criar `isDialingRef = useRef(false)` sincronizado com `isDialing`
-- Passar ao `useSipPhone` para que o auto-answer funcione
-- No `handleCallFailed`: tratar "Canceled" com mensagem amigável ("Chamada cancelada ou não atendida")
+### 9. `formatWhatsAppText` com bug de regex
+A regex de URL usa `test()` após `split()` — isso reseta `lastIndex` do regex global, causando detecção intermitente de links.
 
-### 3. `SoftphoneWidget.tsx` — Exibir erro de "Canceled"
+### 10. Audio player sem progresso
+O player de áudio tem barra de progresso estática (`width: 0%`), nunca atualiza durante reprodução.
 
-- Já funciona se `onCallFailed` for chamado corretamente (o `dialError` será setado)
-- Nenhuma alteração necessária neste arquivo
+## Plano de Implementação
 
-## Resumo técnico do fluxo corrigido
+### Etapa 1: Seleção de agente no chat + suporte omnichannel
 
-```text
-Clique "Ligar"
-  → isDialing=true, isDialingRef=true
-  → API POST /dialer → PBX liga para ramal do agente
-  → SIP incoming call (newRTCSession)
-  → isDialingRef=true? → AUTO-ANSWER imediato
-  → PBX conecta ao destino → status=in-call
-  
-Se falhar (qualquer causa incluindo "Canceled"):
-  → onCallFailed(cause) → dialError setado → widget mostra erro
-```
+- Adicionar seletor de agente (dropdown com agentes do usuário) no topo do `ChatList`
+- Armazenar `cod_agent` e `hub` selecionado no contexto
+- `loadContacts` sempre filtrar por `cod_agent`
+- Criar lógica condicional: se `hub === 'uazapi'` → usar UaZapi endpoints; se `hub === 'waba'` → usar edge function `waba-send`
 
-## Arquivos alterados
+**Arquivos**: `WhatsAppDataContext.tsx`, `ChatList.tsx`, `ChatPage.tsx`
+
+### Etapa 2: Corrigir envio e recebimento de mensagens
+
+- **Envio texto WABA**: chamar `supabase.functions.invoke('waba-send', { action: 'send_text', cod_agent, to, text })`
+- **Envio mídia WABA**: chamar `waba-send` com action `send_media`
+- **Envio mídia UaZapi**: adicionar optimistic update + salvar no Supabase após sucesso
+- **Fix duplicação realtime**: no handler de INSERT, verificar se `message.id` já existe no state antes de adicionar
+
+**Arquivos**: `WhatsAppDataContext.tsx`
+
+### Etapa 3: Corrigir constraint e sincronização
+
+- Migração SQL: adicionar `UNIQUE(contact_id, external_id)` ou `UNIQUE(message_id)` na tabela `chat_messages`
+- **Sync WABA**: buscar mensagens de `chat_messages` (já persistidas pelo webhook) em vez de API
+- **Sync UaZapi**: manter lógica atual mas corrigir upsert
+
+**Arquivo**: Migração SQL, `WhatsAppDataContext.tsx`
+
+### Etapa 4: Corrigir componentes de UI
+
+- **Audio player**: adicionar `onTimeUpdate` ao `<audio>` para atualizar barra de progresso
+- **Download de mídia**: implementar `handleDownload` real usando `message.download()` (UaZapi) ou buscar de Storage (WABA)
+- **formatWhatsAppText**: criar nova instância de regex sem flag `g` ou usar `match` sem `test`
+- **Desabilitar botões sem ação**: remover botões de chamada do header ou integrar com telefonia existente
+
+**Arquivos**: `MessageBubble.tsx`, `ChatHeader.tsx`
+
+### Etapa 5: Melhorias de UX
+
+- Passar `onDownloadMedia` real do contexto para `ChatMessages` → `MessageBubble`
+- Mostrar preview de mídia durante envio (optimistic com URL.createObjectURL)
+- Status da conexão do agente visível no chat
+
+## Arquivos alterados/criados
 
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/telefonia/hooks/useSipPhone.ts` | Auto-answer incoming quando isDialing; propagar "Canceled" no onCallFailed |
-| `src/contexts/PhoneContext.tsx` | isDialingRef sincronizado; mensagem amigável para "Canceled" |
+| Migração SQL | UNIQUE constraint em `chat_messages.message_id` |
+| `src/contexts/WhatsAppDataContext.tsx` | Seletor de agente, suporte WABA, fix duplicação, fix upsert, optimistic media |
+| `src/components/chat/ChatList.tsx` | Dropdown de seleção de agente |
+| `src/components/chat/ChatPage.tsx` | Passar agentes disponíveis |
+| `src/components/chat/MessageBubble.tsx` | Fix audio player, fix download, fix formatWhatsAppText |
+| `src/components/chat/ChatHeader.tsx` | Remover/desabilitar botões sem funcionalidade |
+| `src/components/chat/ChatMessages.tsx` | Passar onDownloadMedia |
 
