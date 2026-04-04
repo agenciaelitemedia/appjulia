@@ -233,7 +233,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       const callId = data?.data?.call_id || data?.data?.id;
       if (callId) syncQueueManager.enqueue(String(callId));
 
-      toast.success(`Ligando para ${contactName || formatted}...`);
+      toast.info(`Discando para ${contactName || formatted}...`);
     } catch (err: any) {
       const msg = err.message || 'Erro ao discar';
       setDialError(msg.includes('not registered') ? 'Ramal SIP não registrado. Verifique se o softphone está conectado.' : msg);
