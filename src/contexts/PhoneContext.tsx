@@ -245,6 +245,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       setDialError(msg.includes('not registered') ? 'Ramal SIP não registrado. Verifique se o softphone está conectado.' : msg);
     } finally {
       setIsDialing(false);
+      isDialingRef.current = false;
     }
   }, [myExtension, codAgent, provider, sip.status, connectSip]);
 
