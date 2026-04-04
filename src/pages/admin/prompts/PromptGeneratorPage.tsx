@@ -14,18 +14,18 @@ export default function PromptGeneratorPage() {
           <FileText className="h-6 w-6 text-primary" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Gerador de Prompt</h1>
+          <h1 className="text-2xl font-bold">Prompts Implantação</h1>
           <p className="text-sm text-muted-foreground">Crie e gerencie roteiros de qualificação jurídica com IA</p>
         </div>
       </div>
 
-      <Tabs defaultValue="generate" className="w-full">
+      <Tabs defaultValue="prompts" className="w-full">
         <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="generate">Gerar Roteiros</TabsTrigger>
+          <TabsTrigger value="prompts">Prompts de Implantação</TabsTrigger>
           <TabsTrigger value="cases">Casos Jurídicos</TabsTrigger>
-          <TabsTrigger value="config">Configuração</TabsTrigger>
-          <TabsTrigger value="prompts">Prompts</TabsTrigger>
-          <TabsTrigger value="templates">Templates</TabsTrigger>
+          <TabsTrigger value="config">Configurações</TabsTrigger>
+          <TabsTrigger value="generate">Gerar Roteiros</TabsTrigger>
+          <TabsTrigger value="templates">Prompts Templates</TabsTrigger>
         </TabsList>
 
         <TabsContent value="generate">
