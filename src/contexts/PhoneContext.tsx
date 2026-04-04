@@ -190,7 +190,6 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Provider-aware link check
     const isLinked = provider === '3cplus'
       ? !!(myExtension.threecplus_agent_id || myExtension.threecplus_extension)
       : !!myExtension.api4com_ramal;
@@ -199,17 +198,21 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Check SIP registration before dialing
-    if (sip.status !== 'registered' && sip.status !== 'in-call' && sip.status !== 'calling' && sip.status !== 'ringing') {
-      toast.info('SIP não registrado. Reconectando...');
-      await connectSip();
-      // Wait briefly for registration
-      await new Promise(r => setTimeout(r, 3000));
-    }
+    // Save args for retry
+    lastDialArgs.current = { phone, contactName, origin, whatsappNumber };
 
     const { formatted } = formatPhoneForDialing(phone);
     setDialContactName(contactName || formatted);
+    setDialError(null);
     setIsDialing(true);
+    setShowSoftphone(true);
+    setSoftphoneCentered(true);
+
+    // Check SIP registration before dialing
+    if (sip.status !== 'registered' && sip.status !== 'in-call' && sip.status !== 'calling' && sip.status !== 'ringing') {
+      await connectSip();
+      await new Promise(r => setTimeout(r, 3000));
+    }
 
     const metadata: Record<string, unknown> = {};
     if (origin) metadata.origin = origin;
@@ -226,14 +229,9 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       if (callId) syncQueueManager.enqueue(String(callId));
 
       toast.success(`Ligando para ${contactName || formatted}...`);
-      setShowSoftphone(true);
     } catch (err: any) {
       const msg = err.message || 'Erro ao discar';
-      if (msg.includes('user not registered') || msg.includes('not registered')) {
-        toast.error('Ramal SIP não registrado. Verifique se o softphone está conectado.');
-      } else {
-        toast.error(msg);
-      }
+      setDialError(msg.includes('not registered') ? 'Ramal SIP não registrado. Verifique se o softphone está conectado.' : msg);
     } finally {
       setIsDialing(false);
     }
