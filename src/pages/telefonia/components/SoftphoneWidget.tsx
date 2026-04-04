@@ -22,6 +22,7 @@ interface SoftphoneWidgetProps {
   dialError?: string | null;
   onRetry?: () => void;
   onDismissError?: () => void;
+  onCancel?: () => void;
 }
 
 const statusConfig: Record<SipStatus, { label: string; color: string; dotColor: string }> = {
