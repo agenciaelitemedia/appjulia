@@ -1,51 +1,49 @@
 
 
-# Melhorar Experiência de Discagem na Telefonia (Api4Com)
+# Correção: Cancelamento + Feedback Correto de Erro/Sucesso
 
-## Problemas identificados
+## Problemas confirmados no código
 
-1. **Softphone não aparece durante a discagem**: O `SoftphoneWidget` retorna `null` quando `status === 'idle'` (linhas 95-96), mas `setShowSoftphone(true)` só é chamado APÓS o sucesso da chamada API. Durante o período de espera (isDialing), nada visual aparece.
+1. **Toast "sucesso" falso** (PhoneContext.tsx:231): `toast.success("Ligando para...")` dispara quando a API responde OK, mas a chamada SIP ainda não conectou. Se o SIP falhar depois, o usuário já viu mensagem de sucesso.
 
-2. **Erros silenciosos**: Se a chamada API falha, `showSoftphone` nunca é setado — o usuário vê apenas um toast que desaparece rápido.
+2. **Sem botão cancelar durante discagem** (SoftphoneWidget.tsx:108-124): O estado `isDialing` renderiza animação mas nenhum botão de cancelar. O botão X no header está escondido quando `isDialing` (linha 279).
 
-3. **Sem tela intermediária de "discando"**: Entre clicar "Ligar" e a chamada SIP chegar, não há feedback visual significativo.
+3. **Falha SIP não propagada**: `useSipPhone` chama `cleanupSession()` no evento `session.on('failed')`, que reseta status para `registered`, mas não avisa o PhoneContext. O `dialError` nunca é setado para falhas SIP.
 
-## Solução
+4. **Sem função `cancelDial`**: Não existe forma de cancelar uma discagem em andamento.
 
-### 1. `PhoneContext.tsx` — Mostrar softphone ANTES da chamada API
+## Alterações
 
-- Mover `setShowSoftphone(true)` para ANTES do `supabase.functions.invoke`
-- Criar estado `dialError` para quando a chamada API falha
-- Não esconder o softphone em caso de erro — deixar o widget mostrar o erro
+### 1. `useSipPhone.ts` — Novo callback `onCallFailed`
 
-### 2. `SoftphoneWidget.tsx` — Tela de discagem rica e visível
+- Aceitar parâmetro opcional `onCallFailed?: (cause: string) => void`
+- No evento `session.on('failed')`, chamar `onCallFailed(cause)` antes de `cleanupSession()`
+- Permite que PhoneContext capture falhas SIP
 
-- **Não retornar null em modo centered** mesmo com status idle — mostrar tela de "Conectando..."
-- Adicionar suporte a props `isDialing` e `dialError`
-- Estados visuais claros:
-  - **Discando (API)**: Animação de pulso, ícone de telefone, "Conectando chamada..."
-  - **Chamando (SIP calling)**: "Chamando...", botão desligar
-  - **Tocando (ringing)**: Botão atender + desligar
-  - **Em chamada**: Timer + controles (mudo, espera, DTMF)
-  - **Erro**: Mensagem do erro + botão "Tentar novamente" + botão "Fechar"
-- Botão de cancelar/fechar sempre visível quando não em chamada ativa
-- Layout maior e mais claro no modo centered (nome do contato grande, status em destaque)
+### 2. `PhoneContext.tsx` — Corrigir toast + cancelar + capturar falha SIP
 
-### 3. `MainLayout.tsx` — Passar novas props ao GlobalSoftphone
+- **Trocar** `toast.success(...)` por `toast.info("Discando...")` (linha 231)
+- **Passar** callback `onCallFailed` ao `useSipPhone` que seta `setDialError(causa)` e `setIsDialing(false)`
+- **Nova função** `cancelDial()`: chama `sip.hangup()`, reseta `isDialing`, `dialError`, fecha softphone
+- **Expor** `cancelDial` no contexto
 
-- Passar `isDialing` e `dialError` do PhoneContext para o SoftphoneWidget
-- Usar `React.forwardRef` no SoftphoneWidget para eliminar o warning de console
+### 3. `SoftphoneWidget.tsx` — Botão cancelar visível
 
-### 4. `DiscadorTab.tsx` — Feedback melhorado
+- No `renderDialingState()`: adicionar botão "Cancelar" vermelho abaixo da animação
+- No `renderCallingState()`: já tem botão desligar (OK)
+- No header (linha 279): mostrar botão X/Cancelar durante `isDialing` (remover `!isDialing` da condição)
+- Nova prop `onCancel` para chamar `cancelDial`
 
-- Desabilitar pad inteiro durante discagem
-- Status visual no campo de número durante chamada
+### 4. `MainLayout.tsx` — Passar `cancelDial`
+
+- Importar `cancelDial` do contexto e passar como `onCancel` ao `SoftphoneWidget`
 
 ## Arquivos alterados
 
 | Arquivo | Mudança |
 |---|---|
-| `src/contexts/PhoneContext.tsx` | `setShowSoftphone(true)` antes da API; novo estado `dialError`; retry |
-| `src/pages/telefonia/components/SoftphoneWidget.tsx` | Tela de discagem rica; suporte a isDialing/dialError; forwardRef; não esconder em centered+idle |
-| `src/components/layout/MainLayout.tsx` | Passar `isDialing`/`dialError` ao widget |
+| `src/pages/telefonia/hooks/useSipPhone.ts` | Novo callback `onCallFailed` no `session.on('failed')` |
+| `src/contexts/PhoneContext.tsx` | `toast.info` em vez de `toast.success`; captura falha SIP; nova `cancelDial` |
+| `src/pages/telefonia/components/SoftphoneWidget.tsx` | Botão cancelar no estado dialing; prop `onCancel`; header X visível |
+| `src/components/layout/MainLayout.tsx` | Passar `cancelDial` como `onCancel` |
 
