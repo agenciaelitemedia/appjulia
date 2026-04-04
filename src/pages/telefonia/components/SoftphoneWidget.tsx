@@ -122,6 +122,17 @@ export const SoftphoneWidget = React.forwardRef<HTMLDivElement, SoftphoneWidgetP
           <p className="text-sm text-muted-foreground">Conectando chamada...</p>
         </div>
       </div>
+      {onCancel && (
+        <Button
+          size="sm"
+          variant="destructive"
+          className="gap-1.5"
+          onClick={onCancel}
+        >
+          <PhoneOff className="h-3.5 w-3.5" />
+          Cancelar
+        </Button>
+      )}
     </div>
   );
 
