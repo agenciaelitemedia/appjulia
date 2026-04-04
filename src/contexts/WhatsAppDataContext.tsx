@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useUaZapi } from '@/hooks/useUaZapi';
 import { useAuth } from './AuthContext';
@@ -17,7 +17,18 @@ import type {
 // Context Creation
 // ============================================
 
-const WhatsAppDataContext = createContext<ChatContextValue | undefined>(undefined);
+interface ExtendedContextValue extends ChatContextValue {
+  selectedAgent: SelectedAgent | null;
+  setSelectedAgent: (agent: SelectedAgent | null) => void;
+}
+
+export interface SelectedAgent {
+  cod_agent: string;
+  hub: 'uazapi' | 'waba';
+  name?: string;
+}
+
+const WhatsAppDataContext = createContext<ExtendedContextValue | undefined>(undefined);
 
 // ============================================
 // Helper Functions
@@ -78,64 +89,47 @@ function extractMediaUrl(msg: UaZapiMessage): string | undefined {
 function extractMetadata(msg: UaZapiMessage): MessageMetadata {
   const metadata: MessageMetadata = {};
   
-  // Audio metadata
   if (msg.message?.audioMessage) {
     metadata.is_ptt = msg.message.audioMessage.ptt;
     metadata.duration = msg.message.audioMessage.seconds;
     metadata.waveform = msg.message.audioMessage.waveform;
     metadata.mimetype = msg.message.audioMessage.mimetype;
   }
-  
-  // Image metadata
   if (msg.message?.imageMessage) {
     metadata.mimetype = msg.message.imageMessage.mimetype;
     metadata.thumbnail = msg.message.imageMessage.jpegThumbnail;
   }
-  
-  // Video metadata
   if (msg.message?.videoMessage) {
     metadata.mimetype = msg.message.videoMessage.mimetype;
     metadata.duration = msg.message.videoMessage.seconds;
     metadata.thumbnail = msg.message.videoMessage.jpegThumbnail;
   }
-  
-  // Document metadata
   if (msg.message?.documentMessage) {
     metadata.mimetype = msg.message.documentMessage.mimetype;
   }
-  
-  // Location metadata
   if (msg.message?.locationMessage) {
     metadata.latitude = msg.message.locationMessage.degreesLatitude;
     metadata.longitude = msg.message.locationMessage.degreesLongitude;
     metadata.location_name = msg.message.locationMessage.name;
     metadata.location_address = msg.message.locationMessage.address;
   }
-  
-  // Contact metadata
   if (msg.message?.contactMessage) {
     metadata.contact_name = msg.message.contactMessage.displayName;
   }
-  
-  // Reaction metadata
   if (msg.message?.reactionMessage) {
     metadata.reaction_emoji = msg.message.reactionMessage.text;
     metadata.reaction_target_id = msg.message.reactionMessage.key?.id;
   }
-  
-  // Sender info (for groups)
   if (msg.participant || msg.pushName) {
     metadata.sender_id = msg.participant;
     metadata.sender_name = msg.pushName;
   }
-  
-  // Quoted message
   if (msg.message?.extendedTextMessage?.contextInfo) {
     const ctx = msg.message.extendedTextMessage.contextInfo;
     if (ctx.stanzaId) {
       metadata.quoted_message = {
         id: ctx.stanzaId,
-        from_me: false, // Will be determined later
+        from_me: false,
         sender_name: ctx.participant,
       };
     }
@@ -193,14 +187,22 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState<SelectedAgent | null>(null);
+
+  // Track known message IDs to prevent realtime duplicates
+  const knownMessageIds = useRef<Set<string>>(new Set());
 
   const clientId = user?.id ? String(user.id) : '';
+  const currentHub = selectedAgent?.hub || (isConfigured ? 'uazapi' : null);
+  const currentCodAgent = selectedAgent?.cod_agent;
 
   // ============================================
   // Load Contacts from Supabase
   // ============================================
   const loadContacts = useCallback(async (codAgent?: string) => {
     if (!clientId) return;
+    
+    const agentFilter = codAgent || currentCodAgent;
     
     setIsLoading(true);
     try {
@@ -210,8 +212,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         .eq('client_id', clientId)
         .order('last_message_at', { ascending: false, nullsFirst: false });
       
-      if (codAgent) {
-        query = query.eq('cod_agent', codAgent);
+      if (agentFilter) {
+        query = query.eq('cod_agent', agentFilter);
       }
       
       const { data, error } = await query;
@@ -225,10 +227,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [clientId]);
+  }, [clientId, currentCodAgent]);
 
   // ============================================
-  // Load Messages from Supabase + UaZapi
+  // Load Messages from Supabase + API
   // ============================================
   const loadMessages = useCallback(async (
     contactId: string,
@@ -241,7 +243,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     if (!contact) return { messages: [], hasMore: false };
     
     try {
-      // First try to load from Supabase cache
+      // Load from Supabase (works for both WABA and UaZapi - messages come from webhooks)
       const { data: cachedMessages, error: cacheError } = await supabase
         .from('chat_messages')
         .select('*')
@@ -251,22 +253,24 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       
       if (cacheError) throw cacheError;
       
-      // If we have cached messages, use them
       if (cachedMessages && cachedMessages.length > 0) {
         const chatMessages = cachedMessages as ChatMessage[];
+        
+        // Track known IDs
+        chatMessages.forEach(m => knownMessageIds.current.add(m.id));
         
         setMessages(prev => ({
           ...prev,
           [contactId]: offset === 0 
             ? chatMessages.reverse()
-            : [...(prev[contactId] || []), ...chatMessages.reverse()],
+            : [...chatMessages.reverse(), ...(prev[contactId] || [])],
         }));
         
         return { messages: chatMessages, hasMore: cachedMessages.length === limit };
       }
       
       // If no cached messages and UaZapi is configured, fetch from API
-      if (isConfigured && offset === 0) {
+      if (currentHub === 'uazapi' && isConfigured && offset === 0) {
         const response = await message.find({
           number: contact.phone,
           limit,
@@ -277,14 +281,14 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           convertUaZapiMessageToChatMessage(msg, contactId, clientId)
         );
         
-        // Save to Supabase cache
+        // Save to Supabase cache using external_id for dedup
         if (apiMessages.length > 0) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await supabase.from('chat_messages').upsert(
-            apiMessages.map(m => ({
+          for (const m of apiMessages) {
+            await supabase.from('chat_messages').upsert({
               id: m.id,
               contact_id: m.contact_id,
               client_id: m.client_id,
+              external_id: m.message_id,
               message_id: m.message_id,
               text: m.text,
               type: m.type,
@@ -297,9 +301,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               metadata: m.metadata as unknown as null,
               timestamp: m.timestamp,
               created_at: m.created_at,
-            })) as any,
-            { onConflict: 'message_id' }
-          );
+            } as any, { onConflict: 'contact_id,external_id' });
+          }
+          
+          // Track known IDs
+          apiMessages.forEach(m => knownMessageIds.current.add(m.id));
         }
         
         setMessages(prev => ({
@@ -319,21 +325,16 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       toast.error('Erro ao carregar mensagens');
       return { messages: [], hasMore: false };
     }
-  }, [clientId, contacts, isConfigured, message]);
+  }, [clientId, contacts, isConfigured, message, currentHub]);
 
   // ============================================
-  // Send Message
+  // Send Message (Omnichannel)
   // ============================================
   const sendMessage = useCallback(async (
     contactId: string,
     text: string,
     replyToId?: string
   ) => {
-    if (!isConfigured) {
-      toast.error('API não configurada');
-      return;
-    }
-    
     const contact = contacts.find(c => c.id === contactId);
     if (!contact) return;
     
@@ -350,24 +351,46 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       created_at: new Date().toISOString(),
     };
     
+    knownMessageIds.current.add(tempMessage.id);
+    
     setMessages(prev => ({
       ...prev,
       [contactId]: [...(prev[contactId] || []), tempMessage],
     }));
     
     try {
-      const response = await message.sendText({
-        number: contact.phone,
-        text,
-        quotedMessageId: replyToId,
-      });
+      let externalMessageId: string | undefined;
+
+      if (currentHub === 'waba' && currentCodAgent) {
+        // Send via WABA edge function
+        const { data, error } = await supabase.functions.invoke('waba-send', {
+          body: {
+            action: 'send_text',
+            cod_agent: currentCodAgent,
+            to: contact.phone,
+            text,
+          },
+        });
+        if (error) throw error;
+        externalMessageId = data?.messageId || data?.messages?.[0]?.id;
+      } else if (currentHub === 'uazapi' && isConfigured) {
+        // Send via UaZapi
+        const response = await message.sendText({
+          number: contact.phone,
+          text,
+          quotedMessageId: replyToId,
+        });
+        externalMessageId = response.messageId;
+      } else {
+        throw new Error('Nenhum provedor configurado para envio');
+      }
       
-      // Update message with real ID and status
+      // Update message status
       setMessages(prev => ({
         ...prev,
         [contactId]: prev[contactId]?.map(m =>
           m.id === tempMessage.id
-            ? { ...m, message_id: response.messageId, status: 'sent' as const }
+            ? { ...m, message_id: externalMessageId, status: 'sent' as const }
             : m
         ) || [],
       }));
@@ -381,7 +404,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         type: tempMessage.type,
         from_me: tempMessage.from_me,
         status: 'sent',
-        message_id: response.messageId,
+        message_id: externalMessageId,
+        external_id: externalMessageId,
         timestamp: tempMessage.timestamp,
         created_at: tempMessage.created_at,
       });
@@ -399,7 +423,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       console.error('Error sending message:', error);
       toast.error('Erro ao enviar mensagem');
       
-      // Mark as failed
       setMessages(prev => ({
         ...prev,
         [contactId]: prev[contactId]?.map(m =>
@@ -407,10 +430,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         ) || [],
       }));
     }
-  }, [clientId, contacts, isConfigured, message]);
+  }, [clientId, contacts, currentHub, currentCodAgent, isConfigured, message]);
 
   // ============================================
-  // Send Media
+  // Send Media (Omnichannel)
   // ============================================
   const sendMedia = useCallback(async (
     contactId: string,
@@ -418,13 +441,32 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     type: MessageType,
     caption?: string
   ) => {
-    if (!isConfigured) {
-      toast.error('API não configurada');
-      return;
-    }
-    
     const contact = contacts.find(c => c.id === contactId);
     if (!contact) return;
+    
+    // Optimistic update with preview
+    const previewUrl = URL.createObjectURL(file);
+    const tempMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      contact_id: contactId,
+      client_id: clientId,
+      text: caption,
+      type,
+      from_me: true,
+      status: 'sending',
+      media_url: previewUrl,
+      file_name: file.name,
+      caption,
+      timestamp: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    };
+    
+    knownMessageIds.current.add(tempMessage.id);
+    
+    setMessages(prev => ({
+      ...prev,
+      [contactId]: [...(prev[contactId] || []), tempMessage],
+    }));
     
     try {
       // Convert file to base64
@@ -437,26 +479,83 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
+
+      let externalMessageId: string | undefined;
       
-      const sendFn = type === 'image' ? message.sendImage
-        : type === 'video' ? message.sendVideo
-        : type === 'audio' || type === 'ptt' ? message.sendAudio
-        : message.sendDocument;
+      if (currentHub === 'waba' && currentCodAgent) {
+        const { data, error } = await supabase.functions.invoke('waba-send', {
+          body: {
+            action: 'send_media',
+            cod_agent: currentCodAgent,
+            to: contact.phone,
+            mediaBase64: base64,
+            mimetype: file.type,
+            type,
+            caption,
+            fileName: file.name,
+          },
+        });
+        if (error) throw error;
+        externalMessageId = data?.messageId || data?.messages?.[0]?.id;
+      } else if (currentHub === 'uazapi' && isConfigured) {
+        const sendFn = type === 'image' ? message.sendImage
+          : type === 'video' ? message.sendVideo
+          : type === 'audio' || type === 'ptt' ? message.sendAudio
+          : message.sendDocument;
+        
+        const response = await sendFn({
+          number: contact.phone,
+          mediaBase64: base64,
+          mimetype: file.type,
+          caption,
+          fileName: file.name,
+        });
+        externalMessageId = (response as any)?.messageId;
+      } else {
+        throw new Error('Nenhum provedor configurado para envio');
+      }
       
-      await sendFn({
-        number: contact.phone,
-        mediaBase64: base64,
-        mimetype: file.type,
+      // Update status
+      setMessages(prev => ({
+        ...prev,
+        [contactId]: prev[contactId]?.map(m =>
+          m.id === tempMessage.id
+            ? { ...m, message_id: externalMessageId, status: 'sent' as const }
+            : m
+        ) || [],
+      }));
+      
+      // Save to Supabase
+      await supabase.from('chat_messages').insert({
+        id: tempMessage.id,
+        contact_id: tempMessage.contact_id,
+        client_id: tempMessage.client_id,
+        text: caption,
+        type,
+        from_me: true,
+        status: 'sent',
+        message_id: externalMessageId,
+        external_id: externalMessageId,
+        media_url: previewUrl,
+        file_name: file.name,
         caption,
-        fileName: file.name,
+        timestamp: tempMessage.timestamp,
+        created_at: tempMessage.created_at,
       });
       
       toast.success('Mídia enviada');
     } catch (error) {
       console.error('Error sending media:', error);
       toast.error('Erro ao enviar mídia');
+      
+      setMessages(prev => ({
+        ...prev,
+        [contactId]: prev[contactId]?.map(m =>
+          m.id === tempMessage.id ? { ...m, status: 'failed' as const } : m
+        ) || [],
+      }));
     }
-  }, [contacts, isConfigured, message]);
+  }, [clientId, contacts, currentHub, currentCodAgent, isConfigured, message]);
 
   // ============================================
   // Mark as Read
@@ -466,7 +565,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     if (!contact || contact.unread_count === 0) return;
     
     try {
-      if (isConfigured) {
+      if (currentHub === 'uazapi' && isConfigured) {
         await chat.markRead({ number: contact.phone, read: true });
       }
       
@@ -481,58 +580,67 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     } catch (error) {
       console.error('Error marking as read:', error);
     }
-  }, [contacts, isConfigured, chat]);
+  }, [contacts, currentHub, isConfigured, chat]);
 
   // ============================================
-  // Sync Contacts from UaZapi
+  // Sync Contacts
   // ============================================
   const syncContacts = useCallback(async (codAgent?: string) => {
-    if (!isConfigured || !clientId) {
-      toast.error('API não configurada');
-      return;
-    }
+    const agentFilter = codAgent || currentCodAgent;
     
-    setIsSyncing(true);
-    try {
-      const response = await chat.find({
-        limit: 100,
-        sort: '-wa_lastMsgTimestamp',
-      });
-      
-      const chats = response.chats || [];
-      
-      // Convert and upsert contacts
-      const contactsToUpsert: Partial<ChatContact>[] = chats.map(c => ({
-        client_id: clientId,
-        cod_agent: codAgent,
-        phone: normalizePhone(c.phone || c.id || ''),
-        name: c.wa_name || c.wa_contactName || c.lead_name || c.phone || 'Desconhecido',
-        avatar: c.profilePictureUrl,
-        is_group: c.wa_isGroup || false,
-        is_archived: c.wa_archived || false,
-        is_muted: (c.wa_muteEndTime || 0) > Date.now(),
-        unread_count: c.wa_unreadCount || 0,
-        last_message_at: c.wa_lastMsgTimestamp 
-          ? new Date(c.wa_lastMsgTimestamp * 1000).toISOString()
-          : null,
-      }));
-      
-      for (const contact of contactsToUpsert) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await supabase.from('chat_contacts').upsert(contact as any, {
-          onConflict: 'phone,client_id',
+    if (currentHub === 'uazapi' && isConfigured) {
+      // UaZapi: fetch contacts from API
+      setIsSyncing(true);
+      try {
+        const response = await chat.find({
+          limit: 100,
+          sort: '-wa_lastMsgTimestamp',
         });
+        
+        const chats = response.chats || [];
+        
+        const contactsToUpsert = chats.map((c: any) => ({
+          client_id: clientId,
+          cod_agent: agentFilter,
+          phone: normalizePhone(c.phone || c.id || ''),
+          name: c.wa_name || c.wa_contactName || c.lead_name || c.phone || 'Desconhecido',
+          avatar: c.profilePictureUrl,
+          is_group: c.wa_isGroup || false,
+          is_archived: c.wa_archived || false,
+          is_muted: (c.wa_muteEndTime || 0) > Date.now(),
+          unread_count: c.wa_unreadCount || 0,
+          last_message_at: c.wa_lastMsgTimestamp 
+            ? new Date(c.wa_lastMsgTimestamp * 1000).toISOString()
+            : null,
+        }));
+        
+        for (const contact of contactsToUpsert) {
+          await supabase.from('chat_contacts').upsert(contact as any, {
+            onConflict: 'phone,client_id',
+          });
+        }
+        
+        await loadContacts(agentFilter);
+        toast.success('Contatos sincronizados');
+      } catch (error) {
+        console.error('Error syncing contacts:', error);
+        toast.error('Erro ao sincronizar contatos');
+      } finally {
+        setIsSyncing(false);
       }
-      
-      await loadContacts(codAgent);
-      toast.success('Contatos sincronizados');
-    } catch (error) {
-      console.error('Error syncing contacts:', error);
-      toast.error('Erro ao sincronizar contatos');
-    } finally {
-      setIsSyncing(false);
+    } else if (currentHub === 'waba') {
+      // WABA: contacts come from webhooks, just reload from DB
+      setIsSyncing(true);
+      try {
+        await loadContacts(agentFilter);
+        toast.success('Contatos atualizados');
+      } finally {
+        setIsSyncing(false);
+      }
+    } else {
+      toast.error('Selecione um agente para sincronizar');
     }
-  }, [clientId, isConfigured, chat, loadContacts]);
+  }, [clientId, currentHub, currentCodAgent, isConfigured, chat, loadContacts]);
 
   // ============================================
   // Computed Values
@@ -545,14 +653,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const filteredContacts = useMemo(() => {
     let filtered = contacts;
     
-    // Filter by tab
     if (activeTab === 'individual') {
       filtered = filtered.filter(c => !c.is_group);
     } else if (activeTab === 'groups') {
       filtered = filtered.filter(c => c.is_group);
     }
     
-    // Filter by search
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(c =>
@@ -580,7 +686,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   );
 
   // ============================================
-  // Realtime Subscriptions
+  // Realtime Subscriptions (with deduplication)
   // ============================================
   useEffect(() => {
     if (!clientId) return;
@@ -597,7 +703,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setContacts(prev => [payload.new as ChatContact, ...prev]);
+            setContacts(prev => {
+              const exists = prev.some(c => c.id === (payload.new as ChatContact).id);
+              if (exists) return prev;
+              return [payload.new as ChatContact, ...prev];
+            });
           } else if (payload.eventType === 'UPDATE') {
             setContacts(prev =>
               prev.map(c => (c.id === (payload.new as ChatContact).id ? payload.new as ChatContact : c))
@@ -621,9 +731,42 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         },
         (payload) => {
           const newMessage = payload.new as ChatMessage;
+          
+          // Skip if we already have this message (from optimistic update or previous load)
+          if (knownMessageIds.current.has(newMessage.id)) return;
+          knownMessageIds.current.add(newMessage.id);
+          
+          setMessages(prev => {
+            const existing = prev[newMessage.contact_id] || [];
+            // Also check by external_id to be safe
+            const isDuplicate = existing.some(m => 
+              m.id === newMessage.id || 
+              (m.message_id && newMessage.message_id && m.message_id === newMessage.message_id)
+            );
+            if (isDuplicate) return prev;
+            
+            return {
+              ...prev,
+              [newMessage.contact_id]: [...existing, newMessage],
+            };
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `client_id=eq.${clientId}`,
+        },
+        (payload) => {
+          const updated = payload.new as ChatMessage;
           setMessages(prev => ({
             ...prev,
-            [newMessage.contact_id]: [...(prev[newMessage.contact_id] || []), newMessage],
+            [updated.contact_id]: (prev[updated.contact_id] || []).map(m =>
+              m.id === updated.id ? updated : m
+            ),
           }));
         }
       )
@@ -635,10 +778,20 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     };
   }, [clientId]);
 
+  // Reload contacts when agent changes
+  useEffect(() => {
+    if (currentCodAgent && clientId) {
+      loadContacts(currentCodAgent);
+      setSelectedContactId(null);
+      setMessages({});
+      knownMessageIds.current.clear();
+    }
+  }, [currentCodAgent, clientId, loadContacts]);
+
   // ============================================
   // Context Value
   // ============================================
-  const value = useMemo<ChatContextValue>(() => ({
+  const value = useMemo<ExtendedContextValue>(() => ({
     // State
     contacts,
     messages,
@@ -665,10 +818,15 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     totalUnreadCount,
     individualUnreadCount,
     groupUnreadCount,
+    
+    // Agent selection
+    selectedAgent,
+    setSelectedAgent,
   }), [
     contacts, messages, selectedContactId, activeTab, searchQuery, isLoading, isSyncing,
     loadContacts, loadMessages, sendMessage, sendMedia, markAsRead, syncContacts,
     selectedContact, filteredContacts, totalUnreadCount, individualUnreadCount, groupUnreadCount,
+    selectedAgent,
   ]);
 
   return (
@@ -682,7 +840,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 // Hook Export
 // ============================================
 
-export function useWhatsAppData(): ChatContextValue {
+export function useWhatsAppData() {
   const context = useContext(WhatsAppDataContext);
   if (context === undefined) {
     throw new Error('useWhatsAppData must be used within a WhatsAppDataProvider');
