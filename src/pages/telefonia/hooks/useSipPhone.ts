@@ -499,9 +499,10 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (c
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      stopRingtone();
       disconnect();
     };
-  }, [disconnect]);
+  }, [disconnect, stopRingtone]);
 
   return {
     status,
