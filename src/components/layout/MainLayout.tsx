@@ -10,7 +10,7 @@ import { SoftphoneWidget } from '@/pages/telefonia/components/SoftphoneWidget';
 import { cn } from '@/lib/utils';
 
 function GlobalSoftphone() {
-  const { sip, showSoftphone, setShowSoftphone, softphoneCentered, setSoftphoneCentered, dialContactName, isDialing, dialError, clearDialError, retryDial } = usePhone();
+  const { sip, showSoftphone, setShowSoftphone, softphoneCentered, setSoftphoneCentered, dialContactName, isDialing, dialError, clearDialError, retryDial, cancelDial } = usePhone();
 
   if (!showSoftphone && !isDialing && !dialError) return null;
 
