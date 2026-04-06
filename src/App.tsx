@@ -9,6 +9,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { UaZapiProvider } from "@/contexts/UaZapiContext";
 import { DebugProvider } from "@/contexts/DebugContext";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { AdvLayout } from "@/components/layout/AdvLayout";
 import { ProtectedRoute } from "@/components/guards/ProtectedRoute";
 import { DebugBar } from "@/components/debug/DebugBar";
 import Login from "./pages/Login";
@@ -59,6 +60,7 @@ import ComprarSucessoPage from "./pages/comprar/ComprarSucessoPage";
 import PedidosPage from "./pages/admin/pedidos/PedidosPage";
 import PlanosPage from "./pages/admin/planos/PlanosPage";
 import ContratoTemplatePage from "./pages/admin/contrato/ContratoTemplatePage";
+import AdvDashboardPage from "./pages/adv/AdvDashboardPage";
 
 const queryClient = new QueryClient();
 
@@ -124,6 +126,10 @@ const App = () => (
                   <Route path="/admin/pedidos" element={<ProtectedRoute module="julia_orders"><PedidosPage /></ProtectedRoute>} />
                   <Route path="/admin/planos" element={<ProtectedRoute module="julia_plans"><PlanosPage /></ProtectedRoute>} />
                   <Route path="/admin/contrato-template" element={<ProtectedRoute module="admin_agents"><ContratoTemplatePage /></ProtectedRoute>} />
+                </Route>
+                {/* Advogado routes - mobile layout */}
+                <Route element={<AdvLayout />}>
+                  <Route path="/adv/dashboard" element={<ProtectedRoute module="adv_dashboard"><AdvDashboardPage /></ProtectedRoute>} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>

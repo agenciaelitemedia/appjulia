@@ -1,6 +1,6 @@
 // Permission System Types
 
-export type AppRole = 'admin' | 'colaborador' | 'user' | 'time';
+export type AppRole = 'admin' | 'colaborador' | 'user' | 'time' | 'advogado';
 
 export type ModuleCategory = 'principal' | 'crm' | 'agente' | 'sistema' | 'admin' | 'financeiro';
 
@@ -30,7 +30,8 @@ export type ModuleCode =
   | 'legal_cases'
   | 'contract_notifications'
   | 'julia_orders'
-  | 'julia_plans';
+  | 'julia_plans'
+  | 'adv_dashboard';
 
 export interface Module {
   id: number;

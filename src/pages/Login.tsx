@@ -44,7 +44,10 @@ export default function Login() {
         title: 'Bem-vindo!',
         description: 'Login realizado com sucesso',
       });
-      navigate('/dashboard');
+      // Check role from stored user to redirect advogados
+      const stored = localStorage.getItem('julia_user');
+      const role = stored ? JSON.parse(stored)?.role : null;
+      navigate(role === 'advogado' ? '/adv/dashboard' : '/dashboard');
     } else {
       toast({
         variant: 'destructive',
