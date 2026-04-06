@@ -89,6 +89,7 @@ export function EquipeMemberDialog({
         setPrincipalUserId(user?.id || null);
         setSelectedAgents([]);
         setSelectedModuleCodes([]);
+        setMemberRole("time");
       }
       setEmailError("");
       setTemporaryPassword(null);
