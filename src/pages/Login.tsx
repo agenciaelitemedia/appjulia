@@ -44,7 +44,9 @@ export default function Login() {
         title: 'Bem-vindo!',
         description: 'Login realizado com sucesso',
       });
-      navigate('/dashboard');
+      // Redirect based on role
+      const targetPath = result.user?.role === 'advogado' ? '/adv/dashboard' : '/dashboard';
+      navigate(targetPath);
     } else {
       toast({
         variant: 'destructive',
