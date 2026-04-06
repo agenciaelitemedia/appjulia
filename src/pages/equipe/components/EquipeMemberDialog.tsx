@@ -12,6 +12,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { TeamMember } from "../types";
 import { AgentCheckboxList, SelectedAgent } from "./AgentCheckboxList";
 import { ModuleCheckboxList } from "./ModuleCheckboxList";
@@ -24,6 +31,7 @@ import {
 import { externalDb } from "@/lib/externalDb";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import type { AppRole } from "@/types/permissions";
 
 interface EquipeMemberDialogProps {
   open: boolean;
@@ -51,6 +59,7 @@ export function EquipeMemberDialog({
   const [isValidatingEmail, setIsValidatingEmail] = useState(false);
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [memberRole, setMemberRole] = useState<AppRole>("time");
 
   // Data hooks - load agents for logged-in user
   const { data: agents = [], isLoading: loadingAgents } =
@@ -80,6 +89,7 @@ export function EquipeMemberDialog({
         setPrincipalUserId(user?.id || null);
         setSelectedAgents([]);
         setSelectedModuleCodes([]);
+        setMemberRole("time");
       }
       setEmailError("");
       setTemporaryPassword(null);
@@ -87,7 +97,7 @@ export function EquipeMemberDialog({
     }
   }, [open, member, user?.id]);
 
-  // Load member's existing agents and modules when editing
+  // Load member's existing agents, modules and role when editing
   const loadMemberData = async (memberId: number) => {
     try {
       // Load agents
@@ -105,6 +115,15 @@ export function EquipeMemberDialog({
         .filter((p) => p.can_view)
         .map((p) => p.module_code);
       setSelectedModuleCodes(activeCodes);
+
+      // Load role
+      const memberInfo = await externalDb.raw<{ role: string }>({
+        query: "SELECT role FROM users WHERE id = $1 LIMIT 1",
+        params: [memberId],
+      });
+      if (memberInfo[0]?.role) {
+        setMemberRole(memberInfo[0].role as AppRole);
+      }
     } catch (error) {
       console.error("Error loading member data:", error);
     }
@@ -177,6 +196,7 @@ export function EquipeMemberDialog({
           principalUserId,
           agentIds: selectedAgents,
           modulePermissions,
+          role: memberRole,
         });
         onOpenChange(false);
         onSuccess?.();
@@ -187,6 +207,7 @@ export function EquipeMemberDialog({
           principalUserId,
           agentIds: selectedAgents,
           modulePermissions,
+          role: memberRole,
         });
         setTemporaryPassword(result.temporaryPassword);
       }
@@ -296,6 +317,36 @@ export function EquipeMemberDialog({
             )}
             {isValidatingEmail && (
               <p className="text-sm text-muted-foreground">Validando email...</p>
+            )}
+          </div>
+
+          {/* Profile/Role */}
+          <div className="space-y-2">
+            <Label>Perfil</Label>
+            <Select
+              value={memberRole}
+              onValueChange={(value: string) => {
+                const newRole = value as AppRole;
+                setMemberRole(newRole);
+                // Auto-add adv_dashboard for advogado
+                if (newRole === "advogado" && !selectedModuleCodes.includes("adv_dashboard")) {
+                  setSelectedModuleCodes((prev) => [...prev, "adv_dashboard"]);
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o perfil" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="time">Time</SelectItem>
+                <SelectItem value="advogado">Advogado</SelectItem>
+                <SelectItem value="comercial">Comercial</SelectItem>
+              </SelectContent>
+            </Select>
+            {memberRole === "advogado" && (
+              <p className="text-xs text-muted-foreground">
+                O módulo "Painel do Advogado" será adicionado automaticamente.
+              </p>
             )}
           </div>
 

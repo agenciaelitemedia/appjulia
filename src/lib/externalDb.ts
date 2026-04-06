@@ -346,6 +346,7 @@ class ExternalDatabase {
     clientId: number | null;
     agentIds: { agentId: number | null; codAgent: string }[];
     modulePermissions?: { moduleCode: string }[];
+    role?: string;
   }): Promise<T> {
     const result = await this.invoke({
       action: 'insert_team_member',
@@ -360,6 +361,7 @@ class ExternalDatabase {
     principalUserId: number;
     agentIds: { agentId: number | null; codAgent: string }[];
     modulePermissions?: { moduleCode: string }[];
+    role?: string;
   }): Promise<void> {
     await this.invoke({
       action: 'update_team_member',

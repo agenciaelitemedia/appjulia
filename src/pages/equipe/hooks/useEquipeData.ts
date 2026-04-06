@@ -70,6 +70,7 @@ export function useCreateTeamMember() {
       principalUserId: number;
       agentIds: { agentId: number | null; codAgent: string }[];
       modulePermissions: { moduleCode: string }[];
+      role?: string;
     }) => {
       // Generate password
       const rawPassword = generatePassword();
@@ -93,6 +94,7 @@ export function useCreateTeamMember() {
         clientId,
         agentIds: data.agentIds,
         modulePermissions: data.modulePermissions,
+        role: data.role,
       });
 
       return { ...result, temporaryPassword: rawPassword };
@@ -118,6 +120,7 @@ export function useUpdateTeamMember() {
       principalUserId: number;
       agentIds: { agentId: number | null; codAgent: string }[];
       modulePermissions: { moduleCode: string }[];
+      role?: string;
     }) => {
       return externalDb.updateTeamMember(data);
     },
