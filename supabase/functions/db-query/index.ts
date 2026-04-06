@@ -1126,14 +1126,15 @@ serve(async (req) => {
       }
 
       case 'insert_team_member': {
-        const { name, email, hashedPassword, rawPassword, principalUserId, clientId, agentIds, modulePermissions } = data;
+        const { name, email, hashedPassword, rawPassword, principalUserId, clientId, agentIds, modulePermissions, role } = data;
+        const memberRole = role || 'time';
         
-        // Insert user with role='time', user_id pointing to principal, and use_custom_permissions = true
+        // Insert user with dynamic role, user_id pointing to principal, and use_custom_permissions = true
         const userRows = await sql.unsafe(
           `INSERT INTO users (name, email, password, remember_token, role, user_id, client_id, use_custom_permissions, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, 'time', $5, $6, TRUE, now(), now())
+           VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, now(), now())
            RETURNING id, name, email`,
-          [name, email, hashedPassword, rawPassword, principalUserId, clientId]
+          [name, email, hashedPassword, rawPassword, memberRole, principalUserId, clientId]
         );
         
         const newUserId = userRows[0].id;
@@ -1163,12 +1164,13 @@ serve(async (req) => {
       }
 
       case 'update_team_member': {
-        const { memberId, name, principalUserId, agentIds, modulePermissions } = data;
+        const { memberId, name, principalUserId, agentIds, modulePermissions, role } = data;
+        const memberRole = role || 'time';
         
-        // Update user name and principal
+        // Update user name, principal and role
         await sql.unsafe(
-          `UPDATE users SET name = $1, user_id = $2, use_custom_permissions = TRUE, updated_at = now() WHERE id = $3`,
-          [name, principalUserId, memberId]
+          `UPDATE users SET name = $1, user_id = $2, role = $3, use_custom_permissions = TRUE, updated_at = now() WHERE id = $4`,
+          [name, principalUserId, memberRole, memberId]
         );
         
         // Sync user_agents: delete existing, insert new
@@ -1215,7 +1217,7 @@ serve(async (req) => {
         
         // Delete user
         await sql.unsafe(
-          `DELETE FROM users WHERE id = $1 AND role = 'time'`,
+          `DELETE FROM users WHERE id = $1 AND role IN ('time', 'advogado', 'comercial')`,
           [memberId]
         );
         

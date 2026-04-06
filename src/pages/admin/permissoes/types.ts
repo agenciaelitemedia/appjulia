@@ -47,6 +47,7 @@ export const roleLabels: Record<AppRole, string> = {
   user: 'Usuário',
   time: 'Time',
   advogado: 'Advogado',
+  comercial: 'Comercial',
 };
 
 export function permissionToRow(p: UserPermission): PermissionRow {
