@@ -1,67 +1,43 @@
 
 
-# Novo Perfil "Advogado" + Módulo `adv_dashboard` com PWA
+# Ativar Perfis "Advogado" e "Comercial" no Cadastro de Equipes
 
 ## Resumo
 
-Criar o role `advogado`, um novo módulo `adv_dashboard` com layout mobile-first independente do `MainLayout`, e configurar PWA para que o app seja instalável no celular. O login redireciona advogados automaticamente para `/adv/dashboard`.
+Adicionar seletor de perfil (time, advogado, comercial) no dialog de criação/edição de membros de equipe. O perfil "advogado" automaticamente inclui o módulo `adv_dashboard` nas permissões. O perfil "comercial" funciona como o "time" mas com role diferente para futuras diferenciações.
 
 ## Alterações
 
-### 1. Tipos — Adicionar role e módulo
+### 1. Tipos — Adicionar role `comercial`
+- `src/types/permissions.ts`: adicionar `'comercial'` ao `AppRole`
+- `src/pages/admin/permissoes/types.ts`: adicionar label `comercial: 'Comercial'`
 
-- `src/types/permissions.ts`: adicionar `'advogado'` ao `AppRole` e `'adv_dashboard'` ao `ModuleCode`
-- `src/pages/admin/permissoes/types.ts`: adicionar label para `advogado`
+### 2. Dialog de Equipe — Seletor de perfil
+- `src/pages/equipe/components/EquipeMemberDialog.tsx`:
+  - Adicionar campo `<Select>` para escolher o perfil: "Time" (padrão), "Advogado", "Comercial"
+  - Quando "Advogado" for selecionado, adicionar automaticamente `adv_dashboard` ao `selectedModuleCodes`
+  - Passar o `role` selecionado para o mutation de criação/atualização
 
-### 2. Login — Redirecionamento por role
+### 3. Hooks e externalDb — Passar role
+- `src/pages/equipe/hooks/useEquipeData.ts`: incluir `role` nos dados enviados para `insertTeamMember` e `updateTeamMember`
+- `src/lib/externalDb.ts`: aceitar `role` nos parâmetros de `insertTeamMember` e `updateTeamMember`
 
-- `src/pages/Login.tsx`: após login, se `user.role === 'advogado'`, navegar para `/adv/dashboard` em vez de `/dashboard`
-- `src/contexts/AuthContext.tsx`: sem alteração (role já vem do banco)
+### 4. Edge Function — Usar role dinâmico
+- `supabase/functions/db-query/index.ts`:
+  - `insert_team_member`: trocar `'time'` hardcoded por `data.role || 'time'`
+  - `update_team_member`: adicionar `UPDATE users SET role = $4` quando role fornecido
 
-### 3. Layout mobile do advogado
+### 5. Login — Redirect para comercial (mantém dashboard padrão)
+- Nenhuma mudança no login. Comercial vai para `/dashboard` normalmente. Advogado já redireciona para `/adv/dashboard`.
 
-Criar `src/components/layout/AdvLayout.tsx`:
-- Layout mobile-first sem sidebar desktop
-- Header simples com logo, nome do usuário e botão logout
-- Bottom navigation (se necessário no futuro)
-- `<Outlet />` para conteúdo
-- Mesma proteção de autenticação do `MainLayout`
-
-### 4. Página `AdvDashboard`
-
-Criar `src/pages/adv/AdvDashboardPage.tsx`:
-- Mensagem de boas-vindas com nome do usuário
-- Layout card-based otimizado para mobile
-- Placeholder para futuras funcionalidades
-
-### 5. Rotas
-
-- `src/App.tsx`: adicionar rota com `AdvLayout`:
-  ```
-  <Route element={<AdvLayout />}>
-    <Route path="/adv/dashboard" element={<ProtectedRoute module="adv_dashboard"><AdvDashboardPage /></ProtectedRoute>} />
-  </Route>
-  ```
-
-### 6. PWA — Manifest e meta tags
-
-Criar `public/manifest.json` com ícones, `display: "standalone"`, cores da marca. Adicionar `<link rel="manifest">` e meta tags de PWA no `index.html`. **Sem service worker** (apenas manifest para instalabilidade). Adicionar guard no `main.tsx` para desregistrar SW em iframe/preview.
-
-### 7. Módulo no banco
-
-Migração SQL para inserir o módulo `adv_dashboard` na tabela de módulos (via `db-query` no banco externo, ou seed manual se necessário — depende de como os módulos são gerenciados).
-
-## Arquivos criados/alterados
+## Arquivos alterados
 
 | Arquivo | Mudança |
 |---|---|
-| `src/types/permissions.ts` | Adicionar `'advogado'` e `'adv_dashboard'` |
-| `src/pages/admin/permissoes/types.ts` | Label do role `advogado` |
-| `src/pages/Login.tsx` | Redirect por role |
-| `src/components/layout/AdvLayout.tsx` | **Novo** — layout mobile-first |
-| `src/pages/adv/AdvDashboardPage.tsx` | **Novo** — boas-vindas |
-| `src/App.tsx` | Rotas `/adv/*` com `AdvLayout` |
-| `public/manifest.json` | **Novo** — manifest PWA |
-| `index.html` | Meta tags PWA + link manifest |
-| `src/main.tsx` | Guard anti-SW em iframe |
+| `src/types/permissions.ts` | Adicionar `'comercial'` ao AppRole |
+| `src/pages/admin/permissoes/types.ts` | Label para comercial |
+| `src/pages/equipe/components/EquipeMemberDialog.tsx` | Seletor de perfil + auto-add adv_dashboard |
+| `src/pages/equipe/hooks/useEquipeData.ts` | Passar role no create/update |
+| `src/lib/externalDb.ts` | Aceitar role em insertTeamMember/updateTeamMember |
+| `supabase/functions/db-query/index.ts` | Role dinâmico no insert/update |
 
