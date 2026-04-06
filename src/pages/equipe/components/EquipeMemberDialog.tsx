@@ -59,6 +59,7 @@ export function EquipeMemberDialog({
   const [isValidatingEmail, setIsValidatingEmail] = useState(false);
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [memberRole, setMemberRole] = useState<AppRole>("time");
 
   // Data hooks - load agents for logged-in user
   const { data: agents = [], isLoading: loadingAgents } =
