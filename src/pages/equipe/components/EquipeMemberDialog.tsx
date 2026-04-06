@@ -320,6 +320,36 @@ export function EquipeMemberDialog({
             )}
           </div>
 
+          {/* Profile/Role */}
+          <div className="space-y-2">
+            <Label>Perfil</Label>
+            <Select
+              value={memberRole}
+              onValueChange={(value: string) => {
+                const newRole = value as AppRole;
+                setMemberRole(newRole);
+                // Auto-add adv_dashboard for advogado
+                if (newRole === "advogado" && !selectedModuleCodes.includes("adv_dashboard")) {
+                  setSelectedModuleCodes((prev) => [...prev, "adv_dashboard"]);
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o perfil" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="time">Time</SelectItem>
+                <SelectItem value="advogado">Advogado</SelectItem>
+                <SelectItem value="comercial">Comercial</SelectItem>
+              </SelectContent>
+            </Select>
+            {memberRole === "advogado" && (
+              <p className="text-xs text-muted-foreground">
+                O módulo "Painel do Advogado" será adicionado automaticamente.
+              </p>
+            )}
+          </div>
+
           {/* Agents */}
           {principalUserId && (
             <div className="space-y-2">
