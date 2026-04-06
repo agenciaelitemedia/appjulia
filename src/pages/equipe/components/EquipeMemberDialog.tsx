@@ -12,6 +12,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { TeamMember } from "../types";
 import { AgentCheckboxList, SelectedAgent } from "./AgentCheckboxList";
 import { ModuleCheckboxList } from "./ModuleCheckboxList";
@@ -24,6 +31,7 @@ import {
 import { externalDb } from "@/lib/externalDb";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import type { AppRole } from "@/types/permissions";
 
 interface EquipeMemberDialogProps {
   open: boolean;
