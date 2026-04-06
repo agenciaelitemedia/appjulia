@@ -1,52 +1,67 @@
 
-# Por que mensagens não chegam no Chat — Diagnóstico e Correção
 
-## Problema Raiz
+# Novo Perfil "Advogado" + Módulo `adv_dashboard` com PWA
 
-O `meta-webhook` recebe mensagens da Meta corretamente (confirmado: "teste mensagem" chegou às 21:17 de hoje), mas **só grava em `webhook_logs` e `webhook_queue`**. As tabelas `chat_contacts` e `chat_messages` estão **completamente vazias** — nenhuma bridge existe entre o webhook e o chat.
+## Resumo
 
-Além disso:
-- O webhook **não resolve `cod_agent`** a partir do `phone_number_id` — os registros recentes têm `phone_number_id=667282786474815` e `waba_id=1597096084294505` mas `cod_agent=NULL`
-- O `waba-send` não tem action `send_media` — só `send_text` e `download_media`
+Criar o role `advogado`, um novo módulo `adv_dashboard` com layout mobile-first independente do `MainLayout`, e configurar PWA para que o app seja instalável no celular. O login redireciona advogados automaticamente para `/adv/dashboard`.
 
-## Plano de Correção
+## Alterações
 
-### 1. Atualizar `meta-webhook` — Persistir no Chat + Resolver `cod_agent`
+### 1. Tipos — Adicionar role e módulo
 
-Após inserir em `webhook_logs`/`webhook_queue`, o webhook deve:
+- `src/types/permissions.ts`: adicionar `'advogado'` ao `AppRole` e `'adv_dashboard'` ao `ModuleCode`
+- `src/pages/admin/permissoes/types.ts`: adicionar label para `advogado`
 
-1. **Resolver `cod_agent`**: consultar o banco externo via `db-query` para encontrar o agente pelo `waba_number_id` (= `phone_number_id` do webhook)
-2. **Upsert em `chat_contacts`**: criar/atualizar contato usando `phone + client_id` (o `client_id` será buscado junto com o `cod_agent` da tabela `agents` → `user_agents`)
-3. **Insert em `chat_messages`**: persistir a mensagem com `contact_id`, `external_id`, `text`, `type`, `media_url` etc.
-4. **Atualizar `cod_agent`** no `webhook_logs` para rastreabilidade
+### 2. Login — Redirecionamento por role
 
-### 2. Adicionar action `send_media` ao `waba-send`
+- `src/pages/Login.tsx`: após login, se `user.role === 'advogado'`, navegar para `/adv/dashboard` em vez de `/dashboard`
+- `src/contexts/AuthContext.tsx`: sem alteração (role já vem do banco)
 
-O frontend já chama `waba-send` com `action: 'send_media'`, mas o edge function retorna "Unknown action". Implementar:
-- Upload de mídia para Graph API (`POST /{phone_number_id}/media`)
-- Envio da mensagem com o `media_id` retornado
+### 3. Layout mobile do advogado
 
-### 3. Corrigir mapeamento `phone_number_id` → `cod_agent` + `client_id`
+Criar `src/components/layout/AdvLayout.tsx`:
+- Layout mobile-first sem sidebar desktop
+- Header simples com logo, nome do usuário e botão logout
+- Bottom navigation (se necessário no futuro)
+- `<Outlet />` para conteúdo
+- Mesma proteção de autenticação do `MainLayout`
 
-Criar uma função interna no `meta-webhook` que:
-- Chama `db-query` com `SELECT cod_agent, user_id FROM agents JOIN user_agents ON ... WHERE waba_number_id = $1`
-- Usa `user_id` como `client_id` para filtrar corretamente no chat
+### 4. Página `AdvDashboard`
 
-## Arquivos alterados
+Criar `src/pages/adv/AdvDashboardPage.tsx`:
+- Mensagem de boas-vindas com nome do usuário
+- Layout card-based otimizado para mobile
+- Placeholder para futuras funcionalidades
+
+### 5. Rotas
+
+- `src/App.tsx`: adicionar rota com `AdvLayout`:
+  ```
+  <Route element={<AdvLayout />}>
+    <Route path="/adv/dashboard" element={<ProtectedRoute module="adv_dashboard"><AdvDashboardPage /></ProtectedRoute>} />
+  </Route>
+  ```
+
+### 6. PWA — Manifest e meta tags
+
+Criar `public/manifest.json` com ícones, `display: "standalone"`, cores da marca. Adicionar `<link rel="manifest">` e meta tags de PWA no `index.html`. **Sem service worker** (apenas manifest para instalabilidade). Adicionar guard no `main.tsx` para desregistrar SW em iframe/preview.
+
+### 7. Módulo no banco
+
+Migração SQL para inserir o módulo `adv_dashboard` na tabela de módulos (via `db-query` no banco externo, ou seed manual se necessário — depende de como os módulos são gerenciados).
+
+## Arquivos criados/alterados
 
 | Arquivo | Mudança |
 |---|---|
-| `supabase/functions/meta-webhook/index.ts` | Resolver `cod_agent`/`client_id` via `phone_number_id`; upsert `chat_contacts`; insert `chat_messages`; atualizar `cod_agent` no log |
-| `supabase/functions/waba-send/index.ts` | Adicionar action `send_media` (upload + envio via Graph API) |
+| `src/types/permissions.ts` | Adicionar `'advogado'` e `'adv_dashboard'` |
+| `src/pages/admin/permissoes/types.ts` | Label do role `advogado` |
+| `src/pages/Login.tsx` | Redirect por role |
+| `src/components/layout/AdvLayout.tsx` | **Novo** — layout mobile-first |
+| `src/pages/adv/AdvDashboardPage.tsx` | **Novo** — boas-vindas |
+| `src/App.tsx` | Rotas `/adv/*` com `AdvLayout` |
+| `public/manifest.json` | **Novo** — manifest PWA |
+| `index.html` | Meta tags PWA + link manifest |
+| `src/main.tsx` | Guard anti-SW em iframe |
 
-## Fluxo Corrigido
-
-```text
-Meta Webhook POST
-  → Extrair phone_number_id do payload
-  → Chamar db-query: phone_number_id → cod_agent + user_id (client_id)
-  → Upsert chat_contacts (phone, client_id, cod_agent, name)
-  → Insert chat_messages (text, type, media_url, external_id, contact_id)
-  → Insert webhook_logs + webhook_queue (já existente)
-  → Realtime notifica frontend → mensagem aparece no chat
-```
