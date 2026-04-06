@@ -97,7 +97,7 @@ export function EquipeMemberDialog({
     }
   }, [open, member, user?.id]);
 
-  // Load member's existing agents and modules when editing
+  // Load member's existing agents, modules and role when editing
   const loadMemberData = async (memberId: number) => {
     try {
       // Load agents
@@ -115,6 +115,15 @@ export function EquipeMemberDialog({
         .filter((p) => p.can_view)
         .map((p) => p.module_code);
       setSelectedModuleCodes(activeCodes);
+
+      // Load role
+      const memberInfo = await externalDb.raw<{ role: string }>({
+        query: "SELECT role FROM users WHERE id = $1 LIMIT 1",
+        params: [memberId],
+      });
+      if (memberInfo[0]?.role) {
+        setMemberRole(memberInfo[0].role as AppRole);
+      }
     } catch (error) {
       console.error("Error loading member data:", error);
     }
@@ -187,6 +196,7 @@ export function EquipeMemberDialog({
           principalUserId,
           agentIds: selectedAgents,
           modulePermissions,
+          role: memberRole,
         });
         onOpenChange(false);
         onSuccess?.();
@@ -197,6 +207,7 @@ export function EquipeMemberDialog({
           principalUserId,
           agentIds: selectedAgents,
           modulePermissions,
+          role: memberRole,
         });
         setTemporaryPassword(result.temporaryPassword);
       }
