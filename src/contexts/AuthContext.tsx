@@ -105,6 +105,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(authenticatedUser);
       localStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(authenticatedUser));
       
+      // Ensure adv_dashboard module exists for advogado users before loading permissions
+      if (authenticatedUser.role === 'advogado') {
+        try { await externalDb.ensureAdvModule(); } catch (e) { console.error('ensureAdvModule error:', e); }
+      }
+      
       // Load permissions after login
       await loadPermissions(authenticatedUser.id);
       
