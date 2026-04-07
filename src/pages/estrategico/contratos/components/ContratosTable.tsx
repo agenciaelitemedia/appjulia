@@ -150,6 +150,7 @@ export function ContratosTable({
 }: ContratosTableProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [selectedContrato, setSelectedContrato] = useState<JuliaContrato | null>(null);
