@@ -1149,8 +1149,14 @@ serve(async (req) => {
         }
         
         // Insert user_permissions for selected modules
-        if (modulePermissions && modulePermissions.length > 0) {
-          for (const mod of modulePermissions) {
+        // Auto-include adv_dashboard for advogado role
+        const allPermissions = modulePermissions ? [...modulePermissions] : [];
+        if (memberRole === 'advogado' && !allPermissions.some((m: any) => m.moduleCode === 'adv_dashboard')) {
+          allPermissions.push({ moduleCode: 'adv_dashboard' });
+        }
+        
+        if (allPermissions.length > 0) {
+          for (const mod of allPermissions) {
             await sql.unsafe(
               `INSERT INTO user_permissions (user_id, module_id, can_view, can_create, can_edit, can_delete)
                SELECT $1, id, TRUE, TRUE, TRUE, FALSE FROM modules WHERE code = $2`,
