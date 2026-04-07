@@ -465,6 +465,7 @@ export type Database = {
       crm_comercial_cards: {
         Row: {
           assigned_to: number | null
+          cod_agent: string | null
           company_name: string | null
           contact_email: string | null
           contact_name: string
@@ -480,6 +481,7 @@ export type Database = {
         }
         Insert: {
           assigned_to?: number | null
+          cod_agent?: string | null
           company_name?: string | null
           contact_email?: string | null
           contact_name?: string
@@ -495,6 +497,7 @@ export type Database = {
         }
         Update: {
           assigned_to?: number | null
+          cod_agent?: string | null
           company_name?: string | null
           contact_email?: string | null
           contact_name?: string
