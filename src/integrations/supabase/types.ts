@@ -151,6 +151,42 @@ export type Database = {
           },
         ]
       }
+      contract_deletion_audit: {
+        Row: {
+          cod_agent: string | null
+          cod_document: string
+          deleted_at: string
+          deleted_by: string | null
+          id: string
+          previous_status: string | null
+          reason: string | null
+          signer_name: string | null
+          whatsapp: string | null
+        }
+        Insert: {
+          cod_agent?: string | null
+          cod_document: string
+          deleted_at?: string
+          deleted_by?: string | null
+          id?: string
+          previous_status?: string | null
+          reason?: string | null
+          signer_name?: string | null
+          whatsapp?: string | null
+        }
+        Update: {
+          cod_agent?: string | null
+          cod_document?: string
+          deleted_at?: string
+          deleted_by?: string | null
+          id?: string
+          previous_status?: string | null
+          reason?: string | null
+          signer_name?: string | null
+          whatsapp?: string | null
+        }
+        Relationships: []
+      }
       contract_notification_configs: {
         Row: {
           cod_agent: string

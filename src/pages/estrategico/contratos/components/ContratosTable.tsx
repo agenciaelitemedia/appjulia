@@ -11,6 +11,18 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 import {
   Tooltip,
   TooltipContent,
@@ -26,7 +38,7 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from '@/components/ui/pagination';
-import { FileText, Eye, MessageCircle, Download, Loader2, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, Bot, Phone, Video, Scale } from 'lucide-react';
+import { FileText, Eye, MessageCircle, Download, Loader2, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, Bot, Phone, Video, Scale, X, AlertTriangle } from 'lucide-react';
 import { JuliaContrato } from '../../types';
 import { formatDbDateTime, formatTimeDifference } from '@/lib/dateUtils';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
@@ -34,7 +46,9 @@ import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog'
 import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
 import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 import { supabase } from '@/integrations/supabase/client';
+import { externalDb } from '@/lib/externalDb';
 import { useToast } from '@/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 
 const ITEMS_PER_PAGE = 20;
@@ -135,6 +149,7 @@ export function ContratosTable({
 }: ContratosTableProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [selectedContrato, setSelectedContrato] = useState<JuliaContrato | null>(null);
   const [phoneCallOpen, setPhoneCallOpen] = useState(false);
@@ -148,6 +163,11 @@ export function ContratosTable({
     whatsapp: string;
     codAgent: string;
   }>({ open: false, whatsapp: '', codAgent: '' });
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteContrato, setDeleteContrato] = useState<JuliaContrato | null>(null);
+  const [deleteConfirmPhone, setDeleteConfirmPhone] = useState('');
+  const [deleteConfirmSwitch, setDeleteConfirmSwitch] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const filteredContratos = useMemo(() => {
     if (!searchTerm) return contratos;
@@ -221,6 +241,42 @@ export function ContratosTable({
     return sortDirection === 'asc' 
       ? <ArrowUp className="h-4 w-4 ml-1" /> 
       : <ArrowDown className="h-4 w-4 ml-1" />;
+  };
+
+  const handleOpenDeleteDialog = (contrato: JuliaContrato) => {
+    setDeleteContrato(contrato);
+    setDeleteConfirmPhone('');
+    setDeleteConfirmSwitch(false);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteContrato = async () => {
+    if (!deleteContrato) return;
+    setIsDeleting(true);
+    try {
+      await externalDb.raw({
+        query: `UPDATE contratos SET status_document = 'DELETED' WHERE cod_document = $1`,
+        params: [deleteContrato.cod_document],
+      });
+
+      await supabase.from('contract_deletion_audit').insert({
+        cod_document: deleteContrato.cod_document,
+        cod_agent: deleteContrato.cod_agent,
+        signer_name: deleteContrato.signer_name,
+        whatsapp: deleteContrato.whatsapp,
+        previous_status: deleteContrato.status_document,
+        deleted_by: 'admin',
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['contratos'] });
+      setDeleteDialogOpen(false);
+      toast({ title: 'Contrato excluído', description: 'O contrato foi marcado como DELETED com sucesso.' });
+    } catch (error) {
+      console.error('Erro ao excluir contrato:', error);
+      toast({ title: 'Erro', description: 'Não foi possível excluir o contrato.', variant: 'destructive' });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleOpenMessages = (contrato: JuliaContrato) => {
@@ -354,6 +410,7 @@ export function ContratosTable({
       SIGNED: { className: 'bg-green-100 text-green-800 hover:bg-green-100', label: 'Assinado' },
       PENDING: { className: 'bg-orange-100 text-orange-800 hover:bg-orange-100', label: 'Pendente' },
       CANCELLED: { className: 'bg-red-100 text-red-800 hover:bg-red-100', label: 'Cancelado' },
+      DELETED: { className: 'bg-gray-300 text-gray-900 hover:bg-gray-300', label: 'Excluído' },
     };
     return variants[status] || { className: 'bg-gray-100 text-gray-800', label: status };
   };
@@ -597,6 +654,23 @@ export function ContratosTable({
                           <TooltipContent>Ver detalhes</TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
+
+                      {/* Excluir */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 rounded-full text-red-500 border-red-500/30 hover:bg-red-100/50 dark:hover:bg-red-900/30"
+                              onClick={() => handleOpenDeleteDialog(contrato)}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Excluir contrato</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -687,6 +761,65 @@ export function ContratosTable({
           codAgent={phoneCallContrato.cod_agent}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              Excluir Contrato
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-700 dark:text-red-400 space-y-1">
+                  <p className="font-semibold">⚠️ Esta ação é irreversível.</p>
+                  <p>O contrato será permanentemente removido e não poderá ser desfeito.</p>
+                  <p>Você não terá mais acesso a este contrato.</p>
+                  <p className="font-semibold">Esta ação será auditada.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Para confirmar, digite o telefone do contrato: <strong className="text-foreground">{deleteContrato?.whatsapp || deleteContrato?.signer_name || ''}</strong>
+                  </p>
+                  <Input
+                    placeholder="Digite o telefone para confirmar"
+                    value={deleteConfirmPhone}
+                    onChange={(e) => setDeleteConfirmPhone(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Switch
+                    id="delete-confirm-switch"
+                    checked={deleteConfirmSwitch}
+                    onCheckedChange={setDeleteConfirmSwitch}
+                  />
+                  <Label htmlFor="delete-confirm-switch" className="text-sm cursor-pointer">
+                    Confirmo que desejo excluir este contrato
+                  </Label>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>Cancelar</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={
+                deleteConfirmPhone !== (deleteContrato?.whatsapp || deleteContrato?.signer_name || '') ||
+                !deleteConfirmSwitch ||
+                isDeleting
+              }
+              onClick={handleDeleteContrato}
+            >
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Excluir definitivamente
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
