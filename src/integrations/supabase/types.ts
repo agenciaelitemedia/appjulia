@@ -462,6 +462,138 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_comercial_cards: {
+        Row: {
+          assigned_to: number | null
+          company_name: string | null
+          contact_email: string | null
+          contact_name: string
+          contact_phone: string | null
+          created_at: string | null
+          created_by: number | null
+          id: number
+          notes: string | null
+          stage_entered_at: string | null
+          stage_id: number
+          updated_at: string | null
+          value: number | null
+        }
+        Insert: {
+          assigned_to?: number | null
+          company_name?: string | null
+          contact_email?: string | null
+          contact_name?: string
+          contact_phone?: string | null
+          created_at?: string | null
+          created_by?: number | null
+          id?: number
+          notes?: string | null
+          stage_entered_at?: string | null
+          stage_id: number
+          updated_at?: string | null
+          value?: number | null
+        }
+        Update: {
+          assigned_to?: number | null
+          company_name?: string | null
+          contact_email?: string | null
+          contact_name?: string
+          contact_phone?: string | null
+          created_at?: string | null
+          created_by?: number | null
+          id?: number
+          notes?: string | null
+          stage_entered_at?: string | null
+          stage_id?: number
+          updated_at?: string | null
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_comercial_cards_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "crm_comercial_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_comercial_history: {
+        Row: {
+          card_id: number
+          changed_at: string | null
+          changed_by: number | null
+          from_stage_id: number | null
+          id: number
+          notes: string | null
+          to_stage_id: number
+        }
+        Insert: {
+          card_id: number
+          changed_at?: string | null
+          changed_by?: number | null
+          from_stage_id?: number | null
+          id?: number
+          notes?: string | null
+          to_stage_id: number
+        }
+        Update: {
+          card_id?: number
+          changed_at?: string | null
+          changed_by?: number | null
+          from_stage_id?: number | null
+          id?: number
+          notes?: string | null
+          to_stage_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_comercial_history_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "crm_comercial_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_comercial_history_from_stage_id_fkey"
+            columns: ["from_stage_id"]
+            isOneToOne: false
+            referencedRelation: "crm_comercial_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_comercial_history_to_stage_id_fkey"
+            columns: ["to_stage_id"]
+            isOneToOne: false
+            referencedRelation: "crm_comercial_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_comercial_stages: {
+        Row: {
+          color: string
+          id: number
+          is_active: boolean
+          name: string
+          position: number
+        }
+        Insert: {
+          color?: string
+          id?: number
+          is_active?: boolean
+          name: string
+          position?: number
+        }
+        Update: {
+          color?: string
+          id?: number
+          is_active?: boolean
+          name?: string
+          position?: number
+        }
+        Relationships: []
+      }
       crm_copilot_chat_messages: {
         Row: {
           content: string

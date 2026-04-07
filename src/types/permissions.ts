@@ -31,7 +31,8 @@ export type ModuleCode =
   | 'contract_notifications'
   | 'julia_orders'
   | 'julia_plans'
-  | 'adv_dashboard';
+  | 'adv_dashboard'
+  | 'crm_comercial';
 
 export interface Module {
   id: number;
