@@ -22,6 +22,7 @@ interface CardFilters {
   search?: string;
   dateFrom?: string;
   dateTo?: string;
+  agentCodes?: string[];
 }
 
 export function useCrmComercialCards(filters: CardFilters) {
@@ -36,6 +37,9 @@ export function useCrmComercialCards(filters: CardFilters) {
         `)
         .order('updated_at', { ascending: false });
 
+      if (filters.agentCodes && filters.agentCodes.length > 0) {
+        query = query.in('cod_agent', filters.agentCodes);
+      }
       if (filters.dateFrom) {
         query = query.gte('created_at', `${filters.dateFrom}T00:00:00`);
       }
@@ -67,6 +71,7 @@ export function useCreateComercialCard() {
       company_name?: string;
       notes?: string;
       value?: number;
+      cod_agent?: string;
     }) => {
       const { data, error } = await supabase
         .from('crm_comercial_cards')
@@ -75,7 +80,6 @@ export function useCreateComercialCard() {
         .single();
       if (error) throw error;
 
-      // Create history entry
       await supabase.from('crm_comercial_history').insert({
         card_id: data.id,
         to_stage_id: card.stage_id,

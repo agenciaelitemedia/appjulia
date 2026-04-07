@@ -9,6 +9,7 @@ export interface ComercialStage {
 export interface ComercialCard {
   id: number;
   stage_id: number;
+  cod_agent?: string;
   contact_name: string;
   contact_phone?: string;
   contact_email?: string;

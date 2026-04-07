@@ -11,10 +11,12 @@ interface Props {
   stage: ComercialStage;
   cards: ComercialCard[];
   onCardClick: (card: ComercialCard) => void;
+  onMoveCard: (cardId: number, fromStageId: number, toStageId: number) => void;
 }
 
-export function ComercialPipelineColumn({ stage, cards, onCardClick }: Props) {
+export function ComercialPipelineColumn({ stage, cards, onCardClick, onMoveCard }: Props) {
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   useEffect(() => {
     setVisibleCount(ITEMS_PER_PAGE);
@@ -24,8 +26,33 @@ export function ComercialPipelineColumn({ stage, cards, onCardClick }: Props) {
   const hasMore = cards.length > visibleCount;
   const remaining = Math.min(ITEMS_PER_PAGE, cards.length - visibleCount);
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = () => setIsDragOver(false);
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const cardId = Number(e.dataTransfer.getData('cardId'));
+    const fromStageId = Number(e.dataTransfer.getData('fromStageId'));
+    if (cardId && fromStageId !== stage.id) {
+      onMoveCard(cardId, fromStageId, stage.id);
+    }
+  };
+
   return (
-    <div className="flex flex-col min-w-[280px] max-w-[280px] bg-muted/30 rounded-lg">
+    <div
+      className={`flex flex-col min-w-[280px] max-w-[280px] bg-muted/30 rounded-lg transition-all ${
+        isDragOver ? 'ring-2 ring-primary/50 bg-primary/5' : ''
+      }`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div className="p-3 rounded-t-lg flex items-center justify-between" style={{ backgroundColor: `${stage.color}20` }}>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: stage.color }} />

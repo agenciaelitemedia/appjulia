@@ -2,6 +2,8 @@ import { useRef } from 'react';
 import { ComercialCard, ComercialStage } from '../types';
 import { ComercialPipelineColumn } from './ComercialPipelineColumn';
 import { CRMScrollNavigation } from '@/pages/crm/components/CRMScrollNavigation';
+import { useMoveComercialCard } from '../hooks/useCrmComercialData';
+import { toast } from 'sonner';
 
 interface Props {
   stages: ComercialStage[];
@@ -11,6 +13,17 @@ interface Props {
 
 export function ComercialPipeline({ stages, cards, onCardClick }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const moveMutation = useMoveComercialCard();
+
+  const handleMoveCard = (cardId: number, fromStageId: number, toStageId: number) => {
+    moveMutation.mutate(
+      { cardId, fromStageId, toStageId },
+      {
+        onSuccess: () => toast.success('Card movido com sucesso'),
+        onError: (err: any) => toast.error(err.message || 'Erro ao mover card'),
+      }
+    );
+  };
 
   return (
     <div className="flex flex-col flex-1">
@@ -25,6 +38,7 @@ export function ComercialPipeline({ stages, cards, onCardClick }: Props) {
             stage={stage}
             cards={cards.filter((c) => c.stage_id === stage.id)}
             onCardClick={onCardClick}
+            onMoveCard={handleMoveCard}
           />
         ))}
       </div>
