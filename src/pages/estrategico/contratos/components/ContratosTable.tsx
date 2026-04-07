@@ -160,6 +160,11 @@ export function ContratosTable({
     whatsapp: string;
     codAgent: string;
   }>({ open: false, whatsapp: '', codAgent: '' });
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteContrato, setDeleteContrato] = useState<JuliaContrato | null>(null);
+  const [deleteConfirmPhone, setDeleteConfirmPhone] = useState('');
+  const [deleteConfirmSwitch, setDeleteConfirmSwitch] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const filteredContratos = useMemo(() => {
     if (!searchTerm) return contratos;
