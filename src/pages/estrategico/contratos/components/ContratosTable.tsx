@@ -38,7 +38,7 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from '@/components/ui/pagination';
-import { FileText, Eye, MessageCircle, Download, Loader2, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, Bot, Phone, Video, Scale } from 'lucide-react';
+import { FileText, Eye, MessageCircle, Download, Loader2, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, Bot, Phone, Video, Scale, X, AlertTriangle } from 'lucide-react';
 import { JuliaContrato } from '../../types';
 import { formatDbDateTime, formatTimeDifference } from '@/lib/dateUtils';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
