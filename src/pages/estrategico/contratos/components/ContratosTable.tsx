@@ -654,6 +654,23 @@ export function ContratosTable({
                           <TooltipContent>Ver detalhes</TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
+
+                      {/* Excluir */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 rounded-full text-red-500 border-red-500/30 hover:bg-red-100/50 dark:hover:bg-red-900/30"
+                              onClick={() => handleOpenDeleteDialog(contrato)}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Excluir contrato</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                   </TableCell>
                 </TableRow>
