@@ -1655,7 +1655,33 @@ serve(async (req) => {
         break;
       }
 
-      case 'update_module': {
+      case 'ensure_adv_module': {
+        // Ensure adv_dashboard module exists in the modules table
+        const existing = await sql.unsafe(`SELECT id FROM modules WHERE code = 'adv_dashboard'`);
+        if (existing.length === 0) {
+          const ins = await sql.unsafe(
+            `INSERT INTO modules (code, name, description, category, icon, route, menu_group, is_menu_visible, display_order, is_active, created_at, updated_at)
+             VALUES ('adv_dashboard', 'Dashboard Advogado', 'Dashboard exclusivo para advogados', 'principal', 'Scale', '/adv/dashboard', 'ADVOGADO', false, 50, TRUE, now(), now())
+             RETURNING id`
+          );
+          if (ins.length > 0) {
+            await sql.unsafe(`
+              INSERT INTO role_default_permissions (role, module_id, can_view, can_create, can_edit, can_delete)
+              SELECT role, $1,
+                     CASE WHEN role IN ('admin', 'advogado') THEN TRUE ELSE FALSE END,
+                     CASE WHEN role = 'admin' THEN TRUE ELSE FALSE END,
+                     CASE WHEN role = 'admin' THEN TRUE ELSE FALSE END,
+                     CASE WHEN role = 'admin' THEN TRUE ELSE FALSE END
+              FROM (VALUES ('admin'), ('colaborador'), ('user'), ('time'), ('advogado'), ('comercial')) AS r(role)
+              ON CONFLICT (role, module_id) DO NOTHING
+            `, [ins[0].id]);
+          }
+        }
+        result = existing.length > 0 ? existing : [{ success: true, created: true }];
+        break;
+      }
+
+
         const { moduleId, moduleData } = data;
         
         // Build dynamic SET clause only for provided fields
