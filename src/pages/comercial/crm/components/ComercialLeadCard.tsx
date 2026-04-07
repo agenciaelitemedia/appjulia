@@ -48,7 +48,7 @@ export function ComercialLeadCard({ card, onClick }: Props) {
         <CardContent className="p-3">
           <div className="space-y-2">
             {/* Header: Nome + badge Vellip */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center justify-between gap-1.5">
               <span className="text-sm font-medium line-clamp-1">
                 👤 {card.contact_name || 'Sem nome'}
               </span>
