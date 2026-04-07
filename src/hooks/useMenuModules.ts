@@ -63,6 +63,7 @@ export const menuGroupOrder = [
   'AGENTES DA JULIA',
   'CRM',
   'SISTEMA',
+  'COMERCIAL',
   'ADMINISTRATIVO',
   'FINANCEIRO',
   'CONFIGURAÇÕES',

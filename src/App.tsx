@@ -61,6 +61,7 @@ import PedidosPage from "./pages/admin/pedidos/PedidosPage";
 import PlanosPage from "./pages/admin/planos/PlanosPage";
 import ContratoTemplatePage from "./pages/admin/contrato/ContratoTemplatePage";
 import AdvDashboardPage from "./pages/adv/AdvDashboardPage";
+import CRMComercialPage from "./pages/comercial/crm/CRMComercialPage";
 
 const queryClient = new QueryClient();
 
@@ -108,6 +109,7 @@ const App = () => (
                   <Route path="/casos-juridicos" element={<LegalCasesPage />} />
                   <Route path="/notificacoes-contrato" element={<ContractNotificationsPage />} />
                   <Route path="/telefonia" element={<ProtectedRoute module="telephony"><TelefoniaPage /></ProtectedRoute>} />
+                  <Route path="/comercial/crm" element={<ProtectedRoute module="crm_comercial"><CRMComercialPage /></ProtectedRoute>} />
                   
                   {/* Admin routes - protected by module permission */}
                   <Route path="/admin/agentes" element={<ProtectedRoute module="admin_agents"><AgentsList /></ProtectedRoute>} />
