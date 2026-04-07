@@ -1,25 +1,36 @@
 
 
-# Correção: Membros com perfil "advogado" e "comercial" não aparecem na lista de equipes
+# Correção: Advogado redirecionado para /dashboard em vez de /adv/dashboard
 
 ## Causa raiz
 
-Na edge function `db-query`, a action `get_team_members` filtra apenas `WHERE u.role = 'time'` (linhas 1050 e 1063). O usuário 180 tem role `'advogado'`, então é excluído da listagem.
+No `Login.tsx` linha 22-23, existe um guard:
+```tsx
+if (isAuthenticated) {
+  return <Navigate to="/dashboard" replace />;
+}
+```
+
+Quando `login()` sucede, ele chama `setUser(authenticatedUser)` no AuthContext, o que faz `isAuthenticated` virar `true` **imediatamente**. O componente re-renderiza e o `<Navigate to="/dashboard">` executa ANTES do `navigate(role === 'advogado' ? '/adv/dashboard' : '/dashboard')` na linha 50.
+
+O `navigate()` na linha 50 nunca chega a executar porque o componente já desmontou.
 
 ## Correção
 
-### `supabase/functions/db-query/index.ts`
+Alterar o guard `isAuthenticated` no `Login.tsx` para considerar o role do usuário:
 
-Alterar o filtro de role nas queries de `get_team_members`:
+```tsx
+if (isAuthenticated) {
+  const target = user?.role === 'advogado' ? '/adv/dashboard' : '/dashboard';
+  return <Navigate to={target} replace />;
+}
+```
 
-- **Admin**: trocar `WHERE u.role = 'time'` por `WHERE u.role IN ('time', 'advogado', 'comercial')`
-- **Non-admin**: trocar `WHERE u.user_id = $1 AND u.role = 'time'` por `WHERE u.user_id = $1 AND u.role IN ('time', 'advogado', 'comercial')`
-
-Isso garante que todos os perfis de equipe (time, advogado, comercial) apareçam na lista.
+Isso resolve tanto o redirect pós-login quanto o caso de um advogado já autenticado acessando `/login` diretamente.
 
 ## Arquivo alterado
 
 | Arquivo | Mudança |
 |---|---|
-| `supabase/functions/db-query/index.ts` | Incluir roles `advogado` e `comercial` no filtro de `get_team_members` |
+| `src/pages/Login.tsx` | Guard `isAuthenticated` redireciona baseado em `user.role` |
 
