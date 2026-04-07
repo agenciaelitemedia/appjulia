@@ -1,58 +1,64 @@
 
 
-# CRM Comercial: filtro por cod_agent + drag-and-drop
+# Webhook Vellip — tabela + edge function
 
-## 1. Migração: adicionar `cod_agent` à tabela `crm_comercial_cards`
+## 1. Migração: tabela `vellip_call_logs`
 
 ```sql
-ALTER TABLE crm_comercial_cards ADD COLUMN cod_agent text;
-CREATE INDEX idx_crm_comercial_cards_cod_agent ON crm_comercial_cards(cod_agent);
+CREATE TABLE vellip_call_logs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  cod_agent text,
+  phone text,
+  cd_id text,
+  cd_date text,
+  cd_time text,
+  cd_time_start text,
+  cd_time_end text,
+  cd_time_sec integer,
+  cd_time_sec2 integer,
+  cd_price text,
+  cd_value text,
+  cd_name text,
+  cd_route text,
+  cd_called_status text,
+  cd_resp1 text,
+  saldo text,
+  raw_payload jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE vellip_call_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all on vellip_call_logs" ON vellip_call_logs FOR ALL USING (true) WITH CHECK (true);
 ```
 
-## 2. `src/pages/comercial/crm/types.ts`
-- Adicionar `cod_agent?: string` ao tipo `ComercialCard`
+## 2. Edge Function: `supabase/functions/vellip-webhook/index.ts`
 
-## 3. `src/pages/comercial/crm/CRMComercialPage.tsx` — Substituir filtros manuais por `UnifiedFilters`
+- Recebe POST com JSON da Vellip
+- Lê `cod_agent` do query param (`?cod_agent=XXX`), se ausente grava `null`
+- Extrai do body: `dest` → `phone`, e os campos `cd_id`, `cd_date`, `cd_time`, `cd_time_start`, `cd_time_end`, `cd_time_sec`, `cd_time_sec2`, `cd_price`, `cd_value`, `cd_name`, `cd_route`, `cd_called_status`, `cd_resp1`, `saldo`
+- Se `dest` ou `cd_id` não existirem no JSON, retorna 200 sem gravar
+- Grava o JSON inteiro em `raw_payload`
+- CORS headers + OPTIONS handler
+- `verify_jwt = false` no config.toml
 
-- Importar `UnifiedFilters`, `UnifiedFiltersState`, `useCRMAgents`
-- Usar `useCRMAgents()` para obter lista de agentes
-- Estado `filters: UnifiedFiltersState` com `agentCodes`, `dateFrom`, `dateTo`, `search`
-- Passar filtros completos (incluindo `agentCodes`) para `useCrmComercialCards`
-- Remover inputs manuais de busca/data, usar `<UnifiedFilters>` no lugar
+## 3. `supabase/config.toml`
 
-## 4. `src/pages/comercial/crm/hooks/useCrmComercialData.ts`
+Adicionar bloco:
+```toml
+[functions.vellip-webhook]
+verify_jwt = false
+```
 
-- Adicionar `agentCodes` ao `CardFilters`
-- Filtrar cards por `cod_agent` usando `.in('cod_agent', agentCodes)` quando houver agentes selecionados
-- No `useCreateComercialCard`, aceitar `cod_agent` e incluir no insert
+## Resultado
 
-## 5. Drag-and-drop nos cards entre colunas
+URL para configurar na Vellip:
+```
+https://zenizgyrwlonmufxnjqt.supabase.co/functions/v1/vellip-webhook?cod_agent=SEU_COD_AGENT
+```
 
-### `ComercialLeadCard.tsx`
-- Adicionar `draggable="true"`, `onDragStart` que seta `dataTransfer` com `cardId` e `fromStageId`
-
-### `ComercialPipelineColumn.tsx`
-- Adicionar `onDragOver` (preventDefault) e `onDrop` que lê os dados e chama `onMoveCard`
-- Feedback visual: estado `isDragOver` com borda highlight
-- Prop `onMoveCard(cardId, fromStageId, toStageId)`
-
-### `ComercialPipeline.tsx`
-- Importar `useMoveComercialCard`, passar `onMoveCard` para cada coluna
-
-## 6. `ComercialCardDialog.tsx`
-- Já tem seletor de etapa — sem mudança necessária (já move card ao salvar se stage mudou)
-- Adicionar campo `cod_agent` ao formulário de criação
-
-## Arquivos alterados
-
-| Arquivo | Mudança |
+| Arquivo | Ação |
 |---|---|
-| Migração SQL | `cod_agent` na tabela `crm_comercial_cards` |
-| `types.ts` | Adicionar `cod_agent` |
-| `CRMComercialPage.tsx` | `UnifiedFilters` com agentes |
-| `useCrmComercialData.ts` | Filtro por `agentCodes` + `cod_agent` no create |
-| `ComercialLeadCard.tsx` | `draggable` + `onDragStart` |
-| `ComercialPipelineColumn.tsx` | `onDragOver` + `onDrop` com feedback visual |
-| `ComercialPipeline.tsx` | Integrar `useMoveComercialCard` + passar handler |
-| `ComercialCardDialog.tsx` | Campo `cod_agent` no form de criação |
+| Migração SQL | Criar tabela `vellip_call_logs` |
+| `supabase/functions/vellip-webhook/index.ts` | Nova edge function |
+| `supabase/config.toml` | Adicionar bloco vellip-webhook |
 
