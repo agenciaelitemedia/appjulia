@@ -1,4 +1,5 @@
-import { Clock, Eye, Building2, DollarSign } from 'lucide-react';
+import { Clock, Eye, Building2, DollarSign, Phone } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ComercialCard } from '../types';
