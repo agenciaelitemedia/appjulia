@@ -1866,6 +1866,72 @@ export type Database = {
           },
         ]
       }
+      vellip_call_logs: {
+        Row: {
+          cd_called_status: string | null
+          cd_date: string | null
+          cd_id: string | null
+          cd_name: string | null
+          cd_price: string | null
+          cd_resp1: string | null
+          cd_route: string | null
+          cd_time: string | null
+          cd_time_end: string | null
+          cd_time_sec: number | null
+          cd_time_sec2: number | null
+          cd_time_start: string | null
+          cd_value: string | null
+          cod_agent: string | null
+          created_at: string
+          id: string
+          phone: string | null
+          raw_payload: Json | null
+          saldo: string | null
+        }
+        Insert: {
+          cd_called_status?: string | null
+          cd_date?: string | null
+          cd_id?: string | null
+          cd_name?: string | null
+          cd_price?: string | null
+          cd_resp1?: string | null
+          cd_route?: string | null
+          cd_time?: string | null
+          cd_time_end?: string | null
+          cd_time_sec?: number | null
+          cd_time_sec2?: number | null
+          cd_time_start?: string | null
+          cd_value?: string | null
+          cod_agent?: string | null
+          created_at?: string
+          id?: string
+          phone?: string | null
+          raw_payload?: Json | null
+          saldo?: string | null
+        }
+        Update: {
+          cd_called_status?: string | null
+          cd_date?: string | null
+          cd_id?: string | null
+          cd_name?: string | null
+          cd_price?: string | null
+          cd_resp1?: string | null
+          cd_route?: string | null
+          cd_time?: string | null
+          cd_time_end?: string | null
+          cd_time_sec?: number | null
+          cd_time_sec2?: number | null
+          cd_time_start?: string | null
+          cd_value?: string | null
+          cod_agent?: string | null
+          created_at?: string
+          id?: string
+          phone?: string | null
+          raw_payload?: Json | null
+          saldo?: string | null
+        }
+        Relationships: []
+      }
       video_call_records: {
         Row: {
           cod_agent: string

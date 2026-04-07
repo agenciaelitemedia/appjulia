@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.infinitypay-webhook]
 verify_jwt = false
+
+[functions.vellip-webhook]
+verify_jwt = false
