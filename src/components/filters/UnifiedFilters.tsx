@@ -32,7 +32,7 @@ import {
 } from '@/hooks/usePersistedPeriod';
 import { UnifiedFiltersProps } from './types';
 
-const QUICK_PERIODS: { value: QuickPeriod; label: string }[] = [
+const DEFAULT_QUICK_PERIODS: { value: QuickPeriod; label: string }[] = [
   { value: 'today', label: 'Hoje' },
   { value: 'yesterday', label: 'Ontem' },
   { value: 'last7days', label: '7 Dias' },
@@ -66,6 +66,7 @@ export function UnifiedFilters({
   searchPlaceholder = 'Buscar...',
   className,
   periodTooltip,
+  quickPeriods = DEFAULT_QUICK_PERIODS,
 }: UnifiedFiltersProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [agentSearch, setAgentSearch] = useState('');
@@ -202,12 +203,12 @@ export function UnifiedFilters({
                 )}
               </span>
               <div className="flex flex-wrap gap-1.5">
-                {QUICK_PERIODS.map((period) => (
+                {quickPeriods.map((period) => (
                   <Button
                     key={period.value}
                     variant={currentQuickPeriod === period.value ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => handleQuickPeriod(period.value)}
+                    onClick={() => handleQuickPeriod(period.value as QuickPeriod)}
                     disabled={isLoading}
                     className={cn(
                       "h-7 px-3 text-xs font-medium rounded-full transition-all duration-200",
