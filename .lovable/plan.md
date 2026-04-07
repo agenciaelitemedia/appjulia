@@ -1,34 +1,71 @@
 
 
-# Corrigir `AdvDashboardPage` para usar `user_agents` em vez de `user.cod_agent`
+# Layout Full-Screen com Abas Painel / Contratos
 
-## Problema
+## Resumo
 
-A página `/adv/dashboard` obtém o `cod_agent` diretamente de `user?.cod_agent`, que pode estar vazio ou incorreto. A página `/dashboard` (e todas as páginas do painel estratégico) usa o hook `useJuliaAgents()` que consulta a tabela `user_agents` no banco externo via `getCrmAgentsForUser`. Isso garante que o agente correto seja carregado.
+Reestruturar `/adv/dashboard` para usar 100% da tela, com duas abas fixas (Painel e Contratos). O filtro fica acima das abas (compartilhado). A aba Painel mostra summary + chart. A aba Contratos mostra cards agrupados por status (Em Curso vs Assinados) com ações de ligar, chat e detalhes.
 
-## Correção
+## Alterações
 
-### `src/pages/adv/AdvDashboardPage.tsx`
+### 1. `src/pages/adv/AdvDashboardPage.tsx` — Reescrever
 
-Substituir a lógica de `agentCode` para usar `useJuliaAgents()`:
+- Remover `max-w-2xl` e usar `w-full` para ocupar 100% da tela
+- Adicionar tabs (Painel / Contratos) usando `Tabs` do shadcn
+- Header + filtros ficam fora das tabs (sempre visíveis)
+- **Aba Painel**: `ContratosSummary` + `ContratosEvolutionChart` (sem tabela)
+- **Aba Contratos**: novo componente de cards
 
-- Importar `useJuliaAgents` de `src/pages/estrategico/hooks/useJuliaData`
-- Chamar `useJuliaAgents()` para obter os agentes do usuário
-- Usar o primeiro agente retornado como `agentCode`
-- Mostrar loading enquanto os agentes carregam
-- Manter a mensagem de "nenhum agente" se a lista vier vazia
+### 2. `src/pages/adv/components/AdvContratosCards.tsx` — Novo
 
-Lógica simplificada:
-```typescript
-const { data: agents = [], isLoading: agentsLoading } = useJuliaAgents();
-const agentCode = agents.length > 0 ? agents[0].cod_agent : '';
+Componente mobile-first que renderiza contratos em cards separados por status:
+
+- **Seção "Em Curso"** (status `CREATED`, `PENDING`) — badge amarelo/laranja
+- **Seção "Assinados"** (status `SIGNED`) — badge verde
+- Cada seção com header + contagem
+- Card mostra: nome do cliente, data, status badge, resumo do caso (truncado)
+- Ações em cada card (ícones circulares):
+  - **Ligar** (Phone, laranja) — abre `PhoneCallDialog`
+  - **WhatsApp** (MessageCircle, verde) — abre link `wa.me`
+  - **Detalhes** (Eye, azul) — abre `ContratoDetailsDialog`
+- Cards com `CANCELLED` ficam em seção colapsável "Cancelados" no final
+- Skeleton loading com cards placeholder
+
+### 3. `src/components/layout/AdvLayout.tsx` — Ajuste menor
+
+- Garantir que `main` use `flex-1 overflow-auto` sem padding extra (já está ok)
+
+## Estrutura visual (mobile 390px)
+
+```text
+┌──────────────────────────┐
+│ Logo    Nome    [Logout] │  ← header fixo
+├──────────────────────────┤
+│ [Filtro período/status]  │  ← filtros compartilhados
+├──────────────────────────┤
+│  [Painel]  [Contratos]   │  ← tabs
+├──────────────────────────┤
+│                          │
+│  (conteúdo da aba ativa) │
+│                          │
+└──────────────────────────┘
 ```
 
-Usar `agentCode` derivado dos agents em vez de `user?.cod_agent` em todos os pontos (filters, queries, guard).
+### Card de contrato (aba Contratos):
+```text
+┌─────────────────────────────┐
+│ João Silva        ● Em Curso│
+│ 15/03/2026 · Direito Civil  │
+│ Resumo truncado do caso...  │
+│                             │
+│  [📞]  [💬]  [👁]           │
+└─────────────────────────────┘
+```
 
-## Arquivo alterado
+## Arquivos
 
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/adv/AdvDashboardPage.tsx` | Usar `useJuliaAgents()` para obter `cod_agent` da tabela `user_agents` |
+| `src/pages/adv/AdvDashboardPage.tsx` | Reescrever com tabs e layout full-width |
+| `src/pages/adv/components/AdvContratosCards.tsx` | **Novo** — cards de contratos com agrupamento por status e ações |
 
