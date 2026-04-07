@@ -1,44 +1,25 @@
 
 
-# Dashboard Exclusivo do Advogado — Contratos
+# Correção: Membros com perfil "advogado" e "comercial" não aparecem na lista de equipes
 
-## Resumo
+## Causa raiz
 
-Transformar a página `AdvDashboardPage` em um dashboard completo de contratos, mobile-first, reutilizando os hooks de dados de contratos (`useJuliaContratos`, `useJuliaContratosPrevious`) e o componente `UnifiedFilters`. O advogado verá apenas os contratos do seu `cod_agent`.
+Na edge function `db-query`, a action `get_team_members` filtra apenas `WHERE u.role = 'time'` (linhas 1050 e 1063). O usuário 180 tem role `'advogado'`, então é excluído da listagem.
 
-## Alterações
+## Correção
 
-### 1. Página `src/pages/adv/AdvDashboardPage.tsx` — Reescrever
+### `supabase/functions/db-query/index.ts`
 
-Substituir o conteúdo placeholder por um dashboard funcional:
+Alterar o filtro de role nas queries de `get_team_members`:
 
-- **Header**: Saudação com nome do usuário + botão Atualizar
-- **Filtros**: `UnifiedFilters` com `showAgentSelector={false}` (advogado só vê seu agente), `showStatusFilter`, período
-- **Agent code**: Pegar `user.cod_agent` do `useAuth()` e converter para string para usar como `agentCodes` fixo no filtro
-- **Summary Cards**: Reutilizar `ContratosSummary` (total, assinados, em curso, taxa)
-- **Gráfico de Evolução**: Reutilizar `ContratosEvolutionChart` (diário/semanal/por hora)
-- **Tabela de Contratos**: Reutilizar `ContratosTable` com busca
-- **Dialog de Detalhes**: Reutilizar `ContratoDetailsDialog`
+- **Admin**: trocar `WHERE u.role = 'time'` por `WHERE u.role IN ('time', 'advogado', 'comercial')`
+- **Non-admin**: trocar `WHERE u.user_id = $1 AND u.role = 'time'` por `WHERE u.user_id = $1 AND u.role IN ('time', 'advogado', 'comercial')`
 
-Layout mobile-first: `max-w-lg mx-auto` para mobile, cards em grid 2 colunas, gráfico responsivo.
-
-### 2. Dados
-
-Reutilizar diretamente os hooks existentes:
-- `useJuliaContratos(filters)` — dados de contratos filtrados
-- `useJuliaContratosPrevious(filters)` — período anterior para comparação
-
-O `agentCodes` do filtro será fixo com `[String(user.cod_agent)]`, sem seletor de agente.
-
-### 3. Sem alteração em outros arquivos
-
-Todos os componentes já existem e são importáveis diretamente:
-- `ContratosSummary`, `ContratosTable`, `ContratosEvolutionChart`, `ContratoDetailsDialog` de `src/pages/estrategico/contratos/components/`
-- `UnifiedFilters` de `src/components/filters/`
+Isso garante que todos os perfis de equipe (time, advogado, comercial) apareçam na lista.
 
 ## Arquivo alterado
 
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/adv/AdvDashboardPage.tsx` | Reescrever com dashboard de contratos completo |
+| `supabase/functions/db-query/index.ts` | Incluir roles `advogado` e `comercial` no filtro de `get_team_members` |
 
