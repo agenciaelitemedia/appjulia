@@ -76,11 +76,19 @@ function ContratoCard({
         </Badge>
       </div>
 
-      {contrato.resumo_do_caso && (
-        <div className="text-xs text-muted-foreground line-clamp-2 prose prose-xs prose-neutral dark:prose-invert max-w-none">
-          <ReactMarkdown>{contrato.resumo_do_caso}</ReactMarkdown>
-        </div>
-      )}
+      {contrato.resumo_do_caso && (() => {
+        const bodyText = contrato.resumo_do_caso
+          .replace(/^#{1,6}\s+.+$/gm, '')
+          .replace(/\*\*|__/g, '')
+          .replace(/\*|_/g, '')
+          .replace(/\n{2,}/g, '\n')
+          .trim();
+        return bodyText ? (
+          <p className="text-xs text-muted-foreground line-clamp-2">
+            {bodyText.slice(0, 150)}
+          </p>
+        ) : null;
+      })()}
 
       {phoneDisplay && (
         <p className="text-xs text-muted-foreground">
