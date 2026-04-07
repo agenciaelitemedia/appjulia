@@ -271,7 +271,35 @@ export function ContratosTable({
         deleted_by: 'admin',
       });
 
+      // Mover card do CRM Julia para "Desqualificado"
+      try {
+        const stages = await externalDb.raw({
+          query: `SELECT id FROM crm_atendimento_stages WHERE name = 'Desqualificado' LIMIT 1`,
+        });
+        if (stages && stages.length > 0) {
+          const desqualificadoStageId = stages[0].id;
+          const cards = await externalDb.raw({
+            query: `SELECT id, stage_id FROM crm_atendimento_cards WHERE whatsapp_number = $1 AND cod_agent = $2 LIMIT 1`,
+            params: [deleteContrato.whatsapp, deleteContrato.cod_agent],
+          });
+          if (cards && cards.length > 0) {
+            const card = cards[0];
+            await externalDb.raw({
+              query: `UPDATE crm_atendimento_cards SET stage_id = $1, stage_entered_at = NOW(), updated_at = NOW() WHERE id = $2`,
+              params: [desqualificadoStageId, card.id],
+            });
+            await externalDb.raw({
+              query: `INSERT INTO crm_atendimento_history (card_id, from_stage_id, to_stage_id, changed_by, notes) VALUES ($1, $2, $3, 'Sistema', 'Movido para Desqualificado — contrato excluído')`,
+              params: [card.id, card.stage_id, desqualificadoStageId],
+            });
+          }
+        }
+      } catch (crmError) {
+        console.warn('Não foi possível mover card no CRM:', crmError);
+      }
+
       queryClient.invalidateQueries({ queryKey: ['contratos'] });
+      queryClient.invalidateQueries({ queryKey: ['crm-cards'] });
       setDeleteDialogOpen(false);
       toast({ title: 'Contrato excluído', description: 'O contrato foi marcado como DELETED com sucesso.' });
     } catch (error) {
