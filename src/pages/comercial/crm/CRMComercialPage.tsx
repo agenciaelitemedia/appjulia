@@ -1,38 +1,52 @@
 import { useState, useMemo } from 'react';
 import { Briefcase, Plus, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useQueryClient } from '@tanstack/react-query';
+import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { useCrmComercialStages, useCrmComercialCards } from './hooks/useCrmComercialData';
+import { useCRMAgents } from '@/pages/crm/hooks/useCRMData';
 import { ComercialTotalizers } from './components/ComercialTotalizers';
 import { ComercialPipeline } from './components/ComercialPipeline';
 import { ComercialCardDialog } from './components/ComercialCardDialog';
+import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
+import type { UnifiedFiltersState } from '@/components/filters/types';
 import type { ComercialCard } from './types';
 
 export default function CRMComercialPage() {
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const today = getTodayInSaoPaulo();
+
+  const [filters, setFilters] = useState<UnifiedFiltersState>({
+    search: '',
+    agentCodes: [],
+    dateFrom: '',
+    dateTo: '',
+  });
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedCard, setSelectedCard] = useState<ComercialCard | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const { data: stages = [], isLoading: stagesLoading } = useCrmComercialStages();
-  const { data: cards = [], isLoading: cardsLoading } = useCrmComercialCards({ dateFrom, dateTo });
+  const { data: agents = [], isLoading: agentsLoading } = useCRMAgents();
+  const { data: cards = [], isLoading: cardsLoading } = useCrmComercialCards({
+    dateFrom: filters.dateFrom,
+    dateTo: filters.dateTo,
+    agentCodes: filters.agentCodes,
+  });
 
   const filteredCards = useMemo(() => {
-    if (!search) return cards;
-    const s = search.toLowerCase();
+    if (!filters.search) return cards;
+    const s = filters.search.toLowerCase();
     return cards.filter(
       (c) =>
         c.contact_name?.toLowerCase().includes(s) ||
-        c.contact_phone?.includes(search) ||
+        c.contact_phone?.includes(filters.search) ||
         c.contact_email?.toLowerCase().includes(s) ||
         c.company_name?.toLowerCase().includes(s)
     );
-  }, [cards, search]);
+  }, [cards, filters.search]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -88,19 +102,20 @@ export default function CRMComercialPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Input
-          placeholder="Buscar por nome, telefone, email, empresa..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-sm"
-        />
-        <div className="flex items-center gap-2">
-          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[150px]" />
-          <span className="text-muted-foreground text-sm">até</span>
-          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[150px]" />
-        </div>
-      </div>
+      <UnifiedFilters
+        agents={agents.map((a) => ({
+          cod_agent: a.cod_agent,
+          owner_name: a.owner_name || a.cod_agent,
+          owner_business_name: a.owner_business_name,
+        }))}
+        filters={filters}
+        onFiltersChange={setFilters}
+        isLoading={agentsLoading || cardsLoading}
+        showAgentSelector
+        showSearch
+        showQuickPeriods
+        searchPlaceholder="Buscar por nome, telefone, email, empresa..."
+      />
 
       {/* Totalizers */}
       <ComercialTotalizers cards={filteredCards} stages={stages} />

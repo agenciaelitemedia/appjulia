@@ -16,9 +16,17 @@ export function ComercialLeadCard({ card, onClick }: Props) {
     locale: ptBR,
   });
 
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData('cardId', String(card.id));
+    e.dataTransfer.setData('fromStageId', String(card.stage_id));
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
   return (
     <Card
-      className="cursor-pointer hover:shadow-md transition-shadow border-l-4"
+      draggable
+      onDragStart={handleDragStart}
+      className="cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow border-l-4"
       style={{ borderLeftColor: card.stage_color || '#6B7280' }}
       onClick={onClick}
     >
