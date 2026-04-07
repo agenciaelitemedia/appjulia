@@ -150,7 +150,8 @@ export function ContratosTable({
 }: ContratosTableProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isAdmin } = useAuth();
+  const { user } = useAuth();
+  const isOwner = !!user && !['time', 'comercial', 'advogado'].includes(user.role);
   const queryClient = useQueryClient();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [selectedContrato, setSelectedContrato] = useState<JuliaContrato | null>(null);
@@ -658,7 +659,7 @@ export function ContratosTable({
                       </TooltipProvider>
 
                       {/* Excluir - apenas admin */}
-                      {isAdmin && (
+                      {isOwner && (
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
