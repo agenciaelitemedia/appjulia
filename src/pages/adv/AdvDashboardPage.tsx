@@ -67,7 +67,7 @@ export default function AdvDashboardPage() {
       result = result.filter(c => {
         const name = (c.signer_name || c.name || '').toLowerCase();
         const doc = (c.cod_document || '').toLowerCase();
-        const cpf = (c.cpf || '').replace(/\D/g, '');
+        const cpf = (c.signer_cpf || '').replace(/\D/g, '');
         const phone = (c.whatsapp || '').replace(/\D/g, '');
         return name.includes(textTerm) || doc.includes(textTerm) || cpf.includes(term) || phone.includes(term);
       });
