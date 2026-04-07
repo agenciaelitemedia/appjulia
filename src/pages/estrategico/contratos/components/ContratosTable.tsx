@@ -410,6 +410,7 @@ export function ContratosTable({
       SIGNED: { className: 'bg-green-100 text-green-800 hover:bg-green-100', label: 'Assinado' },
       PENDING: { className: 'bg-orange-100 text-orange-800 hover:bg-orange-100', label: 'Pendente' },
       CANCELLED: { className: 'bg-red-100 text-red-800 hover:bg-red-100', label: 'Cancelado' },
+      DELETED: { className: 'bg-gray-300 text-gray-900 hover:bg-gray-300', label: 'Excluído' },
     };
     return variants[status] || { className: 'bg-gray-100 text-gray-800', label: status };
   };
