@@ -20,6 +20,14 @@ export default function AdvDashboardPage() {
   const queryClient = useQueryClient();
   const firstName = user?.name?.split(' ')[0] || 'Advogado';
   const agentCode = user?.cod_agent ? String(user.cod_agent) : '';
+  const ensuredRef = useRef(false);
+
+  // Ensure adv_dashboard module exists in the database (once)
+  useEffect(() => {
+    if (ensuredRef.current) return;
+    ensuredRef.current = true;
+    externalDb.ensureAdvModule().catch(console.error);
+  }, []);
 
   const initialDates = getInitialDates();
   const [filters, setFilters] = useState<UnifiedFiltersState>({
