@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { useJuliaAgents, useJuliaContratos, useJuliaContratosPrevious } from '@/pages/estrategico/hooks/useJuliaData';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
@@ -13,6 +14,7 @@ import { ContratosSummary } from '@/pages/estrategico/contratos/components/Contr
 import { ContratosEvolutionChart } from '@/pages/estrategico/contratos/components/ContratosEvolutionChart';
 import { AdvContratosCards } from './components/AdvContratosCards';
 import { getInitialDates, QuickPeriod } from '@/hooks/usePersistedPeriod';
+import { useDebounce } from '@/hooks/useDebounce';
 
 const ADV_QUICK_PERIODS: { value: QuickPeriod; label: string }[] = [
   { value: 'today', label: 'Hoje' },
@@ -39,6 +41,8 @@ export default function AdvDashboardPage() {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeStatuses, setActiveStatuses] = useState<Set<string>>(new Set(['EM_CURSO', 'ASSINADO']));
+  const [searchText, setSearchText] = useState('');
+  const debouncedSearch = useDebounce(searchText, 300);
 
   const effectiveAgentCodes = agentCode ? [agentCode] : [];
 
@@ -52,12 +56,24 @@ export default function AdvDashboardPage() {
   });
 
   const filteredContratos = useMemo(() => {
-    return contratos.filter(c => {
+    let result = contratos.filter(c => {
       if (activeStatuses.has('EM_CURSO') && ['CREATED', 'PENDING'].includes(c.status_document)) return true;
       if (activeStatuses.has('ASSINADO') && c.status_document === 'SIGNED') return true;
       return false;
     });
-  }, [contratos, activeStatuses]);
+    if (debouncedSearch.trim()) {
+      const term = debouncedSearch.toLowerCase().replace(/\D/g, '') || debouncedSearch.toLowerCase();
+      const textTerm = debouncedSearch.toLowerCase();
+      result = result.filter(c => {
+        const name = (c.signer_name || c.name || '').toLowerCase();
+        const doc = (c.cod_document || '').toLowerCase();
+        const cpf = (c.cpf || '').replace(/\D/g, '');
+        const phone = (c.whatsapp || '').replace(/\D/g, '');
+        return name.includes(textTerm) || doc.includes(textTerm) || cpf.includes(term) || phone.includes(term);
+      });
+    }
+    return result;
+  }, [contratos, activeStatuses, debouncedSearch]);
 
   const toggleStatus = (status: string) => {
     setActiveStatuses(prev => {
@@ -138,7 +154,16 @@ export default function AdvDashboardPage() {
         quickPeriods={ADV_QUICK_PERIODS}
       />
 
-      {/* Status Badges */}
+      {/* Search + Status Badges */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Buscar por nome, CPF, telefone..."
+          value={searchText}
+          onChange={e => setSearchText(e.target.value)}
+          className="pl-9 h-9 text-sm"
+        />
+      </div>
       <div className="flex items-center gap-2">
         <button
           onClick={() => toggleStatus('EM_CURSO')}
