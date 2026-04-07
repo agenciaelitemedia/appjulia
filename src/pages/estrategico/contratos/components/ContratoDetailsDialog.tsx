@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import {
   Dialog,
   DialogContent,
@@ -301,8 +302,8 @@ export function ContratoDetailsDialog({
                   <MessageSquare className="h-4 w-4" />
                   Resumo do Caso
                 </h3>
-                <div className="p-4 bg-muted/30 rounded-lg">
-                  <p className="text-sm whitespace-pre-wrap">{contrato.resumo_do_caso}</p>
+                <div className="p-4 bg-muted/30 rounded-lg prose prose-sm prose-neutral dark:prose-invert max-w-none">
+                  <ReactMarkdown>{contrato.resumo_do_caso}</ReactMarkdown>
                 </div>
               </div>
             )}
