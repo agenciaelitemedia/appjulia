@@ -1,69 +1,29 @@
 
 
-# Auto-criar card no CRM Comercial a partir do webhook Vellip
+# Card do CRM Comercial: layout igual ao da Julia
 
 ## Resumo
 
-Quando o webhook Vellip receber um registro com `cd_resp1 == "1"`, além de gravar na `vellip_call_logs`, criará automaticamente um card na etapa "Interessados" do CRM Comercial.
+Reestruturar o `ComercialLeadCard` para seguir o mesmo layout do `CRMLeadCard` da Julia: cod_agent abaixo do nome, icones de ação numa barra abaixo do cod_agent, e datas de criação/atualização no rodape.
 
-## Alteração
+## Alteração: `src/pages/comercial/crm/components/ComercialLeadCard.tsx`
 
-### `supabase/functions/vellip-webhook/index.ts`
+Layout final (seguindo a Julia):
 
-Após o insert bem-sucedido em `vellip_call_logs`, adicionar lógica:
+1. **Header**: Nome + badge Vellip (se origin === 'vellip') | botão Eye (direita)
+2. **Telefone**: abaixo do nome, indentado
+3. **Cod Agent**: badge `[cod_agent]` com icone Hash (se existir)
+4. **Empresa / Valor**: linhas opcionais (como já existe)
+5. **Barra de icones**: Phone (condicional ao `isAvailable`) e Eye numa linha horizontal, estilo rounded-full como na Julia
+6. **Rodape com border-t**: Criado + data, Atualizado + data, Na fase + tempo — usando `formatDbDateTime`
 
-1. Converter `cd_resp1` para string e comparar com `"1"`
-2. Se igual, buscar o `stage_id` da etapa "Interessados" em `crm_comercial_stages` (position = 1)
-3. Inserir card em `crm_comercial_cards`:
-   - `contact_name`: valor de `phone` (telefone)
-   - `contact_phone`: valor de `phone`
-   - `cod_agent`: valor do query param
-   - `stage_id`: id da etapa "Interessados"
-   - `notes`: `"Vindo de campanha da Vellip"`
-4. Inserir histórico em `crm_comercial_history`:
-   - `to_stage_id`: id da etapa "Interessados"
-   - `notes`: `"Card criado via webhook Vellip"`
+Imports a adicionar: `Hash`, `formatDbDateTime` de `@/lib/dateUtils`
 
-Trecho adicionado após linha 66 (após log de sucesso):
-
-```typescript
-// Auto-create CRM card if cd_resp1 == "1"
-const resp1 = String(body.cd_resp1 ?? '')
-if (resp1 === '1') {
-  const { data: stage } = await supabase
-    .from('crm_comercial_stages')
-    .select('id')
-    .eq('name', 'Interessados')
-    .single()
-
-  if (stage) {
-    const { data: card } = await supabase
-      .from('crm_comercial_cards')
-      .insert({
-        stage_id: stage.id,
-        contact_name: dest,
-        contact_phone: dest,
-        cod_agent,
-        notes: 'Vindo de campanha da Vellip',
-      })
-      .select('id')
-      .single()
-
-    if (card) {
-      await supabase.from('crm_comercial_history').insert({
-        card_id: card.id,
-        to_stage_id: stage.id,
-        notes: 'Card criado via webhook Vellip',
-      })
-    }
-    console.log('[vellip-webhook] CRM card created for', dest)
-  }
-}
-```
+Remover o botão Eye do header (mover para barra de icones) e reorganizar o layout para ficar idêntico ao da Julia.
 
 ## Arquivo alterado
 
 | Arquivo | Mudança |
 |---|---|
-| `supabase/functions/vellip-webhook/index.ts` | Adicionar criação automática de card no CRM quando cd_resp1 == "1" |
+| `src/pages/comercial/crm/components/ComercialLeadCard.tsx` | Reestruturar layout: cod_agent badge, barra de icones, datas criação/atualização |
 
