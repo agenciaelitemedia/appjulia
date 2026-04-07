@@ -1,64 +1,69 @@
 
 
-# Webhook Vellip — tabela + edge function
+# Auto-criar card no CRM Comercial a partir do webhook Vellip
 
-## 1. Migração: tabela `vellip_call_logs`
+## Resumo
 
-```sql
-CREATE TABLE vellip_call_logs (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  cod_agent text,
-  phone text,
-  cd_id text,
-  cd_date text,
-  cd_time text,
-  cd_time_start text,
-  cd_time_end text,
-  cd_time_sec integer,
-  cd_time_sec2 integer,
-  cd_price text,
-  cd_value text,
-  cd_name text,
-  cd_route text,
-  cd_called_status text,
-  cd_resp1 text,
-  saldo text,
-  raw_payload jsonb,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
+Quando o webhook Vellip receber um registro com `cd_resp1 == "1"`, além de gravar na `vellip_call_logs`, criará automaticamente um card na etapa "Interessados" do CRM Comercial.
 
-ALTER TABLE vellip_call_logs ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all on vellip_call_logs" ON vellip_call_logs FOR ALL USING (true) WITH CHECK (true);
+## Alteração
+
+### `supabase/functions/vellip-webhook/index.ts`
+
+Após o insert bem-sucedido em `vellip_call_logs`, adicionar lógica:
+
+1. Converter `cd_resp1` para string e comparar com `"1"`
+2. Se igual, buscar o `stage_id` da etapa "Interessados" em `crm_comercial_stages` (position = 1)
+3. Inserir card em `crm_comercial_cards`:
+   - `contact_name`: valor de `phone` (telefone)
+   - `contact_phone`: valor de `phone`
+   - `cod_agent`: valor do query param
+   - `stage_id`: id da etapa "Interessados"
+   - `notes`: `"Vindo de campanha da Vellip"`
+4. Inserir histórico em `crm_comercial_history`:
+   - `to_stage_id`: id da etapa "Interessados"
+   - `notes`: `"Card criado via webhook Vellip"`
+
+Trecho adicionado após linha 66 (após log de sucesso):
+
+```typescript
+// Auto-create CRM card if cd_resp1 == "1"
+const resp1 = String(body.cd_resp1 ?? '')
+if (resp1 === '1') {
+  const { data: stage } = await supabase
+    .from('crm_comercial_stages')
+    .select('id')
+    .eq('name', 'Interessados')
+    .single()
+
+  if (stage) {
+    const { data: card } = await supabase
+      .from('crm_comercial_cards')
+      .insert({
+        stage_id: stage.id,
+        contact_name: dest,
+        contact_phone: dest,
+        cod_agent,
+        notes: 'Vindo de campanha da Vellip',
+      })
+      .select('id')
+      .single()
+
+    if (card) {
+      await supabase.from('crm_comercial_history').insert({
+        card_id: card.id,
+        to_stage_id: stage.id,
+        notes: 'Card criado via webhook Vellip',
+      })
+    }
+    console.log('[vellip-webhook] CRM card created for', dest)
+  }
+}
 ```
 
-## 2. Edge Function: `supabase/functions/vellip-webhook/index.ts`
+## Arquivo alterado
 
-- Recebe POST com JSON da Vellip
-- Lê `cod_agent` do query param (`?cod_agent=XXX`), se ausente grava `null`
-- Extrai do body: `dest` → `phone`, e os campos `cd_id`, `cd_date`, `cd_time`, `cd_time_start`, `cd_time_end`, `cd_time_sec`, `cd_time_sec2`, `cd_price`, `cd_value`, `cd_name`, `cd_route`, `cd_called_status`, `cd_resp1`, `saldo`
-- Se `dest` ou `cd_id` não existirem no JSON, retorna 200 sem gravar
-- Grava o JSON inteiro em `raw_payload`
-- CORS headers + OPTIONS handler
-- `verify_jwt = false` no config.toml
-
-## 3. `supabase/config.toml`
-
-Adicionar bloco:
-```toml
-[functions.vellip-webhook]
-verify_jwt = false
-```
-
-## Resultado
-
-URL para configurar na Vellip:
-```
-https://zenizgyrwlonmufxnjqt.supabase.co/functions/v1/vellip-webhook?cod_agent=SEU_COD_AGENT
-```
-
-| Arquivo | Ação |
+| Arquivo | Mudança |
 |---|---|
-| Migração SQL | Criar tabela `vellip_call_logs` |
-| `supabase/functions/vellip-webhook/index.ts` | Nova edge function |
-| `supabase/config.toml` | Adicionar bloco vellip-webhook |
+| `supabase/functions/vellip-webhook/index.ts` | Adicionar criação automática de card no CRM quando cd_resp1 == "1" |
 
