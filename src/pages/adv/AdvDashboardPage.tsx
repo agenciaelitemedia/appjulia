@@ -13,6 +13,7 @@ import { ContratoDetailsDialog } from '@/pages/estrategico/contratos/components/
 import { ContratosEvolutionChart } from '@/pages/estrategico/contratos/components/ContratosEvolutionChart';
 import { JuliaContrato } from '@/pages/estrategico/types';
 import { getInitialDates } from '@/hooks/usePersistedPeriod';
+import { externalDb } from '@/lib/externalDb';
 
 export default function AdvDashboardPage() {
   const { user } = useAuth();
