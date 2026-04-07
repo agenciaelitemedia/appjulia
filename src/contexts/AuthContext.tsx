@@ -128,6 +128,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Admin always has access
     if (isAdmin) return true;
     
+    // Advogado always has access to adv_dashboard
+    if (user?.role === 'advogado' && moduleCode === 'adv_dashboard') return true;
+    
     // No permissions loaded
     if (!permissions) return false;
     

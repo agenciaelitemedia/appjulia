@@ -1640,7 +1640,7 @@ serve(async (req) => {
                    CASE WHEN role = 'admin' THEN TRUE ELSE FALSE END,
                    CASE WHEN role = 'admin' THEN TRUE ELSE FALSE END,
                    CASE WHEN role = 'admin' THEN TRUE ELSE FALSE END
-            FROM (VALUES ('admin'), ('colaborador'), ('user'), ('time')) AS r(role)
+            FROM (VALUES ('admin'), ('colaborador'), ('user'), ('time'), ('advogado'), ('comercial')) AS r(role)
             ON CONFLICT (role, module_id) DO NOTHING
           `, [moduleId]);
         }
