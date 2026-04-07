@@ -102,7 +102,7 @@ function ContratoCard({
         </p>
       )}
 
-      <div className="flex items-center gap-2 pt-1">
+      <div className="flex items-center justify-end gap-2 pt-1">
         {phoneAvailable && (
           <button
             onClick={() => onCall(contrato)}
