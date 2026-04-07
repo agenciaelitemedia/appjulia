@@ -1238,7 +1238,7 @@ serve(async (req) => {
         await sql.unsafe(
           `UPDATE users 
            SET password = $1, remember_token = $2, updated_at = now() 
-           WHERE id = $3 AND role = 'time'`,
+           WHERE id = $3 AND role IN ('time', 'advogado', 'comercial')`,
           [hashedPassword, rawPassword, memberId]
         );
         
