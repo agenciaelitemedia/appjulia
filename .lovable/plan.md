@@ -1,149 +1,58 @@
 
 
-# Novo Módulo: CRM Comercial
+# CRM Comercial: filtro por cod_agent + drag-and-drop
 
-## Resumo
+## 1. Migração: adicionar `cod_agent` à tabela `crm_comercial_cards`
 
-Criar um CRM comercial com pipeline Kanban idêntico ao CRM da Julia, com etapas próprias (Interessados, Agendar Reunião, Reunião Agendada, Remarcar Reunião, Proposta, Fechado, Perda). Dados armazenados em tabelas Supabase. Módulo auto-cadastrado e visível para admin.
-
-## 1. Banco de Dados (Supabase - 2 migrações)
-
-### Tabela `crm_comercial_stages`
 ```sql
-CREATE TABLE crm_comercial_stages (
-  id serial PRIMARY KEY,
-  name text NOT NULL,
-  color text NOT NULL DEFAULT '#6b7280',
-  position integer NOT NULL DEFAULT 0,
-  is_active boolean NOT NULL DEFAULT true
-);
-
-INSERT INTO crm_comercial_stages (name, color, position) VALUES
-  ('Interessados', '#3b82f6', 1),
-  ('Agendar Reunião', '#f59e0b', 2),
-  ('Reunião Agendada', '#8b5cf6', 3),
-  ('Remarcar Reunião', '#f97316', 4),
-  ('Proposta', '#06b6d4', 5),
-  ('Fechado', '#10b981', 6),
-  ('Perda', '#ef4444', 7);
-
-ALTER TABLE crm_comercial_stages ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all on crm_comercial_stages" ON crm_comercial_stages FOR ALL USING (true) WITH CHECK (true);
+ALTER TABLE crm_comercial_cards ADD COLUMN cod_agent text;
+CREATE INDEX idx_crm_comercial_cards_cod_agent ON crm_comercial_cards(cod_agent);
 ```
 
-### Tabela `crm_comercial_cards`
-```sql
-CREATE TABLE crm_comercial_cards (
-  id serial PRIMARY KEY,
-  stage_id integer NOT NULL REFERENCES crm_comercial_stages(id),
-  contact_name text NOT NULL DEFAULT '',
-  contact_phone text,
-  contact_email text,
-  company_name text,
-  notes text,
-  value numeric DEFAULT 0,
-  created_by integer,
-  assigned_to integer,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now(),
-  stage_entered_at timestamptz DEFAULT now()
-);
+## 2. `src/pages/comercial/crm/types.ts`
+- Adicionar `cod_agent?: string` ao tipo `ComercialCard`
 
-ALTER TABLE crm_comercial_cards ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all on crm_comercial_cards" ON crm_comercial_cards FOR ALL USING (true) WITH CHECK (true);
-```
+## 3. `src/pages/comercial/crm/CRMComercialPage.tsx` — Substituir filtros manuais por `UnifiedFilters`
 
-### Tabela `crm_comercial_history`
-```sql
-CREATE TABLE crm_comercial_history (
-  id serial PRIMARY KEY,
-  card_id integer NOT NULL REFERENCES crm_comercial_cards(id),
-  from_stage_id integer REFERENCES crm_comercial_stages(id),
-  to_stage_id integer NOT NULL REFERENCES crm_comercial_stages(id),
-  changed_by integer,
-  changed_at timestamptz DEFAULT now(),
-  notes text
-);
+- Importar `UnifiedFilters`, `UnifiedFiltersState`, `useCRMAgents`
+- Usar `useCRMAgents()` para obter lista de agentes
+- Estado `filters: UnifiedFiltersState` com `agentCodes`, `dateFrom`, `dateTo`, `search`
+- Passar filtros completos (incluindo `agentCodes`) para `useCrmComercialCards`
+- Remover inputs manuais de busca/data, usar `<UnifiedFilters>` no lugar
 
-ALTER TABLE crm_comercial_history ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all on crm_comercial_history" ON crm_comercial_history FOR ALL USING (true) WITH CHECK (true);
-```
+## 4. `src/pages/comercial/crm/hooks/useCrmComercialData.ts`
 
-## 2. Tipo no TypeScript
+- Adicionar `agentCodes` ao `CardFilters`
+- Filtrar cards por `cod_agent` usando `.in('cod_agent', agentCodes)` quando houver agentes selecionados
+- No `useCreateComercialCard`, aceitar `cod_agent` e incluir no insert
 
-### `src/types/permissions.ts`
-- Adicionar `'crm_comercial'` ao union `ModuleCode`
+## 5. Drag-and-drop nos cards entre colunas
 
-## 3. Hook de auto-cadastro do módulo
+### `ComercialLeadCard.tsx`
+- Adicionar `draggable="true"`, `onDragStart` que seta `dataTransfer` com `cardId` e `fromStageId`
 
-### `src/hooks/useEnsureCrmComercialModule.ts` (novo)
-Seguir o padrão de `useEnsureJuliaOrdersModule`:
-- Código: `crm_comercial`
-- Nome: `CRM Comercial`
-- Rota: `/comercial/crm`
-- Menu group: `COMERCIAL`
-- Categoria: `crm`
-- Icon: `Briefcase`
-- display_order: 70
+### `ComercialPipelineColumn.tsx`
+- Adicionar `onDragOver` (preventDefault) e `onDrop` que lê os dados e chama `onMoveCard`
+- Feedback visual: estado `isDragOver` com borda highlight
+- Prop `onMoveCard(cardId, fromStageId, toStageId)`
 
-## 4. Menu group
+### `ComercialPipeline.tsx`
+- Importar `useMoveComercialCard`, passar `onMoveCard` para cada coluna
 
-### `src/hooks/useMenuModules.ts`
-- Adicionar `'COMERCIAL'` ao array `menuGroupOrder` (antes de `'CONFIGURAÇÕES'`)
+## 6. `ComercialCardDialog.tsx`
+- Já tem seletor de etapa — sem mudança necessária (já move card ao salvar se stage mudou)
+- Adicionar campo `cod_agent` ao formulário de criação
 
-## 5. Páginas
+## Arquivos alterados
 
-### `src/pages/comercial/crm/CRMComercialPage.tsx` (novo)
-Página principal com:
-- Header "CRM Comercial"
-- Filtros (busca texto + datas)
-- Totalizadores por etapa (reutiliza padrão do CRM Julia)
-- Pipeline Kanban horizontal com colunas por etapa
-- Dialog para criar/editar cards
-- Drag & drop para mover cards entre etapas (atualiza stage_id e cria history)
-
-### `src/pages/comercial/crm/types.ts` (novo)
-Tipos locais: `ComercialStage`, `ComercialCard`, `ComercialHistory`
-
-### `src/pages/comercial/crm/hooks/useCrmComercialData.ts` (novo)
-Hooks React Query usando `supabase` client direto (tabelas Supabase):
-- `useCrmComercialStages()` — busca stages
-- `useCrmComercialCards(filters)` — busca cards com join no stage
-- `useMoveComercialCard()` — mutation para mover card entre stages
-- `useCreateComercialCard()` — mutation para criar card
-- `useUpdateComercialCard()` — mutation para editar card
-
-### Componentes reutilizáveis (novos em `src/pages/comercial/crm/components/`)
-- `ComercialPipeline.tsx` — grid horizontal de colunas (mesmo layout do CRM Julia)
-- `ComercialPipelineColumn.tsx` — coluna com header colorido + cards paginados (30 por vez)
-- `ComercialLeadCard.tsx` — card simplificado (nome, empresa, telefone, valor, tempo na etapa, botão detalhes)
-- `ComercialCardDialog.tsx` — dialog para criar/editar deal
-- `ComercialTotalizers.tsx` — totalizadores por etapa
-- `ComercialHeader.tsx` — header com título e botão atualizar
-
-## 6. Rota
-
-### `src/App.tsx`
-- Import `CRMComercialPage`
-- Adicionar rota: `<Route path="/comercial/crm" element={<ProtectedRoute module="crm_comercial"><CRMComercialPage /></ProtectedRoute>} />`
-
-## 7. Sidebar
-
-### Onde o ensure é chamado
-- No Sidebar/MainLayout, chamar `useEnsureCrmComercialModule()` para auto-cadastrar o módulo
-
-## Arquivos alterados/criados
-
-| Arquivo | Ação |
+| Arquivo | Mudança |
 |---|---|
-| Migração SQL | 3 tabelas + seed de stages |
-| `src/types/permissions.ts` | Adicionar `crm_comercial` ao ModuleCode |
-| `src/hooks/useMenuModules.ts` | Adicionar `COMERCIAL` ao menuGroupOrder |
-| `src/hooks/useEnsureCrmComercialModule.ts` | Novo — auto-cadastro do módulo |
-| `src/pages/comercial/crm/types.ts` | Novo — tipos |
-| `src/pages/comercial/crm/hooks/useCrmComercialData.ts` | Novo — hooks de dados |
-| `src/pages/comercial/crm/CRMComercialPage.tsx` | Novo — página principal |
-| `src/pages/comercial/crm/components/*.tsx` | Novos — 6 componentes de UI |
-| `src/App.tsx` | Nova rota + import |
-| Sidebar (MainLayout ou similar) | Chamar ensure hook |
+| Migração SQL | `cod_agent` na tabela `crm_comercial_cards` |
+| `types.ts` | Adicionar `cod_agent` |
+| `CRMComercialPage.tsx` | `UnifiedFilters` com agentes |
+| `useCrmComercialData.ts` | Filtro por `agentCodes` + `cod_agent` no create |
+| `ComercialLeadCard.tsx` | `draggable` + `onDragStart` |
+| `ComercialPipelineColumn.tsx` | `onDragOver` + `onDrop` com feedback visual |
+| `ComercialPipeline.tsx` | Integrar `useMoveComercialCard` + passar handler |
+| `ComercialCardDialog.tsx` | Campo `cod_agent` no form de criação |
 
