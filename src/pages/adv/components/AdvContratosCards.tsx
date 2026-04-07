@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { Phone, Eye, ChevronDown, ChevronRight } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -76,9 +77,9 @@ function ContratoCard({
       </div>
 
       {contrato.resumo_do_caso && (
-        <p className="text-xs text-muted-foreground line-clamp-2">
-          {contrato.resumo_do_caso}
-        </p>
+        <div className="text-xs text-muted-foreground line-clamp-2 prose prose-xs prose-neutral dark:prose-invert max-w-none">
+          <ReactMarkdown>{contrato.resumo_do_caso}</ReactMarkdown>
+        </div>
       )}
 
       {phoneDisplay && (
