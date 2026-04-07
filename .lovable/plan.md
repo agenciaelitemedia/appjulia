@@ -1,48 +1,149 @@
 
 
-# Paginação, telefone clicável e filtro colapsado no dashboard advogado
+# Novo Módulo: CRM Comercial
 
-## Alterações
+## Resumo
 
-### 1. `src/pages/adv/components/AdvContratosCards.tsx`
+Criar um CRM comercial com pipeline Kanban idêntico ao CRM da Julia, com etapas próprias (Interessados, Agendar Reunião, Reunião Agendada, Remarcar Reunião, Proposta, Fechado, Perda). Dados armazenados em tabelas Supabase. Módulo auto-cadastrado e visível para admin.
 
-**Paginação por seção (10 por vez):**
-- Adicionar estado `visibleEmCurso` e `visibleAssinados` (iniciam em 10)
-- Renderizar apenas `.slice(0, visibleX)` de cada seção
-- Botão "Carregar mais" no final de cada seção quando houver mais itens
+## 1. Banco de Dados (Supabase - 2 migrações)
 
-**Telefone clicável no "Ligue Agora":**
-- Tornar o número de telefone um `<button>` que dispara `onCall(contrato)` quando `phoneAvailable`, caso contrário um `<a href="tel:...">` como fallback
-- Estilo: texto azul/laranja clicável com underline
+### Tabela `crm_comercial_stages`
+```sql
+CREATE TABLE crm_comercial_stages (
+  id serial PRIMARY KEY,
+  name text NOT NULL,
+  color text NOT NULL DEFAULT '#6b7280',
+  position integer NOT NULL DEFAULT 0,
+  is_active boolean NOT NULL DEFAULT true
+);
 
-### 2. `src/pages/adv/AdvDashboardPage.tsx`
+INSERT INTO crm_comercial_stages (name, color, position) VALUES
+  ('Interessados', '#3b82f6', 1),
+  ('Agendar Reunião', '#f59e0b', 2),
+  ('Reunião Agendada', '#8b5cf6', 3),
+  ('Remarcar Reunião', '#f97316', 4),
+  ('Proposta', '#06b6d4', 5),
+  ('Fechado', '#10b981', 6),
+  ('Perda', '#ef4444', 7);
 
-**Filtro sempre colapsado:**
-- Mudar `initialDates` para usar sempre `last7days` como padrão (ignorar `getInitialDates` que retorna a última seleção salva)
-- Passar prop para `UnifiedFilters` indicando que deve iniciar fechado
+ALTER TABLE crm_comercial_stages ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all on crm_comercial_stages" ON crm_comercial_stages FOR ALL USING (true) WITH CHECK (true);
+```
 
-**Título dinâmico no filtro:**
-- O `UnifiedFilters` já mostra "Filtros" no header do collapsible. Precisamos customizar para mostrar o período ativo no título, ex: "Filtro · 7 Dias"
+### Tabela `crm_comercial_cards`
+```sql
+CREATE TABLE crm_comercial_cards (
+  id serial PRIMARY KEY,
+  stage_id integer NOT NULL REFERENCES crm_comercial_stages(id),
+  contact_name text NOT NULL DEFAULT '',
+  contact_phone text,
+  contact_email text,
+  company_name text,
+  notes text,
+  value numeric DEFAULT 0,
+  created_by integer,
+  assigned_to integer,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  stage_entered_at timestamptz DEFAULT now()
+);
 
-**Abordagem para o título:** Adicionar nova prop `collapsedLabel` ou `defaultOpen={false}` ao `UnifiedFilters`, e compor o label no `AdvDashboardPage` externamente. Alternativa mais simples: adicionar props `defaultOpen` e `periodLabel` ao `UnifiedFilters`.
+ALTER TABLE crm_comercial_cards ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all on crm_comercial_cards" ON crm_comercial_cards FOR ALL USING (true) WITH CHECK (true);
+```
 
-### 3. `src/components/filters/UnifiedFilters.tsx`
+### Tabela `crm_comercial_history`
+```sql
+CREATE TABLE crm_comercial_history (
+  id serial PRIMARY KEY,
+  card_id integer NOT NULL REFERENCES crm_comercial_cards(id),
+  from_stage_id integer REFERENCES crm_comercial_stages(id),
+  to_stage_id integer NOT NULL REFERENCES crm_comercial_stages(id),
+  changed_by integer,
+  changed_at timestamptz DEFAULT now(),
+  notes text
+);
 
-- Adicionar prop `defaultOpen?: boolean` (default `true` para não quebrar outros usos)
-- Usar `defaultOpen` no `useState(defaultOpen ?? true)` para `isOpen`
-- Adicionar prop `showPeriodInHeader?: boolean` — quando true e filtro fechado, mostrar label do período ativo ao lado de "Filtros" (ex: "Filtros · 7 Dias")
-- Derivar o label do período ativo a partir de `currentQuickPeriod` e do array `quickPeriods`
+ALTER TABLE crm_comercial_history ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all on crm_comercial_history" ON crm_comercial_history FOR ALL USING (true) WITH CHECK (true);
+```
 
-### 4. `src/components/filters/types.ts`
+## 2. Tipo no TypeScript
 
-- Adicionar `defaultOpen?: boolean` e `showPeriodInHeader?: boolean` ao `UnifiedFiltersProps`
+### `src/types/permissions.ts`
+- Adicionar `'crm_comercial'` ao union `ModuleCode`
 
-## Arquivos alterados
+## 3. Hook de auto-cadastro do módulo
 
-| Arquivo | Mudança |
+### `src/hooks/useEnsureCrmComercialModule.ts` (novo)
+Seguir o padrão de `useEnsureJuliaOrdersModule`:
+- Código: `crm_comercial`
+- Nome: `CRM Comercial`
+- Rota: `/comercial/crm`
+- Menu group: `COMERCIAL`
+- Categoria: `crm`
+- Icon: `Briefcase`
+- display_order: 70
+
+## 4. Menu group
+
+### `src/hooks/useMenuModules.ts`
+- Adicionar `'COMERCIAL'` ao array `menuGroupOrder` (antes de `'CONFIGURAÇÕES'`)
+
+## 5. Páginas
+
+### `src/pages/comercial/crm/CRMComercialPage.tsx` (novo)
+Página principal com:
+- Header "CRM Comercial"
+- Filtros (busca texto + datas)
+- Totalizadores por etapa (reutiliza padrão do CRM Julia)
+- Pipeline Kanban horizontal com colunas por etapa
+- Dialog para criar/editar cards
+- Drag & drop para mover cards entre etapas (atualiza stage_id e cria history)
+
+### `src/pages/comercial/crm/types.ts` (novo)
+Tipos locais: `ComercialStage`, `ComercialCard`, `ComercialHistory`
+
+### `src/pages/comercial/crm/hooks/useCrmComercialData.ts` (novo)
+Hooks React Query usando `supabase` client direto (tabelas Supabase):
+- `useCrmComercialStages()` — busca stages
+- `useCrmComercialCards(filters)` — busca cards com join no stage
+- `useMoveComercialCard()` — mutation para mover card entre stages
+- `useCreateComercialCard()` — mutation para criar card
+- `useUpdateComercialCard()` — mutation para editar card
+
+### Componentes reutilizáveis (novos em `src/pages/comercial/crm/components/`)
+- `ComercialPipeline.tsx` — grid horizontal de colunas (mesmo layout do CRM Julia)
+- `ComercialPipelineColumn.tsx` — coluna com header colorido + cards paginados (30 por vez)
+- `ComercialLeadCard.tsx` — card simplificado (nome, empresa, telefone, valor, tempo na etapa, botão detalhes)
+- `ComercialCardDialog.tsx` — dialog para criar/editar deal
+- `ComercialTotalizers.tsx` — totalizadores por etapa
+- `ComercialHeader.tsx` — header com título e botão atualizar
+
+## 6. Rota
+
+### `src/App.tsx`
+- Import `CRMComercialPage`
+- Adicionar rota: `<Route path="/comercial/crm" element={<ProtectedRoute module="crm_comercial"><CRMComercialPage /></ProtectedRoute>} />`
+
+## 7. Sidebar
+
+### Onde o ensure é chamado
+- No Sidebar/MainLayout, chamar `useEnsureCrmComercialModule()` para auto-cadastrar o módulo
+
+## Arquivos alterados/criados
+
+| Arquivo | Ação |
 |---|---|
-| `src/pages/adv/components/AdvContratosCards.tsx` | Paginação 10/seção + telefone clicável |
-| `src/pages/adv/AdvDashboardPage.tsx` | Default 7 dias, filtro fechado, mostrar período no header |
-| `src/components/filters/UnifiedFilters.tsx` | Props `defaultOpen` e `showPeriodInHeader` |
-| `src/components/filters/types.ts` | Tipos das novas props |
+| Migração SQL | 3 tabelas + seed de stages |
+| `src/types/permissions.ts` | Adicionar `crm_comercial` ao ModuleCode |
+| `src/hooks/useMenuModules.ts` | Adicionar `COMERCIAL` ao menuGroupOrder |
+| `src/hooks/useEnsureCrmComercialModule.ts` | Novo — auto-cadastro do módulo |
+| `src/pages/comercial/crm/types.ts` | Novo — tipos |
+| `src/pages/comercial/crm/hooks/useCrmComercialData.ts` | Novo — hooks de dados |
+| `src/pages/comercial/crm/CRMComercialPage.tsx` | Novo — página principal |
+| `src/pages/comercial/crm/components/*.tsx` | Novos — 6 componentes de UI |
+| `src/App.tsx` | Nova rota + import |
+| Sidebar (MainLayout ou similar) | Chamar ensure hook |
 
