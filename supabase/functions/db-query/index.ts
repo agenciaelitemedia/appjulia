@@ -1681,7 +1681,7 @@ serve(async (req) => {
         break;
       }
 
-
+      case 'update_module': {
         const { moduleId, moduleData } = data;
         
         // Build dynamic SET clause only for provided fields
