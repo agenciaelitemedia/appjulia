@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { ComercialCard, ComercialStage } from '../types';
 import { ComercialPipelineColumn } from './ComercialPipelineColumn';
+import { CRMScrollNavigation } from '@/pages/crm/components/CRMScrollNavigation';
 
 interface Props {
   stages: ComercialStage[];
@@ -27,6 +28,7 @@ export function ComercialPipeline({ stages, cards, onCardClick }: Props) {
           />
         ))}
       </div>
+      <CRMScrollNavigation scrollRef={scrollRef} />
     </div>
   );
 }
