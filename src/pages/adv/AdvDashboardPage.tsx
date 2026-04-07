@@ -3,15 +3,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { useJuliaAgents, useJuliaContratos, useJuliaContratosPrevious } from '@/pages/estrategico/hooks/useJuliaData';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState } from '@/components/filters/types';
 import { ContratosSummary } from '@/pages/estrategico/contratos/components/ContratosSummary';
-import { ContratosTable } from '@/pages/estrategico/contratos/components/ContratosTable';
-import { ContratoDetailsDialog } from '@/pages/estrategico/contratos/components/ContratoDetailsDialog';
 import { ContratosEvolutionChart } from '@/pages/estrategico/contratos/components/ContratosEvolutionChart';
-import { JuliaContrato } from '@/pages/estrategico/types';
+import { AdvContratosCards } from './components/AdvContratosCards';
 import { getInitialDates } from '@/hooks/usePersistedPeriod';
 
 export default function AdvDashboardPage() {
@@ -31,7 +30,6 @@ export default function AdvDashboardPage() {
   });
 
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [selectedContrato, setSelectedContrato] = useState<JuliaContrato | null>(null);
 
   const effectiveAgentCodes = agentCode ? [agentCode] : [];
 
@@ -60,7 +58,7 @@ export default function AdvDashboardPage() {
 
   if (agentsLoading) {
     return (
-      <div className="px-4 py-6 max-w-2xl mx-auto space-y-5">
+      <div className="px-4 py-6 space-y-5">
         <Skeleton className="h-8 w-48" />
         <div className="grid grid-cols-2 gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -74,7 +72,7 @@ export default function AdvDashboardPage() {
 
   if (!agentCode) {
     return (
-      <div className="px-4 py-6 max-w-lg mx-auto">
+      <div className="px-4 py-6">
         <p className="text-muted-foreground text-sm text-center">
           Nenhum agente vinculado ao seu perfil. Contate o administrador.
         </p>
@@ -83,14 +81,14 @@ export default function AdvDashboardPage() {
   }
 
   return (
-    <div className="px-4 py-6 max-w-2xl mx-auto space-y-5">
+    <div className="px-4 py-4 w-full space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-foreground">
+          <h1 className="text-lg font-bold text-foreground">
             Olá, {firstName}! 👋
           </h1>
-          <p className="text-muted-foreground text-xs mt-0.5">Seus contratos</p>
+          <p className="text-muted-foreground text-xs">Seus contratos</p>
         </div>
         <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
           <RefreshCw className={`h-4 w-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -109,37 +107,37 @@ export default function AdvDashboardPage() {
         statusOptions={['CREATED', 'SIGNED', 'PENDING', 'CANCELLED']}
       />
 
-      {/* Summary */}
-      <ContratosSummary
-        contratos={contratos}
-        previousContratos={previousContratos}
-        isLoading={contratosLoading}
-        dateFrom={filters.dateFrom}
-        dateTo={filters.dateTo}
-      />
+      {/* Tabs */}
+      <Tabs defaultValue="painel" className="w-full">
+        <TabsList className="w-full">
+          <TabsTrigger value="painel" className="flex-1">Painel</TabsTrigger>
+          <TabsTrigger value="contratos" className="flex-1">Contratos</TabsTrigger>
+        </TabsList>
 
-      {/* Chart */}
-      <ContratosEvolutionChart
-        contratos={contratos}
-        isLoading={contratosLoading}
-        dateFrom={filters.dateFrom}
-        dateTo={filters.dateTo}
-      />
+        <TabsContent value="painel" className="space-y-4 mt-4">
+          <ContratosSummary
+            contratos={contratos}
+            previousContratos={previousContratos}
+            isLoading={contratosLoading}
+            dateFrom={filters.dateFrom}
+            dateTo={filters.dateTo}
+          />
+          <ContratosEvolutionChart
+            contratos={contratos}
+            isLoading={contratosLoading}
+            dateFrom={filters.dateFrom}
+            dateTo={filters.dateTo}
+          />
+        </TabsContent>
 
-      {/* Table */}
-      <ContratosTable
-        contratos={contratos}
-        isLoading={contratosLoading}
-        searchTerm={filters.search}
-        onViewDetails={setSelectedContrato}
-      />
-
-      {/* Details */}
-      <ContratoDetailsDialog
-        contrato={selectedContrato}
-        open={!!selectedContrato}
-        onOpenChange={(open) => !open && setSelectedContrato(null)}
-      />
+        <TabsContent value="contratos" className="mt-4">
+          <AdvContratosCards
+            contratos={contratos}
+            isLoading={contratosLoading}
+            agentCode={agentCode}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
