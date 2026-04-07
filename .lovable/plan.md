@@ -1,77 +1,34 @@
 
-## Correção das permissões no banco para o usuário advogado
 
-### Diagnóstico
-O problema não é só o redirecionamento do frontend: hoje o acesso do advogado depende de a permissão `adv_dashboard` existir de verdade no banco externo.
+# Corrigir `AdvDashboardPage` para usar `user_agents` em vez de `user.cod_agent`
 
-Pelos arquivos atuais, há 4 pontos frágeis:
+## Problema
 
-1. `adv_dashboard` pode não existir na tabela `modules`.
-2. O `ensure_adv_module` só cria permissões padrão se o módulo for inserido naquele momento; se o módulo já existir sem as permissões corretas, ele não corrige.
-3. `insert_team_member` auto-adiciona `adv_dashboard` para advogado, mas `update_team_member` ainda não faz isso.
-4. O `ProtectedRoute` usa `usePermission`, e esse hook ainda lê o map direto; então, sem registro real no banco, o advogado continua barrado.
+A página `/adv/dashboard` obtém o `cod_agent` diretamente de `user?.cod_agent`, que pode estar vazio ou incorreto. A página `/dashboard` (e todas as páginas do painel estratégico) usa o hook `useJuliaAgents()` que consulta a tabela `user_agents` no banco externo via `getCrmAgentsForUser`. Isso garante que o agente correto seja carregado.
 
-### O que precisa ser feito
-#### 1. Corrigir os dados no banco externo
-Criar uma ação de reparo no `db-query` para:
+## Correção
 
-- garantir que o módulo `adv_dashboard` exista em `modules`
-- garantir que exista `role_default_permissions` para `advogado` nesse módulo
-- garantir que o usuário advogado atual receba `user_permissions` para `adv_dashboard`
-- fazer isso com lógica idempotente (`INSERT ... ON CONFLICT DO NOTHING`) para poder rodar sem risco
+### `src/pages/adv/AdvDashboardPage.tsx`
 
-Como você pediu correção “no banco”, esse é o ponto principal.
+Substituir a lógica de `agentCode` para usar `useJuliaAgents()`:
 
-#### 2. Aplicar também para advogados já existentes
-Além do usuário atual, vale backfill para todos os usuários com role `advogado`, porque já há indício de usuários criados antes da correção automática.
+- Importar `useJuliaAgents` de `src/pages/estrategico/hooks/useJuliaData`
+- Chamar `useJuliaAgents()` para obter os agentes do usuário
+- Usar o primeiro agente retornado como `agentCode`
+- Mostrar loading enquanto os agentes carregam
+- Manter a mensagem de "nenhum agente" se a lista vier vazia
 
-Fluxo do reparo:
-```text
-modules
-  -> garantir adv_dashboard
-role_default_permissions
-  -> garantir advogado + adv_dashboard
-user_permissions
-  -> garantir adv_dashboard para advogados existentes
+Lógica simplificada:
+```typescript
+const { data: agents = [], isLoading: agentsLoading } = useJuliaAgents();
+const agentCode = agents.length > 0 ? agents[0].cod_agent : '';
 ```
 
-#### 3. Corrigir a atualização de membros
-Em `supabase/functions/db-query/index.ts`, ajustar `update_team_member` para repetir a mesma regra de `insert_team_member`:
+Usar `agentCode` derivado dos agents em vez de `user?.cod_agent` em todos os pontos (filters, queries, guard).
 
-- se `role === 'advogado'`, incluir `adv_dashboard` automaticamente antes de gravar `user_permissions`
+## Arquivo alterado
 
-Hoje esse é um dos motivos de um usuário poder virar advogado e continuar sem acesso.
+| Arquivo | Mudança |
+|---|---|
+| `src/pages/adv/AdvDashboardPage.tsx` | Usar `useJuliaAgents()` para obter `cod_agent` da tabela `user_agents` |
 
-#### 4. Tirar a dependência da página protegida
-Hoje `AdvDashboardPage` tenta chamar `ensureAdvModule()` no `useEffect`, mas isso acontece tarde demais, porque a página só monta depois que a permissão já foi aprovada.
-
-Plano:
-- mover essa garantia para antes do acesso protegido, idealmente no fluxo de login/bootstrap
-- manter a página sem responsabilidade de “consertar” o banco
-
-#### 5. Alinhar o guard do frontend como safety net
-Mesmo corrigindo o banco, ainda vale alinhar `src/hooks/usePermission.ts` com `AuthContext.hasPermission()`.
-
-Assim:
-- `ProtectedRoute` passa a respeitar a mesma regra central
-- evita nova divergência entre “o contexto libera” e “o hook bloqueia”
-
-### Arquivos a ajustar
-- `supabase/functions/db-query/index.ts`
-  - tornar `ensure_adv_module` realmente corretivo, não só criador
-  - adicionar reparo para usuário(s) advogado(s) já existentes
-  - corrigir `update_team_member` para auto-incluir `adv_dashboard`
-- `src/hooks/usePermission.ts`
-  - delegar checagens para `hasPermission()` do contexto
-- `src/pages/adv/AdvDashboardPage.tsx`
-  - remover a responsabilidade de garantir módulo/permissão ali
-- opcionalmente `src/contexts/AuthContext.tsx`
-  - disparar a garantia em ponto anterior ao acesso da rota, se necessário
-
-### Resultado esperado
-Depois da implementação:
-
-- o módulo `adv_dashboard` existirá de fato no banco
-- o usuário advogado atual terá a permissão gravada no banco
-- advogados futuros e advogados editados depois também receberão essa permissão automaticamente
-- o acesso a `/adv/dashboard` deixará de redirecionar para `/login`
