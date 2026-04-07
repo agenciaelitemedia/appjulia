@@ -67,8 +67,10 @@ export function UnifiedFilters({
   className,
   periodTooltip,
   quickPeriods = DEFAULT_QUICK_PERIODS,
+  defaultOpen = true,
+  showPeriodInHeader = false,
 }: UnifiedFiltersProps) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   const [agentSearch, setAgentSearch] = useState('');
 
   const filteredAgents = useMemo(() => {
@@ -166,7 +168,13 @@ export function UnifiedFilters({
         <button className="flex items-center justify-between w-full px-4 py-3 bg-muted/40 hover:bg-muted/60 transition-colors border-b border-border/50">
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium text-sm">Filtros</span>
+            <span className="font-medium text-sm">
+              Filtros
+              {showPeriodInHeader && !isOpen && (() => {
+                const activePeriod = quickPeriods.find(p => p.value === currentQuickPeriod);
+                return activePeriod ? ` · ${activePeriod.label}` : '';
+              })()}
+            </span>
             {isOpen ? (
               <ChevronUp className="h-4 w-4 text-muted-foreground" />
             ) : (
