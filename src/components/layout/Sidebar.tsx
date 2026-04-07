@@ -18,6 +18,7 @@ import { useEnsureLegalCasesModule } from "@/hooks/useEnsureLegalCasesModule";
 import { useEnsureContractNotificationsModule } from "@/hooks/useEnsureContractNotificationsModule";
 import { useEnsureJuliaOrdersModule } from "@/hooks/useEnsureJuliaOrdersModule";
 import { useEnsureJuliaPlansModule } from "@/hooks/useEnsureJuliaPlansModule";
+import { useEnsureCrmComercialModule } from "@/hooks/useEnsureCrmComercialModule";
 import {
   Tooltip,
   TooltipContent,
@@ -38,7 +39,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   const { groupedModules, isLoading } = useMenuModules();
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
   
-  // Ensure DataJud module exists for admins
+  // Ensure modules exist for admins
   useEnsureDataJudModule();
   useEnsureMonitoramentoModule();
   useEnsureCopilotModule();
@@ -48,6 +49,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   useEnsureContractNotificationsModule();
   useEnsureJuliaOrdersModule();
   useEnsureJuliaPlansModule();
+  useEnsureCrmComercialModule();
 
   const isTimeUser = user?.role === "time";
   
