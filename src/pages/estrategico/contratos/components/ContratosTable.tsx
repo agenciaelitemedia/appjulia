@@ -761,6 +761,65 @@ export function ContratosTable({
           codAgent={phoneCallContrato.cod_agent}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              Excluir Contrato
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-700 dark:text-red-400 space-y-1">
+                  <p className="font-semibold">⚠️ Esta ação é irreversível.</p>
+                  <p>O contrato será permanentemente removido e não poderá ser desfeito.</p>
+                  <p>Você não terá mais acesso a este contrato.</p>
+                  <p className="font-semibold">Esta ação será auditada.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Para confirmar, digite o telefone do contrato: <strong className="text-foreground">{deleteContrato?.whatsapp || deleteContrato?.signer_name || ''}</strong>
+                  </p>
+                  <Input
+                    placeholder="Digite o telefone para confirmar"
+                    value={deleteConfirmPhone}
+                    onChange={(e) => setDeleteConfirmPhone(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Switch
+                    id="delete-confirm-switch"
+                    checked={deleteConfirmSwitch}
+                    onCheckedChange={setDeleteConfirmSwitch}
+                  />
+                  <Label htmlFor="delete-confirm-switch" className="text-sm cursor-pointer">
+                    Confirmo que desejo excluir este contrato
+                  </Label>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>Cancelar</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={
+                deleteConfirmPhone !== (deleteContrato?.whatsapp || deleteContrato?.signer_name || '') ||
+                !deleteConfirmSwitch ||
+                isDeleting
+              }
+              onClick={handleDeleteContrato}
+            >
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Excluir definitivamente
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
