@@ -1149,8 +1149,14 @@ serve(async (req) => {
         }
         
         // Insert user_permissions for selected modules
-        if (modulePermissions && modulePermissions.length > 0) {
-          for (const mod of modulePermissions) {
+        // Auto-include adv_dashboard for advogado role
+        const allPermissions = modulePermissions ? [...modulePermissions] : [];
+        if (memberRole === 'advogado' && !allPermissions.some((m: any) => m.moduleCode === 'adv_dashboard')) {
+          allPermissions.push({ moduleCode: 'adv_dashboard' });
+        }
+        
+        if (allPermissions.length > 0) {
+          for (const mod of allPermissions) {
             await sql.unsafe(
               `INSERT INTO user_permissions (user_id, module_id, can_view, can_create, can_edit, can_delete)
                SELECT $1, id, TRUE, TRUE, TRUE, FALSE FROM modules WHERE code = $2`,
@@ -1232,7 +1238,7 @@ serve(async (req) => {
         await sql.unsafe(
           `UPDATE users 
            SET password = $1, remember_token = $2, updated_at = now() 
-           WHERE id = $3 AND role = 'time'`,
+           WHERE id = $3 AND role IN ('time', 'advogado', 'comercial')`,
           [hashedPassword, rawPassword, memberId]
         );
         
@@ -1640,12 +1646,38 @@ serve(async (req) => {
                    CASE WHEN role = 'admin' THEN TRUE ELSE FALSE END,
                    CASE WHEN role = 'admin' THEN TRUE ELSE FALSE END,
                    CASE WHEN role = 'admin' THEN TRUE ELSE FALSE END
-            FROM (VALUES ('admin'), ('colaborador'), ('user'), ('time')) AS r(role)
+            FROM (VALUES ('admin'), ('colaborador'), ('user'), ('time'), ('advogado'), ('comercial')) AS r(role)
             ON CONFLICT (role, module_id) DO NOTHING
           `, [moduleId]);
         }
         
         result = inserted;
+        break;
+      }
+
+      case 'ensure_adv_module': {
+        // Ensure adv_dashboard module exists in the modules table
+        const existing = await sql.unsafe(`SELECT id FROM modules WHERE code = 'adv_dashboard'`);
+        if (existing.length === 0) {
+          const ins = await sql.unsafe(
+            `INSERT INTO modules (code, name, description, category, icon, route, menu_group, is_menu_visible, display_order, is_active, created_at, updated_at)
+             VALUES ('adv_dashboard', 'Dashboard Advogado', 'Dashboard exclusivo para advogados', 'principal', 'Scale', '/adv/dashboard', 'ADVOGADO', false, 50, TRUE, now(), now())
+             RETURNING id`
+          );
+          if (ins.length > 0) {
+            await sql.unsafe(`
+              INSERT INTO role_default_permissions (role, module_id, can_view, can_create, can_edit, can_delete)
+              SELECT role, $1,
+                     CASE WHEN role IN ('admin', 'advogado') THEN TRUE ELSE FALSE END,
+                     CASE WHEN role = 'admin' THEN TRUE ELSE FALSE END,
+                     CASE WHEN role = 'admin' THEN TRUE ELSE FALSE END,
+                     CASE WHEN role = 'admin' THEN TRUE ELSE FALSE END
+              FROM (VALUES ('admin'), ('colaborador'), ('user'), ('time'), ('advogado'), ('comercial')) AS r(role)
+              ON CONFLICT (role, module_id) DO NOTHING
+            `, [ins[0].id]);
+          }
+        }
+        result = existing.length > 0 ? existing : [{ success: true, created: true }];
         break;
       }
 

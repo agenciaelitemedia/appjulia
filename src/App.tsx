@@ -129,7 +129,7 @@ const App = () => (
                 </Route>
                 {/* Advogado routes - mobile layout */}
                 <Route element={<AdvLayout />}>
-                  <Route path="/adv/dashboard" element={<ProtectedRoute module="adv_dashboard"><AdvDashboardPage /></ProtectedRoute>} />
+                  <Route path="/adv/dashboard" element={<ProtectedRoute module="adv_dashboard" fallbackPath="/login"><AdvDashboardPage /></ProtectedRoute>} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>

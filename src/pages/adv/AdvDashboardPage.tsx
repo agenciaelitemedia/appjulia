@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,12 +13,21 @@ import { ContratoDetailsDialog } from '@/pages/estrategico/contratos/components/
 import { ContratosEvolutionChart } from '@/pages/estrategico/contratos/components/ContratosEvolutionChart';
 import { JuliaContrato } from '@/pages/estrategico/types';
 import { getInitialDates } from '@/hooks/usePersistedPeriod';
+import { externalDb } from '@/lib/externalDb';
 
 export default function AdvDashboardPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const firstName = user?.name?.split(' ')[0] || 'Advogado';
   const agentCode = user?.cod_agent ? String(user.cod_agent) : '';
+  const ensuredRef = useRef(false);
+
+  // Ensure adv_dashboard module exists in the database (once)
+  useEffect(() => {
+    if (ensuredRef.current) return;
+    ensuredRef.current = true;
+    externalDb.ensureAdvModule().catch(console.error);
+  }, []);
 
   const initialDates = getInitialDates();
   const [filters, setFilters] = useState<UnifiedFiltersState>({

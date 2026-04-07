@@ -478,6 +478,13 @@ class ExternalDatabase {
     return result[0];
   }
 
+  async ensureAdvModule(): Promise<void> {
+    await this.invoke({
+      action: 'ensure_adv_module',
+      data: {},
+    });
+  }
+
   async updateModule(moduleId: number, moduleData: Partial<Module>): Promise<Module> {
     const result = await this.invoke({
       action: 'update_module',
