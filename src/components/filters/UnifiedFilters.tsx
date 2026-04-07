@@ -208,7 +208,7 @@ export function UnifiedFilters({
                     key={period.value}
                     variant={currentQuickPeriod === period.value ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => handleQuickPeriod(period.value)}
+                    onClick={() => handleQuickPeriod(period.value as QuickPeriod)}
                     disabled={isLoading}
                     className={cn(
                       "h-7 px-3 text-xs font-medium rounded-full transition-all duration-200",
