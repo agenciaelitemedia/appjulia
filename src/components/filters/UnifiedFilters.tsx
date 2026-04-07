@@ -32,7 +32,7 @@ import {
 } from '@/hooks/usePersistedPeriod';
 import { UnifiedFiltersProps } from './types';
 
-const QUICK_PERIODS: { value: QuickPeriod; label: string }[] = [
+const DEFAULT_QUICK_PERIODS: { value: QuickPeriod; label: string }[] = [
   { value: 'today', label: 'Hoje' },
   { value: 'yesterday', label: 'Ontem' },
   { value: 'last7days', label: '7 Dias' },

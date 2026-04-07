@@ -37,6 +37,7 @@ export interface UnifiedFiltersProps {
   showAgentSelector?: boolean;      // default: true
   showSearch?: boolean;             // default: true
   showQuickPeriods?: boolean;       // default: true
+  quickPeriods?: { value: string; label: string }[];  // override default periods
   
   // Filtros extras opcionais
   showPerfilFilter?: boolean;       // Para página de Desempenho
