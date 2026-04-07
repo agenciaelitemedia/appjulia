@@ -1,71 +1,60 @@
 
 
-# Layout Full-Screen com Abas Painel / Contratos
-
-## Resumo
-
-Reestruturar `/adv/dashboard` para usar 100% da tela, com duas abas fixas (Painel e Contratos). O filtro fica acima das abas (compartilhado). A aba Painel mostra summary + chart. A aba Contratos mostra cards agrupados por status (Em Curso vs Assinados) com ações de ligar, chat e detalhes.
+# Ajustes nos Cards de Contratos e Filtros do Advogado
 
 ## Alterações
 
-### 1. `src/pages/adv/AdvDashboardPage.tsx` — Reescrever
+### 1. `src/pages/adv/components/AdvContratosCards.tsx` — Refatorar cards
 
-- Remover `max-w-2xl` e usar `w-full` para ocupar 100% da tela
-- Adicionar tabs (Painel / Contratos) usando `Tabs` do shadcn
-- Header + filtros ficam fora das tabs (sempre visíveis)
-- **Aba Painel**: `ContratosSummary` + `ContratosEvolutionChart` (sem tabela)
-- **Aba Contratos**: novo componente de cards
+- Remover icone de chat (MessageCircle) completamente
+- Icone de telefone: mostrar apenas se `isAvailable` do `PhoneContext` for `true` (importar `usePhone`)
+- Abaixo do resumo do caso, adicionar linha "Ligue Agora:" + telefone formatado `(XX) XXXXX-XXXX`
+  - Formatar o `contrato.whatsapp` para exibição: extrair DDD e número, formato `(XX) XXXXX-XXXX`
+  - Se não houver telefone, não exibir a linha
+- Receber `hasPhone` como prop (ou usar context direto no componente)
 
-### 2. `src/pages/adv/components/AdvContratosCards.tsx` — Novo
+### 2. `src/pages/adv/AdvDashboardPage.tsx` — Simplificar filtros
 
-Componente mobile-first que renderiza contratos em cards separados por status:
+- Remover o `showStatusFilter` e `statusOptions` do `UnifiedFilters`
+- Reduzir períodos rápidos: passar apenas Hoje, Ontem, 7 Dias, Mês Atual
+- Manter datas início/fim
+- Adicionar badges de status (Assinado / Em Curso) como filtro toggle no lugar do select de status
+  - Usar estado local para status selecionados
+  - Filtrar contratos no frontend com base nos badges ativos
+- Remover busca (`showSearch={false}` já está)
 
-- **Seção "Em Curso"** (status `CREATED`, `PENDING`) — badge amarelo/laranja
-- **Seção "Assinados"** (status `SIGNED`) — badge verde
-- Cada seção com header + contagem
-- Card mostra: nome do cliente, data, status badge, resumo do caso (truncado)
-- Ações em cada card (ícones circulares):
-  - **Ligar** (Phone, laranja) — abre `PhoneCallDialog`
-  - **WhatsApp** (MessageCircle, verde) — abre link `wa.me`
-  - **Detalhes** (Eye, azul) — abre `ContratoDetailsDialog`
-- Cards com `CANCELLED` ficam em seção colapsável "Cancelados" no final
-- Skeleton loading com cards placeholder
+### Detalhes técnicos
 
-### 3. `src/components/layout/AdvLayout.tsx` — Ajuste menor
-
-- Garantir que `main` use `flex-1 overflow-auto` sem padding extra (já está ok)
-
-## Estrutura visual (mobile 390px)
-
-```text
-┌──────────────────────────┐
-│ Logo    Nome    [Logout] │  ← header fixo
-├──────────────────────────┤
-│ [Filtro período/status]  │  ← filtros compartilhados
-├──────────────────────────┤
-│  [Painel]  [Contratos]   │  ← tabs
-├──────────────────────────┤
-│                          │
-│  (conteúdo da aba ativa) │
-│                          │
-└──────────────────────────┘
+**Formato de telefone para exibição:**
+```typescript
+function formatPhoneDisplay(raw: string): string {
+  let digits = raw.replace(/\D/g, '');
+  if (digits.startsWith('55') && digits.length >= 12) digits = digits.slice(2);
+  if (digits.startsWith('0')) digits = digits.slice(1);
+  if (digits.length === 10) {
+    return `(${digits.slice(0,2)}) ${digits.slice(2,6)}-${digits.slice(6)}`;
+  }
+  if (digits.length === 11) {
+    return `(${digits.slice(0,2)}) ${digits.slice(2,7)}-${digits.slice(7)}`;
+  }
+  return raw;
+}
 ```
 
-### Card de contrato (aba Contratos):
-```text
-┌─────────────────────────────┐
-│ João Silva        ● Em Curso│
-│ 15/03/2026 · Direito Civil  │
-│ Resumo truncado do caso...  │
-│                             │
-│  [📞]  [💬]  [👁]           │
-└─────────────────────────────┘
-```
+**Badges de status no dashboard:**
+- Dois badges clicáveis: "Em Curso" (amarelo) e "Assinado" (verde)
+- Ambos ativos por padrão
+- Clicar toggle a visibilidade daquela categoria
+- Filtragem aplicada antes de passar contratos para os componentes
 
-## Arquivos
+**Telefonia condicional:**
+- Importar `usePhone` do `PhoneContext` no `AdvContratosCards`
+- Checar `isAvailable` para mostrar/esconder o botão de ligar
+
+## Arquivos alterados
 
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/adv/AdvDashboardPage.tsx` | Reescrever com tabs e layout full-width |
-| `src/pages/adv/components/AdvContratosCards.tsx` | **Novo** — cards de contratos com agrupamento por status e ações |
+| `src/pages/adv/components/AdvContratosCards.tsx` | Remover chat, condicionar telefone, adicionar "Ligue Agora" |
+| `src/pages/adv/AdvDashboardPage.tsx` | Reduzir períodos, trocar select status por badges toggle |
 
