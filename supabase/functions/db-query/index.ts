@@ -1047,7 +1047,7 @@ serve(async (req) => {
             FROM users u
             LEFT JOIN user_agents ua ON ua.user_id = u.id
             LEFT JOIN clients c ON c.id = u.client_id
-            WHERE u.role = 'time'
+            WHERE u.role IN ('time', 'advogado', 'comercial')
             GROUP BY u.id, c.photo
             ORDER BY u.name`
           );
@@ -1060,7 +1060,7 @@ serve(async (req) => {
             FROM users u
             LEFT JOIN user_agents ua ON ua.user_id = u.id
             LEFT JOIN clients c ON c.id = u.client_id
-            WHERE u.user_id = $1 AND u.role = 'time'
+            WHERE u.user_id = $1 AND u.role IN ('time', 'advogado', 'comercial')
             GROUP BY u.id, c.photo
             ORDER BY u.name`,
             [userId]
