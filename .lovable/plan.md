@@ -1,47 +1,77 @@
 
+## Correção das permissões no banco para o usuário advogado
 
-# Cadastrar módulo `adv_dashboard` e auto-atribuir ao perfil advogado
+### Diagnóstico
+O problema não é só o redirecionamento do frontend: hoje o acesso do advogado depende de a permissão `adv_dashboard` existir de verdade no banco externo.
 
-## Problema
+Pelos arquivos atuais, há 4 pontos frágeis:
 
-O módulo `adv_dashboard` não existe na tabela `modules` do banco externo. Quando um advogado é criado, o frontend adiciona `adv_dashboard` na lista de `modulePermissions`, mas o INSERT de permissão faz `SELECT id FROM modules WHERE code = 'adv_dashboard'` — que retorna vazio. Logo, nenhuma permissão é gravada.
+1. `adv_dashboard` pode não existir na tabela `modules`.
+2. O `ensure_adv_module` só cria permissões padrão se o módulo for inserido naquele momento; se o módulo já existir sem as permissões corretas, ele não corrige.
+3. `insert_team_member` auto-adiciona `adv_dashboard` para advogado, mas `update_team_member` ainda não faz isso.
+4. O `ProtectedRoute` usa `usePermission`, e esse hook ainda lê o map direto; então, sem registro real no banco, o advogado continua barrado.
 
-Além disso, o `hasPermission` no `AuthContext` não tem fallback para advogados, então o `ProtectedRoute` bloqueia o acesso.
+### O que precisa ser feito
+#### 1. Corrigir os dados no banco externo
+Criar uma ação de reparo no `db-query` para:
 
-## Correção
+- garantir que o módulo `adv_dashboard` exista em `modules`
+- garantir que exista `role_default_permissions` para `advogado` nesse módulo
+- garantir que o usuário advogado atual receba `user_permissions` para `adv_dashboard`
+- fazer isso com lógica idempotente (`INSERT ... ON CONFLICT DO NOTHING`) para poder rodar sem risco
 
-### 1. Inserir módulo `adv_dashboard` na tabela de módulos (via edge function)
+Como você pediu correção “no banco”, esse é o ponto principal.
 
-Adicionar no `create_module` do `role_default_permissions` o role `'advogado'` com `can_view = TRUE` por padrão.
+#### 2. Aplicar também para advogados já existentes
+Além do usuário atual, vale backfill para todos os usuários com role `advogado`, porque já há indício de usuários criados antes da correção automática.
 
-Também precisamos inserir o módulo via chamada na inicialização ou via um script. A forma mais simples: adicionar uma action `ensure_adv_module` na edge function que faz um `INSERT ... ON CONFLICT DO NOTHING` do módulo `adv_dashboard`.
+Fluxo do reparo:
+```text
+modules
+  -> garantir adv_dashboard
+role_default_permissions
+  -> garantir advogado + adv_dashboard
+user_permissions
+  -> garantir adv_dashboard para advogados existentes
+```
 
-**Alternativa mais limpa**: Chamar `externalDb.createModule()` uma vez para cadastrar. Mas como o módulo precisa existir permanentemente, vamos adicionar ao `init_permission_system` ou `migrate_modules_schema` um INSERT do módulo `adv_dashboard`.
+#### 3. Corrigir a atualização de membros
+Em `supabase/functions/db-query/index.ts`, ajustar `update_team_member` para repetir a mesma regra de `insert_team_member`:
 
-### 2. Garantir role `advogado` no `role_default_permissions`
+- se `role === 'advogado'`, incluir `adv_dashboard` automaticamente antes de gravar `user_permissions`
 
-No `create_module` (linha 1636-1645), a query de `role_default_permissions` só inclui `('admin'), ('colaborador'), ('user'), ('time')`. Precisa adicionar `('advogado'), ('comercial')`.
+Hoje esse é um dos motivos de um usuário poder virar advogado e continuar sem acesso.
 
-### 3. Auto-atribuir `adv_dashboard` no `insert_team_member`
+#### 4. Tirar a dependência da página protegida
+Hoje `AdvDashboardPage` tenta chamar `ensureAdvModule()` no `useEffect`, mas isso acontece tarde demais, porque a página só monta depois que a permissão já foi aprovada.
 
-No backend, quando `role === 'advogado'`, garantir que `adv_dashboard` está nas permissões mesmo que o frontend não envie (safety net).
+Plano:
+- mover essa garantia para antes do acesso protegido, idealmente no fluxo de login/bootstrap
+- manter a página sem responsabilidade de “consertar” o banco
 
-### 4. Fallback no `hasPermission` do AuthContext
+#### 5. Alinhar o guard do frontend como safety net
+Mesmo corrigindo o banco, ainda vale alinhar `src/hooks/usePermission.ts` com `AuthContext.hasPermission()`.
 
-Adicionar: se `user.role === 'advogado'` e `moduleCode === 'adv_dashboard'`, retornar `true` automaticamente (garante acesso mesmo se a permissão não estiver no banco ainda).
+Assim:
+- `ProtectedRoute` passa a respeitar a mesma regra central
+- evita nova divergência entre “o contexto libera” e “o hook bloqueia”
 
-## Alterações
+### Arquivos a ajustar
+- `supabase/functions/db-query/index.ts`
+  - tornar `ensure_adv_module` realmente corretivo, não só criador
+  - adicionar reparo para usuário(s) advogado(s) já existentes
+  - corrigir `update_team_member` para auto-incluir `adv_dashboard`
+- `src/hooks/usePermission.ts`
+  - delegar checagens para `hasPermission()` do contexto
+- `src/pages/adv/AdvDashboardPage.tsx`
+  - remover a responsabilidade de garantir módulo/permissão ali
+- opcionalmente `src/contexts/AuthContext.tsx`
+  - disparar a garantia em ponto anterior ao acesso da rota, se necessário
 
-| Arquivo | Mudança |
-|---|---|
-| `supabase/functions/db-query/index.ts` | 1) `create_module`: adicionar roles `advogado` e `comercial` no `role_default_permissions`. 2) `insert_team_member`: auto-incluir `adv_dashboard` quando role=advogado. 3) Nova action `ensure_adv_module` para criar o módulo se não existir |
-| `src/contexts/AuthContext.tsx` | `hasPermission`: advogado sempre tem acesso a `adv_dashboard` |
-| `src/pages/adv/AdvDashboardPage.tsx` | Chamar `externalDb` para garantir módulo existe (on mount, uma vez) — ou melhor, fazer isso no login |
+### Resultado esperado
+Depois da implementação:
 
-## Fluxo corrigido
-
-1. Módulo `adv_dashboard` é inserido na tabela `modules` (via ensure ou migrate)
-2. Ao criar membro com role `advogado`, o backend auto-inclui permissão `adv_dashboard`
-3. `hasPermission` no frontend dá fallback positivo para advogado + adv_dashboard
-4. `ProtectedRoute` permite acesso
-
+- o módulo `adv_dashboard` existirá de fato no banco
+- o usuário advogado atual terá a permissão gravada no banco
+- advogados futuros e advogados editados depois também receberão essa permissão automaticamente
+- o acesso a `/adv/dashboard` deixará de redirecionar para `/login`
