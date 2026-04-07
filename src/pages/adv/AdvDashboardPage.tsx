@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
-import { useJuliaContratos, useJuliaContratosPrevious } from '@/pages/estrategico/hooks/useJuliaData';
+import { useJuliaAgents, useJuliaContratos, useJuliaContratosPrevious } from '@/pages/estrategico/hooks/useJuliaData';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState } from '@/components/filters/types';
 import { ContratosSummary } from '@/pages/estrategico/contratos/components/ContratosSummary';
@@ -17,12 +18,14 @@ export default function AdvDashboardPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const firstName = user?.name?.split(' ')[0] || 'Advogado';
-  const agentCode = user?.cod_agent ? String(user.cod_agent) : '';
+
+  const { data: agents = [], isLoading: agentsLoading } = useJuliaAgents();
+  const agentCode = agents.length > 0 ? agents[0].cod_agent : '';
 
   const initialDates = getInitialDates();
   const [filters, setFilters] = useState<UnifiedFiltersState>({
     search: '',
-    agentCodes: agentCode ? [agentCode] : [],
+    agentCodes: [],
     dateFrom: initialDates.dateFrom,
     dateTo: initialDates.dateTo,
   });
@@ -30,14 +33,16 @@ export default function AdvDashboardPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedContrato, setSelectedContrato] = useState<JuliaContrato | null>(null);
 
+  const effectiveAgentCodes = agentCode ? [agentCode] : [];
+
   const { data: contratos = [], isLoading: contratosLoading } = useJuliaContratos({
     ...filters,
-    agentCodes: agentCode ? [agentCode] : [],
+    agentCodes: effectiveAgentCodes,
     statusDocument: filters.statusDocument,
   });
   const { data: previousContratos = [] } = useJuliaContratosPrevious({
     ...filters,
-    agentCodes: agentCode ? [agentCode] : [],
+    agentCodes: effectiveAgentCodes,
   });
 
   const handleRefresh = async () => {
@@ -50,8 +55,22 @@ export default function AdvDashboardPage() {
   };
 
   const handleFiltersChange = (newFilters: UnifiedFiltersState) => {
-    setFilters({ ...newFilters, agentCodes: agentCode ? [agentCode] : [] });
+    setFilters({ ...newFilters, agentCodes: effectiveAgentCodes });
   };
+
+  if (agentsLoading) {
+    return (
+      <div className="px-4 py-6 max-w-2xl mx-auto space-y-5">
+        <Skeleton className="h-8 w-48" />
+        <div className="grid grid-cols-2 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-20" />
+          ))}
+        </div>
+        <Skeleton className="h-64" />
+      </div>
+    );
+  }
 
   if (!agentCode) {
     return (
