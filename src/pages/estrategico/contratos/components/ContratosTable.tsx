@@ -659,7 +659,7 @@ export function ContratosTable({
                       </TooltipProvider>
 
                       {/* Excluir - apenas admin */}
-                      {isAdmin && (
+                      {isOwner && (
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
