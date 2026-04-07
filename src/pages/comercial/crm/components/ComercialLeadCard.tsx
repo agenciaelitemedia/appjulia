@@ -91,8 +91,8 @@ export function ComercialLeadCard({ card, onClick }: Props) {
               </div>
             )}
 
-            {/* Barra de ícones de ação */}
-            <div className="flex items-center gap-1.5 pt-1">
+            {/* Barra de ícones de ação - alinhada à direita */}
+            <div className="flex items-center justify-end gap-1.5 pt-1">
               {isAvailable && card.contact_phone && (
                 <TooltipProvider>
                   <Tooltip>
