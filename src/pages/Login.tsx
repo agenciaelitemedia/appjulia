@@ -15,12 +15,13 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    const target = user?.role === 'advogado' ? '/adv/dashboard' : '/dashboard';
+    return <Navigate to={target} replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
