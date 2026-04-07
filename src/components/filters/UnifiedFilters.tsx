@@ -66,6 +66,7 @@ export function UnifiedFilters({
   searchPlaceholder = 'Buscar...',
   className,
   periodTooltip,
+  quickPeriods = DEFAULT_QUICK_PERIODS,
 }: UnifiedFiltersProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [agentSearch, setAgentSearch] = useState('');
@@ -202,7 +203,7 @@ export function UnifiedFilters({
                 )}
               </span>
               <div className="flex flex-wrap gap-1.5">
-                {QUICK_PERIODS.map((period) => (
+                {quickPeriods.map((period) => (
                   <Button
                     key={period.value}
                     variant={currentQuickPeriod === period.value ? 'default' : 'outline'}
