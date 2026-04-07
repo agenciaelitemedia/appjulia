@@ -1,43 +1,44 @@
 
 
-# Ativar Perfis "Advogado" e "Comercial" no Cadastro de Equipes
+# Dashboard Exclusivo do Advogado — Contratos
 
 ## Resumo
 
-Adicionar seletor de perfil (time, advogado, comercial) no dialog de criação/edição de membros de equipe. O perfil "advogado" automaticamente inclui o módulo `adv_dashboard` nas permissões. O perfil "comercial" funciona como o "time" mas com role diferente para futuras diferenciações.
+Transformar a página `AdvDashboardPage` em um dashboard completo de contratos, mobile-first, reutilizando os hooks de dados de contratos (`useJuliaContratos`, `useJuliaContratosPrevious`) e o componente `UnifiedFilters`. O advogado verá apenas os contratos do seu `cod_agent`.
 
 ## Alterações
 
-### 1. Tipos — Adicionar role `comercial`
-- `src/types/permissions.ts`: adicionar `'comercial'` ao `AppRole`
-- `src/pages/admin/permissoes/types.ts`: adicionar label `comercial: 'Comercial'`
+### 1. Página `src/pages/adv/AdvDashboardPage.tsx` — Reescrever
 
-### 2. Dialog de Equipe — Seletor de perfil
-- `src/pages/equipe/components/EquipeMemberDialog.tsx`:
-  - Adicionar campo `<Select>` para escolher o perfil: "Time" (padrão), "Advogado", "Comercial"
-  - Quando "Advogado" for selecionado, adicionar automaticamente `adv_dashboard` ao `selectedModuleCodes`
-  - Passar o `role` selecionado para o mutation de criação/atualização
+Substituir o conteúdo placeholder por um dashboard funcional:
 
-### 3. Hooks e externalDb — Passar role
-- `src/pages/equipe/hooks/useEquipeData.ts`: incluir `role` nos dados enviados para `insertTeamMember` e `updateTeamMember`
-- `src/lib/externalDb.ts`: aceitar `role` nos parâmetros de `insertTeamMember` e `updateTeamMember`
+- **Header**: Saudação com nome do usuário + botão Atualizar
+- **Filtros**: `UnifiedFilters` com `showAgentSelector={false}` (advogado só vê seu agente), `showStatusFilter`, período
+- **Agent code**: Pegar `user.cod_agent` do `useAuth()` e converter para string para usar como `agentCodes` fixo no filtro
+- **Summary Cards**: Reutilizar `ContratosSummary` (total, assinados, em curso, taxa)
+- **Gráfico de Evolução**: Reutilizar `ContratosEvolutionChart` (diário/semanal/por hora)
+- **Tabela de Contratos**: Reutilizar `ContratosTable` com busca
+- **Dialog de Detalhes**: Reutilizar `ContratoDetailsDialog`
 
-### 4. Edge Function — Usar role dinâmico
-- `supabase/functions/db-query/index.ts`:
-  - `insert_team_member`: trocar `'time'` hardcoded por `data.role || 'time'`
-  - `update_team_member`: adicionar `UPDATE users SET role = $4` quando role fornecido
+Layout mobile-first: `max-w-lg mx-auto` para mobile, cards em grid 2 colunas, gráfico responsivo.
 
-### 5. Login — Redirect para comercial (mantém dashboard padrão)
-- Nenhuma mudança no login. Comercial vai para `/dashboard` normalmente. Advogado já redireciona para `/adv/dashboard`.
+### 2. Dados
 
-## Arquivos alterados
+Reutilizar diretamente os hooks existentes:
+- `useJuliaContratos(filters)` — dados de contratos filtrados
+- `useJuliaContratosPrevious(filters)` — período anterior para comparação
+
+O `agentCodes` do filtro será fixo com `[String(user.cod_agent)]`, sem seletor de agente.
+
+### 3. Sem alteração em outros arquivos
+
+Todos os componentes já existem e são importáveis diretamente:
+- `ContratosSummary`, `ContratosTable`, `ContratosEvolutionChart`, `ContratoDetailsDialog` de `src/pages/estrategico/contratos/components/`
+- `UnifiedFilters` de `src/components/filters/`
+
+## Arquivo alterado
 
 | Arquivo | Mudança |
 |---|---|
-| `src/types/permissions.ts` | Adicionar `'comercial'` ao AppRole |
-| `src/pages/admin/permissoes/types.ts` | Label para comercial |
-| `src/pages/equipe/components/EquipeMemberDialog.tsx` | Seletor de perfil + auto-add adv_dashboard |
-| `src/pages/equipe/hooks/useEquipeData.ts` | Passar role no create/update |
-| `src/lib/externalDb.ts` | Aceitar role em insertTeamMember/updateTeamMember |
-| `supabase/functions/db-query/index.ts` | Role dinâmico no insert/update |
+| `src/pages/adv/AdvDashboardPage.tsx` | Reescrever com dashboard de contratos completo |
 
