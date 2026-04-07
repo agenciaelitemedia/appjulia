@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,7 +12,14 @@ import { UnifiedFiltersState } from '@/components/filters/types';
 import { ContratosSummary } from '@/pages/estrategico/contratos/components/ContratosSummary';
 import { ContratosEvolutionChart } from '@/pages/estrategico/contratos/components/ContratosEvolutionChart';
 import { AdvContratosCards } from './components/AdvContratosCards';
-import { getInitialDates } from '@/hooks/usePersistedPeriod';
+import { getInitialDates, QuickPeriod } from '@/hooks/usePersistedPeriod';
+
+const ADV_QUICK_PERIODS: { value: QuickPeriod; label: string }[] = [
+  { value: 'today', label: 'Hoje' },
+  { value: 'yesterday', label: 'Ontem' },
+  { value: 'last7days', label: '7 Dias' },
+  { value: 'thisMonth', label: 'Mês Atual' },
+];
 
 export default function AdvDashboardPage() {
   const { user } = useAuth();
@@ -30,18 +38,38 @@ export default function AdvDashboardPage() {
   });
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeStatuses, setActiveStatuses] = useState<Set<string>>(new Set(['EM_CURSO', 'ASSINADO']));
 
   const effectiveAgentCodes = agentCode ? [agentCode] : [];
 
   const { data: contratos = [], isLoading: contratosLoading } = useJuliaContratos({
     ...filters,
     agentCodes: effectiveAgentCodes,
-    statusDocument: filters.statusDocument,
   });
   const { data: previousContratos = [] } = useJuliaContratosPrevious({
     ...filters,
     agentCodes: effectiveAgentCodes,
   });
+
+  const filteredContratos = useMemo(() => {
+    return contratos.filter(c => {
+      if (activeStatuses.has('EM_CURSO') && ['CREATED', 'PENDING'].includes(c.status_document)) return true;
+      if (activeStatuses.has('ASSINADO') && c.status_document === 'SIGNED') return true;
+      return false;
+    });
+  }, [contratos, activeStatuses]);
+
+  const toggleStatus = (status: string) => {
+    setActiveStatuses(prev => {
+      const next = new Set(prev);
+      if (next.has(status)) {
+        next.delete(status);
+      } else {
+        next.add(status);
+      }
+      return next;
+    });
+  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -80,6 +108,9 @@ export default function AdvDashboardPage() {
     );
   }
 
+  const emCursoCount = contratos.filter(c => ['CREATED', 'PENDING'].includes(c.status_document)).length;
+  const assinadoCount = contratos.filter(c => c.status_document === 'SIGNED').length;
+
   return (
     <div className="px-4 py-4 w-full space-y-4">
       {/* Header */}
@@ -96,16 +127,50 @@ export default function AdvDashboardPage() {
         </Button>
       </div>
 
-      {/* Filters */}
+      {/* Filters — reduced periods, no search, no status select, no agent selector */}
       <UnifiedFilters
         agents={[]}
         filters={filters}
         onFiltersChange={handleFiltersChange}
         showAgentSelector={false}
         showSearch={false}
-        showStatusFilter
-        statusOptions={['CREATED', 'SIGNED', 'PENDING', 'CANCELLED']}
+        showStatusFilter={false}
+        quickPeriods={ADV_QUICK_PERIODS}
       />
+
+      {/* Status Badges */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => toggleStatus('EM_CURSO')}
+          className="transition-all"
+        >
+          <Badge
+            variant="outline"
+            className={`cursor-pointer text-xs px-3 py-1 transition-all ${
+              activeStatuses.has('EM_CURSO')
+                ? 'bg-yellow-500/15 text-yellow-700 border-yellow-500/50'
+                : 'bg-muted/30 text-muted-foreground border-border opacity-50'
+            }`}
+          >
+            Em Curso ({emCursoCount})
+          </Badge>
+        </button>
+        <button
+          onClick={() => toggleStatus('ASSINADO')}
+          className="transition-all"
+        >
+          <Badge
+            variant="outline"
+            className={`cursor-pointer text-xs px-3 py-1 transition-all ${
+              activeStatuses.has('ASSINADO')
+                ? 'bg-green-500/15 text-green-700 border-green-500/50'
+                : 'bg-muted/30 text-muted-foreground border-border opacity-50'
+            }`}
+          >
+            Assinado ({assinadoCount})
+          </Badge>
+        </button>
+      </div>
 
       {/* Tabs */}
       <Tabs defaultValue="painel" className="w-full">
@@ -116,14 +181,14 @@ export default function AdvDashboardPage() {
 
         <TabsContent value="painel" className="space-y-4 mt-4">
           <ContratosSummary
-            contratos={contratos}
+            contratos={filteredContratos}
             previousContratos={previousContratos}
             isLoading={contratosLoading}
             dateFrom={filters.dateFrom}
             dateTo={filters.dateTo}
           />
           <ContratosEvolutionChart
-            contratos={contratos}
+            contratos={filteredContratos}
             isLoading={contratosLoading}
             dateFrom={filters.dateFrom}
             dateTo={filters.dateTo}
@@ -132,7 +197,7 @@ export default function AdvDashboardPage() {
 
         <TabsContent value="contratos" className="mt-4">
           <AdvContratosCards
-            contratos={contratos}
+            contratos={filteredContratos}
             isLoading={contratosLoading}
             agentCode={agentCode}
           />

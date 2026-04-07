@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Phone, MessageCircle, Eye, ChevronDown } from 'lucide-react';
+import { Phone, Eye, ChevronDown } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ContratoDetailsDialog } from '@/pages/estrategico/contratos/components/ContratoDetailsDialog';
 import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
+import { usePhone } from '@/contexts/PhoneContext';
 import { JuliaContrato } from '@/pages/estrategico/types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -23,25 +24,38 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   CANCELLED: { label: 'Cancelado', className: 'bg-red-500/15 text-red-700 border-red-500/30' },
 };
 
+function formatPhoneDisplay(raw: string): string {
+  let digits = raw.replace(/\D/g, '');
+  if (digits.startsWith('55') && digits.length >= 12) digits = digits.slice(2);
+  if (digits.startsWith('0')) digits = digits.slice(1);
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+  return raw;
+}
+
 function ContratoCard({
   contrato,
   agentCode,
   onDetails,
   onCall,
+  phoneAvailable,
 }: {
   contrato: JuliaContrato;
   agentCode: string;
   onDetails: (c: JuliaContrato) => void;
   onCall: (c: JuliaContrato) => void;
+  phoneAvailable: boolean;
 }) {
   const cfg = statusConfig[contrato.status_document] || statusConfig.CREATED;
   const dateStr = contrato.data_contrato
     ? format(new Date(contrato.data_contrato), "dd/MM/yyyy", { locale: ptBR })
     : '—';
 
-  const waLink = contrato.whatsapp
-    ? `https://wa.me/${contrato.whatsapp.replace(/\D/g, '')}`
-    : null;
+  const phoneDisplay = contrato.whatsapp ? formatPhoneDisplay(contrato.whatsapp) : null;
 
   return (
     <Card className="p-4 space-y-2">
@@ -66,29 +80,22 @@ function ContratoCard({
         </p>
       )}
 
-      <div className="flex items-center gap-2 pt-1">
-        <button
-          onClick={() => onCall(contrato)}
-          className="h-8 w-8 rounded-full bg-orange-500/10 text-orange-600 flex items-center justify-center hover:bg-orange-500/20 transition-colors"
-          title="Ligar"
-        >
-          <Phone className="h-3.5 w-3.5" />
-        </button>
+      {phoneDisplay && (
+        <p className="text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">Ligue Agora:</span>{' '}
+          {phoneDisplay}
+        </p>
+      )}
 
-        {waLink ? (
-          <a
-            href={waLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="h-8 w-8 rounded-full bg-green-500/10 text-green-600 flex items-center justify-center hover:bg-green-500/20 transition-colors"
-            title="WhatsApp"
+      <div className="flex items-center gap-2 pt-1">
+        {phoneAvailable && (
+          <button
+            onClick={() => onCall(contrato)}
+            className="h-8 w-8 rounded-full bg-orange-500/10 text-orange-600 flex items-center justify-center hover:bg-orange-500/20 transition-colors"
+            title="Ligar"
           >
-            <MessageCircle className="h-3.5 w-3.5" />
-          </a>
-        ) : (
-          <span className="h-8 w-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center opacity-40">
-            <MessageCircle className="h-3.5 w-3.5" />
-          </span>
+            <Phone className="h-3.5 w-3.5" />
+          </button>
         )}
 
         <button
@@ -116,6 +123,7 @@ function SectionHeader({ title, count, color }: { title: string; count: number; 
 export function AdvContratosCards({ contratos, isLoading, agentCode }: AdvContratosCardsProps) {
   const [selectedContrato, setSelectedContrato] = useState<JuliaContrato | null>(null);
   const [callContrato, setCallContrato] = useState<JuliaContrato | null>(null);
+  const { isAvailable } = usePhone();
 
   if (isLoading) {
     return (
@@ -152,6 +160,7 @@ export function AdvContratosCards({ contratos, isLoading, agentCode }: AdvContra
                 agentCode={agentCode}
                 onDetails={setSelectedContrato}
                 onCall={setCallContrato}
+                phoneAvailable={isAvailable}
               />
             ))}
           </div>
@@ -169,6 +178,7 @@ export function AdvContratosCards({ contratos, isLoading, agentCode }: AdvContra
                 agentCode={agentCode}
                 onDetails={setSelectedContrato}
                 onCall={setCallContrato}
+                phoneAvailable={isAvailable}
               />
             ))}
           </div>
@@ -190,6 +200,7 @@ export function AdvContratosCards({ contratos, isLoading, agentCode }: AdvContra
                   agentCode={agentCode}
                   onDetails={setSelectedContrato}
                   onCall={setCallContrato}
+                  phoneAvailable={isAvailable}
                 />
               ))}
             </div>
