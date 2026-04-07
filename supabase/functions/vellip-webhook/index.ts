@@ -64,6 +64,40 @@ Deno.serve(async (req) => {
     }
 
     console.log('[vellip-webhook] Saved call from', dest, 'cd_id:', cd_id)
+
+    // Auto-create CRM card if cd_resp1 == "1"
+    const resp1 = String(body.cd_resp1 ?? '')
+    if (resp1 === '1') {
+      const { data: stage } = await supabase
+        .from('crm_comercial_stages')
+        .select('id')
+        .eq('name', 'Interessados')
+        .single()
+
+      if (stage) {
+        const { data: card } = await supabase
+          .from('crm_comercial_cards')
+          .insert({
+            stage_id: stage.id,
+            contact_name: dest,
+            contact_phone: dest,
+            cod_agent,
+            notes: 'Vindo de campanha da Vellip',
+          })
+          .select('id')
+          .single()
+
+        if (card) {
+          await supabase.from('crm_comercial_history').insert({
+            card_id: card.id,
+            to_stage_id: stage.id,
+            notes: 'Card criado via webhook Vellip',
+          })
+        }
+        console.log('[vellip-webhook] CRM card created for', dest)
+      }
+    }
+
     return new Response(JSON.stringify({ received: true, phone: dest, cd_id }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
