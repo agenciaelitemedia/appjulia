@@ -485,6 +485,7 @@ class ExternalDatabase {
     });
   }
 
+  async updateModule(moduleId: number, moduleData: Partial<Module>): Promise<Module> {
     const result = await this.invoke({
       action: 'update_module',
       data: { moduleId, moduleData },
