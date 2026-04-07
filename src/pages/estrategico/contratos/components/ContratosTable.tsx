@@ -50,6 +50,7 @@ import { externalDb } from '@/lib/externalDb';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -149,6 +150,7 @@ export function ContratosTable({
 }: ContratosTableProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [selectedContrato, setSelectedContrato] = useState<JuliaContrato | null>(null);
@@ -655,22 +657,24 @@ export function ContratosTable({
                         </Tooltip>
                       </TooltipProvider>
 
-                      {/* Excluir */}
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7 rounded-full text-red-500 border-red-500/30 hover:bg-red-100/50 dark:hover:bg-red-900/30"
-                              onClick={() => handleOpenDeleteDialog(contrato)}
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Excluir contrato</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      {/* Excluir - apenas admin */}
+                      {isAdmin && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-7 w-7 rounded-full text-red-500 border-red-500/30 hover:bg-red-100/50 dark:hover:bg-red-900/30"
+                                onClick={() => handleOpenDeleteDialog(contrato)}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Excluir contrato</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
