@@ -258,7 +258,7 @@ export function ContratosTable({
     setIsDeleting(true);
     try {
       await externalDb.raw({
-        query: `UPDATE contratos SET status_document = 'DELETED' WHERE cod_document = $1`,
+        query: `UPDATE sing_document SET status_document = 'DELETED' WHERE cod_document = $1`,
         params: [deleteContrato.cod_document],
       });
 
