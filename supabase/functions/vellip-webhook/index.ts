@@ -82,6 +82,7 @@ Deno.serve(async (req) => {
             contact_name: dest,
             contact_phone: dest,
             cod_agent,
+            origin: 'vellip',
             notes: 'Vindo de campanha da Vellip',
           })
           .select('id')

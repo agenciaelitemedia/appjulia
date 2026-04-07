@@ -1,0 +1,1 @@
+ALTER TABLE crm_comercial_cards ADD COLUMN origin text DEFAULT 'manual';

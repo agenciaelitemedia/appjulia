@@ -1,4 +1,5 @@
-import { Clock, Eye, Building2, DollarSign } from 'lucide-react';
+import { Clock, Eye, Building2, DollarSign, Phone } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ComercialCard } from '../types';
@@ -34,9 +35,17 @@ export function ComercialLeadCard({ card, onClick }: Props) {
         <div className="space-y-2">
           <div className="flex items-start justify-between gap-2">
             <div className="flex flex-col gap-0.5 min-w-0 overflow-hidden">
-              <span className="text-sm font-medium line-clamp-1">
-                👤 {card.contact_name || 'Sem nome'}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-medium line-clamp-1">
+                  👤 {card.contact_name || 'Sem nome'}
+                </span>
+                {card.origin === 'vellip' && (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-orange-400 text-orange-600 bg-orange-50 shrink-0">
+                    <Phone className="h-2.5 w-2.5 mr-0.5" />
+                    Vellip
+                  </Badge>
+                )}
+              </div>
               {card.contact_phone && (
                 <span className="text-xs text-muted-foreground pl-5">{card.contact_phone}</span>
               )}

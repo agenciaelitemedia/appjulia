@@ -21,6 +21,7 @@ export interface ComercialCard {
   created_at: string;
   updated_at: string;
   stage_entered_at: string;
+  origin?: string;
   // Joined fields
   stage_name?: string;
   stage_color?: string;

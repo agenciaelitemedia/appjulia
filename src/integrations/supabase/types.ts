@@ -474,6 +474,7 @@ export type Database = {
           created_by: number | null
           id: number
           notes: string | null
+          origin: string | null
           stage_entered_at: string | null
           stage_id: number
           updated_at: string | null
@@ -490,6 +491,7 @@ export type Database = {
           created_by?: number | null
           id?: number
           notes?: string | null
+          origin?: string | null
           stage_entered_at?: string | null
           stage_id: number
           updated_at?: string | null
@@ -506,6 +508,7 @@ export type Database = {
           created_by?: number | null
           id?: number
           notes?: string | null
+          origin?: string | null
           stage_entered_at?: string | null
           stage_id?: number
           updated_at?: string | null
