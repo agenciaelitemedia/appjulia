@@ -243,6 +243,42 @@ export function ContratosTable({
       : <ArrowDown className="h-4 w-4 ml-1" />;
   };
 
+  const handleOpenDeleteDialog = (contrato: JuliaContrato) => {
+    setDeleteContrato(contrato);
+    setDeleteConfirmPhone('');
+    setDeleteConfirmSwitch(false);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteContrato = async () => {
+    if (!deleteContrato) return;
+    setIsDeleting(true);
+    try {
+      await externalDb.raw({
+        query: `UPDATE contratos SET status_document = 'DELETED' WHERE cod_document = $1`,
+        params: [deleteContrato.cod_document],
+      });
+
+      await supabase.from('contract_deletion_audit').insert({
+        cod_document: deleteContrato.cod_document,
+        cod_agent: deleteContrato.cod_agent,
+        signer_name: deleteContrato.signer_name,
+        whatsapp: deleteContrato.whatsapp,
+        previous_status: deleteContrato.status_document,
+        deleted_by: 'admin',
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['contratos'] });
+      setDeleteDialogOpen(false);
+      toast({ title: 'Contrato excluído', description: 'O contrato foi marcado como DELETED com sucesso.' });
+    } catch (error) {
+      console.error('Erro ao excluir contrato:', error);
+      toast({ title: 'Erro', description: 'Não foi possível excluir o contrato.', variant: 'destructive' });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleOpenMessages = (contrato: JuliaContrato) => {
     setSelectedContrato(contrato);
     setMessagesOpen(true);
