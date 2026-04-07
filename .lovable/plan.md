@@ -1,54 +1,51 @@
 
 
-# Excluir contrato da Julia com dupla confirmação e auditoria
+# Mover card do CRM Julia para "Desqualificado" ao excluir contrato
 
 ## Resumo
 
-Adicionar botão X (excluir) na tabela de contratos da Julia. Ao clicar, abre dialog de dupla confirmação (digitar telefone + switch). Ao confirmar, atualiza `status_document` para `DELETED` no banco externo e grava auditoria em tabela Supabase.
+Ao excluir um contrato, após marcar como DELETED, buscar o card correspondente no CRM da Julia (tabela externa `crm_atendimento_cards`) pelo `whatsapp_number` e `cod_agent`, e movê-lo para a etapa "Desqualificado". Registrar histórico da movimentação.
 
-## 1. Migração: tabela `contract_deletion_audit`
+## Alteração: `src/pages/estrategico/contratos/components/ContratosTable.tsx`
 
-```sql
-CREATE TABLE contract_deletion_audit (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  cod_document text NOT NULL,
-  cod_agent text,
-  signer_name text,
-  whatsapp text,
-  previous_status text,
-  deleted_by text,
-  deleted_at timestamptz NOT NULL DEFAULT now(),
-  reason text
-);
-ALTER TABLE contract_deletion_audit ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all on contract_deletion_audit" ON contract_deletion_audit FOR ALL USING (true) WITH CHECK (true);
+Na função `handleDeleteContrato`, após o insert na `contract_deletion_audit`, adicionar:
+
+1. Buscar o ID da stage "Desqualificado" na tabela externa `crm_atendimento_stages`:
+```typescript
+const stages = await externalDb.raw({
+  query: `SELECT id FROM crm_atendimento_stages WHERE name = 'Desqualificado' LIMIT 1`,
+});
 ```
 
-## 2. `src/pages/estrategico/contratos/components/ContratosTable.tsx`
+2. Se encontrou a stage, buscar o card pelo whatsapp e cod_agent:
+```typescript
+const cards = await externalDb.raw({
+  query: `SELECT id, stage_id FROM crm_atendimento_cards WHERE whatsapp_number = $1 AND cod_agent = $2 LIMIT 1`,
+  params: [deleteContrato.whatsapp, deleteContrato.cod_agent],
+});
+```
 
-- Importar `X`, `AlertTriangle` de lucide e componentes de AlertDialog, Input, Switch
-- Adicionar estados: `deleteDialogOpen`, `deleteContrato`, `deleteConfirmPhone`, `deleteConfirmSwitch`
-- Adicionar botão X vermelho na coluna de ações (após o Eye), com tooltip "Excluir contrato"
-- AlertDialog com:
-  - Icone de alerta e mensagem em destaque: "Esta ação é irreversível. O contrato será permanentemente removido e não poderá ser desfeito. Você não terá mais acesso a este contrato. Esta ação será auditada."
-  - Input para digitar o telefone do contrato
-  - Switch "Confirmo que desejo excluir"
-  - Botão "Excluir definitivamente" habilitado apenas quando telefone bate e switch ativo
-- Ao confirmar:
-  1. `externalDb.raw` com `UPDATE ... SET status_document = 'DELETED' WHERE cod_document = $1`
-  2. `supabase.from('contract_deletion_audit').insert(...)` com dados do contrato
-  3. Invalidar queries de contratos
-  4. Toast de sucesso
+3. Se encontrou o card, mover para "Desqualificado" e registrar histórico:
+```typescript
+await externalDb.update({
+  table: 'crm_atendimento_cards',
+  data: { stage_id: desqualificadoStageId, stage_entered_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  where: { id: cardId },
+});
 
-## 3. Filtro de status
+await externalDb.insert({
+  table: 'crm_atendimento_history',
+  data: { card_id: cardId, from_stage_id: fromStageId, to_stage_id: desqualificadoStageId, changed_by: 'Sistema', notes: 'Movido para Desqualificado — contrato excluído' },
+});
+```
 
-- Adicionar `DELETED` ao `statusConfig` em `ContratosTable` (badge cinza escuro)
-- Os contratos deletados continuam na view mas com status DELETED — se desejado, podem ser filtrados
+4. Invalidar queries do CRM Julia também: `queryClient.invalidateQueries({ queryKey: ['crm-cards'] })`
 
-## Arquivos alterados
+Toda a lógica é envolvida em try/catch separado para não impedir a exclusão caso o card não exista no CRM.
+
+## Arquivo alterado
 
 | Arquivo | Mudança |
 |---|---|
-| Migração SQL | Criar tabela `contract_deletion_audit` |
-| `ContratosTable.tsx` | Botão X + AlertDialog dupla confirmação + lógica de exclusão |
+| `ContratosTable.tsx` | Adicionar movimentação do card para "Desqualificado" no `handleDeleteContrato` |
 
