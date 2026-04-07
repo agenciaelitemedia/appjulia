@@ -149,6 +149,7 @@ export function ContratosTable({
 }: ContratosTableProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [selectedContrato, setSelectedContrato] = useState<JuliaContrato | null>(null);
   const [phoneCallOpen, setPhoneCallOpen] = useState(false);
