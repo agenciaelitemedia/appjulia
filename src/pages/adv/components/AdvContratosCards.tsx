@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Phone, Eye, ChevronDown } from 'lucide-react';
+import { Phone, Eye, ChevronDown, ChevronRight } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ContratoDetailsDialog } from '@/pages/estrategico/contratos/components/ContratoDetailsDialog';
@@ -10,6 +11,8 @@ import { usePhone } from '@/contexts/PhoneContext';
 import { JuliaContrato } from '@/pages/estrategico/types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+const PAGE_SIZE = 10;
 
 interface AdvContratosCardsProps {
   contratos: JuliaContrato[];
@@ -39,13 +42,11 @@ function formatPhoneDisplay(raw: string): string {
 
 function ContratoCard({
   contrato,
-  agentCode,
   onDetails,
   onCall,
   phoneAvailable,
 }: {
   contrato: JuliaContrato;
-  agentCode: string;
   onDetails: (c: JuliaContrato) => void;
   onCall: (c: JuliaContrato) => void;
   phoneAvailable: boolean;
@@ -83,7 +84,21 @@ function ContratoCard({
       {phoneDisplay && (
         <p className="text-xs text-muted-foreground">
           <span className="font-medium text-foreground">Ligue Agora:</span>{' '}
-          {phoneDisplay}
+          {phoneAvailable ? (
+            <button
+              onClick={() => onCall(contrato)}
+              className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors font-medium"
+            >
+              {phoneDisplay}
+            </button>
+          ) : (
+            <a
+              href={`tel:${contrato.whatsapp?.replace(/\D/g, '')}`}
+              className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors font-medium"
+            >
+              {phoneDisplay}
+            </a>
+          )}
         </p>
       )}
 
@@ -120,6 +135,56 @@ function SectionHeader({ title, count, color }: { title: string; count: number; 
   );
 }
 
+function PaginatedSection({
+  title,
+  color,
+  items,
+  agentCode,
+  onDetails,
+  onCall,
+  phoneAvailable,
+}: {
+  title: string;
+  color: string;
+  items: JuliaContrato[];
+  agentCode: string;
+  onDetails: (c: JuliaContrato) => void;
+  onCall: (c: JuliaContrato) => void;
+  phoneAvailable: boolean;
+}) {
+  const [visible, setVisible] = useState(PAGE_SIZE);
+  const showing = items.slice(0, visible);
+  const hasMore = visible < items.length;
+
+  return (
+    <section>
+      <SectionHeader title={title} count={items.length} color={color} />
+      <div className="space-y-2">
+        {showing.map(c => (
+          <ContratoCard
+            key={c.cod_document || c.session_id}
+            contrato={c}
+            onDetails={onDetails}
+            onCall={onCall}
+            phoneAvailable={phoneAvailable}
+          />
+        ))}
+      </div>
+      {hasMore && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setVisible(v => v + PAGE_SIZE)}
+          className="w-full mt-2 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <ChevronDown className="h-3.5 w-3.5 mr-1" />
+          Carregar mais ({items.length - visible} restantes)
+        </Button>
+      )}
+    </section>
+  );
+}
+
 export function AdvContratosCards({ contratos, isLoading, agentCode }: AdvContratosCardsProps) {
   const [selectedContrato, setSelectedContrato] = useState<JuliaContrato | null>(null);
   const [callContrato, setCallContrato] = useState<JuliaContrato | null>(null);
@@ -150,60 +215,45 @@ export function AdvContratosCards({ contratos, isLoading, agentCode }: AdvContra
   return (
     <div className="space-y-5">
       {emCurso.length > 0 && (
-        <section>
-          <SectionHeader title="Em Curso" count={emCurso.length} color="bg-yellow-500" />
-          <div className="space-y-2">
-            {emCurso.map(c => (
-              <ContratoCard
-                key={c.cod_document || c.session_id}
-                contrato={c}
-                agentCode={agentCode}
-                onDetails={setSelectedContrato}
-                onCall={setCallContrato}
-                phoneAvailable={isAvailable}
-              />
-            ))}
-          </div>
-        </section>
+        <PaginatedSection
+          title="Em Curso"
+          color="bg-yellow-500"
+          items={emCurso}
+          agentCode={agentCode}
+          onDetails={setSelectedContrato}
+          onCall={setCallContrato}
+          phoneAvailable={isAvailable}
+        />
       )}
 
       {assinados.length > 0 && (
-        <section>
-          <SectionHeader title="Assinados" count={assinados.length} color="bg-green-500" />
-          <div className="space-y-2">
-            {assinados.map(c => (
-              <ContratoCard
-                key={c.cod_document || c.session_id}
-                contrato={c}
-                agentCode={agentCode}
-                onDetails={setSelectedContrato}
-                onCall={setCallContrato}
-                phoneAvailable={isAvailable}
-              />
-            ))}
-          </div>
-        </section>
+        <PaginatedSection
+          title="Assinados"
+          color="bg-green-500"
+          items={assinados}
+          agentCode={agentCode}
+          onDetails={setSelectedContrato}
+          onCall={setCallContrato}
+          phoneAvailable={isAvailable}
+        />
       )}
 
       {cancelados.length > 0 && (
         <Collapsible>
           <CollapsibleTrigger className="flex items-center gap-2 mb-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-            <ChevronDown className="h-4 w-4" />
+            <ChevronRight className="h-4 w-4" />
             Cancelados ({cancelados.length})
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <div className="space-y-2">
-              {cancelados.map(c => (
-                <ContratoCard
-                  key={c.cod_document || c.session_id}
-                  contrato={c}
-                  agentCode={agentCode}
-                  onDetails={setSelectedContrato}
-                  onCall={setCallContrato}
-                  phoneAvailable={isAvailable}
-                />
-              ))}
-            </div>
+            <PaginatedSection
+              title="Cancelados"
+              color="bg-red-500"
+              items={cancelados}
+              agentCode={agentCode}
+              onDetails={setSelectedContrato}
+              onCall={setCallContrato}
+              phoneAvailable={isAvailable}
+            />
           </CollapsibleContent>
         </Collapsible>
       )}

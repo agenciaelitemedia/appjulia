@@ -55,4 +55,10 @@ export interface UnifiedFiltersProps {
   
   // Tooltip explicativo para o filtro de período
   periodTooltip?: string;
+  
+  // Controle de estado inicial do collapsible
+  defaultOpen?: boolean;
+  
+  // Mostrar label do período ativo no header quando fechado
+  showPeriodInHeader?: boolean;
 }

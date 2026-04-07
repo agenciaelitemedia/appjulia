@@ -13,7 +13,7 @@ import { UnifiedFiltersState } from '@/components/filters/types';
 import { ContratosSummary } from '@/pages/estrategico/contratos/components/ContratosSummary';
 import { ContratosEvolutionChart } from '@/pages/estrategico/contratos/components/ContratosEvolutionChart';
 import { AdvContratosCards } from './components/AdvContratosCards';
-import { getInitialDates, QuickPeriod } from '@/hooks/usePersistedPeriod';
+import { calculatePeriodDates, QuickPeriod } from '@/hooks/usePersistedPeriod';
 import { useDebounce } from '@/hooks/useDebounce';
 
 const ADV_QUICK_PERIODS: { value: QuickPeriod; label: string }[] = [
@@ -31,7 +31,8 @@ export default function AdvDashboardPage() {
   const { data: agents = [], isLoading: agentsLoading } = useJuliaAgents();
   const agentCode = agents.length > 0 ? agents[0].cod_agent : '';
 
-  const initialDates = getInitialDates();
+  // Sempre iniciar com 7 dias
+  const initialDates = calculatePeriodDates('last7days');
   const [filters, setFilters] = useState<UnifiedFiltersState>({
     search: '',
     agentCodes: [],
@@ -143,7 +144,7 @@ export default function AdvDashboardPage() {
         </Button>
       </div>
 
-      {/* Filters — reduced periods, no search, no status select, no agent selector */}
+      {/* Filters — colapsado por padrão, mostra período no header */}
       <UnifiedFilters
         agents={[]}
         filters={filters}
@@ -152,6 +153,8 @@ export default function AdvDashboardPage() {
         showSearch={false}
         showStatusFilter={false}
         quickPeriods={ADV_QUICK_PERIODS}
+        defaultOpen={false}
+        showPeriodInHeader={true}
       />
 
       {/* Search + Status Badges */}
