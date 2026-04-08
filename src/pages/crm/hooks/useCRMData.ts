@@ -101,8 +101,9 @@ export function useCRMStages() {
 
 export function useCRMAgents() {
   const { user } = useAuth();
+  const { aliasMap } = useAgentAliases();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['crm-agents', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -112,6 +113,13 @@ export function useCRMAgents() {
     enabled: !!user?.id,
     staleTime: 1000 * 60 * 5,
   });
+
+  const enrichedData = query.data?.map(agent => ({
+    ...agent,
+    alias: aliasMap.get(agent.cod_agent) || getDefaultAlias(agent.owner_business_name),
+  }));
+
+  return { ...query, data: enrichedData };
 }
 
 export function useCRMCards(filters: CRMFiltersState) {
