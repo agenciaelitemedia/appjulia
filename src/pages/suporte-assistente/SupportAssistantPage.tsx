@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
-import { Headset, Wifi, WifiOff, Loader2, QrCode, Trash2, RefreshCw } from "lucide-react";
+import { Headset, Wifi, WifiOff, Loader2, QrCode, Trash2, RefreshCw, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -32,6 +34,9 @@ export default function SupportAssistantPage() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [newInstanceName, setNewInstanceName] = useState("suporte-assistente");
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deleteConfirmSwitch, setDeleteConfirmSwitch] = useState(false);
 
   useEffect(() => {
     loadConfig();
@@ -122,8 +127,17 @@ export default function SupportAssistantPage() {
     }
   };
 
+  const openDeleteDialog = () => {
+    setDeleteConfirmName("");
+    setDeleteConfirmSwitch(false);
+    setShowDeleteDialog(true);
+  };
+
+  const canConfirmDelete = deleteConfirmName === config.instance_name && deleteConfirmSwitch;
+
   const deleteInstance = async () => {
-    if (!config.instance_name) return;
+    if (!config.instance_name || !canConfirmDelete) return;
+    setShowDeleteDialog(false);
     setDeletingInstance(true);
     try {
       const { data, error } = await supabase.functions.invoke("uazapi-admin", {
@@ -136,7 +150,6 @@ export default function SupportAssistantPage() {
 
       if (error) throw error;
 
-      // Clear config
       if (config.id) {
         await supabase
           .from("support_assistant_config")
@@ -321,7 +334,7 @@ export default function SupportAssistantPage() {
                     <Button variant="outline" size="sm" onClick={checkStatus} disabled={checkingStatus}>
                       {checkingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                     </Button>
-                    <Button variant="destructive" size="sm" onClick={deleteInstance} disabled={deletingInstance}>
+                    <Button variant="destructive" size="sm" onClick={openDeleteDialog} disabled={deletingInstance}>
                       {deletingInstance ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                     </Button>
                   </div>
