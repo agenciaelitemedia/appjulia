@@ -4,12 +4,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getPreviousPeriod } from '@/lib/dateUtils';
+import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
 import type { CRMStage, CRMCard } from '@/pages/crm/types';
 
 export interface DashboardAgent {
   cod_agent: string;
   owner_name: string;
   owner_business_name: string | null;
+  alias?: string;
 }
 
 export interface DashboardFiltersState {
@@ -117,8 +119,9 @@ export function getComparisonTooltip(dateFrom: string, dateTo: string): string {
 
 export function useDashboardAgents() {
   const { user } = useAuth();
+  const { aliasMap } = useAgentAliases();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['dashboard-agents', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -127,6 +130,13 @@ export function useDashboardAgents() {
     enabled: !!user?.id,
     staleTime: 1000 * 60 * 5,
   });
+
+  const enrichedData = query.data?.map(agent => ({
+    ...agent,
+    alias: aliasMap.get(agent.cod_agent) || getDefaultAlias(agent.owner_business_name),
+  }));
+
+  return { ...query, data: enrichedData };
 }
 
 export function useDashboardStats(filters: DashboardFiltersState) {
