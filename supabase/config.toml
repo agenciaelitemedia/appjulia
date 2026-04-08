@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.vellip-webhook]
 verify_jwt = false
+
+[functions.support-assistant-webhook]
+verify_jwt = false
