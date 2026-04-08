@@ -271,6 +271,72 @@ serve(async (req) => {
         );
       }
 
+      case 'create_instance_support': {
+        const { instanceName } = params;
+        
+        if (!instanceName) {
+          throw new Error('Missing required parameter: instanceName');
+        }
+
+        console.log('Creating support assistant instance:', instanceName);
+
+        // Step 1: Create instance
+        const createResp = await fetch(`${UAZAPI_BASE_URL}/instance/init`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'admintoken': UAZAPI_ADMIN_TOKEN,
+          },
+          body: JSON.stringify({ name: instanceName }),
+        });
+
+        if (!createResp.ok) {
+          const errText = await createResp.text();
+          throw new Error(`Failed to create instance: ${errText}`);
+        }
+
+        const instData = await createResp.json();
+        const instToken = instData.token;
+        const instName = instData.name || instanceName;
+
+        if (!instToken) {
+          throw new Error('No token returned from UaZapi');
+        }
+
+        // Step 2: Configure webhook for support assistant
+        const supportWebhookUrl = `https://zenizgyrwlonmufxnjqt.supabase.co/functions/v1/support-assistant-webhook?instance=${encodeURIComponent(instName)}`;
+        
+        const whResp = await fetch(`${UAZAPI_BASE_URL}/webhook`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'token': instToken,
+          },
+          body: JSON.stringify({
+            url: supportWebhookUrl,
+            enabled: true,
+            events: ['messages'],
+            excludeMessages: [],
+          }),
+        });
+
+        if (!whResp.ok) {
+          console.warn('Support webhook config warning:', await whResp.text());
+        } else {
+          console.log('Support webhook configured:', supportWebhookUrl);
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            instanceName: instName,
+            token: instToken,
+            apiUrl: UAZAPI_BASE_URL,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
