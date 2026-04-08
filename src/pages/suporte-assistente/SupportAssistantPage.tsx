@@ -425,6 +425,56 @@ export default function SupportAssistantPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Excluir Conexão
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Esta ação é <strong>irreversível</strong>. A instância será removida permanentemente.
+                </p>
+                <div className="space-y-2">
+                  <Label>
+                    Digite o nome da conexão para confirmar: <strong>{config.instance_name}</strong>
+                  </Label>
+                  <Input
+                    placeholder={config.instance_name}
+                    value={deleteConfirmName}
+                    onChange={(e) => setDeleteConfirmName(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <Label htmlFor="delete-switch" className="text-sm cursor-pointer">
+                    Confirmo que desejo excluir esta conexão
+                  </Label>
+                  <Switch
+                    id="delete-switch"
+                    checked={deleteConfirmSwitch}
+                    onCheckedChange={setDeleteConfirmSwitch}
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={deleteInstance}
+              disabled={!canConfirmDelete || deletingInstance}
+            >
+              {deletingInstance && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Excluir Conexão
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
