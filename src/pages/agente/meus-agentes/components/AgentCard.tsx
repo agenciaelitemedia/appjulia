@@ -84,19 +84,45 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
           <ConnectionStatusBadge status={connectionStatus} isLoading={isLoading} />
         </div>
 
-        {/* Nome */}
-        <h3 className="font-semibold text-foreground mb-1 truncate">
-          {agent.business_name || agent.client_name || 'Sem nome'}
-        </h3>
+        {/* Alias como título */}
+        <div className="flex items-center gap-1 mb-1">
+          {isEditingAlias ? (
+            <div className="flex items-center gap-1 w-full">
+              <Input
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                className="h-7 text-xs"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveAlias();
+                  if (e.key === 'Escape') handleCancelEdit();
+                }}
+              />
+              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={handleSaveAlias} disabled={upsertAlias.isPending}>
+                <Check className="h-3 w-3 text-green-600" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={handleCancelEdit}>
+                <X className="h-3 w-3 text-destructive" />
+              </Button>
+            </div>
+          ) : (
+            <>
+              <h3 className="font-semibold text-foreground truncate">
+                {alias || agent.business_name || agent.client_name || 'Sem nome'}
+              </h3>
+              {!isMonitored && (
+                <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={handleStartEdit}>
+                  <Pencil className="h-3 w-3 text-muted-foreground" />
+                </Button>
+              )}
+            </>
+          )}
+        </div>
         
         {/* Código do agente */}
-        <p className="text-xs text-muted-foreground font-mono mb-1">
+        <p className="text-xs text-muted-foreground font-mono mb-2">
           #{agent.cod_agent}
         </p>
-
-        {/* Alias editável */}
-        <div className="flex items-center gap-1 mb-2">
-          {isEditingAlias ? (
             <div className="flex items-center gap-1 w-full">
               <Input
                 value={editValue}
