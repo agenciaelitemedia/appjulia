@@ -178,37 +178,51 @@ export default function SupportAssistantPage() {
     }
     setCheckingStatus(true);
     try {
-      const response = await fetch(`${url}/instance/qrcode`, {
+      // 1. Check current status
+      const statusResp = await fetch(`${url}/instance/status`, {
         headers: { token: tk },
       });
+      const statusData = await statusResp.json();
 
-      if (!response.ok) {
-        // Try checking status instead
-        const statusResp = await fetch(`${url}/instance/status`, {
-          headers: { token: tk },
-        });
-        const statusData = await statusResp.json();
-
-        if (statusData?.status === "open" || statusData?.state === "open") {
-          setQrCode(null);
-          setConfig((prev) => ({ ...prev, connection_status: "connected" }));
-          if (config.id) {
-            await supabase
-              .from("support_assistant_config")
-              .update({ connection_status: "connected", updated_at: new Date().toISOString() })
-              .eq("id", config.id);
-          }
-          toast.success("WhatsApp conectado!");
-          return;
+      // Already connected
+      if (statusData?.status?.connected && statusData?.status?.loggedIn) {
+        setQrCode(null);
+        setConfig((prev) => ({ ...prev, connection_status: "connected" }));
+        if (config.id) {
+          await supabase
+            .from("support_assistant_config")
+            .update({ connection_status: "connected", updated_at: new Date().toISOString() })
+            .eq("id", config.id);
         }
-        throw new Error("QR Code não disponível");
+        toast.success("WhatsApp conectado!");
+        return;
       }
 
-      const data = await response.json();
-      if (data?.qrcode) {
-        setQrCode(data.qrcode);
+      // 2. If qrcode available in status, use it
+      if (statusData?.instance?.qrcode) {
+        const qr = statusData.instance.qrcode;
+        setQrCode(qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`);
+        return;
+      }
+
+      // 3. Call connect to generate QR code
+      await fetch(`${url}/instance/connect`, {
+        method: "POST",
+        headers: { token: tk, "Content-Type": "application/json" },
+      });
+
+      // 4. Wait a moment then re-check status for qrcode
+      await new Promise((r) => setTimeout(r, 2000));
+      const statusResp2 = await fetch(`${url}/instance/status`, {
+        headers: { token: tk },
+      });
+      const statusData2 = await statusResp2.json();
+
+      if (statusData2?.instance?.qrcode) {
+        const qr = statusData2.instance.qrcode;
+        setQrCode(qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`);
       } else {
-        toast.info("QR Code não disponível. Tente novamente em alguns segundos.");
+        toast.info("QR Code ainda não disponível. Clique novamente em alguns segundos.");
       }
     } catch (err: any) {
       console.error(err);
