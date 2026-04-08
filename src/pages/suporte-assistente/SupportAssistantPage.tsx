@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
-import { Headset, Wifi, WifiOff, Loader2, QrCode, Save } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Headset, Wifi, WifiOff, Loader2, QrCode, Trash2, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 interface SupportConfig {
@@ -19,7 +19,6 @@ interface SupportConfig {
 }
 
 export default function SupportAssistantPage() {
-  const { toast } = useToast();
   const [config, setConfig] = useState<SupportConfig>({
     instance_name: "",
     api_url: "",
@@ -28,10 +27,11 @@ export default function SupportAssistantPage() {
     connection_status: "disconnected",
   });
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [creatingInstance, setCreatingInstance] = useState(false);
+  const [deletingInstance, setDeletingInstance] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [newInstanceName, setNewInstanceName] = useState("suporte-assistente");
 
   useEffect(() => {
     loadConfig();
@@ -63,118 +63,197 @@ export default function SupportAssistantPage() {
     }
   };
 
-  const saveConfig = async () => {
-    setSaving(true);
-    try {
-      if (config.id) {
-        const { error } = await supabase
-          .from("support_assistant_config")
-          .update({
-            instance_name: config.instance_name,
-            api_url: config.api_url,
-            api_key: config.api_key,
-            instance_token: config.instance_token,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", config.id);
-        if (error) throw error;
-      } else {
-        const { data, error } = await supabase
-          .from("support_assistant_config")
-          .insert({
-            instance_name: config.instance_name,
-            api_url: config.api_url,
-            api_key: config.api_key,
-            instance_token: config.instance_token,
-          })
-          .select("id")
-          .single();
-        if (error) throw error;
-        setConfig((prev) => ({ ...prev, id: data.id }));
-      }
-      toast({ title: "Configuração salva com sucesso" });
-    } catch (err) {
-      console.error(err);
-      toast({ title: "Erro ao salvar", variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
-  };
+  const isConfigured = !!(config.instance_name && config.instance_token && config.api_url);
 
   const createInstance = async () => {
-    if (!config.api_url || !config.api_key || !config.instance_name) {
-      toast({ title: "Preencha URL, API Key e Nome da Instância", variant: "destructive" });
+    if (!newInstanceName.trim()) {
+      toast.error("Digite um nome para a instância");
       return;
     }
     setCreatingInstance(true);
     try {
-      const { data, error } = await supabase.functions.invoke("uazapi-proxy", {
+      // Use uazapi-admin which already has UAZAPI_BASE_URL and UAZAPI_ADMIN_TOKEN as secrets
+      const { data, error } = await supabase.functions.invoke("uazapi-admin", {
         body: {
-          action: "createInstance",
-          baseUrl: config.api_url,
-          apiKey: config.api_key,
-          instanceName: config.instance_name,
+          action: "create_instance_support",
+          instanceName: newInstanceName.trim(),
         },
       });
-      if (error) throw error;
 
-      const token = data?.instance?.token || data?.token || "";
-      if (token) {
-        setConfig((prev) => ({ ...prev, instance_token: token }));
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Erro ao criar instância");
+
+      // Save to support_assistant_config
+      const configData = {
+        instance_name: data.instanceName,
+        api_url: data.apiUrl,
+        api_key: data.token, // instance token used as api_key for direct calls
+        instance_token: data.token,
+        connection_status: "disconnected",
+        updated_at: new Date().toISOString(),
+      };
+
+      if (config.id) {
         await supabase
           .from("support_assistant_config")
-          .update({ instance_token: token, updated_at: new Date().toISOString() })
+          .update(configData)
           .eq("id", config.id);
+      } else {
+        const { data: inserted } = await supabase
+          .from("support_assistant_config")
+          .insert(configData)
+          .select("id")
+          .single();
+        if (inserted) configData['id'] = inserted.id;
       }
 
-      toast({ title: "Instância criada com sucesso" });
-    } catch (err) {
+      setConfig((prev) => ({ ...prev, ...configData, id: config.id || (configData as any).id }));
+      toast.success("Instância criada com sucesso!", {
+        description: `Instância "${data.instanceName}" pronta. Escaneie o QR Code para conectar.`,
+      });
+
+      // Auto-fetch QR code
+      setTimeout(() => fetchQrCode(data.apiUrl, data.token), 1000);
+    } catch (err: any) {
       console.error(err);
-      toast({ title: "Erro ao criar instância", variant: "destructive" });
+      toast.error("Erro ao criar instância", { description: err.message });
     } finally {
       setCreatingInstance(false);
     }
   };
 
-  const fetchQrCode = async () => {
-    if (!config.api_url || !config.instance_token || !config.instance_name) {
-      toast({ title: "Configure a instância primeiro", variant: "destructive" });
+  const deleteInstance = async () => {
+    if (!config.instance_name) return;
+    setDeletingInstance(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("uazapi-admin", {
+        body: {
+          action: "delete_instance",
+          instanceName: config.instance_name,
+          instanceToken: config.instance_token,
+        },
+      });
+
+      if (error) throw error;
+
+      // Clear config
+      if (config.id) {
+        await supabase
+          .from("support_assistant_config")
+          .update({
+            instance_name: null,
+            api_url: null,
+            api_key: null,
+            instance_token: null,
+            connection_status: "disconnected",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", config.id);
+      }
+
+      setConfig((prev) => ({
+        ...prev,
+        instance_name: "",
+        api_url: "",
+        api_key: "",
+        instance_token: "",
+        connection_status: "disconnected",
+      }));
+      setQrCode(null);
+      toast.success("Instância removida");
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Erro ao remover instância", { description: err.message });
+    } finally {
+      setDeletingInstance(false);
+    }
+  };
+
+  const fetchQrCode = useCallback(async (apiUrl?: string, token?: string) => {
+    const url = apiUrl || config.api_url;
+    const tk = token || config.instance_token;
+    if (!url || !tk) {
+      toast.error("Configure a instância primeiro");
       return;
     }
     setCheckingStatus(true);
     try {
-      const { data, error } = await supabase.functions.invoke("uazapi-proxy", {
-        body: {
-          action: "getQrCode",
-          baseUrl: config.api_url,
-          apiKey: config.instance_token,
-          instanceName: config.instance_name,
-        },
+      const response = await fetch(`${url}/instance/qrcode`, {
+        headers: { token: tk },
       });
-      if (error) throw error;
 
+      if (!response.ok) {
+        // Try checking status instead
+        const statusResp = await fetch(`${url}/instance/status`, {
+          headers: { token: tk },
+        });
+        const statusData = await statusResp.json();
+
+        if (statusData?.status === "open" || statusData?.state === "open") {
+          setQrCode(null);
+          setConfig((prev) => ({ ...prev, connection_status: "connected" }));
+          if (config.id) {
+            await supabase
+              .from("support_assistant_config")
+              .update({ connection_status: "connected", updated_at: new Date().toISOString() })
+              .eq("id", config.id);
+          }
+          toast.success("WhatsApp conectado!");
+          return;
+        }
+        throw new Error("QR Code não disponível");
+      }
+
+      const data = await response.json();
       if (data?.qrcode) {
         setQrCode(data.qrcode);
-      } else if (data?.instance?.state === "open" || data?.state === "open") {
-        setQrCode(null);
-        setConfig((prev) => ({ ...prev, connection_status: "connected" }));
+      } else {
+        toast.info("QR Code não disponível. Tente novamente em alguns segundos.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Erro ao buscar QR Code", { description: err.message });
+    } finally {
+      setCheckingStatus(false);
+    }
+  }, [config.api_url, config.instance_token, config.id]);
+
+  const checkStatus = async () => {
+    if (!config.api_url || !config.instance_token) return;
+    setCheckingStatus(true);
+    try {
+      const response = await fetch(`${config.api_url}/instance/status`, {
+        headers: { token: config.instance_token },
+      });
+      const data = await response.json();
+      const connected = data?.status === "open" || data?.state === "open";
+      const newStatus = connected ? "connected" : "disconnected";
+
+      setConfig((prev) => ({ ...prev, connection_status: newStatus }));
+      if (config.id) {
         await supabase
           .from("support_assistant_config")
-          .update({ connection_status: "connected", updated_at: new Date().toISOString() })
+          .update({ connection_status: newStatus, updated_at: new Date().toISOString() })
           .eq("id", config.id);
-        toast({ title: "WhatsApp conectado!" });
+      }
+
+      if (connected) {
+        setQrCode(null);
+        toast.success("WhatsApp conectado!");
       } else {
-        toast({ title: "QR Code não disponível. Tente novamente.", variant: "destructive" });
+        toast.info("WhatsApp desconectado");
       }
     } catch (err) {
       console.error(err);
-      toast({ title: "Erro ao buscar QR Code", variant: "destructive" });
+      toast.error("Erro ao verificar status");
     } finally {
       setCheckingStatus(false);
     }
   };
 
-  const webhookUrl = `https://zenizgyrwlonmufxnjqt.supabase.co/functions/v1/support-assistant-webhook?instance=${encodeURIComponent(config.instance_name)}`;
+  const webhookUrl = config.instance_name
+    ? `${window.location.origin.includes('localhost') ? 'https://zenizgyrwlonmufxnjqt.supabase.co' : 'https://zenizgyrwlonmufxnjqt.supabase.co'}/functions/v1/support-assistant-webhook?instance=${encodeURIComponent(config.instance_name)}`
+    : "";
 
   if (loading) {
     return (
@@ -205,105 +284,112 @@ export default function SupportAssistantPage() {
           {/* Status */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                Status da Conexão
-                <Badge variant={config.connection_status === "connected" ? "default" : "secondary"}>
-                  {config.connection_status === "connected" ? (
-                    <><Wifi className="h-3 w-3 mr-1" /> Conectado</>
-                  ) : (
-                    <><WifiOff className="h-3 w-3 mr-1" /> Desconectado</>
-                  )}
-                </Badge>
-              </CardTitle>
-              <CardDescription>
-                Conecte um WhatsApp dedicado para a assistente de suporte
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    Status da Conexão
+                    <Badge variant={config.connection_status === "connected" ? "default" : "secondary"}>
+                      {config.connection_status === "connected" ? (
+                        <><Wifi className="h-3 w-3 mr-1" /> Conectado</>
+                      ) : (
+                        <><WifiOff className="h-3 w-3 mr-1" /> Desconectado</>
+                      )}
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    {isConfigured
+                      ? `Instância: ${config.instance_name}`
+                      : "Crie uma instância UaZapi para conectar o WhatsApp da assistente"}
+                  </CardDescription>
+                </div>
+                {isConfigured && (
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={checkStatus} disabled={checkingStatus}>
+                      {checkingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={deleteInstance} disabled={deletingInstance}>
+                      {deletingInstance ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                )}
+              </div>
             </CardHeader>
           </Card>
 
-          {/* Configuração UaZapi */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Credenciais UaZapi</CardTitle>
-              <CardDescription>
-                Configure a URL da API, API Key e nome da instância
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>URL da API</Label>
-                  <Input
-                    placeholder="https://api.uazapi.com"
-                    value={config.api_url}
-                    onChange={(e) => setConfig((p) => ({ ...p, api_url: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>API Key (Admin)</Label>
-                  <Input
-                    type="password"
-                    placeholder="Token admin da UaZapi"
-                    value={config.api_key}
-                    onChange={(e) => setConfig((p) => ({ ...p, api_key: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
+          {/* Criar instância (se não configurado) */}
+          {!isConfigured && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Criar Instância UaZapi</CardTitle>
+                <CardDescription>
+                  Será criada uma instância usando as credenciais UaZapi já configuradas no sistema
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2 max-w-md">
                   <Label>Nome da Instância</Label>
                   <Input
                     placeholder="suporte-assistente"
-                    value={config.instance_name}
-                    onChange={(e) => setConfig((p) => ({ ...p, instance_name: e.target.value }))}
+                    value={newInstanceName}
+                    onChange={(e) => setNewInstanceName(e.target.value)}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Identificador único para a instância WhatsApp do assistente
+                  </p>
                 </div>
-                <div className="space-y-2">
-                  <Label>Token da Instância</Label>
-                  <Input
-                    type="password"
-                    placeholder="Gerado ao criar instância"
-                    value={config.instance_token}
-                    onChange={(e) => setConfig((p) => ({ ...p, instance_token: e.target.value }))}
-                    readOnly={!config.instance_token}
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <Button onClick={saveConfig} disabled={saving}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                  Salvar
-                </Button>
-                <Button variant="outline" onClick={createInstance} disabled={creatingInstance || !config.id}>
-                  {creatingInstance ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                <Button onClick={createInstance} disabled={creatingInstance}>
+                  {creatingInstance && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                   Criar Instância
                 </Button>
-                <Button variant="outline" onClick={fetchQrCode} disabled={checkingStatus || !config.instance_token}>
-                  {checkingStatus ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <QrCode className="h-4 w-4 mr-2" />}
-                  QR Code
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* QR Code */}
-          {qrCode && (
+          {/* QR Code / Conectar */}
+          {isConfigured && config.connection_status !== "connected" && (
             <Card>
               <CardHeader>
-                <CardTitle>Escaneie o QR Code</CardTitle>
-                <CardDescription>Abra o WhatsApp &gt; Dispositivos conectados &gt; Conectar dispositivo</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <QrCode className="h-5 w-5" />
+                  Conectar WhatsApp
+                </CardTitle>
+                <CardDescription>
+                  Escaneie o QR Code com o WhatsApp da assistente de suporte
+                </CardDescription>
               </CardHeader>
-              <CardContent className="flex justify-center">
-                <img src={qrCode} alt="QR Code WhatsApp" className="max-w-xs rounded-lg border" />
+              <CardContent className="space-y-4">
+                {qrCode ? (
+                  <div className="flex flex-col items-center gap-4">
+                    <img src={qrCode} alt="QR Code WhatsApp" className="max-w-xs rounded-lg border" />
+                    <p className="text-sm text-muted-foreground">
+                      Abra o WhatsApp &gt; Dispositivos conectados &gt; Conectar dispositivo
+                    </p>
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => fetchQrCode()} disabled={checkingStatus}>
+                        {checkingStatus ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                        Atualizar QR Code
+                      </Button>
+                      <Button onClick={checkStatus} disabled={checkingStatus}>
+                        Verificar Conexão
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button onClick={() => fetchQrCode()} disabled={checkingStatus}>
+                    {checkingStatus ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <QrCode className="h-4 w-4 mr-2" />}
+                    Obter QR Code
+                  </Button>
+                )}
               </CardContent>
             </Card>
           )}
 
           {/* Webhook URL */}
-          {config.instance_name && (
+          {isConfigured && (
             <Card>
               <CardHeader>
-                <CardTitle>Webhook URL</CardTitle>
-                <CardDescription>Configure esta URL no webhook da instância UaZapi</CardDescription>
+                <CardTitle>Webhook</CardTitle>
+                <CardDescription>URL configurada automaticamente para receber mensagens de grupos</CardDescription>
               </CardHeader>
               <CardContent>
                 <code className="block p-3 bg-muted rounded text-xs break-all">{webhookUrl}</code>
