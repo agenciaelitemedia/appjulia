@@ -62,6 +62,7 @@ import PlanosPage from "./pages/admin/planos/PlanosPage";
 import ContratoTemplatePage from "./pages/admin/contrato/ContratoTemplatePage";
 import AdvDashboardPage from "./pages/adv/AdvDashboardPage";
 import CRMComercialPage from "./pages/comercial/crm/CRMComercialPage";
+import SupportAssistantPage from "./pages/suporte-assistente/SupportAssistantPage";
 
 const queryClient = new QueryClient();
 
@@ -110,6 +111,7 @@ const App = () => (
                   <Route path="/notificacoes-contrato" element={<ContractNotificationsPage />} />
                   <Route path="/telefonia" element={<ProtectedRoute module="telephony"><TelefoniaPage /></ProtectedRoute>} />
                   <Route path="/comercial/crm" element={<ProtectedRoute module="crm_comercial"><CRMComercialPage /></ProtectedRoute>} />
+                  <Route path="/suporte-assistente" element={<ProtectedRoute module="support_assistant"><SupportAssistantPage /></ProtectedRoute>} />
                   
                   {/* Admin routes - protected by module permission */}
                   <Route path="/admin/agentes" element={<ProtectedRoute module="admin_agents"><AgentsList /></ProtectedRoute>} />
