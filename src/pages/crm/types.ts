@@ -75,6 +75,7 @@ export interface CRMAvgTimeData {
 export interface CRMAgentPerformance {
   cod_agent: string;
   owner_name: string;
+  alias?: string;
   total_leads: number;
   qualified_leads: number;
   qualified_rate: number;
@@ -110,6 +111,7 @@ export interface CRMActivityLog {
 export interface CRMAgentWorkload {
   cod_agent: string;
   owner_name: string;
+  alias?: string;
   active_leads: number;
   stuck_leads: number;
 }

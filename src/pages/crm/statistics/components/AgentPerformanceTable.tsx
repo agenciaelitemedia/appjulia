@@ -131,7 +131,7 @@ export function AgentPerformanceTable({ data, isLoading }: AgentPerformanceTable
               <TableRow key={agent.cod_agent}>
                 <TableCell>
                   <div>
-                    <p className="font-medium text-foreground">{agent.owner_name}</p>
+                    <p className="font-medium text-foreground">{agent.alias || agent.owner_name}</p>
                     <p className="text-xs text-muted-foreground">{agent.cod_agent}</p>
                   </div>
                 </TableCell>
