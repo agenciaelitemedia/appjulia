@@ -140,7 +140,7 @@ function truncateText(text: string | undefined, maxLength: number): string {
                     <TooltipTrigger asChild>
                       <Badge variant="outline" className="text-[10px] font-normal truncate max-w-full cursor-default">
                         <span className="font-semibold">[{card.cod_agent}]</span>
-                        {truncatedBusinessName && <span className="text-muted-foreground"> - {truncatedBusinessName}</span>}
+                        {truncatedAlias && <span className="text-muted-foreground"> - {truncatedAlias}</span>}
                       </Badge>
                     </TooltipTrigger>
                     <TooltipContent>
