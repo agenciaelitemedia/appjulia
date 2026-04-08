@@ -1,51 +1,119 @@
 
 
-# Mover card do CRM Julia para "Desqualificado" ao excluir contrato
+# Plano: Módulo Assistente de Suporte
 
 ## Resumo
 
-Ao excluir um contrato, após marcar como DELETED, buscar o card correspondente no CRM da Julia (tabela externa `crm_atendimento_cards`) pelo `whatsapp_number` e `cod_agent`, e movê-lo para a etapa "Desqualificado". Registrar histórico da movimentação.
+Criar o módulo "Assistente de Suporte" na categoria SISTEMA. Inclui página com aba de configuração para conexão UaZapi, webhook para receber mensagens de grupos, tabela para armazenar conversas, e hook de registro automático do módulo.
 
-## Alteração: `src/pages/estrategico/contratos/components/ContratosTable.tsx`
+## 1. Migração: tabelas Supabase
 
-Na função `handleDeleteContrato`, após o insert na `contract_deletion_audit`, adicionar:
+```sql
+-- Configuração da assistente de suporte
+CREATE TABLE support_assistant_config (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  instance_name text,
+  api_url text,
+  api_key text,
+  instance_token text,
+  connection_status text DEFAULT 'disconnected',
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+ALTER TABLE support_assistant_config ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all on support_assistant_config" ON support_assistant_config FOR ALL USING (true) WITH CHECK (true);
 
-1. Buscar o ID da stage "Desqualificado" na tabela externa `crm_atendimento_stages`:
-```typescript
-const stages = await externalDb.raw({
-  query: `SELECT id FROM crm_atendimento_stages WHERE name = 'Desqualificado' LIMIT 1`,
-});
+-- Mensagens de grupos capturadas
+CREATE TABLE support_group_messages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  instance_name text,
+  group_jid text NOT NULL,
+  group_name text,
+  sender_jid text,
+  sender_name text,
+  message_id text,
+  message_type text DEFAULT 'text',
+  message_text text,
+  media_url text,
+  is_from_me boolean DEFAULT false,
+  raw_payload jsonb,
+  timestamp timestamptz DEFAULT now(),
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE support_group_messages ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all on support_group_messages" ON support_group_messages FOR ALL USING (true) WITH CHECK (true);
+CREATE INDEX idx_support_group_messages_group ON support_group_messages(group_jid);
+CREATE INDEX idx_support_group_messages_ts ON support_group_messages(timestamp);
 ```
 
-2. Se encontrou a stage, buscar o card pelo whatsapp e cod_agent:
-```typescript
-const cards = await externalDb.raw({
-  query: `SELECT id, stage_id FROM crm_atendimento_cards WHERE whatsapp_number = $1 AND cod_agent = $2 LIMIT 1`,
-  params: [deleteContrato.whatsapp, deleteContrato.cod_agent],
-});
+## 2. Tipo `ModuleCode`
+
+Adicionar `'support_assistant'` ao union type em `src/types/permissions.ts`.
+
+## 3. Hook `useEnsureSupportAssistantModule`
+
+Criar `src/hooks/useEnsureSupportAssistantModule.ts` seguindo o padrão dos demais hooks (ex: `useEnsureCrmComercialModule`):
+- Código: `support_assistant`
+- Nome: `Assistente de Suporte`
+- Categoria: `sistema`
+- Grupo menu: `SISTEMA`
+- Rota: `/suporte-assistente`
+- Icone: `HeadphonesIcon` ou `Headset`
+- display_order: 80
+
+## 4. Registrar hook no Sidebar
+
+Importar e chamar `useEnsureSupportAssistantModule()` em `src/components/layout/Sidebar.tsx`.
+
+## 5. Página principal
+
+Criar `src/pages/suporte-assistente/SupportAssistantPage.tsx`:
+- Tabs: **Configuração** | (futuras abas)
+- Aba Configuração:
+  - Formulário com campos: URL da API, API Key, Nome da Instância
+  - Botão "Criar Instância" (via `uazapi-admin` existente)
+  - QR Code para conectar WhatsApp
+  - Status de conexão (conectado/desconectado)
+  - Salva configuração na tabela `support_assistant_config`
+
+## 6. Edge Function: `support-assistant-webhook`
+
+Criar `supabase/functions/support-assistant-webhook/index.ts`:
+- Recebe eventos da instância UaZapi conectada
+- Filtra apenas mensagens de **grupo** (`isGroup` ou `remoteJid` contendo `@g.us`)
+- Extrai: group_jid, group_name, sender, message_text, message_type, media_url
+- Grava na tabela `support_group_messages`
+- Ignora mensagens individuais (não grupo)
+- `verify_jwt = false` no config.toml
+
+## 7. Rota no App.tsx
+
+Adicionar:
+```tsx
+<Route path="/suporte-assistente" element={
+  <ProtectedRoute module="support_assistant">
+    <SupportAssistantPage />
+  </ProtectedRoute>
+} />
 ```
 
-3. Se encontrou o card, mover para "Desqualificado" e registrar histórico:
-```typescript
-await externalDb.update({
-  table: 'crm_atendimento_cards',
-  data: { stage_id: desqualificadoStageId, stage_entered_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  where: { id: cardId },
-});
+## 8. Config.toml
 
-await externalDb.insert({
-  table: 'crm_atendimento_history',
-  data: { card_id: cardId, from_stage_id: fromStageId, to_stage_id: desqualificadoStageId, changed_by: 'Sistema', notes: 'Movido para Desqualificado — contrato excluído' },
-});
+```toml
+[functions.support-assistant-webhook]
+verify_jwt = false
 ```
 
-4. Invalidar queries do CRM Julia também: `queryClient.invalidateQueries({ queryKey: ['crm-cards'] })`
+## Arquivos criados/alterados
 
-Toda a lógica é envolvida em try/catch separado para não impedir a exclusão caso o card não exista no CRM.
-
-## Arquivo alterado
-
-| Arquivo | Mudança |
+| Arquivo | Ação |
 |---|---|
-| `ContratosTable.tsx` | Adicionar movimentação do card para "Desqualificado" no `handleDeleteContrato` |
+| Migração SQL | Criar tabelas `support_assistant_config` e `support_group_messages` |
+| `src/types/permissions.ts` | Adicionar `support_assistant` ao `ModuleCode` |
+| `src/hooks/useEnsureSupportAssistantModule.ts` | Novo hook de registro do módulo |
+| `src/components/layout/Sidebar.tsx` | Importar e chamar o novo hook |
+| `src/pages/suporte-assistente/SupportAssistantPage.tsx` | Página principal com aba Configuração |
+| `supabase/functions/support-assistant-webhook/index.ts` | Webhook para capturar mensagens de grupo |
+| `supabase/config.toml` | Bloco para o webhook |
+| `src/App.tsx` | Rota protegida |
 
