@@ -1,71 +1,45 @@
 
 
-# Alias (nome) para agentes
+# Aplicar `[cod_agent] - alias` em todos os selects e exibições de agente
 
 ## Resumo
 
-Criar uma tabela Supabase `agent_aliases` para armazenar um apelido editável por `cod_agent`. O valor padrão será o nome da instância sem o prefixo `[JulIAv2]`. Esse alias será exibido no card de "Meus Agentes", no `AgentSearchSelect` (como subtítulo), e no badge do `CRMLeadCard`.
+Substituir `owner_name` por `alias` (com fallback para `owner_name`) em todos os componentes que exibem informações de agente, garantindo consistência visual em todo o sistema.
 
-## 1. Migração: tabela `agent_aliases`
+## Componentes já corretos (usam `alias || owner_name`)
 
-```sql
-CREATE TABLE agent_aliases (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  cod_agent text NOT NULL UNIQUE,
-  alias text NOT NULL,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
-ALTER TABLE agent_aliases ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all on agent_aliases" ON agent_aliases FOR ALL USING (true) WITH CHECK (true);
-```
+- `AgentSearchSelect.tsx` — já usa alias com fallback
+- `JuliaFilters.tsx` — já usa alias com fallback  
+- `CRMFilters.tsx` — já usa alias com fallback
+- `UnifiedFilters.tsx` — já usa alias com fallback
 
-## 2. Hook `useAgentAliases`
+## Componentes a corrigir
 
-Criar `src/hooks/useAgentAliases.ts`:
-- Query: busca todos os aliases da tabela `agent_aliases`
-- Mutation `upsertAlias(codAgent, alias)`: faz upsert no Supabase
-- Função utilitária `getDefaultAlias(businessName)`: remove prefixo `[JulIAv2]` ou `[Juliav2]` (case-insensitive) do nome, retornando o restante como alias padrão
-- Função `getAlias(codAgent)`: retorna alias salvo ou gera default a partir do business_name
+### 1. `AgentPerformanceTable.tsx`
+- Linha 134: trocar `{agent.owner_name}` por `{agent.alias || agent.owner_name}`
+- Adicionar `alias?: string` ao tipo `CRMAgentPerformance` em `src/pages/crm/types.ts`
 
-## 3. Card "Meus Agentes" — edição do alias
+### 2. `AgentWorkloadChart.tsx`
+- Linha 64: trocar `{agent.owner_name}` por `{agent.alias || agent.owner_name}`
+- Adicionar `alias?: string` ao tipo `CRMAgentWorkload` em `src/pages/crm/types.ts`
 
-Em `AgentCard.tsx`:
-- Exibir o alias abaixo do nome do agente (ou no lugar do nome se preferido)
-- Adicionar ícone de edição (lápis inline) ao lado do alias
-- Ao clicar, abre input inline para editar e salvar o alias via `upsertAlias`
-- Ao criar pela primeira vez, gera o default automaticamente a partir do `business_name`
+### 3. `HistoricoTab.tsx` (Telefonia)
+- Linhas 80-94: enriquecer `agentsList` com alias do hook `useAgentAliases`
+- Adicionar `alias` ao objeto de cada agente no Map
 
-## 4. `AgentSearchSelect` — alias como subtítulo
+### 4. Tipos em `src/pages/crm/types.ts`
+- Adicionar campo `alias?: string` em `CRMAgentPerformance` e `CRMAgentWorkload`
 
-Em `AgentSearchSelect.tsx`:
-- Adicionar campo `alias?: string` ao `AgentOption`
-- No título do item: `[cod_agent] - owner_name` (sem alteração)
-- Abaixo, novo subtítulo com o alias (quando existir)
-- Abaixo do subtítulo, o `owner_business_name` (escritório)
-- Busca também filtra pelo alias
+### 5. Hooks que alimentam esses componentes
+- Verificar onde `CRMAgentPerformance` e `CRMAgentWorkload` são populados e enriquecer com alias do `useAgentAliases`
 
-## 5. `CRMLeadCard` — alias no badge
+## Arquivos alterados
 
-Em `CRMLeadCard.tsx`:
-- Buscar aliases via hook/contexto
-- No badge do cod_agent, exibir o alias em vez do `truncatedBusinessName` quando disponível
-- Tooltip mantém informação completa
-
-## 6. Providers de alias
-
-Onde `AgentSearchSelect` é usado (FollowupPage, ContractNotificationsPage, CRM pages):
-- Atualizar a query `get_crm_agents_for_user` no `db-query` para incluir lookup ao `agent_aliases` do Supabase — ou, mais simples, fazer join client-side no hook `useJuliaAgents` com os aliases carregados do Supabase
-
-Abordagem client-side: o hook `useAgentAliases` retorna um Map `codAgent → alias`. Cada componente que precisa do alias faz lookup nesse Map.
-
-## Arquivos criados/alterados
-
-| Arquivo | Ação |
+| Arquivo | Mudança |
 |---|---|
-| Migração SQL | Criar tabela `agent_aliases` |
-| `src/hooks/useAgentAliases.ts` | Novo hook para CRUD de aliases |
-| `src/pages/agente/meus-agentes/components/AgentCard.tsx` | Exibir e editar alias |
-| `src/components/AgentSearchSelect.tsx` | Exibir alias como subtítulo |
-| `src/pages/crm/components/CRMLeadCard.tsx` | Usar alias no badge |
+| `src/pages/crm/types.ts` | Adicionar `alias?` aos tipos Performance e Workload |
+| `src/pages/crm/statistics/components/AgentPerformanceTable.tsx` | Usar `alias \|\| owner_name` |
+| `src/pages/crm/monitoring/components/AgentWorkloadChart.tsx` | Usar `alias \|\| owner_name` |
+| `src/pages/telefonia/components/HistoricoTab.tsx` | Enriquecer agentsList com aliases |
+| Hooks que alimentam Performance/Workload | Enriquecer dados com alias via `useAgentAliases` |
 
