@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_aliases: {
+        Row: {
+          alias: string
+          cod_agent: string
+          created_at: string | null
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          alias: string
+          cod_agent: string
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          alias?: string
+          cod_agent?: string
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       chat_contacts: {
         Row: {
           avatar: string | null
