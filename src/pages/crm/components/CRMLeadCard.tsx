@@ -17,6 +17,7 @@ import { formatDbDateTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
+import { useAgentAliases } from '@/hooks/useAgentAliases';
 
 interface CRMLeadCardProps {
   card: CRMCard;
