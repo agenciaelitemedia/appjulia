@@ -1,119 +1,71 @@
 
 
-# Plano: Módulo Assistente de Suporte
+# Alias (nome) para agentes
 
 ## Resumo
 
-Criar o módulo "Assistente de Suporte" na categoria SISTEMA. Inclui página com aba de configuração para conexão UaZapi, webhook para receber mensagens de grupos, tabela para armazenar conversas, e hook de registro automático do módulo.
+Criar uma tabela Supabase `agent_aliases` para armazenar um apelido editável por `cod_agent`. O valor padrão será o nome da instância sem o prefixo `[JulIAv2]`. Esse alias será exibido no card de "Meus Agentes", no `AgentSearchSelect` (como subtítulo), e no badge do `CRMLeadCard`.
 
-## 1. Migração: tabelas Supabase
+## 1. Migração: tabela `agent_aliases`
 
 ```sql
--- Configuração da assistente de suporte
-CREATE TABLE support_assistant_config (
+CREATE TABLE agent_aliases (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  instance_name text,
-  api_url text,
-  api_key text,
-  instance_token text,
-  connection_status text DEFAULT 'disconnected',
+  cod_agent text NOT NULL UNIQUE,
+  alias text NOT NULL,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
-ALTER TABLE support_assistant_config ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all on support_assistant_config" ON support_assistant_config FOR ALL USING (true) WITH CHECK (true);
-
--- Mensagens de grupos capturadas
-CREATE TABLE support_group_messages (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  instance_name text,
-  group_jid text NOT NULL,
-  group_name text,
-  sender_jid text,
-  sender_name text,
-  message_id text,
-  message_type text DEFAULT 'text',
-  message_text text,
-  media_url text,
-  is_from_me boolean DEFAULT false,
-  raw_payload jsonb,
-  timestamp timestamptz DEFAULT now(),
-  created_at timestamptz DEFAULT now()
-);
-ALTER TABLE support_group_messages ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all on support_group_messages" ON support_group_messages FOR ALL USING (true) WITH CHECK (true);
-CREATE INDEX idx_support_group_messages_group ON support_group_messages(group_jid);
-CREATE INDEX idx_support_group_messages_ts ON support_group_messages(timestamp);
+ALTER TABLE agent_aliases ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all on agent_aliases" ON agent_aliases FOR ALL USING (true) WITH CHECK (true);
 ```
 
-## 2. Tipo `ModuleCode`
+## 2. Hook `useAgentAliases`
 
-Adicionar `'support_assistant'` ao union type em `src/types/permissions.ts`.
+Criar `src/hooks/useAgentAliases.ts`:
+- Query: busca todos os aliases da tabela `agent_aliases`
+- Mutation `upsertAlias(codAgent, alias)`: faz upsert no Supabase
+- Função utilitária `getDefaultAlias(businessName)`: remove prefixo `[JulIAv2]` ou `[Juliav2]` (case-insensitive) do nome, retornando o restante como alias padrão
+- Função `getAlias(codAgent)`: retorna alias salvo ou gera default a partir do business_name
 
-## 3. Hook `useEnsureSupportAssistantModule`
+## 3. Card "Meus Agentes" — edição do alias
 
-Criar `src/hooks/useEnsureSupportAssistantModule.ts` seguindo o padrão dos demais hooks (ex: `useEnsureCrmComercialModule`):
-- Código: `support_assistant`
-- Nome: `Assistente de Suporte`
-- Categoria: `sistema`
-- Grupo menu: `SISTEMA`
-- Rota: `/suporte-assistente`
-- Icone: `HeadphonesIcon` ou `Headset`
-- display_order: 80
+Em `AgentCard.tsx`:
+- Exibir o alias abaixo do nome do agente (ou no lugar do nome se preferido)
+- Adicionar ícone de edição (lápis inline) ao lado do alias
+- Ao clicar, abre input inline para editar e salvar o alias via `upsertAlias`
+- Ao criar pela primeira vez, gera o default automaticamente a partir do `business_name`
 
-## 4. Registrar hook no Sidebar
+## 4. `AgentSearchSelect` — alias como subtítulo
 
-Importar e chamar `useEnsureSupportAssistantModule()` em `src/components/layout/Sidebar.tsx`.
+Em `AgentSearchSelect.tsx`:
+- Adicionar campo `alias?: string` ao `AgentOption`
+- No título do item: `[cod_agent] - owner_name` (sem alteração)
+- Abaixo, novo subtítulo com o alias (quando existir)
+- Abaixo do subtítulo, o `owner_business_name` (escritório)
+- Busca também filtra pelo alias
 
-## 5. Página principal
+## 5. `CRMLeadCard` — alias no badge
 
-Criar `src/pages/suporte-assistente/SupportAssistantPage.tsx`:
-- Tabs: **Configuração** | (futuras abas)
-- Aba Configuração:
-  - Formulário com campos: URL da API, API Key, Nome da Instância
-  - Botão "Criar Instância" (via `uazapi-admin` existente)
-  - QR Code para conectar WhatsApp
-  - Status de conexão (conectado/desconectado)
-  - Salva configuração na tabela `support_assistant_config`
+Em `CRMLeadCard.tsx`:
+- Buscar aliases via hook/contexto
+- No badge do cod_agent, exibir o alias em vez do `truncatedBusinessName` quando disponível
+- Tooltip mantém informação completa
 
-## 6. Edge Function: `support-assistant-webhook`
+## 6. Providers de alias
 
-Criar `supabase/functions/support-assistant-webhook/index.ts`:
-- Recebe eventos da instância UaZapi conectada
-- Filtra apenas mensagens de **grupo** (`isGroup` ou `remoteJid` contendo `@g.us`)
-- Extrai: group_jid, group_name, sender, message_text, message_type, media_url
-- Grava na tabela `support_group_messages`
-- Ignora mensagens individuais (não grupo)
-- `verify_jwt = false` no config.toml
+Onde `AgentSearchSelect` é usado (FollowupPage, ContractNotificationsPage, CRM pages):
+- Atualizar a query `get_crm_agents_for_user` no `db-query` para incluir lookup ao `agent_aliases` do Supabase — ou, mais simples, fazer join client-side no hook `useJuliaAgents` com os aliases carregados do Supabase
 
-## 7. Rota no App.tsx
-
-Adicionar:
-```tsx
-<Route path="/suporte-assistente" element={
-  <ProtectedRoute module="support_assistant">
-    <SupportAssistantPage />
-  </ProtectedRoute>
-} />
-```
-
-## 8. Config.toml
-
-```toml
-[functions.support-assistant-webhook]
-verify_jwt = false
-```
+Abordagem client-side: o hook `useAgentAliases` retorna um Map `codAgent → alias`. Cada componente que precisa do alias faz lookup nesse Map.
 
 ## Arquivos criados/alterados
 
 | Arquivo | Ação |
 |---|---|
-| Migração SQL | Criar tabelas `support_assistant_config` e `support_group_messages` |
-| `src/types/permissions.ts` | Adicionar `support_assistant` ao `ModuleCode` |
-| `src/hooks/useEnsureSupportAssistantModule.ts` | Novo hook de registro do módulo |
-| `src/components/layout/Sidebar.tsx` | Importar e chamar o novo hook |
-| `src/pages/suporte-assistente/SupportAssistantPage.tsx` | Página principal com aba Configuração |
-| `supabase/functions/support-assistant-webhook/index.ts` | Webhook para capturar mensagens de grupo |
-| `supabase/config.toml` | Bloco para o webhook |
-| `src/App.tsx` | Rota protegida |
+| Migração SQL | Criar tabela `agent_aliases` |
+| `src/hooks/useAgentAliases.ts` | Novo hook para CRUD de aliases |
+| `src/pages/agente/meus-agentes/components/AgentCard.tsx` | Exibir e editar alias |
+| `src/components/AgentSearchSelect.tsx` | Exibir alias como subtítulo |
+| `src/pages/crm/components/CRMLeadCard.tsx` | Usar alias no badge |
 
