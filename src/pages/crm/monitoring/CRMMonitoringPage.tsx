@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { useCRMAgents } from '../hooks/useCRMData';
+import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
 import { 
   useCRMStuckLeads, 
   useCRMRecentActivity, 
@@ -33,7 +34,12 @@ export default function CRMMonitoringPage() {
   const { data: agents = [], isLoading: agentsLoading } = useCRMAgents();
   const { data: stuckLeads = [], isLoading: stuckLoading, refetch: refetchStuck } = useCRMStuckLeads(filters);
   const { data: recentActivity = [], isLoading: activityLoading, refetch: refetchActivity } = useCRMRecentActivity(filters);
-  const { data: agentWorkload = [], isLoading: workloadLoading, refetch: refetchWorkload } = useCRMAgentWorkload(filters);
+  const { data: rawAgentWorkload = [], isLoading: workloadLoading, refetch: refetchWorkload } = useCRMAgentWorkload(filters);
+  const { aliasMap } = useAgentAliases();
+  const agentWorkload = useMemo(() => rawAgentWorkload.map(a => ({
+    ...a,
+    alias: aliasMap.get(a.cod_agent) || getDefaultAlias(a.owner_name),
+  })), [rawAgentWorkload, aliasMap]);
   const { data: bottlenecks = [], isLoading: bottlenecksLoading, refetch: refetchBottlenecks } = useCRMStageBottlenecks(filters);
 
   const [isRefreshing, setIsRefreshing] = useState(false);

@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState, CustomSelectConfig } from '@/components/filters/types';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
+import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
 
 const PAGE_SIZE = 50;
 
@@ -70,6 +71,7 @@ export function HistoricoTab({ codAgent }: Props) {
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
   const navigate = useNavigate();
   const [page, setPage] = useState(0);
+  const { aliasMap } = useAgentAliases();
 
   // Telephony-specific filters (managed locally)
   const [directionFilter, setDirectionFilter] = useState('all');
@@ -78,21 +80,23 @@ export function HistoricoTab({ codAgent }: Props) {
 
   // Build agent list from extensions' last_name (cod_agent) + first_name
   const agentsList = useMemo(() => {
-    const agentMap = new Map<string, { cod_agent: string; owner_name: string }>();
+    const agentMap = new Map<string, { cod_agent: string; owner_name: string; alias?: string }>();
     for (const ext of extensions) {
       const agentCode = ext.api4com_last_name || codAgent;
       if (agentCode && !agentMap.has(agentCode)) {
+        const ownerName = ext.api4com_first_name || ext.label || agentCode;
         agentMap.set(agentCode, {
           cod_agent: agentCode,
-          owner_name: ext.api4com_first_name || ext.label || agentCode,
+          owner_name: ownerName,
+          alias: aliasMap.get(agentCode) || getDefaultAlias(ownerName),
         });
       }
     }
     if (!agentMap.has(codAgent)) {
-      agentMap.set(codAgent, { cod_agent: codAgent, owner_name: codAgent });
+      agentMap.set(codAgent, { cod_agent: codAgent, owner_name: codAgent, alias: aliasMap.get(codAgent) });
     }
     return Array.from(agentMap.values());
-  }, [extensions, codAgent]);
+  }, [extensions, codAgent, aliasMap]);
 
   // UnifiedFilters state (period + search + agents)
   const today = getTodayInSaoPaulo();

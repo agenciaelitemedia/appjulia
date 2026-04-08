@@ -61,7 +61,7 @@ export function AgentWorkloadChart({ data, isLoading }: AgentWorkloadChartProps)
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-foreground text-sm">
-                      {agent.owner_name}
+                      {agent.alias || agent.owner_name}
                     </span>
                     <Badge variant={workloadStatus.color as any} className="text-xs">
                       {workloadStatus.label}

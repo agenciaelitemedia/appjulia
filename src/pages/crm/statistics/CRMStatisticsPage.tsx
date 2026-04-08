@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { useCRMAgents } from '../hooks/useCRMData';
 import { useCRMFunnelData, useCRMAvgTimeByStage, useCRMAgentPerformance } from '../hooks/useCRMStatistics';
+import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState } from '@/components/filters/types';
 import { ConversionFunnelChart } from './components/ConversionFunnelChart';
@@ -32,7 +33,12 @@ export default function CRMStatisticsPage() {
   const { data: agents = [], isLoading: agentsLoading } = useCRMAgents();
   const { data: funnelData = [], isLoading: funnelLoading, refetch: refetchFunnel } = useCRMFunnelData(filters);
   const { data: avgTimeData = [], isLoading: avgTimeLoading, refetch: refetchAvgTime } = useCRMAvgTimeByStage(filters);
-  const { data: agentPerformance = [], isLoading: performanceLoading, refetch: refetchPerformance } = useCRMAgentPerformance(filters);
+  const { data: rawAgentPerformance = [], isLoading: performanceLoading, refetch: refetchPerformance } = useCRMAgentPerformance(filters);
+  const { aliasMap } = useAgentAliases();
+  const agentPerformance = useMemo(() => rawAgentPerformance.map(a => ({
+    ...a,
+    alias: aliasMap.get(a.cod_agent) || getDefaultAlias(a.owner_name),
+  })), [rawAgentPerformance, aliasMap]);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
