@@ -79,7 +79,8 @@ export function UnifiedFilters({
     return agents.filter(agent =>
       agent.cod_agent?.toLowerCase().includes(search) ||
       agent.owner_name?.toLowerCase().includes(search) ||
-      agent.owner_business_name?.toLowerCase().includes(search)
+      agent.owner_business_name?.toLowerCase().includes(search) ||
+      agent.alias?.toLowerCase().includes(search)
     );
   }, [agents, agentSearch]);
 
