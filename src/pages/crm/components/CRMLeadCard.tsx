@@ -91,9 +91,10 @@ function truncateText(text: string | undefined, maxLength: number): string {
     if (!open) refreshAgentStatus();
   };
 
-  const truncatedBusinessName = truncateText(card.owner_business_name, 20);
+  const agentAlias = card.cod_agent ? getAlias(card.cod_agent, card.owner_business_name) : '';
+  const truncatedAlias = truncateText(agentAlias, 20);
   const fullTooltip = card.owner_name || card.owner_business_name
-    ? `${card.owner_name || ''}${card.owner_name && card.owner_business_name ? ' • ' : ''}${card.owner_business_name || ''}`
+    ? `${card.owner_name || ''}${card.owner_name && card.owner_business_name ? ' • ' : ''}${card.owner_business_name || ''}${agentAlias ? ` • ${agentAlias}` : ''}`
     : card.cod_agent;
 
   // Determine contract status based on stage name
