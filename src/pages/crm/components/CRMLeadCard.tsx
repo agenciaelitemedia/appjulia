@@ -37,6 +37,7 @@ function truncateText(text: string | undefined, maxLength: number): string {
 
  export function CRMLeadCard({ card, onClick, apiCredentials, followupInfo }: CRMLeadCardProps) {
   const { user } = useAuth();
+  const { getAlias } = useAgentAliases();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
   const [videoCallOpen, setVideoCallOpen] = useState(false);
