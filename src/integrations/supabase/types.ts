@@ -1905,6 +1905,90 @@ export type Database = {
           },
         ]
       }
+      support_assistant_config: {
+        Row: {
+          api_key: string | null
+          api_url: string | null
+          connection_status: string | null
+          created_at: string | null
+          id: string
+          instance_name: string | null
+          instance_token: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          api_key?: string | null
+          api_url?: string | null
+          connection_status?: string | null
+          created_at?: string | null
+          id?: string
+          instance_name?: string | null
+          instance_token?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          api_key?: string | null
+          api_url?: string | null
+          connection_status?: string | null
+          created_at?: string | null
+          id?: string
+          instance_name?: string | null
+          instance_token?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      support_group_messages: {
+        Row: {
+          created_at: string | null
+          group_jid: string
+          group_name: string | null
+          id: string
+          instance_name: string | null
+          is_from_me: boolean | null
+          media_url: string | null
+          message_id: string | null
+          message_text: string | null
+          message_type: string | null
+          raw_payload: Json | null
+          sender_jid: string | null
+          sender_name: string | null
+          timestamp: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          group_jid: string
+          group_name?: string | null
+          id?: string
+          instance_name?: string | null
+          is_from_me?: boolean | null
+          media_url?: string | null
+          message_id?: string | null
+          message_text?: string | null
+          message_type?: string | null
+          raw_payload?: Json | null
+          sender_jid?: string | null
+          sender_name?: string | null
+          timestamp?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          group_jid?: string
+          group_name?: string | null
+          id?: string
+          instance_name?: string | null
+          is_from_me?: boolean | null
+          media_url?: string | null
+          message_id?: string | null
+          message_text?: string | null
+          message_type?: string | null
+          raw_payload?: Json | null
+          sender_jid?: string | null
+          sender_name?: string | null
+          timestamp?: string | null
+        }
+        Relationships: []
+      }
       vellip_call_logs: {
         Row: {
           cd_called_status: string | null
