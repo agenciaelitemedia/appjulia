@@ -123,37 +123,6 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
         <p className="text-xs text-muted-foreground font-mono mb-2">
           #{agent.cod_agent}
         </p>
-            <div className="flex items-center gap-1 w-full">
-              <Input
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                className="h-7 text-xs"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveAlias();
-                  if (e.key === 'Escape') handleCancelEdit();
-                }}
-              />
-              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={handleSaveAlias} disabled={upsertAlias.isPending}>
-                <Check className="h-3 w-3 text-green-600" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={handleCancelEdit}>
-                <X className="h-3 w-3 text-destructive" />
-              </Button>
-            </div>
-          ) : (
-            <>
-              <span className="text-xs text-muted-foreground truncate">
-                {alias || '(sem alias)'}
-              </span>
-              {!isMonitored && (
-                <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={handleStartEdit}>
-                  <Pencil className="h-3 w-3 text-muted-foreground" />
-                </Button>
-              )}
-            </>
-          )}
-        </div>
 
         {/* Provider info */}
         {providerLabel && (
