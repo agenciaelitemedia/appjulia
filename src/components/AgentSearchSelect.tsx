@@ -51,7 +51,7 @@ export function AgentSearchSelect({
   const selectedAgent = agents.find((agent) => agent.cod_agent === value);
 
   const displayValue = selectedAgent
-    ? `[${selectedAgent.cod_agent}] - ${selectedAgent.owner_name}`
+    ? `[${selectedAgent.cod_agent}] - ${selectedAgent.alias || selectedAgent.owner_name}`
     : placeholder;
 
   return (
@@ -104,13 +104,8 @@ export function AgentSearchSelect({
                         />
                         <div className="flex flex-col gap-0.5 overflow-hidden">
                           <span className="font-medium truncate">
-                            [{agent.cod_agent}] - {agent.owner_name}
+                            [{agent.cod_agent}] - {agent.alias || agent.owner_name}
                           </span>
-                          {agent.alias && (
-                            <span className="text-xs text-primary/80 truncate">
-                              {agent.alias}
-                            </span>
-                          )}
                           {agent.owner_business_name && (
                             <span className="text-xs text-muted-foreground truncate">
                               {agent.owner_business_name}

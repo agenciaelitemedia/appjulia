@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { externalDb } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
 import { CRMCard, CRMStage, CRMHistory, CRMAgent, CRMFiltersState } from '../types';
+import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
 
 // Hook to get all Julia conversations count (vw_painelv2_desempenho_julia_all)
 export function useCRMJuliaConversations(filters: CRMFiltersState) {
@@ -101,8 +102,9 @@ export function useCRMStages() {
 
 export function useCRMAgents() {
   const { user } = useAuth();
+  const { aliasMap } = useAgentAliases();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['crm-agents', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -112,6 +114,13 @@ export function useCRMAgents() {
     enabled: !!user?.id,
     staleTime: 1000 * 60 * 5,
   });
+
+  const enrichedData = query.data?.map(agent => ({
+    ...agent,
+    alias: aliasMap.get(agent.cod_agent) || getDefaultAlias(agent.owner_business_name),
+  }));
+
+  return { ...query, data: enrichedData };
 }
 
 export function useCRMCards(filters: CRMFiltersState) {

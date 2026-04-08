@@ -247,7 +247,7 @@ export function CRMFilters({ agents, filters, onFiltersChange, isLoading }: CRMF
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">
-                        [{agent.cod_agent}] - {agent.owner_name}
+                        [{agent.cod_agent}] - {agent.alias || agent.owner_name}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
                         {agent.owner_business_name}

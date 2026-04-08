@@ -29,6 +29,7 @@ export interface CRMAgent {
   cod_agent: string;
   owner_name: string;
   owner_business_name?: string;
+  alias?: string;
   name?: string;
   role?: string;
 }

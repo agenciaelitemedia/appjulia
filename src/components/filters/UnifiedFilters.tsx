@@ -79,7 +79,8 @@ export function UnifiedFilters({
     return agents.filter(agent =>
       agent.cod_agent?.toLowerCase().includes(search) ||
       agent.owner_name?.toLowerCase().includes(search) ||
-      agent.owner_business_name?.toLowerCase().includes(search)
+      agent.owner_business_name?.toLowerCase().includes(search) ||
+      agent.alias?.toLowerCase().includes(search)
     );
   }, [agents, agentSearch]);
 
@@ -305,7 +306,7 @@ export function UnifiedFilters({
                           />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">
-                              [{agent.cod_agent}] {agent.owner_name}
+                              [{agent.cod_agent}] {agent.alias || agent.owner_name}
                             </p>
                             {agent.owner_business_name && (
                               <p className="text-xs text-muted-foreground truncate">

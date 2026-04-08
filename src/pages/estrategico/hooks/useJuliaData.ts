@@ -3,11 +3,13 @@ import { externalDb } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
 import { getPreviousPeriod } from '@/lib/dateUtils';
 import { JuliaSessao, JuliaContrato, JuliaFiltersState, JuliaAgent } from '../types';
+import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
 
 export function useJuliaAgents() {
   const { user } = useAuth();
+  const { aliasMap } = useAgentAliases();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['julia-agents', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -16,6 +18,14 @@ export function useJuliaAgents() {
     enabled: !!user?.id,
     staleTime: 1000 * 60 * 5,
   });
+
+  // Enrich agents with aliases
+  const enrichedData = query.data?.map(agent => ({
+    ...agent,
+    alias: aliasMap.get(agent.cod_agent) || getDefaultAlias(agent.owner_business_name),
+  }));
+
+  return { ...query, data: enrichedData };
 }
 
 export function useJuliaSessoes(filters: JuliaFiltersState) {
