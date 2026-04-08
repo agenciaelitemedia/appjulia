@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { externalDb } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
 import { getPreviousPeriod } from '@/lib/dateUtils';
+import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
 import { 
   CampaignAd, 
   CampaignLead, 
@@ -17,12 +18,14 @@ interface CampanhaAgent {
   cod_agent: string;
   owner_name: string;
   owner_business_name?: string;
+  alias?: string;
 }
 
 export function useCampanhasAgents() {
   const { user } = useAuth();
+  const { aliasMap } = useAgentAliases();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['campanhas-agents', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -31,6 +34,13 @@ export function useCampanhasAgents() {
     enabled: !!user?.id,
     staleTime: 1000 * 60 * 5,
   });
+
+  const enrichedData = query.data?.map(agent => ({
+    ...agent,
+    alias: aliasMap.get(agent.cod_agent) || getDefaultAlias(agent.owner_business_name),
+  }));
+
+  return { ...query, data: enrichedData };
 }
 
 export function useCampanhasLeads(filters: CampanhasFiltersState) {
