@@ -84,18 +84,8 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
           <ConnectionStatusBadge status={connectionStatus} isLoading={isLoading} />
         </div>
 
-        {/* Nome */}
-        <h3 className="font-semibold text-foreground mb-1 truncate">
-          {agent.business_name || agent.client_name || 'Sem nome'}
-        </h3>
-        
-        {/* Código do agente */}
-        <p className="text-xs text-muted-foreground font-mono mb-1">
-          #{agent.cod_agent}
-        </p>
-
-        {/* Alias editável */}
-        <div className="flex items-center gap-1 mb-2">
+        {/* Alias como título */}
+        <div className="flex items-center gap-1 mb-1">
           {isEditingAlias ? (
             <div className="flex items-center gap-1 w-full">
               <Input
@@ -117,9 +107,9 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
             </div>
           ) : (
             <>
-              <span className="text-xs text-muted-foreground truncate">
-                {alias || '(sem alias)'}
-              </span>
+              <h3 className="font-semibold text-foreground truncate">
+                {alias || agent.business_name || agent.client_name || 'Sem nome'}
+              </h3>
               {!isMonitored && (
                 <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={handleStartEdit}>
                   <Pencil className="h-3 w-3 text-muted-foreground" />
@@ -128,6 +118,11 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
             </>
           )}
         </div>
+        
+        {/* Código do agente */}
+        <p className="text-xs text-muted-foreground font-mono mb-2">
+          #{agent.cod_agent}
+        </p>
 
         {/* Provider info */}
         {providerLabel && (
