@@ -74,4 +74,5 @@ export interface JuliaAgent {
   cod_agent: string;
   owner_name: string;
   owner_business_name?: string;
+  alias?: string;
 }
