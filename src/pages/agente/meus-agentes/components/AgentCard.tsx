@@ -1,13 +1,17 @@
+import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Bot, Eye, Pencil } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Bot, Check, Eye, Pencil, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { UserAgent } from '../types';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
 import { ConnectionStatusBadge } from './ConnectionStatusBadge';
 import { ConnectionControlButtons } from './ConnectionControlButtons';
+import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
+import { toast } from 'sonner';
 
 interface AgentCardProps {
   agent: UserAgent;
@@ -16,6 +20,10 @@ interface AgentCardProps {
 
 export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
   const navigate = useNavigate();
+  const { getAlias, upsertAlias } = useAgentAliases();
+  const [isEditingAlias, setIsEditingAlias] = useState(false);
+  const [editValue, setEditValue] = useState('');
+
   const { data: connectionStatus = 'no_config', isLoading } = useConnectionStatus(
     agent.hub,
     agent.evo_url,
@@ -25,6 +33,8 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
     agent.agent_id_from_agents
   );
 
+  const alias = getAlias(agent.cod_agent, agent.business_name);
+
   const leadsPercentage = agent.plan_limit 
     ? Math.min((agent.leads_received / agent.plan_limit) * 100, 100)
     : 0;
@@ -32,6 +42,29 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
   const canEdit = !isMonitored && (agent.can_edit_config || agent.can_edit_prompt);
 
   const providerLabel = agent.hub === 'waba' ? 'API Oficial' : agent.hub === 'uazapi' ? 'UaZapi' : null;
+
+  const handleStartEdit = () => {
+    setEditValue(alias || getDefaultAlias(agent.business_name));
+    setIsEditingAlias(true);
+  };
+
+  const handleSaveAlias = () => {
+    if (!editValue.trim()) return;
+    upsertAlias.mutate(
+      { codAgent: agent.cod_agent, alias: editValue.trim() },
+      {
+        onSuccess: () => {
+          setIsEditingAlias(false);
+          toast.success('Alias atualizado');
+        },
+        onError: () => toast.error('Erro ao salvar alias'),
+      }
+    );
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingAlias(false);
+  };
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -60,6 +93,41 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
         <p className="text-xs text-muted-foreground font-mono mb-1">
           #{agent.cod_agent}
         </p>
+
+        {/* Alias editável */}
+        <div className="flex items-center gap-1 mb-2">
+          {isEditingAlias ? (
+            <div className="flex items-center gap-1 w-full">
+              <Input
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                className="h-7 text-xs"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveAlias();
+                  if (e.key === 'Escape') handleCancelEdit();
+                }}
+              />
+              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={handleSaveAlias} disabled={upsertAlias.isPending}>
+                <Check className="h-3 w-3 text-green-600" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={handleCancelEdit}>
+                <X className="h-3 w-3 text-destructive" />
+              </Button>
+            </div>
+          ) : (
+            <>
+              <span className="text-xs text-muted-foreground truncate">
+                {alias || '(sem alias)'}
+              </span>
+              {!isMonitored && (
+                <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={handleStartEdit}>
+                  <Pencil className="h-3 w-3 text-muted-foreground" />
+                </Button>
+              )}
+            </>
+          )}
+        </div>
 
         {/* Provider info */}
         {providerLabel && (

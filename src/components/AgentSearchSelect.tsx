@@ -26,6 +26,7 @@ export interface AgentOption {
   cod_agent: string;
   owner_name: string;
   owner_business_name?: string;
+  alias?: string;
 }
 
 interface AgentSearchSelectProps {
@@ -88,7 +89,7 @@ export function AgentSearchSelect({
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <CommandItem
-                        value={`${agent.cod_agent} ${agent.owner_name} ${agent.owner_business_name || ''}`}
+                        value={`${agent.cod_agent} ${agent.owner_name} ${agent.owner_business_name || ''} ${agent.alias || ''}`}
                         onSelect={() => {
                           onValueChange(agent.cod_agent);
                           setOpen(false);
@@ -105,6 +106,11 @@ export function AgentSearchSelect({
                           <span className="font-medium truncate">
                             [{agent.cod_agent}] - {agent.owner_name}
                           </span>
+                          {agent.alias && (
+                            <span className="text-xs text-primary/80 truncate">
+                              {agent.alias}
+                            </span>
+                          )}
                           {agent.owner_business_name && (
                             <span className="text-xs text-muted-foreground truncate">
                               {agent.owner_business_name}
@@ -113,10 +119,13 @@ export function AgentSearchSelect({
                         </div>
                       </CommandItem>
                     </TooltipTrigger>
-                    {agent.owner_business_name && (
+                    {(agent.owner_business_name || agent.alias) && (
                       <TooltipContent side="right" className="max-w-[250px]">
                         <p className="font-medium">{agent.owner_name}</p>
-                        <p className="text-xs text-muted-foreground">{agent.owner_business_name}</p>
+                        {agent.alias && <p className="text-xs text-primary/80">{agent.alias}</p>}
+                        {agent.owner_business_name && (
+                          <p className="text-xs text-muted-foreground">{agent.owner_business_name}</p>
+                        )}
                       </TooltipContent>
                     )}
                   </Tooltip>

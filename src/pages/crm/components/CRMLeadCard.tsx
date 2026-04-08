@@ -17,6 +17,7 @@ import { formatDbDateTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
+import { useAgentAliases } from '@/hooks/useAgentAliases';
 
 interface CRMLeadCardProps {
   card: CRMCard;
@@ -36,6 +37,7 @@ function truncateText(text: string | undefined, maxLength: number): string {
 
  export function CRMLeadCard({ card, onClick, apiCredentials, followupInfo }: CRMLeadCardProps) {
   const { user } = useAuth();
+  const { getAlias } = useAgentAliases();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
   const [videoCallOpen, setVideoCallOpen] = useState(false);
@@ -89,9 +91,10 @@ function truncateText(text: string | undefined, maxLength: number): string {
     if (!open) refreshAgentStatus();
   };
 
-  const truncatedBusinessName = truncateText(card.owner_business_name, 20);
+  const agentAlias = card.cod_agent ? getAlias(card.cod_agent, card.owner_business_name) : '';
+  const truncatedAlias = truncateText(agentAlias, 20);
   const fullTooltip = card.owner_name || card.owner_business_name
-    ? `${card.owner_name || ''}${card.owner_name && card.owner_business_name ? ' • ' : ''}${card.owner_business_name || ''}`
+    ? `${card.owner_name || ''}${card.owner_name && card.owner_business_name ? ' • ' : ''}${card.owner_business_name || ''}${agentAlias ? ` • ${agentAlias}` : ''}`
     : card.cod_agent;
 
   // Determine contract status based on stage name
@@ -137,7 +140,7 @@ function truncateText(text: string | undefined, maxLength: number): string {
                     <TooltipTrigger asChild>
                       <Badge variant="outline" className="text-[10px] font-normal truncate max-w-full cursor-default">
                         <span className="font-semibold">[{card.cod_agent}]</span>
-                        {truncatedBusinessName && <span className="text-muted-foreground"> - {truncatedBusinessName}</span>}
+                        {truncatedAlias && <span className="text-muted-foreground"> - {truncatedAlias}</span>}
                       </Badge>
                     </TooltipTrigger>
                     <TooltipContent>
