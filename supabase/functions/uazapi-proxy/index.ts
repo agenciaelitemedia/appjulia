@@ -19,6 +19,7 @@ const ALLOWED_PREFIXES = [
   '/call/',
   '/business/',
   '/chatwoot/',
+  '/community/',
 ];
 
 function isEndpointAllowed(endpoint: string): boolean {
