@@ -17,43 +17,27 @@ serve(async (req) => {
 
     const body = await req.json();
     
-    // Log full payload for debugging
-    console.log("[support-webhook] FULL PAYLOAD:", JSON.stringify(body).substring(0, 2000));
+    console.log("[support-webhook] EventType:", body?.EventType, "Instance:", instance);
 
-    // Flexible event detection
-    const event = body?.event || body?.data?.event || "unknown";
-    console.log("[support-webhook] Event:", event, "Instance:", instance);
-
-    // Extract message data from multiple possible paths
-    let msgData: any = null;
-    if (body?.data) {
-      msgData = Array.isArray(body.data) ? body.data[0] : body.data;
-    } else if (body?.message) {
-      msgData = body;
-    } else if (body?.key) {
-      msgData = body;
-    }
-
-    if (!msgData) {
-      console.log("[support-webhook] No message data found in payload");
+    // UaZapi format: body.message.chatid contains the JID
+    const msg = body?.message;
+    const chat = body?.chat;
+    
+    if (!msg) {
       return new Response(JSON.stringify({ ok: true, skipped: "no message data" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Extract key and remoteJid from multiple paths
-    const key = msgData?.key || {};
-    const remoteJid = key?.remoteJid || msgData?.remoteJid || "";
+    const remoteJid = msg?.chatid || chat?.wa_chatid || "";
 
-    // Only process group messages (@g.us)
-    if (!remoteJid.includes("@g.us")) {
-      console.log("[support-webhook] Not a group message, remoteJid:", remoteJid);
+    // Only process group messages
+    if (!remoteJid.includes("@g.us") && !msg?.isGroup) {
       return new Response(JSON.stringify({ ok: true, skipped: "not a group message" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Save to Supabase
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -74,79 +58,62 @@ serve(async (req) => {
       });
     }
 
-    // Extract message content
-    const messageContent = msgData?.message || {};
-    const conversation = messageContent?.conversation
-      || messageContent?.extendedTextMessage?.text
-      || messageContent?.imageMessage?.caption
-      || messageContent?.videoMessage?.caption
-      || "";
-
-    let messageType = "text";
-    if (messageContent?.imageMessage) messageType = "image";
-    else if (messageContent?.videoMessage) messageType = "video";
-    else if (messageContent?.audioMessage) messageType = "audio";
-    else if (messageContent?.documentMessage) messageType = "document";
-    else if (messageContent?.stickerMessage) messageType = "sticker";
-
-    const mediaUrl = messageContent?.imageMessage?.url
-      || messageContent?.videoMessage?.url
-      || messageContent?.audioMessage?.url
-      || messageContent?.documentMessage?.url
-      || null;
-
-    // Extract sender info - handle LID addressing
-    const participant = key?.participant || "";
-    const senderJid = participant || key?.remoteJid || "";
-    const pushName = msgData?.pushName || msgData?.verifiedBizName || "";
-    const messageId = key?.id || "";
-    const isFromMe = key?.fromMe || false;
-
-    // Try to get PhoneNumber from participant data if available (LID mode)
-    // The PhoneNumber field may be in different locations depending on the API version
-    const participantPhone = msgData?.participant?.PhoneNumber 
-      || msgData?.participantPhoneNumber
-      || null;
+    // Extract fields from UaZapi format
+    const content = msg?.content || "";
+    const mediaType = (msg?.mediaType || "").toLowerCase();
+    const isFromMe = msg?.fromMe || false;
+    const messageId = msg?.id || "";
+    const groupName = msg?.groupName || chat?.wa_name || chat?.name || null;
     
-    // Extract phone number: prefer PhoneNumber field, fallback to parsing JID
-    let senderPhone = "";
-    if (participantPhone) {
-      senderPhone = participantPhone.split("@")[0];
-    } else if (senderJid && !senderJid.includes("@lid")) {
-      senderPhone = senderJid.split("@")[0];
-    }
+    // Sender: wa_lastMessageSender is LID, try to get phone from chat.owner or parse
+    const senderLid = chat?.wa_lastMessageSender || "";
+    const senderPhone = msg?.senderPhone || msg?.phone || chat?.phone || "";
+    
+    // Determine message type
+    let messageType = "text";
+    if (mediaType === "image" || mediaType === "imageMessage") messageType = "image";
+    else if (mediaType === "video" || mediaType === "videoMessage") messageType = "video";
+    else if (mediaType === "audio" || mediaType === "audioMessage" || mediaType === "ptt") messageType = "audio";
+    else if (mediaType === "document" || mediaType === "documentMessage") messageType = "document";
+    else if (mediaType === "sticker" || mediaType === "stickerMessage") messageType = "sticker";
+    else if (msg?.wa_lastMessageType === "Conversation" || !mediaType) messageType = "text";
 
-    // Group name from groupMetadata if available
-    const groupName = msgData?.groupMetadata?.subject || body?.groupMetadata?.subject || null;
+    const mediaUrl = msg?.mediaUrl || msg?.media_url || null;
 
-    // Determine sender_role by matching phone with support_team_members
+    // Determine sender role by matching with support_team_members
     let senderRole = "cliente";
+    let senderDisplayName = msg?.senderName || chat?.wa_contactName || "";
+    
     const { data: teamMembers } = await supabase
       .from("support_team_members")
       .select("phone, name");
 
-    let senderDisplayName = pushName;
     if (teamMembers && senderPhone) {
+      const cleanPhone = senderPhone.replace(/\D/g, "");
       const match = teamMembers.find((tm: any) =>
-        tm.phone && (senderPhone.includes(tm.phone) || tm.phone.includes(senderPhone))
+        tm.phone && (cleanPhone.includes(tm.phone) || tm.phone.includes(cleanPhone))
       );
       if (match) {
         senderRole = "suporte";
-        senderDisplayName = match.name || pushName;
+        senderDisplayName = match.name || senderDisplayName;
       }
+    }
+
+    // If isFromMe, it's from the connected account (support)
+    if (isFromMe) {
+      senderRole = "suporte";
     }
 
     // Build descriptive message_text for media
     const roleLabel = senderRole === "suporte" ? `suporte ${senderDisplayName}` : "cliente";
-    let messageText = conversation || null;
+    let messageText = content || null;
 
     if (messageType === "image") {
-      messageText = conversation || `📷 Imagem enviada pelo ${roleLabel}`;
+      messageText = content || `📷 Imagem enviada pelo ${roleLabel}`;
     } else if (messageType === "video") {
-      messageText = conversation || `🎬 Vídeo enviado pelo ${roleLabel}`;
+      messageText = content || `🎬 Vídeo enviado pelo ${roleLabel}`;
     } else if (messageType === "document") {
-      const fileName = messageContent?.documentMessage?.fileName || "";
-      messageText = `📄 Documento${fileName ? ` (${fileName})` : ""} enviado pelo ${roleLabel}`;
+      messageText = content || `📄 Documento enviado pelo ${roleLabel}`;
     } else if (messageType === "audio") {
       messageText = `🎤 Áudio aguardando transcrição`;
     } else if (messageType === "sticker") {
@@ -159,7 +126,7 @@ serve(async (req) => {
       instance_name: instance,
       group_jid: remoteJid,
       group_name: groupName,
-      sender_jid: senderJid,
+      sender_jid: senderLid || senderPhone,
       sender_name: senderDisplayName,
       message_id: messageId,
       message_type: messageType,
@@ -180,7 +147,7 @@ serve(async (req) => {
       });
     }
 
-    console.log("[support-webhook] Message saved from group:", remoteJid, "role:", senderRole, "type:", messageType);
+    console.log("[support-webhook] SAVED:", remoteJid, "role:", senderRole, "type:", messageType);
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
