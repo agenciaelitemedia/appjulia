@@ -1,0 +1,1 @@
+ALTER TABLE public.support_team_members DROP CONSTRAINT IF EXISTS support_team_members_phone_key;
