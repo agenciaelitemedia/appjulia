@@ -111,12 +111,12 @@ serve(async (req) => {
 
     // Build descriptive message_text for media
     const roleLabel = senderRole === "suporte" ? `suporte ${senderDisplayName}` : "cliente";
-    let messageText = content || null;
+    let messageText = contentText || null;
 
     if (messageType === "image") {
-      messageText = content || `📷 Imagem enviada pelo ${roleLabel}`;
+      messageText = contentText || `📷 Imagem enviada pelo ${roleLabel}`;
     } else if (messageType === "video") {
-      messageText = content || `🎬 Vídeo enviado pelo ${roleLabel}`;
+      messageText = contentText || `🎬 Vídeo enviado pelo ${roleLabel}`;
     } else if (messageType === "document") {
       messageText = content || `📄 Documento enviado pelo ${roleLabel}`;
     } else if (messageType === "audio") {
