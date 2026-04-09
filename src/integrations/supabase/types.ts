@@ -2012,6 +2012,7 @@ export type Database = {
           id: string
           instance_name: string | null
           is_from_me: boolean | null
+          is_transcribed: boolean | null
           media_url: string | null
           message_id: string | null
           message_text: string | null
@@ -2019,7 +2020,9 @@ export type Database = {
           raw_payload: Json | null
           sender_jid: string | null
           sender_name: string | null
+          sender_role: string | null
           timestamp: string | null
+          transcription: string | null
         }
         Insert: {
           created_at?: string | null
@@ -2028,6 +2031,7 @@ export type Database = {
           id?: string
           instance_name?: string | null
           is_from_me?: boolean | null
+          is_transcribed?: boolean | null
           media_url?: string | null
           message_id?: string | null
           message_text?: string | null
@@ -2035,7 +2039,9 @@ export type Database = {
           raw_payload?: Json | null
           sender_jid?: string | null
           sender_name?: string | null
+          sender_role?: string | null
           timestamp?: string | null
+          transcription?: string | null
         }
         Update: {
           created_at?: string | null
@@ -2044,6 +2050,7 @@ export type Database = {
           id?: string
           instance_name?: string | null
           is_from_me?: boolean | null
+          is_transcribed?: boolean | null
           media_url?: string | null
           message_id?: string | null
           message_text?: string | null
@@ -2051,7 +2058,42 @@ export type Database = {
           raw_payload?: Json | null
           sender_jid?: string | null
           sender_name?: string | null
+          sender_role?: string | null
           timestamp?: string | null
+          transcription?: string | null
+        }
+        Relationships: []
+      }
+      support_monitored_groups: {
+        Row: {
+          auto_added: boolean
+          created_at: string | null
+          group_jid: string
+          group_name: string
+          id: string
+          is_active: boolean
+          picture_url: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          auto_added?: boolean
+          created_at?: string | null
+          group_jid: string
+          group_name?: string
+          id?: string
+          is_active?: boolean
+          picture_url?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          auto_added?: boolean
+          created_at?: string | null
+          group_jid?: string
+          group_name?: string
+          id?: string
+          is_active?: boolean
+          picture_url?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
