@@ -1,69 +1,71 @@
 
 
-# Edição e Versionamento de Casos Jurídicos (idêntico ao Templates)
+# Redesign Colaboradores Julia + Perfil WhatsApp no Status
 
 ## Resumo
 
-Adicionar botões de edição (com confirmação), exclusão (com dupla checagem) e histórico de versões na aba Casos Jurídicos, replicando o padrão já existente na aba Templates.
+Duas mudanças:
+1. Redesign do card "Colaboradores Julia" com transfer list usando usuários `admin` e `colaborador` do banco externo
+2. Exibir informações completas do perfil WhatsApp conectado no card "Status da Conexão"
 
-## 1. Migração: tabela `generation_legal_case_versions`
+## 1. Migração: colunas extras em `support_team_members`
 
 ```sql
-CREATE TABLE public.generation_legal_case_versions (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  case_id uuid NOT NULL,
-  version_number int NOT NULL,
-  case_name text NOT NULL,
-  category text NOT NULL,
-  case_info text,
-  qualification_script text,
-  fees_info text,
-  changed_by text,
-  change_summary text,
-  created_at timestamptz DEFAULT now()
-);
-
-ALTER TABLE public.generation_legal_case_versions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all on generation_legal_case_versions"
-  ON public.generation_legal_case_versions FOR ALL USING (true) WITH CHECK (true);
+ALTER TABLE public.support_team_members 
+ADD COLUMN IF NOT EXISTS user_id integer,
+ADD COLUMN IF NOT EXISTS email text DEFAULT '',
+ADD COLUMN IF NOT EXISTS role text DEFAULT '';
 ```
 
-## 2. Novo hook: `useLegalCaseVersions.ts`
+## 2. Redesign `SupportTeamConfig.tsx` — Transfer List
 
-Idêntico ao `useTemplateVersions.ts`:
-- `fetchVersions(caseId)` — busca versões ordenadas desc
-- `saveVersion(caseId, currentData, changedBy, changeSummary)` — salva snapshot antes de edição
+### Fonte de dados
 
-## 3. Atualizar `useLegalCases.ts`
+Usar `externalDb.getUsersWithPermissions()` para buscar todos os usuários, depois filtrar **apenas** `role === 'admin'` ou `role === 'colaborador'` no client-side. Cruzar com `support_team_members` para separar disponíveis vs selecionados.
 
-- Importar `useLegalCaseVersions` e chamar `saveVersion` dentro de `updateCase` (antes do update), gerando `change_summary` automático comparando campos alterados (Nome, Categoria, Informações, Roteiro, Honorários)
-- Adicionar `updated_by` ao update
+### Layout
 
-## 4. Novo componente: `LegalCaseHistoryDialog.tsx`
+```text
+┌─────────────────────────────────────────────────────────┐
+│  Colaboradores Julia                                     │
+│  Selecione os usuários que atuam nos grupos de suporte   │
+├──────────────────────────┬──────────────────────────────┤
+│  Disponíveis          🔍 │  Selecionados (3)            │
+│ ┌──────────────────────┐ │ ┌──────────────────────────┐ │
+│ │ João Silva           │ │ │ Ana Souza          [x]   │ │
+│ │ joao@email.com       │ │ │ ana@email.com            │ │
+│ │ [Admin]       [+]    │ │ │ [Colaborador]            │ │
+│ └──────────────────────┘ │ └──────────────────────────┘ │
+└──────────────────────────┴──────────────────────────────┘
+```
 
-Réplica do `TemplateHistoryDialog.tsx` adaptada para `LegalCase`:
-- Lista versões com expand/collapse
-- Mostra snapshot de cada campo (case_info, qualification_script, fees_info)
-- Botão "Comparar com atual" usando `DiffViewer` para cada campo
-- Botão "Restaurar esta versão" com AlertDialog de confirmação
+### Comportamento
 
-## 5. Refatorar `LegalCasesTab.tsx`
+- Filtro por nome/email em cada lista
+- Clicar `+` → insert em `support_team_members` (com `user_id`, `name`, `email`, `role`, `phone` vazio)
+- Clicar `x` → delete de `support_team_members`
+- Campo `phone` editável inline nos selecionados (necessário para identificar mensagens)
+- Badges: `admin` → vermelho, `colaborador` → azul
+- Optimistic UI
 
-Adicionar ao card de cada caso os mesmos botões do TemplatesTab:
-- **Eye** (visualizar) — já existe
-- **Pencil** (editar) — abre confirmação, depois dialog de edição com campos editáveis
-- **History** (histórico) — abre `LegalCaseHistoryDialog`
-- **Trash2** (excluir) — dupla checagem com nome + checkbox (igual templates)
+## 3. Perfil WhatsApp no "Status da Conexão"
 
-O dialog de visualização (read-only) continua, e um novo dialog de edição (com campos editáveis) é adicionado separadamente.
+Quando `connection_status === 'connected'`, fazer fetch direto a `{api_url}/instance/info` e `/instance/status` (mesma lógica do `useConnectedPhoneInfo`) para extrair e exibir no card:
 
-## Arquivos
+- **Foto de perfil** (Avatar)
+- **Nome do perfil** (pushName / profileName)
+- **Número do telefone** (owner / jid)
+- **Nome da instância** (instance.name)
+- **Status** (connected/loggedIn)
+- **Plataforma** (platform, se disponível)
+
+Exibir abaixo do badge de status com layout compacto (Avatar + dados ao lado).
+
+## Arquivos alterados
 
 | Arquivo | Ação |
 |---|---|
-| Migração SQL | Criar tabela `generation_legal_case_versions` |
-| `src/pages/admin/prompts/hooks/useLegalCaseVersions.ts` | Novo hook |
-| `src/pages/admin/prompts/hooks/useLegalCases.ts` | Integrar versionamento no `updateCase` |
-| `src/pages/admin/prompts/components/LegalCaseHistoryDialog.tsx` | Novo componente |
-| `src/pages/admin/prompts/components/LegalCasesTab.tsx` | Adicionar edição, histórico e exclusão com dupla checagem |
+| Migração SQL | Adicionar colunas `user_id`, `email`, `role` |
+| `SupportTeamConfig.tsx` | Redesign completo com transfer list |
+| `SupportAssistantPage.tsx` | Adicionar fetch de perfil WhatsApp no card Status |
 
