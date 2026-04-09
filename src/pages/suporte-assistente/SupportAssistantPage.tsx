@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { Headset, Wifi, WifiOff, Loader2, QrCode, Trash2, RefreshCw, AlertTriangle } from "lucide-react";
+import { Headset, Wifi, WifiOff, Loader2, QrCode, Trash2, RefreshCw, AlertTriangle, Smartphone } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
