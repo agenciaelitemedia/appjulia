@@ -5,8 +5,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, X, Users, Search, Phone } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Loader2, Plus, X, Users, Search, Phone, UserPlus } from "lucide-react";
 import { toast } from "sonner";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
 
 interface TeamMember {
   id: string;
@@ -37,6 +46,18 @@ export default function SupportTeamConfig({ onMembersChange }: SupportTeamConfig
   const [searchSelected, setSearchSelected] = useState("");
   const [editingPhone, setEditingPhone] = useState<string | null>(null);
   const [phoneValue, setPhoneValue] = useState("");
+
+  // Delete confirmation state
+  const [deleteTarget, setDeleteTarget] = useState<TeamMember | null>(null);
+  const [deleteTypedName, setDeleteTypedName] = useState("");
+  const [deleteChecked, setDeleteChecked] = useState(false);
+
+  // Manual add state
+  const [showManualDialog, setShowManualDialog] = useState(false);
+  const [manualName, setManualName] = useState("");
+  const [manualEmail, setManualEmail] = useState("");
+  const [manualPhone, setManualPhone] = useState("");
+  const [addingManual, setAddingManual] = useState(false);
 
   useEffect(() => {
     loadMembers();
@@ -98,34 +119,20 @@ export default function SupportTeamConfig({ onMembersChange }: SupportTeamConfig
   );
 
   const addUser = async (user: ExternalUser) => {
-    // Optimistic
     const tempId = crypto.randomUUID();
     const newMember: TeamMember = {
-      id: tempId,
-      phone: "",
-      name: user.name,
-      user_id: user.id,
-      email: user.email,
-      role: user.role,
+      id: tempId, phone: "", name: user.name,
+      user_id: user.id, email: user.email, role: user.role,
     };
     setMembers((prev) => [...prev, newMember]);
-
     try {
       const { data, error } = await supabase
         .from("support_team_members")
-        .insert({
-          phone: "",
-          name: user.name,
-          user_id: user.id,
-          email: user.email,
-          role: user.role,
-        })
+        .insert({ phone: "", name: user.name, user_id: user.id, email: user.email, role: user.role })
         .select("id")
         .single();
       if (error) throw error;
-      setMembers((prev) =>
-        prev.map((m) => (m.id === tempId ? { ...m, id: data.id } : m))
-      );
+      setMembers((prev) => prev.map((m) => (m.id === tempId ? { ...m, id: data.id } : m)));
       toast.success(`${user.name} adicionado`);
     } catch (err: any) {
       setMembers((prev) => prev.filter((m) => m.id !== tempId));
@@ -133,232 +140,301 @@ export default function SupportTeamConfig({ onMembersChange }: SupportTeamConfig
     }
   };
 
-  const removeUser = async (member: TeamMember) => {
+  const confirmRemoveUser = async () => {
+    if (!deleteTarget) return;
+    const member = deleteTarget;
+    setDeleteTarget(null);
+    setDeleteTypedName("");
+    setDeleteChecked(false);
     setMembers((prev) => prev.filter((m) => m.id !== member.id));
     try {
-      const { error } = await supabase
-        .from("support_team_members")
-        .delete()
-        .eq("id", member.id);
+      const { error } = await supabase.from("support_team_members").delete().eq("id", member.id);
       if (error) throw error;
       toast.success(`${member.name} removido`);
-      onMembersChange?.(
-        members
-          .filter((m) => m.id !== member.id)
-          .map((m) => m.phone)
-          .filter(Boolean)
-      );
+      onMembersChange?.(members.filter((m) => m.id !== member.id).map((m) => m.phone).filter(Boolean));
     } catch (err: any) {
       loadMembers();
       toast.error("Erro ao remover", { description: err.message });
     }
   };
 
+  const handleManualAdd = async () => {
+    if (!manualName.trim()) return;
+    setAddingManual(true);
+    try {
+      const cleanPhone = manualPhone.replace(/\D/g, "");
+      const { data, error } = await supabase
+        .from("support_team_members")
+        .insert({ phone: cleanPhone, name: manualName.trim(), email: manualEmail.trim(), role: "manual" })
+        .select()
+        .single();
+      if (error) throw error;
+      setMembers((prev) => [...prev, data as TeamMember]);
+      toast.success(`${manualName.trim()} adicionado manualmente`);
+      setShowManualDialog(false);
+      setManualName(""); setManualEmail(""); setManualPhone("");
+    } catch (err: any) {
+      toast.error("Erro ao adicionar", { description: err.message });
+    } finally {
+      setAddingManual(false);
+    }
+  };
+
   const savePhone = async (member: TeamMember) => {
     const cleanPhone = phoneValue.replace(/\D/g, "");
     try {
-      const { error } = await supabase
-        .from("support_team_members")
-        .update({ phone: cleanPhone })
-        .eq("id", member.id);
+      const { error } = await supabase.from("support_team_members").update({ phone: cleanPhone }).eq("id", member.id);
       if (error) throw error;
-      setMembers((prev) =>
-        prev.map((m) => (m.id === member.id ? { ...m, phone: cleanPhone } : m))
-      );
+      setMembers((prev) => prev.map((m) => (m.id === member.id ? { ...m, phone: cleanPhone } : m)));
       setEditingPhone(null);
       toast.success("Telefone atualizado");
-      onMembersChange?.(
-        members.map((m) => (m.id === member.id ? cleanPhone : m.phone)).filter(Boolean)
-      );
+      onMembersChange?.(members.map((m) => (m.id === member.id ? cleanPhone : m.phone)).filter(Boolean));
     } catch (err: any) {
       toast.error("Erro ao salvar telefone", { description: err.message });
     }
   };
 
   const getRoleBadge = (role: string) => {
-    if (role === "admin") {
-      return <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Admin</Badge>;
-    }
+    if (role === "admin") return <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Admin</Badge>;
+    if (role === "manual") return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200 text-[10px] px-1.5 py-0">Manual</Badge>;
     return <Badge className="bg-blue-500/10 text-blue-600 border-blue-200 text-[10px] px-1.5 py-0">Colaborador</Badge>;
   };
 
   const isLoading = loading || loadingUsers;
+  const deleteNameMatches = deleteTarget ? deleteTypedName.trim().toLowerCase() === deleteTarget.name.trim().toLowerCase() : false;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          Colaboradores Julia
-        </CardTitle>
-        <CardDescription>
-          Selecione os usuários que atuam nos grupos de suporte para identificar mensagens
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Available */}
-            <div className="border rounded-lg">
-              <div className="p-3 border-b bg-muted/30">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Disponíveis</span>
-                  <Badge variant="outline" className="text-xs">{availableUsers.length}</Badge>
-                </div>
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar por nome ou email..."
-                    value={searchAvailable}
-                    onChange={(e) => setSearchAvailable(e.target.value)}
-                    className="pl-8 h-8 text-xs"
-                  />
-                </div>
-              </div>
-              <div className="max-h-[300px] overflow-y-auto">
-                {availableUsers.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-6">
-                    Nenhum usuário disponível
-                  </p>
-                ) : (
-                  availableUsers.map((user) => (
-                    <div
-                      key={user.id}
-                      className="flex items-center justify-between p-2.5 hover:bg-muted/50 border-b last:border-b-0 transition-colors"
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0">
-                          {user.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-medium truncate">{user.name}</span>
-                            {getRoleBadge(user.role)}
-                          </div>
-                          <span className="text-[11px] text-muted-foreground truncate block">
-                            {user.email}
-                          </span>
-                        </div>
-                      </div>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Colaboradores Julia
+          </CardTitle>
+          <CardDescription>
+            Selecione os usuários que atuam nos grupos de suporte para identificar mensagens
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Available */}
+              <div className="border rounded-lg">
+                <div className="p-3 border-b bg-muted/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium">Disponíveis</span>
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="outline" className="text-xs">{availableUsers.length}</Badge>
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        className="h-7 w-7 p-0 shrink-0 text-primary hover:bg-primary/10"
-                        onClick={() => addUser(user)}
+                        className="h-7 text-xs gap-1"
+                        onClick={() => setShowManualDialog(true)}
                       >
-                        <Plus className="h-4 w-4" />
+                        <UserPlus className="h-3.5 w-3.5" />
+                        Manual
                       </Button>
                     </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Selected */}
-            <div className="border rounded-lg border-primary/20">
-              <div className="p-3 border-b bg-primary/5">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Selecionados</span>
-                  <Badge className="text-xs">{members.length}</Badge>
+                  </div>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar por nome ou email..."
+                      value={searchAvailable}
+                      onChange={(e) => setSearchAvailable(e.target.value)}
+                      className="pl-8 h-8 text-xs"
+                    />
+                  </div>
                 </div>
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar selecionados..."
-                    value={searchSelected}
-                    onChange={(e) => setSearchSelected(e.target.value)}
-                    className="pl-8 h-8 text-xs"
-                  />
-                </div>
-              </div>
-              <div className="max-h-[300px] overflow-y-auto">
-                {filteredMembers.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-6">
-                    Nenhum colaborador selecionado
-                  </p>
-                ) : (
-                  filteredMembers.map((member) => (
-                    <div
-                      key={member.id}
-                      className="p-2.5 hover:bg-muted/50 border-b last:border-b-0 transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
+                <div className="max-h-[300px] overflow-y-auto">
+                  {availableUsers.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-6">Nenhum usuário disponível</p>
+                  ) : (
+                    availableUsers.map((user) => (
+                      <div key={user.id} className="flex items-center justify-between p-2.5 hover:bg-muted/50 border-b last:border-b-0 transition-colors">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0">
-                            {member.name.charAt(0).toUpperCase()}
+                            {user.name.charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
-                              <span className="text-sm font-medium truncate">{member.name}</span>
-                              {member.role && getRoleBadge(member.role)}
+                              <span className="text-sm font-medium truncate">{user.name}</span>
+                              {getRoleBadge(user.role)}
                             </div>
-                            <span className="text-[11px] text-muted-foreground truncate block">
-                              {member.email}
-                            </span>
+                            <span className="text-[11px] text-muted-foreground truncate block">{user.email}</span>
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0 shrink-0 text-destructive hover:bg-destructive/10"
-                          onClick={() => removeUser(member)}
-                        >
-                          <X className="h-4 w-4" />
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0 text-primary hover:bg-primary/10" onClick={() => addUser(user)}>
+                          <Plus className="h-4 w-4" />
                         </Button>
                       </div>
-                      {/* Inline phone */}
-                      <div className="mt-1.5 ml-10">
-                        {editingPhone === member.id ? (
-                          <div className="flex items-center gap-1.5">
-                            <Input
-                              value={phoneValue}
-                              onChange={(e) => setPhoneValue(e.target.value)}
-                              placeholder="5511999999999"
-                              className="h-6 text-xs w-40 font-mono"
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") savePhone(member);
-                                if (e.key === "Escape") setEditingPhone(null);
-                              }}
-                              autoFocus
-                            />
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 text-xs px-2"
-                              onClick={() => savePhone(member)}
-                            >
-                              OK
-                            </Button>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Selected */}
+              <div className="border rounded-lg border-primary/20">
+                <div className="p-3 border-b bg-primary/5">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium">Selecionados</span>
+                    <Badge className="text-xs">{members.length}</Badge>
+                  </div>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar selecionados..."
+                      value={searchSelected}
+                      onChange={(e) => setSearchSelected(e.target.value)}
+                      className="pl-8 h-8 text-xs"
+                    />
+                  </div>
+                </div>
+                <div className="max-h-[300px] overflow-y-auto">
+                  {filteredMembers.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-6">Nenhum colaborador selecionado</p>
+                  ) : (
+                    filteredMembers.map((member) => (
+                      <div key={member.id} className="p-2.5 hover:bg-muted/50 border-b last:border-b-0 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0">
+                              {member.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-sm font-medium truncate">{member.name}</span>
+                                {member.role && getRoleBadge(member.role)}
+                              </div>
+                              <span className="text-[11px] text-muted-foreground truncate block">{member.email}</span>
+                            </div>
                           </div>
-                        ) : (
-                          <button
-                            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-                            onClick={() => {
-                              setEditingPhone(member.id);
-                              setPhoneValue(member.phone || "");
-                            }}
+                          <Button
+                            variant="ghost" size="sm"
+                            className="h-7 w-7 p-0 shrink-0 text-destructive hover:bg-destructive/10"
+                            onClick={() => { setDeleteTarget(member); setDeleteTypedName(""); setDeleteChecked(false); }}
                           >
-                            <Phone className="h-3 w-3" />
-                            {member.phone ? (
-                              <span className="font-mono">{member.phone}</span>
-                            ) : (
-                              <span className="italic">Adicionar telefone</span>
-                            )}
-                          </button>
-                        )}
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="mt-1.5 ml-10">
+                          {editingPhone === member.id ? (
+                            <div className="flex items-center gap-1.5">
+                              <Input
+                                value={phoneValue}
+                                onChange={(e) => setPhoneValue(e.target.value)}
+                                placeholder="5511999999999"
+                                className="h-6 text-xs w-40 font-mono"
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") savePhone(member);
+                                  if (e.key === "Escape") setEditingPhone(null);
+                                }}
+                                autoFocus
+                              />
+                              <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => savePhone(member)}>OK</Button>
+                            </div>
+                          ) : (
+                            <button
+                              className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                              onClick={() => { setEditingPhone(member.id); setPhoneValue(member.phone || ""); }}
+                            >
+                              <Phone className="h-3 w-3" />
+                              {member.phone ? <span className="font-mono">{member.phone}</span> : <span className="italic">Adicionar telefone</span>}
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
               </div>
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteTypedName(""); setDeleteChecked(false); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover colaborador</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja remover <strong>{deleteTarget?.name}</strong> dos colaboradores do assistente de suporte?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label className="text-sm">Digite o nome do colaborador para confirmar:</Label>
+              <Input
+                placeholder={deleteTarget?.name}
+                value={deleteTypedName}
+                onChange={(e) => setDeleteTypedName(e.target.value)}
+                className="text-sm"
+              />
+              {deleteTypedName && !deleteNameMatches && (
+                <p className="text-xs text-destructive">O nome não confere</p>
+              )}
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="confirm-delete"
+                checked={deleteChecked}
+                onCheckedChange={(v) => setDeleteChecked(v === true)}
+              />
+              <Label htmlFor="confirm-delete" className="text-sm cursor-pointer">
+                Confirmo a remoção deste colaborador
+              </Label>
+            </div>
           </div>
-        )}
-      </CardContent>
-    </Card>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={!deleteNameMatches || !deleteChecked}
+              onClick={confirmRemoveUser}
+            >
+              Remover
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Manual add dialog */}
+      <Dialog open={showManualDialog} onOpenChange={setShowManualDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5" />
+              Adicionar colaborador manual
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Nome *</Label>
+              <Input value={manualName} onChange={(e) => setManualName(e.target.value)} placeholder="Nome do colaborador" />
+            </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input value={manualEmail} onChange={(e) => setManualEmail(e.target.value)} placeholder="email@exemplo.com" type="email" />
+            </div>
+            <div className="space-y-2">
+              <Label>Telefone</Label>
+              <Input value={manualPhone} onChange={(e) => setManualPhone(e.target.value)} placeholder="5511999999999" className="font-mono" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowManualDialog(false)}>Cancelar</Button>
+            <Button onClick={handleManualAdd} disabled={!manualName.trim() || addingManual}>
+              {addingManual ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+              Adicionar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
