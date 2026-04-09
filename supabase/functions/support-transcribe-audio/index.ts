@@ -50,7 +50,6 @@ serve(async (req) => {
       .from("support_group_messages")
       .select("id, media_url, message_id, message_type, sender_name, sender_role, group_name, raw_payload")
       .eq("is_transcribed", false)
-      .not("media_url", "is", null)
       .in("message_type", ["audio", "image"])
       .order("created_at", { ascending: true })
       .limit(10);
