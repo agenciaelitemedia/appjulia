@@ -95,13 +95,18 @@ serve(async (req) => {
 
         // Download decrypted media via UaZapi /message/download
         console.log(`[transcribe] Downloading media for ${msg.id} via /message/download msgId=${msgId}`);
-        const downloadResp = await fetch(`${baseUrl}/${instanceName}/message/download`, {
+        const downloadResp = await fetch(`${baseUrl}/message/download`, {
           method: "POST",
           headers: {
             "apikey": apiKey,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ id: msgId }),
+          body: JSON.stringify({
+            id: msgId,
+            return_base64: true,
+            return_link: false,
+            generate_mp3: false,
+          }),
         });
 
         if (!downloadResp.ok) {
