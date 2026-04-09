@@ -1,73 +1,69 @@
 
 
-# Assistente de Suporte — Abas Logs, Grupos e Colaboradores
+# Edição e Versionamento de Casos Jurídicos (idêntico ao Templates)
 
 ## Resumo
 
-Adicionar 3 funcionalidades ao módulo Assistente de Suporte:
-1. **Aba Logs** — exibir mensagens gravadas em `support_group_messages` com paginação
-2. **Aba Grupos** — listar grupos via API UaZapi (`/group/list`), com foto, nome, quantidade de participantes, e lista colapsável separando colaboradores Julia vs clientes
-3. **Aba Configuração** — adicionar seção para cadastrar JIDs/números dos colaboradores da Julia (nova tabela)
+Adicionar botões de edição (com confirmação), exclusão (com dupla checagem) e histórico de versões na aba Casos Jurídicos, replicando o padrão já existente na aba Templates.
 
-## 1. Migração: tabela `support_team_members`
+## 1. Migração: tabela `generation_legal_case_versions`
 
 ```sql
-CREATE TABLE public.support_team_members (
+CREATE TABLE public.generation_legal_case_versions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  phone text NOT NULL,
-  name text NOT NULL DEFAULT '',
-  created_at timestamptz DEFAULT now(),
-  UNIQUE(phone)
+  case_id uuid NOT NULL,
+  version_number int NOT NULL,
+  case_name text NOT NULL,
+  category text NOT NULL,
+  case_info text,
+  qualification_script text,
+  fees_info text,
+  changed_by text,
+  change_summary text,
+  created_at timestamptz DEFAULT now()
 );
 
-ALTER TABLE public.support_team_members ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Allow all on support_team_members"
-  ON public.support_team_members FOR ALL
-  USING (true) WITH CHECK (true);
+ALTER TABLE public.generation_legal_case_versions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all on generation_legal_case_versions"
+  ON public.generation_legal_case_versions FOR ALL USING (true) WITH CHECK (true);
 ```
 
-Esta tabela armazena os números/JIDs dos colaboradores da Julia para classificar mensagens como "suporte" vs "cliente".
+## 2. Novo hook: `useLegalCaseVersions.ts`
 
-## 2. Novos componentes
+Idêntico ao `useTemplateVersions.ts`:
+- `fetchVersions(caseId)` — busca versões ordenadas desc
+- `saveVersion(caseId, currentData, changedBy, changeSummary)` — salva snapshot antes de edição
 
-### `src/pages/suporte-assistente/components/SupportLogsTab.tsx`
+## 3. Atualizar `useLegalCases.ts`
 
-- Query paginada em `support_group_messages` (20 por página)
-- Tabela: timestamp, grupo, remetente, tipo, texto (truncado)
-- Badge colorido: se `sender_jid` está na lista de `support_team_members` → "Suporte", senão → "Cliente"
-- Botões anterior/próximo para paginação
-- Filtro por grupo ou remetente
+- Importar `useLegalCaseVersions` e chamar `saveVersion` dentro de `updateCase` (antes do update), gerando `change_summary` automático comparando campos alterados (Nome, Categoria, Informações, Roteiro, Honorários)
+- Adicionar `updated_by` ao update
 
-### `src/pages/suporte-assistente/components/SupportGroupsTab.tsx`
+## 4. Novo componente: `LegalCaseHistoryDialog.tsx`
 
-- Ao montar, chama API UaZapi `GET {api_url}/group/list` com header `token`
-- Lista cada grupo: foto (`pictureUrl`), nome (`subject`), contagem de participantes
-- Cada grupo é um `Accordion` colapsável
-- Ao expandir: lista participantes separados em "Colaboradores Julia" (match com `support_team_members`) e "Clientes"
-- Cada participante mostra JID e nome (se disponível)
+Réplica do `TemplateHistoryDialog.tsx` adaptada para `LegalCase`:
+- Lista versões com expand/collapse
+- Mostra snapshot de cada campo (case_info, qualification_script, fees_info)
+- Botão "Comparar com atual" usando `DiffViewer` para cada campo
+- Botão "Restaurar esta versão" com AlertDialog de confirmação
 
-### `src/pages/suporte-assistente/components/SupportTeamConfig.tsx`
+## 5. Refatorar `LegalCasesTab.tsx`
 
-- CRUD simples na tabela `support_team_members`
-- Campos: número de telefone e nome
-- Lista existente com botão remover
-- Adicionado na aba Configuração abaixo dos cards existentes
+Adicionar ao card de cada caso os mesmos botões do TemplatesTab:
+- **Eye** (visualizar) — já existe
+- **Pencil** (editar) — abre confirmação, depois dialog de edição com campos editáveis
+- **History** (histórico) — abre `LegalCaseHistoryDialog`
+- **Trash2** (excluir) — dupla checagem com nome + checkbox (igual templates)
 
-## 3. Alteração: `SupportAssistantPage.tsx`
-
-- Importar os 3 novos componentes
-- Adicionar abas "Logs" e "Grupos" ao `TabsList`
-- Abas só aparecem se `isConfigured` (instância criada)
-- Inserir `<SupportTeamConfig />` dentro da aba Configuração
+O dialog de visualização (read-only) continua, e um novo dialog de edição (com campos editáveis) é adicionado separadamente.
 
 ## Arquivos
 
 | Arquivo | Ação |
 |---|---|
-| Migração SQL | Criar tabela `support_team_members` |
-| `src/pages/suporte-assistente/components/SupportLogsTab.tsx` | Novo — aba de logs paginados |
-| `src/pages/suporte-assistente/components/SupportGroupsTab.tsx` | Novo — lista de grupos com participantes |
-| `src/pages/suporte-assistente/components/SupportTeamConfig.tsx` | Novo — CRUD de colaboradores |
-| `src/pages/suporte-assistente/SupportAssistantPage.tsx` | Adicionar abas e integrar componentes |
+| Migração SQL | Criar tabela `generation_legal_case_versions` |
+| `src/pages/admin/prompts/hooks/useLegalCaseVersions.ts` | Novo hook |
+| `src/pages/admin/prompts/hooks/useLegalCases.ts` | Integrar versionamento no `updateCase` |
+| `src/pages/admin/prompts/components/LegalCaseHistoryDialog.tsx` | Novo componente |
+| `src/pages/admin/prompts/components/LegalCasesTab.tsx` | Adicionar edição, histórico e exclusão com dupla checagem |
 
