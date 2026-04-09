@@ -358,42 +358,64 @@ export function LegalCasesTab() {
               Esta ação é irreversível. Para confirmar, digite o nome do caso abaixo.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Nome do caso:</Label>
-              <Input value={deleting?.case_name || ''} readOnly className="bg-muted font-mono text-sm" />
+
+          {checkingUsage ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-sm text-muted-foreground">Verificando vínculos...</span>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="delete-case-name" className="text-sm font-medium">Digite o nome para confirmar:</Label>
-              <Input
-                id="delete-case-name"
-                value={deleteTypedName}
-                onChange={e => setDeleteTypedName(e.target.value)}
-                placeholder="Digite o nome exato..."
-                className={deleteTypedName && !deleteNameMatch ? 'border-destructive' : ''}
-                disabled={deleteLoading}
-              />
-              {deleteTypedName && !deleteNameMatch && (
-                <p className="text-xs text-destructive">O nome não corresponde</p>
-              )}
+          ) : (usageCount || 0) > 0 ? (
+            <div className="py-4 space-y-3">
+              <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-center">
+                <p className="text-sm font-medium text-destructive">
+                  Este caso está vinculado a {usageCount} prompt(s) de agente(s).
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Remova todos os vínculos antes de excluir o caso.
+                </p>
+              </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="delete-case-check"
-                checked={deleteConfirmed}
-                onCheckedChange={checked => setDeleteConfirmed(checked === true)}
-                disabled={deleteLoading}
-              />
-              <Label htmlFor="delete-case-check" className="text-sm font-medium leading-none">
-                Confirmo que desejo excluir este caso permanentemente
-              </Label>
+          ) : (
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Nome do caso:</Label>
+                <Input value={deleting?.case_name || ''} readOnly className="bg-muted font-mono text-sm" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="delete-case-name" className="text-sm font-medium">Digite o nome para confirmar:</Label>
+                <Input
+                  id="delete-case-name"
+                  value={deleteTypedName}
+                  onChange={e => setDeleteTypedName(e.target.value)}
+                  placeholder="Digite o nome exato..."
+                  className={deleteTypedName && !deleteNameMatch ? 'border-destructive' : ''}
+                  disabled={deleteLoading}
+                />
+                {deleteTypedName && !deleteNameMatch && (
+                  <p className="text-xs text-destructive">O nome não corresponde</p>
+                )}
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="delete-case-check"
+                  checked={deleteConfirmed}
+                  onCheckedChange={checked => setDeleteConfirmed(checked === true)}
+                  disabled={deleteLoading}
+                />
+                <Label htmlFor="delete-case-check" className="text-sm font-medium leading-none">
+                  Confirmo que desejo excluir este caso permanentemente
+                </Label>
+              </div>
             </div>
-          </div>
+          )}
+
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteLoading}>Cancelar</AlertDialogCancel>
-            <Button variant="destructive" onClick={handleDelete} disabled={!canDelete}>
-              {deleteLoading ? 'Excluindo...' : 'Excluir Caso'}
-            </Button>
+            {(usageCount === 0) && (
+              <Button variant="destructive" onClick={handleDelete} disabled={!canDelete}>
+                {deleteLoading ? 'Excluindo...' : 'Excluir Caso'}
+              </Button>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
