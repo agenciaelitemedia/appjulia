@@ -124,7 +124,7 @@ serve(async (req) => {
         }
 
         const downloadData = await downloadResp.json();
-        console.log(`[transcribe] Download response keys for ${msg.id}:`, Object.keys(downloadData), "status:", downloadData.code || "ok");
+        console.log(`[transcribe] Download OK for ${msg.id}, mimetype: ${downloadData.mimetype || "unknown"}`);
         const base64Data = downloadData.base64Data || downloadData.base64 || downloadData.data || downloadData.file || null;
         const mimetype = downloadData.mimetype || downloadData.mimeType || downloadData.mime || (msg.message_type === "audio" ? "audio/ogg" : "image/jpeg");
 
