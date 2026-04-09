@@ -1,20 +1,48 @@
 
 
-# Corrigir endpoint de listagem de grupos no Assistente de Suporte
+# Corrigir listagem de grupos — dados completos via proxy
 
 ## Problema
 
-A aba Grupos chama `/group/fetchAllGroups` que retorna 404. O endpoint correto na API UaZapi é `/group/list` (conforme definido em `src/lib/uazapi/endpoints/group.ts`).
+Dois problemas:
+1. O endpoint `/group/list` retorna apenas dados mínimos (id, subject) sem participantes, foto ou tamanho
+2. A chamada é feita diretamente do browser para a API UaZapi, o que pode sofrer bloqueio CORS
 
-## Correção
+## Solução
 
-Alterar `SupportGroupsTab.tsx` linha 36: trocar `/group/fetchAllGroups` por `/group/list`.
+Alterar `SupportGroupsTab.tsx` para:
 
-Também ajustar o parsing da resposta para cobrir possíveis formatos de retorno da API (array direto ou objeto com campo `data`/`groups`).
+1. **Usar o proxy** (`uazapi-proxy` edge function) em vez de fetch direto, evitando CORS
+2. **Trocar endpoint** para `/group/fetchAllGroups` com `getParticipants=true` no body — este é o endpoint da Evolution API que retorna dados completos (foto, participantes, descrição, etc.)
+3. **Fallback**: se `/group/fetchAllGroups` falhar, tentar `/group/list` e depois buscar info individual via `/group/info` para cada grupo
+4. **Mapear campos** corretamente da resposta da API (pode vir como `groupMetadata`, `profilePictureUrl`, `participants`, etc.)
+
+## Mudança técnica
+
+```typescript
+// Antes: fetch direto
+const resp = await fetch(`${apiUrl}/group/list`, { headers: { token } });
+
+// Depois: via proxy com endpoint correto
+const resp = await fetch(`${supabaseUrl}/functions/v1/uazapi-proxy`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json", apikey, authorization },
+  body: JSON.stringify({
+    method: "GET",
+    endpoint: "/group/fetchAllGroups?getParticipants=true",
+    token: instanceToken,
+    baseUrl: apiUrl,
+  }),
+});
+const result = await resp.json();
+// result.data contém array de grupos com participantes
+```
+
+Também adicionar `console.log` da resposta raw para debug e normalizar os campos (`pictureUrl` / `profilePictureUrl`, `participants`, `size`/`participants.length`).
 
 ## Arquivo alterado
 
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/suporte-assistente/components/SupportGroupsTab.tsx` | Trocar endpoint para `/group/list` |
+| `SupportGroupsTab.tsx` | Usar proxy, endpoint `/group/fetchAllGroups?getParticipants=true`, normalizar campos da resposta |
 
