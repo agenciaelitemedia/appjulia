@@ -33,6 +33,7 @@ interface GroupInfo {
   description?: string;
   isLocked?: boolean;
   isAnnounce?: boolean;
+  codAgent: string | null;
 }
 
 interface TeamMemberRecord {
@@ -40,11 +41,10 @@ interface TeamMemberRecord {
   name: string;
 }
 
-interface MonitoredGroup {
-  group_jid: string;
-  group_name: string;
-  is_active: boolean;
-}
+const extractCodAgent = (groupName: string): string | null => {
+  const match = groupName.match(/\[(20\d{6})\]/);
+  return match ? match[1] : null;
+};
 
 export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroupsTabProps) {
   const [groups, setGroups] = useState<GroupInfo[]>([]);
@@ -95,9 +95,10 @@ export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroup
         isSuperAdmin: !!(p.IsSuperAdmin || p.isSuperAdmin || p.admin === "superadmin"),
       };
     });
+    const name = (g.Name || g.name || g.subject || g.groupName || "") as string;
     return {
       jid: (g.JID || g.jid || g.id || g.groupId || "") as string,
-      name: (g.Name || g.name || g.subject || g.groupName || "") as string,
+      name,
       size: (g.Size || g.size || participants.length || 0) as number,
       pictureUrl: (g.ProfilePictureUrl || g.pictureUrl || g.profilePictureUrl || g.imgUrl || g.picture || null) as string | undefined,
       participants,
@@ -105,6 +106,7 @@ export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroup
       description: (g.Description || g.description || g.desc || "") as string,
       isLocked: !!(g.IsLocked || g.isLocked || g.restrict),
       isAnnounce: !!(g.IsAnnounce || g.isAnnounce || g.announce),
+      codAgent: extractCodAgent(name),
     };
   };
 
@@ -221,7 +223,108 @@ export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroup
     return groups.filter(g => g.name.toLowerCase().includes(term) || g.jid.includes(term));
   }, [groups, searchTerm]);
 
-  const monitoredCount = groups.filter(g => monitoredJids.has(g.jid)).length;
+  const monitoredGroups = useMemo(() => filteredGroups.filter(g => monitoredJids.has(g.jid)), [filteredGroups, monitoredJids]);
+  const unmonitoredGroups = useMemo(() => filteredGroups.filter(g => !monitoredJids.has(g.jid)), [filteredGroups, monitoredJids]);
+
+  const renderGroupCard = (group: GroupInfo, isMonitored: boolean) => {
+    const participants = group.participants || [];
+    const team = participants.filter((p) => isTeamMember(p));
+    const clients = participants.filter((p) => !isTeamMember(p));
+    const isToggling = togglingJid === group.jid;
+
+    return (
+      <AccordionItem
+        key={group.jid}
+        value={group.jid}
+        className={`border rounded-lg px-4 ${
+          isMonitored
+            ? "border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20"
+            : ""
+        }`}
+      >
+        <AccordionTrigger className="hover:no-underline">
+          <div className="flex items-center gap-3 text-left w-full">
+            <Avatar className="h-10 w-10">
+              <AvatarImage src={group.pictureUrl} />
+              <AvatarFallback>{(group.name || "G")[0]}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-medium text-sm truncate">{group.name || group.jid}</p>
+                {group.codAgent && (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 font-mono">
+                    {group.codAgent}
+                  </Badge>
+                )}
+                {isMonitored && (
+                  <Badge className="bg-green-500/10 text-green-600 border-green-200 text-[10px] px-1.5 py-0 shrink-0">
+                    <Eye className="h-2.5 w-2.5 mr-0.5" />
+                    Monitorando
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>{group.size || participants.length} participantes</span>
+                {team.length > 0 && (
+                  <Badge className="bg-blue-500/10 text-blue-600 border-blue-200 text-[10px] px-1.5 py-0">
+                    {team.length} colaborador{team.length > 1 ? "es" : ""}
+                  </Badge>
+                )}
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`shrink-0 h-8 w-8 ${isMonitored ? "text-green-600 hover:text-red-600" : "text-muted-foreground hover:text-green-600"}`}
+              onClick={(e) => { e.stopPropagation(); toggleMonitoring(group); }}
+              disabled={isToggling}
+            >
+              {isToggling ? <Loader2 className="h-4 w-4 animate-spin" /> : isMonitored ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+            </Button>
+          </div>
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="space-y-4 pt-2">
+            {team.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-blue-600 flex items-center gap-1 mb-2">
+                  <Shield className="h-3 w-3" /> Colaboradores Julia ({team.length})
+                </p>
+                <div className="space-y-1">
+                  {team.map((p) => {
+                    const member = findTeamMember(p);
+                    return (
+                      <div key={p.jid} className="flex items-center gap-2 text-xs pl-4">
+                        <Badge className="bg-blue-500/10 text-blue-600 text-xs">Suporte</Badge>
+                        <span className="font-medium">{member?.name || p.phoneNumber || p.displayName || p.jid.split("@")[0]}</span>
+                        <span className="text-muted-foreground">{p.phoneNumber || p.jid.split("@")[0]}</span>
+                        {p.isAdmin && <Badge variant="outline" className="text-xs">Admin</Badge>}
+                        {p.isSuperAdmin && <Badge variant="outline" className="text-xs">Super Admin</Badge>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mb-2">
+                <User className="h-3 w-3" /> Clientes ({clients.length})
+              </p>
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {clients.map((p) => (
+                  <div key={p.jid} className="flex items-center gap-2 text-xs pl-4">
+                    <Badge variant="secondary" className="text-xs">Cliente</Badge>
+                    <span>{p.phoneNumber || p.displayName || p.jid.split("@")[0]}</span>
+                    {p.isAdmin && <Badge variant="outline" className="text-xs">Admin</Badge>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    );
+  };
 
   return (
     <Card>
@@ -232,13 +335,20 @@ export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroup
               <Users className="h-5 w-5" />
               Grupos ({groups.length})
             </CardTitle>
-            <CardDescription className="flex items-center gap-2">
-              Grupos do WhatsApp conectado ao assistente
-              {groups.length > 0 && (
-                <Badge variant="outline" className="text-xs">
-                  <Eye className="h-3 w-3 mr-1" />
-                  {monitoredCount} monitorados
-                </Badge>
+            <CardDescription className="flex items-center gap-2 flex-wrap">
+              {groups.length > 0 ? (
+                <>
+                  <Badge variant="outline" className="text-xs">
+                    <Eye className="h-3 w-3 mr-1" />
+                    {monitoredGroups.length} monitorados
+                  </Badge>
+                  <Badge variant="outline" className="text-xs text-muted-foreground">
+                    <EyeOff className="h-3 w-3 mr-1" />
+                    {unmonitoredGroups.length} não monitorados
+                  </Badge>
+                </>
+              ) : (
+                "Grupos do WhatsApp conectado ao assistente"
               )}
             </CardDescription>
           </div>
@@ -279,95 +389,30 @@ export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroup
             {searchTerm ? "Nenhum grupo encontrado com esse filtro" : "Nenhum grupo encontrado"}
           </p>
         ) : (
-          <Accordion type="multiple" className="space-y-2">
-            {filteredGroups.map((group) => {
-              const participants = group.participants || [];
-              const team = participants.filter((p) => isTeamMember(p));
-              const clients = participants.filter((p) => !isTeamMember(p));
-              const isMonitored = monitoredJids.has(group.jid);
-              const isToggling = togglingJid === group.jid;
-
-              return (
-                <AccordionItem key={group.jid} value={group.jid} className="border rounded-lg px-4">
-                  <AccordionTrigger className="hover:no-underline">
-                    <div className="flex items-center gap-3 text-left w-full">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={group.pictureUrl} />
-                        <AvatarFallback>{(group.name || "G")[0]}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-sm truncate">{group.name || group.jid}</p>
-                          {isMonitored && (
-                            <Badge className="bg-green-500/10 text-green-600 border-green-200 text-[10px] px-1.5 py-0 shrink-0">
-                              <Eye className="h-2.5 w-2.5 mr-0.5" />
-                              Monitorando
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>{group.size || participants.length} participantes</span>
-                          {team.length > 0 && (
-                            <Badge className="bg-blue-500/10 text-blue-600 border-blue-200 text-[10px] px-1.5 py-0">
-                              {team.length} colaborador{team.length > 1 ? "es" : ""}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className={`shrink-0 h-8 w-8 ${isMonitored ? "text-green-600 hover:text-red-600" : "text-muted-foreground hover:text-green-600"}`}
-                        onClick={(e) => { e.stopPropagation(); toggleMonitoring(group); }}
-                        disabled={isToggling}
-                      >
-                        {isToggling ? <Loader2 className="h-4 w-4 animate-spin" /> : isMonitored ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="space-y-4 pt-2">
-                      {team.length > 0 && (
-                        <div>
-                          <p className="text-xs font-semibold text-blue-600 flex items-center gap-1 mb-2">
-                            <Shield className="h-3 w-3" /> Colaboradores Julia ({team.length})
-                          </p>
-                          <div className="space-y-1">
-                            {team.map((p) => {
-                              const member = findTeamMember(p);
-                              return (
-                                <div key={p.jid} className="flex items-center gap-2 text-xs pl-4">
-                                  <Badge className="bg-blue-500/10 text-blue-600 text-xs">Suporte</Badge>
-                                  <span className="font-medium">{member?.name || p.phoneNumber || p.displayName || p.jid.split("@")[0]}</span>
-                                  <span className="text-muted-foreground">{p.phoneNumber || p.jid.split("@")[0]}</span>
-                                  {p.isAdmin && <Badge variant="outline" className="text-xs">Admin</Badge>}
-                                  {p.isSuperAdmin && <Badge variant="outline" className="text-xs">Super Admin</Badge>}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                      <div>
-                        <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mb-2">
-                          <User className="h-3 w-3" /> Clientes ({clients.length})
-                        </p>
-                        <div className="space-y-1 max-h-48 overflow-y-auto">
-                          {clients.map((p) => (
-                            <div key={p.jid} className="flex items-center gap-2 text-xs pl-4">
-                              <Badge variant="secondary" className="text-xs">Cliente</Badge>
-                              <span>{p.phoneNumber || p.displayName || p.jid.split("@")[0]}</span>
-                              {p.isAdmin && <Badge variant="outline" className="text-xs">Admin</Badge>}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              );
-            })}
-          </Accordion>
+          <div className="space-y-6">
+            {monitoredGroups.length > 0 && (
+              <div>
+                <p className="text-sm font-semibold text-green-600 dark:text-green-400 mb-2 flex items-center gap-1.5">
+                  <Eye className="h-4 w-4" />
+                  Monitorados ({monitoredGroups.length})
+                </p>
+                <Accordion type="multiple" className="space-y-2">
+                  {monitoredGroups.map((g) => renderGroupCard(g, true))}
+                </Accordion>
+              </div>
+            )}
+            {unmonitoredGroups.length > 0 && (
+              <div>
+                <p className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <EyeOff className="h-4 w-4" />
+                  Não Monitorados ({unmonitoredGroups.length})
+                </p>
+                <Accordion type="multiple" className="space-y-2">
+                  {unmonitoredGroups.map((g) => renderGroupCard(g, false))}
+                </Accordion>
+              </div>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>
