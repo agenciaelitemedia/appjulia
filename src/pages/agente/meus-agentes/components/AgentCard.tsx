@@ -34,6 +34,12 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
     agent.waba_configured,
     agent.agent_id_from_agents
   );
+  const { data: phoneInfo } = useConnectedPhoneInfo(
+    agent.hub,
+    agent.evo_url,
+    agent.evo_apikey,
+    connectionStatus,
+  );
 
   const alias = getAlias(agent.cod_agent, agent.business_name);
 
