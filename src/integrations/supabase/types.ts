@@ -1343,6 +1343,48 @@ export type Database = {
           },
         ]
       }
+      generation_legal_case_versions: {
+        Row: {
+          case_id: string
+          case_info: string | null
+          case_name: string
+          category: string
+          change_summary: string | null
+          changed_by: string | null
+          created_at: string | null
+          fees_info: string | null
+          id: string
+          qualification_script: string | null
+          version_number: number
+        }
+        Insert: {
+          case_id: string
+          case_info?: string | null
+          case_name: string
+          category: string
+          change_summary?: string | null
+          changed_by?: string | null
+          created_at?: string | null
+          fees_info?: string | null
+          id?: string
+          qualification_script?: string | null
+          version_number: number
+        }
+        Update: {
+          case_id?: string
+          case_info?: string | null
+          case_name?: string
+          category?: string
+          change_summary?: string | null
+          changed_by?: string | null
+          created_at?: string | null
+          fees_info?: string | null
+          id?: string
+          qualification_script?: string | null
+          version_number?: number
+        }
+        Relationships: []
+      }
       generation_legal_cases: {
         Row: {
           case_info: string | null
