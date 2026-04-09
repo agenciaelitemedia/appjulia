@@ -2013,6 +2013,27 @@ export type Database = {
         }
         Relationships: []
       }
+      support_team_members: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          phone: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          phone: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          phone?: string
+        }
+        Relationships: []
+      }
       vellip_call_logs: {
         Row: {
           cd_called_status: string | null
