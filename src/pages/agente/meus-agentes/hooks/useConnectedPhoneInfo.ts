@@ -23,19 +23,22 @@ export function useConnectedPhoneInfo(
   hub: string | null,
   evoUrl: string | null,
   evoApikey: string | null,
+  evoInstancia: string | null,
   connectionStatus: ConnectionStatus,
 ) {
   return useQuery<PhoneInfo>({
-    queryKey: ['connected-phone-info', evoUrl, connectionStatus],
+    queryKey: ['connected-phone-info', evoUrl, evoInstancia, connectionStatus],
     queryFn: async () => {
       if (!evoUrl || !evoApikey) throw new Error('No credentials');
 
       const client = new UaZapiClient({
         baseUrl: evoUrl,
         token: evoApikey,
+        instance: evoInstancia || undefined,
       });
 
       const data = await client.get<InstanceInfoResponse>('/instance/info');
+      console.log('[useConnectedPhoneInfo] raw response:', data);
 
       return {
         phone: data?.wid || data?.owner || data?.phone || null,
