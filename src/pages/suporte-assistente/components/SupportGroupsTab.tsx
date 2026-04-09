@@ -33,7 +33,7 @@ export default function SupportGroupsTab({ apiUrl, instanceToken, teamPhones }: 
     if (!apiUrl || !instanceToken) return;
     setLoading(true);
     try {
-      const resp = await fetch(`${apiUrl}/group/fetchAllGroups`, {
+      const resp = await fetch(`${apiUrl}/group/list`, {
         method: "GET",
         headers: { token: instanceToken },
       });
