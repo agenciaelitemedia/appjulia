@@ -38,6 +38,26 @@ serve(async (req) => {
       });
     }
 
+    // Save to Supabase
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    // Check if group is monitored
+    const { data: monitored } = await supabase
+      .from("support_monitored_groups")
+      .select("group_jid")
+      .eq("group_jid", remoteJid)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (!monitored) {
+      return new Response(JSON.stringify({ ok: true, skipped: "group not monitored" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Extract fields
     const messageContent = msgData?.message || {};
     const conversation = messageContent?.conversation
@@ -67,24 +87,60 @@ serve(async (req) => {
     // Group name from groupMetadata if available
     const groupName = msgData?.groupMetadata?.subject || body?.groupMetadata?.subject || null;
 
-    // Save to Supabase
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    // Determine sender_role by matching phone with support_team_members
+    // Extract phone from participant PhoneNumber or senderJid
+    const senderPhone = senderJid.split("@")[0];
+
+    let senderRole = "cliente";
+    const { data: teamMembers } = await supabase
+      .from("support_team_members")
+      .select("phone, name");
+
+    let senderDisplayName = pushName;
+    if (teamMembers && senderPhone) {
+      const match = teamMembers.find((tm: any) =>
+        tm.phone && (senderPhone.includes(tm.phone) || tm.phone.includes(senderPhone))
+      );
+      if (match) {
+        senderRole = "suporte";
+        senderDisplayName = match.name || pushName;
+      }
+    }
+
+    // Build descriptive message_text for media
+    const roleLabel = senderRole === "suporte" ? `suporte ${senderDisplayName}` : "cliente";
+    let messageText = conversation || null;
+
+    if (messageType === "image") {
+      messageText = conversation || `📷 Imagem enviada pelo ${roleLabel}`;
+    } else if (messageType === "video") {
+      messageText = conversation || `🎬 Vídeo enviado pelo ${roleLabel}`;
+    } else if (messageType === "document") {
+      const fileName = messageContent?.documentMessage?.fileName || "";
+      messageText = `📄 Documento${fileName ? ` (${fileName})` : ""} enviado pelo ${roleLabel}`;
+    } else if (messageType === "audio") {
+      messageText = `🎤 Áudio aguardando transcrição`;
+    } else if (messageType === "sticker") {
+      messageText = `🏷️ Sticker enviado pelo ${roleLabel}`;
+    }
+
+    const isTranscribed = messageType !== "audio";
 
     const { error } = await supabase.from("support_group_messages").insert({
       instance_name: instance,
       group_jid: remoteJid,
       group_name: groupName,
       sender_jid: senderJid,
-      sender_name: pushName,
+      sender_name: senderDisplayName,
       message_id: messageId,
       message_type: messageType,
-      message_text: conversation || null,
+      message_text: messageText,
       media_url: mediaUrl,
       is_from_me: isFromMe,
       raw_payload: body,
+      sender_role: senderRole,
+      is_transcribed: isTranscribed,
+      transcription: null,
     });
 
     if (error) {
@@ -95,7 +151,7 @@ serve(async (req) => {
       });
     }
 
-    console.log("[support-webhook] Message saved from group:", remoteJid);
+    console.log("[support-webhook] Message saved from group:", remoteJid, "role:", senderRole);
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
