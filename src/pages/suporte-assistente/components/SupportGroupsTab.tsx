@@ -30,16 +30,26 @@ export default function SupportGroupsTab({ apiUrl, instanceToken, teamPhones }: 
     fetchGroups();
   }, [apiUrl, instanceToken]);
 
+  const toArray = (data: any): any[] => {
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === "object") {
+      if (Array.isArray(data.groups)) return data.groups;
+      if (Array.isArray(data.data)) return data.data;
+    }
+    return [];
+  };
+
   const normalizeGroups = (raw: any[]): GroupInfo[] => {
+    if (!Array.isArray(raw)) return [];
     return raw.map((g: any) => ({
       id: g.id || g.jid || g.groupId || "",
       subject: g.subject || g.name || g.groupName || "",
       size: g.size || g.participants?.length || 0,
       pictureUrl: g.pictureUrl || g.profilePictureUrl || g.imgUrl || g.picture || null,
-      participants: (g.participants || []).map((p: any) => ({
+      participants: Array.isArray(g.participants) ? g.participants.map((p: any) => ({
         id: typeof p === "string" ? p : (p.id || p.jid || ""),
         admin: typeof p === "string" ? undefined : (p.admin || p.role || undefined),
-      })),
+      })) : [],
     }));
   };
 
@@ -47,34 +57,28 @@ export default function SupportGroupsTab({ apiUrl, instanceToken, teamPhones }: 
     if (!apiUrl || !instanceToken) return;
     setLoading(true);
     try {
-      // Use proxy to avoid CORS and get full group data with participants
+      let rawList: any[] = [];
+
+      // Try /group/fetchAllGroups with POST (Evolution API style)
       const { data: proxyData, error } = await supabase.functions.invoke("uazapi-proxy", {
         body: {
-          method: "GET",
-          endpoint: "/group/fetchAllGroups?getParticipants=true",
+          method: "POST",
+          endpoint: "/group/fetchAllGroups",
+          body: { getParticipants: true },
           token: instanceToken,
           baseUrl: apiUrl,
         },
       });
 
-      if (error) throw new Error(error.message);
-      
-      console.log("[SupportGroupsTab] Raw proxy response:", proxyData);
+      console.log("[SupportGroupsTab] fetchAllGroups response:", proxyData);
 
-      const responseData = proxyData?.data;
-      let rawList: any[] = [];
-
-      if (Array.isArray(responseData)) {
-        rawList = responseData;
-      } else if (responseData?.groups) {
-        rawList = responseData.groups;
-      } else if (responseData?.data) {
-        rawList = responseData.data;
+      if (!error && proxyData?.ok) {
+        rawList = toArray(proxyData.data);
       }
 
-      // Fallback: if fetchAllGroups returned empty or failed, try /group/list
-      if (rawList.length === 0 && proxyData?.ok !== false) {
-        console.log("[SupportGroupsTab] fetchAllGroups empty, trying /group/list...");
+      // Fallback: try GET /group/list
+      if (rawList.length === 0) {
+        console.log("[SupportGroupsTab] Trying /group/list...");
         const { data: listData } = await supabase.functions.invoke("uazapi-proxy", {
           body: {
             method: "GET",
@@ -83,8 +87,10 @@ export default function SupportGroupsTab({ apiUrl, instanceToken, teamPhones }: 
             baseUrl: apiUrl,
           },
         });
-        const listResponse = listData?.data;
-        rawList = Array.isArray(listResponse) ? listResponse : (listResponse?.groups || listResponse?.data || []);
+        console.log("[SupportGroupsTab] /group/list response:", listData);
+        if (listData?.ok) {
+          rawList = toArray(listData.data);
+        }
       }
 
       const list = normalizeGroups(rawList);
