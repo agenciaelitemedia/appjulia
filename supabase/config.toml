@@ -56,3 +56,9 @@ verify_jwt = false
 
 [functions.support-assistant-webhook]
 verify_jwt = false
+
+[functions.support-transcribe-audio]
+verify_jwt = false
+
+[functions.support-group-discovery]
+verify_jwt = false
