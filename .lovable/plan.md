@@ -1,45 +1,32 @@
 
 
-# Aplicar `[cod_agent] - alias` em todos os selects e exibições de agente
+# Exibir dados do telefone conectado (UaZapi) nos cards de Meus Agentes
 
 ## Resumo
 
-Substituir `owner_name` por `alias` (com fallback para `owner_name`) em todos os componentes que exibem informações de agente, garantindo consistência visual em todo o sistema.
+Quando o agente usa UaZapi e está conectado, buscar os dados do telefone via `/instance/info` e exibi-los no card: número do telefone, nome do perfil e foto de perfil.
 
-## Componentes já corretos (usam `alias || owner_name`)
+## 1. Novo hook: `useConnectedPhoneInfo.ts`
 
-- `AgentSearchSelect.tsx` — já usa alias com fallback
-- `JuliaFilters.tsx` — já usa alias com fallback  
-- `CRMFilters.tsx` — já usa alias com fallback
-- `UnifiedFilters.tsx` — já usa alias com fallback
+Criar em `src/pages/agente/meus-agentes/hooks/useConnectedPhoneInfo.ts`:
+- Recebe `hub`, `evoUrl`, `evoApikey`, `connectionStatus`
+- Só executa query quando `hub === 'uazapi'` e `connectionStatus === 'connected'`
+- Chama `client.get<InstanceInfo>('/instance/info')` via UaZapiClient
+- Retorna `{ phone, pushName, profilePictureUrl }`
 
-## Componentes a corrigir
+## 2. Alteração: `AgentCard.tsx`
 
-### 1. `AgentPerformanceTable.tsx`
-- Linha 134: trocar `{agent.owner_name}` por `{agent.alias || agent.owner_name}`
-- Adicionar `alias?: string` ao tipo `CRMAgentPerformance` em `src/pages/crm/types.ts`
+- Importar e usar `useConnectedPhoneInfo`
+- Abaixo da linha "Instância: ..." e quando `connectionStatus === 'connected'`, exibir:
+  - Foto de perfil (Avatar pequeno, 24px)
+  - Número do telefone conectado
+  - Nome do perfil (pushName)
+- Layout compacto com `text-xs`
 
-### 2. `AgentWorkloadChart.tsx`
-- Linha 64: trocar `{agent.owner_name}` por `{agent.alias || agent.owner_name}`
-- Adicionar `alias?: string` ao tipo `CRMAgentWorkload` em `src/pages/crm/types.ts`
-
-### 3. `HistoricoTab.tsx` (Telefonia)
-- Linhas 80-94: enriquecer `agentsList` com alias do hook `useAgentAliases`
-- Adicionar `alias` ao objeto de cada agente no Map
-
-### 4. Tipos em `src/pages/crm/types.ts`
-- Adicionar campo `alias?: string` em `CRMAgentPerformance` e `CRMAgentWorkload`
-
-### 5. Hooks que alimentam esses componentes
-- Verificar onde `CRMAgentPerformance` e `CRMAgentWorkload` são populados e enriquecer com alias do `useAgentAliases`
-
-## Arquivos alterados
+## Arquivos
 
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/crm/types.ts` | Adicionar `alias?` aos tipos Performance e Workload |
-| `src/pages/crm/statistics/components/AgentPerformanceTable.tsx` | Usar `alias \|\| owner_name` |
-| `src/pages/crm/monitoring/components/AgentWorkloadChart.tsx` | Usar `alias \|\| owner_name` |
-| `src/pages/telefonia/components/HistoricoTab.tsx` | Enriquecer agentsList com aliases |
-| Hooks que alimentam Performance/Workload | Enriquecer dados com alias via `useAgentAliases` |
+| `src/pages/agente/meus-agentes/hooks/useConnectedPhoneInfo.ts` | Novo hook |
+| `src/pages/agente/meus-agentes/components/AgentCard.tsx` | Exibir dados do telefone conectado |
 
