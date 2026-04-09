@@ -1,32 +1,50 @@
 
 
-# Exibir dados do telefone conectado (UaZapi) nos cards de Meus Agentes
+# Corrigir extração de foto e telefone do status UaZapi
 
-## Resumo
+## Problema
 
-Quando o agente usa UaZapi e está conectado, buscar os dados do telefone via `/instance/info` e exibi-los no card: número do telefone, nome do perfil e foto de perfil.
+O endpoint `/instance/status` retorna dados aninhados em `instance` e `status`, mas o hook `useConnectedPhoneInfo` tenta ler do nível raiz. Por isso foto e telefone ficam `null`.
 
-## 1. Novo hook: `useConnectedPhoneInfo.ts`
+Estrutura real da resposta:
+```text
+data.instance.profilePicUrl  → foto
+data.instance.owner          → telefone
+data.instance.profileName    → nome
+data.status.jid              → telefone alternativo
+```
 
-Criar em `src/pages/agente/meus-agentes/hooks/useConnectedPhoneInfo.ts`:
-- Recebe `hub`, `evoUrl`, `evoApikey`, `connectionStatus`
-- Só executa query quando `hub === 'uazapi'` e `connectionStatus === 'connected'`
-- Chama `client.get<InstanceInfo>('/instance/info')` via UaZapiClient
-- Retorna `{ phone, pushName, profilePictureUrl }`
+## Correção: `useConnectedPhoneInfo.ts`
 
-## 2. Alteração: `AgentCard.tsx`
+Atualizar a interface e o mapeamento para extrair dos caminhos corretos:
 
-- Importar e usar `useConnectedPhoneInfo`
-- Abaixo da linha "Instância: ..." e quando `connectionStatus === 'connected'`, exibir:
-  - Foto de perfil (Avatar pequeno, 24px)
-  - Número do telefone conectado
-  - Nome do perfil (pushName)
-- Layout compacto com `text-xs`
+```typescript
+interface InstanceInfoResponse {
+  // ... campos existentes no top-level ...
+  instance?: {
+    profileName?: string;
+    name?: string;
+    profilePicUrl?: string;
+    owner?: string;
+  };
+  status?: {
+    jid?: string;
+  };
+}
+```
 
-## Arquivos
+Mapeamento atualizado:
+```typescript
+return {
+  phone: data?.phone || data?.instance?.owner || data?.status?.jid?.split(':')[0] || data?.wid || data?.owner || null,
+  pushName: data?.pushName || data?.profileName || data?.instance?.profileName || data?.instance?.name || null,
+  profilePictureUrl: data?.profilePicUrl || data?.profilePictureUrl || data?.instance?.profilePicUrl || null,
+};
+```
+
+## Arquivo alterado
 
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/agente/meus-agentes/hooks/useConnectedPhoneInfo.ts` | Novo hook |
-| `src/pages/agente/meus-agentes/components/AgentCard.tsx` | Exibir dados do telefone conectado |
+| `src/pages/agente/meus-agentes/hooks/useConnectedPhoneInfo.ts` | Extrair dados dos caminhos aninhados `instance.*` e `status.*` |
 
