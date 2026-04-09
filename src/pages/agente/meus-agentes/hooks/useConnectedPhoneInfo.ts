@@ -20,6 +20,11 @@ interface InstanceInfoResponse {
   instance?: {
     profileName?: string;
     name?: string;
+    profilePicUrl?: string;
+    owner?: string;
+  };
+  status_obj?: {
+    jid?: string;
   };
 }
 
@@ -49,10 +54,14 @@ export function useConnectedPhoneInfo(
         data = await client.get<InstanceInfoResponse>('/instance/status');
       }
 
+      const raw = data as any;
+      const inst = raw?.instance;
+      const statusObj = raw?.status;
+
       return {
-        phone: data?.phone || data?.wid || data?.owner || null,
-        pushName: data?.pushName || data?.profileName || data?.instance?.profileName || data?.instance?.name || null,
-        profilePictureUrl: data?.profilePicUrl || data?.profilePictureUrl || null,
+        phone: raw?.phone || inst?.owner || (statusObj?.jid ? statusObj.jid.split(':')[0] : null) || raw?.wid || raw?.owner || null,
+        pushName: raw?.pushName || raw?.profileName || inst?.profileName || inst?.name || null,
+        profilePictureUrl: raw?.profilePicUrl || raw?.profilePictureUrl || inst?.profilePicUrl || null,
       };
     },
     enabled: hub === 'uazapi' && connectionStatus === 'connected' && !!evoUrl && !!evoApikey,
