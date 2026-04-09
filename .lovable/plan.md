@@ -1,46 +1,40 @@
 
 
-# Separar grupos monitorados/não monitorados + Extrair cod_agent do nome
+# Corrigir webhook do Assistente de Suporte — mensagens não sendo gravadas
 
-## Resumo
+## Problema
 
-Duas mudanças no `SupportGroupsTab.tsx`:
-1. Separar a listagem em duas seções: **Monitorados** (primeiro, com card verde diferenciado) e **Não Monitorados** (abaixo, card padrão)
-2. Extrair automaticamente o `cod_agent` do nome do grupo usando regex para o padrão `[YYYYMMDD]`
+O webhook recebeu uma chamada da UaZapi mas o campo `body.event` veio como `undefined`. O filtro na linha 23 descarta qualquer payload sem esse campo, por isso nenhuma mensagem foi gravada (tabela `support_group_messages` está vazia).
 
-## 1. Separação visual Monitorados vs Não Monitorados
+A Evolution API/UaZapi pode enviar o tipo de evento em locais diferentes dependendo da versão e configuração do webhook. Possibilidades comuns:
+- `body.event` (formato padrão)
+- `body.data.event`
+- Header `x-webhook-event`
+- O payload pode ser um array de mensagens dentro de `body.data`
+- O endpoint pode receber o evento sem campo `event` (apenas o payload da mensagem direto)
 
-No `filteredGroups`, dividir em dois arrays:
-```typescript
-const monitoredGroups = filteredGroups.filter(g => monitoredJids.has(g.jid));
-const unmonitoredGroups = filteredGroups.filter(g => !monitoredJids.has(g.jid));
+## Correção
+
+Alterar `support-assistant-webhook/index.ts`:
+
+1. **Logar o payload completo** (temporariamente) para diagnosticar o formato real
+2. **Flexibilizar a detecção do evento**: aceitar payload mesmo sem campo `event`, desde que contenha dados de mensagem (`key`, `message`, `remoteJid`)
+3. **Extrair `remoteJid` de múltiplos caminhos possíveis**: `body.data.key.remoteJid`, `body.key.remoteJid`, `body.data[0].key.remoteJid` (quando array)
+4. **Tratar `senderJid` com LID**: como a API usa AddressingMode LID, o `participant` vem como LID. Precisamos buscar o `PhoneNumber` do participante no payload se disponível, senão usar o LID e cruzar com a tabela de team members pelo telefone
+
+Lógica revisada:
+```text
+1. Logar body inteiro
+2. Tentar extrair event de body.event || body.data?.event || "unknown"
+3. Tentar extrair msgData de body.data (se array, pegar [0]) || body.message || body
+4. Tentar extrair key e remoteJid
+5. Se remoteJid contém @g.us → processar (sem depender do campo event)
+6. Resto da lógica permanece igual
 ```
-
-Renderizar em duas seções com headers:
-- **"Monitorados (X)"** — cards com borda/fundo verde (`border-green-200 bg-green-50/50 dark:bg-green-950/20`)
-- **"Não Monitorados (Y)"** — cards com estilo padrão atual
-
-## 2. Extração do cod_agent do nome do grupo
-
-Função helper com regex:
-```typescript
-const extractCodAgent = (groupName: string): string | null => {
-  const match = groupName.match(/\[(20\d{6})\]/);
-  return match ? match[1] : null;
-};
-```
-
-Exibir como Badge ao lado do nome do grupo quando encontrado (ex: `Badge "20250405"`).
-
-Adicionar `codAgent` ao `GroupInfo` interface e preencher no `normalizeGroup`.
-
-## 3. Contadores no header
-
-Atualizar o header para mostrar: `Grupos (X total) — Y monitorados · Z não monitorados`
 
 ## Arquivo alterado
 
 | Arquivo | Mudança |
 |---|---|
-| `SupportGroupsTab.tsx` | Separar seções monitorados/não monitorados, estilizar cards, extrair cod_agent |
+| `support-assistant-webhook/index.ts` | Flexibilizar detecção de evento, logar payload completo, aceitar mensagens sem campo `event` |
 
