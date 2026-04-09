@@ -291,7 +291,9 @@ export default function SupportAssistantPage() {
       if (connected) {
         setQrCode(null);
         toast.success("WhatsApp conectado!");
+        fetchWhatsappProfile(config.api_url, config.instance_token);
       } else {
+        setWhatsappProfile(null);
         toast.info("WhatsApp desconectado");
       }
     } catch (err) {
