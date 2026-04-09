@@ -73,6 +73,7 @@ serve(async (req) => {
     const senderPhone = senderPn ? senderPn.split("@")[0] : "";
     
     // Determine message type
+    // Determine message type
     let messageType = "text";
     if (mediaType.includes("image")) messageType = "image";
     else if (mediaType.includes("video")) messageType = "video";
@@ -80,6 +81,9 @@ serve(async (req) => {
     else if (mediaType.includes("document")) messageType = "document";
     else if (mediaType.includes("sticker")) messageType = "sticker";
     else if (!mediaType || mediaType === "conversation") messageType = "text";
+
+    // Extract filename for documents
+    const fileName = (typeof rawContent === "object" ? (rawContent?.fileName || rawContent?.filename || rawContent?.title) : null) || null;
 
     // Media URL: in UaZapi, it's inside content.URL for media messages
     const mediaUrl = (typeof rawContent === "object" ? rawContent?.URL : null)
@@ -114,18 +118,20 @@ serve(async (req) => {
     let messageText = contentText || null;
 
     if (messageType === "image") {
-      messageText = contentText || `📷 Imagem enviada pelo ${roleLabel}`;
+      messageText = contentText || `📷 Imagem do ${roleLabel} (analisando...)`;
     } else if (messageType === "video") {
       messageText = contentText || `🎬 Vídeo enviado pelo ${roleLabel}`;
     } else if (messageType === "document") {
-      messageText = contentText || `📄 Documento enviado pelo ${roleLabel}`;
+      const docName = fileName ? `: ${fileName}` : "";
+      messageText = contentText || `📄 Documento do ${roleLabel}${docName}`;
     } else if (messageType === "audio") {
       messageText = `🎤 Áudio aguardando transcrição`;
     } else if (messageType === "sticker") {
       messageText = `🏷️ Sticker enviado pelo ${roleLabel}`;
     }
 
-    const isTranscribed = messageType !== "audio";
+    // Audio and image need processing by transcribe function
+    const isTranscribed = messageType !== "audio" && messageType !== "image";
 
     const { error } = await supabase.from("support_group_messages").insert({
       instance_name: instance,

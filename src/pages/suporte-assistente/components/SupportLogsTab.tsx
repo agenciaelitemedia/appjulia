@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, Search, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 
 const PAGE_SIZE = 20;
@@ -61,14 +61,25 @@ export default function SupportLogsTab({ teamPhones }: SupportLogsTabProps) {
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>Mensagens de Grupos ({total})</CardTitle>
-          <div className="relative w-64">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar mensagem, remetente..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-              className="pl-8"
-            />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => loadMessages()}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />
+              Atualizar
+            </Button>
+            <div className="relative w-64">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar mensagem, remetente..."
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+                className="pl-8"
+              />
+            </div>
           </div>
         </div>
       </CardHeader>
