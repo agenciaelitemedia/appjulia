@@ -88,6 +88,10 @@ export default function SupportAssistantPage() {
           instance_token: data.instance_token || "",
           connection_status: data.connection_status || "disconnected",
         });
+        // Fetch WhatsApp profile if connected
+        if (data.connection_status === "connected" && data.api_url && data.instance_token) {
+          fetchWhatsappProfile(data.api_url, data.instance_token);
+        }
       }
     } catch (err) {
       console.error("Erro ao carregar config:", err);
