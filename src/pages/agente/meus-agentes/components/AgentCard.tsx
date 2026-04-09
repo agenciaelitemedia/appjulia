@@ -38,6 +38,7 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
     agent.hub,
     agent.evo_url,
     agent.evo_apikey,
+    agent.evo_instancia,
     connectionStatus,
   );
 
