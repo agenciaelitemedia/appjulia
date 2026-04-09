@@ -14,12 +14,22 @@ interface SupportGroupsTabProps {
   teamPhones: string[];
 }
 
+interface GroupParticipant {
+  jid: string;
+  isAdmin: boolean;
+  isSuperAdmin?: boolean;
+}
+
 interface GroupInfo {
-  id: string;
-  subject: string;
+  jid: string;
+  name: string;
   size: number;
   pictureUrl?: string;
-  participants: { id: string; admin?: string }[];
+  participants: GroupParticipant[];
+  owner?: string;
+  description?: string;
+  isLocked?: boolean;
+  isAnnounce?: boolean;
 }
 
 export default function SupportGroupsTab({ apiUrl, instanceToken, teamPhones }: SupportGroupsTabProps) {
@@ -30,7 +40,26 @@ export default function SupportGroupsTab({ apiUrl, instanceToken, teamPhones }: 
     fetchGroups();
   }, [apiUrl, instanceToken]);
 
-  const toArray = (data: any): any[] => {
+  const normalizeGroup = (g: any): GroupInfo => {
+    const participants = (g.Participants || g.participants || []).map((p: any) => ({
+      jid: (p.JID || p.jid || p.id || "") as string,
+      isAdmin: !!(p.IsAdmin || p.isAdmin || p.admin === "admin" || p.admin === "superadmin"),
+      isSuperAdmin: !!(p.IsSuperAdmin || p.isSuperAdmin || p.admin === "superadmin"),
+    }));
+    return {
+      jid: (g.JID || g.jid || g.id || g.groupId || "") as string,
+      name: (g.Name || g.name || g.subject || g.groupName || "") as string,
+      size: (g.Size || g.size || participants.length || 0) as number,
+      pictureUrl: (g.ProfilePictureUrl || g.pictureUrl || g.profilePictureUrl || g.imgUrl || g.picture || null) as string | undefined,
+      participants,
+      owner: (g.OwnerJID || g.owner || "") as string,
+      description: (g.Description || g.description || g.desc || "") as string,
+      isLocked: !!(g.IsLocked || g.isLocked || g.restrict),
+      isAnnounce: !!(g.IsAnnounce || g.isAnnounce || g.announce),
+    };
+  };
+
+  const extractArray = (data: any): any[] => {
     if (Array.isArray(data)) return data;
     if (data && typeof data === "object") {
       if (Array.isArray(data.groups)) return data.groups;
@@ -39,63 +68,36 @@ export default function SupportGroupsTab({ apiUrl, instanceToken, teamPhones }: 
     return [];
   };
 
-  const normalizeGroups = (raw: any[]): GroupInfo[] => {
-    if (!Array.isArray(raw)) return [];
-    return raw.map((g: any) => ({
-      id: g.id || g.jid || g.groupId || "",
-      subject: g.subject || g.name || g.groupName || "",
-      size: g.size || g.participants?.length || 0,
-      pictureUrl: g.pictureUrl || g.profilePictureUrl || g.imgUrl || g.picture || null,
-      participants: Array.isArray(g.participants) ? g.participants.map((p: any) => ({
-        id: typeof p === "string" ? p : (p.id || p.jid || ""),
-        admin: typeof p === "string" ? undefined : (p.admin || p.role || undefined),
-      })) : [],
-    }));
-  };
-
   const fetchGroups = async () => {
     if (!apiUrl || !instanceToken) return;
     setLoading(true);
     try {
-      let rawList: any[] = [];
-
-      // Try /group/fetchAllGroups with POST (Evolution API style)
+      // Use GET /group/list — the correct UaZapi endpoint
       const { data: proxyData, error } = await supabase.functions.invoke("uazapi-proxy", {
         body: {
-          method: "POST",
-          endpoint: "/group/fetchAllGroups",
-          body: { getParticipants: true },
+          method: "GET",
+          endpoint: "/group/list",
           token: instanceToken,
           baseUrl: apiUrl,
         },
       });
 
-      console.log("[SupportGroupsTab] fetchAllGroups response:", proxyData);
+      console.log("[SupportGroupsTab] /group/list raw response:", proxyData);
 
+      let rawList: any[] = [];
       if (!error && proxyData?.ok) {
-        rawList = toArray(proxyData.data);
+        rawList = extractArray(proxyData.data);
+      } else {
+        console.warn("[SupportGroupsTab] /group/list failed, error:", error, "proxyData:", proxyData);
       }
 
-      // Fallback: try GET /group/list
-      if (rawList.length === 0) {
-        console.log("[SupportGroupsTab] Trying /group/list...");
-        const { data: listData } = await supabase.functions.invoke("uazapi-proxy", {
-          body: {
-            method: "GET",
-            endpoint: "/group/list",
-            token: instanceToken,
-            baseUrl: apiUrl,
-          },
-        });
-        console.log("[SupportGroupsTab] /group/list response:", listData);
-        if (listData?.ok) {
-          rawList = toArray(listData.data);
-        }
-      }
-
-      const list = normalizeGroups(rawList);
-      console.log("[SupportGroupsTab] Normalized groups:", list.length);
+      const list = rawList.map(normalizeGroup).filter(g => g.jid);
+      console.log("[SupportGroupsTab] Normalized groups:", list.length, list.slice(0, 2));
       setGroups(list);
+
+      if (list.length === 0) {
+        toast.info("Nenhum grupo encontrado nesta instância");
+      }
     } catch (err: any) {
       console.error("[SupportGroupsTab] Error:", err);
       toast.error("Erro ao carregar grupos", { description: err.message });
@@ -136,20 +138,20 @@ export default function SupportGroupsTab({ apiUrl, instanceToken, teamPhones }: 
           <Accordion type="multiple" className="space-y-2">
             {groups.map((group) => {
               const participants = group.participants || [];
-              const teamMembers = participants.filter((p) => isTeamMember(p.id));
-              const clients = participants.filter((p) => !isTeamMember(p.id));
+              const teamMembers = participants.filter((p) => isTeamMember(p.jid));
+              const clients = participants.filter((p) => !isTeamMember(p.jid));
 
               return (
-                <AccordionItem key={group.id} value={group.id} className="border rounded-lg px-4">
+                <AccordionItem key={group.jid} value={group.jid} className="border rounded-lg px-4">
                   <AccordionTrigger className="hover:no-underline">
                     <div className="flex items-center gap-3 text-left">
                       <Avatar className="h-10 w-10">
                         <AvatarImage src={group.pictureUrl} />
-                        <AvatarFallback>{(group.subject || "G")[0]}</AvatarFallback>
+                        <AvatarFallback>{(group.name || "G")[0]}</AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-medium text-sm">{group.subject || group.id}</p>
-                        <p className="text-xs text-muted-foreground">{participants.length} participantes</p>
+                        <p className="font-medium text-sm">{group.name || group.jid}</p>
+                        <p className="text-xs text-muted-foreground">{group.size || participants.length} participantes</p>
                       </div>
                     </div>
                   </AccordionTrigger>
@@ -162,10 +164,11 @@ export default function SupportGroupsTab({ apiUrl, instanceToken, teamPhones }: 
                           </p>
                           <div className="space-y-1">
                             {teamMembers.map((p) => (
-                              <div key={p.id} className="flex items-center gap-2 text-xs pl-4">
+                              <div key={p.jid} className="flex items-center gap-2 text-xs pl-4">
                                 <Badge className="bg-blue-500/10 text-blue-600 text-xs">Suporte</Badge>
-                                <span>{p.id.split("@")[0]}</span>
-                                {p.admin && <Badge variant="outline" className="text-xs">{p.admin}</Badge>}
+                                <span>{p.jid.split("@")[0]}</span>
+                                {p.isAdmin && <Badge variant="outline" className="text-xs">Admin</Badge>}
+                                {p.isSuperAdmin && <Badge variant="outline" className="text-xs">Super Admin</Badge>}
                               </div>
                             ))}
                           </div>
@@ -177,10 +180,10 @@ export default function SupportGroupsTab({ apiUrl, instanceToken, teamPhones }: 
                         </p>
                         <div className="space-y-1 max-h-48 overflow-y-auto">
                           {clients.map((p) => (
-                            <div key={p.id} className="flex items-center gap-2 text-xs pl-4">
+                            <div key={p.jid} className="flex items-center gap-2 text-xs pl-4">
                               <Badge variant="secondary" className="text-xs">Cliente</Badge>
-                              <span>{p.id.split("@")[0]}</span>
-                              {p.admin && <Badge variant="outline" className="text-xs">{p.admin}</Badge>}
+                              <span>{p.jid.split("@")[0]}</span>
+                              {p.isAdmin && <Badge variant="outline" className="text-xs">Admin</Badge>}
                             </div>
                           ))}
                         </div>

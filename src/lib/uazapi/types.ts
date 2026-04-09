@@ -289,7 +289,7 @@ export interface SetLabelsResponse {
 
 export interface MuteChatRequest {
   number: string;
-  muteEndTime: number; // 0 = unmute, 8 = 8h, 168 = 1 week, -1 = forever
+  muteEndTime: number;
 }
 
 export interface PinChatRequest {
@@ -392,6 +392,27 @@ export interface DownloadMediaResponse {
 // Group Types
 // ============================================
 
+export interface GroupParticipant {
+  jid: string;
+  isAdmin: boolean;
+  isSuperAdmin?: boolean;
+}
+
+export interface GroupInfo {
+  jid: string;
+  name: string;
+  owner?: string;
+  description?: string;
+  size: number;
+  participants: GroupParticipant[];
+  isLocked?: boolean;
+  isAnnounce?: boolean;
+  isCommunity?: boolean;
+  inviteLink?: string;
+  pictureUrl?: string;
+  creation?: number;
+}
+
 export interface CreateCommunityRequest {
   name: string;
 }
@@ -412,31 +433,14 @@ export interface CreateGroupRequest {
   participants: string[];
 }
 
-export interface GroupInfo {
-  id: string;
-  subject: string;
-  owner: string;
-  creation: number;
-  desc?: string;
-  descId?: string;
-  restrict?: boolean;
-  announce?: boolean;
-  size: number;
-  participants: Array<{
-    id: string;
-    isAdmin: boolean;
-    isSuperAdmin: boolean;
-  }>;
-}
-
 export interface UpdateGroupRequest {
-  groupId: string;
-  subject?: string;
+  groupjid: string;
+  name?: string;
   description?: string;
 }
 
 export interface GroupParticipantsRequest {
-  groupId: string;
+  groupjid: string;
   participants: string[];
   action: 'add' | 'remove' | 'promote' | 'demote';
 }

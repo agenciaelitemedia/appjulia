@@ -17,79 +17,31 @@ import type {
 
 export interface GroupEndpoints {
   community: {
-    /**
-     * Create a new community
-     * POST /community/create
-     */
     create: (name: string) => Promise<CreateCommunityResponse>;
-    
-    /**
-     * Add or remove groups from a community
-     * POST /community/editgroups
-     */
     editGroups: (data: EditCommunityGroupsRequest) => Promise<ApiResponse>;
   };
   
-  /**
-   * Create a new group
-   * POST /group/create
-   */
   create: (data: CreateGroupRequest) => Promise<ApiResponse<GroupInfo>>;
-  
-  /**
-   * Get group info
-   * POST /group/info
-   */
-  getInfo: (groupId: string) => Promise<GroupInfo>;
-  
-  /**
-   * Get group invite link
-   * POST /group/invite
-   */
-  getInviteLink: (groupId: string) => Promise<ApiResponse<string>>;
-  
-  /**
-   * Revoke group invite link
-   * POST /group/revoke
-   */
-  revokeInviteLink: (groupId: string) => Promise<ApiResponse<string>>;
-  
-  /**
-   * Update group info (subject/description)
-   * POST /group/update
-   */
+  getInfo: (groupjid: string, opts?: { noParticipants?: boolean; pictureUrl?: boolean }) => Promise<GroupInfo>;
+  getInviteLink: (groupjid: string) => Promise<ApiResponse<string>>;
+  revokeInviteLink: (groupjid: string) => Promise<ApiResponse<string>>;
   update: (data: UpdateGroupRequest) => Promise<ApiResponse>;
-  
-  /**
-   * Update group picture
-   * POST /group/picture
-   */
-  updatePicture: (groupId: string, imageBase64: string) => Promise<ApiResponse>;
-  
-  /**
-   * Manage group participants
-   * POST /group/participants
-   */
+  updateName: (groupjid: string, name: string) => Promise<ApiResponse>;
+  updateDescription: (groupjid: string, description: string) => Promise<ApiResponse>;
+  updateImage: (groupjid: string, image: string) => Promise<ApiResponse>;
+  updateAnnounce: (groupjid: string, announce: boolean) => Promise<ApiResponse>;
+  updateLocked: (groupjid: string, locked: boolean) => Promise<ApiResponse>;
   manageParticipants: (data: GroupParticipantsRequest) => Promise<ApiResponse>;
-  
-  /**
-   * Leave a group
-   * POST /group/leave
-   */
-  leave: (groupId: string) => Promise<ApiResponse>;
-  
-  /**
-   * Get all groups
-   * GET /group/list
-   */
-  list: () => Promise<GroupInfo[]>;
+  leave: (groupjid: string) => Promise<ApiResponse>;
+  list: (force?: boolean, noParticipants?: boolean) => Promise<GroupInfo[]>;
+  join: (invitecode: string) => Promise<ApiResponse>;
+  inviteInfo: (invitecode: string) => Promise<GroupInfo>;
+  resetInviteCode: (groupjid: string) => Promise<ApiResponse>;
 }
 
 export function createGroupEndpoints(client: UaZapiClient | null): GroupEndpoints {
   const assertClient = (): UaZapiClient => {
-    if (!client) {
-      throw new Error('UaZapi client not configured');
-    }
+    if (!client) throw new Error('UaZapi client not configured');
     return client;
   };
 
@@ -99,7 +51,6 @@ export function createGroupEndpoints(client: UaZapiClient | null): GroupEndpoint
         const request: CreateCommunityRequest = { name };
         return assertClient().post<CreateCommunityResponse>('/community/create', request);
       },
-
       async editGroups(data: EditCommunityGroupsRequest): Promise<ApiResponse> {
         return assertClient().post<ApiResponse>('/community/editgroups', data);
       },
@@ -109,36 +60,69 @@ export function createGroupEndpoints(client: UaZapiClient | null): GroupEndpoint
       return assertClient().post<ApiResponse<GroupInfo>>('/group/create', data);
     },
 
-    async getInfo(groupId: string): Promise<GroupInfo> {
-      return assertClient().post<GroupInfo>('/group/info', { groupId });
+    async getInfo(groupjid: string, opts?: { noParticipants?: boolean; pictureUrl?: boolean }): Promise<GroupInfo> {
+      return assertClient().post<GroupInfo>('/group/info', { groupjid, ...opts });
     },
 
-    async getInviteLink(groupId: string): Promise<ApiResponse<string>> {
-      return assertClient().post<ApiResponse<string>>('/group/invite', { groupId });
+    async getInviteLink(groupjid: string): Promise<ApiResponse<string>> {
+      return assertClient().post<ApiResponse<string>>('/group/invite', { groupjid });
     },
 
-    async revokeInviteLink(groupId: string): Promise<ApiResponse<string>> {
-      return assertClient().post<ApiResponse<string>>('/group/revoke', { groupId });
+    async revokeInviteLink(groupjid: string): Promise<ApiResponse<string>> {
+      return assertClient().post<ApiResponse<string>>('/group/revoke', { groupjid });
     },
 
     async update(data: UpdateGroupRequest): Promise<ApiResponse> {
       return assertClient().post<ApiResponse>('/group/update', data);
     },
 
-    async updatePicture(groupId: string, imageBase64: string): Promise<ApiResponse> {
-      return assertClient().post<ApiResponse>('/group/picture', { groupId, image: imageBase64 });
+    async updateName(groupjid: string, name: string): Promise<ApiResponse> {
+      return assertClient().post<ApiResponse>('/group/updateName', { groupjid, name });
+    },
+
+    async updateDescription(groupjid: string, description: string): Promise<ApiResponse> {
+      return assertClient().post<ApiResponse>('/group/updateDescription', { groupjid, description });
+    },
+
+    async updateImage(groupjid: string, image: string): Promise<ApiResponse> {
+      return assertClient().post<ApiResponse>('/group/updateImage', { groupjid, image });
+    },
+
+    async updateAnnounce(groupjid: string, announce: boolean): Promise<ApiResponse> {
+      return assertClient().post<ApiResponse>('/group/updateAnnounce', { groupjid, announce });
+    },
+
+    async updateLocked(groupjid: string, locked: boolean): Promise<ApiResponse> {
+      return assertClient().post<ApiResponse>('/group/updateLocked', { groupjid, locked });
     },
 
     async manageParticipants(data: GroupParticipantsRequest): Promise<ApiResponse> {
-      return assertClient().post<ApiResponse>('/group/participants', data);
+      return assertClient().post<ApiResponse>('/group/updateParticipants', data);
     },
 
-    async leave(groupId: string): Promise<ApiResponse> {
-      return assertClient().post<ApiResponse>('/group/leave', { groupId });
+    async leave(groupjid: string): Promise<ApiResponse> {
+      return assertClient().post<ApiResponse>('/group/leave', { groupjid });
     },
 
-    async list(): Promise<GroupInfo[]> {
-      return assertClient().get<GroupInfo[]>('/group/list');
+    async list(force?: boolean, noParticipants?: boolean): Promise<GroupInfo[]> {
+      let endpoint = '/group/list';
+      const params: string[] = [];
+      if (force) params.push('force=true');
+      if (noParticipants) params.push('noParticipants=true');
+      if (params.length) endpoint += '?' + params.join('&');
+      return assertClient().get<GroupInfo[]>(endpoint);
+    },
+
+    async join(invitecode: string): Promise<ApiResponse> {
+      return assertClient().post<ApiResponse>('/group/join', { invitecode });
+    },
+
+    async inviteInfo(invitecode: string): Promise<GroupInfo> {
+      return assertClient().post<GroupInfo>('/group/inviteInfo', { invitecode });
+    },
+
+    async resetInviteCode(groupjid: string): Promise<ApiResponse> {
+      return assertClient().post<ApiResponse>('/group/resetInviteCode', { groupjid });
     },
   };
 }
