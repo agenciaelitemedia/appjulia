@@ -32,13 +32,34 @@ interface GroupInfo {
   isAnnounce?: boolean;
 }
 
-export default function SupportGroupsTab({ apiUrl, instanceToken, teamPhones }: SupportGroupsTabProps) {
+interface TeamMemberRecord {
+  phone: string;
+  name: string;
+}
+
+export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroupsTabProps) {
   const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [teamMembers, setTeamMembers] = useState<TeamMemberRecord[]>([]);
 
   useEffect(() => {
-    fetchGroups();
+    loadTeamMembers();
+  }, []);
+
+  useEffect(() => {
+    if (apiUrl && instanceToken) fetchGroups();
   }, [apiUrl, instanceToken]);
+
+  const loadTeamMembers = async () => {
+    const { data } = await supabase
+      .from("support_team_members")
+      .select("phone, name");
+    setTeamMembers(
+      (data || [])
+        .filter((m: any) => m.phone && m.phone.trim() !== "")
+        .map((m: any) => ({ phone: m.phone, name: m.name }))
+    );
+  };
 
   const normalizeGroup = (g: any): GroupInfo => {
     const participants = (g.Participants || g.participants || []).map((p: any) => ({
@@ -72,7 +93,6 @@ export default function SupportGroupsTab({ apiUrl, instanceToken, teamPhones }: 
     if (!apiUrl || !instanceToken) return;
     setLoading(true);
     try {
-      // Use GET /group/list — the correct UaZapi endpoint
       const { data: proxyData, error } = await supabase.functions.invoke("uazapi-proxy", {
         body: {
           method: "GET",
@@ -106,10 +126,14 @@ export default function SupportGroupsTab({ apiUrl, instanceToken, teamPhones }: 
     }
   };
 
-  const isTeamMember = (jid: string) => {
+  const findTeamMember = (jid: string): TeamMemberRecord | undefined => {
     const phone = jid.split("@")[0];
-    return teamPhones.some((tp) => phone.includes(tp) || tp.includes(phone));
+    return teamMembers.find(
+      (tm) => phone.includes(tm.phone) || tm.phone.includes(phone)
+    );
   };
+
+  const isTeamMember = (jid: string) => !!findTeamMember(jid);
 
   return (
     <Card>
@@ -138,7 +162,7 @@ export default function SupportGroupsTab({ apiUrl, instanceToken, teamPhones }: 
           <Accordion type="multiple" className="space-y-2">
             {groups.map((group) => {
               const participants = group.participants || [];
-              const teamMembers = participants.filter((p) => isTeamMember(p.jid));
+              const team = participants.filter((p) => isTeamMember(p.jid));
               const clients = participants.filter((p) => !isTeamMember(p.jid));
 
               return (
@@ -151,26 +175,37 @@ export default function SupportGroupsTab({ apiUrl, instanceToken, teamPhones }: 
                       </Avatar>
                       <div>
                         <p className="font-medium text-sm">{group.name || group.jid}</p>
-                        <p className="text-xs text-muted-foreground">{group.size || participants.length} participantes</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{group.size || participants.length} participantes</span>
+                          {team.length > 0 && (
+                            <Badge className="bg-blue-500/10 text-blue-600 border-blue-200 text-[10px] px-1.5 py-0">
+                              {team.length} colaborador{team.length > 1 ? "es" : ""}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent>
                     <div className="space-y-4 pt-2">
-                      {teamMembers.length > 0 && (
+                      {team.length > 0 && (
                         <div>
                           <p className="text-xs font-semibold text-blue-600 flex items-center gap-1 mb-2">
-                            <Shield className="h-3 w-3" /> Colaboradores Julia ({teamMembers.length})
+                            <Shield className="h-3 w-3" /> Colaboradores Julia ({team.length})
                           </p>
                           <div className="space-y-1">
-                            {teamMembers.map((p) => (
-                              <div key={p.jid} className="flex items-center gap-2 text-xs pl-4">
-                                <Badge className="bg-blue-500/10 text-blue-600 text-xs">Suporte</Badge>
-                                <span>{p.jid.split("@")[0]}</span>
-                                {p.isAdmin && <Badge variant="outline" className="text-xs">Admin</Badge>}
-                                {p.isSuperAdmin && <Badge variant="outline" className="text-xs">Super Admin</Badge>}
-                              </div>
-                            ))}
+                            {team.map((p) => {
+                              const member = findTeamMember(p.jid);
+                              return (
+                                <div key={p.jid} className="flex items-center gap-2 text-xs pl-4">
+                                  <Badge className="bg-blue-500/10 text-blue-600 text-xs">Suporte</Badge>
+                                  <span className="font-medium">{member?.name || p.jid.split("@")[0]}</span>
+                                  <span className="text-muted-foreground">{p.jid.split("@")[0]}</span>
+                                  {p.isAdmin && <Badge variant="outline" className="text-xs">Admin</Badge>}
+                                  {p.isSuperAdmin && <Badge variant="outline" className="text-xs">Super Admin</Badge>}
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
