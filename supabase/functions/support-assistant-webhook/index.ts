@@ -118,7 +118,7 @@ serve(async (req) => {
     } else if (messageType === "video") {
       messageText = contentText || `🎬 Vídeo enviado pelo ${roleLabel}`;
     } else if (messageType === "document") {
-      messageText = content || `📄 Documento enviado pelo ${roleLabel}`;
+      messageText = contentText || `📄 Documento enviado pelo ${roleLabel}`;
     } else if (messageType === "audio") {
       messageText = `🎤 Áudio aguardando transcrição`;
     } else if (messageType === "sticker") {
