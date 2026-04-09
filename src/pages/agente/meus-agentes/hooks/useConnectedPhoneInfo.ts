@@ -9,14 +9,18 @@ interface PhoneInfo {
 }
 
 interface InstanceInfoResponse {
-  profileName?: string;
-  pushName?: string;
-  wid?: string;
-  owner?: string;
+  status?: string;
   phone?: string;
+  pushName?: string;
+  profileName?: string;
+  owner?: string;
+  wid?: string;
   profilePicUrl?: string;
   profilePictureUrl?: string;
-  [key: string]: unknown;
+  instance?: {
+    profileName?: string;
+    name?: string;
+  };
 }
 
 export function useConnectedPhoneInfo(
@@ -37,12 +41,17 @@ export function useConnectedPhoneInfo(
         instance: evoInstancia || undefined,
       });
 
-      const data = await client.get<InstanceInfoResponse>('/instance/info');
-      console.log('[useConnectedPhoneInfo] raw response:', data);
+      let data: InstanceInfoResponse | null = null;
+
+      try {
+        data = await client.get<InstanceInfoResponse>('/instance/info');
+      } catch {
+        data = await client.get<InstanceInfoResponse>('/instance/status');
+      }
 
       return {
-        phone: data?.wid || data?.owner || data?.phone || null,
-        pushName: data?.pushName || data?.profileName || null,
+        phone: data?.phone || data?.wid || data?.owner || null,
+        pushName: data?.pushName || data?.profileName || data?.instance?.profileName || data?.instance?.name || null,
         profilePictureUrl: data?.profilePicUrl || data?.profilePictureUrl || null,
       };
     },
