@@ -2058,21 +2058,30 @@ export type Database = {
       support_team_members: {
         Row: {
           created_at: string | null
+          email: string | null
           id: string
           name: string
           phone: string
+          role: string | null
+          user_id: number | null
         }
         Insert: {
           created_at?: string | null
+          email?: string | null
           id?: string
           name?: string
           phone: string
+          role?: string | null
+          user_id?: number | null
         }
         Update: {
           created_at?: string | null
+          email?: string | null
           id?: string
           name?: string
           phone?: string
+          role?: string | null
+          user_id?: number | null
         }
         Relationships: []
       }

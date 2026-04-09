@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { Headset, Wifi, WifiOff, Loader2, QrCode, Trash2, RefreshCw, AlertTriangle } from "lucide-react";
+import { Headset, Wifi, WifiOff, Loader2, QrCode, Trash2, RefreshCw, AlertTriangle, Smartphone } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -41,9 +42,32 @@ export default function SupportAssistantPage() {
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deleteConfirmSwitch, setDeleteConfirmSwitch] = useState(false);
   const [teamPhones, setTeamPhones] = useState<string[]>([]);
-
+  const [whatsappProfile, setWhatsappProfile] = useState<{
+    profilePicUrl: string | null;
+    pushName: string | null;
+    phone: string | null;
+    platform: string | null;
+  } | null>(null);
   useEffect(() => {
     loadConfig();
+  }, []);
+
+  const fetchWhatsappProfile = useCallback(async (apiUrl: string, token: string) => {
+    try {
+      const [infoResp, statusResp] = await Promise.all([
+        fetch(`${apiUrl}/instance/info`, { headers: { token } }).then(r => r.json()).catch(() => null),
+        fetch(`${apiUrl}/instance/status`, { headers: { token } }).then(r => r.json()).catch(() => null),
+      ]);
+
+      const profilePicUrl = infoResp?.profilePicUrl || infoResp?.instance?.profilePicUrl || statusResp?.instance?.profilePicUrl || null;
+      const pushName = infoResp?.pushName || infoResp?.profileName || infoResp?.instance?.profileName || infoResp?.instance?.name || statusResp?.instance?.profileName || null;
+      const phone = infoResp?.instance?.owner || infoResp?.wid || statusResp?.status?.jid?.split(":")[0] || statusResp?.instance?.owner || null;
+      const platform = infoResp?.platform || statusResp?.platform || null;
+
+      setWhatsappProfile({ profilePicUrl, pushName, phone, platform });
+    } catch (err) {
+      console.error("Erro ao buscar perfil WhatsApp:", err);
+    }
   }, []);
 
   const loadConfig = async () => {
@@ -64,6 +88,10 @@ export default function SupportAssistantPage() {
           instance_token: data.instance_token || "",
           connection_status: data.connection_status || "disconnected",
         });
+        // Fetch WhatsApp profile if connected
+        if (data.connection_status === "connected" && data.api_url && data.instance_token) {
+          fetchWhatsappProfile(data.api_url, data.instance_token);
+        }
       }
     } catch (err) {
       console.error("Erro ao carregar config:", err);
@@ -263,7 +291,9 @@ export default function SupportAssistantPage() {
       if (connected) {
         setQrCode(null);
         toast.success("WhatsApp conectado!");
+        fetchWhatsappProfile(config.api_url, config.instance_token);
       } else {
+        setWhatsappProfile(null);
         toast.info("WhatsApp desconectado");
       }
     } catch (err) {
@@ -339,6 +369,35 @@ export default function SupportAssistantPage() {
                 )}
               </div>
             </CardHeader>
+            {config.connection_status === "connected" && whatsappProfile && (
+              <CardContent className="pt-0">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border">
+                  <Avatar className="h-12 w-12">
+                    {whatsappProfile.profilePicUrl && (
+                      <AvatarImage src={whatsappProfile.profilePicUrl} alt="Perfil WhatsApp" />
+                    )}
+                    <AvatarFallback className="bg-primary/10 text-primary">
+                      <Smartphone className="h-5 w-5" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="space-y-0.5">
+                    {whatsappProfile.pushName && (
+                      <p className="text-sm font-medium">{whatsappProfile.pushName}</p>
+                    )}
+                    {whatsappProfile.phone && (
+                      <p className="text-xs font-mono text-muted-foreground">
+                        +{whatsappProfile.phone.replace("@s.whatsapp.net", "")}
+                      </p>
+                    )}
+                    {whatsappProfile.platform && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Plataforma: {whatsappProfile.platform}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            )}
           </Card>
 
           {/* Criar instância */}
