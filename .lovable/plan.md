@@ -1,34 +1,20 @@
 
 
-# Dupla confirmação na exclusão + Adicionar colaborador manual
+# Corrigir endpoint de listagem de grupos no Assistente de Suporte
 
-## Resumo
+## Problema
 
-Duas melhorias no card "Colaboradores Julia":
-1. Ao remover um colaborador selecionado, abrir AlertDialog com dupla confirmação (digitar nome + checkbox)
-2. Botão para adicionar colaborador manual informando nome, email e telefone (sem vínculo com banco externo)
+A aba Grupos chama `/group/fetchAllGroups` que retorna 404. O endpoint correto na API UaZapi é `/group/list` (conforme definido em `src/lib/uazapi/endpoints/group.ts`).
 
-## 1. Exclusão com dupla confirmação
+## Correção
 
-Ao clicar no `X` de um selecionado, abrir `AlertDialog` com:
-- Texto: "Deseja remover **{nome}** dos colaboradores?"
-- Input para digitar o nome do colaborador (deve coincidir)
-- Checkbox "Confirmo a remoção deste colaborador"
-- Botão "Remover" habilitado somente quando ambos estão corretos
-- Seguir padrão já usado em `LegalCasesTab.tsx`
+Alterar `SupportGroupsTab.tsx` linha 36: trocar `/group/fetchAllGroups` por `/group/list`.
 
-## 2. Adicionar colaborador manual
-
-No header da lista "Disponíveis", adicionar botão "Adicionar manual" que abre um `Dialog` com:
-- Campo Nome (obrigatório)
-- Campo Email (opcional)
-- Campo Telefone (opcional)
-- Botão "Adicionar" que insere direto em `support_team_members` com `user_id: null` e `role: 'manual'`
-- Após inserir, aparece na lista de selecionados
+Também ajustar o parsing da resposta para cobrir possíveis formatos de retorno da API (array direto ou objeto com campo `data`/`groups`).
 
 ## Arquivo alterado
 
-| Arquivo | Ação |
+| Arquivo | Mudança |
 |---|---|
-| `SupportTeamConfig.tsx` | Adicionar AlertDialog de exclusão com dupla confirmação + Dialog para adicionar colaborador manual |
+| `src/pages/suporte-assistente/components/SupportGroupsTab.tsx` | Trocar endpoint para `/group/list` |
 
