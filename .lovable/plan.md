@@ -1,40 +1,62 @@
 
 
-# Corrigir webhook do Assistente de Suporte — mensagens não sendo gravadas
+# Botao Atualizar nos Logs + Transcrição Real de Áudio + Resumo de Mídias
 
-## Problema
+## Problema Identificado na Transcrição
 
-O webhook recebeu uma chamada da UaZapi mas o campo `body.event` veio como `undefined`. O filtro na linha 23 descarta qualquer payload sem esse campo, por isso nenhuma mensagem foi gravada (tabela `support_group_messages` está vazia).
+A transcrição está **completamente errada** porque as URLs de mídia do WhatsApp são **criptografadas** (`.enc` em `mmg.whatsapp.net`). Quando a função baixa o arquivo direto dessa URL, recebe dados criptografados ilegíveis. O modelo de IA então **inventa** uma transcrição falsa. A solução é usar o endpoint `/message/download` da UaZapi que retorna o áudio decriptado em base64.
 
-A Evolution API/UaZapi pode enviar o tipo de evento em locais diferentes dependendo da versão e configuração do webhook. Possibilidades comuns:
-- `body.event` (formato padrão)
-- `body.data.event`
-- Header `x-webhook-event`
-- O payload pode ser um array de mensagens dentro de `body.data`
-- O endpoint pode receber o evento sem campo `event` (apenas o payload da mensagem direto)
+## Plano de Implementação
 
-## Correção
+### 1. Botao Atualizar nos Logs (SupportLogsTab.tsx)
 
-Alterar `support-assistant-webhook/index.ts`:
+Adicionar botao `RefreshCw` ao lado da busca no header, que chama `loadMessages()` com feedback visual (ícone girando durante loading).
 
-1. **Logar o payload completo** (temporariamente) para diagnosticar o formato real
-2. **Flexibilizar a detecção do evento**: aceitar payload mesmo sem campo `event`, desde que contenha dados de mensagem (`key`, `message`, `remoteJid`)
-3. **Extrair `remoteJid` de múltiplos caminhos possíveis**: `body.data.key.remoteJid`, `body.key.remoteJid`, `body.data[0].key.remoteJid` (quando array)
-4. **Tratar `senderJid` com LID**: como a API usa AddressingMode LID, o `participant` vem como LID. Precisamos buscar o `PhoneNumber` do participante no payload se disponível, senão usar o LID e cruzar com a tabela de team members pelo telefone
+### 2. Corrigir Transcrição de Áudio (support-transcribe-audio)
 
-Lógica revisada:
+**Causa raiz**: Download direto da URL criptografada do WhatsApp.
+
+**Correção**:
+- Buscar config da instância UaZapi em `support_assistant_config` (api_url, instance_name, api_key/instance_token)
+- Usar endpoint `/message/download` da UaZapi passando o `message_id` para obter o áudio decriptado em base64
+- Enviar o base64 decriptado para o Lovable AI Gateway para transcrição real
+- Fallback: se `/message/download` falhar, marcar como `[Transcrição indisponível - mídia expirada]` em vez de inventar
+
+**Mudanças na query**: Além de `media_url`, buscar também `message_id` e `raw_payload` para extrair o ID da mensagem original necessário para o download.
+
+### 3. Resumo de Imagens/Documentos no Webhook (support-assistant-webhook)
+
+Alterar o webhook para que, ao receber imagens e documentos, grave uma descrição mais útil:
+
+- **Imagens**: Gravar `is_transcribed: false` e na função de transcrição, baixar a imagem via `/message/download` e enviar ao Lovable AI para descrever o conteúdo (ex: "📷 Imagem do cliente: captura de tela de conversa sobre contrato")
+- **Documentos**: Gravar nome do arquivo quando disponível: `📄 Documento do cliente: contrato_2025.pdf`
+- **Textos longos**: Manter como estão (já são gravados corretamente)
+
+### 4. Expandir support-transcribe-audio para processar mídias
+
+Renomear conceitualmente para "processar mídias pendentes" — além de áudios, processar:
+- **Imagens** (`is_transcribed: false`): baixar via UaZapi, enviar ao AI para descrição visual
+- **Documentos** com caption vazia: registrar apenas o tipo e nome do arquivo
+
+## Arquivos Alterados
+
+| Arquivo | Mudanca |
+|---|---|
+| `SupportLogsTab.tsx` | Adicionar botao Atualizar com RefreshCw |
+| `support-transcribe-audio/index.ts` | Usar `/message/download` da UaZapi para obter mídia decriptada; processar imagens também |
+| `support-assistant-webhook/index.ts` | Marcar imagens como `is_transcribed: false` para processamento posterior; incluir nome do arquivo em documentos |
+
+## Detalhes Técnicos
+
+Fluxo de download via UaZapi:
 ```text
-1. Logar body inteiro
-2. Tentar extrair event de body.event || body.data?.event || "unknown"
-3. Tentar extrair msgData de body.data (se array, pegar [0]) || body.message || body
-4. Tentar extrair key e remoteJid
-5. Se remoteJid contém @g.us → processar (sem depender do campo event)
-6. Resto da lógica permanece igual
+1. Buscar config: support_assistant_config → api_url, instance_name, api_key
+2. POST {api_url}/{instance_name}/message/download 
+   body: { id: message_id }
+   headers: { apikey: api_key }
+3. Resposta: { base64: "...", mimetype: "audio/ogg" }
+4. Enviar base64 ao Lovable AI para transcrição/descrição
 ```
 
-## Arquivo alterado
-
-| Arquivo | Mudança |
-|---|---|
-| `support-assistant-webhook/index.ts` | Flexibilizar detecção de evento, logar payload completo, aceitar mensagens sem campo `event` |
+Nao será necessária API do Groq — o Lovable AI Gateway (já configurado com `LOVABLE_API_KEY`) suporta áudio multimodal com Gemini, basta que o áudio esteja decriptado.
 
