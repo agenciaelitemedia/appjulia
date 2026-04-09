@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, RefreshCw, Users, Shield, User } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, RefreshCw, Users, Shield, User, Search, Eye, EyeOff, MonitorCheck } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -39,13 +40,24 @@ interface TeamMemberRecord {
   name: string;
 }
 
+interface MonitoredGroup {
+  group_jid: string;
+  group_name: string;
+  is_active: boolean;
+}
+
 export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroupsTabProps) {
   const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [teamMembers, setTeamMembers] = useState<TeamMemberRecord[]>([]);
+  const [monitoredJids, setMonitoredJids] = useState<Set<string>>(new Set());
+  const [searchTerm, setSearchTerm] = useState("");
+  const [togglingJid, setTogglingJid] = useState<string | null>(null);
+  const [monitoringAll, setMonitoringAll] = useState(false);
 
   useEffect(() => {
     loadTeamMembers();
+    loadMonitoredGroups();
   }, []);
 
   useEffect(() => {
@@ -61,6 +73,14 @@ export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroup
         .filter((m: any) => m.phone && m.phone.trim() !== "")
         .map((m: any) => ({ phone: m.phone, name: m.name }))
     );
+  };
+
+  const loadMonitoredGroups = async () => {
+    const { data } = await supabase
+      .from("support_monitored_groups")
+      .select("group_jid")
+      .eq("is_active", true);
+    setMonitoredJids(new Set((data || []).map((g: any) => g.group_jid)));
   };
 
   const normalizeGroup = (g: any): GroupInfo => {
@@ -110,17 +130,12 @@ export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroup
         },
       });
 
-      console.log("[SupportGroupsTab] /group/list raw response:", proxyData);
-
       let rawList: any[] = [];
       if (!error && proxyData?.ok) {
         rawList = extractArray(proxyData.data);
-      } else {
-        console.warn("[SupportGroupsTab] /group/list failed, error:", error, "proxyData:", proxyData);
       }
 
       const list = rawList.map(normalizeGroup).filter(g => g.jid);
-      console.log("[SupportGroupsTab] Normalized groups:", list.length, list.slice(0, 2));
       setGroups(list);
 
       if (list.length === 0) {
@@ -134,6 +149,63 @@ export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroup
     }
   };
 
+  const toggleMonitoring = async (group: GroupInfo) => {
+    setTogglingJid(group.jid);
+    const isMonitored = monitoredJids.has(group.jid);
+
+    try {
+      if (isMonitored) {
+        const { error } = await supabase
+          .from("support_monitored_groups")
+          .delete()
+          .eq("group_jid", group.jid);
+        if (error) throw error;
+        setMonitoredJids(prev => { const next = new Set(prev); next.delete(group.jid); return next; });
+        toast.success(`"${group.name}" removido do monitoramento`);
+      } else {
+        const { error } = await supabase
+          .from("support_monitored_groups")
+          .upsert({
+            group_jid: group.jid,
+            group_name: group.name,
+            picture_url: group.pictureUrl || null,
+            is_active: true,
+            auto_added: false,
+          }, { onConflict: "group_jid" });
+        if (error) throw error;
+        setMonitoredJids(prev => new Set(prev).add(group.jid));
+        toast.success(`"${group.name}" adicionado ao monitoramento`);
+      }
+    } catch (err: any) {
+      toast.error("Erro ao alterar monitoramento", { description: err.message });
+    } finally {
+      setTogglingJid(null);
+    }
+  };
+
+  const monitorAll = async () => {
+    setMonitoringAll(true);
+    try {
+      const rows = groups.map(g => ({
+        group_jid: g.jid,
+        group_name: g.name,
+        picture_url: g.pictureUrl || null,
+        is_active: true,
+        auto_added: false,
+      }));
+      const { error } = await supabase
+        .from("support_monitored_groups")
+        .upsert(rows, { onConflict: "group_jid" });
+      if (error) throw error;
+      setMonitoredJids(new Set(groups.map(g => g.jid)));
+      toast.success(`${groups.length} grupos adicionados ao monitoramento`);
+    } catch (err: any) {
+      toast.error("Erro ao monitorar todos", { description: err.message });
+    } finally {
+      setMonitoringAll(false);
+    }
+  };
+
   const findTeamMember = (participant: GroupParticipant): TeamMemberRecord | undefined => {
     if (!participant.phoneNumber) return undefined;
     return teamMembers.find(
@@ -142,6 +214,14 @@ export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroup
   };
 
   const isTeamMember = (p: GroupParticipant) => !!findTeamMember(p);
+
+  const filteredGroups = useMemo(() => {
+    if (!searchTerm.trim()) return groups;
+    const term = searchTerm.toLowerCase();
+    return groups.filter(g => g.name.toLowerCase().includes(term) || g.jid.includes(term));
+  }, [groups, searchTerm]);
+
+  const monitoredCount = groups.filter(g => monitoredJids.has(g.jid)).length;
 
   return (
     <Card>
@@ -152,37 +232,79 @@ export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroup
               <Users className="h-5 w-5" />
               Grupos ({groups.length})
             </CardTitle>
-            <CardDescription>Grupos do WhatsApp conectado ao assistente</CardDescription>
+            <CardDescription className="flex items-center gap-2">
+              Grupos do WhatsApp conectado ao assistente
+              {groups.length > 0 && (
+                <Badge variant="outline" className="text-xs">
+                  <Eye className="h-3 w-3 mr-1" />
+                  {monitoredCount} monitorados
+                </Badge>
+              )}
+            </CardDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={fetchGroups} disabled={loading}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={monitorAll}
+              disabled={loading || monitoringAll || groups.length === 0}
+            >
+              {monitoringAll ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <MonitorCheck className="h-4 w-4 mr-1" />}
+              Monitorar Todos
+            </Button>
+            <Button variant="outline" size="sm" onClick={fetchGroups} disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            </Button>
+          </div>
         </div>
+        {groups.length > 0 && (
+          <div className="relative mt-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar grupo por nome..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         {loading ? (
           <div className="flex justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        ) : groups.length === 0 ? (
-          <p className="text-center text-muted-foreground py-8">Nenhum grupo encontrado</p>
+        ) : filteredGroups.length === 0 ? (
+          <p className="text-center text-muted-foreground py-8">
+            {searchTerm ? "Nenhum grupo encontrado com esse filtro" : "Nenhum grupo encontrado"}
+          </p>
         ) : (
           <Accordion type="multiple" className="space-y-2">
-            {groups.map((group) => {
+            {filteredGroups.map((group) => {
               const participants = group.participants || [];
               const team = participants.filter((p) => isTeamMember(p));
               const clients = participants.filter((p) => !isTeamMember(p));
+              const isMonitored = monitoredJids.has(group.jid);
+              const isToggling = togglingJid === group.jid;
 
               return (
                 <AccordionItem key={group.jid} value={group.jid} className="border rounded-lg px-4">
                   <AccordionTrigger className="hover:no-underline">
-                    <div className="flex items-center gap-3 text-left">
+                    <div className="flex items-center gap-3 text-left w-full">
                       <Avatar className="h-10 w-10">
                         <AvatarImage src={group.pictureUrl} />
                         <AvatarFallback>{(group.name || "G")[0]}</AvatarFallback>
                       </Avatar>
-                      <div>
-                        <p className="font-medium text-sm">{group.name || group.jid}</p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-sm truncate">{group.name || group.jid}</p>
+                          {isMonitored && (
+                            <Badge className="bg-green-500/10 text-green-600 border-green-200 text-[10px] px-1.5 py-0 shrink-0">
+                              <Eye className="h-2.5 w-2.5 mr-0.5" />
+                              Monitorando
+                            </Badge>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <span>{group.size || participants.length} participantes</span>
                           {team.length > 0 && (
@@ -192,6 +314,15 @@ export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroup
                           )}
                         </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`shrink-0 h-8 w-8 ${isMonitored ? "text-green-600 hover:text-red-600" : "text-muted-foreground hover:text-green-600"}`}
+                        onClick={(e) => { e.stopPropagation(); toggleMonitoring(group); }}
+                        disabled={isToggling}
+                      >
+                        {isToggling ? <Loader2 className="h-4 w-4 animate-spin" /> : isMonitored ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                      </Button>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent>
