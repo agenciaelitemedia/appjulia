@@ -98,7 +98,7 @@ serve(async (req) => {
         const downloadResp = await fetch(`${baseUrl}/message/download`, {
           method: "POST",
           headers: {
-            "apikey": apiKey,
+            "token": apiKey,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
