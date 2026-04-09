@@ -52,6 +52,24 @@ export default function SupportAssistantPage() {
     loadConfig();
   }, []);
 
+  const fetchWhatsappProfile = useCallback(async (apiUrl: string, token: string) => {
+    try {
+      const [infoResp, statusResp] = await Promise.all([
+        fetch(`${apiUrl}/instance/info`, { headers: { token } }).then(r => r.json()).catch(() => null),
+        fetch(`${apiUrl}/instance/status`, { headers: { token } }).then(r => r.json()).catch(() => null),
+      ]);
+
+      const profilePicUrl = infoResp?.profilePicUrl || infoResp?.instance?.profilePicUrl || statusResp?.instance?.profilePicUrl || null;
+      const pushName = infoResp?.pushName || infoResp?.profileName || infoResp?.instance?.profileName || infoResp?.instance?.name || statusResp?.instance?.profileName || null;
+      const phone = infoResp?.instance?.owner || infoResp?.wid || statusResp?.status?.jid?.split(":")[0] || statusResp?.instance?.owner || null;
+      const platform = infoResp?.platform || statusResp?.platform || null;
+
+      setWhatsappProfile({ profilePicUrl, pushName, phone, platform });
+    } catch (err) {
+      console.error("Erro ao buscar perfil WhatsApp:", err);
+    }
+  }, []);
+
   const loadConfig = async () => {
     try {
       const { data, error } = await supabase
