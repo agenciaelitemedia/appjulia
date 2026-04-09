@@ -42,7 +42,12 @@ export default function SupportAssistantPage() {
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deleteConfirmSwitch, setDeleteConfirmSwitch] = useState(false);
   const [teamPhones, setTeamPhones] = useState<string[]>([]);
-
+  const [whatsappProfile, setWhatsappProfile] = useState<{
+    profilePicUrl: string | null;
+    pushName: string | null;
+    phone: string | null;
+    platform: string | null;
+  } | null>(null);
   useEffect(() => {
     loadConfig();
   }, []);
