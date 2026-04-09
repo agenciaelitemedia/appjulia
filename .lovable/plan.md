@@ -1,96 +1,46 @@
 
 
-# Monitoramento de Grupos — Busca, Inclusão/Exclusão, Gravação Inteligente e Auto-discovery
+# Separar grupos monitorados/não monitorados + Extrair cod_agent do nome
 
 ## Resumo
 
-Transformar a aba Grupos do Assistente de Suporte em um sistema completo de monitoramento: busca, toggle de monitoramento por grupo, gravação seletiva de mensagens (com categorização cliente/suporte e transcrição de áudios), e auto-discovery noturno de novos grupos "Julia".
+Duas mudanças no `SupportGroupsTab.tsx`:
+1. Separar a listagem em duas seções: **Monitorados** (primeiro, com card verde diferenciado) e **Não Monitorados** (abaixo, card padrão)
+2. Extrair automaticamente o `cod_agent` do nome do grupo usando regex para o padrão `[YYYYMMDD]`
 
-## 1. Migração: tabela `support_monitored_groups`
+## 1. Separação visual Monitorados vs Não Monitorados
 
-```sql
-CREATE TABLE public.support_monitored_groups (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  group_jid text NOT NULL UNIQUE,
-  group_name text NOT NULL DEFAULT '',
-  picture_url text,
-  is_active boolean NOT NULL DEFAULT true,
-  auto_added boolean NOT NULL DEFAULT false,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
-ALTER TABLE public.support_monitored_groups ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all on support_monitored_groups" ON public.support_monitored_groups FOR ALL USING (true) WITH CHECK (true);
+No `filteredGroups`, dividir em dois arrays:
+```typescript
+const monitoredGroups = filteredGroups.filter(g => monitoredJids.has(g.jid));
+const unmonitoredGroups = filteredGroups.filter(g => !monitoredJids.has(g.jid));
 ```
 
-Também adicionar colunas em `support_group_messages`:
-```sql
-ALTER TABLE public.support_group_messages
-  ADD COLUMN IF NOT EXISTS sender_role text DEFAULT 'unknown',
-  ADD COLUMN IF NOT EXISTS transcription text,
-  ADD COLUMN IF NOT EXISTS is_transcribed boolean DEFAULT false;
+Renderizar em duas seções com headers:
+- **"Monitorados (X)"** — cards com borda/fundo verde (`border-green-200 bg-green-50/50 dark:bg-green-950/20`)
+- **"Não Monitorados (Y)"** — cards com estilo padrão atual
+
+## 2. Extração do cod_agent do nome do grupo
+
+Função helper com regex:
+```typescript
+const extractCodAgent = (groupName: string): string | null => {
+  const match = groupName.match(/\[(20\d{6})\]/);
+  return match ? match[1] : null;
+};
 ```
 
-## 2. UI — Aba Grupos redesenhada (`SupportGroupsTab.tsx`)
+Exibir como Badge ao lado do nome do grupo quando encontrado (ex: `Badge "20250405"`).
 
-- **Campo de busca** no topo filtrando por nome do grupo
-- **Ícone toggle (Eye/EyeOff)** em cada grupo para incluir/remover do monitoramento
-  - Ao adicionar: insert em `support_monitored_groups`
-  - Ao remover: delete da tabela (com confirmação simples)
-- **Badge visual** "Monitorando" nos grupos ativos
-- **Contador** separado: "X monitorados / Y total"
-- Ao carregar, cruzar lista de grupos da API com `support_monitored_groups` para saber quais estão ativos
-- Botão "Monitorar Todos" para inclusão em massa
+Adicionar `codAgent` ao `GroupInfo` interface e preencher no `normalizeGroup`.
 
-## 3. Webhook — Gravação seletiva e categorização
+## 3. Contadores no header
 
-Alterar `support-assistant-webhook/index.ts`:
+Atualizar o header para mostrar: `Grupos (X total) — Y monitorados · Z não monitorados`
 
-1. **Verificar se grupo está monitorado**: antes de gravar, consultar `support_monitored_groups` pelo `group_jid`. Se não estiver, ignorar (skip)
-2. **Categorizar sender_role**: cruzar `sender_jid` / `PhoneNumber` com `support_team_members` para definir `sender_role = 'suporte'` ou `'cliente'`
-3. **Tipos de mídia**: para documentos/fotos/vídeos, gravar `message_text` descritivo (ex: "📄 Documento enviado pelo cliente", "📷 Imagem enviada pelo suporte João")
-4. **Áudio**: marcar `is_transcribed = false` e `message_text = '🎤 Áudio aguardando transcrição'`. Disparar transcrição assíncrona via edge function separada
+## Arquivo alterado
 
-## 4. Edge Function — Transcrição de áudios (`support-transcribe-audio`)
-
-Nova edge function que:
-1. Busca mensagens com `message_type = 'audio'` e `is_transcribed = false`
-2. Baixa o áudio via `media_url`
-3. Transcreve usando Lovable AI (enviar como base64 para modelo multimodal)
-4. Atualiza `transcription` e `is_transcribed = true`
-5. Será chamada via pg_cron a cada 5 minutos
-
-## 5. Edge Function — Auto-discovery noturno (`support-group-discovery`)
-
-Nova edge function agendada via pg_cron (todo dia às 23:00 BRT):
-
-1. Buscar `support_assistant_config` para credenciais
-2. Chamar `GET /group/list` via UaZapi
-3. Para cada grupo, verificar se já existe em `support_monitored_groups`
-4. Se novo E nome contém variações de "julia"/"júlia" (case-insensitive, com/sem acento): inserir automaticamente com `auto_added = true`
-5. Logar quantidade de novos grupos adicionados
-
-Regex de match: `/j[uú]lia/i`
-
-## 6. Inclusão inicial de todos os grupos
-
-Na primeira execução (ou via botão "Monitorar Todos" na UI), inserir todos os grupos existentes em `support_monitored_groups` com `auto_added = false`.
-
-## Arquivos
-
-| Arquivo | Ação |
+| Arquivo | Mudança |
 |---|---|
-| Migração SQL | Criar `support_monitored_groups` + colunas extras em `support_group_messages` |
-| `SupportGroupsTab.tsx` | Busca, toggle monitoramento, badges, botão monitorar todos |
-| `support-assistant-webhook/index.ts` | Filtro por grupos monitorados, categorização sender_role, descrição de mídias |
-| `supabase/functions/support-transcribe-audio/index.ts` | Nova — transcrição de áudios via Lovable AI |
-| `supabase/functions/support-group-discovery/index.ts` | Nova — auto-discovery noturno de grupos Julia |
-| SQL (insert tool) | Criar cron jobs para transcrição (5min) e discovery (23:00 BRT) |
-
-## Detalhes técnicos
-
-- O webhook atual grava TODAS as mensagens de grupo — será alterado para gravar apenas grupos monitorados
-- A categorização usa a mesma lógica de `PhoneNumber` + cruzamento com `support_team_members` já implementada na UI
-- Para transcrição, o áudio é baixado via `media_url` do UaZapi e enviado ao Lovable AI Gateway como multimodal
-- O pg_cron do discovery usa timezone `America/Sao_Paulo` para executar às 23h BRT
+| `SupportGroupsTab.tsx` | Separar seções monitorados/não monitorados, estilizar cards, extrair cod_agent |
 
