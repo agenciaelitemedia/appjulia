@@ -16,6 +16,8 @@ interface SupportGroupsTabProps {
 
 interface GroupParticipant {
   jid: string;
+  phoneNumber: string;
+  displayName: string;
   isAdmin: boolean;
   isSuperAdmin?: boolean;
 }
@@ -62,11 +64,17 @@ export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroup
   };
 
   const normalizeGroup = (g: any): GroupInfo => {
-    const participants = (g.Participants || g.participants || []).map((p: any) => ({
-      jid: (p.JID || p.jid || p.id || "") as string,
-      isAdmin: !!(p.IsAdmin || p.isAdmin || p.admin === "admin" || p.admin === "superadmin"),
-      isSuperAdmin: !!(p.IsSuperAdmin || p.isSuperAdmin || p.admin === "superadmin"),
-    }));
+    const participants = (g.Participants || g.participants || []).map((p: any) => {
+      const phoneRaw = (p.PhoneNumber || p.phoneNumber || "") as string;
+      const phone = phoneRaw.split("@")[0];
+      return {
+        jid: (p.JID || p.jid || p.id || "") as string,
+        phoneNumber: phone,
+        displayName: (p.DisplayName || p.displayName || "") as string,
+        isAdmin: !!(p.IsAdmin || p.isAdmin || p.admin === "admin" || p.admin === "superadmin"),
+        isSuperAdmin: !!(p.IsSuperAdmin || p.isSuperAdmin || p.admin === "superadmin"),
+      };
+    });
     return {
       jid: (g.JID || g.jid || g.id || g.groupId || "") as string,
       name: (g.Name || g.name || g.subject || g.groupName || "") as string,
@@ -126,14 +134,14 @@ export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroup
     }
   };
 
-  const findTeamMember = (jid: string): TeamMemberRecord | undefined => {
-    const phone = jid.split("@")[0];
+  const findTeamMember = (participant: GroupParticipant): TeamMemberRecord | undefined => {
+    if (!participant.phoneNumber) return undefined;
     return teamMembers.find(
-      (tm) => phone.includes(tm.phone) || tm.phone.includes(phone)
+      (tm) => participant.phoneNumber.includes(tm.phone) || tm.phone.includes(participant.phoneNumber)
     );
   };
 
-  const isTeamMember = (jid: string) => !!findTeamMember(jid);
+  const isTeamMember = (p: GroupParticipant) => !!findTeamMember(p);
 
   return (
     <Card>
@@ -162,8 +170,8 @@ export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroup
           <Accordion type="multiple" className="space-y-2">
             {groups.map((group) => {
               const participants = group.participants || [];
-              const team = participants.filter((p) => isTeamMember(p.jid));
-              const clients = participants.filter((p) => !isTeamMember(p.jid));
+              const team = participants.filter((p) => isTeamMember(p));
+              const clients = participants.filter((p) => !isTeamMember(p));
 
               return (
                 <AccordionItem key={group.jid} value={group.jid} className="border rounded-lg px-4">
@@ -195,12 +203,12 @@ export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroup
                           </p>
                           <div className="space-y-1">
                             {team.map((p) => {
-                              const member = findTeamMember(p.jid);
+                              const member = findTeamMember(p);
                               return (
                                 <div key={p.jid} className="flex items-center gap-2 text-xs pl-4">
                                   <Badge className="bg-blue-500/10 text-blue-600 text-xs">Suporte</Badge>
-                                  <span className="font-medium">{member?.name || p.jid.split("@")[0]}</span>
-                                  <span className="text-muted-foreground">{p.jid.split("@")[0]}</span>
+                                  <span className="font-medium">{member?.name || p.phoneNumber || p.displayName || p.jid.split("@")[0]}</span>
+                                  <span className="text-muted-foreground">{p.phoneNumber || p.jid.split("@")[0]}</span>
                                   {p.isAdmin && <Badge variant="outline" className="text-xs">Admin</Badge>}
                                   {p.isSuperAdmin && <Badge variant="outline" className="text-xs">Super Admin</Badge>}
                                 </div>
@@ -217,7 +225,7 @@ export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroup
                           {clients.map((p) => (
                             <div key={p.jid} className="flex items-center gap-2 text-xs pl-4">
                               <Badge variant="secondary" className="text-xs">Cliente</Badge>
-                              <span>{p.jid.split("@")[0]}</span>
+                              <span>{p.phoneNumber || p.displayName || p.jid.split("@")[0]}</span>
                               {p.isAdmin && <Badge variant="outline" className="text-xs">Admin</Badge>}
                             </div>
                           ))}
