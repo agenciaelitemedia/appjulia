@@ -93,7 +93,7 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
           <ConnectionStatusBadge status={connectionStatus} isLoading={isLoading} />
         </div>
 
-        {/* Alias como título */}
+        {/* Título: #cod_agent - Alias */}
         <div className="flex items-center gap-1 mb-1">
           {isEditingAlias ? (
             <div className="flex items-center gap-1 w-full">
@@ -117,7 +117,7 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
           ) : (
             <>
               <h3 className="font-semibold text-foreground truncate">
-                {alias || agent.business_name || agent.client_name || 'Sem nome'}
+                #{agent.cod_agent} - {alias || agent.business_name || agent.client_name || 'Sem nome'}
               </h3>
               {!isMonitored && (
                 <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={handleStartEdit}>
@@ -127,11 +127,26 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
             </>
           )}
         </div>
-        
-        {/* Código do agente */}
-        <p className="text-xs text-muted-foreground font-mono mb-2">
-          #{agent.cod_agent}
-        </p>
+
+        {/* Dados do telefone conectado (UaZapi) - logo abaixo do título */}
+        {phoneInfo && connectionStatus === 'connected' && (
+          <div className="flex items-center gap-2 mb-2">
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={phoneInfo.profilePictureUrl || undefined} />
+              <AvatarFallback className="text-[8px] bg-muted">
+                <Phone className="h-3 w-3" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              {phoneInfo.pushName && (
+                <p className="text-xs font-medium text-foreground truncate">{phoneInfo.pushName}</p>
+              )}
+              {phoneInfo.phone && (
+                <p className="text-xs text-muted-foreground truncate">{phoneInfo.phone}</p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Provider info */}
         {providerLabel && (
