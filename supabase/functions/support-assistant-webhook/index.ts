@@ -16,23 +16,38 @@ serve(async (req) => {
     const instance = url.searchParams.get("instance") || "unknown";
 
     const body = await req.json();
-    console.log("[support-webhook] Event from instance:", instance, "type:", body?.event);
+    
+    // Log full payload for debugging
+    console.log("[support-webhook] FULL PAYLOAD:", JSON.stringify(body).substring(0, 2000));
 
-    // Only process message events
-    const event = body?.event;
-    if (!event || !["messages.upsert", "message", "onMessage"].includes(event)) {
-      return new Response(JSON.stringify({ ok: true, skipped: "not a message event" }), {
+    // Flexible event detection
+    const event = body?.event || body?.data?.event || "unknown";
+    console.log("[support-webhook] Event:", event, "Instance:", instance);
+
+    // Extract message data from multiple possible paths
+    let msgData: any = null;
+    if (body?.data) {
+      msgData = Array.isArray(body.data) ? body.data[0] : body.data;
+    } else if (body?.message) {
+      msgData = body;
+    } else if (body?.key) {
+      msgData = body;
+    }
+
+    if (!msgData) {
+      console.log("[support-webhook] No message data found in payload");
+      return new Response(JSON.stringify({ ok: true, skipped: "no message data" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Extract message data (Baileys format)
-    const msgData = body?.data || body?.message || body;
+    // Extract key and remoteJid from multiple paths
     const key = msgData?.key || {};
     const remoteJid = key?.remoteJid || msgData?.remoteJid || "";
 
     // Only process group messages (@g.us)
     if (!remoteJid.includes("@g.us")) {
+      console.log("[support-webhook] Not a group message, remoteJid:", remoteJid);
       return new Response(JSON.stringify({ ok: true, skipped: "not a group message" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -53,12 +68,13 @@ serve(async (req) => {
       .maybeSingle();
 
     if (!monitored) {
+      console.log("[support-webhook] Group not monitored:", remoteJid);
       return new Response(JSON.stringify({ ok: true, skipped: "group not monitored" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Extract fields
+    // Extract message content
     const messageContent = msgData?.message || {};
     const conversation = messageContent?.conversation
       || messageContent?.extendedTextMessage?.text
@@ -79,18 +95,31 @@ serve(async (req) => {
       || messageContent?.documentMessage?.url
       || null;
 
-    const senderJid = key?.participant || key?.remoteJid || "";
+    // Extract sender info - handle LID addressing
+    const participant = key?.participant || "";
+    const senderJid = participant || key?.remoteJid || "";
     const pushName = msgData?.pushName || msgData?.verifiedBizName || "";
     const messageId = key?.id || "";
     const isFromMe = key?.fromMe || false;
+
+    // Try to get PhoneNumber from participant data if available (LID mode)
+    // The PhoneNumber field may be in different locations depending on the API version
+    const participantPhone = msgData?.participant?.PhoneNumber 
+      || msgData?.participantPhoneNumber
+      || null;
+    
+    // Extract phone number: prefer PhoneNumber field, fallback to parsing JID
+    let senderPhone = "";
+    if (participantPhone) {
+      senderPhone = participantPhone.split("@")[0];
+    } else if (senderJid && !senderJid.includes("@lid")) {
+      senderPhone = senderJid.split("@")[0];
+    }
 
     // Group name from groupMetadata if available
     const groupName = msgData?.groupMetadata?.subject || body?.groupMetadata?.subject || null;
 
     // Determine sender_role by matching phone with support_team_members
-    // Extract phone from participant PhoneNumber or senderJid
-    const senderPhone = senderJid.split("@")[0];
-
     let senderRole = "cliente";
     const { data: teamMembers } = await supabase
       .from("support_team_members")
@@ -151,7 +180,7 @@ serve(async (req) => {
       });
     }
 
-    console.log("[support-webhook] Message saved from group:", remoteJid, "role:", senderRole);
+    console.log("[support-webhook] Message saved from group:", remoteJid, "role:", senderRole, "type:", messageType);
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
