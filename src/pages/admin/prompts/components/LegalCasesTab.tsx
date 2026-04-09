@@ -119,14 +119,32 @@ export function LegalCasesTab() {
   };
 
   // Delete flow
-  const openDelete = (c: LegalCase) => {
+  const [usageCount, setUsageCount] = useState<number | null>(null);
+  const [checkingUsage, setCheckingUsage] = useState(false);
+  const { toast } = useToast();
+
+  const openDelete = async (c: LegalCase) => {
     setDeleting(c);
     setDeleteTypedName('');
     setDeleteConfirmed(false);
+    setCheckingUsage(true);
+    setUsageCount(null);
+
+    const { count, error } = await supabase
+      .from('generation_agent_prompt_cases')
+      .select('*', { count: 'exact', head: true })
+      .eq('case_id', c.id);
+
+    setUsageCount(error ? 0 : (count || 0));
+    setCheckingUsage(false);
   };
 
   const handleDelete = async () => {
     if (!deleting) return;
+    if ((usageCount || 0) > 0) {
+      toast({ title: 'Não é possível excluir', description: 'Este caso está vinculado a prompts de agentes. Remova os vínculos antes de excluir.', variant: 'destructive' });
+      return;
+    }
     setDeleteLoading(true);
     await deleteCase(deleting.id);
     setDeleteLoading(false);
@@ -134,7 +152,7 @@ export function LegalCasesTab() {
   };
 
   const deleteNameMatch = deleting ? deleteTypedName === deleting.case_name : false;
-  const canDelete = deleteNameMatch && deleteConfirmed && !deleteLoading;
+  const canDelete = deleteNameMatch && deleteConfirmed && !deleteLoading && usageCount === 0;
 
   // Restore from history
   const handleRestore = async (version: LegalCaseVersion) => {
