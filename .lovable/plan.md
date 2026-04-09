@@ -1,71 +1,34 @@
 
 
-# Redesign Colaboradores Julia + Perfil WhatsApp no Status
+# Dupla confirmação na exclusão + Adicionar colaborador manual
 
 ## Resumo
 
-Duas mudanças:
-1. Redesign do card "Colaboradores Julia" com transfer list usando usuários `admin` e `colaborador` do banco externo
-2. Exibir informações completas do perfil WhatsApp conectado no card "Status da Conexão"
+Duas melhorias no card "Colaboradores Julia":
+1. Ao remover um colaborador selecionado, abrir AlertDialog com dupla confirmação (digitar nome + checkbox)
+2. Botão para adicionar colaborador manual informando nome, email e telefone (sem vínculo com banco externo)
 
-## 1. Migração: colunas extras em `support_team_members`
+## 1. Exclusão com dupla confirmação
 
-```sql
-ALTER TABLE public.support_team_members 
-ADD COLUMN IF NOT EXISTS user_id integer,
-ADD COLUMN IF NOT EXISTS email text DEFAULT '',
-ADD COLUMN IF NOT EXISTS role text DEFAULT '';
-```
+Ao clicar no `X` de um selecionado, abrir `AlertDialog` com:
+- Texto: "Deseja remover **{nome}** dos colaboradores?"
+- Input para digitar o nome do colaborador (deve coincidir)
+- Checkbox "Confirmo a remoção deste colaborador"
+- Botão "Remover" habilitado somente quando ambos estão corretos
+- Seguir padrão já usado em `LegalCasesTab.tsx`
 
-## 2. Redesign `SupportTeamConfig.tsx` — Transfer List
+## 2. Adicionar colaborador manual
 
-### Fonte de dados
+No header da lista "Disponíveis", adicionar botão "Adicionar manual" que abre um `Dialog` com:
+- Campo Nome (obrigatório)
+- Campo Email (opcional)
+- Campo Telefone (opcional)
+- Botão "Adicionar" que insere direto em `support_team_members` com `user_id: null` e `role: 'manual'`
+- Após inserir, aparece na lista de selecionados
 
-Usar `externalDb.getUsersWithPermissions()` para buscar todos os usuários, depois filtrar **apenas** `role === 'admin'` ou `role === 'colaborador'` no client-side. Cruzar com `support_team_members` para separar disponíveis vs selecionados.
-
-### Layout
-
-```text
-┌─────────────────────────────────────────────────────────┐
-│  Colaboradores Julia                                     │
-│  Selecione os usuários que atuam nos grupos de suporte   │
-├──────────────────────────┬──────────────────────────────┤
-│  Disponíveis          🔍 │  Selecionados (3)            │
-│ ┌──────────────────────┐ │ ┌──────────────────────────┐ │
-│ │ João Silva           │ │ │ Ana Souza          [x]   │ │
-│ │ joao@email.com       │ │ │ ana@email.com            │ │
-│ │ [Admin]       [+]    │ │ │ [Colaborador]            │ │
-│ └──────────────────────┘ │ └──────────────────────────┘ │
-└──────────────────────────┴──────────────────────────────┘
-```
-
-### Comportamento
-
-- Filtro por nome/email em cada lista
-- Clicar `+` → insert em `support_team_members` (com `user_id`, `name`, `email`, `role`, `phone` vazio)
-- Clicar `x` → delete de `support_team_members`
-- Campo `phone` editável inline nos selecionados (necessário para identificar mensagens)
-- Badges: `admin` → vermelho, `colaborador` → azul
-- Optimistic UI
-
-## 3. Perfil WhatsApp no "Status da Conexão"
-
-Quando `connection_status === 'connected'`, fazer fetch direto a `{api_url}/instance/info` e `/instance/status` (mesma lógica do `useConnectedPhoneInfo`) para extrair e exibir no card:
-
-- **Foto de perfil** (Avatar)
-- **Nome do perfil** (pushName / profileName)
-- **Número do telefone** (owner / jid)
-- **Nome da instância** (instance.name)
-- **Status** (connected/loggedIn)
-- **Plataforma** (platform, se disponível)
-
-Exibir abaixo do badge de status com layout compacto (Avatar + dados ao lado).
-
-## Arquivos alterados
+## Arquivo alterado
 
 | Arquivo | Ação |
 |---|---|
-| Migração SQL | Adicionar colunas `user_id`, `email`, `role` |
-| `SupportTeamConfig.tsx` | Redesign completo com transfer list |
-| `SupportAssistantPage.tsx` | Adicionar fetch de perfil WhatsApp no card Status |
+| `SupportTeamConfig.tsx` | Adicionar AlertDialog de exclusão com dupla confirmação + Dialog para adicionar colaborador manual |
 
