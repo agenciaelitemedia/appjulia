@@ -59,26 +59,31 @@ serve(async (req) => {
     }
 
     // Extract fields from UaZapi format
-    const content = msg?.content || "";
-    const mediaType = (msg?.mediaType || "").toLowerCase();
+    // content can be a string (text) or object (media with URL, etc.)
+    const rawContent = msg?.content;
+    const contentText = typeof rawContent === "string" ? rawContent : (rawContent?.caption || msg?.text || "");
+    const mediaType = (msg?.mediaType || msg?.messageType || "").toLowerCase();
     const isFromMe = msg?.fromMe || false;
-    const messageId = msg?.id || "";
+    const messageId = msg?.id || msg?.messageid || "";
     const groupName = msg?.groupName || chat?.wa_name || chat?.name || null;
     
-    // Sender: wa_lastMessageSender is LID, try to get phone from chat.owner or parse
-    const senderLid = chat?.wa_lastMessageSender || "";
-    const senderPhone = msg?.senderPhone || msg?.phone || chat?.phone || "";
+    // Sender: use sender_pn (PhoneNumber) field for real phone
+    const senderLid = msg?.sender || msg?.sender_lid || chat?.wa_lastMessageSender || "";
+    const senderPn = msg?.sender_pn || "";
+    const senderPhone = senderPn ? senderPn.split("@")[0] : "";
     
     // Determine message type
     let messageType = "text";
-    if (mediaType === "image" || mediaType === "imageMessage") messageType = "image";
-    else if (mediaType === "video" || mediaType === "videoMessage") messageType = "video";
-    else if (mediaType === "audio" || mediaType === "audioMessage" || mediaType === "ptt") messageType = "audio";
-    else if (mediaType === "document" || mediaType === "documentMessage") messageType = "document";
-    else if (mediaType === "sticker" || mediaType === "stickerMessage") messageType = "sticker";
-    else if (msg?.wa_lastMessageType === "Conversation" || !mediaType) messageType = "text";
+    if (mediaType.includes("image")) messageType = "image";
+    else if (mediaType.includes("video")) messageType = "video";
+    else if (mediaType.includes("audio") || mediaType === "ptt") messageType = "audio";
+    else if (mediaType.includes("document")) messageType = "document";
+    else if (mediaType.includes("sticker")) messageType = "sticker";
+    else if (!mediaType || mediaType === "conversation") messageType = "text";
 
-    const mediaUrl = msg?.mediaUrl || msg?.media_url || null;
+    // Media URL: in UaZapi, it's inside content.URL for media messages
+    const mediaUrl = (typeof rawContent === "object" ? rawContent?.URL : null)
+      || msg?.mediaUrl || msg?.media_url || null;
 
     // Determine sender role by matching with support_team_members
     let senderRole = "cliente";
@@ -106,14 +111,14 @@ serve(async (req) => {
 
     // Build descriptive message_text for media
     const roleLabel = senderRole === "suporte" ? `suporte ${senderDisplayName}` : "cliente";
-    let messageText = content || null;
+    let messageText = contentText || null;
 
     if (messageType === "image") {
-      messageText = content || `📷 Imagem enviada pelo ${roleLabel}`;
+      messageText = contentText || `📷 Imagem enviada pelo ${roleLabel}`;
     } else if (messageType === "video") {
-      messageText = content || `🎬 Vídeo enviado pelo ${roleLabel}`;
+      messageText = contentText || `🎬 Vídeo enviado pelo ${roleLabel}`;
     } else if (messageType === "document") {
-      messageText = content || `📄 Documento enviado pelo ${roleLabel}`;
+      messageText = contentText || `📄 Documento enviado pelo ${roleLabel}`;
     } else if (messageType === "audio") {
       messageText = `🎤 Áudio aguardando transcrição`;
     } else if (messageType === "sticker") {
