@@ -20,6 +20,11 @@ interface InstanceInfoResponse {
   instance?: {
     profileName?: string;
     name?: string;
+    profilePicUrl?: string;
+    owner?: string;
+  };
+  status_obj?: {
+    jid?: string;
   };
 }
 
