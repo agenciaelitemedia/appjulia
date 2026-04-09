@@ -124,8 +124,9 @@ serve(async (req) => {
         }
 
         const downloadData = await downloadResp.json();
-        const base64Data = downloadData.base64 || downloadData.data || null;
-        const mimetype = downloadData.mimetype || downloadData.mimeType || (msg.message_type === "audio" ? "audio/ogg" : "image/jpeg");
+        console.log(`[transcribe] Download response keys for ${msg.id}:`, Object.keys(downloadData), "status:", downloadData.code || "ok");
+        const base64Data = downloadData.base64 || downloadData.data || downloadData.file || null;
+        const mimetype = downloadData.mimetype || downloadData.mimeType || downloadData.mime || (msg.message_type === "audio" ? "audio/ogg" : "image/jpeg");
 
         if (!base64Data) {
           console.warn(`[transcribe] No base64 in download response for ${msg.id}`);
