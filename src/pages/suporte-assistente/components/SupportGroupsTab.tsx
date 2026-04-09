@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, Users, Shield, User } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface SupportGroupsTabProps {
   apiUrl: string;
@@ -29,19 +30,68 @@ export default function SupportGroupsTab({ apiUrl, instanceToken, teamPhones }: 
     fetchGroups();
   }, [apiUrl, instanceToken]);
 
+  const normalizeGroups = (raw: any[]): GroupInfo[] => {
+    return raw.map((g: any) => ({
+      id: g.id || g.jid || g.groupId || "",
+      subject: g.subject || g.name || g.groupName || "",
+      size: g.size || g.participants?.length || 0,
+      pictureUrl: g.pictureUrl || g.profilePictureUrl || g.imgUrl || g.picture || null,
+      participants: (g.participants || []).map((p: any) => ({
+        id: typeof p === "string" ? p : (p.id || p.jid || ""),
+        admin: typeof p === "string" ? undefined : (p.admin || p.role || undefined),
+      })),
+    }));
+  };
+
   const fetchGroups = async () => {
     if (!apiUrl || !instanceToken) return;
     setLoading(true);
     try {
-      const resp = await fetch(`${apiUrl}/group/list`, {
-        method: "GET",
-        headers: { token: instanceToken },
+      // Use proxy to avoid CORS and get full group data with participants
+      const { data: proxyData, error } = await supabase.functions.invoke("uazapi-proxy", {
+        body: {
+          method: "GET",
+          endpoint: "/group/fetchAllGroups?getParticipants=true",
+          token: instanceToken,
+          baseUrl: apiUrl,
+        },
       });
-      const data = await resp.json();
-      const list: GroupInfo[] = Array.isArray(data) ? data : (data?.groups || data?.data || []);
+
+      if (error) throw new Error(error.message);
+      
+      console.log("[SupportGroupsTab] Raw proxy response:", proxyData);
+
+      const responseData = proxyData?.data;
+      let rawList: any[] = [];
+
+      if (Array.isArray(responseData)) {
+        rawList = responseData;
+      } else if (responseData?.groups) {
+        rawList = responseData.groups;
+      } else if (responseData?.data) {
+        rawList = responseData.data;
+      }
+
+      // Fallback: if fetchAllGroups returned empty or failed, try /group/list
+      if (rawList.length === 0 && proxyData?.ok !== false) {
+        console.log("[SupportGroupsTab] fetchAllGroups empty, trying /group/list...");
+        const { data: listData } = await supabase.functions.invoke("uazapi-proxy", {
+          body: {
+            method: "GET",
+            endpoint: "/group/list",
+            token: instanceToken,
+            baseUrl: apiUrl,
+          },
+        });
+        const listResponse = listData?.data;
+        rawList = Array.isArray(listResponse) ? listResponse : (listResponse?.groups || listResponse?.data || []);
+      }
+
+      const list = normalizeGroups(rawList);
+      console.log("[SupportGroupsTab] Normalized groups:", list.length);
       setGroups(list);
     } catch (err: any) {
-      console.error(err);
+      console.error("[SupportGroupsTab] Error:", err);
       toast.error("Erro ao carregar grupos", { description: err.message });
     } finally {
       setLoading(false);
