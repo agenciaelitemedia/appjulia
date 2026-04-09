@@ -10,6 +10,9 @@ import { Switch } from "@/components/ui/switch";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import SupportLogsTab from "./components/SupportLogsTab";
+import SupportGroupsTab from "./components/SupportGroupsTab";
+import SupportTeamConfig from "./components/SupportTeamConfig";
 
 interface SupportConfig {
   id?: string;
@@ -37,6 +40,7 @@ export default function SupportAssistantPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deleteConfirmSwitch, setDeleteConfirmSwitch] = useState(false);
+  const [teamPhones, setTeamPhones] = useState<string[]>([]);
 
   useEffect(() => {
     loadConfig();
@@ -77,7 +81,6 @@ export default function SupportAssistantPage() {
     }
     setCreatingInstance(true);
     try {
-      // Use uazapi-admin which already has UAZAPI_BASE_URL and UAZAPI_ADMIN_TOKEN as secrets
       const { data, error } = await supabase.functions.invoke("uazapi-admin", {
         body: {
           action: "create_instance_support",
@@ -88,11 +91,10 @@ export default function SupportAssistantPage() {
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Erro ao criar instância");
 
-      // Save to support_assistant_config
       const configData = {
         instance_name: data.instanceName,
         api_url: data.apiUrl,
-        api_key: data.token, // instance token used as api_key for direct calls
+        api_key: data.token,
         instance_token: data.token,
         connection_status: "disconnected",
         updated_at: new Date().toISOString(),
@@ -117,7 +119,6 @@ export default function SupportAssistantPage() {
         description: `Instância "${data.instanceName}" pronta. Escaneie o QR Code para conectar.`,
       });
 
-      // Auto-fetch QR code
       setTimeout(() => fetchQrCode(data.apiUrl, data.token), 1000);
     } catch (err: any) {
       console.error(err);
@@ -191,13 +192,11 @@ export default function SupportAssistantPage() {
     }
     setCheckingStatus(true);
     try {
-      // 1. Check current status
       const statusResp = await fetch(`${url}/instance/status`, {
         headers: { token: tk },
       });
       const statusData = await statusResp.json();
 
-      // Already connected
       if (statusData?.status?.connected && statusData?.status?.loggedIn) {
         setQrCode(null);
         setConfig((prev) => ({ ...prev, connection_status: "connected" }));
@@ -211,20 +210,17 @@ export default function SupportAssistantPage() {
         return;
       }
 
-      // 2. If qrcode available in status, use it
       if (statusData?.instance?.qrcode) {
         const qr = statusData.instance.qrcode;
         setQrCode(qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`);
         return;
       }
 
-      // 3. Call connect to generate QR code
       await fetch(`${url}/instance/connect`, {
         method: "POST",
         headers: { token: tk, "Content-Type": "application/json" },
       });
 
-      // 4. Wait a moment then re-check status for qrcode
       await new Promise((r) => setTimeout(r, 2000));
       const statusResp2 = await fetch(`${url}/instance/status`, {
         headers: { token: tk },
@@ -279,7 +275,7 @@ export default function SupportAssistantPage() {
   };
 
   const webhookUrl = config.instance_name
-    ? `${window.location.origin.includes('localhost') ? 'https://zenizgyrwlonmufxnjqt.supabase.co' : 'https://zenizgyrwlonmufxnjqt.supabase.co'}/functions/v1/support-assistant-webhook?instance=${encodeURIComponent(config.instance_name)}`
+    ? `https://zenizgyrwlonmufxnjqt.supabase.co/functions/v1/support-assistant-webhook?instance=${encodeURIComponent(config.instance_name)}`
     : "";
 
   if (loading) {
@@ -305,6 +301,8 @@ export default function SupportAssistantPage() {
       <Tabs defaultValue="config">
         <TabsList>
           <TabsTrigger value="config">Configuração</TabsTrigger>
+          {isConfigured && <TabsTrigger value="logs">Logs</TabsTrigger>}
+          {isConfigured && <TabsTrigger value="groups">Grupos</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="config" className="space-y-6 mt-4">
@@ -343,7 +341,7 @@ export default function SupportAssistantPage() {
             </CardHeader>
           </Card>
 
-          {/* Criar instância (se não configurado) */}
+          {/* Criar instância */}
           {!isConfigured && (
             <Card>
               <CardHeader>
@@ -372,7 +370,7 @@ export default function SupportAssistantPage() {
             </Card>
           )}
 
-          {/* QR Code / Conectar */}
+          {/* QR Code */}
           {isConfigured && config.connection_status !== "connected" && (
             <Card>
               <CardHeader>
@@ -411,7 +409,7 @@ export default function SupportAssistantPage() {
             </Card>
           )}
 
-          {/* Webhook URL */}
+          {/* Webhook */}
           {isConfigured && (
             <Card>
               <CardHeader>
@@ -423,7 +421,26 @@ export default function SupportAssistantPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Team Config */}
+          <SupportTeamConfig onMembersChange={setTeamPhones} />
         </TabsContent>
+
+        {isConfigured && (
+          <TabsContent value="logs" className="mt-4">
+            <SupportLogsTab teamPhones={teamPhones} />
+          </TabsContent>
+        )}
+
+        {isConfigured && (
+          <TabsContent value="groups" className="mt-4">
+            <SupportGroupsTab
+              apiUrl={config.api_url}
+              instanceToken={config.instance_token}
+              teamPhones={teamPhones}
+            />
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Delete Confirmation Dialog */}
