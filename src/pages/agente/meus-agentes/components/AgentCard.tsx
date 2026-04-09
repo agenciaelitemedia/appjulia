@@ -4,10 +4,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
-import { Bot, Check, Eye, Pencil, X } from 'lucide-react';
+import { Bot, Check, Eye, Pencil, Phone, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserAgent } from '../types';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
+import { useConnectedPhoneInfo } from '../hooks/useConnectedPhoneInfo';
 import { ConnectionStatusBadge } from './ConnectionStatusBadge';
 import { ConnectionControlButtons } from './ConnectionControlButtons';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
@@ -31,6 +33,12 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
     agent.evo_instancia,
     agent.waba_configured,
     agent.agent_id_from_agents
+  );
+  const { data: phoneInfo } = useConnectedPhoneInfo(
+    agent.hub,
+    agent.evo_url,
+    agent.evo_apikey,
+    connectionStatus,
   );
 
   const alias = getAlias(agent.cod_agent, agent.business_name);
@@ -138,7 +146,26 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
           </p>
         )}
 
-        {/* WABA Number ID (se WABA configurada) */}
+        {/* Dados do telefone conectado (UaZapi) */}
+        {phoneInfo && connectionStatus === 'connected' && (
+          <div className="flex items-center gap-2 mb-2">
+            <Avatar className="h-6 w-6">
+              <AvatarImage src={phoneInfo.profilePictureUrl || undefined} />
+              <AvatarFallback className="text-[8px] bg-muted">
+                <Phone className="h-3 w-3" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              {phoneInfo.pushName && (
+                <p className="text-xs font-medium text-foreground truncate">{phoneInfo.pushName}</p>
+              )}
+              {phoneInfo.phone && (
+                <p className="text-xs text-muted-foreground truncate">{phoneInfo.phone}</p>
+              )}
+            </div>
+          </div>
+        )}
+
         {agent.hub === 'waba' && agent.waba_number_id && (
           <p className="text-xs text-muted-foreground mb-2 truncate">
             Phone ID: {agent.waba_number_id}
