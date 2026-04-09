@@ -367,6 +367,35 @@ export default function SupportAssistantPage() {
                 )}
               </div>
             </CardHeader>
+            {config.connection_status === "connected" && whatsappProfile && (
+              <CardContent className="pt-0">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border">
+                  <Avatar className="h-12 w-12">
+                    {whatsappProfile.profilePicUrl && (
+                      <AvatarImage src={whatsappProfile.profilePicUrl} alt="Perfil WhatsApp" />
+                    )}
+                    <AvatarFallback className="bg-primary/10 text-primary">
+                      <Smartphone className="h-5 w-5" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="space-y-0.5">
+                    {whatsappProfile.pushName && (
+                      <p className="text-sm font-medium">{whatsappProfile.pushName}</p>
+                    )}
+                    {whatsappProfile.phone && (
+                      <p className="text-xs font-mono text-muted-foreground">
+                        +{whatsappProfile.phone.replace("@s.whatsapp.net", "")}
+                      </p>
+                    )}
+                    {whatsappProfile.platform && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Plataforma: {whatsappProfile.platform}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            )}
           </Card>
 
           {/* Criar instância */}
