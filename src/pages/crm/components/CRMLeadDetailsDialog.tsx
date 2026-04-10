@@ -26,7 +26,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { CRMCard, CRMStage } from '../types';
-import { useCRMCardHistory, useMoveCard, useTeamMembersForAgent, useUpdateCardOwner } from '../hooks/useCRMData';
+import { useCRMCardHistory, useMoveCard, useTeamForCurrentUser, useUpdateCardOwner } from '../hooks/useCRMData';
 import { useContractInfo } from '../hooks/useContractInfo';
 import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 import { ContractInfoDialog } from './ContractInfoDialog';
@@ -61,7 +61,7 @@ export function CRMLeadDetailsDialog({
 
   const moveCard = useMoveCard();
   const updateOwner = useUpdateCardOwner();
-  const { data: teamMembers = [] } = useTeamMembersForAgent(card?.cod_agent || null, authUser?.id);
+  const { data: teamMembers = [] } = useTeamForCurrentUser();
 
   // Track local stage override after mutation so select updates immediately
   const [localStageId, setLocalStageId] = useState<number | null>(null);
