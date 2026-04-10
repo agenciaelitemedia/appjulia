@@ -152,6 +152,8 @@ export default function CRMPage() {
     <div className="flex flex-col h-full space-y-4">
       <CRMHeader onRefresh={handleRefresh} isLoading={isRefreshing} />
 
+      <CRMDashboardSummary cards={filteredCards} stages={stages} isLoading={cardsLoading} juliaSessions={juliaSessions} juliaConversations={juliaConversations} followupMap={followupMap} returnRateData={returnRateData} />
+
       <UnifiedFilters
         agents={agents}
         filters={filters}
@@ -181,8 +183,6 @@ export default function CRMPage() {
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
-
-      <CRMDashboardSummary cards={filteredCards} stages={stages} isLoading={cardsLoading} juliaSessions={juliaSessions} juliaConversations={juliaConversations} followupMap={followupMap} returnRateData={returnRateData} />
 
       <CRMTotalizers cards={filteredCards} stages={stages} />
 
