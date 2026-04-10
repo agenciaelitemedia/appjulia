@@ -264,9 +264,9 @@ export function useMoveCard() {
   });
 }
 
-export function useTeamMembersForAgent(codAgent: string | null) {
+export function useTeamMembersForAgent(codAgent: string | null, fallbackUserId?: number | null) {
   return useQuery({
-    queryKey: ['crm-team-members', codAgent],
+    queryKey: ['crm-team-members', codAgent, fallbackUserId],
     queryFn: async () => {
       if (!codAgent) return [];
       // Get the owner user linked to this cod_agent
@@ -274,8 +274,13 @@ export function useTeamMembersForAgent(codAgent: string | null) {
         query: `SELECT DISTINCT user_id, owner_name FROM "vw_list_client-agents-users" WHERE cod_agent::text = $1 LIMIT 1`,
         params: [codAgent],
       });
-      const userId = agentUsers[0]?.user_id;
+      let userId = agentUsers[0]?.user_id;
       const ownerName = agentUsers[0]?.owner_name;
+      
+      // Fallback to logged-in user when cod_agent not found in view
+      if (!userId) {
+        userId = fallbackUserId || 0;
+      }
       if (!userId) return [];
       
       // Get team members linked to this user
