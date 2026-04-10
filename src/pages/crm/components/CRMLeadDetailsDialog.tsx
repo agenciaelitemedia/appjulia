@@ -1,5 +1,5 @@
 import { Phone, Building2, Clock, History, ArrowRight, User, Hash, Calendar, AlertTriangle, Scale, Download, Loader2, ExternalLink, Bot, UserCircle } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
 import {
@@ -61,7 +61,14 @@ export function CRMLeadDetailsDialog({
   const updateOwner = useUpdateCardOwner();
   const { data: teamMembers = [] } = useTeamMembersForAgent(card?.cod_agent || null);
 
-  const currentStage = card ? stages.find((s) => s.id === card.stage_id) : null;
+  // Track local stage override after mutation so select updates immediately
+  const [localStageId, setLocalStageId] = useState<number | null>(null);
+  
+  // Reset local override when card changes
+  useEffect(() => { setLocalStageId(null); }, [card?.id]);
+  
+  const activeStageId = localStageId ?? card?.stage_id;
+  const currentStage = card ? stages.find((s) => s.id === activeStageId) : null;
   const entryStage = stages.find((s) => s.position === 1) || { name: 'Entrada', color: '#3B82F6' };
   
   const isContractStage = currentStage?.name === 'Contrato em Curso' || 
@@ -147,7 +154,9 @@ export function CRMLeadDetailsDialog({
 
   const handleStageChange = (stageId: string) => {
     const newStageId = Number(stageId);
-    if (newStageId === card.stage_id) return;
+    if (newStageId === activeStageId) return;
+    
+    setLocalStageId(newStageId);
     
     moveCard.mutate(
       { cardId: card.id, toStageId: newStageId, notes: 'Alteração manual via detalhes do lead' },
@@ -156,6 +165,7 @@ export function CRMLeadDetailsDialog({
           sonnerToast.success('Fase atualizada com sucesso');
         },
         onError: () => {
+          setLocalStageId(null);
           sonnerToast.error('Erro ao atualizar fase');
         },
       }
@@ -323,7 +333,7 @@ export function CRMLeadDetailsDialog({
               <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg">
                 {canEdit ? (
                   <Select
-                    value={String(card.stage_id)}
+                    value={String(activeStageId)}
                     onValueChange={handleStageChange}
                     disabled={moveCard.isPending}
                   >
