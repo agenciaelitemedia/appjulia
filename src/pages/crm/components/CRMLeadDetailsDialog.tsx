@@ -1,5 +1,6 @@
 import { Phone, Building2, Clock, History, ArrowRight, User, Hash, Calendar, AlertTriangle, Scale, Download, Loader2, ExternalLink, Bot, UserCircle } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
 import {
