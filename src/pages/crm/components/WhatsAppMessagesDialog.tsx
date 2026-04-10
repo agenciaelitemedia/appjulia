@@ -1,11 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   MessageCircle, Send, Loader2, 
-  Mic, FileText, Download, MapPin, User, Image as ImageIcon, Video, Play, Bot
+  Mic, FileText, Download, MapPin, User, Image as ImageIcon, Video, Play, Bot,
+  Zap, Paperclip, StickyNote, Search
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import {
   AlertDialog,
@@ -26,6 +28,10 @@ import { SessionStatusDialog } from './SessionStatusDialog';
 import { UaZapiClient } from '@/lib/uazapi';
 import { supabase } from '@/integrations/supabase/client';
 import { formatTimeSaoPaulo, formatDateShortSaoPaulo } from '@/lib/dateUtils';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useQuickMessages } from '@/hooks/useQuickMessages';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 // ============================================
 // Types
@@ -779,7 +785,19 @@ export function WhatsAppMessagesDialog({
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [updatingSession, setUpdatingSession] = useState(false);
+  const [sendingFile, setSendingFile] = useState(false);
+  const [quickMsgSearch, setQuickMsgSearch] = useState('');
+  const [quickMsgOpen, setQuickMsgOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Quick messages
+  const { messages: quickMessages } = useQuickMessages('chat_popup');
+  const filteredQuickMessages = quickMessages.filter(qm =>
+    qm.title.toLowerCase().includes(quickMsgSearch.toLowerCase()) ||
+    qm.message_text.toLowerCase().includes(quickMsgSearch.toLowerCase()) ||
+    (qm.shortcut && qm.shortcut.toLowerCase().includes(quickMsgSearch.toLowerCase()))
+  );
   // Fetch session status when dialog opens
   useEffect(() => {
     if (open && whatsappNumber && codAgent) {
@@ -1364,7 +1382,7 @@ export function WhatsAppMessagesDialog({
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
@@ -1531,18 +1549,115 @@ export function WhatsAppMessagesDialog({
         </ScrollArea>
 
         {/* Input Area */}
-        <div className="p-3 border-t bg-muted/20">
-          <div className="flex items-center gap-2">
-            <Input
+        <div className="p-2 border-t bg-muted/20 space-y-1.5">
+          {/* Action Bar */}
+          <div className="flex items-center gap-0.5 px-1">
+            {/* Quick Messages */}
+            <Popover open={quickMsgOpen} onOpenChange={setQuickMsgOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7" disabled={!isConfigured}>
+                  <Zap className="h-4 w-4 text-primary" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-2" side="top" align="start">
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar mensagem..."
+                      value={quickMsgSearch}
+                      onChange={e => setQuickMsgSearch(e.target.value)}
+                      className="h-8 pl-7 text-xs"
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto space-y-1">
+                    {filteredQuickMessages.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-4">
+                        {quickMessages.length === 0 ? 'Nenhuma mensagem rápida cadastrada' : 'Nenhum resultado'}
+                      </p>
+                    ) : (
+                      filteredQuickMessages.map(qm => (
+                        <button
+                          key={qm.id}
+                          className="w-full text-left p-2 rounded-md hover:bg-accent transition-colors"
+                          onClick={() => {
+                            setNewMessage(prev => prev + qm.message_text);
+                            setQuickMsgOpen(false);
+                            setQuickMsgSearch('');
+                            textareaRef.current?.focus();
+                          }}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold truncate">{qm.title}</span>
+                            {qm.shortcut && (
+                              <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 rounded">/{qm.shortcut}</span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">{qm.message_text}</p>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {/* Attach file */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7" disabled={!isConfigured || sendingFile}>
+                  {sendingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="start">
+                <DropdownMenuItem onClick={() => { fileInputRef.current?.setAttribute('accept', 'image/*'); fileInputRef.current?.click(); }}>
+                  <ImageIcon className="h-4 w-4 mr-2" /> Imagem
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { fileInputRef.current?.setAttribute('accept', 'video/*'); fileInputRef.current?.click(); }}>
+                  <Video className="h-4 w-4 mr-2" /> Vídeo
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { fileInputRef.current?.setAttribute('accept', '*/*'); fileInputRef.current?.click(); }}>
+                  <FileText className="h-4 w-4 mr-2" /> Documento
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Audio placeholder */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7" disabled>
+                  <Mic className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Em breve</TooltipContent>
+            </Tooltip>
+
+            {/* Notes placeholder */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7" disabled>
+                  <StickyNote className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Em breve</TooltipContent>
+            </Tooltip>
+          </div>
+
+          {/* Textarea + Send */}
+          <div className="flex items-end gap-2">
+            <Textarea
+              ref={textareaRef}
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyPress}
               placeholder="Digite uma mensagem..."
               disabled={!isConfigured || sending}
-              className="flex-1"
+              className="flex-1 min-h-[38px] max-h-[120px] resize-none text-sm py-2"
+              rows={1}
             />
             <Button
               size="icon"
+              className="shrink-0 h-[38px] w-[38px]"
               onClick={handleSendMessage}
               disabled={!newMessage.trim() || !isConfigured || sending}
             >
@@ -1553,6 +1668,95 @@ export function WhatsAppMessagesDialog({
               )}
             </Button>
           </div>
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file || !isConfigured) return;
+              e.target.value = '';
+              
+              setSendingFile(true);
+              try {
+                const cleanNumber = whatsappNumber.replace(/\D/g, '');
+                
+                if (provider === 'waba') {
+                  // WABA: upload via edge function
+                  const reader = new FileReader();
+                  const base64 = await new Promise<string>((resolve, reject) => {
+                    reader.onload = () => resolve((reader.result as string).split(',')[1]);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                  });
+
+                  const mediaType = file.type.startsWith('image/') ? 'image'
+                    : file.type.startsWith('video/') ? 'video'
+                    : file.type.startsWith('audio/') ? 'audio'
+                    : 'document';
+
+                  const { data, error } = await supabase.functions.invoke('waba-send', {
+                    body: {
+                      action: 'send_media',
+                      cod_agent: codAgent,
+                      to: cleanNumber,
+                      media_type: mediaType,
+                      base64,
+                      mime_type: file.type,
+                      file_name: file.name,
+                    },
+                  });
+                  if (error) throw error;
+                  if (data?.error) throw new Error(data.error.message || data.error);
+                } else {
+                  // UaZapi: convert to base64 and send
+                  if (!client) throw new Error('Client not configured');
+                  const reader = new FileReader();
+                  const base64 = await new Promise<string>((resolve, reject) => {
+                    reader.onload = () => resolve((reader.result as string).split(',')[1]);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                  });
+
+                  await client.post('/send/file-base64', {
+                    number: cleanNumber,
+                    base64,
+                    mimetype: file.type,
+                    fileName: file.name,
+                  });
+                }
+
+                // Add to local state
+                const mediaType: MessageType = file.type.startsWith('image/') ? 'image'
+                  : file.type.startsWith('video/') ? 'video'
+                  : file.type.startsWith('audio/') ? 'audio'
+                  : 'document';
+
+                setMessages(prev => [
+                  ...prev,
+                  {
+                    id: Date.now().toString(),
+                    text: file.name,
+                    fromMe: true,
+                    timestamp: Date.now(),
+                    type: mediaType,
+                    fileName: file.name,
+                    mimetype: file.type,
+                    mediaUrl: URL.createObjectURL(file),
+                  },
+                ]);
+
+                toast({ title: 'Arquivo enviado', description: file.name });
+              } catch (err: any) {
+                console.error('Error sending file:', err);
+                toast({ title: 'Erro ao enviar arquivo', description: err.message, variant: 'destructive' });
+              } finally {
+                setSendingFile(false);
+              }
+            }}
+          />
         </div>
       </DialogContent>
     </Dialog>

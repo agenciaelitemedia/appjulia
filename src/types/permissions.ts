@@ -33,7 +33,8 @@ export type ModuleCode =
   | 'julia_plans'
   | 'adv_dashboard'
   | 'crm_comercial'
-  | 'support_assistant';
+  | 'support_assistant'
+  | 'quick_messages';
 
 export interface Module {
   id: number;

@@ -1971,6 +1971,48 @@ export type Database = {
           },
         ]
       }
+      quick_messages: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          message_text: string
+          position: number | null
+          shortcut: string | null
+          title: string
+          updated_at: string | null
+          use_locations: string[] | null
+          user_id: number
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          message_text: string
+          position?: number | null
+          shortcut?: string | null
+          title: string
+          updated_at?: string | null
+          use_locations?: string[] | null
+          user_id: number
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          message_text?: string
+          position?: number | null
+          shortcut?: string | null
+          title?: string
+          updated_at?: string | null
+          use_locations?: string[] | null
+          user_id?: number
+        }
+        Relationships: []
+      }
       support_assistant_config: {
         Row: {
           api_key: string | null
