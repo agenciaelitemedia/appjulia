@@ -1568,7 +1568,7 @@ export function WhatsAppMessagesDialog({
   const Description = isSheet ? SheetDescription : DialogDescription;
 
   const contentProps = isSheet
-    ? { side: 'right' as const, className: 'w-[520px] sm:w-[580px] p-0 flex flex-col h-full' }
+    ? { side: 'right' as const, className: 'w-[560px] sm:w-[640px] p-0 flex flex-col h-full' }
     : { className: 'sm:max-w-[500px] h-[600px] flex flex-col p-0 bg-card' };
 
   return (
