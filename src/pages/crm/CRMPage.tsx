@@ -178,6 +178,8 @@ export default function CRMPage() {
         onFiltersChange={setFilters}
         isLoading={agentsLoading}
         periodTooltip="Filtra pela data da última movimentação do lead no pipeline (não pela data de criação)"
+        defaultOpen={false}
+        showPeriodInHeader
       />
 
       <div className="flex items-center gap-4 flex-wrap">
