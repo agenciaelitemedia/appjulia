@@ -20,6 +20,7 @@ import { useEnsureJuliaOrdersModule } from "@/hooks/useEnsureJuliaOrdersModule";
 import { useEnsureJuliaPlansModule } from "@/hooks/useEnsureJuliaPlansModule";
 import { useEnsureCrmComercialModule } from "@/hooks/useEnsureCrmComercialModule";
 import { useEnsureSupportAssistantModule } from "@/hooks/useEnsureSupportAssistantModule";
+import { useEnsureQuickMessagesModule } from "@/hooks/useEnsureQuickMessagesModule";
 import {
   Tooltip,
   TooltipContent,
@@ -52,6 +53,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   useEnsureJuliaPlansModule();
   useEnsureCrmComercialModule();
   useEnsureSupportAssistantModule();
+  useEnsureQuickMessagesModule();
 
   const isTimeUser = user?.role === "time";
   

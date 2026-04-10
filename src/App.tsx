@@ -63,6 +63,7 @@ import ContratoTemplatePage from "./pages/admin/contrato/ContratoTemplatePage";
 import AdvDashboardPage from "./pages/adv/AdvDashboardPage";
 import CRMComercialPage from "./pages/comercial/crm/CRMComercialPage";
 import SupportAssistantPage from "./pages/suporte-assistente/SupportAssistantPage";
+import QuickMessagesPage from "./pages/mensagens-rapidas/QuickMessagesPage";
 
 const queryClient = new QueryClient();
 
@@ -112,6 +113,7 @@ const App = () => (
                   <Route path="/telefonia" element={<ProtectedRoute module="telephony"><TelefoniaPage /></ProtectedRoute>} />
                   <Route path="/comercial/crm" element={<ProtectedRoute module="crm_comercial"><CRMComercialPage /></ProtectedRoute>} />
                   <Route path="/suporte-assistente" element={<ProtectedRoute module="support_assistant"><SupportAssistantPage /></ProtectedRoute>} />
+                  <Route path="/mensagens-rapidas" element={<ProtectedRoute module="quick_messages"><QuickMessagesPage /></ProtectedRoute>} />
                   
                   {/* Admin routes - protected by module permission */}
                   <Route path="/admin/agentes" element={<ProtectedRoute module="admin_agents"><AgentsList /></ProtectedRoute>} />
