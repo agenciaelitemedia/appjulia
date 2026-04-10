@@ -1729,7 +1729,7 @@ export function WhatsAppMessagesDialog({
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    onClick={() => contractInfo && setContractSidebarOpen(true)}
+                    onClick={() => contractInfo && setContractSidebarOpen(prev => !prev)}
                     className={cn(
                       "hover:opacity-80 transition-opacity p-1 rounded",
                       contractInfo ? "cursor-pointer" : "cursor-not-allowed opacity-40"
