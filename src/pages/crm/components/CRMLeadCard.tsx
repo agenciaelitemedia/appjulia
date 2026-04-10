@@ -154,13 +154,44 @@ function truncateText(text: string | undefined, maxLength: number): string {
         <CardContent className="p-3">
           <div className="space-y-2">
 
-            {/* Header with name and details button only */}
+            {/* Header with name and details button */}
             <div className="flex items-start justify-between gap-2">
-              <div className="flex flex-col gap-0.5 min-w-0 overflow-hidden">
-                <div className="flex items-center gap-1.5 text-sm font-medium">
-                  <span className="text-primary">👤</span>
-                  <span className="line-clamp-1">{card.contact_name || 'Sem nome'}</span>
-                </div>
+              <div className="flex flex-col gap-0.5 min-w-0 overflow-hidden flex-1">
+                {isEditingName ? (
+                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      ref={nameInputRef}
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveName(e as any);
+                        if (e.key === 'Escape') handleCancelEditName(e as any);
+                      }}
+                      className="text-sm font-medium bg-muted border border-input rounded px-1.5 py-0.5 w-full min-w-0 focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-green-600 hover:text-green-700" onClick={handleSaveName} disabled={updateCardName.isPending}>
+                      {updateCardName.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive" onClick={handleCancelEditName}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-sm font-medium group/name">
+                    <span className="text-primary">👤</span>
+                    <span className="line-clamp-1">{card.contact_name || 'Sem nome'}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 opacity-0 group-hover/name:opacity-100 transition-opacity shrink-0 text-muted-foreground hover:text-foreground"
+                      onClick={handleStartEditName}
+                      title="Editar nome"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
                 <span className="text-xs text-muted-foreground pl-5">{card.whatsapp_number}</span>
               </div>
               <Button
