@@ -18,6 +18,8 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 import { useAgentAliases } from '@/hooks/useAgentAliases';
+import { useUpdateCardName } from '../hooks/useCRMData';
+import { toast } from 'sonner';
 
 interface CRMLeadCardProps {
   card: CRMCard;
