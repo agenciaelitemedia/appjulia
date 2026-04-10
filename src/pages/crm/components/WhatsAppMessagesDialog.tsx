@@ -806,6 +806,11 @@ export function WhatsAppMessagesDialog({
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Internal notes state
+  const { user: authUser } = useAuth();
+  const [noteMode, setNoteMode] = useState(false);
+  const [sendingNote, setSendingNote] = useState(false);
+
   // Quick messages
   const { messages: quickMessages } = useQuickMessages('chat_popup');
   const filteredQuickMessages = quickMessages.filter(qm =>
