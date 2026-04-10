@@ -297,8 +297,8 @@ export function useTeamForCurrentUser() {
         ownerName = principalResult[0]?.name || null;
       }
 
-      // Get team members
-      const members = await externalDb.getTeamMembers<{ id: number; name: string; role: string }>(principalId, true);
+      // Get team members — use false to match the Equipes page exactly
+      const members = await externalDb.getTeamMembers<{ id: number; name: string; role: string }>(principalId, false);
 
       // Build combined list: owner + team members, avoiding duplicates
       const allMembers: { id: number; name: string; role: string }[] = [];
