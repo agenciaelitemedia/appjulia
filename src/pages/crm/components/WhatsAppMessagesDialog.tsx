@@ -1,11 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   MessageCircle, Send, Loader2, 
-  Mic, FileText, Download, MapPin, User, Image as ImageIcon, Video, Play, Bot
+  Mic, FileText, Download, MapPin, User, Image as ImageIcon, Video, Play, Bot,
+  Zap, Paperclip, StickyNote, Search
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import {
   AlertDialog,
