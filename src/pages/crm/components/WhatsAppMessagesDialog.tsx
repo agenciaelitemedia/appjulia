@@ -999,6 +999,88 @@ export function WhatsAppMessagesDialog({
     };
   }, []);
 
+  // Load internal notes and merge into messages
+  const loadAndMergeNotes = useCallback(async () => {
+    try {
+      const { data: notes, error } = await supabase
+        .from('crm_internal_notes')
+        .select('*')
+        .eq('whatsapp_number', whatsappNumber.replace(/\D/g, ''))
+        .eq('cod_agent', codAgent)
+        .order('created_at', { ascending: true });
+      
+      if (error) throw error;
+      if (!notes || notes.length === 0) return;
+      
+      const noteMessages: Message[] = notes.map((n: any) => ({
+        id: `note-${n.id}`,
+        text: n.note_text,
+        fromMe: true,
+        timestamp: new Date(n.created_at).getTime(),
+        type: 'internal_note' as MessageType,
+        authorName: n.author_name,
+      }));
+      
+      setMessages(prev => {
+        const existingIds = new Set(prev.map(m => m.id));
+        const newNotes = noteMessages.filter(n => !existingIds.has(n.id));
+        if (newNotes.length === 0) return prev;
+        const combined = [...prev, ...newNotes];
+        combined.sort((a, b) => a.timestamp - b.timestamp);
+        return combined;
+      });
+    } catch (err) {
+      console.error('Error loading notes:', err);
+    }
+  }, [whatsappNumber, codAgent]);
+
+  // Send internal note
+  const handleSendNote = async () => {
+    if (!newMessage.trim() || sendingNote) return;
+    
+    setSendingNote(true);
+    try {
+      const cleanNumber = whatsappNumber.replace(/\D/g, '');
+      const authorName = authUser?.name || 'Usuário';
+      
+      const { data, error } = await supabase
+        .from('crm_internal_notes')
+        .insert({
+          whatsapp_number: cleanNumber,
+          cod_agent: codAgent,
+          note_text: newMessage.trim(),
+          author_name: authorName,
+          author_id: authUser?.id?.toString() || null,
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      // Add to local state
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `note-${data.id}`,
+          text: newMessage.trim(),
+          fromMe: true,
+          timestamp: new Date(data.created_at).getTime(),
+          type: 'internal_note',
+          authorName,
+        },
+      ]);
+      
+      setNewMessage('');
+      setNoteMode(false);
+      toast({ title: 'Nota adicionada', description: 'A nota interna foi salva com sucesso.' });
+    } catch (err: any) {
+      console.error('Error saving note:', err);
+      toast({ title: 'Erro ao salvar nota', description: err.message, variant: 'destructive' });
+    } finally {
+      setSendingNote(false);
+    }
+  };
+
   // Format number to JID
   const formatToJid = (number: string): string => {
     const cleaned = number.replace(/\D/g, '');
