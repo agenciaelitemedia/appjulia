@@ -791,6 +791,14 @@ export function WhatsAppMessagesDialog({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Audio recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [sendingAudio, setSendingAudio] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Quick messages
   const { messages: quickMessages } = useQuickMessages('chat_popup');
   const filteredQuickMessages = quickMessages.filter(qm =>
