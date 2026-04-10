@@ -356,15 +356,17 @@ export default function BoardPage() {
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </Button>
 
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => setIsSettingsOpen(true)}
-            className="gap-2"
-          >
-            <Settings2 className="h-4 w-4" />
-            Configurações
-          </Button>
+          {user?.role === 'admin' && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setIsSettingsOpen(true)}
+              className="gap-2"
+            >
+              <Settings2 className="h-4 w-4" />
+              Configurações
+            </Button>
+          )}
         </div>
       </div>
 
