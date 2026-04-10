@@ -1585,12 +1585,12 @@ export function WhatsAppMessagesDialog({
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <DialogTitle className="text-base font-semibold truncate">
+              <Title className="text-base font-semibold truncate">
                 {leadName || whatsappNumber}
-              </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground sr-only">
+              </Title>
+              <Description className="text-xs text-muted-foreground sr-only">
                 Conversa do WhatsApp com {leadName || whatsappNumber}
-              </DialogDescription>
+              </Description>
               <p className="text-xs text-muted-foreground">
                 {whatsappNumber}
               </p>
@@ -1619,7 +1619,7 @@ export function WhatsAppMessagesDialog({
               />
             </div>
           </div>
-        </DialogHeader>
+        </Header>
 
         {/* Alert Dialog for Julia toggle confirmation */}
         <AlertDialog open={confirmToggle} onOpenChange={setConfirmToggle}>
@@ -1967,8 +1967,8 @@ export function WhatsAppMessagesDialog({
             }}
           />
         </div>
-      </DialogContent>
-    </Dialog>
+      </Content>
+    </Wrapper>
 
     <SessionStatusDialog
       open={statusDialogOpen}
