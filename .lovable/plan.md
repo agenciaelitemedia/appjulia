@@ -1,103 +1,42 @@
 
 
-## Plano: Melhorar popup de chat + Módulo de Mensagens Rápidas
+## Plan: Add contract details icon + inline name editing to CRM chat header
 
-### Contexto
-O `WhatsAppMessagesDialog` é usado em 6+ locais (CRM, Desempenho, Contratos, Campanhas, Follow-up). Hoje tem apenas input de texto simples. Precisa ganhar: envio de áudio, envio de arquivos, mensagens rápidas e notas (preparado para futuro).
+### What will change
 
-### Arquitetura
+1. **Contract icon in chat header** (before the Bot status icon)
+   - Add a `Scale` icon button to the left of the existing Bot icon in the `WhatsAppMessagesDialog` header
+   - Use `useContractInfo` hook (already exists) to check if a contract exists, passing `whatsappNumber` and `codAgent`
+   - If contract exists: clicking opens a secondary Sheet sidebar (to the right of the chat) showing the same contract details content currently in `ContractInfoDialog`
+   - If no contract: icon appears disabled/muted, or shows a tooltip "Sem contrato"
+   - Extract the contract details content from `ContractInfoDialog` into a reusable component (`ContractInfoContent`) so it can be rendered both in the existing Dialog and in the new Sheet sidebar
 
-```text
-┌─────────────────────────────────────────────────┐
-│  WhatsAppMessagesDialog (popup)                 │
-│  ┌─────────────────────────────────────────────┐│
-│  │  Área de mensagens (sem mudança)            ││
-│  ├─────────────────────────────────────────────┤│
-│  │  Nova barra de input com abas visuais:      ││
-│  │  [⚡ Rápidas] [📎 Arquivo] [🎤 Áudio]      ││
-│  │                                             ││
-│  │  Modo padrão: Textarea + Send               ││
-│  │  Modo rápidas: Lista filtrada de msgs       ││
-│  │  Modo arquivo: Botões imagem/vídeo/doc      ││
-│  │  Modo áudio: Gravar PTT (futuro, placeholder)││
-│  │                                             ││
-│  │  [📝 Nota] preparado mas desabilitado       ││
-│  └─────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────┘
-```
+2. **Editable lead name in chat header**
+   - Replace the static `leadName` display in the header with an inline editable field (same pattern as `CRMLeadCard`)
+   - Show a `Pencil` icon on hover next to the name
+   - Clicking enters edit mode with an input field + check/cancel buttons
+   - Use `useUpdateCardName` mutation to save (needs the card ID — will need to look up or pass it)
+   - Since `WhatsAppMessagesDialog` doesn't receive a `cardId`, we'll use `useCRMCardByWhatsapp` (or query by whatsappNumber) to find the card and get its ID for the update
 
-### Implementação
+### Files to modify
 
-#### 1. Tabela no Supabase: `quick_messages`
-Nova tabela para armazenar mensagens rápidas.
+- **`src/pages/crm/components/WhatsAppMessagesDialog.tsx`**
+  - Import `Scale`, `Pencil`, `Check`, `X` icons, `useContractInfo`, `useUpdateCardName`, `Sheet/SheetContent` for contract sidebar
+  - Add contract sidebar state and editable name state to the component
+  - Modify header section (lines ~1638-1679): add contract icon before Bot icon, replace static name with editable name
+  - Add a nested Sheet for contract details sidebar
 
-```sql
-CREATE TABLE public.quick_messages (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id INTEGER NOT NULL,
-  title TEXT NOT NULL,
-  message_text TEXT NOT NULL,
-  shortcut TEXT,
-  category TEXT DEFAULT 'geral',
-  use_locations TEXT[] DEFAULT '{chat_popup}',
-  is_active BOOLEAN DEFAULT true,
-  position INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-ALTER TABLE public.quick_messages ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all on quick_messages" ON public.quick_messages FOR ALL USING (true) WITH CHECK (true);
-```
+- **`src/pages/crm/components/ContractInfoContent.tsx`** (new file)
+  - Extract the inner content (ScrollArea with contract details) from `ContractInfoDialog` into a standalone component
+  - Reuse in both `ContractInfoDialog` and the new chat sidebar
 
-- `use_locations`: array com os locais onde a mensagem aparece (`chat_popup`, `chat_full`, `followup`, etc.)
-- `user_id`: vinculado ao usuário que criou
+- **`src/pages/crm/components/ContractInfoDialog.tsx`**
+  - Refactor to use `ContractInfoContent` internally
 
-#### 2. Módulo "Mensagens Rápidas" (categoria SISTEMA)
-- Nova página `/mensagens-rapidas`
-- Código do módulo: `quick_messages`
-- Grupo: `SISTEMA`
-- CRUD completo: criar, editar, excluir mensagens pré-definidas
-- Campos: título, texto da mensagem, atalho (opcional), categoria, locais de uso (multi-select: "Chat Rápido", etc.)
-- Garantir módulo via hook `useEnsureQuickMessagesModule`
+### Technical details
 
-#### 3. Melhorar input do `WhatsAppMessagesDialog`
-Substituir o input simples por um componente rico:
-
-- **Barra de ações** acima do textarea com ícones pequenos:
-  - ⚡ **Mensagens rápidas**: abre popover com lista filtrada (busca inline), clique insere o texto no textarea
-  - 📎 **Anexar**: dropdown com Imagem/Vídeo/Documento (mesma lógica do ChatInput do /chat)
-  - 🎤 **Áudio**: botão preparado (disabled com tooltip "em breve")
-  - 📝 **Nota**: botão preparado (disabled com tooltip "em breve")
-  - 😊 **Emojis**: popover com emojis rápidos (igual ao ChatInput)
-- **Textarea** substituindo o Input (suporte a multi-linha, auto-resize, Enter para enviar, Shift+Enter para quebra)
-- **Envio de arquivos**: lógica de upload + envio via UaZapi (`/send/file-base64`) ou WABA (`waba-send` com action `send_media`)
-
-#### 4. Envio de mídia no popup
-- Para **UaZapi**: converter arquivo para base64, enviar via `/send/file-base64` com `{ number, base64, mimetype, fileName }`
-- Para **WABA**: enviar via edge function `waba-send` com action `send_media`
-- Adicionar mensagem local no estado após envio (tipo imagem/documento/vídeo)
-
-#### 5. Hook `useQuickMessages`
-- Busca mensagens rápidas do Supabase filtrando por `use_locations @> '{chat_popup}'` e `is_active = true`
-- Cache com react-query (staleTime: 5min)
-- Retorna lista ordenada por position
-
-### Arquivos a criar/editar
-
-| Arquivo | Ação |
-|---------|------|
-| `supabase migration` | Criar tabela `quick_messages` |
-| `src/hooks/useQuickMessages.ts` | Hook para buscar/CRUD mensagens rápidas |
-| `src/pages/mensagens-rapidas/QuickMessagesPage.tsx` | Página CRUD do módulo |
-| `src/pages/crm/components/WhatsAppMessagesDialog.tsx` | Refatorar input area |
-| `src/App.tsx` | Adicionar rota `/mensagens-rapidas` |
-| `supabase/functions/db-query/index.ts` | Garantir módulo quick_messages no menu |
-
-### UX/UI
-
-- Barra de ações compacta (ícones 20px) integrada ao campo de input, estilo WhatsApp Web
-- Popover de mensagens rápidas com busca: campo de filtro no topo + lista scrollável com título em negrito e preview do texto
-- Clique na mensagem rápida preenche o textarea (não envia direto, permite editar antes)
-- Upload de arquivo mostra preview inline antes de enviar
-- Feedback visual claro de envio (loader no botão)
+- The contract sidebar will be a `Sheet` with `side="right"` rendered inside the chat component, appearing alongside the chat
+- `useContractInfo` will be called with `enabled: true` (always fetch when chat opens) to know if contract data exists
+- For the card ID needed by `useUpdateCardName`, we'll use `useCRMCardByWhatsapp` hook (already used elsewhere) to look up the card by whatsapp number
+- The name edit will update both the local display and the external DB via the existing mutation
 
