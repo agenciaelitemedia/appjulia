@@ -113,6 +113,8 @@ export default function CRMPage() {
     if (ownerFilter !== 'all') {
       if (ownerFilter === 'mine') {
         result = result.filter((card) => card.owner_name === authUser?.name);
+      } else if (ownerFilter === 'unassigned') {
+        result = result.filter((card) => !card.owner_name);
       } else {
         result = result.filter((card) => card.owner_name === ownerFilter);
       }
@@ -209,7 +211,12 @@ export default function CRMPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all" className="text-xs">Todos</SelectItem>
-              <SelectItem value="mine" className="text-xs">Meus cards</SelectItem>
+              <SelectItem value="mine" className="text-xs font-bold uppercase tracking-wide text-primary">
+                MEUS CARDS
+              </SelectItem>
+              <SelectItem value="unassigned" className="text-xs text-muted-foreground italic">
+                Sem Responsável
+              </SelectItem>
               {teamMembers.map((member) => (
                 <SelectItem key={member.id} value={member.name} className="text-xs">
                   {member.name}
