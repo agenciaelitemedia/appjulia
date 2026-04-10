@@ -86,11 +86,11 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
   // Detect which periods have at least one plan with price > 0
   const availablePeriods = useMemo(() => {
     const periods: BillingPeriod[] = [];
-    if (plans.some(p => p.price_monthly > 0)) periods.push('monthly');
-    if (plans.some(p => p.price_semiannual > 0)) periods.push('semiannual');
-    if (plans.some(p => p.price_annual > 0)) periods.push('annual');
+    if (channelFilteredPlans.some(p => p.price_monthly > 0)) periods.push('monthly');
+    if (channelFilteredPlans.some(p => p.price_semiannual > 0)) periods.push('semiannual');
+    if (channelFilteredPlans.some(p => p.price_annual > 0)) periods.push('annual');
     return periods;
-  }, [plans]);
+  }, [channelFilteredPlans]);
 
   // Auto-select first available period
   useEffect(() => {
@@ -107,8 +107,8 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
 
   // Filter plans that have price > 0 for selected period
   const filteredPlans = useMemo(() => {
-    return plans.filter(p => getPriceByPeriod(p) > 0);
-  }, [plans, billingPeriod]);
+    return channelFilteredPlans.filter(p => getPriceByPeriod(p) > 0);
+  }, [channelFilteredPlans, billingPeriod]);
 
   const formatPrice = (cents: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
