@@ -46,6 +46,7 @@ export default function CRMPage() {
   
   const [selectedCard, setSelectedCard] = useState<CRMCard | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [juliaStatusFilter, setJuliaStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
   const { data: stages = [], isLoading: stagesLoading } = useCRMStages();
   const { data: agents = [], isLoading: agentsLoading } = useCRMAgents();
