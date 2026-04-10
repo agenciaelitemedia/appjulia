@@ -1680,6 +1680,8 @@ export function WhatsAppMessagesDialog({
     <Wrapper open={open} onOpenChange={onOpenChange}>
       {/* @ts-ignore - dynamic component props */}
       <Content {...contentProps} aria-describedby={undefined}>
+        {/* Chat column */}
+        <div className="flex flex-col flex-1 min-w-0 h-full">
         {/* Header */}
         <Header className="px-4 py-3 border-b bg-muted/30">
           <div className="flex items-center gap-3">
@@ -2199,6 +2201,24 @@ export function WhatsAppMessagesDialog({
             }}
           />
         </div>
+        </div>
+        {/* Contract Details Panel - inline side by side */}
+        {contractSidebarOpen && (
+          <div className="w-[440px] border-l flex flex-col h-full bg-background">
+            <div className="px-4 py-3 border-b bg-muted/30 flex items-center justify-between">
+              <div className="flex items-center gap-2 font-semibold">
+                <Scale className="h-5 w-5" />
+                Detalhes do Contrato
+              </div>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setContractSidebarOpen(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex-1 overflow-auto">
+              <ContractInfoContent contractInfo={contractInfo} isLoading={contractLoading} contactName={displayName} />
+            </div>
+          </div>
+        )}
       </Content>
     </Wrapper>
 
@@ -2215,18 +2235,6 @@ export function WhatsAppMessagesDialog({
       whatsappNumber={whatsappNumber}
       codAgent={codAgent}
     />
-    {/* Contract Details Sidebar */}
-    <ContractSheet open={contractSidebarOpen} onOpenChange={setContractSidebarOpen}>
-      <ContractSheetContent side="right" className="w-[480px] sm:w-[540px] p-0">
-        <ContractSheetHeader className="px-4 py-3 border-b bg-muted/30">
-          <ContractSheetTitle className="flex items-center gap-2">
-            <Scale className="h-5 w-5" />
-            Detalhes do Contrato
-          </ContractSheetTitle>
-        </ContractSheetHeader>
-        <ContractInfoContent contractInfo={contractInfo} isLoading={contractLoading} contactName={displayName} />
-      </ContractSheetContent>
-    </ContractSheet>
     </>
   );
 }
