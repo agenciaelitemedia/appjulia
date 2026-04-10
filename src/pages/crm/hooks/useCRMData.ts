@@ -275,12 +275,10 @@ export function useTeamForCurrentUser() {
       let principalId: number;
       let ownerName: string | null = null;
 
-      if (authUser.role === 'user') {
-        // Titular: the logged-in user IS the principal
-        principalId = authUser.id;
-        ownerName = authUser.name;
-      } else {
-        // Team member (time/advogado/comercial): resolve parent via user_id column
+      const isTeamMember = ['time', 'advogado', 'comercial'].includes(authUser.role);
+
+      if (isTeamMember) {
+        // Team member: resolve parent via user_id column
         const parentResult = await externalDb.raw<{ id: number; user_id: number | null; name: string }>({
           query: `SELECT id, user_id, name FROM users WHERE id = $1 LIMIT 1`,
           params: [authUser.id],
@@ -295,10 +293,14 @@ export function useTeamForCurrentUser() {
           params: [principalId],
         });
         ownerName = principalResult[0]?.name || null;
+      } else {
+        // Titular (user/admin/colaborador): the logged-in user IS the principal
+        principalId = authUser.id;
+        ownerName = authUser.name;
       }
 
-      // Get team members — use false to match the Equipes page exactly
-      const members = await externalDb.getTeamMembers<{ id: number; name: string; role: string }>(principalId, false);
+      // Get team members — match Equipes page: pass isAdmin flag
+      const members = await externalDb.getTeamMembers<{ id: number; name: string; role: string }>(principalId, authUser.role === 'admin');
 
       // Build combined list: owner + team members, avoiding duplicates
       const allMembers: { id: number; name: string; role: string }[] = [];
