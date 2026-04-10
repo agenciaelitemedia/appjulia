@@ -28,6 +28,10 @@ import { SessionStatusDialog } from './SessionStatusDialog';
 import { UaZapiClient } from '@/lib/uazapi';
 import { supabase } from '@/integrations/supabase/client';
 import { formatTimeSaoPaulo, formatDateShortSaoPaulo } from '@/lib/dateUtils';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useQuickMessages } from '@/hooks/useQuickMessages';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 // ============================================
 // Types
