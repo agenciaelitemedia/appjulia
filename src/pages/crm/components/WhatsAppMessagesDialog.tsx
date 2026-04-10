@@ -2214,6 +2214,18 @@ export function WhatsAppMessagesDialog({
       whatsappNumber={whatsappNumber}
       codAgent={codAgent}
     />
+    {/* Contract Details Sidebar */}
+    <ContractSheet open={contractSidebarOpen} onOpenChange={setContractSidebarOpen}>
+      <ContractSheetContent side="right" className="w-[480px] sm:w-[540px] p-0">
+        <ContractSheetHeader className="px-4 py-3 border-b bg-muted/30">
+          <ContractSheetTitle className="flex items-center gap-2">
+            <Scale className="h-5 w-5" />
+            Detalhes do Contrato
+          </ContractSheetTitle>
+        </ContractSheetHeader>
+        <ContractInfoContent contractInfo={contractInfo} isLoading={contractLoading} contactName={displayName} />
+      </ContractSheetContent>
+    </ContractSheet>
     </>
   );
 }
