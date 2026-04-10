@@ -1720,14 +1720,14 @@ export function WhatsAppMessagesDialog({
                     reader.readAsDataURL(file);
                   });
 
-                  const mediaType: 'image' | 'video' | 'audio' | 'document' = file.type.startsWith('image/') ? 'image'
+                  const sendMediaType: 'image' | 'video' | 'audio' | 'document' = file.type.startsWith('image/') ? 'image'
                     : file.type.startsWith('video/') ? 'video'
                     : file.type.startsWith('audio/') ? 'audio'
                     : 'document';
                   await client.post('/send/media', {
                     number: cleanNumber,
-                    media: `data:${file.type};base64,${base64}`,
-                    type: mediaType,
+                    file: `data:${file.type};base64,${base64}`,
+                    type: sendMediaType,
                     fileName: file.name,
                     caption: '',
                   });
