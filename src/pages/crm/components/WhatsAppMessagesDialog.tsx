@@ -1773,38 +1773,64 @@ export function WhatsAppMessagesDialog({
                   </div>
                   
                   {/* Messages for this date */}
-                  {dateMessages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={cn(
-                        "flex",
-                        message.fromMe ? "justify-end" : "justify-start"
-                      )}
-                    >
+                  {dateMessages.map((message) => {
+                    // Internal note rendering
+                    if (message.type === 'internal_note') {
+                      return (
+                        <div key={message.id} className="flex justify-center px-4">
+                          <div className="max-w-[85%] w-full rounded-lg px-3 py-2 shadow-sm bg-amber-50 dark:bg-amber-900/20 border border-amber-300/50 dark:border-amber-700/40">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <StickyNote className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                              <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                                Nota Interna
+                              </span>
+                            </div>
+                            <p className="text-sm text-amber-900 dark:text-amber-100 whitespace-pre-wrap">
+                              {message.text}
+                            </p>
+                            <div className="flex items-center justify-between mt-1.5 text-[10px] text-amber-600/70 dark:text-amber-400/60">
+                              <span className="font-medium">{message.authorName}</span>
+                              <span>{formatTimeSaoPaulo(message.timestamp)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Normal message rendering
+                    return (
                       <div
+                        key={message.id}
                         className={cn(
-                          "max-w-[80%] rounded-lg px-3 py-2 shadow-sm",
-                          message.fromMe
-                            ? "bg-green-100 dark:bg-green-900/40 text-foreground rounded-br-none"
-                            : "bg-card border border-border/50 rounded-bl-none"
+                          "flex",
+                          message.fromMe ? "justify-end" : "justify-start"
                         )}
                       >
-                        <MessageBubble 
-                          message={message}
-                          onDownload={downloadMedia}
-                          isDownloading={downloadingMedia.has(message.id)}
-                          downloadedUrl={mediaUrls[message.id]}
-                        />
-                        <p
+                        <div
                           className={cn(
-                            "text-[10px] mt-1 text-right text-muted-foreground"
+                            "max-w-[80%] rounded-lg px-3 py-2 shadow-sm",
+                            message.fromMe
+                              ? "bg-green-100 dark:bg-green-900/40 text-foreground rounded-br-none"
+                              : "bg-card border border-border/50 rounded-bl-none"
                           )}
                         >
-                          {formatTimeSaoPaulo(message.timestamp)}
-                        </p>
+                          <MessageBubble 
+                            message={message}
+                            onDownload={downloadMedia}
+                            isDownloading={downloadingMedia.has(message.id)}
+                            downloadedUrl={mediaUrls[message.id]}
+                          />
+                          <p
+                            className={cn(
+                              "text-[10px] mt-1 text-right text-muted-foreground"
+                            )}
+                          >
+                            {formatTimeSaoPaulo(message.timestamp)}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ))}
             </div>
