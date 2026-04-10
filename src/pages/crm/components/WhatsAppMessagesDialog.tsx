@@ -1548,6 +1548,10 @@ export function WhatsAppMessagesDialog({
 
     setSending(true);
     try {
+      // Build message with sender signature
+      const senderName = authUser?.name || 'Usuário';
+      const messageWithSignature = `*${senderName}:*\n${newMessage.trim()}`;
+
       if (provider === 'waba') {
         // WABA: send via edge function
         const { data, error } = await supabase.functions.invoke('waba-send', {
@@ -1555,7 +1559,7 @@ export function WhatsAppMessagesDialog({
             action: 'send_text',
             cod_agent: codAgent,
             to: whatsappNumber,
-            text: newMessage.trim(),
+            text: messageWithSignature,
           },
         });
         
@@ -1566,7 +1570,7 @@ export function WhatsAppMessagesDialog({
         if (!client) return;
         await client.post('/send/text', {
           number: whatsappNumber.replace(/\D/g, ''),
-          text: newMessage.trim(),
+          text: messageWithSignature,
         });
       }
 
@@ -1575,7 +1579,7 @@ export function WhatsAppMessagesDialog({
         ...prev,
         {
           id: Date.now().toString(),
-          text: newMessage.trim(),
+          text: messageWithSignature,
           fromMe: true,
           timestamp: Date.now(),
           type: 'text',
