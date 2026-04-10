@@ -299,8 +299,8 @@ export function useTeamForCurrentUser() {
         ownerName = authUser.name;
       }
 
-      // Get team members — use false to match the Equipes page exactly
-      const members = await externalDb.getTeamMembers<{ id: number; name: string; role: string }>(principalId, false);
+      // Get team members — match Equipes page: pass isAdmin flag
+      const members = await externalDb.getTeamMembers<{ id: number; name: string; role: string }>(principalId, authUser.role === 'admin');
 
       // Build combined list: owner + team members, avoiding duplicates
       const allMembers: { id: number; name: string; role: string }[] = [];
