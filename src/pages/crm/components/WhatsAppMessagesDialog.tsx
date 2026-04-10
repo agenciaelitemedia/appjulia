@@ -63,6 +63,8 @@ interface Message {
   quotedParticipant?: string;
   // WABA media ID for download
   wabaMediaId?: string;
+  // Internal note fields
+  authorName?: string;
 }
 
 interface AgentCredentials {
