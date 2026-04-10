@@ -1942,26 +1942,61 @@ export function WhatsAppMessagesDialog({
             </div>
           )}
 
+          {/* Note mode indicator */}
+          {noteMode && (
+            <div className="flex items-center gap-2 px-2 py-1.5 bg-amber-500/10 rounded-md border border-amber-500/30">
+              <StickyNote className="h-3.5 w-3.5 text-amber-600" />
+              <span className="text-xs font-medium text-amber-700 dark:text-amber-400 flex-1">
+                Modo nota interna — não será enviada ao WhatsApp
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 text-muted-foreground hover:text-amber-600"
+                onClick={() => setNoteMode(false)}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
+
           {/* Textarea + Send */}
           <div className="flex items-end gap-2">
             <Textarea
               ref={textareaRef}
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              onKeyDown={handleKeyPress}
-              placeholder="Digite uma mensagem..."
-              disabled={!isConfigured || sending || isRecording}
-              className="flex-1 min-h-[38px] max-h-[120px] resize-none text-sm py-2"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (noteMode) {
+                    handleSendNote();
+                  } else {
+                    handleSendMessage();
+                  }
+                }
+              }}
+              placeholder={noteMode ? "Escreva uma nota interna..." : "Digite uma mensagem..."}
+              disabled={!isConfigured || sending || sendingNote || isRecording}
+              className={cn(
+                "flex-1 min-h-[38px] max-h-[120px] resize-none text-sm py-2",
+                noteMode && "border-amber-500/50 focus-visible:ring-amber-500/30"
+              )}
               rows={1}
             />
             <Button
               size="icon"
-              className="shrink-0 h-[38px] w-[38px]"
-              onClick={handleSendMessage}
-              disabled={!newMessage.trim() || !isConfigured || sending || isRecording}
+              className={cn(
+                "shrink-0 h-[38px] w-[38px]",
+                noteMode && "bg-amber-500 hover:bg-amber-600"
+              )}
+              onClick={noteMode ? handleSendNote : handleSendMessage}
+              disabled={!newMessage.trim() || (!isConfigured && !noteMode) || sending || sendingNote || isRecording}
             >
-              {sending ? (
+              {sending || sendingNote ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
+              ) : noteMode ? (
+                <StickyNote className="h-4 w-4" />
               ) : (
                 <Send className="h-4 w-4" />
               )}
