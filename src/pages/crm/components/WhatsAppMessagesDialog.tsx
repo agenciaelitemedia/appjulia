@@ -1720,11 +1720,16 @@ export function WhatsAppMessagesDialog({
                     reader.readAsDataURL(file);
                   });
 
-                  await client.post('/send/file-base64', {
+                  const mediaType: 'image' | 'video' | 'audio' | 'document' = file.type.startsWith('image/') ? 'image'
+                    : file.type.startsWith('video/') ? 'video'
+                    : file.type.startsWith('audio/') ? 'audio'
+                    : 'document';
+                  await client.post('/send/media', {
                     number: cleanNumber,
-                    base64,
-                    mimetype: file.type,
+                    media: `data:${file.type};base64,${base64}`,
+                    type: mediaType,
                     fileName: file.name,
+                    caption: '',
                   });
                 }
 
