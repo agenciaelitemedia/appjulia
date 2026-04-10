@@ -1,6 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { Bot } from 'lucide-react';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { SessionStatus } from '@/lib/externalDb';
 import { CRMHeader } from './components/CRMHeader';
 import { CRMDashboardSummary } from './components/CRMDashboardSummary';
 import { CRMTotalizers } from './components/CRMTotalizers';
