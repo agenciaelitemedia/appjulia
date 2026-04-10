@@ -1559,12 +1559,25 @@ export function WhatsAppMessagesDialog({
     return groups;
   }, {} as Record<string, Message[]>);
 
+  const isSheet = variant === 'sheet';
+
+  const Wrapper = isSheet ? Sheet : Dialog;
+  const Content = isSheet ? SheetContent : DialogContent;
+  const Header = isSheet ? SheetHeader : DialogHeader;
+  const Title = isSheet ? SheetTitle : DialogTitle;
+  const Description = isSheet ? SheetDescription : DialogDescription;
+
+  const contentProps = isSheet
+    ? { side: 'right' as const, className: 'w-[420px] sm:w-[480px] p-0 flex flex-col h-full' }
+    : { className: 'sm:max-w-[500px] h-[600px] flex flex-col p-0 bg-card' };
+
   return (
     <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] h-[600px] flex flex-col p-0 bg-card" aria-describedby={undefined}>
+    <Wrapper open={open} onOpenChange={onOpenChange}>
+      {/* @ts-ignore - dynamic component props */}
+      <Content {...contentProps} aria-describedby={undefined}>
         {/* Header */}
-        <DialogHeader className="px-4 py-3 border-b bg-muted/30">
+        <Header className="px-4 py-3 border-b bg-muted/30">
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10 bg-green-600">
               <AvatarFallback className="bg-green-600 text-white">
