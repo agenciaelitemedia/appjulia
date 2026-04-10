@@ -264,49 +264,43 @@ export function useMoveCard() {
   });
 }
 
-export function useTeamMembersForAgent(codAgent: string | null, fallbackUserId?: number | null) {
+export function useTeamForCurrentUser() {
+  const { user: authUser } = useAuth();
+
   return useQuery({
-    queryKey: ['crm-team-members', codAgent, fallbackUserId],
+    queryKey: ['crm-team-current-user', authUser?.id, authUser?.role],
     queryFn: async () => {
-      if (!codAgent) return [];
+      if (!authUser?.id) return [];
 
-      // 1. Try to get the owner user linked to this cod_agent
-      const agentUsers = await externalDb.raw<{ user_id: number; owner_name: string }>({
-        query: `SELECT DISTINCT user_id, owner_name FROM "vw_list_client-agents-users" WHERE cod_agent::text = $1 LIMIT 1`,
-        params: [codAgent],
-      });
-      let principalId = agentUsers[0]?.user_id;
-      let ownerName = agentUsers[0]?.owner_name;
+      let principalId: number;
+      let ownerName: string | null = null;
 
-      // 2. Fallback: resolve principal user from logged-in user
-      if (!principalId && fallbackUserId) {
-        const parentResult = await externalDb.raw<{ id: number; parent_user_id: number | null; name: string }>({
-          query: `SELECT id, user_id as parent_user_id, name FROM users WHERE id = $1 LIMIT 1`,
-          params: [fallbackUserId],
+      if (authUser.role === 'user') {
+        // Titular: the logged-in user IS the principal
+        principalId = authUser.id;
+        ownerName = authUser.name;
+      } else {
+        // Team member (time/advogado/comercial): resolve parent via user_id column
+        const parentResult = await externalDb.raw<{ id: number; user_id: number | null; name: string }>({
+          query: `SELECT id, user_id, name FROM users WHERE id = $1 LIMIT 1`,
+          params: [authUser.id],
         });
         const row = parentResult[0];
-        if (row) {
-          principalId = row.parent_user_id ?? row.id;
-          // If this user IS the principal, use their name as owner
-          if (!row.parent_user_id) {
-            ownerName = row.name;
-          } else {
-            // Fetch the actual principal's name
-            const principalResult = await externalDb.raw<{ name: string }>({
-              query: `SELECT name FROM users WHERE id = $1 LIMIT 1`,
-              params: [principalId],
-            });
-            ownerName = principalResult[0]?.name || null;
-          }
-        }
+        if (!row || !row.user_id) return [];
+        principalId = row.user_id;
+
+        // Fetch principal's name
+        const principalResult = await externalDb.raw<{ name: string }>({
+          query: `SELECT name FROM users WHERE id = $1 LIMIT 1`,
+          params: [principalId],
+        });
+        ownerName = principalResult[0]?.name || null;
       }
 
-      if (!principalId) return [];
-
-      // 3. Get team members linked to the principal user
+      // Get team members
       const members = await externalDb.getTeamMembers<{ id: number; name: string; role: string }>(principalId, true);
 
-      // 4. Build combined list: owner + team members, avoiding duplicates
+      // Build combined list: owner + team members, avoiding duplicates
       const allMembers: { id: number; name: string; role: string }[] = [];
       const seenNames = new Set<string>();
 
@@ -326,9 +320,14 @@ export function useTeamMembersForAgent(codAgent: string | null, fallbackUserId?:
 
       return allMembers;
     },
-    enabled: !!codAgent,
+    enabled: !!authUser?.id,
     staleTime: 1000 * 60 * 5,
   });
+}
+
+// Keep backward-compatible alias
+export function useTeamMembersForAgent(_codAgent: string | null, _fallbackUserId?: number | null) {
+  return useTeamForCurrentUser();
 }
 
 export function useUpdateCardOwner() {

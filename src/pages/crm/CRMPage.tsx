@@ -1,15 +1,17 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Bot } from 'lucide-react';
+import { Bot, UserCircle } from 'lucide-react';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SessionStatus } from '@/lib/externalDb';
+import { useAuth } from '@/contexts/AuthContext';
 import { CRMHeader } from './components/CRMHeader';
 import { CRMDashboardSummary } from './components/CRMDashboardSummary';
 import { CRMTotalizers } from './components/CRMTotalizers';
 import { CRMPipeline } from './components/CRMPipeline';
 import { CRMLeadDetailsDialog } from './components/CRMLeadDetailsDialog';
-import { useCRMStages, useCRMCards, useCRMAgents, useCRMJuliaSessions, useCRMJuliaConversations } from './hooks/useCRMData';
+import { useCRMStages, useCRMCards, useCRMAgents, useCRMJuliaSessions, useCRMJuliaConversations, useTeamForCurrentUser } from './hooks/useCRMData';
 import { useFollowupActiveLeads } from './hooks/useFollowupActiveLeads';
 import { useFollowupReturnRate } from './hooks/useFollowupReturnRate';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
@@ -19,6 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { getInitialDates, getSavedAgentCodes } from '@/hooks/usePersistedPeriod';
 
 export default function CRMPage() {
+  const { user: authUser } = useAuth();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialDates = getInitialDates();
@@ -47,6 +50,7 @@ export default function CRMPage() {
   const [selectedCard, setSelectedCard] = useState<CRMCard | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [juliaStatusFilter, setJuliaStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [ownerFilter, setOwnerFilter] = useState<string>('all');
 
   const { data: stages = [], isLoading: stagesLoading } = useCRMStages();
   const { data: agents = [], isLoading: agentsLoading } = useCRMAgents();
@@ -55,6 +59,7 @@ export default function CRMPage() {
   const { data: juliaConversations } = useCRMJuliaConversations(filters);
   const { data: followupMap = new Map() } = useFollowupActiveLeads(filters.agentCodes, filters.dateFrom, filters.dateTo);
   const { data: returnRateData } = useFollowupReturnRate(filters.agentCodes, filters.dateFrom, filters.dateTo);
+  const { data: teamMembers = [] } = useTeamForCurrentUser();
 
   // Clean up whatsapp param from URL after consuming it
   useEffect(() => {
@@ -104,8 +109,17 @@ export default function CRMPage() {
       });
     }
 
+    // Owner filter
+    if (ownerFilter !== 'all') {
+      if (ownerFilter === 'mine') {
+        result = result.filter((card) => card.owner_name === authUser?.name);
+      } else {
+        result = result.filter((card) => card.owner_name === ownerFilter);
+      }
+    }
+
     return result;
-  }, [cards, filters.search, juliaStatusFilter, queryClient]);
+  }, [cards, filters.search, juliaStatusFilter, ownerFilter, authUser?.name, queryClient]);
 
   const handleCardClick = (card: CRMCard) => {
     setSelectedCard(card);
@@ -164,26 +178,46 @@ export default function CRMPage() {
         periodTooltip="Filtra pela data da última movimentação do lead no pipeline (não pela data de criação)"
       />
 
-      <div className="flex items-center gap-2">
-        <Bot className="h-4 w-4 text-muted-foreground" />
-        <ToggleGroup
-          type="single"
-          value={juliaStatusFilter}
-          onValueChange={(val) => { if (val) setJuliaStatusFilter(val as 'all' | 'active' | 'inactive'); }}
-          size="sm"
-        >
-          <ToggleGroupItem value="all" className="text-xs px-3">
-            Todas
-          </ToggleGroupItem>
-          <ToggleGroupItem value="active" className="text-xs px-3 data-[state=on]:bg-green-100 data-[state=on]:text-green-700 dark:data-[state=on]:bg-green-900/30 dark:data-[state=on]:text-green-400">
-            <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-green-500" />
-            Ativa
-          </ToggleGroupItem>
-          <ToggleGroupItem value="inactive" className="text-xs px-3 data-[state=on]:bg-red-100 data-[state=on]:text-red-700 dark:data-[state=on]:bg-red-900/30 dark:data-[state=on]:text-red-400">
-            <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-red-500" />
-            Inativa
-          </ToggleGroupItem>
-        </ToggleGroup>
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Bot className="h-4 w-4 text-muted-foreground" />
+          <ToggleGroup
+            type="single"
+            value={juliaStatusFilter}
+            onValueChange={(val) => { if (val) setJuliaStatusFilter(val as 'all' | 'active' | 'inactive'); }}
+            size="sm"
+          >
+            <ToggleGroupItem value="all" className="text-xs px-3">
+              Todas
+            </ToggleGroupItem>
+            <ToggleGroupItem value="active" className="text-xs px-3 data-[state=on]:bg-green-100 data-[state=on]:text-green-700 dark:data-[state=on]:bg-green-900/30 dark:data-[state=on]:text-green-400">
+              <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-green-500" />
+              Ativa
+            </ToggleGroupItem>
+            <ToggleGroupItem value="inactive" className="text-xs px-3 data-[state=on]:bg-red-100 data-[state=on]:text-red-700 dark:data-[state=on]:bg-red-900/30 dark:data-[state=on]:text-red-400">
+              <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-red-500" />
+              Inativa
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <UserCircle className="h-4 w-4 text-muted-foreground" />
+          <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+            <SelectTrigger className="h-8 w-[180px] text-xs">
+              <SelectValue placeholder="Responsável" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" className="text-xs">Todos</SelectItem>
+              <SelectItem value="mine" className="text-xs">Meus cards</SelectItem>
+              {teamMembers.map((member) => (
+                <SelectItem key={member.id} value={member.name} className="text-xs">
+                  {member.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <CRMPipeline
