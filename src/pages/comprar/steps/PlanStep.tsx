@@ -189,7 +189,7 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
             <div
               key={plan.id}
               onClick={() => handleSelect(plan.id)}
-              className={`relative cursor-pointer rounded-2xl border-2 p-5 transition-all duration-200 bg-white ${
+              className={`relative cursor-pointer rounded-2xl border-2 p-6 transition-all duration-200 bg-white min-w-[240px] ${
                 isSelected
                   ? 'border-[#6C3AED] shadow-lg shadow-[#6C3AED]/10 scale-[1.02]'
                   : 'border-gray-100 hover:border-[#6C3AED]/30 hover:shadow-md'
