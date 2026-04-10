@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { externalDb } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
@@ -768,7 +768,7 @@ export function WhatsAppMessagesDialog({
   codAgent,
   variant = 'dialog',
 }: WhatsAppMessagesDialogProps) {
-  const { toast } = useToast();
+  
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -895,11 +895,7 @@ export function WhatsAppMessagesDialog({
       }, 1000);
     } catch (err: any) {
       console.error('Mic access error:', err);
-      toast({
-        title: 'Erro ao acessar microfone',
-        description: err.message || 'Permita o acesso ao microfone no navegador.',
-        variant: 'destructive',
-      });
+      toast.error('Erro ao acessar microfone');
     }
   };
 
@@ -979,10 +975,10 @@ export function WhatsAppMessagesDialog({
         },
       ]);
 
-      toast({ title: 'Áudio enviado' });
+      toast.success('Áudio enviado');
     } catch (err: any) {
       console.error('Error sending audio:', err);
-      toast({ title: 'Erro ao enviar áudio', description: err.message, variant: 'destructive' });
+      toast.error('Erro ao enviar áudio');
     } finally {
       setSendingAudio(false);
     }
@@ -1072,10 +1068,10 @@ export function WhatsAppMessagesDialog({
       
       setNewMessage('');
       setNoteMode(false);
-      toast({ title: 'Nota adicionada', description: 'A nota interna foi salva com sucesso.' });
+      toast.success('Nota adicionada: A nota interna foi salva com sucesso.');
     } catch (err: any) {
       console.error('Error saving note:', err);
-      toast({ title: 'Erro ao salvar nota', description: err.message, variant: 'destructive' });
+      toast.error('Erro ao salvar nota');
     } finally {
       setSendingNote(false);
     }
@@ -1172,11 +1168,7 @@ export function WhatsAppMessagesDialog({
       }
     } catch (error) {
       console.error('❌ Error downloading media:', error);
-      toast({
-        title: 'Erro ao baixar mídia',
-        description: 'Não foi possível baixar o arquivo.',
-        variant: 'destructive',
-      });
+      toast.error('Erro ao baixar mídia: Não foi possível baixar o arquivo.');
     } finally {
       setDownloadingMedia(prev => {
         const next = new Set(prev);
@@ -1212,11 +1204,7 @@ export function WhatsAppMessagesDialog({
             setIsConfigured(true);
           } else {
             setIsConfigured(false);
-            toast({
-              title: 'WABA não configurado',
-              description: 'Este agente não possui credenciais WABA completas.',
-              variant: 'destructive',
-            });
+            toast.error('WABA não configurado: Este agente não possui credenciais WABA completas.');
           }
         } else {
           // UaZapi provider
@@ -1231,29 +1219,17 @@ export function WhatsAppMessagesDialog({
             setIsConfigured(true);
           } else {
             setIsConfigured(false);
-            toast({
-              title: 'API não configurada',
-              description: 'Este agente não possui credenciais UaZapi configuradas.',
-              variant: 'destructive',
-            });
+            toast.error('API não configurada: Este agente não possui credenciais UaZapi configuradas.');
           }
         }
       } else {
         setIsConfigured(false);
-        toast({
-          title: 'Agente não encontrado',
-          description: 'Não foi possível encontrar as credenciais do agente.',
-          variant: 'destructive',
-        });
+        toast.error('Agente não encontrado: Não foi possível encontrar as credenciais do agente.');
       }
     } catch (error: any) {
       console.error('Error loading agent credentials:', error);
       setIsConfigured(false);
-      toast({
-        title: 'Erro ao carregar credenciais',
-        description: error.message || 'Não foi possível carregar as credenciais do agente.',
-        variant: 'destructive',
-      });
+      toast.error('Erro ao carregar credenciais');
     } finally {
       setLoading(false);
     }
@@ -1397,11 +1373,7 @@ export function WhatsAppMessagesDialog({
       }
     } catch (error: any) {
       console.error('Error loading WABA messages:', error);
-      toast({
-        title: 'Erro ao carregar mensagens',
-        description: error.message || 'Não foi possível carregar as mensagens.',
-        variant: 'destructive',
-      });
+      toast.error('Erro ao carregar mensagens');
     } finally {
       setLoading(false);
     }
@@ -1475,11 +1447,7 @@ export function WhatsAppMessagesDialog({
       }
     } catch (error: any) {
       console.error('Error loading messages:', error);
-      toast({
-        title: 'Erro ao carregar mensagens',
-        description: error.message || 'Não foi possível carregar as mensagens.',
-        variant: 'destructive',
-      });
+      toast.error('Erro ao carregar mensagens');
     } finally {
       setLoading(false);
     }
@@ -1616,17 +1584,10 @@ export function WhatsAppMessagesDialog({
       
       setNewMessage('');
       
-      toast({
-        title: 'Mensagem enviada',
-        description: 'A mensagem foi enviada com sucesso.',
-      });
+      toast.success('Mensagem enviada: A mensagem foi enviada com sucesso.');
     } catch (error: any) {
       console.error('Error sending message:', error);
-      toast({
-        title: 'Erro ao enviar mensagem',
-        description: error.message || 'Não foi possível enviar a mensagem.',
-        variant: 'destructive',
-      });
+      toast.error('Erro ao enviar mensagem');
     } finally {
       setSending(false);
     }
@@ -2113,10 +2074,10 @@ export function WhatsAppMessagesDialog({
                   },
                 ]);
 
-                toast({ title: 'Arquivo enviado', description: file.name });
+                toast.success('Arquivo enviado');
               } catch (err: any) {
                 console.error('Error sending file:', err);
-                toast({ title: 'Erro ao enviar arquivo', description: err.message, variant: 'destructive' });
+                toast.error('Erro ao enviar arquivo');
               } finally {
                 setSendingFile(false);
               }
