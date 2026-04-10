@@ -61,7 +61,12 @@ export function CRMLeadDetailsDialog({
   const updateOwner = useUpdateCardOwner();
   const { data: teamMembers = [] } = useTeamMembersForAgent(card?.cod_agent || null);
 
-  const currentStage = card ? stages.find((s) => s.id === card.stage_id) : null;
+  // Track local stage override after mutation so select updates immediately
+  const [localStageId, setLocalStageId] = useState<number | null>(null);
+  
+  // Reset local override when card changes (different card opened)
+  const activeStageId = localStageId ?? card?.stage_id;
+  const currentStage = card ? stages.find((s) => s.id === activeStageId) : null;
   const entryStage = stages.find((s) => s.position === 1) || { name: 'Entrada', color: '#3B82F6' };
   
   const isContractStage = currentStage?.name === 'Contrato em Curso' || 
