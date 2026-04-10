@@ -25,6 +25,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { externalDb } from '@/lib/externalDb';
+import { useAuth } from '@/contexts/AuthContext';
 import { SessionStatusDialog } from './SessionStatusDialog';
 import { UaZapiClient } from '@/lib/uazapi';
 import { supabase } from '@/integrations/supabase/client';
