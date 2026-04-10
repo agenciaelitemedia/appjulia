@@ -1,6 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { Bot } from 'lucide-react';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { SessionStatus } from '@/lib/externalDb';
 import { CRMHeader } from './components/CRMHeader';
 import { CRMDashboardSummary } from './components/CRMDashboardSummary';
 import { CRMTotalizers } from './components/CRMTotalizers';
@@ -43,6 +46,7 @@ export default function CRMPage() {
   
   const [selectedCard, setSelectedCard] = useState<CRMCard | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [juliaStatusFilter, setJuliaStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
   const { data: stages = [], isLoading: stagesLoading } = useCRMStages();
   const { data: agents = [], isLoading: agentsLoading } = useCRMAgents();
@@ -73,19 +77,35 @@ export default function CRMPage() {
 
   const isLoading = stagesLoading || agentsLoading;
 
-  // Apply search filter on client side
+  // Apply search + Julia status filter on client side
   const filteredCards = useMemo(() => {
-    if (!filters.search) return cards;
+    let result = cards;
 
-    const search = filters.search.toLowerCase();
-    return cards.filter(
-      (card) =>
-        card.contact_name?.toLowerCase().includes(search) ||
-        card.whatsapp_number?.includes(filters.search) ||
-        card.business_name?.toLowerCase().includes(search) ||
-        card.helena_count_id?.toLowerCase().includes(search)
-    );
-  }, [cards, filters.search]);
+    if (filters.search) {
+      const search = filters.search.toLowerCase();
+      result = result.filter(
+        (card) =>
+          card.contact_name?.toLowerCase().includes(search) ||
+          card.whatsapp_number?.includes(filters.search) ||
+          card.business_name?.toLowerCase().includes(search) ||
+          card.helena_count_id?.toLowerCase().includes(search)
+      );
+    }
+
+    if (juliaStatusFilter !== 'all') {
+      result = result.filter((card) => {
+        const cached = queryClient.getQueryData<SessionStatus | null>(
+          ['agent-session-status', card.cod_agent, card.whatsapp_number]
+        );
+        // If not cached yet, keep visible
+        if (cached === undefined) return true;
+        const isActive = cached?.active ?? false;
+        return juliaStatusFilter === 'active' ? isActive : !isActive;
+      });
+    }
+
+    return result;
+  }, [cards, filters.search, juliaStatusFilter, queryClient]);
 
   const handleCardClick = (card: CRMCard) => {
     setSelectedCard(card);
@@ -139,6 +159,28 @@ export default function CRMPage() {
         isLoading={agentsLoading}
         periodTooltip="Filtra pela data da última movimentação do lead no pipeline (não pela data de criação)"
       />
+
+      <div className="flex items-center gap-2">
+        <Bot className="h-4 w-4 text-muted-foreground" />
+        <ToggleGroup
+          type="single"
+          value={juliaStatusFilter}
+          onValueChange={(val) => { if (val) setJuliaStatusFilter(val as 'all' | 'active' | 'inactive'); }}
+          size="sm"
+        >
+          <ToggleGroupItem value="all" className="text-xs px-3">
+            Todas
+          </ToggleGroupItem>
+          <ToggleGroupItem value="active" className="text-xs px-3 data-[state=on]:bg-green-100 data-[state=on]:text-green-700 dark:data-[state=on]:bg-green-900/30 dark:data-[state=on]:text-green-400">
+            <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-green-500" />
+            Ativa
+          </ToggleGroupItem>
+          <ToggleGroupItem value="inactive" className="text-xs px-3 data-[state=on]:bg-red-100 data-[state=on]:text-red-700 dark:data-[state=on]:bg-red-900/30 dark:data-[state=on]:text-red-400">
+            <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-red-500" />
+            Inativa
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
 
       <CRMDashboardSummary cards={filteredCards} stages={stages} isLoading={cardsLoading} juliaSessions={juliaSessions} juliaConversations={juliaConversations} followupMap={followupMap} returnRateData={returnRateData} />
 
