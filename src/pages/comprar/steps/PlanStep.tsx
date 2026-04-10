@@ -40,9 +40,13 @@ interface Props {
 }
 
 export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
+  const [searchParams] = useSearchParams();
   const [plans, setPlans] = useState<PlanFromDB[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(-1);
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(orderData.billing_period || 'monthly');
+
+  const channelParam = searchParams.get('c')?.toLowerCase() || '';
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(orderData.billing_period || 'monthly');
 
   useEffect(() => {
