@@ -1670,9 +1670,11 @@ export function WhatsAppMessagesDialog({
   const Title = isSheet ? SheetTitle : DialogTitle;
   const Description = isSheet ? SheetDescription : DialogDescription;
 
-  const sheetWidth = contractSidebarOpen ? 'w-[560px] sm:w-[1100px]' : 'w-[560px] sm:w-[640px]';
+  const sheetWidth = contractSidebarOpen
+    ? 'w-[calc(100vw-1rem)] sm:w-[1100px] sm:!max-w-[1100px]'
+    : 'w-[calc(100vw-1rem)] sm:w-[640px] sm:!max-w-[640px]';
   const contentProps = isSheet
-    ? { side: 'right' as const, className: `${sheetWidth} p-0 flex flex-row h-full transition-all duration-300` }
+    ? { side: 'right' as const, className: `${sheetWidth} !gap-0 overflow-hidden p-0 flex flex-row h-full transition-all duration-300` }
     : { className: 'sm:max-w-[500px] h-[600px] flex flex-col p-0 bg-card' };
 
   return (
