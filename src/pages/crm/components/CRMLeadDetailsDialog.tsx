@@ -1,5 +1,6 @@
 import { Phone, Building2, Clock, History, ArrowRight, User, Hash, Calendar, AlertTriangle, Scale, Download, Loader2, ExternalLink, Bot, UserCircle } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
 import {
@@ -46,6 +47,7 @@ export function CRMLeadDetailsDialog({
   open,
   onOpenChange,
 }: CRMLeadDetailsDialogProps) {
+  const { user: authUser } = useAuth();
   const { toast } = useToast();
   const { data: history = [], isLoading: historyLoading } = useCRMCardHistory(card?.id || null);
   const [contractDialogOpen, setContractDialogOpen] = useState(false);
@@ -59,7 +61,7 @@ export function CRMLeadDetailsDialog({
 
   const moveCard = useMoveCard();
   const updateOwner = useUpdateCardOwner();
-  const { data: teamMembers = [] } = useTeamMembersForAgent(card?.cod_agent || null);
+  const { data: teamMembers = [] } = useTeamMembersForAgent(card?.cod_agent || null, authUser?.id);
 
   // Track local stage override after mutation so select updates immediately
   const [localStageId, setLocalStageId] = useState<number | null>(null);
