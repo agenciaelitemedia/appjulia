@@ -152,7 +152,9 @@ export function CRMLeadDetailsDialog({
 
   const handleStageChange = (stageId: string) => {
     const newStageId = Number(stageId);
-    if (newStageId === card.stage_id) return;
+    if (newStageId === activeStageId) return;
+    
+    setLocalStageId(newStageId);
     
     moveCard.mutate(
       { cardId: card.id, toStageId: newStageId, notes: 'Alteração manual via detalhes do lead' },
@@ -161,6 +163,7 @@ export function CRMLeadDetailsDialog({
           sonnerToast.success('Fase atualizada com sucesso');
         },
         onError: () => {
+          setLocalStageId(null);
           sonnerToast.error('Erro ao atualizar fase');
         },
       }
