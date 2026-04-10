@@ -351,3 +351,23 @@ export function useUpdateCardOwner() {
     },
   });
 }
+
+export function useUpdateCardName() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ cardId, contactName }: { cardId: number; contactName: string }) => {
+      await externalDb.update({
+        table: 'crm_atendimento_cards',
+        data: {
+          contact_name: contactName,
+          updated_at: new Date().toISOString(),
+        },
+        where: { id: cardId },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crm-cards'] });
+    },
+  });
+}

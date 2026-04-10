@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Bot, Clock, Eye, Hash, Loader2, MessageCircle, Phone, Scale, User, Video } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Bot, Check, Clock, Eye, Hash, Loader2, MessageCircle, Pencil, Phone, Scale, User, Video, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +18,8 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 import { useAgentAliases } from '@/hooks/useAgentAliases';
+import { useUpdateCardName } from '../hooks/useCRMData';
+import { toast } from 'sonner';
 
 interface CRMLeadCardProps {
   card: CRMCard;
@@ -43,10 +45,21 @@ function truncateText(text: string | undefined, maxLength: number): string {
   const [videoCallOpen, setVideoCallOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
   const [phoneCallOpen, setPhoneCallOpen] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editName, setEditName] = useState(card.contact_name || '');
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const updateCardName = useUpdateCardName();
   const { isActive: isAgentActive, isLoading: isAgentLoading, invalidate: refreshAgentStatus } = useAgentSessionStatus(
     card.whatsapp_number,
     card.cod_agent
   );
+
+  useEffect(() => {
+    if (isEditingName && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [isEditingName]);
 
   // Video call only visible for admin and colaborador roles
   const canStartVideoCall = user?.role === 'admin' || user?.role === 'colaborador';
@@ -91,6 +104,36 @@ function truncateText(text: string | undefined, maxLength: number): string {
     if (!open) refreshAgentStatus();
   };
 
+  const handleStartEditName = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditName(card.contact_name || '');
+    setIsEditingName(true);
+  };
+
+  const handleSaveName = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const trimmed = editName.trim();
+    if (!trimmed || trimmed === card.contact_name) {
+      setIsEditingName(false);
+      return;
+    }
+    updateCardName.mutate(
+      { cardId: card.id, contactName: trimmed },
+      {
+        onSuccess: () => {
+          toast.success('Nome atualizado');
+          setIsEditingName(false);
+        },
+        onError: () => toast.error('Erro ao atualizar nome'),
+      }
+    );
+  };
+
+  const handleCancelEditName = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditingName(false);
+  };
+
   const agentAlias = card.cod_agent ? getAlias(card.cod_agent, card.owner_business_name) : '';
   const truncatedAlias = truncateText(agentAlias, 20);
   const fullTooltip = card.owner_name || card.owner_business_name
@@ -111,13 +154,44 @@ function truncateText(text: string | undefined, maxLength: number): string {
         <CardContent className="p-3">
           <div className="space-y-2">
 
-            {/* Header with name and details button only */}
+            {/* Header with name and details button */}
             <div className="flex items-start justify-between gap-2">
-              <div className="flex flex-col gap-0.5 min-w-0 overflow-hidden">
-                <div className="flex items-center gap-1.5 text-sm font-medium">
-                  <span className="text-primary">👤</span>
-                  <span className="line-clamp-1">{card.contact_name || 'Sem nome'}</span>
-                </div>
+              <div className="flex flex-col gap-0.5 min-w-0 overflow-hidden flex-1">
+                {isEditingName ? (
+                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      ref={nameInputRef}
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveName(e as any);
+                        if (e.key === 'Escape') handleCancelEditName(e as any);
+                      }}
+                      className="text-sm font-medium bg-muted border border-input rounded px-1.5 py-0.5 w-full min-w-0 focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-green-600 hover:text-green-700" onClick={handleSaveName} disabled={updateCardName.isPending}>
+                      {updateCardName.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive" onClick={handleCancelEditName}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-sm font-medium group/name">
+                    <span className="text-primary">👤</span>
+                    <span className="line-clamp-1">{card.contact_name || 'Sem nome'}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 opacity-0 group-hover/name:opacity-100 transition-opacity shrink-0 text-muted-foreground hover:text-foreground"
+                      onClick={handleStartEditName}
+                      title="Editar nome"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
                 <span className="text-xs text-muted-foreground pl-5">{card.whatsapp_number}</span>
               </div>
               <Button
