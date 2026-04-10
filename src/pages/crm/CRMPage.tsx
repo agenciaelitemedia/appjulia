@@ -178,26 +178,46 @@ export default function CRMPage() {
         periodTooltip="Filtra pela data da última movimentação do lead no pipeline (não pela data de criação)"
       />
 
-      <div className="flex items-center gap-2">
-        <Bot className="h-4 w-4 text-muted-foreground" />
-        <ToggleGroup
-          type="single"
-          value={juliaStatusFilter}
-          onValueChange={(val) => { if (val) setJuliaStatusFilter(val as 'all' | 'active' | 'inactive'); }}
-          size="sm"
-        >
-          <ToggleGroupItem value="all" className="text-xs px-3">
-            Todas
-          </ToggleGroupItem>
-          <ToggleGroupItem value="active" className="text-xs px-3 data-[state=on]:bg-green-100 data-[state=on]:text-green-700 dark:data-[state=on]:bg-green-900/30 dark:data-[state=on]:text-green-400">
-            <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-green-500" />
-            Ativa
-          </ToggleGroupItem>
-          <ToggleGroupItem value="inactive" className="text-xs px-3 data-[state=on]:bg-red-100 data-[state=on]:text-red-700 dark:data-[state=on]:bg-red-900/30 dark:data-[state=on]:text-red-400">
-            <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-red-500" />
-            Inativa
-          </ToggleGroupItem>
-        </ToggleGroup>
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Bot className="h-4 w-4 text-muted-foreground" />
+          <ToggleGroup
+            type="single"
+            value={juliaStatusFilter}
+            onValueChange={(val) => { if (val) setJuliaStatusFilter(val as 'all' | 'active' | 'inactive'); }}
+            size="sm"
+          >
+            <ToggleGroupItem value="all" className="text-xs px-3">
+              Todas
+            </ToggleGroupItem>
+            <ToggleGroupItem value="active" className="text-xs px-3 data-[state=on]:bg-green-100 data-[state=on]:text-green-700 dark:data-[state=on]:bg-green-900/30 dark:data-[state=on]:text-green-400">
+              <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-green-500" />
+              Ativa
+            </ToggleGroupItem>
+            <ToggleGroupItem value="inactive" className="text-xs px-3 data-[state=on]:bg-red-100 data-[state=on]:text-red-700 dark:data-[state=on]:bg-red-900/30 dark:data-[state=on]:text-red-400">
+              <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-red-500" />
+              Inativa
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <UserCircle className="h-4 w-4 text-muted-foreground" />
+          <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+            <SelectTrigger className="h-8 w-[180px] text-xs">
+              <SelectValue placeholder="Responsável" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" className="text-xs">Todos</SelectItem>
+              <SelectItem value="mine" className="text-xs">Meus cards</SelectItem>
+              {teamMembers.map((member) => (
+                <SelectItem key={member.id} value={member.name} className="text-xs">
+                  {member.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <CRMPipeline
