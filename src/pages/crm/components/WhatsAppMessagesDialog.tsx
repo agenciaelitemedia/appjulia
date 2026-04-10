@@ -3,7 +3,6 @@ import {
   MessageCircle, Send, Loader2, 
   Mic, FileText, Download, MapPin, User, Image as ImageIcon, Video, Play, Bot,
   Zap, Paperclip, StickyNote, Search, Square, X
-  Zap, Paperclip, StickyNote, Search
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
