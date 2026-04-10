@@ -12,6 +12,11 @@ serve(async (req) => {
   }
 
   try {
+    const requestBody = req.method === "POST" ? await req.json().catch(() => ({})) : {};
+    const requestedMessageIds = Array.isArray(requestBody?.messageIds)
+      ? requestBody.messageIds.filter((id: unknown): id is string => typeof id === "string" && id.trim().length > 0)
+      : [];
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -46,13 +51,19 @@ serve(async (req) => {
     const instanceName = config.instance_name;
 
     // Fetch untranscribed messages (audio + image), limit 10 per run
-    const { data: messages, error: fetchError } = await supabase
+    let messagesQuery = supabase
       .from("support_group_messages")
       .select("id, media_url, message_id, message_type, sender_name, sender_role, group_name, raw_payload")
       .eq("is_transcribed", false)
       .in("message_type", ["audio", "image"])
       .order("created_at", { ascending: true })
-      .limit(10);
+      .limit(requestedMessageIds.length > 0 ? requestedMessageIds.length : 10);
+
+    if (requestedMessageIds.length > 0) {
+      messagesQuery = messagesQuery.in("message_id", requestedMessageIds);
+    }
+
+    const { data: messages, error: fetchError } = await messagesQuery;
 
     if (fetchError) {
       console.error("[transcribe] Fetch error:", fetchError);
@@ -68,7 +79,7 @@ serve(async (req) => {
       });
     }
 
-    console.log(`[transcribe] Processing ${messages.length} media messages`);
+    console.log(`[transcribe] Processing ${messages.length} media messages`, requestedMessageIds.length > 0 ? `requested=${requestedMessageIds.join(",")}` : "batch=auto");
     let processed = 0;
     let errors = 0;
 
