@@ -37,7 +37,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useContractInfo } from '../hooks/useContractInfo';
 import { useCRMCardByWhatsapp, useUpdateCardName } from '../hooks/useCRMData';
 import { ContractInfoContent } from './ContractInfoContent';
-import { Sheet as ContractSheet, SheetContent as ContractSheetContent, SheetHeader as ContractSheetHeader, SheetTitle as ContractSheetTitle } from '@/components/ui/sheet';
+
 
 // ============================================
 // Types
@@ -1670,8 +1670,9 @@ export function WhatsAppMessagesDialog({
   const Title = isSheet ? SheetTitle : DialogTitle;
   const Description = isSheet ? SheetDescription : DialogDescription;
 
+  const sheetWidth = contractSidebarOpen ? 'w-[560px] sm:w-[1100px]' : 'w-[560px] sm:w-[640px]';
   const contentProps = isSheet
-    ? { side: 'right' as const, className: 'w-[560px] sm:w-[640px] p-0 flex flex-col h-full' }
+    ? { side: 'right' as const, className: `${sheetWidth} p-0 flex flex-row h-full transition-all duration-300` }
     : { className: 'sm:max-w-[500px] h-[600px] flex flex-col p-0 bg-card' };
 
   return (
