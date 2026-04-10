@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   MessageCircle, Send, Loader2, 
   Mic, FileText, Download, MapPin, User, Image as ImageIcon, Video, Play, Bot,
-  Zap, Paperclip, StickyNote, Search, Square, X
+  Zap, Paperclip, StickyNote, Search, Square, X, Scale, Pencil, Check
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
@@ -34,6 +34,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useQuickMessages } from '@/hooks/useQuickMessages';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useContractInfo } from '../hooks/useContractInfo';
+import { useCRMCardByWhatsapp, useUpdateCardName } from '../hooks/useCRMData';
+import { ContractInfoContent } from './ContractInfoContent';
+import { Sheet as ContractSheet, SheetContent as ContractSheetContent, SheetHeader as ContractSheetHeader, SheetTitle as ContractSheetTitle } from '@/components/ui/sheet';
 
 // ============================================
 // Types
