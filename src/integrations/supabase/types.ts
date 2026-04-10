@@ -1005,6 +1005,36 @@ export type Database = {
           },
         ]
       }
+      crm_internal_notes: {
+        Row: {
+          author_id: string | null
+          author_name: string
+          cod_agent: string
+          created_at: string
+          id: string
+          note_text: string
+          whatsapp_number: string
+        }
+        Insert: {
+          author_id?: string | null
+          author_name: string
+          cod_agent: string
+          created_at?: string
+          id?: string
+          note_text: string
+          whatsapp_number: string
+        }
+        Update: {
+          author_id?: string | null
+          author_name?: string
+          cod_agent?: string
+          created_at?: string
+          id?: string
+          note_text?: string
+          whatsapp_number?: string
+        }
+        Relationships: []
+      }
       crm_pipelines: {
         Row: {
           board_id: string

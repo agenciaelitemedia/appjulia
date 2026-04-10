@@ -25,6 +25,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { externalDb } from '@/lib/externalDb';
+import { useAuth } from '@/contexts/AuthContext';
 import { SessionStatusDialog } from './SessionStatusDialog';
 import { UaZapiClient } from '@/lib/uazapi';
 import { supabase } from '@/integrations/supabase/client';
@@ -38,7 +39,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 // Types
 // ============================================
 
-type MessageType = 'text' | 'image' | 'audio' | 'video' | 'document' | 'sticker' | 'location' | 'contact' | 'unknown';
+type MessageType = 'text' | 'image' | 'audio' | 'video' | 'document' | 'sticker' | 'location' | 'contact' | 'internal_note' | 'unknown';
 
 type WhatsAppProvider = 'uazapi' | 'waba';
 
@@ -63,6 +64,8 @@ interface Message {
   quotedParticipant?: string;
   // WABA media ID for download
   wabaMediaId?: string;
+  // Internal note fields
+  authorName?: string;
 }
 
 interface AgentCredentials {
@@ -803,6 +806,11 @@ export function WhatsAppMessagesDialog({
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Internal notes state
+  const { user: authUser } = useAuth();
+  const [noteMode, setNoteMode] = useState(false);
+  const [sendingNote, setSendingNote] = useState(false);
+
   // Quick messages
   const { messages: quickMessages } = useQuickMessages('chat_popup');
   const filteredQuickMessages = quickMessages.filter(qm =>
@@ -991,6 +999,88 @@ export function WhatsAppMessagesDialog({
     };
   }, []);
 
+  // Load internal notes and merge into messages
+  const loadAndMergeNotes = useCallback(async () => {
+    try {
+      const { data: notes, error } = await supabase
+        .from('crm_internal_notes')
+        .select('*')
+        .eq('whatsapp_number', whatsappNumber.replace(/\D/g, ''))
+        .eq('cod_agent', codAgent)
+        .order('created_at', { ascending: true });
+      
+      if (error) throw error;
+      if (!notes || notes.length === 0) return;
+      
+      const noteMessages: Message[] = notes.map((n: any) => ({
+        id: `note-${n.id}`,
+        text: n.note_text,
+        fromMe: true,
+        timestamp: new Date(n.created_at).getTime(),
+        type: 'internal_note' as MessageType,
+        authorName: n.author_name,
+      }));
+      
+      setMessages(prev => {
+        const existingIds = new Set(prev.map(m => m.id));
+        const newNotes = noteMessages.filter(n => !existingIds.has(n.id));
+        if (newNotes.length === 0) return prev;
+        const combined = [...prev, ...newNotes];
+        combined.sort((a, b) => a.timestamp - b.timestamp);
+        return combined;
+      });
+    } catch (err) {
+      console.error('Error loading notes:', err);
+    }
+  }, [whatsappNumber, codAgent]);
+
+  // Send internal note
+  const handleSendNote = async () => {
+    if (!newMessage.trim() || sendingNote) return;
+    
+    setSendingNote(true);
+    try {
+      const cleanNumber = whatsappNumber.replace(/\D/g, '');
+      const authorName = authUser?.name || 'Usuário';
+      
+      const { data, error } = await supabase
+        .from('crm_internal_notes')
+        .insert({
+          whatsapp_number: cleanNumber,
+          cod_agent: codAgent,
+          note_text: newMessage.trim(),
+          author_name: authorName,
+          author_id: authUser?.id?.toString() || null,
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      // Add to local state
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `note-${data.id}`,
+          text: newMessage.trim(),
+          fromMe: true,
+          timestamp: new Date(data.created_at).getTime(),
+          type: 'internal_note',
+          authorName,
+        },
+      ]);
+      
+      setNewMessage('');
+      setNoteMode(false);
+      toast({ title: 'Nota adicionada', description: 'A nota interna foi salva com sucesso.' });
+    } catch (err: any) {
+      console.error('Error saving note:', err);
+      toast({ title: 'Erro ao salvar nota', description: err.message, variant: 'destructive' });
+    } finally {
+      setSendingNote(false);
+    }
+  };
+
   // Format number to JID
   const formatToJid = (number: string): string => {
     const cleaned = number.replace(/\D/g, '');
@@ -1008,9 +1098,9 @@ export function WhatsAppMessagesDialog({
   useEffect(() => {
     if (open && whatsappNumber && isConfigured) {
       if (provider === 'waba') {
-        loadWabaMessages();
+        loadWabaMessages().then(() => loadAndMergeNotes());
       } else if (client) {
-        loadMessages();
+        loadMessages().then(() => loadAndMergeNotes());
       }
     }
   }, [open, whatsappNumber, client, isConfigured, provider]);
@@ -1683,38 +1773,64 @@ export function WhatsAppMessagesDialog({
                   </div>
                   
                   {/* Messages for this date */}
-                  {dateMessages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={cn(
-                        "flex",
-                        message.fromMe ? "justify-end" : "justify-start"
-                      )}
-                    >
+                  {dateMessages.map((message) => {
+                    // Internal note rendering
+                    if (message.type === 'internal_note') {
+                      return (
+                        <div key={message.id} className="flex justify-center px-4">
+                          <div className="max-w-[85%] w-full rounded-lg px-3 py-2 shadow-sm bg-amber-50 dark:bg-amber-900/20 border border-amber-300/50 dark:border-amber-700/40">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <StickyNote className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                              <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                                Nota Interna
+                              </span>
+                            </div>
+                            <p className="text-sm text-amber-900 dark:text-amber-100 whitespace-pre-wrap">
+                              {message.text}
+                            </p>
+                            <div className="flex items-center justify-between mt-1.5 text-[10px] text-amber-600/70 dark:text-amber-400/60">
+                              <span className="font-medium">{message.authorName}</span>
+                              <span>{formatTimeSaoPaulo(message.timestamp)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Normal message rendering
+                    return (
                       <div
+                        key={message.id}
                         className={cn(
-                          "max-w-[80%] rounded-lg px-3 py-2 shadow-sm",
-                          message.fromMe
-                            ? "bg-green-100 dark:bg-green-900/40 text-foreground rounded-br-none"
-                            : "bg-card border border-border/50 rounded-bl-none"
+                          "flex",
+                          message.fromMe ? "justify-end" : "justify-start"
                         )}
                       >
-                        <MessageBubble 
-                          message={message}
-                          onDownload={downloadMedia}
-                          isDownloading={downloadingMedia.has(message.id)}
-                          downloadedUrl={mediaUrls[message.id]}
-                        />
-                        <p
+                        <div
                           className={cn(
-                            "text-[10px] mt-1 text-right text-muted-foreground"
+                            "max-w-[80%] rounded-lg px-3 py-2 shadow-sm",
+                            message.fromMe
+                              ? "bg-green-100 dark:bg-green-900/40 text-foreground rounded-br-none"
+                              : "bg-card border border-border/50 rounded-bl-none"
                           )}
                         >
-                          {formatTimeSaoPaulo(message.timestamp)}
-                        </p>
+                          <MessageBubble 
+                            message={message}
+                            onDownload={downloadMedia}
+                            isDownloading={downloadingMedia.has(message.id)}
+                            downloadedUrl={mediaUrls[message.id]}
+                          />
+                          <p
+                            className={cn(
+                              "text-[10px] mt-1 text-right text-muted-foreground"
+                            )}
+                          >
+                            {formatTimeSaoPaulo(message.timestamp)}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ))}
             </div>
@@ -1817,14 +1933,19 @@ export function WhatsAppMessagesDialog({
               <TooltipContent>{isRecording ? 'Parar e enviar' : 'Gravar áudio'}</TooltipContent>
             </Tooltip>
 
-            {/* Notes placeholder */}
+            {/* Internal Note toggle */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7" disabled>
-                  <StickyNote className="h-4 w-4 text-muted-foreground" />
+                <Button
+                  variant={noteMode ? "default" : "ghost"}
+                  size="icon"
+                  className={cn("h-7 w-7", noteMode && "bg-amber-500 hover:bg-amber-600 text-white")}
+                  onClick={() => setNoteMode(!noteMode)}
+                >
+                  <StickyNote className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Em breve</TooltipContent>
+              <TooltipContent>{noteMode ? 'Desativar modo nota' : 'Adicionar nota interna'}</TooltipContent>
             </Tooltip>
           </div>
 
@@ -1847,26 +1968,61 @@ export function WhatsAppMessagesDialog({
             </div>
           )}
 
+          {/* Note mode indicator */}
+          {noteMode && (
+            <div className="flex items-center gap-2 px-2 py-1.5 bg-amber-500/10 rounded-md border border-amber-500/30">
+              <StickyNote className="h-3.5 w-3.5 text-amber-600" />
+              <span className="text-xs font-medium text-amber-700 dark:text-amber-400 flex-1">
+                Modo nota interna — não será enviada ao WhatsApp
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 text-muted-foreground hover:text-amber-600"
+                onClick={() => setNoteMode(false)}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
+
           {/* Textarea + Send */}
           <div className="flex items-end gap-2">
             <Textarea
               ref={textareaRef}
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              onKeyDown={handleKeyPress}
-              placeholder="Digite uma mensagem..."
-              disabled={!isConfigured || sending || isRecording}
-              className="flex-1 min-h-[38px] max-h-[120px] resize-none text-sm py-2"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (noteMode) {
+                    handleSendNote();
+                  } else {
+                    handleSendMessage();
+                  }
+                }
+              }}
+              placeholder={noteMode ? "Escreva uma nota interna..." : "Digite uma mensagem..."}
+              disabled={!isConfigured || sending || sendingNote || isRecording}
+              className={cn(
+                "flex-1 min-h-[38px] max-h-[120px] resize-none text-sm py-2",
+                noteMode && "border-amber-500/50 focus-visible:ring-amber-500/30"
+              )}
               rows={1}
             />
             <Button
               size="icon"
-              className="shrink-0 h-[38px] w-[38px]"
-              onClick={handleSendMessage}
-              disabled={!newMessage.trim() || !isConfigured || sending || isRecording}
+              className={cn(
+                "shrink-0 h-[38px] w-[38px]",
+                noteMode && "bg-amber-500 hover:bg-amber-600"
+              )}
+              onClick={noteMode ? handleSendNote : handleSendMessage}
+              disabled={!newMessage.trim() || (!isConfigured && !noteMode) || sending || sendingNote || isRecording}
             >
-              {sending ? (
+              {sending || sendingNote ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
+              ) : noteMode ? (
+                <StickyNote className="h-4 w-4" />
               ) : (
                 <Send className="h-4 w-4" />
               )}
