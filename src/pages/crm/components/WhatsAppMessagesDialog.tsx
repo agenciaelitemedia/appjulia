@@ -5,6 +5,7 @@ import {
   Zap, Paperclip, StickyNote, Search, Square, X
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -79,6 +80,8 @@ interface WhatsAppMessagesDialogProps {
   whatsappNumber: string;
   leadName?: string;
   codAgent: string;
+  /** 'dialog' (popup, default) or 'sheet' (right sidebar panel) */
+  variant?: 'dialog' | 'sheet';
 }
 
 // ============================================
