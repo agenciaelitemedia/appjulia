@@ -269,34 +269,52 @@ export function useTeamMembersForAgent(codAgent: string | null, fallbackUserId?:
     queryKey: ['crm-team-members', codAgent, fallbackUserId],
     queryFn: async () => {
       if (!codAgent) return [];
-      // Get the owner user linked to this cod_agent
+
+      // 1. Try to get the owner user linked to this cod_agent
       const agentUsers = await externalDb.raw<{ user_id: number; owner_name: string }>({
         query: `SELECT DISTINCT user_id, owner_name FROM "vw_list_client-agents-users" WHERE cod_agent::text = $1 LIMIT 1`,
         params: [codAgent],
       });
-      let userId = agentUsers[0]?.user_id;
-      const ownerName = agentUsers[0]?.owner_name;
-      
-      // Fallback to logged-in user when cod_agent not found in view
-      if (!userId) {
-        userId = fallbackUserId || 0;
+      let principalId = agentUsers[0]?.user_id;
+      let ownerName = agentUsers[0]?.owner_name;
+
+      // 2. Fallback: resolve principal user from logged-in user
+      if (!principalId && fallbackUserId) {
+        const parentResult = await externalDb.raw<{ id: number; parent_user_id: number | null; name: string }>({
+          query: `SELECT id, parent_user_id, name FROM users WHERE id = $1 LIMIT 1`,
+          params: [fallbackUserId],
+        });
+        const row = parentResult[0];
+        if (row) {
+          principalId = row.parent_user_id ?? row.id;
+          // If this user IS the principal, use their name as owner
+          if (!row.parent_user_id) {
+            ownerName = row.name;
+          } else {
+            // Fetch the actual principal's name
+            const principalResult = await externalDb.raw<{ name: string }>({
+              query: `SELECT name FROM users WHERE id = $1 LIMIT 1`,
+              params: [principalId],
+            });
+            ownerName = principalResult[0]?.name || null;
+          }
+        }
       }
-      if (!userId) return [];
-      
-      // Get team members linked to this user
-      const members = await externalDb.getTeamMembers<{ id: number; name: string; role: string }>(userId, true);
-      
-      // Build combined list: owner + team members, avoiding duplicates
+
+      if (!principalId) return [];
+
+      // 3. Get team members linked to the principal user
+      const members = await externalDb.getTeamMembers<{ id: number; name: string; role: string }>(principalId, true);
+
+      // 4. Build combined list: owner + team members, avoiding duplicates
       const allMembers: { id: number; name: string; role: string }[] = [];
       const seenNames = new Set<string>();
 
-      // Add owner first if available
       if (ownerName) {
         seenNames.add(ownerName.toLowerCase());
-        allMembers.push({ id: userId, name: ownerName, role: 'Titular' });
+        allMembers.push({ id: principalId, name: ownerName, role: 'Titular' });
       }
 
-      // Add team members (skip if same name as owner)
       for (const m of members) {
         if (!seenNames.has(m.name.toLowerCase())) {
           seenNames.add(m.name.toLowerCase());
@@ -304,7 +322,6 @@ export function useTeamMembersForAgent(codAgent: string | null, fallbackUserId?:
         }
       }
 
-      // Sort alphabetically by name
       allMembers.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
       return allMembers;
