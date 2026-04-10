@@ -1,51 +1,68 @@
 
 
-# Filtro Julia Ativa/Inativa no CRM
+# Mover Totalizadores + Select de Fase + Campo Responsável no CRM
 
-## Problema
+## Resumo
 
-Não há como filtrar os cards do pipeline por status da Julia (ativa/inativa). O status é verificado individualmente por card via API em tempo real (hook `useAgentSessionStatus`), então o filtro precisa ser client-side usando o cache do React Query.
+Três mudanças no CRM da Julia:
+1. Mover cards de totais para acima dos filtros
+2. Adicionar select de fase no dialog de detalhes (somente quando Julia inativa)
+3. Adicionar campo "Responsável" nos cards e no dialog de detalhes com possibilidade de alteração quando Julia inativa
 
-## Solução de Usabilidade
+## Mudanças
 
-Adicionar um **ToggleGroup** compacto com 3 opções (ícone Bot + texto) diretamente no header do CRM, ao lado dos botões "Atualizar":
+### 1. Mover CRMTotalizers (CRMPage.tsx)
 
-```text
-[🤖 Todas] [🟢 Ativa] [🔴 Inativa]
-```
+Reordenar JSX: `<CRMTotalizers>` antes de `<UnifiedFilters>`.
 
-- **Todas** (padrão): mostra todos os cards normalmente
-- **Ativa**: mostra apenas cards onde a Julia está ativa (bolinha verde)  
-- **Inativa**: mostra apenas cards onde Julia está inativa (bolinha vermelha)
+### 2. Campo "Responsável" no CRMLeadCard
 
-Esse formato é melhor que um Select/Dropdown porque:
-- É visível sem clique extra
-- Feedback visual imediato com cores
-- Padrão familiar de toggle filter
+Acima das linhas "Atualizado" e "Criado", adicionar uma linha **Responsável**:
+- Se Julia ativa: exibe `🤖 Julia IA` (verde)
+- Se Julia inativa: exibe o nome do responsável atual (se houver) ou `Sem responsável` em texto cinza
 
-## Implementação Técnica
+O responsável será armazenado no campo `owner_name` do card (já existe no tipo `CRMCard`). Quando Julia está ativa, sobrescreve visualmente para "Julia IA" independente do valor salvo.
 
-### 1. Estado no CRMPage.tsx
+### 3. Alterar Responsável no Dialog de Detalhes (CRMLeadDetailsDialog)
 
-Adicionar estado `juliaStatusFilter: 'all' | 'active' | 'inactive'` no componente principal.
+Na seção "Fase Atual", quando Julia **inativa**:
+- A fase vira um `<Select>` editável com todas as stages
+- Ao alterar, chama `useMoveCard`
 
-### 2. Hook utilitário para leitura do cache
+Abaixo da fase, nova seção **Responsável**:
+- Quando Julia **ativa**: Badge estático `🤖 Julia IA`
+- Quando Julia **inativa**: botão "Alterar Responsável" que abre um **Dialog/Popover** com lista de membros:
+  - Primeiro item: `🤖 Julia IA` (destaque especial, com ícone Bot)
+  - Demais: membros da equipe do `cod_agent` em questão (buscados via `externalDb.getTeamMembers`)
+  - Ao selecionar, atualiza o campo `owner_name` no card via `externalDb.update` na tabela `crm_atendimento_cards`
+  - Toast de confirmação
 
-Criar função `useJuliaStatusFilter` que recebe a lista de cards e o filtro, e para cada card lê o cache do React Query (`queryClient.getQueryData(['agent-session-status', codAgent, whatsapp])`) para determinar se está ativa/inativa. Cards cujo status ainda não foi carregado no cache são mantidos visíveis (não filtrados).
+### 4. Hook para buscar membros da equipe
 
-### 3. ToggleGroup no header
-
-Renderizar o ToggleGroup entre os filtros e o pipeline, usando `ToggleGroup` do shadcn/ui com ícones coloridos.
-
-### 4. Filtro aplicado no `filteredCards`
-
-Encadear o filtro de Julia status após o filtro de busca existente no `useMemo`.
+Criar `useTeamMembersForAgent(codAgent)` que busca os membros via edge function `db-query` com a action existente `get_team_members`, filtrando pelo user vinculado ao `cod_agent`.
 
 ## Arquivos Alterados
 
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/crm/CRMPage.tsx` | Adicionar estado `juliaStatusFilter`, ToggleGroup no header, filtro no `filteredCards` usando cache do React Query |
+| `src/pages/crm/CRMPage.tsx` | Mover `<CRMTotalizers>` acima de `<UnifiedFilters>` |
+| `src/pages/crm/components/CRMLeadCard.tsx` | Adicionar linha "Responsável" acima de "Criado" com lógica Julia ativa/inativa |
+| `src/pages/crm/components/CRMLeadDetailsDialog.tsx` | Importar `useAgentSessionStatus`; Select de fase condicional; seção Responsável com dialog de seleção de membros |
+| `src/pages/crm/hooks/useCRMData.ts` | Adicionar hook `useTeamMembersForAgent` e mutation `useUpdateCardOwner` |
 
-Nenhum arquivo novo necessário — toda a lógica fica no CRMPage.tsx usando o cache já existente de `useAgentSessionStatus`.
+## Detalhes Técnicos
+
+**Fluxo de alteração de responsável:**
+```text
+1. Usuário clica "Alterar Responsável" (só visível se Julia inativa)
+2. Abre popover/dialog com lista:
+   [🤖 Julia IA]        ← primeiro, destaque
+   [👤 João Silva]      ← membro da equipe
+   [👤 Maria Souza]     ← membro da equipe
+3. Ao selecionar, PUT no crm_atendimento_cards.owner_name
+4. Toast "Responsável alterado para X"
+5. Invalida cache ['crm-cards']
+```
+
+**No card (CRMLeadCard):** a linha "Responsável" fica entre o bloco de badges de ação e o bloco de datas, com ícone Bot (verde) ou User (cinza) conforme status.
 
