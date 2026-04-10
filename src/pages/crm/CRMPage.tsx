@@ -77,19 +77,35 @@ export default function CRMPage() {
 
   const isLoading = stagesLoading || agentsLoading;
 
-  // Apply search filter on client side
+  // Apply search + Julia status filter on client side
   const filteredCards = useMemo(() => {
-    if (!filters.search) return cards;
+    let result = cards;
 
-    const search = filters.search.toLowerCase();
-    return cards.filter(
-      (card) =>
-        card.contact_name?.toLowerCase().includes(search) ||
-        card.whatsapp_number?.includes(filters.search) ||
-        card.business_name?.toLowerCase().includes(search) ||
-        card.helena_count_id?.toLowerCase().includes(search)
-    );
-  }, [cards, filters.search]);
+    if (filters.search) {
+      const search = filters.search.toLowerCase();
+      result = result.filter(
+        (card) =>
+          card.contact_name?.toLowerCase().includes(search) ||
+          card.whatsapp_number?.includes(filters.search) ||
+          card.business_name?.toLowerCase().includes(search) ||
+          card.helena_count_id?.toLowerCase().includes(search)
+      );
+    }
+
+    if (juliaStatusFilter !== 'all') {
+      result = result.filter((card) => {
+        const cached = queryClient.getQueryData<SessionStatus | null>(
+          ['agent-session-status', card.cod_agent, card.whatsapp_number]
+        );
+        // If not cached yet, keep visible
+        if (cached === undefined) return true;
+        const isActive = cached?.active ?? false;
+        return juliaStatusFilter === 'active' ? isActive : !isActive;
+      });
+    }
+
+    return result;
+  }, [cards, filters.search, juliaStatusFilter, queryClient]);
 
   const handleCardClick = (card: CRMCard) => {
     setSelectedCard(card);
