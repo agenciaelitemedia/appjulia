@@ -64,7 +64,9 @@ export function CRMLeadDetailsDialog({
   // Track local stage override after mutation so select updates immediately
   const [localStageId, setLocalStageId] = useState<number | null>(null);
   
-  // Reset local override when card changes (different card opened)
+  // Reset local override when card changes
+  useEffect(() => { setLocalStageId(null); }, [card?.id]);
+  
   const activeStageId = localStageId ?? card?.stage_id;
   const currentStage = card ? stages.find((s) => s.id === activeStageId) : null;
   const entryStage = stages.find((s) => s.position === 1) || { name: 'Entrada', color: '#3B82F6' };
