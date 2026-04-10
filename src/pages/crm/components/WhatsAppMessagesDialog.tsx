@@ -1688,18 +1688,58 @@ export function WhatsAppMessagesDialog({
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <Title className="text-base font-semibold truncate">
-                {leadName || whatsappNumber}
-              </Title>
+              {isEditingName ? (
+                <div className="flex items-center gap-1">
+                  <Input
+                    ref={nameInputRef}
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveName();
+                      if (e.key === 'Escape') handleCancelEditName();
+                    }}
+                    className="h-7 text-sm font-semibold"
+                  />
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleSaveName} disabled={updateCardName.isPending}>
+                    <Check className="h-3.5 w-3.5 text-green-600" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCancelEditName}>
+                    <X className="h-3.5 w-3.5 text-red-500" />
+                  </Button>
+                </div>
+              ) : (
+                <Title className="text-base font-semibold truncate group cursor-pointer flex items-center gap-1" onClick={() => { setEditName(displayName); setIsEditingName(true); }}>
+                  {displayName || whatsappNumber}
+                  <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                </Title>
+              )}
               <Description className="text-xs text-muted-foreground sr-only">
-                Conversa do WhatsApp com {leadName || whatsappNumber}
+                Conversa do WhatsApp com {displayName || whatsappNumber}
               </Description>
               <p className="text-xs text-muted-foreground">
                 {whatsappNumber}
               </p>
             </div>
-            {/* Julia Status Inline */}
+            {/* Contract icon + Julia Status Inline */}
             <div className="flex items-center gap-1.5 mr-6">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => contractInfo && setContractSidebarOpen(true)}
+                    className={cn(
+                      "hover:opacity-80 transition-opacity p-1 rounded",
+                      contractInfo ? "cursor-pointer" : "cursor-not-allowed opacity-40"
+                    )}
+                    disabled={!contractInfo}
+                  >
+                    <Scale className={cn("h-5 w-5", contractInfo ? "text-primary" : "text-muted-foreground")} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {contractInfo ? 'Ver detalhes do contrato' : 'Sem contrato'}
+                </TooltipContent>
+              </Tooltip>
               <button
                 type="button"
                 onClick={() => setStatusDialogOpen(true)}
@@ -1719,6 +1759,7 @@ export function WhatsAppMessagesDialog({
                 onCheckedChange={() => setConfirmToggle(true)}
                 disabled={!sessionData || updatingSession || sessionLoading}
                 className="scale-75"
+              />
               />
             </div>
           </div>
