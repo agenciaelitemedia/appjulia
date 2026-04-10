@@ -1907,14 +1907,19 @@ export function WhatsAppMessagesDialog({
               <TooltipContent>{isRecording ? 'Parar e enviar' : 'Gravar áudio'}</TooltipContent>
             </Tooltip>
 
-            {/* Notes placeholder */}
+            {/* Internal Note toggle */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7" disabled>
-                  <StickyNote className="h-4 w-4 text-muted-foreground" />
+                <Button
+                  variant={noteMode ? "default" : "ghost"}
+                  size="icon"
+                  className={cn("h-7 w-7", noteMode && "bg-amber-500 hover:bg-amber-600 text-white")}
+                  onClick={() => setNoteMode(!noteMode)}
+                >
+                  <StickyNote className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Em breve</TooltipContent>
+              <TooltipContent>{noteMode ? 'Desativar modo nota' : 'Adicionar nota interna'}</TooltipContent>
             </Tooltip>
           </div>
 
