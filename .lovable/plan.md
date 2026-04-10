@@ -1,62 +1,51 @@
 
 
-# Botao Atualizar nos Logs + Transcrição Real de Áudio + Resumo de Mídias
+# Filtro Julia Ativa/Inativa no CRM
 
-## Problema Identificado na Transcrição
+## Problema
 
-A transcrição está **completamente errada** porque as URLs de mídia do WhatsApp são **criptografadas** (`.enc` em `mmg.whatsapp.net`). Quando a função baixa o arquivo direto dessa URL, recebe dados criptografados ilegíveis. O modelo de IA então **inventa** uma transcrição falsa. A solução é usar o endpoint `/message/download` da UaZapi que retorna o áudio decriptado em base64.
+Não há como filtrar os cards do pipeline por status da Julia (ativa/inativa). O status é verificado individualmente por card via API em tempo real (hook `useAgentSessionStatus`), então o filtro precisa ser client-side usando o cache do React Query.
 
-## Plano de Implementação
+## Solução de Usabilidade
 
-### 1. Botao Atualizar nos Logs (SupportLogsTab.tsx)
+Adicionar um **ToggleGroup** compacto com 3 opções (ícone Bot + texto) diretamente no header do CRM, ao lado dos botões "Atualizar":
 
-Adicionar botao `RefreshCw` ao lado da busca no header, que chama `loadMessages()` com feedback visual (ícone girando durante loading).
+```text
+[🤖 Todas] [🟢 Ativa] [🔴 Inativa]
+```
 
-### 2. Corrigir Transcrição de Áudio (support-transcribe-audio)
+- **Todas** (padrão): mostra todos os cards normalmente
+- **Ativa**: mostra apenas cards onde a Julia está ativa (bolinha verde)  
+- **Inativa**: mostra apenas cards onde Julia está inativa (bolinha vermelha)
 
-**Causa raiz**: Download direto da URL criptografada do WhatsApp.
+Esse formato é melhor que um Select/Dropdown porque:
+- É visível sem clique extra
+- Feedback visual imediato com cores
+- Padrão familiar de toggle filter
 
-**Correção**:
-- Buscar config da instância UaZapi em `support_assistant_config` (api_url, instance_name, api_key/instance_token)
-- Usar endpoint `/message/download` da UaZapi passando o `message_id` para obter o áudio decriptado em base64
-- Enviar o base64 decriptado para o Lovable AI Gateway para transcrição real
-- Fallback: se `/message/download` falhar, marcar como `[Transcrição indisponível - mídia expirada]` em vez de inventar
+## Implementação Técnica
 
-**Mudanças na query**: Além de `media_url`, buscar também `message_id` e `raw_payload` para extrair o ID da mensagem original necessário para o download.
+### 1. Estado no CRMPage.tsx
 
-### 3. Resumo de Imagens/Documentos no Webhook (support-assistant-webhook)
+Adicionar estado `juliaStatusFilter: 'all' | 'active' | 'inactive'` no componente principal.
 
-Alterar o webhook para que, ao receber imagens e documentos, grave uma descrição mais útil:
+### 2. Hook utilitário para leitura do cache
 
-- **Imagens**: Gravar `is_transcribed: false` e na função de transcrição, baixar a imagem via `/message/download` e enviar ao Lovable AI para descrever o conteúdo (ex: "📷 Imagem do cliente: captura de tela de conversa sobre contrato")
-- **Documentos**: Gravar nome do arquivo quando disponível: `📄 Documento do cliente: contrato_2025.pdf`
-- **Textos longos**: Manter como estão (já são gravados corretamente)
+Criar função `useJuliaStatusFilter` que recebe a lista de cards e o filtro, e para cada card lê o cache do React Query (`queryClient.getQueryData(['agent-session-status', codAgent, whatsapp])`) para determinar se está ativa/inativa. Cards cujo status ainda não foi carregado no cache são mantidos visíveis (não filtrados).
 
-### 4. Expandir support-transcribe-audio para processar mídias
+### 3. ToggleGroup no header
 
-Renomear conceitualmente para "processar mídias pendentes" — além de áudios, processar:
-- **Imagens** (`is_transcribed: false`): baixar via UaZapi, enviar ao AI para descrição visual
-- **Documentos** com caption vazia: registrar apenas o tipo e nome do arquivo
+Renderizar o ToggleGroup entre os filtros e o pipeline, usando `ToggleGroup` do shadcn/ui com ícones coloridos.
+
+### 4. Filtro aplicado no `filteredCards`
+
+Encadear o filtro de Julia status após o filtro de busca existente no `useMemo`.
 
 ## Arquivos Alterados
 
-| Arquivo | Mudanca |
+| Arquivo | Mudança |
 |---|---|
-| `SupportLogsTab.tsx` | Adicionar botao Atualizar com RefreshCw |
-| `support-transcribe-audio/index.ts` | Usar `/message/download` da UaZapi para obter mídia decriptada; processar imagens também |
-| `support-assistant-webhook/index.ts` | Marcar imagens como `is_transcribed: false` para processamento posterior; incluir nome do arquivo em documentos |
+| `src/pages/crm/CRMPage.tsx` | Adicionar estado `juliaStatusFilter`, ToggleGroup no header, filtro no `filteredCards` usando cache do React Query |
 
-## Detalhes Técnicos
-
-Fluxo de download via UaZapi:
-```text
-1. Buscar config: support_assistant_config → api_url, instance_name, api_key
-2. POST {api_url}/{instance_name}/message/download 
-   body: { id: message_id }
-   headers: { apikey: api_key }
-3. Resposta: { base64: "...", mimetype: "audio/ogg" }
-4. Enviar base64 ao Lovable AI para transcrição/descrição
-```
-
-Nao será necessária API do Groq — o Lovable AI Gateway (já configurado com `LOVABLE_API_KEY`) suporta áudio multimodal com Gemini, basta que o áudio esteja decriptado.
+Nenhum arquivo novo necessário — toda a lógica fica no CRMPage.tsx usando o cache já existente de `useAgentSessionStatus`.
 
