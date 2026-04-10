@@ -101,8 +101,9 @@ const ComprarPage = () => {
         )}
       </div>
 
-      <footer className="text-center py-6 text-sm text-gray-400">
-        © {new Date().getFullYear()} AtendeJulIA — Todos os direitos reservados
+      <footer className="text-center py-6 text-sm text-gray-400 space-y-1">
+        <p>ATENDE JULIA INOVA SIMPLES (I.S.) • CNPJ: 63.093.010/0001-39</p>
+        <p>© {new Date().getFullYear()} AtendeJulIA — Todos os direitos reservados</p>
       </footer>
     </div>
   );
