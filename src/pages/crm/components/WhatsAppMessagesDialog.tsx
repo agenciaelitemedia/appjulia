@@ -768,7 +768,7 @@ export function WhatsAppMessagesDialog({
   codAgent,
   variant = 'dialog',
 }: WhatsAppMessagesDialogProps) {
-  // toast is now imported from 'sonner' at top level
+  
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
