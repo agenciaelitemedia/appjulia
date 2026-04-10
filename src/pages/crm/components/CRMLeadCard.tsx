@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Bot, Clock, Eye, Hash, Loader2, MessageCircle, Phone, Scale, User, Video } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Bot, Check, Clock, Eye, Hash, Loader2, MessageCircle, Pencil, Phone, Scale, User, Video, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
