@@ -785,7 +785,19 @@ export function WhatsAppMessagesDialog({
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [updatingSession, setUpdatingSession] = useState(false);
+  const [sendingFile, setSendingFile] = useState(false);
+  const [quickMsgSearch, setQuickMsgSearch] = useState('');
+  const [quickMsgOpen, setQuickMsgOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Quick messages
+  const { messages: quickMessages } = useQuickMessages('chat_popup');
+  const filteredQuickMessages = quickMessages.filter(qm =>
+    qm.title.toLowerCase().includes(quickMsgSearch.toLowerCase()) ||
+    qm.message_text.toLowerCase().includes(quickMsgSearch.toLowerCase()) ||
+    (qm.shortcut && qm.shortcut.toLowerCase().includes(quickMsgSearch.toLowerCase()))
+  );
   // Fetch session status when dialog opens
   useEffect(() => {
     if (open && whatsappNumber && codAgent) {
