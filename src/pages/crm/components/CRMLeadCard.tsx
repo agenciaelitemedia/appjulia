@@ -104,6 +104,36 @@ function truncateText(text: string | undefined, maxLength: number): string {
     if (!open) refreshAgentStatus();
   };
 
+  const handleStartEditName = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditName(card.contact_name || '');
+    setIsEditingName(true);
+  };
+
+  const handleSaveName = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const trimmed = editName.trim();
+    if (!trimmed || trimmed === card.contact_name) {
+      setIsEditingName(false);
+      return;
+    }
+    updateCardName.mutate(
+      { cardId: card.id, contactName: trimmed },
+      {
+        onSuccess: () => {
+          toast.success('Nome atualizado');
+          setIsEditingName(false);
+        },
+        onError: () => toast.error('Erro ao atualizar nome'),
+      }
+    );
+  };
+
+  const handleCancelEditName = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditingName(false);
+  };
+
   const agentAlias = card.cod_agent ? getAlias(card.cod_agent, card.owner_business_name) : '';
   const truncatedAlias = truncateText(agentAlias, 20);
   const fullTooltip = card.owner_name || card.owner_business_name
