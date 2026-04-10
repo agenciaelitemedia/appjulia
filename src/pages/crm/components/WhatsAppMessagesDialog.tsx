@@ -5,6 +5,7 @@ import {
   Zap, Paperclip, StickyNote, Search, Square, X
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -79,6 +80,8 @@ interface WhatsAppMessagesDialogProps {
   whatsappNumber: string;
   leadName?: string;
   codAgent: string;
+  /** 'dialog' (popup, default) or 'sheet' (right sidebar panel) */
+  variant?: 'dialog' | 'sheet';
 }
 
 // ============================================
@@ -760,6 +763,7 @@ export function WhatsAppMessagesDialog({
   whatsappNumber,
   leadName,
   codAgent,
+  variant = 'dialog',
 }: WhatsAppMessagesDialogProps) {
   const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -1555,12 +1559,25 @@ export function WhatsAppMessagesDialog({
     return groups;
   }, {} as Record<string, Message[]>);
 
+  const isSheet = variant === 'sheet';
+
+  const Wrapper = isSheet ? Sheet : Dialog;
+  const Content = isSheet ? SheetContent : DialogContent;
+  const Header = isSheet ? SheetHeader : DialogHeader;
+  const Title = isSheet ? SheetTitle : DialogTitle;
+  const Description = isSheet ? SheetDescription : DialogDescription;
+
+  const contentProps = isSheet
+    ? { side: 'right' as const, className: 'w-[420px] sm:w-[480px] p-0 flex flex-col h-full' }
+    : { className: 'sm:max-w-[500px] h-[600px] flex flex-col p-0 bg-card' };
+
   return (
     <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] h-[600px] flex flex-col p-0 bg-card" aria-describedby={undefined}>
+    <Wrapper open={open} onOpenChange={onOpenChange}>
+      {/* @ts-ignore - dynamic component props */}
+      <Content {...contentProps} aria-describedby={undefined}>
         {/* Header */}
-        <DialogHeader className="px-4 py-3 border-b bg-muted/30">
+        <Header className="px-4 py-3 border-b bg-muted/30">
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10 bg-green-600">
               <AvatarFallback className="bg-green-600 text-white">
@@ -1568,12 +1585,12 @@ export function WhatsAppMessagesDialog({
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <DialogTitle className="text-base font-semibold truncate">
+              <Title className="text-base font-semibold truncate">
                 {leadName || whatsappNumber}
-              </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground sr-only">
+              </Title>
+              <Description className="text-xs text-muted-foreground sr-only">
                 Conversa do WhatsApp com {leadName || whatsappNumber}
-              </DialogDescription>
+              </Description>
               <p className="text-xs text-muted-foreground">
                 {whatsappNumber}
               </p>
@@ -1602,7 +1619,7 @@ export function WhatsAppMessagesDialog({
               />
             </div>
           </div>
-        </DialogHeader>
+        </Header>
 
         {/* Alert Dialog for Julia toggle confirmation */}
         <AlertDialog open={confirmToggle} onOpenChange={setConfirmToggle}>
@@ -1950,8 +1967,8 @@ export function WhatsAppMessagesDialog({
             }}
           />
         </div>
-      </DialogContent>
-    </Dialog>
+      </Content>
+    </Wrapper>
 
     <SessionStatusDialog
       open={statusDialogOpen}

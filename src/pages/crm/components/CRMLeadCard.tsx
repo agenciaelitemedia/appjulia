@@ -337,6 +337,7 @@ function truncateText(text: string | undefined, maxLength: number): string {
         whatsappNumber={card.whatsapp_number}
         leadName={card.contact_name}
         codAgent={card.cod_agent}
+        variant="sheet"
       />
 
       {/* Contract Info Dialog */}
