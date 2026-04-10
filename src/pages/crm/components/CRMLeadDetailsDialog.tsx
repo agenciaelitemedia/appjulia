@@ -331,7 +331,7 @@ export function CRMLeadDetailsDialog({
               <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg">
                 {canEdit ? (
                   <Select
-                    value={String(card.stage_id)}
+                    value={String(activeStageId)}
                     onValueChange={handleStageChange}
                     disabled={moveCard.isPending}
                   >
