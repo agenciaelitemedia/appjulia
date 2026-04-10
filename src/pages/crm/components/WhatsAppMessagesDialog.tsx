@@ -1098,9 +1098,9 @@ export function WhatsAppMessagesDialog({
   useEffect(() => {
     if (open && whatsappNumber && isConfigured) {
       if (provider === 'waba') {
-        loadWabaMessages();
+        loadWabaMessages().then(() => loadAndMergeNotes());
       } else if (client) {
-        loadMessages();
+        loadMessages().then(() => loadAndMergeNotes());
       }
     }
   }, [open, whatsappNumber, client, isConfigured, provider]);
