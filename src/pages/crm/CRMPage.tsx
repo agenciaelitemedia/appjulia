@@ -154,6 +154,8 @@ export default function CRMPage() {
 
       <CRMDashboardSummary cards={filteredCards} stages={stages} isLoading={cardsLoading} juliaSessions={juliaSessions} juliaConversations={juliaConversations} followupMap={followupMap} returnRateData={returnRateData} />
 
+      <CRMTotalizers cards={filteredCards} stages={stages} />
+
       <UnifiedFilters
         agents={agents}
         filters={filters}
@@ -183,8 +185,6 @@ export default function CRMPage() {
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
-
-      <CRMTotalizers cards={filteredCards} stages={stages} />
 
       <CRMPipeline
         stages={stages}
