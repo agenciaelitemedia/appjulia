@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, ArrowRight, Check, Star, Zap, Crown, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -39,10 +40,21 @@ interface Props {
 }
 
 export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
+  const [searchParams] = useSearchParams();
   const [plans, setPlans] = useState<PlanFromDB[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(-1);
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(orderData.billing_period || 'monthly');
+
+  const channelParam = searchParams.get('c')?.toLowerCase() || '';
+
+  // Filter plans based on channel parameter
+  const channelFilteredPlans = useMemo(() => {
+    if (channelParam === 'all') return plans;
+    if (channelParam === 'vendedora') return plans.filter(p => p.price === 1200000);
+    if (channelParam === 'atendente') return plans.filter(p => p.price === 300000);
+    return []; // no param = no plans
+  }, [plans, channelParam]);
 
   useEffect(() => {
     const fetchPlans = async () => {
@@ -74,11 +86,11 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
   // Detect which periods have at least one plan with price > 0
   const availablePeriods = useMemo(() => {
     const periods: BillingPeriod[] = [];
-    if (plans.some(p => p.price_monthly > 0)) periods.push('monthly');
-    if (plans.some(p => p.price_semiannual > 0)) periods.push('semiannual');
-    if (plans.some(p => p.price_annual > 0)) periods.push('annual');
+    if (channelFilteredPlans.some(p => p.price_monthly > 0)) periods.push('monthly');
+    if (channelFilteredPlans.some(p => p.price_semiannual > 0)) periods.push('semiannual');
+    if (channelFilteredPlans.some(p => p.price_annual > 0)) periods.push('annual');
     return periods;
-  }, [plans]);
+  }, [channelFilteredPlans]);
 
   // Auto-select first available period
   useEffect(() => {
@@ -95,8 +107,8 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
 
   // Filter plans that have price > 0 for selected period
   const filteredPlans = useMemo(() => {
-    return plans.filter(p => getPriceByPeriod(p) > 0);
-  }, [plans, billingPeriod]);
+    return channelFilteredPlans.filter(p => getPriceByPeriod(p) > 0);
+  }, [channelFilteredPlans, billingPeriod]);
 
   const formatPrice = (cents: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
@@ -219,7 +231,11 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
       </div>
 
       {filteredPlans.length === 0 && (
-        <p className="text-center text-gray-400 py-8">Nenhum plano disponível para este período.</p>
+        <p className="text-center text-gray-400 py-8">
+          {!channelParam
+            ? 'Nenhum plano disponível. Utilize um link válido para acessar os planos.'
+            : 'Nenhum plano disponível para este período.'}
+        </p>
       )}
 
       <div className="flex gap-3">
