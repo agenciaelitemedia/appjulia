@@ -763,6 +763,7 @@ export function WhatsAppMessagesDialog({
   whatsappNumber,
   leadName,
   codAgent,
+  variant = 'dialog',
 }: WhatsAppMessagesDialogProps) {
   const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
