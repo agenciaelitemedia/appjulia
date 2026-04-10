@@ -1,6 +1,7 @@
-import { Phone, Building2, Clock, History, ArrowRight, User, Hash, Calendar, AlertTriangle, Scale, Download, Loader2, ExternalLink } from 'lucide-react';
+import { Phone, Building2, Clock, History, ArrowRight, User, Hash, Calendar, AlertTriangle, Scale, Download, Loader2, ExternalLink, Bot, UserCircle } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { toast as sonnerToast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -11,9 +12,22 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { CRMCard, CRMStage } from '../types';
-import { useCRMCardHistory } from '../hooks/useCRMData';
+import { useCRMCardHistory, useMoveCard, useTeamMembersForAgent, useUpdateCardOwner } from '../hooks/useCRMData';
 import { useContractInfo } from '../hooks/useContractInfo';
+import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 import { ContractInfoDialog } from './ContractInfoDialog';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -36,20 +50,30 @@ export function CRMLeadDetailsDialog({
   const { data: history = [], isLoading: historyLoading } = useCRMCardHistory(card?.id || null);
   const [contractDialogOpen, setContractDialogOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [ownerPopoverOpen, setOwnerPopoverOpen] = useState(false);
+
+  const { isActive: isAgentActive, isLoading: isAgentLoading } = useAgentSessionStatus(
+    card?.whatsapp_number || '',
+    card?.cod_agent || ''
+  );
+
+  const moveCard = useMoveCard();
+  const updateOwner = useUpdateCardOwner();
+  const { data: teamMembers = [] } = useTeamMembersForAgent(card?.cod_agent || null);
 
   const currentStage = card ? stages.find((s) => s.id === card.stage_id) : null;
   const entryStage = stages.find((s) => s.position === 1) || { name: 'Entrada', color: '#3B82F6' };
   
-  // Check if card is in contract stage
   const isContractStage = currentStage?.name === 'Contrato em Curso' || 
                           currentStage?.name === 'Contrato Assinado';
   
-  // Fetch contract info only when in contract stage
   const { data: contractInfo } = useContractInfo(
     card?.whatsapp_number || '',
     card?.cod_agent || '',
     isContractStage && open
   );
+
+  const canEdit = !isAgentLoading && !isAgentActive;
 
   // Histórico sintético quando a tabela está vazia
   const syntheticHistory = useMemo(() => {
@@ -69,7 +93,6 @@ export function CRMLeadDetailsDialog({
       notes: string | null;
     }> = [];
 
-    // Entrada de criação
     entries.push({
       id: -1,
       card_id: card.id,
@@ -84,7 +107,6 @@ export function CRMLeadDetailsDialog({
       notes: 'Lead criado via WhatsApp',
     });
 
-    // Se stage_entered_at != created_at, houve pelo menos uma mudança
     const enteredAt = new Date(card.stage_entered_at).getTime();
     const createdAt = new Date(card.created_at).getTime();
     
@@ -121,6 +143,38 @@ export function CRMLeadDetailsDialog({
       return `+55 (${cleaned.slice(2, 4)}) ${cleaned.slice(4, 9)}-${cleaned.slice(9)}`;
     }
     return phone;
+  };
+
+  const handleStageChange = (stageId: string) => {
+    const newStageId = Number(stageId);
+    if (newStageId === card.stage_id) return;
+    
+    moveCard.mutate(
+      { cardId: card.id, toStageId: newStageId, notes: 'Alteração manual via detalhes do lead' },
+      {
+        onSuccess: () => {
+          sonnerToast.success('Fase atualizada com sucesso');
+        },
+        onError: () => {
+          sonnerToast.error('Erro ao atualizar fase');
+        },
+      }
+    );
+  };
+
+  const handleOwnerChange = (name: string) => {
+    updateOwner.mutate(
+      { cardId: card.id, ownerName: name },
+      {
+        onSuccess: () => {
+          sonnerToast.success(`Responsável alterado para ${name}`);
+          setOwnerPopoverOpen(false);
+        },
+        onError: () => {
+          sonnerToast.error('Erro ao alterar responsável');
+        },
+      }
+    );
   };
 
   const handleDownloadContract = async () => {
@@ -192,8 +246,6 @@ export function CRMLeadDetailsDialog({
       setDownloading(false);
     }
   };
-
-  
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -269,17 +321,106 @@ export function CRMLeadDetailsDialog({
             <div>
               <h4 className="text-sm font-medium mb-2">Fase Atual</h4>
               <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg">
-                {currentStage && (
-                  <Badge
-                    style={{ backgroundColor: `${currentStage.color}20`, color: currentStage.color }}
+                {canEdit ? (
+                  <Select
+                    value={String(card.stage_id)}
+                    onValueChange={handleStageChange}
+                    disabled={moveCard.isPending}
                   >
-                    {currentStage.name}
-                  </Badge>
+                    <SelectTrigger className="h-8 w-auto min-w-[160px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stages.map((stage) => (
+                        <SelectItem key={stage.id} value={String(stage.id)}>
+                          <span className="flex items-center gap-2">
+                            <span
+                              className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: stage.color }}
+                            />
+                            {stage.name}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  currentStage && (
+                    <Badge
+                      style={{ backgroundColor: `${currentStage.color}20`, color: currentStage.color }}
+                    >
+                      {currentStage.name}
+                    </Badge>
+                  )
                 )}
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Clock className="h-3 w-3" />
                   desde {formatDbDateTime(card.stage_entered_at)}
                 </span>
+              </div>
+            </div>
+
+            {/* Responsável */}
+            <Separator />
+            <div>
+              <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                <UserCircle className="h-4 w-4" />
+                Responsável
+              </h4>
+              <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg">
+                {isAgentLoading ? (
+                  <span className="text-sm text-muted-foreground">Verificando...</span>
+                ) : isAgentActive ? (
+                  <Badge className="bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30 hover:bg-green-500/20">
+                    <Bot className="h-3.5 w-3.5 mr-1.5" />
+                    Julia IA
+                  </Badge>
+                ) : (
+                  <div className="flex items-center gap-2 w-full">
+                    <Badge variant="outline" className="font-normal">
+                      <User className="h-3.5 w-3.5 mr-1.5" />
+                      {card.owner_name || 'Sem responsável'}
+                    </Badge>
+                    <Popover open={ownerPopoverOpen} onOpenChange={setOwnerPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="ml-auto text-xs h-7">
+                          Alterar
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-2" align="end">
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-muted-foreground px-2 py-1">Selecionar responsável</p>
+                          {/* Julia IA option first */}
+                          <button
+                            className="flex items-center gap-2 w-full rounded-md px-2 py-2 text-sm hover:bg-accent transition-colors"
+                            onClick={() => handleOwnerChange('Julia IA')}
+                            disabled={updateOwner.isPending}
+                          >
+                            <Bot className="h-4 w-4 text-green-500" />
+                            <span className="font-medium">Julia IA</span>
+                          </button>
+                          {teamMembers.length > 0 && (
+                            <Separator className="my-1" />
+                          )}
+                          {teamMembers.map((member: any) => (
+                            <button
+                              key={member.id}
+                              className="flex items-center gap-2 w-full rounded-md px-2 py-2 text-sm hover:bg-accent transition-colors"
+                              onClick={() => handleOwnerChange(member.name)}
+                              disabled={updateOwner.isPending}
+                            >
+                              <User className="h-4 w-4 text-muted-foreground" />
+                              <span>{member.name}</span>
+                              {member.role && (
+                                <span className="text-xs text-muted-foreground ml-auto">{member.role}</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                )}
               </div>
             </div>
 
