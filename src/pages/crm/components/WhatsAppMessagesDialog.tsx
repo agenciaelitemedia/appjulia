@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   MessageCircle, Send, Loader2, 
   Mic, FileText, Download, MapPin, User, Image as ImageIcon, Video, Play, Bot,
-  Zap, Paperclip, StickyNote, Search
+  Zap, Paperclip, StickyNote, Search, Square, X
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -791,6 +791,14 @@ export function WhatsAppMessagesDialog({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Audio recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [sendingAudio, setSendingAudio] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Quick messages
   const { messages: quickMessages } = useQuickMessages('chat_popup');
   const filteredQuickMessages = quickMessages.filter(qm =>
@@ -830,6 +838,154 @@ export function WhatsAppMessagesDialog({
       setConfirmToggle(false);
     }
   };
+
+  // ============================================
+  // Audio Recording
+  // ============================================
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/ogg; codecs=opus')
+          ? 'audio/ogg; codecs=opus'
+          : MediaRecorder.isTypeSupported('audio/webm; codecs=opus')
+          ? 'audio/webm; codecs=opus'
+          : 'audio/webm',
+      });
+
+      audioChunksRef.current = [];
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        if (recordingTimerRef.current) {
+          clearInterval(recordingTimerRef.current);
+          recordingTimerRef.current = null;
+        }
+        setRecordingTime(0);
+
+        const blob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
+        if (blob.size < 500) return; // too short
+
+        await sendAudioBlob(blob, mediaRecorder.mimeType);
+      };
+
+      mediaRecorder.start(250);
+      setIsRecording(true);
+      setRecordingTime(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+    } catch (err: any) {
+      console.error('Mic access error:', err);
+      toast({
+        title: 'Erro ao acessar microfone',
+        description: err.message || 'Permita o acesso ao microfone no navegador.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.ondataavailable = null;
+      mediaRecorderRef.current.onstop = () => {
+        mediaRecorderRef.current?.stream?.getTracks().forEach(t => t.stop());
+      };
+      mediaRecorderRef.current.stop();
+    }
+    audioChunksRef.current = [];
+    setIsRecording(false);
+    setRecordingTime(0);
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+  };
+
+  const sendAudioBlob = async (blob: Blob, mimeType: string) => {
+    setSendingAudio(true);
+    try {
+      const cleanNumber = whatsappNumber.replace(/\D/g, '');
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      const ext = mimeType.includes('ogg') ? 'ogg' : 'webm';
+
+      if (provider === 'waba') {
+        const { error } = await supabase.functions.invoke('waba-send', {
+          body: {
+            action: 'send_media',
+            cod_agent: codAgent,
+            to: cleanNumber,
+            media_type: 'audio',
+            base64,
+            mime_type: mimeType,
+            file_name: `audio.${ext}`,
+          },
+        });
+        if (error) throw error;
+      } else {
+        if (!client) throw new Error('Client not configured');
+        await client.post('/send/media', {
+          number: cleanNumber,
+          file: `data:${mimeType};base64,${base64}`,
+          type: 'audio',
+          fileName: `audio.${ext}`,
+          caption: '',
+        });
+      }
+
+      // Add to local state
+      setMessages(prev => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          text: `[Áudio ${formatDuration(recordingTime)}]`,
+          fromMe: true,
+          timestamp: Date.now(),
+          type: 'audio',
+          ptt: true,
+          mimetype: mimeType,
+          mediaUrl: URL.createObjectURL(blob),
+        },
+      ]);
+
+      toast({ title: 'Áudio enviado' });
+    } catch (err: any) {
+      console.error('Error sending audio:', err);
+      toast({ title: 'Erro ao enviar áudio', description: err.message, variant: 'destructive' });
+    } finally {
+      setSendingAudio(false);
+    }
+  };
+
+  // Cleanup recording on unmount
+  useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stream?.getTracks().forEach(t => t.stop());
+        mediaRecorderRef.current.stop();
+      }
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    };
+  }, []);
 
   // Format number to JID
   const formatToJid = (number: string): string => {
@@ -1622,14 +1778,26 @@ export function WhatsAppMessagesDialog({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Audio placeholder */}
+            {/* Audio recording */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7" disabled>
-                  <Mic className="h-4 w-4 text-muted-foreground" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn("h-7 w-7", isRecording && "text-red-500")}
+                  disabled={!isConfigured || sendingAudio}
+                  onClick={isRecording ? stopRecording : startRecording}
+                >
+                  {sendingAudio ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : isRecording ? (
+                    <Square className="h-3.5 w-3.5 fill-current" />
+                  ) : (
+                    <Mic className="h-4 w-4" />
+                  )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Em breve</TooltipContent>
+              <TooltipContent>{isRecording ? 'Parar e enviar' : 'Gravar áudio'}</TooltipContent>
             </Tooltip>
 
             {/* Notes placeholder */}
@@ -1643,6 +1811,25 @@ export function WhatsAppMessagesDialog({
             </Tooltip>
           </div>
 
+          {/* Recording indicator */}
+          {isRecording && (
+            <div className="flex items-center gap-2 px-2 py-1.5 bg-red-500/10 rounded-md border border-red-500/20">
+              <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+              <span className="text-xs font-medium text-red-600 dark:text-red-400 tabular-nums">
+                {formatDuration(recordingTime)}
+              </span>
+              <span className="text-xs text-muted-foreground flex-1">Gravando...</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 text-muted-foreground hover:text-red-500"
+                onClick={cancelRecording}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
+
           {/* Textarea + Send */}
           <div className="flex items-end gap-2">
             <Textarea
@@ -1651,7 +1838,7 @@ export function WhatsAppMessagesDialog({
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyDown={handleKeyPress}
               placeholder="Digite uma mensagem..."
-              disabled={!isConfigured || sending}
+              disabled={!isConfigured || sending || isRecording}
               className="flex-1 min-h-[38px] max-h-[120px] resize-none text-sm py-2"
               rows={1}
             />
@@ -1659,7 +1846,7 @@ export function WhatsAppMessagesDialog({
               size="icon"
               className="shrink-0 h-[38px] w-[38px]"
               onClick={handleSendMessage}
-              disabled={!newMessage.trim() || !isConfigured || sending}
+              disabled={!newMessage.trim() || !isConfigured || sending || isRecording}
             >
               {sending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
