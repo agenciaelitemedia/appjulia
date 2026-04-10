@@ -281,7 +281,7 @@ export function useTeamMembersForAgent(codAgent: string | null, fallbackUserId?:
       // 2. Fallback: resolve principal user from logged-in user
       if (!principalId && fallbackUserId) {
         const parentResult = await externalDb.raw<{ id: number; parent_user_id: number | null; name: string }>({
-          query: `SELECT id, parent_user_id, name FROM users WHERE id = $1 LIMIT 1`,
+          query: `SELECT id, user_id as parent_user_id, name FROM users WHERE id = $1 LIMIT 1`,
           params: [fallbackUserId],
         });
         const row = parentResult[0];
