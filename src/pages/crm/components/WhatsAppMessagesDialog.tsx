@@ -839,6 +839,154 @@ export function WhatsAppMessagesDialog({
     }
   };
 
+  // ============================================
+  // Audio Recording
+  // ============================================
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/ogg; codecs=opus')
+          ? 'audio/ogg; codecs=opus'
+          : MediaRecorder.isTypeSupported('audio/webm; codecs=opus')
+          ? 'audio/webm; codecs=opus'
+          : 'audio/webm',
+      });
+
+      audioChunksRef.current = [];
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        if (recordingTimerRef.current) {
+          clearInterval(recordingTimerRef.current);
+          recordingTimerRef.current = null;
+        }
+        setRecordingTime(0);
+
+        const blob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
+        if (blob.size < 500) return; // too short
+
+        await sendAudioBlob(blob, mediaRecorder.mimeType);
+      };
+
+      mediaRecorder.start(250);
+      setIsRecording(true);
+      setRecordingTime(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+    } catch (err: any) {
+      console.error('Mic access error:', err);
+      toast({
+        title: 'Erro ao acessar microfone',
+        description: err.message || 'Permita o acesso ao microfone no navegador.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.ondataavailable = null;
+      mediaRecorderRef.current.onstop = () => {
+        mediaRecorderRef.current?.stream?.getTracks().forEach(t => t.stop());
+      };
+      mediaRecorderRef.current.stop();
+    }
+    audioChunksRef.current = [];
+    setIsRecording(false);
+    setRecordingTime(0);
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+  };
+
+  const sendAudioBlob = async (blob: Blob, mimeType: string) => {
+    setSendingAudio(true);
+    try {
+      const cleanNumber = whatsappNumber.replace(/\D/g, '');
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      const ext = mimeType.includes('ogg') ? 'ogg' : 'webm';
+
+      if (provider === 'waba') {
+        const { error } = await supabase.functions.invoke('waba-send', {
+          body: {
+            action: 'send_media',
+            cod_agent: codAgent,
+            to: cleanNumber,
+            media_type: 'audio',
+            base64,
+            mime_type: mimeType,
+            file_name: `audio.${ext}`,
+          },
+        });
+        if (error) throw error;
+      } else {
+        if (!client) throw new Error('Client not configured');
+        await client.post('/send/media', {
+          number: cleanNumber,
+          file: `data:${mimeType};base64,${base64}`,
+          type: 'audio',
+          fileName: `audio.${ext}`,
+          caption: '',
+        });
+      }
+
+      // Add to local state
+      setMessages(prev => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          text: `[Áudio ${formatDuration(recordingTime)}]`,
+          fromMe: true,
+          timestamp: Date.now(),
+          type: 'audio',
+          ptt: true,
+          mimetype: mimeType,
+          mediaUrl: URL.createObjectURL(blob),
+        },
+      ]);
+
+      toast({ title: 'Áudio enviado' });
+    } catch (err: any) {
+      console.error('Error sending audio:', err);
+      toast({ title: 'Erro ao enviar áudio', description: err.message, variant: 'destructive' });
+    } finally {
+      setSendingAudio(false);
+    }
+  };
+
+  // Cleanup recording on unmount
+  useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stream?.getTracks().forEach(t => t.stop());
+        mediaRecorderRef.current.stop();
+      }
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    };
+  }, []);
+
   // Format number to JID
   const formatToJid = (number: string): string => {
     const cleaned = number.replace(/\D/g, '');
