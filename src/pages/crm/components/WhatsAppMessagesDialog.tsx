@@ -1760,7 +1760,6 @@ export function WhatsAppMessagesDialog({
                 disabled={!sessionData || updatingSession || sessionLoading}
                 className="scale-75"
               />
-              />
             </div>
           </div>
         </Header>
