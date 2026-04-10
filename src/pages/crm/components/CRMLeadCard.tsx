@@ -45,10 +45,21 @@ function truncateText(text: string | undefined, maxLength: number): string {
   const [videoCallOpen, setVideoCallOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
   const [phoneCallOpen, setPhoneCallOpen] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editName, setEditName] = useState(card.contact_name || '');
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const updateCardName = useUpdateCardName();
   const { isActive: isAgentActive, isLoading: isAgentLoading, invalidate: refreshAgentStatus } = useAgentSessionStatus(
     card.whatsapp_number,
     card.cod_agent
   );
+
+  useEffect(() => {
+    if (isEditingName && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [isEditingName]);
 
   // Video call only visible for admin and colaborador roles
   const canStartVideoCall = user?.role === 'admin' || user?.role === 'colaborador';
