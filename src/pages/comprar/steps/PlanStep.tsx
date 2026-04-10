@@ -43,9 +43,18 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
   const [searchParams] = useSearchParams();
   const [plans, setPlans] = useState<PlanFromDB[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(-1);
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(orderData.billing_period || 'monthly');
 
   const channelParam = searchParams.get('c')?.toLowerCase() || '';
-  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(orderData.billing_period || 'monthly');
+
+  // Filter plans based on channel parameter
+  const channelFilteredPlans = useMemo(() => {
+    if (channelParam === 'all') return plans;
+    if (channelParam === 'vendedora') return plans.filter(p => p.price === 1200000);
+    if (channelParam === 'atendente') return plans.filter(p => p.price === 300000);
+    return []; // no param = no plans
+  }, [plans, channelParam]);
 
   useEffect(() => {
     const fetchPlans = async () => {
