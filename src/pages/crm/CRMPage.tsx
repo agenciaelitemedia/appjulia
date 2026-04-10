@@ -21,6 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { getInitialDates, getSavedAgentCodes } from '@/hooks/usePersistedPeriod';
 
 export default function CRMPage() {
+  const { user: authUser } = useAuth();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialDates = getInitialDates();
