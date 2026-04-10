@@ -263,3 +263,44 @@ export function useMoveCard() {
     },
   });
 }
+
+export function useTeamMembersForAgent(codAgent: string | null) {
+  return useQuery({
+    queryKey: ['crm-team-members', codAgent],
+    queryFn: async () => {
+      if (!codAgent) return [];
+      // Get the user linked to this cod_agent
+      const agentUsers = await externalDb.raw<{ user_id: number }>({
+        query: `SELECT DISTINCT user_id FROM "vw_list_client-agents-users" WHERE cod_agent::text = $1 LIMIT 1`,
+        params: [codAgent],
+      });
+      const userId = agentUsers[0]?.user_id;
+      if (!userId) return [];
+      
+      const members = await externalDb.getTeamMembers<{ id: number; name: string; role: string }>(userId, true);
+      return members;
+    },
+    enabled: !!codAgent,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useUpdateCardOwner() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ cardId, ownerName }: { cardId: number; ownerName: string }) => {
+      await externalDb.update({
+        table: 'crm_atendimento_cards',
+        data: {
+          owner_name: ownerName,
+          updated_at: new Date().toISOString(),
+        },
+        where: { id: cardId },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crm-cards'] });
+    },
+  });
+}

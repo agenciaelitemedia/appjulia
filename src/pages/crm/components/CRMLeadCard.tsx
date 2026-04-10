@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bot, Clock, Eye, Hash, Loader2, MessageCircle, Phone, Scale, Video } from 'lucide-react';
+import { Bot, Clock, Eye, Hash, Loader2, MessageCircle, Phone, Scale, User, Video } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -264,15 +264,33 @@ function truncateText(text: string | undefined, maxLength: number): string {
             </div>
 
 
+            {/* Responsável */}
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>Responsável:</span>
+              {isAgentLoading ? (
+                <span className="text-muted-foreground/50">...</span>
+              ) : isAgentActive ? (
+                <span className="flex items-center gap-1 text-green-600 dark:text-green-400 font-medium">
+                  <Bot className="h-3 w-3" />
+                  Julia IA
+                </span>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <User className="h-3 w-3" />
+                  {card.owner_name || 'Sem responsável'}
+                </span>
+              )}
+            </div>
+
             {/* Dates and time in stage */}
             <div className="pt-2 border-t space-y-1 text-xs text-muted-foreground">
               <div className="flex items-center justify-between">
-                <span>Criado:</span>
-                <span>{formatDbDateTime(card.created_at)}</span>
-              </div>
-              <div className="flex items-center justify-between">
                 <span>Atualizado:</span>
                 <span>{formatDbDateTime(card.updated_at)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Criado:</span>
+                <span>{formatDbDateTime(card.created_at)}</span>
               </div>
               <div className="flex items-center gap-1.5 text-muted-foreground/70 pt-1">
                 <Clock className="h-3 w-3" />
