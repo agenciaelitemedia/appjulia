@@ -1680,6 +1680,23 @@ export function WhatsAppMessagesDialog({
     <Wrapper open={open} onOpenChange={onOpenChange}>
       {/* @ts-ignore - dynamic component props */}
       <Content {...contentProps} aria-describedby={undefined}>
+        {/* Contract Details Panel - inline side by side (LEFT of chat) */}
+        {contractSidebarOpen && (
+          <div className="w-[440px] border-r flex flex-col h-full bg-background">
+            <div className="px-4 py-3 border-b bg-muted/30 flex items-center justify-between">
+              <div className="flex items-center gap-2 font-semibold">
+                <Scale className="h-5 w-5" />
+                Detalhes do Contrato
+              </div>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setContractSidebarOpen(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex-1 overflow-auto">
+              <ContractInfoContent contractInfo={contractInfo} isLoading={contractLoading} contactName={displayName} />
+            </div>
+          </div>
+        )}
         {/* Chat column */}
         <div className="flex flex-col flex-1 min-w-0 h-full">
         {/* Header */}
@@ -2202,23 +2219,7 @@ export function WhatsAppMessagesDialog({
           />
         </div>
         </div>
-        {/* Contract Details Panel - inline side by side */}
-        {contractSidebarOpen && (
-          <div className="w-[440px] border-l flex flex-col h-full bg-background">
-            <div className="px-4 py-3 border-b bg-muted/30 flex items-center justify-between">
-              <div className="flex items-center gap-2 font-semibold">
-                <Scale className="h-5 w-5" />
-                Detalhes do Contrato
-              </div>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setContractSidebarOpen(false)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="flex-1 overflow-auto">
-              <ContractInfoContent contractInfo={contractInfo} isLoading={contractLoading} contactName={displayName} />
-            </div>
-          </div>
-        )}
+        
       </Content>
     </Wrapper>
 
