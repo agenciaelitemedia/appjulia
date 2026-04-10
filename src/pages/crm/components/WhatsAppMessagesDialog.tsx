@@ -810,6 +810,7 @@ export function WhatsAppMessagesDialog({
   const { user: authUser } = useAuth();
   const [noteMode, setNoteMode] = useState(false);
   const [sendingNote, setSendingNote] = useState(false);
+  const [signatureEnabled, setSignatureEnabled] = useState(true);
 
   // Quick messages
   const { messages: quickMessages } = useQuickMessages('chat_popup');
@@ -1548,9 +1549,11 @@ export function WhatsAppMessagesDialog({
 
     setSending(true);
     try {
-      // Build message with sender signature
+      // Build message with sender signature (if enabled)
       const senderName = authUser?.name || 'Usuário';
-      const messageWithSignature = `*${senderName}:*\n${newMessage.trim()}`;
+      const messageWithSignature = signatureEnabled
+        ? `*${senderName}:*\n${newMessage.trim()}`
+        : newMessage.trim();
 
       if (provider === 'waba') {
         // WABA: send via edge function
@@ -1911,6 +1914,28 @@ export function WhatsAppMessagesDialog({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{noteMode ? 'Desativar modo nota' : 'Adicionar nota interna'}</TooltipContent>
+            </Tooltip>
+
+            {/* Spacer to push signature toggle to the right */}
+            <div className="flex-1" />
+
+            {/* Signature toggle */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1.5">
+                  <span className={cn("text-[11px] font-medium", signatureEnabled ? "text-primary" : "text-muted-foreground")}>
+                    Assinatura
+                  </span>
+                  <Switch
+                    checked={signatureEnabled}
+                    onCheckedChange={setSignatureEnabled}
+                    className="h-4 w-8 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-4"
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                {signatureEnabled ? 'Assinatura ativa — seu nome será enviado junto' : 'Assinatura desativada'}
+              </TooltipContent>
             </Tooltip>
           </div>
 
