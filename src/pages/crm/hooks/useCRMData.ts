@@ -269,16 +269,40 @@ export function useTeamMembersForAgent(codAgent: string | null) {
     queryKey: ['crm-team-members', codAgent],
     queryFn: async () => {
       if (!codAgent) return [];
-      // Get the user linked to this cod_agent
-      const agentUsers = await externalDb.raw<{ user_id: number }>({
-        query: `SELECT DISTINCT user_id FROM "vw_list_client-agents-users" WHERE cod_agent::text = $1 LIMIT 1`,
+      // Get the owner user linked to this cod_agent
+      const agentUsers = await externalDb.raw<{ user_id: number; owner_name: string }>({
+        query: `SELECT DISTINCT user_id, owner_name FROM "vw_list_client-agents-users" WHERE cod_agent::text = $1 LIMIT 1`,
         params: [codAgent],
       });
       const userId = agentUsers[0]?.user_id;
+      const ownerName = agentUsers[0]?.owner_name;
       if (!userId) return [];
       
+      // Get team members linked to this user
       const members = await externalDb.getTeamMembers<{ id: number; name: string; role: string }>(userId, true);
-      return members;
+      
+      // Build combined list: owner + team members, avoiding duplicates
+      const allMembers: { id: number; name: string; role: string }[] = [];
+      const seenNames = new Set<string>();
+
+      // Add owner first if available
+      if (ownerName) {
+        seenNames.add(ownerName.toLowerCase());
+        allMembers.push({ id: userId, name: ownerName, role: 'Titular' });
+      }
+
+      // Add team members (skip if same name as owner)
+      for (const m of members) {
+        if (!seenNames.has(m.name.toLowerCase())) {
+          seenNames.add(m.name.toLowerCase());
+          allMembers.push(m);
+        }
+      }
+
+      // Sort alphabetically by name
+      allMembers.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+
+      return allMembers;
     },
     enabled: !!codAgent,
     staleTime: 1000 * 60 * 5,
