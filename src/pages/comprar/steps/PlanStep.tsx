@@ -231,7 +231,11 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
       </div>
 
       {filteredPlans.length === 0 && (
-        <p className="text-center text-gray-400 py-8">Nenhum plano disponível para este período.</p>
+        <p className="text-center text-gray-400 py-8">
+          {!channelParam
+            ? 'Nenhum plano disponível. Utilize um link válido para acessar os planos.'
+            : 'Nenhum plano disponível para este período.'}
+        </p>
       )}
 
       <div className="flex gap-3">
