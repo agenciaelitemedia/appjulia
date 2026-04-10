@@ -132,6 +132,7 @@ serve(async (req) => {
 
     // Audio and image need processing by transcribe function
     const isTranscribed = messageType !== "audio" && messageType !== "image";
+    const shouldQueueMediaProcessing = !isTranscribed;
 
     const { error } = await supabase.from("support_group_messages").insert({
       instance_name: instance,
@@ -156,6 +157,35 @@ serve(async (req) => {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (shouldQueueMediaProcessing) {
+      const functionUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/support-transcribe-audio`;
+
+      EdgeRuntime.waitUntil((async () => {
+        try {
+          const triggerResp = await fetch(functionUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "apikey": Deno.env.get("SUPABASE_ANON_KEY") || "",
+            },
+            body: JSON.stringify({
+              messageIds: messageId ? [messageId] : undefined,
+              source: "support-assistant-webhook",
+            }),
+          });
+
+          const triggerText = await triggerResp.text();
+          if (!triggerResp.ok) {
+            console.error("[support-webhook] Failed to trigger media processing:", triggerResp.status, triggerText);
+          } else {
+            console.log("[support-webhook] Media processing queued for:", messageId || remoteJid);
+          }
+        } catch (triggerErr) {
+          console.error("[support-webhook] Error triggering media processing:", triggerErr);
+        }
+      })());
     }
 
     console.log("[support-webhook] SAVED:", remoteJid, "role:", senderRole, "type:", messageType);
