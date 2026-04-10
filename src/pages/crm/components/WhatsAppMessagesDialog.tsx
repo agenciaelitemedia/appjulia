@@ -816,6 +816,47 @@ export function WhatsAppMessagesDialog({
   const [sendingNote, setSendingNote] = useState(false);
   const [signatureEnabled, setSignatureEnabled] = useState(true);
 
+   // Contract sidebar state
+  const [contractSidebarOpen, setContractSidebarOpen] = useState(false);
+  const { data: contractInfo, isLoading: contractLoading } = useContractInfo(whatsappNumber, codAgent, open);
+
+  // Editable name state
+  const { data: crmCard } = useCRMCardByWhatsapp(open ? whatsappNumber : null);
+  const updateCardName = useUpdateCardName();
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editName, setEditName] = useState(leadName || '');
+  const [displayName, setDisplayName] = useState(leadName || '');
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditingName && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [isEditingName]);
+
+  useEffect(() => {
+    setDisplayName(leadName || '');
+    setEditName(leadName || '');
+  }, [leadName]);
+
+  const handleSaveName = async () => {
+    if (!crmCard?.id || !editName.trim()) return;
+    try {
+      await updateCardName.mutateAsync({ cardId: crmCard.id, contactName: editName.trim() });
+      setDisplayName(editName.trim());
+      setIsEditingName(false);
+      toast.success('Nome atualizado');
+    } catch {
+      toast.error('Erro ao atualizar nome');
+    }
+  };
+
+  const handleCancelEditName = () => {
+    setEditName(displayName);
+    setIsEditingName(false);
+  };
+
   // Quick messages
   const { messages: quickMessages } = useQuickMessages('chat_popup');
   const filteredQuickMessages = quickMessages.filter(qm =>
