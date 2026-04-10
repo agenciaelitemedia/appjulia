@@ -37,7 +37,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useContractInfo } from '../hooks/useContractInfo';
 import { useCRMCardByWhatsapp, useUpdateCardName } from '../hooks/useCRMData';
 import { ContractInfoContent } from './ContractInfoContent';
-import { Sheet as ContractSheet, SheetContent as ContractSheetContent, SheetHeader as ContractSheetHeader, SheetTitle as ContractSheetTitle } from '@/components/ui/sheet';
+
 
 // ============================================
 // Types
@@ -1670,8 +1670,9 @@ export function WhatsAppMessagesDialog({
   const Title = isSheet ? SheetTitle : DialogTitle;
   const Description = isSheet ? SheetDescription : DialogDescription;
 
+  const sheetWidth = contractSidebarOpen ? 'w-[560px] sm:w-[1100px]' : 'w-[560px] sm:w-[640px]';
   const contentProps = isSheet
-    ? { side: 'right' as const, className: 'w-[560px] sm:w-[640px] p-0 flex flex-col h-full' }
+    ? { side: 'right' as const, className: `${sheetWidth} p-0 flex flex-row h-full transition-all duration-300` }
     : { className: 'sm:max-w-[500px] h-[600px] flex flex-col p-0 bg-card' };
 
   return (
@@ -1679,6 +1680,8 @@ export function WhatsAppMessagesDialog({
     <Wrapper open={open} onOpenChange={onOpenChange}>
       {/* @ts-ignore - dynamic component props */}
       <Content {...contentProps} aria-describedby={undefined}>
+        {/* Chat column */}
+        <div className="flex flex-col flex-1 min-w-0 h-full">
         {/* Header */}
         <Header className="px-4 py-3 border-b bg-muted/30">
           <div className="flex items-center gap-3">
@@ -1726,7 +1729,7 @@ export function WhatsAppMessagesDialog({
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    onClick={() => contractInfo && setContractSidebarOpen(true)}
+                    onClick={() => contractInfo && setContractSidebarOpen(prev => !prev)}
                     className={cn(
                       "hover:opacity-80 transition-opacity p-1 rounded",
                       contractInfo ? "cursor-pointer" : "cursor-not-allowed opacity-40"
@@ -2198,6 +2201,24 @@ export function WhatsAppMessagesDialog({
             }}
           />
         </div>
+        </div>
+        {/* Contract Details Panel - inline side by side */}
+        {contractSidebarOpen && (
+          <div className="w-[440px] border-l flex flex-col h-full bg-background">
+            <div className="px-4 py-3 border-b bg-muted/30 flex items-center justify-between">
+              <div className="flex items-center gap-2 font-semibold">
+                <Scale className="h-5 w-5" />
+                Detalhes do Contrato
+              </div>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setContractSidebarOpen(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex-1 overflow-auto">
+              <ContractInfoContent contractInfo={contractInfo} isLoading={contractLoading} contactName={displayName} />
+            </div>
+          </div>
+        )}
       </Content>
     </Wrapper>
 
@@ -2214,18 +2235,6 @@ export function WhatsAppMessagesDialog({
       whatsappNumber={whatsappNumber}
       codAgent={codAgent}
     />
-    {/* Contract Details Sidebar */}
-    <ContractSheet open={contractSidebarOpen} onOpenChange={setContractSidebarOpen}>
-      <ContractSheetContent side="right" className="w-[480px] sm:w-[540px] p-0">
-        <ContractSheetHeader className="px-4 py-3 border-b bg-muted/30">
-          <ContractSheetTitle className="flex items-center gap-2">
-            <Scale className="h-5 w-5" />
-            Detalhes do Contrato
-          </ContractSheetTitle>
-        </ContractSheetHeader>
-        <ContractInfoContent contractInfo={contractInfo} isLoading={contractLoading} contactName={displayName} />
-      </ContractSheetContent>
-    </ContractSheet>
     </>
   );
 }
