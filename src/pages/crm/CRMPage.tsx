@@ -50,6 +50,7 @@ export default function CRMPage() {
   const [selectedCard, setSelectedCard] = useState<CRMCard | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [juliaStatusFilter, setJuliaStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [ownerFilter, setOwnerFilter] = useState<string>('all');
 
   const { data: stages = [], isLoading: stagesLoading } = useCRMStages();
   const { data: agents = [], isLoading: agentsLoading } = useCRMAgents();
@@ -58,6 +59,7 @@ export default function CRMPage() {
   const { data: juliaConversations } = useCRMJuliaConversations(filters);
   const { data: followupMap = new Map() } = useFollowupActiveLeads(filters.agentCodes, filters.dateFrom, filters.dateTo);
   const { data: returnRateData } = useFollowupReturnRate(filters.agentCodes, filters.dateFrom, filters.dateTo);
+  const { data: teamMembers = [] } = useTeamForCurrentUser();
 
   // Clean up whatsapp param from URL after consuming it
   useEffect(() => {
@@ -107,8 +109,17 @@ export default function CRMPage() {
       });
     }
 
+    // Owner filter
+    if (ownerFilter !== 'all') {
+      if (ownerFilter === 'mine') {
+        result = result.filter((card) => card.owner_name === authUser?.name);
+      } else {
+        result = result.filter((card) => card.owner_name === ownerFilter);
+      }
+    }
+
     return result;
-  }, [cards, filters.search, juliaStatusFilter, queryClient]);
+  }, [cards, filters.search, juliaStatusFilter, ownerFilter, authUser?.name, queryClient]);
 
   const handleCardClick = (card: CRMCard) => {
     setSelectedCard(card);
