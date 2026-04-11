@@ -333,7 +333,7 @@ function InstagramConfigPanel() {
     const { data } = await supabase
       .from('instagram_config')
       .select('*')
-      .eq('cod_agent', user.cod_agent)
+      .eq('cod_agent', String(user.cod_agent))
       .limit(1)
       .single();
 
@@ -354,11 +354,11 @@ function InstagramConfigPanel() {
 
     const { error } = await supabase
       .from('instagram_config')
-      .upsert({
+      .upsert([{
         ...config,
-        cod_agent: user.cod_agent,
+        cod_agent: String(user.cod_agent),
         client_id: String(user.id),
-      }, { onConflict: 'cod_agent' });
+      }] as any, { onConflict: 'cod_agent' });
 
     setLoading(false);
     if (error) {
