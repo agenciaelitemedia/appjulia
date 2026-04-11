@@ -790,9 +790,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             is_archived: c.wa_archived || false,
             is_muted: (c.wa_muteEndTime || 0) > Date.now(),
             unread_count: c.wa_unreadCount || 0,
-            last_message_at: c.wa_lastMsgTimestamp
-              ? new Date(c.wa_lastMsgTimestamp * 1000).toISOString()
-              : null,
+            last_message_at: (() => {
+              if (!c.wa_lastMsgTimestamp) return null;
+              const ts = Number(c.wa_lastMsgTimestamp);
+              const msTs = ts > 1e12 ? ts : ts * 1000;
+              const d = new Date(msTs);
+              return (d.getFullYear() > 2000 && d.getFullYear() < 2100) ? d.toISOString() : null;
+            })(),
           } as any, {
             onConflict: 'phone,client_id',
           });
