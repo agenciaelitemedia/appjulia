@@ -1,0 +1,104 @@
+import { useState } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Plus, Loader2, Network } from 'lucide-react';
+import { useQueueProviders, useQueueProviderMutations, type QueueProvider } from './hooks/useQueueProviders';
+import { ProviderCard } from './components/ProviderCard';
+import { ProviderFormDialog } from './components/ProviderFormDialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+
+export default function ConfiguracoesPage() {
+  const { data: providers = [], isLoading } = useQueueProviders();
+  const { deleteProvider } = useQueueProviderMutations();
+
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingProvider, setEditingProvider] = useState<QueueProvider | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<QueueProvider | null>(null);
+
+  const handleEdit = (provider: QueueProvider) => {
+    setEditingProvider(provider);
+    setFormOpen(true);
+  };
+
+  const handleNew = () => {
+    setEditingProvider(null);
+    setFormOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteTarget) {
+      deleteProvider.mutate(deleteTarget.id);
+      setDeleteTarget(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
+        <p className="text-muted-foreground">Gerencie as configurações globais do sistema</p>
+      </div>
+
+      <Tabs defaultValue="providers" className="w-full">
+        <TabsList>
+          <TabsTrigger value="providers" className="gap-2">
+            <Network className="w-4 h-4" />
+            Provedores de Fila
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="providers" className="mt-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Provedores de Fila</h2>
+              <p className="text-sm text-muted-foreground">
+                Configure as credenciais dos canais de comunicação que serão usadas nas filas
+              </p>
+            </div>
+            <Button onClick={handleNew}>
+              <Plus className="w-4 h-4 mr-2" /> Novo Provedor
+            </Button>
+          </div>
+
+          {isLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : providers.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground border border-dashed rounded-lg">
+              <Network className="w-10 h-10 mx-auto mb-3 opacity-40" />
+              <p className="mb-1 font-medium">Nenhum provedor configurado</p>
+              <p className="text-sm">Adicione um provedor para poder criar filas de atendimento</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {providers.map((p) => (
+                <ProviderCard key={p.id} provider={p} onEdit={handleEdit} onDelete={setDeleteTarget} />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      <ProviderFormDialog open={formOpen} onOpenChange={setFormOpen} provider={editingProvider} />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir provedor</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o provedor "{deleteTarget?.name}"? Filas que usam este provedor não serão afetadas, mas novas filas não poderão utilizá-lo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete}>Excluir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
