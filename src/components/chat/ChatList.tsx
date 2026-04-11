@@ -5,12 +5,14 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RefreshCw, Search, MessageCircle, Users, Bot, Clock, CheckCircle2, Inbox } from 'lucide-react';
+import { RefreshCw, Search, MessageCircle, Users, Bot, Clock, CheckCircle2, Inbox, Globe, Instagram } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { ChatContactItem } from './ChatContactItem';
 import { Badge } from '@/components/ui/badge';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import type { ConversationFilterStatus } from '@/types/conversation';
+
+type ChannelFilter = 'all' | 'whatsapp_uazapi' | 'whatsapp_waba' | 'webchat' | 'instagram';
 
 export function ChatList() {
   const {
@@ -35,6 +37,7 @@ export function ChatList() {
   } = useWhatsAppData();
 
   const { data: agentsData } = useMyAgents();
+  const [channelFilter, setChannelFilter] = React.useState<ChannelFilter>('all');
   
   const allAgents = [
     ...(agentsData?.myAgents || []),
@@ -62,6 +65,23 @@ export function ChatList() {
     { value: 'open', label: 'Abertas', icon: <MessageCircle className="h-3 w-3" />, count: openCount },
     { value: 'resolved', label: 'Resolvidas', icon: <CheckCircle2 className="h-3 w-3" /> },
   ];
+
+  const channelFilters: { value: ChannelFilter; label: string; icon: React.ReactNode }[] = [
+    { value: 'all', label: 'Todos', icon: <Inbox className="h-3 w-3" /> },
+    { value: 'whatsapp_uazapi', label: 'WA', icon: <MessageCircle className="h-3 w-3 text-emerald-500" /> },
+    { value: 'whatsapp_waba', label: 'WABA', icon: <MessageCircle className="h-3 w-3 text-emerald-600" /> },
+    { value: 'webchat', label: 'Web', icon: <Globe className="h-3 w-3 text-blue-500" /> },
+    { value: 'instagram', label: 'IG', icon: <Instagram className="h-3 w-3 text-pink-500" /> },
+  ];
+
+  // Apply channel filter to contacts
+  const channelFilteredContacts = React.useMemo(() => {
+    if (channelFilter === 'all') return filteredContacts;
+    return filteredContacts.filter(contact => {
+      const conv = conversations.find(c => c.contact_id === contact.id && ['pending', 'open'].includes(c.status));
+      return conv?.channel === channelFilter;
+    });
+  }, [filteredContacts, conversations, channelFilter]);
 
   return (
     <div className="h-full flex flex-col bg-background overflow-hidden">
@@ -143,6 +163,22 @@ export function ChatList() {
             </Button>
           ))}
         </div>
+
+        {/* Channel filters */}
+        <div className="flex gap-1">
+          {channelFilters.map(f => (
+            <Button
+              key={f.value}
+              variant={channelFilter === f.value ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-6 text-[10px] flex-1 gap-0.5 px-1"
+              onClick={() => setChannelFilter(f.value)}
+            >
+              {f.icon}
+              {f.label}
+            </Button>
+          ))}
+        </div>
         
         {/* Search */}
         <div className="relative">
@@ -207,7 +243,7 @@ export function ChatList() {
                 </div>
               </div>
             ))
-          ) : filteredContacts.length === 0 ? (
+          ) : channelFilteredContacts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
               <MessageCircle className="h-12 w-12 mb-4 opacity-50" />
               <p className="font-medium">Nenhuma conversa</p>
@@ -218,7 +254,7 @@ export function ChatList() {
               </p>
             </div>
           ) : (
-            filteredContacts.map((contact) => (
+            channelFilteredContacts.map((contact) => (
               <ChatContactItem
                 key={contact.id}
                 contact={contact}
