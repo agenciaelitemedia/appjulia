@@ -43,6 +43,7 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
     connectionStatus,
   );
 
+  const { data: agentQueues } = useAgentQueues(agent.cod_agent);
   const alias = getAlias(agent.cod_agent, agent.business_name);
 
   const leadsPercentage = agent.plan_limit 
