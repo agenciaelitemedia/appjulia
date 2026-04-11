@@ -12,6 +12,7 @@ export interface ChatConversation {
   contact_id: string;
   client_id: string;
   cod_agent?: string;
+  queue_id?: string;
   channel: ConversationChannel;
   status: ConversationStatus;
   protocol: string;
