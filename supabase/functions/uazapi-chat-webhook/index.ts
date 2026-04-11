@@ -204,9 +204,15 @@ Deno.serve(async (req) => {
         const type = extractMessageType(msg);
         const mediaUrl = extractMediaUrl(msg);
         const timestamp = msg.messageTimestamp || msg.timestamp;
-        const isoTimestamp = timestamp
-          ? new Date(typeof timestamp === 'number' ? timestamp * 1000 : timestamp).toISOString()
-          : new Date().toISOString();
+        let isoTimestamp: string;
+        if (timestamp) {
+          const ts = typeof timestamp === 'number' ? timestamp : Number(timestamp);
+          const msTs = ts > 1e12 ? ts : ts * 1000;
+          const d = new Date(msTs);
+          isoTimestamp = (d.getFullYear() > 2000 && d.getFullYear() < 2100) ? d.toISOString() : new Date().toISOString();
+        } else {
+          isoTimestamp = new Date().toISOString();
+        }
 
         // ── Upsert contact ──
         const contactName = pushName || senderPhone;
