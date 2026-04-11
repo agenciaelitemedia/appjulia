@@ -5,9 +5,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, Wifi, WifiOff, Phone } from 'lucide-react';
 import { Queue, QueueFormData, useQueueMutations } from '../hooks/useQueues';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface QueueFormDialogProps {
   open: boolean;
@@ -15,83 +17,127 @@ interface QueueFormDialogProps {
   queue?: Queue | null;
 }
 
-const channelOptions = [
-  { value: 'uazapi', label: 'UaZapi (WhatsApp não-oficial)' },
-  { value: 'waba', label: 'API Oficial Meta (WABA)' },
-  { value: 'webchat', label: 'WebChat' },
-  { value: 'instagram', label: 'Instagram' },
-];
+interface InstanceInfo {
+  instanceName?: string;
+  status?: string;
+  phoneNumber?: string;
+  profileName?: string;
+  profilePicUrl?: string;
+}
 
 export function QueueFormDialog({ open, onOpenChange, queue }: QueueFormDialogProps) {
-  const { createQueue, updateQueue } = useQueueMutations();
+  const { updateQueue } = useQueueMutations();
   const isEditing = !!queue;
 
   const [name, setName] = useState('');
-  const [channelType, setChannelType] = useState('uazapi');
-  const [evoUrl, setEvoUrl] = useState('');
-  const [evoApikey, setEvoApikey] = useState('');
-  const [evoInstance, setEvoInstance] = useState('');
-  const [wabaId, setWabaId] = useState('');
-  const [wabaToken, setWabaToken] = useState('');
-  const [wabaNumberId, setWabaNumberId] = useState('');
+  const [instanceInfo, setInstanceInfo] = useState<InstanceInfo | null>(null);
+  const [loadingInstance, setLoadingInstance] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
 
   useEffect(() => {
     if (queue) {
       setName(queue.name);
-      setChannelType(queue.channel_type);
-      setEvoUrl(queue.evo_url || '');
-      setEvoApikey(queue.evo_apikey || '');
-      setEvoInstance(queue.evo_instance || '');
-      setWabaId(queue.waba_id || '');
-      setWabaToken(queue.waba_token || '');
-      setWabaNumberId(queue.waba_number_id || '');
+      setInstanceInfo(null);
+      if (queue.channel_type === 'uazapi' && queue.evo_instance) {
+        fetchInstanceInfo();
+      }
     } else {
       setName('');
-      setChannelType('uazapi');
-      setEvoUrl(''); setEvoApikey(''); setEvoInstance('');
-      setWabaId(''); setWabaToken(''); setWabaNumberId('');
+      setInstanceInfo(null);
     }
   }, [queue, open]);
 
-  const isPending = createQueue.isPending || updateQueue.isPending;
-
-  const handleSubmit = () => {
-    if (!name.trim()) return;
-
-    const formData: QueueFormData = {
-      name: name.trim(),
-      channel_type: channelType,
-      hub: channelType,
-    };
-
-    if (channelType === 'uazapi') {
-      formData.evo_url = evoUrl || undefined;
-      formData.evo_apikey = evoApikey || undefined;
-      formData.evo_instance = evoInstance || undefined;
-    } else if (channelType === 'waba') {
-      formData.waba_id = wabaId || undefined;
-      formData.waba_token = wabaToken || undefined;
-      formData.waba_number_id = wabaNumberId || undefined;
-    }
-
-    if (isEditing) {
-      updateQueue.mutate({ queue_id: queue.id, ...formData }, {
-        onSuccess: () => onOpenChange(false),
+  const fetchInstanceInfo = async () => {
+    if (!queue?.evo_instance || !queue?.evo_url || !queue?.evo_apikey) return;
+    setLoadingInstance(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
+        body: {
+          method: 'GET',
+          path: `/instance/connectionState/${queue.evo_instance}`,
+          evo_url: queue.evo_url,
+          evo_apikey: queue.evo_apikey,
+        },
       });
-    } else {
-      createQueue.mutate(formData, {
-        onSuccess: () => onOpenChange(false),
-      });
+      if (!error && data) {
+        setInstanceInfo({
+          instanceName: queue.evo_instance,
+          status: data?.instance?.state || data?.state || 'unknown',
+          phoneNumber: data?.instance?.phoneNumber || data?.phoneNumber || '',
+          profileName: data?.instance?.profileName || data?.profileName || '',
+        });
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingInstance(false);
     }
   };
+
+  const handleConnect = async () => {
+    if (!queue?.evo_instance || !queue?.evo_url || !queue?.evo_apikey) return;
+    setConnecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
+        body: {
+          method: 'POST',
+          path: `/instance/connect/${queue.evo_instance}`,
+          evo_url: queue.evo_url,
+          evo_apikey: queue.evo_apikey,
+        },
+      });
+      if (error) throw new Error(error.message);
+      toast.success('Solicitação de conexão enviada. Aguarde o QR Code ou a conexão automática.');
+      // Refresh info after a delay
+      setTimeout(fetchInstanceInfo, 3000);
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao conectar');
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!queue?.evo_instance || !queue?.evo_url || !queue?.evo_apikey) return;
+    setDisconnecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
+        body: {
+          method: 'DELETE',
+          path: `/instance/logout/${queue.evo_instance}`,
+          evo_url: queue.evo_url,
+          evo_apikey: queue.evo_apikey,
+        },
+      });
+      if (error) throw new Error(error.message);
+      toast.success('Instância desconectada');
+      setInstanceInfo((prev) => prev ? { ...prev, status: 'close' } : null);
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao desconectar');
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
+  const isPending = updateQueue.isPending;
+
+  const handleSubmit = () => {
+    if (!name.trim() || !queue) return;
+    updateQueue.mutate({ queue_id: queue.id, name: name.trim() }, {
+      onSuccess: () => onOpenChange(false),
+    });
+  };
+
+  const isConnected = instanceInfo?.status === 'open';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Editar Fila' : 'Nova Fila'}</DialogTitle>
+          <DialogTitle>Editar Fila</DialogTitle>
           <DialogDescription>
-            {isEditing ? 'Atualize as configurações da fila de atendimento.' : 'Configure uma nova fila de atendimento para receber mensagens.'}
+            Visualize as configurações e gerencie a conexão da fila.
           </DialogDescription>
         </DialogHeader>
 
@@ -101,48 +147,82 @@ export function QueueFormDialog({ open, onOpenChange, queue }: QueueFormDialogPr
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: WhatsApp Principal" />
           </div>
 
-          <div>
-            <Label>Canal</Label>
-            <Select value={channelType} onValueChange={setChannelType} disabled={isEditing}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {channelOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {channelType === 'uazapi' && (
+          {queue?.channel_type === 'uazapi' && (
             <>
               <div>
-                <Label>URL da API</Label>
-                <Input value={evoUrl} onChange={(e) => setEvoUrl(e.target.value)} placeholder="https://..." />
+                <Label className="text-muted-foreground">URL da API</Label>
+                <Input value={queue.evo_url || ''} disabled className="bg-muted/50 text-muted-foreground" />
               </div>
               <div>
-                <Label>API Key</Label>
-                <Input value={evoApikey} onChange={(e) => setEvoApikey(e.target.value)} type="password" placeholder="Token de acesso" />
+                <Label className="text-muted-foreground">API Key</Label>
+                <Input value={queue.evo_apikey ? '••••••••••••' : ''} disabled type="password" className="bg-muted/50 text-muted-foreground" />
               </div>
               <div>
-                <Label>Nome da Instância</Label>
-                <Input value={evoInstance} onChange={(e) => setEvoInstance(e.target.value)} placeholder="minha-instancia" />
+                <Label className="text-muted-foreground">Instância</Label>
+                <Input value={queue.evo_instance || ''} disabled className="bg-muted/50 text-muted-foreground" />
+              </div>
+
+              {/* Instance connection section */}
+              <div className="p-4 border border-border rounded-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Status da Conexão</Label>
+                  {loadingInstance ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  ) : instanceInfo ? (
+                    <Badge variant={isConnected ? 'default' : 'secondary'} className="gap-1">
+                      {isConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+                      {isConnected ? 'Conectado' : 'Desconectado'}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline">Sem dados</Badge>
+                  )}
+                </div>
+
+                {instanceInfo && isConnected && (
+                  <div className="grid gap-1 text-sm">
+                    {instanceInfo.profileName && (
+                      <p><span className="text-muted-foreground">Nome:</span> <span className="text-foreground">{instanceInfo.profileName}</span></p>
+                    )}
+                    {instanceInfo.phoneNumber && (
+                      <p><span className="text-muted-foreground">Telefone:</span> <span className="text-foreground">{instanceInfo.phoneNumber}</span></p>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  {!isConnected && (
+                    <Button size="sm" onClick={handleConnect} disabled={connecting}>
+                      {connecting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Wifi className="w-4 h-4 mr-1" />}
+                      Conectar
+                    </Button>
+                  )}
+                  {isConnected && (
+                    <Button size="sm" variant="destructive" onClick={handleDisconnect} disabled={disconnecting}>
+                      {disconnecting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <WifiOff className="w-4 h-4 mr-1" />}
+                      Desconectar
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" onClick={fetchInstanceInfo} disabled={loadingInstance}>
+                    {loadingInstance ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Atualizar'}
+                  </Button>
+                </div>
               </div>
             </>
           )}
 
-          {channelType === 'waba' && (
+          {queue?.channel_type === 'waba' && (
             <>
               <div>
-                <Label>WABA ID</Label>
-                <Input value={wabaId} onChange={(e) => setWabaId(e.target.value)} placeholder="ID da conta WABA" />
+                <Label className="text-muted-foreground">WABA ID</Label>
+                <Input value={queue.waba_id || ''} disabled className="bg-muted/50 text-muted-foreground" />
               </div>
               <div>
-                <Label>Access Token</Label>
-                <Input value={wabaToken} onChange={(e) => setWabaToken(e.target.value)} type="password" placeholder="Token permanente" />
+                <Label className="text-muted-foreground">Access Token</Label>
+                <Input value={queue.waba_token ? '••••••••••••' : ''} disabled type="password" className="bg-muted/50 text-muted-foreground" />
               </div>
               <div>
-                <Label>Phone Number ID</Label>
-                <Input value={wabaNumberId} onChange={(e) => setWabaNumberId(e.target.value)} placeholder="ID do número" />
+                <Label className="text-muted-foreground">Phone Number ID</Label>
+                <Input value={queue.waba_number_id || ''} disabled className="bg-muted/50 text-muted-foreground" />
               </div>
             </>
           )}
@@ -152,7 +232,7 @@ export function QueueFormDialog({ open, onOpenChange, queue }: QueueFormDialogPr
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button onClick={handleSubmit} disabled={isPending || !name.trim()}>
             {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            {isEditing ? 'Salvar' : 'Criar'}
+            Salvar
           </Button>
         </DialogFooter>
       </DialogContent>
