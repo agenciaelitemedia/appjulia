@@ -172,6 +172,16 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
             Phone ID: {agent.waba_number_id}
           </p>
         )}
+        {/* Filas vinculadas */}
+        {agentQueues && agentQueues.length > 0 && (
+          <div className="flex items-center gap-1 mb-2">
+            <Network className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <Link to="/agente/filas" className="text-xs text-primary hover:underline truncate">
+              {agentQueues[0].queue_name}
+              {agentQueues.length > 1 && ` +${agentQueues.length - 1}`}
+            </Link>
+          </div>
+        )}
 
         <p className="text-sm text-muted-foreground mb-3">
           Plano: {agent.plan_name || 'Não definido'}
