@@ -1,5 +1,8 @@
 // Chat components barrel export
 export { ChatContainer } from './ChatContainer';
+export { AudioRecorder } from './AudioRecorder';
+export { TransferDialog } from './TransferDialog';
+export { ConversationEvent } from './ConversationEvent';
 export { ChatList } from './ChatList';
 export { ChatContactItem } from './ChatContactItem';
 export { ChatHeader } from './ChatHeader';
