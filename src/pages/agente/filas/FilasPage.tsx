@@ -11,6 +11,7 @@ import { ManageAgentsDialog } from './components/ManageAgentsDialog';
 import { useEnsureFilasModule } from '@/hooks/useEnsureFilasModule';
 
 export default function FilasPage() {
+  useEnsureFilasModule();
   const [showDeleted, setShowDeleted] = useState(false);
   const { data: queues = [], isLoading } = useQueues(showDeleted);
   const { restoreQueue } = useQueueMutations();
