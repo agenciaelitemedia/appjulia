@@ -80,21 +80,30 @@ Deno.serve(async (req) => {
 
         console.log(`[uazapi-instance-manager] Instance created: ${finalName}, token: ${instanceToken ? 'yes' : 'no'}`);
 
-        // Configure webhook if available
-        const webhookUrl = Deno.env.get('UAZAPI_WEBHOOK_URL');
-        if (webhookUrl && instanceToken) {
+        // Configure webhook with full event set for modern chat
+        const supabaseUrl = Deno.env.get('SUPABASE_URL');
+        const webhookQueueId = queue_id; // passed from caller
+        if (supabaseUrl && instanceToken) {
+          const webhookEndpoint = `${supabaseUrl}/functions/v1/uazapi-chat-webhook?queue_id=${webhookQueueId || ''}`;
           try {
             await fetch(`${baseUrl}/webhook`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'token': instanceToken },
               body: JSON.stringify({
-                url: `${webhookUrl}`,
+                url: webhookEndpoint,
                 enabled: true,
-                events: ['messages'],
-                excludeMessages: ['isGroupYes'],
+                events: [
+                  'messages',
+                  'messages.update',
+                  'messages.delete',
+                  'contacts.update',
+                  'chats.update',
+                  'connection.update',
+                  'groups.update',
+                ],
               }),
             });
-            console.log('[uazapi-instance-manager] Webhook configured');
+            console.log(`[uazapi-instance-manager] Webhook configured: ${webhookEndpoint}`);
           } catch (e) {
             console.warn('[uazapi-instance-manager] Webhook config failed:', e);
           }
