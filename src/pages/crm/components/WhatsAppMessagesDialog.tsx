@@ -1853,17 +1853,17 @@ export function WhatsAppMessagesDialog({
                     if (message.type === 'internal_note') {
                       return (
                         <div key={message.id} className="flex justify-center px-4">
-                          <div className="max-w-[85%] w-full rounded-lg px-3 py-2 shadow-sm bg-amber-50 dark:bg-amber-900/20 border border-amber-300/50 dark:border-amber-700/40">
+                          <div className="max-w-[85%] w-full rounded-lg px-3 py-2 shadow-sm bg-blue-50 dark:bg-blue-900/20 border border-blue-300/50 dark:border-blue-700/40">
                             <div className="flex items-center gap-1.5 mb-1">
-                              <StickyNote className="h-3 w-3 text-amber-600 dark:text-amber-400" />
-                              <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                              <StickyNote className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                              <span className="text-[10px] font-semibold text-blue-700 dark:text-blue-300">
                                 Nota Interna
                               </span>
                             </div>
-                            <p className="text-sm text-amber-900 dark:text-amber-100 whitespace-pre-wrap">
+                            <p className="text-sm text-blue-900 dark:text-blue-100 whitespace-pre-wrap">
                               {message.text}
                             </p>
-                            <div className="flex items-center justify-between mt-1.5 text-[10px] text-amber-600/70 dark:text-amber-400/60">
+                            <div className="flex items-center justify-between mt-1.5 text-[10px] text-blue-600/70 dark:text-blue-400/60">
                               <span className="font-medium">{message.authorName}</span>
                               <span>{formatTimeSaoPaulo(message.timestamp)}</span>
                             </div>
@@ -2014,7 +2014,7 @@ export function WhatsAppMessagesDialog({
                 <Button
                   variant={noteMode ? "default" : "ghost"}
                   size="icon"
-                  className={cn("h-7 w-7", noteMode && "bg-amber-500 hover:bg-amber-600 text-white")}
+                  className={cn("h-7 w-7", noteMode && "bg-blue-500 hover:bg-blue-600 text-white")}
                   onClick={() => setNoteMode(!noteMode)}
                 >
                   <StickyNote className="h-4 w-4" />
@@ -2067,9 +2067,9 @@ export function WhatsAppMessagesDialog({
 
           {/* Note mode indicator */}
           {noteMode && (
-            <div className="flex items-center gap-2 px-2 py-1.5 bg-amber-500/10 rounded-md border border-amber-500/30">
-              <StickyNote className="h-3.5 w-3.5 text-amber-600" />
-              <span className="text-xs font-medium text-amber-700 dark:text-amber-400 flex-1">
+            <div className="flex items-center gap-2 px-2 py-1.5 bg-blue-500/10 rounded-md border border-blue-500/30">
+              <StickyNote className="h-3.5 w-3.5 text-blue-600" />
+              <span className="text-xs font-medium text-blue-700 dark:text-blue-400 flex-1">
                 Modo nota interna — não será enviada ao WhatsApp
               </span>
               <Button
@@ -2111,7 +2111,7 @@ export function WhatsAppMessagesDialog({
               size="icon"
               className={cn(
                 "shrink-0 h-[38px] w-[38px]",
-                noteMode && "bg-amber-500 hover:bg-amber-600"
+                noteMode && "bg-blue-500 hover:bg-blue-600"
               )}
               onClick={noteMode ? handleSendNote : handleSendMessage}
               disabled={!newMessage.trim() || (!isConfigured && !noteMode) || sending || sendingNote || isRecording}
