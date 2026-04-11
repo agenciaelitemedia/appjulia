@@ -34,7 +34,8 @@ export type ModuleCode =
   | 'adv_dashboard'
   | 'crm_comercial'
   | 'support_assistant'
-  | 'quick_messages';
+  | 'quick_messages'
+  | 'filas';
 
 export interface Module {
   id: number;
