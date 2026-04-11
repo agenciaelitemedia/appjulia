@@ -86,6 +86,7 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
             evoUrl={queue.evo_url}
             evoApikey={queue.evo_apikey}
             evoInstance={queue.evo_instance}
+            queueName={queue.name}
           />
         )}
       </CardContent>
