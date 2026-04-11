@@ -4,8 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
-import { Bot, Check, Eye, Pencil, Phone, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Bot, Check, Eye, Pencil, Phone, X, Network } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserAgent } from '../types';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
@@ -13,6 +13,7 @@ import { useConnectedPhoneInfo } from '../hooks/useConnectedPhoneInfo';
 import { ConnectionStatusBadge } from './ConnectionStatusBadge';
 import { ConnectionControlButtons } from './ConnectionControlButtons';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
+import { useAgentQueues } from '@/pages/agente/filas/hooks/useAgentQueues';
 import { toast } from 'sonner';
 
 interface AgentCardProps {
