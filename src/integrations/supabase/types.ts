@@ -193,6 +193,7 @@ export type Database = {
           opened_at: string
           priority: string
           protocol: string
+          queue_id: string | null
           resolved_at: string | null
           status: string
           tags: string[] | null
@@ -215,6 +216,7 @@ export type Database = {
           opened_at?: string
           priority?: string
           protocol: string
+          queue_id?: string | null
           resolved_at?: string | null
           status?: string
           tags?: string[] | null
@@ -237,6 +239,7 @@ export type Database = {
           opened_at?: string
           priority?: string
           protocol?: string
+          queue_id?: string | null
           resolved_at?: string | null
           status?: string
           tags?: string[] | null
@@ -248,6 +251,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "chat_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_conversations_queue_id_fkey"
+            columns: ["queue_id"]
+            isOneToOne: false
+            referencedRelation: "queues"
             referencedColumns: ["id"]
           },
         ]
@@ -1805,6 +1815,7 @@ export type Database = {
           is_active: boolean
           page_access_token: string | null
           page_name: string | null
+          queue_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1817,6 +1828,7 @@ export type Database = {
           is_active?: boolean
           page_access_token?: string | null
           page_name?: string | null
+          queue_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1829,9 +1841,18 @@ export type Database = {
           is_active?: boolean
           page_access_token?: string | null
           page_name?: string | null
+          queue_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "instagram_config_queue_id_fkey"
+            columns: ["queue_id"]
+            isOneToOne: false
+            referencedRelation: "queues"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       julia_contract_template: {
         Row: {
@@ -2263,6 +2284,95 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      queue_agent_links: {
+        Row: {
+          cod_agent: string
+          created_at: string
+          id: string
+          is_primary: boolean
+          queue_id: string
+        }
+        Insert: {
+          cod_agent: string
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          queue_id: string
+        }
+        Update: {
+          cod_agent?: string
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          queue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "queue_agent_links_queue_id_fkey"
+            columns: ["queue_id"]
+            isOneToOne: false
+            referencedRelation: "queues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      queues: {
+        Row: {
+          channel_type: string
+          client_id: string
+          created_at: string
+          deleted_at: string | null
+          evo_apikey: string | null
+          evo_instance: string | null
+          evo_url: string | null
+          hub: string | null
+          id: string
+          is_active: boolean
+          is_deleted: boolean
+          name: string
+          updated_at: string
+          waba_id: string | null
+          waba_number_id: string | null
+          waba_token: string | null
+        }
+        Insert: {
+          channel_type?: string
+          client_id: string
+          created_at?: string
+          deleted_at?: string | null
+          evo_apikey?: string | null
+          evo_instance?: string | null
+          evo_url?: string | null
+          hub?: string | null
+          id?: string
+          is_active?: boolean
+          is_deleted?: boolean
+          name: string
+          updated_at?: string
+          waba_id?: string | null
+          waba_number_id?: string | null
+          waba_token?: string | null
+        }
+        Update: {
+          channel_type?: string
+          client_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          evo_apikey?: string | null
+          evo_instance?: string | null
+          evo_url?: string | null
+          hub?: string | null
+          id?: string
+          is_active?: boolean
+          is_deleted?: boolean
+          name?: string
+          updated_at?: string
+          waba_id?: string | null
+          waba_number_id?: string | null
+          waba_token?: string | null
+        }
+        Relationships: []
       }
       quick_messages: {
         Row: {
