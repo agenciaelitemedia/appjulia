@@ -1,8 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Users, Archive, VolumeX, Trash2, Info, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare } from 'lucide-react';
+import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { cn } from '@/lib/utils';
 import type { ChatContact } from '@/types/chat';
 
 interface ChatHeaderProps {
@@ -12,6 +17,10 @@ interface ChatHeaderProps {
 }
 
 export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps) {
+  const { selectedConversation, updateConversationStatus } = useWhatsAppData();
+  const [showCloseDialog, setShowCloseDialog] = useState(false);
+  const [closeNote, setCloseNote] = useState('');
+
   const initials = contact.name
     .split(' ')
     .slice(0, 2)
@@ -19,59 +28,165 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
     .join('')
     .toUpperCase();
 
+  const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+    pending: { label: 'Pendente', color: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/30', icon: <Clock className="h-3 w-3" /> },
+    open: { label: 'Em atendimento', color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30', icon: <MessageSquare className="h-3 w-3" /> },
+    closed: { label: 'Encerrada', color: 'bg-muted text-muted-foreground border-border', icon: <XCircle className="h-3 w-3" /> },
+    resolved: { label: 'Resolvida', color: 'bg-blue-500/10 text-blue-600 border-blue-500/30', icon: <CheckCircle2 className="h-3 w-3" /> },
+  };
+
+  const currentStatus = selectedConversation?.status || 'pending';
+  const statusInfo = statusConfig[currentStatus] || statusConfig.pending;
+
+  const handleClose = async () => {
+    if (!selectedConversation) return;
+    await updateConversationStatus(selectedConversation.id, 'closed', closeNote || undefined);
+    setShowCloseDialog(false);
+    setCloseNote('');
+  };
+
+  const handleResolve = async () => {
+    if (!selectedConversation) return;
+    await updateConversationStatus(selectedConversation.id, 'resolved');
+  };
+
+  const handleReopen = async () => {
+    if (!selectedConversation) return;
+    await updateConversationStatus(selectedConversation.id, 'open');
+  };
+
   return (
-    <div className="flex items-center gap-3 p-3 border-b bg-background">
-      <Avatar className="h-10 w-10">
-        <AvatarImage src={contact.avatar} alt={contact.name} />
-        <AvatarFallback className="bg-primary/10 text-primary font-medium">
-          {contact.is_group ? <Users className="h-4 w-4" /> : initials}
-        </AvatarFallback>
-      </Avatar>
-      
-      <div className="flex-1 min-w-0">
-        <h3 className="font-medium truncate">{contact.name}</h3>
-        <p className="text-xs text-muted-foreground truncate">
-          {contact.is_group ? 'Grupo' : contact.phone}
-        </p>
-      </div>
-      
-      <div className="flex items-center gap-1">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onShowDetails}>
-              <Info className="h-4 w-4 mr-2" />
-              Ver detalhes
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled>
-              <Archive className="h-4 w-4 mr-2" />
-              {contact.is_archived ? 'Desarquivar' : 'Arquivar'}
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled>
-              <VolumeX className="h-4 w-4 mr-2" />
-              {contact.is_muted ? 'Ativar notificações' : 'Silenciar'}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive" disabled>
-              <Trash2 className="h-4 w-4 mr-2" />
-              Excluir conversa
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+    <>
+      <div className="flex items-center gap-3 p-3 border-b bg-background">
+        <Avatar className="h-10 w-10">
+          <AvatarImage src={contact.avatar} alt={contact.name} />
+          <AvatarFallback className="bg-primary/10 text-primary font-medium">
+            {contact.is_group ? <Users className="h-4 w-4" /> : initials}
+          </AvatarFallback>
+        </Avatar>
         
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="h-8 w-8 lg:hidden" 
-          onClick={onClose}
-        >
-          <X className="h-4 w-4" />
-        </Button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="font-medium truncate">{contact.name}</h3>
+            {selectedConversation && (
+              <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0 h-5 gap-1 border', statusInfo.color)}>
+                {statusInfo.icon}
+                {statusInfo.label}
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-muted-foreground truncate">
+              {contact.is_group ? 'Grupo' : contact.phone}
+            </p>
+            {selectedConversation?.protocol && (
+              <span className="text-[10px] text-muted-foreground font-mono">
+                {selectedConversation.protocol}
+              </span>
+            )}
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-1">
+          {/* Quick action buttons for conversation */}
+          {selectedConversation && ['pending', 'open'].includes(currentStatus) && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                onClick={handleResolve}
+                title="Marcar como resolvida"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => setShowCloseDialog(true)}
+                title="Encerrar conversa"
+              >
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+
+          {selectedConversation && ['closed', 'resolved'].includes(currentStatus) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={handleReopen}
+            >
+              <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
+              Reabrir
+            </Button>
+          )}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onShowDetails}>
+                <Info className="h-4 w-4 mr-2" />
+                Ver detalhes
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {selectedConversation && ['pending', 'open'].includes(currentStatus) && (
+                <>
+                  <DropdownMenuItem onClick={handleResolve}>
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Marcar como resolvida
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowCloseDialog(true)} className="text-destructive">
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Encerrar conversa
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8 lg:hidden" 
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
-    </div>
+
+      {/* Close conversation dialog */}
+      <Dialog open={showCloseDialog} onOpenChange={setShowCloseDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Encerrar conversa</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja encerrar esta conversa? Adicione uma nota opcional.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            placeholder="Motivo do encerramento (opcional)..."
+            value={closeNote}
+            onChange={(e) => setCloseNote(e.target.value)}
+            rows={3}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCloseDialog(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleClose}>
+              Encerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -3,6 +3,7 @@ import { ChatList } from './ChatList';
 import { ChatHeader } from './ChatHeader';
 import { ChatMessages } from './ChatMessages';
 import { ChatInput } from './ChatInput';
+import { ContactDetailPanel } from './ContactDetailPanel';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -12,13 +13,13 @@ interface ChatContainerProps {
 }
 
 export function ChatContainer({ className }: ChatContainerProps) {
-  const { selectedContact, selectContact, selectedContactId } = useWhatsAppData();
+  const { selectedContact, selectContact, selectedContactId, showDetailPanel, setShowDetailPanel } = useWhatsAppData();
 
   return (
     <div className={cn('flex h-full bg-background min-w-0 overflow-hidden', className)}>
-      {/* Contact list - always visible on desktop, hidden on mobile when chat is open */}
+      {/* Contact list sidebar */}
       <div className={cn(
-        'w-full lg:w-80 lg:max-w-80 lg:flex-shrink-0 flex-shrink-0',
+        'w-full lg:w-80 lg:max-w-80 lg:flex-shrink-0 flex-shrink-0 border-r',
         selectedContact && 'hidden lg:flex lg:flex-col'
       )}>
         <ChatList />
@@ -34,6 +35,7 @@ export function ChatContainer({ className }: ChatContainerProps) {
             <ChatHeader 
               contact={selectedContact} 
               onClose={() => selectContact(null)}
+              onShowDetails={() => setShowDetailPanel(!showDetailPanel)}
             />
             <ChatMessages contactId={selectedContactId!} />
             <ChatInput contactId={selectedContactId!} />
@@ -48,6 +50,16 @@ export function ChatContainer({ className }: ChatContainerProps) {
           </div>
         )}
       </div>
+
+      {/* Contact detail panel - right side */}
+      {selectedContact && showDetailPanel && (
+        <div className="hidden lg:flex w-80 flex-shrink-0 border-l">
+          <ContactDetailPanel 
+            contact={selectedContact}
+            onClose={() => setShowDetailPanel(false)}
+          />
+        </div>
+      )}
     </div>
   );
 }
