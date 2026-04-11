@@ -8,6 +8,7 @@
 // ============================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveQueueByWebchatAgent, resolveQueueId } from "../_shared/resolve-queue.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
