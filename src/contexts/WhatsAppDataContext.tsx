@@ -496,7 +496,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           },
         });
         if (error) throw error;
-        externalMessageId = data?.messageId || data?.id;
+        const proxyData = data?.data || data;
+        externalMessageId = proxyData?.messageId || proxyData?.id;
       }
 
       setMessages(prev => ({
