@@ -9,6 +9,7 @@ import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Cl
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { cn } from '@/lib/utils';
 import type { ChatContact } from '@/types/chat';
+import { TransferDialog } from './TransferDialog';
 
 interface ChatHeaderProps {
   contact: ChatContact;
@@ -17,8 +18,9 @@ interface ChatHeaderProps {
 }
 
 export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps) {
-  const { selectedConversation, updateConversationStatus } = useWhatsAppData();
+  const { selectedConversation, updateConversationStatus, assignConversation } = useWhatsAppData();
   const [showCloseDialog, setShowCloseDialog] = useState(false);
+  const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [closeNote, setCloseNote] = useState('');
 
   const initials = contact.name
@@ -53,6 +55,11 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const handleReopen = async () => {
     if (!selectedConversation) return;
     await updateConversationStatus(selectedConversation.id, 'open');
+  };
+
+  const handleTransfer = async (assignedTo: string, note?: string) => {
+    if (!selectedConversation) return;
+    await assignConversation(selectedConversation.id, assignedTo);
   };
 
   return (
@@ -91,6 +98,15 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
           {/* Quick action buttons for conversation */}
           {selectedConversation && ['pending', 'open'].includes(currentStatus) && (
             <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                onClick={() => setShowTransferDialog(true)}
+                title="Transferir conversa"
+              >
+                <ArrowRightLeft className="h-4 w-4" />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
@@ -138,6 +154,10 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
               <DropdownMenuSeparator />
               {selectedConversation && ['pending', 'open'].includes(currentStatus) && (
                 <>
+                  <DropdownMenuItem onClick={() => setShowTransferDialog(true)}>
+                    <ArrowRightLeft className="h-4 w-4 mr-2" />
+                    Transferir
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleResolve}>
                     <CheckCircle2 className="h-4 w-4 mr-2" />
                     Marcar como resolvida
@@ -187,6 +207,13 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Transfer dialog */}
+      <TransferDialog
+        open={showTransferDialog}
+        onOpenChange={setShowTransferDialog}
+        onTransfer={handleTransfer}
+      />
     </>
   );
 }

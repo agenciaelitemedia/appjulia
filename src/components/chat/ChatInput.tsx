@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import type { MessageType } from '@/types/chat';
 import { QuickMessagePicker } from './QuickMessagePicker';
+import { AudioRecorder } from './AudioRecorder';
 
 interface ChatInputProps {
   contactId: string;
@@ -108,6 +109,22 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
     setShowQuickMessages(false);
     textareaRef.current?.focus();
   };
+
+  const handleAudioSend = useCallback(async (audioBlob: Blob) => {
+    const file = new File([audioBlob], `audio_${Date.now()}.webm`, { type: 'audio/webm;codecs=opus' });
+    await sendMedia(contactId, file, 'ptt');
+    setIsRecording(false);
+  }, [contactId, sendMedia]);
+
+  // Audio recording mode
+  if (isRecording) {
+    return (
+      <AudioRecorder
+        onSend={handleAudioSend}
+        onCancel={() => setIsRecording(false)}
+      />
+    );
+  }
 
   return (
     <div className="border-t bg-background">
@@ -277,13 +294,9 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
             <Button
               variant="ghost"
               size="icon"
-              className={cn(
-                'h-9 w-9 flex-shrink-0',
-                isRecording && 'text-destructive animate-pulse'
-              )}
-              onClick={() => setIsRecording(!isRecording)}
-              disabled
-              title="Gravação de áudio (em breve)"
+              className="h-9 w-9 flex-shrink-0 hover:text-destructive"
+              onClick={() => setIsRecording(true)}
+              title="Gravar áudio"
             >
               <Mic className="h-5 w-5 text-muted-foreground" />
             </Button>
