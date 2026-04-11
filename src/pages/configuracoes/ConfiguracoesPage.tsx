@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Plus, Loader2, Network } from 'lucide-react';
@@ -9,10 +9,30 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function ConfiguracoesPage() {
   const { data: providers = [], isLoading } = useQueueProviders();
   const { deleteProvider } = useQueueProviderMutations();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const seeded = useRef(false);
+
+  // Auto-seed UaZapi provider from server secrets on first load
+  useEffect(() => {
+    if (seeded.current || isLoading || !user?.client_id) return;
+    const hasUazapi = providers.some((p) => p.provider_type === 'uazapi');
+    if (hasUazapi) { seeded.current = true; return; }
+
+    seeded.current = true;
+    supabase.functions.invoke('seed-uazapi-provider', {
+      body: { client_id: String(user.client_id) },
+    }).then(({ error }) => {
+      if (!error) queryClient.invalidateQueries({ queryKey: ['queue-providers'] });
+    });
+  }, [isLoading, providers, user?.client_id, queryClient]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<QueueProvider | null>(null);
