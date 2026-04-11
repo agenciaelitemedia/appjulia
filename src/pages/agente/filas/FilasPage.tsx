@@ -8,6 +8,7 @@ import { QueueCard } from './components/QueueCard';
 import { QueueFormDialog } from './components/QueueFormDialog';
 import { DeleteQueueDialog } from './components/DeleteQueueDialog';
 import { ManageAgentsDialog } from './components/ManageAgentsDialog';
+import { useEnsureFilasModule } from '@/hooks/useEnsureFilasModule';
 
 export default function FilasPage() {
   const [showDeleted, setShowDeleted] = useState(false);
