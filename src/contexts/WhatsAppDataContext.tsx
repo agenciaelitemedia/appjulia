@@ -12,20 +12,55 @@ import type {
   UaZapiMessage,
   MessageMetadata,
 } from '@/types/chat';
+import type {
+  ChatConversation,
+  ConversationStatus,
+  ConversationFilterStatus,
+  ConversationHistoryEntry,
+  ChatTag,
+} from '@/types/conversation';
 
 // ============================================
 // Context Creation
 // ============================================
 
-interface ExtendedContextValue extends ChatContextValue {
-  selectedAgent: SelectedAgent | null;
-  setSelectedAgent: (agent: SelectedAgent | null) => void;
-}
-
 export interface SelectedAgent {
   cod_agent: string;
   hub: 'uazapi' | 'waba';
   name?: string;
+}
+
+interface ExtendedContextValue extends ChatContextValue {
+  selectedAgent: SelectedAgent | null;
+  setSelectedAgent: (agent: SelectedAgent | null) => void;
+  
+  // Conversations
+  conversations: ChatConversation[];
+  selectedConversation: ChatConversation | null;
+  conversationStatusFilter: ConversationFilterStatus;
+  setConversationStatusFilter: (status: ConversationFilterStatus) => void;
+  loadConversations: () => Promise<void>;
+  getOrCreateConversation: (contactId: string) => Promise<ChatConversation | null>;
+  updateConversationStatus: (conversationId: string, status: ConversationStatus, note?: string) => Promise<void>;
+  assignConversation: (conversationId: string, assignedTo: string) => Promise<void>;
+  
+  // Tags
+  tags: ChatTag[];
+  loadTags: () => Promise<void>;
+  addTagToConversation: (conversationId: string, tagId: string) => Promise<void>;
+  removeTagFromConversation: (conversationId: string, tagId: string) => Promise<void>;
+  createTag: (name: string, color: string) => Promise<ChatTag | null>;
+  
+  // Internal notes
+  sendInternalNote: (contactId: string, text: string, senderName: string) => Promise<void>;
+  
+  // Contact detail panel
+  showDetailPanel: boolean;
+  setShowDetailPanel: (show: boolean) => void;
+  
+  // Conversation history
+  conversationHistory: ConversationHistoryEntry[];
+  loadConversationHistory: (conversationId: string) => Promise<void>;
 }
 
 const WhatsAppDataContext = createContext<ExtendedContextValue | undefined>(undefined);
@@ -188,6 +223,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<SelectedAgent | null>(null);
+  
+  // Conversation state
+  const [conversations, setConversations] = useState<ChatConversation[]>([]);
+  const [conversationStatusFilter, setConversationStatusFilter] = useState<ConversationFilterStatus>('all');
+  const [showDetailPanel, setShowDetailPanel] = useState(false);
+  const [tags, setTags] = useState<ChatTag[]>([]);
+  const [conversationHistory, setConversationHistory] = useState<ConversationHistoryEntry[]>([]);
 
   // Track known message IDs to prevent realtime duplicates
   const knownMessageIds = useRef<Set<string>>(new Set());
@@ -230,6 +272,264 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   }, [clientId, currentCodAgent]);
 
   // ============================================
+  // Conversations
+  // ============================================
+  const loadConversations = useCallback(async () => {
+    if (!clientId) return;
+    
+    try {
+      let query = supabase
+        .from('chat_conversations')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('updated_at', { ascending: false });
+      
+      if (currentCodAgent) {
+        query = query.eq('cod_agent', currentCodAgent);
+      }
+      
+      if (conversationStatusFilter !== 'all') {
+        query = query.eq('status', conversationStatusFilter);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      setConversations((data || []) as ChatConversation[]);
+    } catch (error) {
+      console.error('Error loading conversations:', error);
+    }
+  }, [clientId, currentCodAgent, conversationStatusFilter]);
+
+  const getOrCreateConversation = useCallback(async (contactId: string): Promise<ChatConversation | null> => {
+    if (!clientId) return null;
+    
+    try {
+      // Check for existing open conversation
+      const { data: existing } = await supabase
+        .from('chat_conversations')
+        .select('*')
+        .eq('contact_id', contactId)
+        .eq('client_id', clientId)
+        .in('status', ['pending', 'open'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (existing) return existing as ChatConversation;
+      
+      // Create new conversation
+      const channel = currentHub === 'waba' ? 'whatsapp_waba' : 'whatsapp_uazapi';
+      const { data: newConv, error } = await supabase
+        .from('chat_conversations')
+        .insert({
+          contact_id: contactId,
+          client_id: clientId,
+          cod_agent: currentCodAgent,
+          channel,
+          status: 'open',
+          priority: 'normal',
+          protocol: '', // Will be auto-generated by trigger
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      // Add to local state
+      if (newConv) {
+        const conv = newConv as ChatConversation;
+        setConversations(prev => [conv, ...prev]);
+        
+        // Log history
+        await supabase.from('chat_conversation_history').insert({
+          conversation_id: conv.id,
+          action: 'opened',
+          actor_name: user?.name || 'Sistema',
+          to_value: 'open',
+        });
+        
+        return conv;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error getting/creating conversation:', error);
+      return null;
+    }
+  }, [clientId, currentCodAgent, currentHub, user?.name]);
+
+  const updateConversationStatus = useCallback(async (
+    conversationId: string,
+    status: ConversationStatus,
+    note?: string
+  ) => {
+    try {
+      const updates: Record<string, unknown> = { status };
+      
+      if (status === 'closed') {
+        updates.closed_at = new Date().toISOString();
+        if (note) updates.close_note = note;
+      }
+      if (status === 'resolved') {
+        updates.resolved_at = new Date().toISOString();
+      }
+      if (status === 'open') {
+        // If reopening, clear close timestamps
+        updates.closed_at = null;
+        updates.resolved_at = null;
+      }
+      
+      const { error } = await supabase
+        .from('chat_conversations')
+        .update(updates)
+        .eq('id', conversationId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setConversations(prev => prev.map(c => 
+        c.id === conversationId ? { ...c, ...updates } as ChatConversation : c
+      ));
+      
+      // Log history
+      await supabase.from('chat_conversation_history').insert({
+        conversation_id: conversationId,
+        action: status === 'closed' ? 'closed' : status === 'resolved' ? 'resolved' : 'reopened',
+        actor_name: user?.name || 'Sistema',
+        to_value: status,
+        notes: note,
+      });
+      
+      toast.success(
+        status === 'closed' ? 'Conversa encerrada' :
+        status === 'resolved' ? 'Conversa resolvida' :
+        'Conversa reaberta'
+      );
+    } catch (error) {
+      console.error('Error updating conversation status:', error);
+      toast.error('Erro ao atualizar status');
+    }
+  }, [user?.name]);
+
+  const assignConversation = useCallback(async (conversationId: string, assignedTo: string) => {
+    try {
+      const { error } = await supabase
+        .from('chat_conversations')
+        .update({ assigned_to: assignedTo })
+        .eq('id', conversationId);
+      
+      if (error) throw error;
+      
+      setConversations(prev => prev.map(c =>
+        c.id === conversationId ? { ...c, assigned_to: assignedTo } : c
+      ));
+      
+      await supabase.from('chat_conversation_history').insert({
+        conversation_id: conversationId,
+        action: 'assigned',
+        actor_name: user?.name || 'Sistema',
+        to_value: assignedTo,
+      });
+      
+      toast.success('Conversa transferida');
+    } catch (error) {
+      console.error('Error assigning conversation:', error);
+      toast.error('Erro ao transferir conversa');
+    }
+  }, [user?.name]);
+
+  // ============================================
+  // Tags
+  // ============================================
+  const loadTags = useCallback(async () => {
+    if (!clientId) return;
+    const { data } = await supabase
+      .from('chat_tags')
+      .select('*')
+      .eq('client_id', clientId);
+    setTags((data || []) as ChatTag[]);
+  }, [clientId]);
+
+  const createTag = useCallback(async (name: string, color: string): Promise<ChatTag | null> => {
+    if (!clientId) return null;
+    const { data, error } = await supabase
+      .from('chat_tags')
+      .insert({ name, color, client_id: clientId })
+      .select()
+      .single();
+    if (error) { toast.error('Erro ao criar tag'); return null; }
+    const tag = data as ChatTag;
+    setTags(prev => [...prev, tag]);
+    return tag;
+  }, [clientId]);
+
+  const addTagToConversation = useCallback(async (conversationId: string, tagId: string) => {
+    await supabase.from('chat_conversation_tags').insert({ conversation_id: conversationId, tag_id: tagId });
+  }, []);
+
+  const removeTagFromConversation = useCallback(async (conversationId: string, tagId: string) => {
+    await supabase.from('chat_conversation_tags').delete().eq('conversation_id', conversationId).eq('tag_id', tagId);
+  }, []);
+
+  // ============================================
+  // Conversation History
+  // ============================================
+  const loadConversationHistory = useCallback(async (conversationId: string) => {
+    const { data } = await supabase
+      .from('chat_conversation_history')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: false });
+    setConversationHistory((data || []) as ConversationHistoryEntry[]);
+  }, []);
+
+  // ============================================
+  // Internal Notes
+  // ============================================
+  const sendInternalNote = useCallback(async (contactId: string, text: string, senderName: string) => {
+    if (!clientId) return;
+    
+    const noteMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      contact_id: contactId,
+      client_id: clientId,
+      text,
+      type: 'text',
+      from_me: true,
+      status: 'sent',
+      timestamp: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    };
+
+    // Save to DB with internal_note flag
+    await supabase.from('chat_messages').insert({
+      id: noteMessage.id,
+      contact_id: contactId,
+      client_id: clientId,
+      text,
+      type: 'text',
+      from_me: true,
+      status: 'sent',
+      internal_note: true,
+      sender_name: senderName,
+      timestamp: noteMessage.timestamp,
+    });
+
+    // Add to local messages with metadata flag
+    const noteWithMeta = {
+      ...noteMessage,
+      metadata: { ...noteMessage.metadata, internal_note: true, sender_name: senderName },
+    };
+    
+    knownMessageIds.current.add(noteMessage.id);
+    setMessages(prev => ({
+      ...prev,
+      [contactId]: [...(prev[contactId] || []), noteWithMeta],
+    }));
+  }, [clientId]);
+
+  // ============================================
   // Load Messages from Supabase + API
   // ============================================
   const loadMessages = useCallback(async (
@@ -243,7 +543,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     if (!contact) return { messages: [], hasMore: false };
     
     try {
-      // Load from Supabase (works for both WABA and UaZapi - messages come from webhooks)
       const { data: cachedMessages, error: cacheError } = await supabase
         .from('chat_messages')
         .select('*')
@@ -254,9 +553,15 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       if (cacheError) throw cacheError;
       
       if (cachedMessages && cachedMessages.length > 0) {
-        const chatMessages = cachedMessages as ChatMessage[];
+        const chatMessages = cachedMessages.map((m: any) => ({
+          ...m,
+          metadata: {
+            ...(m.metadata || {}),
+            internal_note: m.internal_note,
+            sender_name: m.sender_name || m.metadata?.sender_name,
+          },
+        })) as ChatMessage[];
         
-        // Track known IDs
         chatMessages.forEach(m => knownMessageIds.current.add(m.id));
         
         setMessages(prev => ({
@@ -281,7 +586,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           convertUaZapiMessageToChatMessage(msg, contactId, clientId)
         );
         
-        // Save to Supabase cache using external_id for dedup
         if (apiMessages.length > 0) {
           for (const m of apiMessages) {
             await supabase.from('chat_messages').upsert({
@@ -304,7 +608,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             } as any, { onConflict: 'contact_id,external_id' });
           }
           
-          // Track known IDs
           apiMessages.forEach(m => knownMessageIds.current.add(m.id));
         }
         
@@ -338,7 +641,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     const contact = contacts.find(c => c.id === contactId);
     if (!contact) return;
     
-    // Optimistic update
+    // Ensure conversation exists
+    const conversation = await getOrCreateConversation(contactId);
+    
     const tempMessage: ChatMessage = {
       id: crypto.randomUUID(),
       contact_id: contactId,
@@ -362,7 +667,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       let externalMessageId: string | undefined;
 
       if (currentHub === 'waba' && currentCodAgent) {
-        // Send via WABA edge function
         const { data, error } = await supabase.functions.invoke('waba-send', {
           body: {
             action: 'send_text',
@@ -374,7 +678,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         if (error) throw error;
         externalMessageId = data?.messageId || data?.messages?.[0]?.id;
       } else if (currentHub === 'uazapi' && isConfigured) {
-        // Send via UaZapi
         const response = await message.sendText({
           number: contact.phone,
           text,
@@ -385,7 +688,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         throw new Error('Nenhum provedor configurado para envio');
       }
       
-      // Update message status
       setMessages(prev => ({
         ...prev,
         [contactId]: prev[contactId]?.map(m =>
@@ -395,7 +697,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         ) || [],
       }));
       
-      // Save to Supabase
+      // Save to Supabase with conversation_id
       await supabase.from('chat_messages').insert({
         id: tempMessage.id,
         contact_id: tempMessage.contact_id,
@@ -408,7 +710,20 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         external_id: externalMessageId,
         timestamp: tempMessage.timestamp,
         created_at: tempMessage.created_at,
+        conversation_id: conversation?.id,
+        sender_name: user?.name,
       });
+      
+      // Update first_response_at if this is the first agent response
+      if (conversation && !conversation.first_response_at) {
+        await supabase
+          .from('chat_conversations')
+          .update({ 
+            first_response_at: new Date().toISOString(),
+            status: 'open',
+          })
+          .eq('id', conversation.id);
+      }
       
       // Update contact's last message
       await supabase
@@ -430,7 +745,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         ) || [],
       }));
     }
-  }, [clientId, contacts, currentHub, currentCodAgent, isConfigured, message]);
+  }, [clientId, contacts, currentHub, currentCodAgent, isConfigured, message, getOrCreateConversation, user?.name]);
 
   // ============================================
   // Send Media (Omnichannel)
@@ -444,7 +759,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     const contact = contacts.find(c => c.id === contactId);
     if (!contact) return;
     
-    // Optimistic update with preview
+    const conversation = await getOrCreateConversation(contactId);
+    
     const previewUrl = URL.createObjectURL(file);
     const tempMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -469,7 +785,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     }));
     
     try {
-      // Convert file to base64
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
@@ -479,6 +794,26 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
+
+      // Upload to Storage first
+      let persistedUrl = previewUrl;
+      try {
+        const { data: uploadData } = await supabase.functions.invoke('chat-media-upload', {
+          body: {
+            base64,
+            mimetype: file.type,
+            fileName: file.name,
+            contactId,
+            clientId,
+            source: 'outgoing',
+          },
+        });
+        if (uploadData?.url) {
+          persistedUrl = uploadData.url;
+        }
+      } catch (uploadErr) {
+        console.warn('Media upload to storage failed, using preview URL:', uploadErr);
+      }
 
       let externalMessageId: string | undefined;
       
@@ -515,17 +850,15 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         throw new Error('Nenhum provedor configurado para envio');
       }
       
-      // Update status
       setMessages(prev => ({
         ...prev,
         [contactId]: prev[contactId]?.map(m =>
           m.id === tempMessage.id
-            ? { ...m, message_id: externalMessageId, status: 'sent' as const }
+            ? { ...m, message_id: externalMessageId, status: 'sent' as const, media_url: persistedUrl }
             : m
         ) || [],
       }));
       
-      // Save to Supabase
       await supabase.from('chat_messages').insert({
         id: tempMessage.id,
         contact_id: tempMessage.contact_id,
@@ -536,11 +869,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         status: 'sent',
         message_id: externalMessageId,
         external_id: externalMessageId,
-        media_url: previewUrl,
+        media_url: persistedUrl,
         file_name: file.name,
         caption,
         timestamp: tempMessage.timestamp,
         created_at: tempMessage.created_at,
+        conversation_id: conversation?.id,
+        sender_name: user?.name,
       });
       
       toast.success('Mídia enviada');
@@ -555,7 +890,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         ) || [],
       }));
     }
-  }, [clientId, contacts, currentHub, currentCodAgent, isConfigured, message]);
+  }, [clientId, contacts, currentHub, currentCodAgent, isConfigured, message, getOrCreateConversation, user?.name]);
 
   // ============================================
   // Mark as Read
@@ -589,7 +924,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     const agentFilter = codAgent || currentCodAgent;
     
     if (currentHub === 'uazapi' && isConfigured) {
-      // UaZapi: fetch contacts from API
       setIsSyncing(true);
       try {
         const response = await chat.find({
@@ -629,7 +963,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         setIsSyncing(false);
       }
     } else if (currentHub === 'waba') {
-      // WABA: contacts come from webhooks, just reload from DB
       setIsSyncing(true);
       try {
         await loadContacts(agentFilter);
@@ -650,6 +983,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     [contacts, selectedContactId]
   );
 
+  const selectedConversation = useMemo(() => {
+    if (!selectedContactId) return null;
+    return conversations.find(c => c.contact_id === selectedContactId && ['pending', 'open'].includes(c.status)) || null;
+  }, [conversations, selectedContactId]);
+
   const filteredContacts = useMemo(() => {
     let filtered = contacts;
     
@@ -667,8 +1005,16 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       );
     }
     
+    // Filter by conversation status if not 'all'
+    if (conversationStatusFilter !== 'all') {
+      const contactIdsWithStatus = conversations
+        .filter(c => c.status === conversationStatusFilter)
+        .map(c => c.contact_id);
+      filtered = filtered.filter(c => contactIdsWithStatus.includes(c.id));
+    }
+    
     return filtered;
-  }, [contacts, activeTab, searchQuery]);
+  }, [contacts, activeTab, searchQuery, conversationStatusFilter, conversations]);
 
   const totalUnreadCount = useMemo(() =>
     contacts.reduce((sum, c) => sum + (c.unread_count || 0), 0),
@@ -686,7 +1032,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   );
 
   // ============================================
-  // Realtime Subscriptions (with deduplication)
+  // Realtime Subscriptions
   // ============================================
   useEffect(() => {
     if (!clientId) return;
@@ -730,24 +1076,32 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           filter: `client_id=eq.${clientId}`,
         },
         (payload) => {
-          const newMessage = payload.new as ChatMessage;
+          const newMessage = payload.new as any;
           
-          // Skip if we already have this message (from optimistic update or previous load)
           if (knownMessageIds.current.has(newMessage.id)) return;
           knownMessageIds.current.add(newMessage.id);
           
+          // Enrich with internal_note metadata
+          const enriched: ChatMessage = {
+            ...newMessage,
+            metadata: {
+              ...(newMessage.metadata || {}),
+              internal_note: newMessage.internal_note,
+              sender_name: newMessage.sender_name || newMessage.metadata?.sender_name,
+            },
+          };
+          
           setMessages(prev => {
-            const existing = prev[newMessage.contact_id] || [];
-            // Also check by external_id to be safe
+            const existing = prev[enriched.contact_id] || [];
             const isDuplicate = existing.some(m => 
-              m.id === newMessage.id || 
-              (m.message_id && newMessage.message_id && m.message_id === newMessage.message_id)
+              m.id === enriched.id || 
+              (m.message_id && enriched.message_id && m.message_id === enriched.message_id)
             );
             if (isDuplicate) return prev;
             
             return {
               ...prev,
-              [newMessage.contact_id]: [...existing, newMessage],
+              [enriched.contact_id]: [...existing, enriched],
             };
           });
         }
@@ -772,9 +1126,37 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       )
       .subscribe();
 
+    // Realtime for conversations
+    const conversationsChannel = supabase
+      .channel('chat_conversations_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chat_conversations',
+          filter: `client_id=eq.${clientId}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setConversations(prev => {
+              const exists = prev.some(c => c.id === (payload.new as ChatConversation).id);
+              if (exists) return prev;
+              return [payload.new as ChatConversation, ...prev];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            setConversations(prev =>
+              prev.map(c => (c.id === (payload.new as ChatConversation).id ? payload.new as ChatConversation : c))
+            );
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(contactsChannel);
       supabase.removeChannel(messagesChannel);
+      supabase.removeChannel(conversationsChannel);
     };
   }, [clientId]);
 
@@ -782,11 +1164,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   useEffect(() => {
     if (currentCodAgent && clientId) {
       loadContacts(currentCodAgent);
+      loadConversations();
+      loadTags();
       setSelectedContactId(null);
       setMessages({});
       knownMessageIds.current.clear();
     }
-  }, [currentCodAgent, clientId, loadContacts]);
+  }, [currentCodAgent, clientId, loadContacts, loadConversations, loadTags]);
 
   // ============================================
   // Context Value
@@ -822,11 +1206,42 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     // Agent selection
     selectedAgent,
     setSelectedAgent,
+    
+    // Conversations
+    conversations,
+    selectedConversation,
+    conversationStatusFilter,
+    setConversationStatusFilter,
+    loadConversations,
+    getOrCreateConversation,
+    updateConversationStatus,
+    assignConversation,
+    
+    // Tags
+    tags,
+    loadTags,
+    addTagToConversation,
+    removeTagFromConversation,
+    createTag,
+    
+    // Internal notes
+    sendInternalNote,
+    
+    // Detail panel
+    showDetailPanel,
+    setShowDetailPanel,
+    
+    // Conversation history
+    conversationHistory,
+    loadConversationHistory,
   }), [
     contacts, messages, selectedContactId, activeTab, searchQuery, isLoading, isSyncing,
     loadContacts, loadMessages, sendMessage, sendMedia, markAsRead, syncContacts,
     selectedContact, filteredContacts, totalUnreadCount, individualUnreadCount, groupUnreadCount,
-    selectedAgent,
+    selectedAgent, conversations, selectedConversation, conversationStatusFilter,
+    loadConversations, getOrCreateConversation, updateConversationStatus, assignConversation,
+    tags, loadTags, addTagToConversation, removeTagFromConversation, createTag,
+    sendInternalNote, showDetailPanel, conversationHistory, loadConversationHistory,
   ]);
 
   return (

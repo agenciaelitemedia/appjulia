@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { Check, CheckCheck, Clock, AlertCircle, Download, Play, Pause, Loader2, FileText, MapPin, User } from 'lucide-react';
+import { Check, CheckCheck, Clock, AlertCircle, Download, Play, Pause, Loader2, FileText, MapPin, User, StickyNote as StickyNoteIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { QuotedMessage } from './QuotedMessage';
 import { format } from 'date-fns';
@@ -322,6 +322,7 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
   function MessageBubble({ message, onDownloadMedia }, ref) {
     const isMedia = ['image', 'video', 'audio', 'ptt', 'document', 'sticker', 'location', 'contact'].includes(message.type);
     const hasQuote = message.metadata?.quoted_message;
+    const isInternalNote = !!(message.metadata as any)?.internal_note;
 
     if (message.type === 'revoked') {
       return (
@@ -334,6 +335,33 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
         >
           <div className="px-3 py-1.5 rounded-lg bg-muted/50 text-muted-foreground italic text-sm">
             🚫 Mensagem apagada
+          </div>
+        </div>
+      );
+    }
+
+    // Internal note styling
+    if (isInternalNote) {
+      const senderName = (message.metadata as any)?.sender_name;
+      return (
+        <div ref={ref} className="flex justify-center px-4">
+          <div className="max-w-[85%] w-full rounded-lg px-3 py-2 shadow-sm bg-blue-50 dark:bg-blue-900/20 border border-blue-300/50 dark:border-blue-700/40">
+            <div className="flex items-center gap-1.5 mb-1">
+              <StickyNoteIcon className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+              <span className="text-[10px] font-semibold text-blue-700 dark:text-blue-300">
+                Nota Interna {senderName ? `— ${senderName}` : ''}
+              </span>
+            </div>
+            {message.text && (
+              <p className="text-sm whitespace-pre-wrap break-words text-blue-900 dark:text-blue-100">
+                {formatWhatsAppText(message.text)}
+              </p>
+            )}
+            <div className="flex items-center justify-end gap-1 mt-1 text-blue-500/70">
+              <span className="text-[10px]">
+                {format(new Date(message.timestamp), 'HH:mm')}
+              </span>
+            </div>
           </div>
         </div>
       );

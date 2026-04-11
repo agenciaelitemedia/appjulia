@@ -7,3 +7,5 @@ export { ChatMessages } from './ChatMessages';
 export { ChatInput } from './ChatInput';
 export { MessageBubble } from './MessageBubble';
 export { QuotedMessage } from './QuotedMessage';
+export { QuickMessagePicker } from './QuickMessagePicker';
+export { ContactDetailPanel } from './ContactDetailPanel';

@@ -1,22 +1,25 @@
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Users } from 'lucide-react';
+import { Users, Clock, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { ChatContact } from '@/types/chat';
+import type { ChatConversation } from '@/types/conversation';
 
 interface ChatContactItemProps {
   contact: ChatContact;
   isSelected: boolean;
   onClick: () => void;
+  conversation?: ChatConversation;
 }
 
 export const ChatContactItem = React.memo(function ChatContactItem({
   contact,
   isSelected,
   onClick,
+  conversation,
 }: ChatContactItemProps) {
   const initials = contact.name
     .split(' ')
@@ -31,6 +34,11 @@ export const ChatContactItem = React.memo(function ChatContactItem({
         locale: ptBR,
       })
     : null;
+
+  const statusIndicator = conversation ? {
+    pending: { color: 'bg-yellow-500', icon: <Clock className="h-2.5 w-2.5" /> },
+    open: { color: 'bg-emerald-500', icon: <MessageSquare className="h-2.5 w-2.5" /> },
+  }[conversation.status] : null;
 
   return (
     <button
@@ -48,6 +56,16 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             {contact.is_group ? <Users className="h-5 w-5" /> : initials}
           </AvatarFallback>
         </Avatar>
+        
+        {/* Status indicator dot */}
+        {statusIndicator && (
+          <div className={cn(
+            'absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-background flex items-center justify-center',
+            statusIndicator.color
+          )}>
+            <span className="text-white">{statusIndicator.icon}</span>
+          </div>
+        )}
         
         {contact.unread_count > 0 && (
           <Badge
@@ -77,14 +95,21 @@ export const ChatContactItem = React.memo(function ChatContactItem({
           )}
         </div>
         
-        {contact.last_message_text && (
-          <p className={cn(
-            'text-sm truncate mt-0.5',
-            contact.unread_count > 0 ? 'text-foreground' : 'text-muted-foreground'
-          )}>
-            {contact.last_message_text}
-          </p>
-        )}
+        <div className="flex items-center gap-1.5 mt-0.5">
+          {conversation?.protocol && (
+            <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1 rounded flex-shrink-0">
+              {conversation.protocol}
+            </span>
+          )}
+          {contact.last_message_text && (
+            <p className={cn(
+              'text-sm truncate',
+              contact.unread_count > 0 ? 'text-foreground' : 'text-muted-foreground'
+            )}>
+              {contact.last_message_text}
+            </p>
+          )}
+        </div>
       </div>
     </button>
   );
