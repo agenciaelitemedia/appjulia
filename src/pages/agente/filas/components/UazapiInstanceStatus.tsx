@@ -2,6 +2,10 @@ import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { Loader2, Wifi, WifiOff, RefreshCw, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -24,6 +28,9 @@ export function UazapiInstanceStatus({ queueId, queueName }: UazapiInstanceStatu
   const [instanceInfo, setInstanceInfo] = useState<InstanceInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const [confirmSwitch, setConfirmSwitch] = useState(false);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
 
   const fetchStatus = async () => {
@@ -123,7 +130,7 @@ export function UazapiInstanceStatus({ queueId, queueName }: UazapiInstanceStatu
             </Button>
           )}
           {isConnected && (
-            <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={handleDisconnect} disabled={disconnecting}>
+            <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => { setConfirmText(''); setConfirmSwitch(false); setConfirmDialogOpen(true); }} disabled={disconnecting}>
               {disconnecting ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <WifiOff className="w-3 h-3 mr-1" />}
               Desconectar
             </Button>
@@ -141,6 +148,47 @@ export function UazapiInstanceStatus({ queueId, queueName }: UazapiInstanceStatu
           toast.success('WhatsApp conectado com sucesso!');
         }}
       />
+
+      <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desconectar WhatsApp</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>Esta ação irá desconectar o WhatsApp da fila <strong>{queueName}</strong>. Para confirmar, digite o nome da fila abaixo:</p>
+              <Input
+                placeholder={queueName || 'Nome da fila'}
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+              />
+              <div className="flex items-center gap-2 pt-2">
+                <Switch
+                  id="confirm-disconnect"
+                  checked={confirmSwitch}
+                  onCheckedChange={setConfirmSwitch}
+                />
+                <Label htmlFor="confirm-disconnect" className="text-sm">
+                  Confirmo que desejo desconectar esta instância
+                </Label>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={confirmText !== queueName || !confirmSwitch || disconnecting}
+              onClick={(e) => {
+                e.preventDefault();
+                handleDisconnect();
+                setConfirmDialogOpen(false);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {disconnecting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+              Desconectar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
