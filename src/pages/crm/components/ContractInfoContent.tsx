@@ -101,7 +101,7 @@ export const ContractInfoContent: React.FC<ContractInfoContentProps> = ({ contra
   const statusInfo = getStatusBadge(contractInfo.status_document);
 
   return (
-    <ScrollArea className="max-h-[70vh] pr-4">
+    <ScrollArea className="h-full">
       <div className="space-y-6 p-4">
         {/* Contract Info */}
         <div className="space-y-3">
