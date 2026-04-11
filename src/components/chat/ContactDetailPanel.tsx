@@ -5,12 +5,13 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
-import { X, Phone, Mail, MessageSquare, Clock, Tag, History, Plus, Hash } from 'lucide-react';
+import { X, Phone, MessageSquare, Clock, Tag, History, Plus, Hash, Check, Pencil } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import type { ChatContact } from '@/types/chat';
 import type { ChatConversation } from '@/types/conversation';
 
@@ -28,6 +29,10 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
   const [newTagName, setNewTagName] = useState('');
   const [showAddTag, setShowAddTag] = useState(false);
   const [conversationTags, setConversationTags] = useState<string[]>([]);
+  
+  // Editable name
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editName, setEditName] = useState(contact.name);
 
   const initials = contact.name
     .split(' ')
@@ -69,6 +74,30 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
       loadConversationHistory(selectedConversation.id);
     }
   }, [selectedConversation?.id, loadConversationHistory]);
+
+  // Reset edit name when contact changes
+  useEffect(() => {
+    setEditName(contact.name);
+    setIsEditingName(false);
+  }, [contact.id, contact.name]);
+
+  const handleSaveName = async () => {
+    if (!editName.trim() || editName.trim() === contact.name) {
+      setIsEditingName(false);
+      return;
+    }
+    const { error } = await supabase
+      .from('chat_contacts')
+      .update({ name: editName.trim() })
+      .eq('id', contact.id);
+    
+    if (error) {
+      toast.error('Erro ao atualizar nome');
+    } else {
+      toast.success('Nome atualizado');
+    }
+    setIsEditingName(false);
+  };
 
   const handleAddTag = async () => {
     if (!newTagName.trim() || !selectedConversation) return;
@@ -126,7 +155,31 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                 {initials}
               </AvatarFallback>
             </Avatar>
-            <h4 className="font-medium">{contact.name}</h4>
+            
+            {/* Editable name */}
+            {isEditingName ? (
+              <div className="flex items-center gap-1 w-full max-w-[200px]">
+                <Input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="h-7 text-sm text-center"
+                  onKeyDown={(e) => e.key === 'Enter' && handleSaveName()}
+                  autoFocus
+                />
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleSaveName}>
+                  <Check className="h-3.5 w-3.5 text-emerald-500" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setIsEditingName(false); setEditName(contact.name); }}>
+                  <X className="h-3.5 w-3.5 text-muted-foreground" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 group cursor-pointer" onClick={() => setIsEditingName(true)}>
+                <h4 className="font-medium">{contact.name}</h4>
+                <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+            )}
+            
             <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
               <Phone className="h-3 w-3" />
               {contact.phone}
@@ -163,6 +216,18 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground text-xs">1ª resposta</span>
                     <span className="text-xs">{format(new Date(selectedConversation.first_response_at), "dd/MM/yy HH:mm", { locale: ptBR })}</span>
+                  </div>
+                )}
+                {selectedConversation.assigned_to && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground text-xs">Atribuído a</span>
+                    <span className="text-xs font-medium">{selectedConversation.assigned_to}</span>
+                  </div>
+                )}
+                {selectedConversation.department && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground text-xs">Setor</span>
+                    <span className="text-xs">{selectedConversation.department}</span>
                   </div>
                 )}
               </div>

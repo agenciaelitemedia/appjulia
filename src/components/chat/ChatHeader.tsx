@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare } from 'lucide-react';
+import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { cn } from '@/lib/utils';
 import type { ChatContact } from '@/types/chat';
@@ -15,6 +15,22 @@ interface ChatHeaderProps {
   contact: ChatContact;
   onClose: () => void;
   onShowDetails?: () => void;
+}
+
+function ChannelBadge({ channel }: { channel?: string }) {
+  const config: Record<string, { label: string; icon: React.ReactNode; className: string }> = {
+    whatsapp_uazapi: { label: 'WhatsApp', icon: <MessageCircle className="h-3 w-3" />, className: 'text-emerald-600 border-emerald-500/30 bg-emerald-500/5' },
+    whatsapp_waba: { label: 'API Oficial', icon: <MessageCircle className="h-3 w-3" />, className: 'text-emerald-700 border-emerald-600/30 bg-emerald-600/5' },
+    webchat: { label: 'WebChat', icon: <Globe className="h-3 w-3" />, className: 'text-blue-600 border-blue-500/30 bg-blue-500/5' },
+    instagram: { label: 'Instagram', icon: <Instagram className="h-3 w-3" />, className: 'text-pink-600 border-pink-500/30 bg-pink-500/5' },
+  };
+  const c = config[channel || ''] || config.whatsapp_uazapi;
+  return (
+    <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0 h-5 gap-1 border', c.className)}>
+      {c.icon}
+      {c.label}
+    </Badge>
+  );
 }
 
 export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps) {
@@ -90,6 +106,9 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
               <span className="text-[10px] text-muted-foreground font-mono">
                 {selectedConversation.protocol}
               </span>
+            )}
+            {selectedConversation && (
+              <ChannelBadge channel={selectedConversation.channel} />
             )}
           </div>
         </div>
