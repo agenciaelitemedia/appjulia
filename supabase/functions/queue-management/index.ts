@@ -1,0 +1,333 @@
+// ============================================
+// Queue Management
+// CRUD for queues with soft delete, migration,
+// orphan protection and auto-sync to agents
+// ============================================
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+function getSupabase() {
+  return createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  );
+}
+
+async function triggerSync(queueId: string) {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  try {
+    const res = await fetch(`${supabaseUrl}/functions/v1/sync-queue-to-agent`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseKey}`,
+      },
+      body: JSON.stringify({ queue_id: queueId }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('[queue-management] Sync failed:', err);
+    return { error: (err as Error).message };
+  }
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  try {
+    const { action, data } = await req.json();
+    const supabase = getSupabase();
+
+    switch (action) {
+      // ==========================================
+      // LIST queues for a client
+      // ==========================================
+      case 'list': {
+        const { client_id, include_deleted } = data;
+        if (!client_id) throw new Error('client_id is required');
+
+        let query = supabase
+          .from('queues')
+          .select('*, queue_agent_links(cod_agent, is_primary)')
+          .eq('client_id', client_id)
+          .order('created_at', { ascending: false });
+
+        if (!include_deleted) {
+          query = query.eq('is_deleted', false);
+        }
+
+        const { data: queues, error } = await query;
+        if (error) throw error;
+
+        return respond({ queues });
+      }
+
+      // ==========================================
+      // GET single queue with links
+      // ==========================================
+      case 'get': {
+        const { queue_id } = data;
+        if (!queue_id) throw new Error('queue_id is required');
+
+        const { data: queue, error } = await supabase
+          .from('queues')
+          .select('*, queue_agent_links(cod_agent, is_primary)')
+          .eq('id', queue_id)
+          .single();
+
+        if (error) throw error;
+        return respond({ queue });
+      }
+
+      // ==========================================
+      // CREATE a new queue
+      // ==========================================
+      case 'create': {
+        const { client_id, name, channel_type, hub, evo_url, evo_apikey, evo_instance, waba_id, waba_token, waba_number_id, link_agents } = data;
+        if (!client_id || !name || !channel_type) throw new Error('client_id, name, channel_type are required');
+
+        const { data: queue, error } = await supabase
+          .from('queues')
+          .insert({
+            client_id,
+            name,
+            channel_type,
+            hub: hub || channel_type,
+            evo_url: evo_url || null,
+            evo_apikey: evo_apikey || null,
+            evo_instance: evo_instance || null,
+            waba_id: waba_id || null,
+            waba_token: waba_token || null,
+            waba_number_id: waba_number_id || null,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Link agents if provided
+        if (link_agents && Array.isArray(link_agents) && link_agents.length > 0) {
+          const links = link_agents.map((la: { cod_agent: string; is_primary?: boolean }) => ({
+            queue_id: queue.id,
+            cod_agent: la.cod_agent,
+            is_primary: la.is_primary ?? false,
+          }));
+
+          const { error: linkError } = await supabase
+            .from('queue_agent_links')
+            .insert(links);
+
+          if (linkError) {
+            console.error('[queue-management] Link error:', linkError);
+            // Queue was created, just report link failure
+            return respond({ queue, link_warning: linkError.message });
+          }
+
+          // Trigger sync to external DB
+          const syncResult = await triggerSync(queue.id);
+          return respond({ queue, sync: syncResult });
+        }
+
+        return respond({ queue });
+      }
+
+      // ==========================================
+      // UPDATE queue credentials/settings
+      // ==========================================
+      case 'update': {
+        const { queue_id, ...updateFields } = data;
+        if (!queue_id) throw new Error('queue_id is required');
+
+        // Remove action-specific fields
+        delete updateFields.action;
+
+        const { data: queue, error } = await supabase
+          .from('queues')
+          .update(updateFields)
+          .eq('id', queue_id)
+          .eq('is_deleted', false)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Auto-sync if credential fields changed
+        const credFields = ['hub', 'evo_url', 'evo_apikey', 'evo_instance', 'waba_id', 'waba_token', 'waba_number_id'];
+        const hasCredChange = credFields.some(f => f in updateFields);
+
+        let syncResult = null;
+        if (hasCredChange) {
+          syncResult = await triggerSync(queue_id);
+        }
+
+        return respond({ queue, sync: syncResult });
+      }
+
+      // ==========================================
+      // LINK an agent to a queue
+      // ==========================================
+      case 'link_agent': {
+        const { queue_id, cod_agent, is_primary } = data;
+        if (!queue_id || !cod_agent) throw new Error('queue_id and cod_agent are required');
+
+        // If setting as primary, first unset any existing primary for this agent
+        if (is_primary) {
+          await supabase
+            .from('queue_agent_links')
+            .update({ is_primary: false })
+            .eq('cod_agent', cod_agent)
+            .eq('is_primary', true);
+        }
+
+        const { data: link, error } = await supabase
+          .from('queue_agent_links')
+          .upsert(
+            { queue_id, cod_agent, is_primary: is_primary ?? false },
+            { onConflict: 'queue_id,cod_agent' }
+          )
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Sync credentials to the newly linked agent
+        const syncResult = await triggerSync(queue_id);
+        return respond({ link, sync: syncResult });
+      }
+
+      // ==========================================
+      // UNLINK an agent from a queue
+      // ==========================================
+      case 'unlink_agent': {
+        const { queue_id, cod_agent } = data;
+        if (!queue_id || !cod_agent) throw new Error('queue_id and cod_agent are required');
+
+        const { error } = await supabase
+          .from('queue_agent_links')
+          .delete()
+          .eq('queue_id', queue_id)
+          .eq('cod_agent', cod_agent);
+
+        if (error) throw error;
+        return respond({ success: true });
+      }
+
+      // ==========================================
+      // SOFT DELETE a queue (with orphan protection)
+      // ==========================================
+      case 'delete': {
+        const { queue_id, migrate_to_queue_id } = data;
+        if (!queue_id) throw new Error('queue_id is required');
+
+        // Check for linked agents
+        const { data: links } = await supabase
+          .from('queue_agent_links')
+          .select('cod_agent')
+          .eq('queue_id', queue_id);
+
+        if (links && links.length > 0) {
+          return respond({
+            error: 'Cannot delete queue with linked agents. Unlink agents first.',
+            linked_agents: links.map(l => l.cod_agent),
+          }, 409);
+        }
+
+        // Check for active conversations
+        const { data: activeConvos } = await supabase
+          .from('chat_conversations')
+          .select('id')
+          .eq('queue_id', queue_id)
+          .in('status', ['pending', 'open']);
+
+        if (activeConvos && activeConvos.length > 0) {
+          if (!migrate_to_queue_id) {
+            return respond({
+              error: 'Queue has active conversations. Provide migrate_to_queue_id or resolve conversations first.',
+              active_conversations: activeConvos.length,
+            }, 409);
+          }
+
+          // Migrate conversations to new queue
+          const { error: migrateError } = await supabase
+            .from('chat_conversations')
+            .update({ queue_id: migrate_to_queue_id })
+            .eq('queue_id', queue_id)
+            .in('status', ['pending', 'open']);
+
+          if (migrateError) throw migrateError;
+        }
+
+        // Soft delete
+        const { error } = await supabase
+          .from('queues')
+          .update({ is_deleted: true, deleted_at: new Date().toISOString(), is_active: false })
+          .eq('id', queue_id);
+
+        if (error) throw error;
+        return respond({ success: true, migrated: activeConvos?.length || 0 });
+      }
+
+      // ==========================================
+      // RESTORE a soft-deleted queue
+      // ==========================================
+      case 'restore': {
+        const { queue_id } = data;
+        if (!queue_id) throw new Error('queue_id is required');
+
+        const { error } = await supabase
+          .from('queues')
+          .update({ is_deleted: false, deleted_at: null, is_active: true })
+          .eq('id', queue_id);
+
+        if (error) throw error;
+        return respond({ success: true });
+      }
+
+      // ==========================================
+      // MIGRATE conversations between queues
+      // ==========================================
+      case 'migrate_conversations': {
+        const { from_queue_id, to_queue_id, status_filter } = data;
+        if (!from_queue_id || !to_queue_id) throw new Error('from_queue_id and to_queue_id are required');
+
+        let query = supabase
+          .from('chat_conversations')
+          .update({ queue_id: to_queue_id })
+          .eq('queue_id', from_queue_id);
+
+        if (status_filter && Array.isArray(status_filter)) {
+          query = query.in('status', status_filter);
+        }
+
+        const { data: migrated, error, count } = await query.select('id');
+        if (error) throw error;
+
+        return respond({ success: true, migrated_count: migrated?.length || 0 });
+      }
+
+      default:
+        throw new Error(`Unknown action: ${action}`);
+    }
+  } catch (error) {
+    console.error('[queue-management] Error:', error);
+    return new Response(JSON.stringify({ error: (error as Error).message }), {
+      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+});
+
+function respond(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
