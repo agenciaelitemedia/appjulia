@@ -5,11 +5,12 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RefreshCw, Search, MessageCircle, Users, Bot } from 'lucide-react';
+import { RefreshCw, Search, MessageCircle, Users, Bot, Clock, CheckCircle2, Inbox } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { ChatContactItem } from './ChatContactItem';
 import { Badge } from '@/components/ui/badge';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
+import type { ConversationFilterStatus } from '@/types/conversation';
 
 export function ChatList() {
   const {
@@ -28,17 +29,18 @@ export function ChatList() {
     groupUnreadCount,
     selectedAgent,
     setSelectedAgent,
+    conversationStatusFilter,
+    setConversationStatusFilter,
+    conversations,
   } = useWhatsAppData();
 
   const { data: agentsData } = useMyAgents();
   
-  // All agents (own + monitored)
   const allAgents = [
     ...(agentsData?.myAgents || []),
     ...(agentsData?.monitoredAgents || []),
-  ].filter(a => a.hub); // Only agents with a messaging hub configured
+  ].filter(a => a.hub);
 
-  // Auto-select first agent if none selected
   useEffect(() => {
     if (!selectedAgent && allAgents.length > 0) {
       const first = allAgents[0];
@@ -49,6 +51,17 @@ export function ChatList() {
       });
     }
   }, [allAgents.length, selectedAgent, setSelectedAgent]);
+
+  // Count conversations by status
+  const pendingCount = conversations.filter(c => c.status === 'pending').length;
+  const openCount = conversations.filter(c => c.status === 'open').length;
+
+  const statusFilters: { value: ConversationFilterStatus; label: string; icon: React.ReactNode; count?: number }[] = [
+    { value: 'all', label: 'Todas', icon: <Inbox className="h-3 w-3" /> },
+    { value: 'pending', label: 'Pendentes', icon: <Clock className="h-3 w-3" />, count: pendingCount },
+    { value: 'open', label: 'Abertas', icon: <MessageCircle className="h-3 w-3" />, count: openCount },
+    { value: 'resolved', label: 'Resolvidas', icon: <CheckCircle2 className="h-3 w-3" /> },
+  ];
 
   return (
     <div className="h-full flex flex-col bg-background overflow-hidden">
@@ -109,6 +122,27 @@ export function ChatList() {
             </SelectContent>
           </Select>
         )}
+
+        {/* Conversation status filters */}
+        <div className="flex gap-1">
+          {statusFilters.map(f => (
+            <Button
+              key={f.value}
+              variant={conversationStatusFilter === f.value ? 'default' : 'ghost'}
+              size="sm"
+              className="h-7 text-xs flex-1 gap-1"
+              onClick={() => setConversationStatusFilter(f.value)}
+            >
+              {f.icon}
+              {f.label}
+              {f.count !== undefined && f.count > 0 && (
+                <Badge variant="secondary" className="text-[9px] px-1 h-4 ml-0.5">
+                  {f.count}
+                </Badge>
+              )}
+            </Button>
+          ))}
+        </div>
         
         {/* Search */}
         <div className="relative">
@@ -190,6 +224,7 @@ export function ChatList() {
                 contact={contact}
                 isSelected={contact.id === selectedContactId}
                 onClick={() => selectContact(contact.id)}
+                conversation={conversations.find(c => c.contact_id === contact.id && ['pending', 'open'].includes(c.status))}
               />
             ))
           )}
