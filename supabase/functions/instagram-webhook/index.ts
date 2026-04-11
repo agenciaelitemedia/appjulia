@@ -5,6 +5,7 @@
 // ============================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveQueueByInstagramPageId, resolveQueueId } from "../_shared/resolve-queue.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,6 +42,7 @@ async function persistMessage(
   senderId: string,
   senderName: string,
   message: any,
+  pageId?: string,
 ) {
   const contactPhone = `ig_${senderId}`;
   const msgText = message.text || '';
@@ -81,11 +83,11 @@ async function persistMessage(
       return;
     }
 
-    await insertMessage(existing.id, agentInfo, message, msgType, msgText);
+    await insertMessage(existing.id, agentInfo, message, msgType, msgText, pageId);
     return;
   }
 
-  await insertMessage(contact.id, agentInfo, message, msgType, msgText);
+  await insertMessage(contact.id, agentInfo, message, msgType, msgText, pageId);
 }
 
 async function insertMessage(
@@ -94,6 +96,7 @@ async function insertMessage(
   message: any,
   msgType: string,
   msgText: string,
+  pageId?: string,
 ) {
   let mediaUrl: string | null = null;
   let caption: string | null = null;
@@ -104,6 +107,15 @@ async function insertMessage(
     mediaUrl = att.payload?.url || null;
     type = att.type === 'image' ? 'image' : att.type === 'video' ? 'video' : att.type === 'audio' ? 'audio' : 'document';
     caption = msgText || null;
+  }
+
+  // Resolve queue_id
+  let queueId: string | null = null;
+  if (pageId) {
+    queueId = await resolveQueueByInstagramPageId(supabase, pageId);
+  }
+  if (!queueId) {
+    queueId = await resolveQueueId(supabase, agentInfo.cod_agent, 'instagram');
   }
 
   // Check/create conversation
@@ -125,6 +137,7 @@ async function insertMessage(
         cod_agent: agentInfo.cod_agent,
         channel: 'instagram',
         status: 'pending',
+        queue_id: queueId,
       })
       .select('id')
       .single();
@@ -187,7 +200,7 @@ Deno.serve(async (req) => {
           // For Instagram, we may not have the name directly
           const senderName = `Instagram ${senderId.slice(-6)}`;
 
-          await persistMessage(agentInfo, senderId, senderName, event.message);
+          await persistMessage(agentInfo, senderId, senderName, event.message, pageId);
         }
       }
     }

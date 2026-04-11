@@ -8,6 +8,7 @@
 // ============================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveQueueByWebchatAgent, resolveQueueId } from "../_shared/resolve-queue.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -105,6 +106,12 @@ async function initSession(body: any) {
     return json({ error: 'Failed to create contact' }, 500);
   }
 
+  // Resolve queue_id for this webchat agent
+  let queueId = await resolveQueueByWebchatAgent(supabase, cod_agent);
+  if (!queueId) {
+    queueId = await resolveQueueId(supabase, cod_agent, 'webchat');
+  }
+
   // Create conversation
   const { data: conv, error: convErr } = await supabase
     .from('chat_conversations')
@@ -114,6 +121,7 @@ async function initSession(body: any) {
       cod_agent,
       channel: 'webchat',
       status: 'pending',
+      queue_id: queueId,
     })
     .select('id, protocol')
     .single();
