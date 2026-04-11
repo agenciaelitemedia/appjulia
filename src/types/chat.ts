@@ -22,6 +22,9 @@ export interface ChatContact {
   id: string;
   client_id: string;
   cod_agent?: string;
+  channel_source?: string;
+  channel_type?: string;
+  remote_jid?: string;
   phone: string;
   name: string;
   avatar?: string;

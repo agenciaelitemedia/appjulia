@@ -125,7 +125,7 @@ serve(async (req) => {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${supabaseKey}`,
               },
-              body: JSON.stringify({ action: 'create', instance_name: queue.evo_instance }),
+              body: JSON.stringify({ action: 'create', instance_name: queue.evo_instance, queue_id: queue.id }),
             });
             const createData = await createRes.json();
             console.log('[queue-management] Instance create result:', JSON.stringify(createData));
