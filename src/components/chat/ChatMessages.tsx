@@ -1,18 +1,24 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Loader2, ChevronDown } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { MessageBubble } from './MessageBubble';
+import { ConversationEvent } from './ConversationEvent';
 import { format, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import type { ConversationHistoryEntry } from '@/types/conversation';
 
 interface ChatMessagesProps {
   contactId: string;
 }
 
+type TimelineItem =
+  | { kind: 'message'; data: any; ts: number }
+  | { kind: 'event'; data: ConversationHistoryEntry; ts: number };
+
 export function ChatMessages({ contactId }: ChatMessagesProps) {
-  const { messages, loadMessages, markAsRead } = useWhatsAppData();
+  const { messages, loadMessages, markAsRead, conversationHistory, loadConversationHistory, selectedConversation } = useWhatsAppData();
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -23,6 +29,13 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
   
   const contactMessages = messages[contactId] || [];
 
+  // Load conversation history when conversation changes
+  useEffect(() => {
+    if (selectedConversation) {
+      loadConversationHistory(selectedConversation.id);
+    }
+  }, [selectedConversation?.id, loadConversationHistory]);
+
   // Initial load
   useEffect(() => {
     isInitialLoad.current = true;
@@ -30,7 +43,6 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
     loadMessages(contactId, 50, 0)
       .then(({ hasMore: more }) => {
         setHasMore(more);
-        // Scroll to bottom on initial load
         setTimeout(() => {
           bottomRef.current?.scrollIntoView({ behavior: 'auto' });
           isInitialLoad.current = false;
@@ -38,7 +50,6 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
       })
       .finally(() => setIsLoading(false));
     
-    // Mark as read
     markAsRead(contactId);
   }, [contactId, loadMessages, markAsRead]);
 
@@ -59,34 +70,46 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
     }
   }, [contactId, contactMessages.length, hasMore, isLoading, loadMessages]);
 
-  // Scroll to bottom
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Handle scroll events
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
     const isNearBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 100;
     setShowScrollButton(!isNearBottom);
     
-    // Load more when near top
     if (target.scrollTop < 100 && hasMore && !isLoading) {
       handleLoadMore();
     }
   };
 
-  // Group messages by date
-  const groupedMessages = contactMessages.reduce((groups, msg) => {
-    const date = new Date(msg.timestamp);
-    const dateKey = format(date, 'yyyy-MM-dd');
+  // Merge messages and events into a unified timeline
+  const timeline = useMemo<TimelineItem[]>(() => {
+    const items: TimelineItem[] = [];
     
-    if (!groups[dateKey]) {
-      groups[dateKey] = [];
+    for (const msg of contactMessages) {
+      items.push({ kind: 'message', data: msg, ts: new Date(msg.timestamp).getTime() });
     }
-    groups[dateKey].push(msg);
+    
+    for (const evt of conversationHistory) {
+      items.push({ kind: 'event', data: evt, ts: new Date(evt.created_at).getTime() });
+    }
+    
+    items.sort((a, b) => a.ts - b.ts);
+    return items;
+  }, [contactMessages, conversationHistory]);
+
+  // Group by date
+  const groupedTimeline = useMemo(() => {
+    const groups: Record<string, TimelineItem[]> = {};
+    for (const item of timeline) {
+      const dateKey = format(new Date(item.ts), 'yyyy-MM-dd');
+      if (!groups[dateKey]) groups[dateKey] = [];
+      groups[dateKey].push(item);
+    }
     return groups;
-  }, {} as Record<string, typeof contactMessages>);
+  }, [timeline]);
 
   const formatDateHeader = (dateKey: string) => {
     const date = new Date(dateKey);
@@ -131,8 +154,8 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
             </div>
           )}
 
-          {/* Messages grouped by date */}
-          {Object.entries(groupedMessages).map(([dateKey, msgs]) => (
+          {/* Timeline grouped by date */}
+          {Object.entries(groupedTimeline).map(([dateKey, items]) => (
             <div key={dateKey}>
               {/* Date header */}
               <div className="flex items-center justify-center my-4">
@@ -141,11 +164,14 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
                 </div>
               </div>
 
-              {/* Messages */}
+              {/* Items */}
               <div className="space-y-2">
-                {msgs.map((msg) => (
-                  <MessageBubble key={msg.id} message={msg} />
-                ))}
+                {items.map((item, idx) => {
+                  if (item.kind === 'event') {
+                    return <ConversationEvent key={`evt-${item.data.id}`} entry={item.data} />;
+                  }
+                  return <MessageBubble key={item.data.id} message={item.data} />;
+                })}
               </div>
             </div>
           ))}
