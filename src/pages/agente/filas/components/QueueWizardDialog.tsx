@@ -26,17 +26,24 @@ interface QueueWizardDialogProps {
 }
 
 export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps) {
+  const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [selectedType, setSelectedType] = useState('');
   const [selectedProviderId, setSelectedProviderId] = useState('');
   const [queueName, setQueueName] = useState('');
-  // UaZapi-specific
-  const [evoInstance, setEvoInstance] = useState('');
   // WABA-specific
   const [wabaNumberId, setWabaNumberId] = useState('');
 
   const { data: allProviders = [] } = useQueueProviders();
   const { createQueue } = useQueueMutations();
+
+  // Auto-generate UaZapi instance name
+  const evoInstance = useMemo(() => {
+    if (selectedType !== 'uazapi') return '';
+    const uid = user?.id || '0';
+    const uuid = crypto.randomUUID().split('-')[0];
+    return `QUEUE_${uid}_${uuid}`;
+  }, [selectedType, user?.id]);
 
   const filteredProviders = allProviders.filter(
     (p) => p.provider_type === selectedType && p.is_active
