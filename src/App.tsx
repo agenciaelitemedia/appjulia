@@ -99,6 +99,7 @@ const App = () => (
                   <Route path="/agente/meus-agentes" element={<MyAgentsPage />} />
                   <Route path="/agente/meus-agentes/:codAgent/editar" element={<MyAgentEditPage />} />
                   <Route path="/agente/filas" element={<FilasPage />} />
+                  <Route path="/configuracoes" element={<ConfiguracoesPage />} />
                   <Route path="/agente/followup" element={<FollowupPage />} />
                   <Route path="/video/queue" element={<VideoQueuePage />} />
                   <Route path="/chat" element={<ChatPage />} />
