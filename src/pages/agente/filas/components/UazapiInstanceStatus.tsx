@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Loader2, Wifi, WifiOff, RefreshCw, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { QueueQRCodeDialog } from './QueueQRCodeDialog';
@@ -11,6 +12,7 @@ interface InstanceInfo {
   status?: string;
   phoneNumber?: string;
   profileName?: string;
+  profilePictureUrl?: string;
 }
 
 interface UazapiInstanceStatusProps {
@@ -32,13 +34,14 @@ export function UazapiInstanceStatus({ queueId, queueName }: UazapiInstanceStatu
         body: { action: 'status', queue_id: queueId },
       });
       if (!error && data?.data) {
-        const inst = data.data.instance || {};
-        const status = data.data.status || {};
+        const inst = data.data.instance || data.data;
+        const status = data.data.status || data.data;
         setInstanceInfo({
-          instanceName: inst.name || '',
-          status: status.connected ? 'open' : 'close',
-          phoneNumber: inst.owner || '',
-          profileName: inst.profileName || '',
+          instanceName: inst.name || inst.instanceName || '',
+          status: (status.connected || inst.status === 'open') ? 'open' : 'close',
+          phoneNumber: inst.owner || inst.phoneNumber || '',
+          profileName: inst.profileName || inst.pushname || '',
+          profilePictureUrl: inst.profilePictureUrl || inst.profilePicUrl || inst.imgUrl || '',
         });
       }
     } catch {
@@ -92,13 +95,23 @@ export function UazapiInstanceStatus({ queueId, queueName }: UazapiInstanceStatu
         </div>
 
         {instanceInfo && isConnected && (
-          <div className="text-[11px] space-y-0.5">
-            {instanceInfo.profileName && (
-              <p className="text-muted-foreground">Nome: <span className="text-foreground">{instanceInfo.profileName}</span></p>
-            )}
-            {instanceInfo.phoneNumber && (
-              <p className="text-muted-foreground">Tel: <span className="text-foreground">{instanceInfo.phoneNumber}</span></p>
-            )}
+          <div className="flex items-center gap-2 text-[11px]">
+            <Avatar className="h-8 w-8 border border-border">
+              {instanceInfo.profilePictureUrl ? (
+                <AvatarImage src={instanceInfo.profilePictureUrl} alt={instanceInfo.profileName || 'Perfil'} />
+              ) : null}
+              <AvatarFallback className="bg-muted text-muted-foreground">
+                <User className="h-4 w-4" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="space-y-0.5 min-w-0">
+              {instanceInfo.profileName && (
+                <p className="text-foreground font-medium truncate">{instanceInfo.profileName}</p>
+              )}
+              {instanceInfo.phoneNumber && (
+                <p className="text-muted-foreground truncate">{instanceInfo.phoneNumber}</p>
+              )}
+            </div>
           </div>
         )}
 
