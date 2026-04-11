@@ -36,24 +36,6 @@ async function getQueueCredentials(queueId: string) {
   return data;
 }
 
-async function uazapiRequest(method: string, endpoint: string, token: string, baseUrl: string, body?: Record<string, unknown>) {
-  const url = `${baseUrl}${endpoint}`;
-  console.log(`[uazapi-instance-manager] ${method} ${url}`);
-  
-  const res = await fetch(url, {
-    method,
-    headers: { 'Content-Type': 'application/json', 'token': token },
-    body: body && method !== 'GET' ? JSON.stringify(body) : undefined,
-  });
-
-  const text = await res.text();
-  let parsed: unknown;
-  try { parsed = text ? JSON.parse(text) : {}; } catch { parsed = { response: text }; }
-  
-  console.log(`[uazapi-instance-manager] Response: ${res.status}`);
-  return { status: res.status, ok: res.ok, data: parsed };
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -71,43 +53,81 @@ Deno.serve(async (req) => {
     switch (action) {
       // ==========================================
       // CREATE instance on UaZapi server
+      // Uses /instance/init with admintoken header
       // ==========================================
       case 'create': {
         if (!instance_name) return respond({ error: 'instance_name required' }, 400);
 
-        const result = await uazapiRequest('POST', '/instance/create', adminToken, baseUrl, {
-          instanceName: instance_name,
+        console.log(`[uazapi-instance-manager] Creating instance: ${instance_name}`);
+        const res = await fetch(`${baseUrl}/instance/init`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'admintoken': adminToken,
+          },
+          body: JSON.stringify({ name: instance_name }),
         });
 
-        if (!result.ok) {
-          console.error('[uazapi-instance-manager] Create failed:', result.data);
-          return respond({ error: 'Failed to create instance on UaZapi', details: result.data }, 500);
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error('[uazapi-instance-manager] Create failed:', errorText);
+          return respond({ error: 'Failed to create instance', details: errorText }, 500);
         }
 
-        // Extract instance token from response
-        const instanceData = result.data as Record<string, unknown>;
-        const instanceToken = (instanceData as any)?.token || 
-                             (instanceData as any)?.instance?.token ||
-                             (instanceData as any)?.apikey ||
-                             adminToken; // fallback to admin token
+        const instanceData = await res.json();
+        const instanceToken = instanceData.token;
+        const finalName = instanceData.name || instance_name;
 
-        return respond({ 
-          success: true, 
+        console.log(`[uazapi-instance-manager] Instance created: ${finalName}, token: ${instanceToken ? 'yes' : 'no'}`);
+
+        // Configure webhook if available
+        const webhookUrl = Deno.env.get('UAZAPI_WEBHOOK_URL');
+        if (webhookUrl && instanceToken) {
+          try {
+            await fetch(`${baseUrl}/webhook`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'token': instanceToken },
+              body: JSON.stringify({
+                url: `${webhookUrl}`,
+                enabled: true,
+                events: ['messages'],
+                excludeMessages: ['isGroupYes'],
+              }),
+            });
+            console.log('[uazapi-instance-manager] Webhook configured');
+          } catch (e) {
+            console.warn('[uazapi-instance-manager] Webhook config failed:', e);
+          }
+        }
+
+        return respond({
+          success: true,
           instance_token: instanceToken,
-          instance_data: instanceData,
+          instance_name: finalName,
         });
       }
 
       // ==========================================
-      // CONNECT - generate QR Code
+      // CONNECT - trigger QR Code generation
       // ==========================================
       case 'connect': {
         if (!queue_id) return respond({ error: 'queue_id required' }, 400);
         const queue = await getQueueCredentials(queue_id);
         const token = queue.evo_apikey || adminToken;
+        const url = queue.evo_url || baseUrl;
 
-        const result = await uazapiRequest('POST', '/instance/connect', token, queue.evo_url || baseUrl);
-        return respond({ success: true, data: result.data });
+        console.log(`[uazapi-instance-manager] Connect: ${url}/instance/connect`);
+        const res = await fetch(`${url}/instance/connect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': token },
+        });
+
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch { data = { response: text }; }
+        console.log(`[uazapi-instance-manager] Connect response: ${res.status}`);
+
+        return respond({ success: res.ok, data });
       }
 
       // ==========================================
@@ -117,17 +137,29 @@ Deno.serve(async (req) => {
         if (!queue_id) return respond({ error: 'queue_id required' }, 400);
         const queue = await getQueueCredentials(queue_id);
         const token = queue.evo_apikey || adminToken;
+        const url = queue.evo_url || baseUrl;
 
-        const result = await uazapiRequest('GET', '/instance/status', token, queue.evo_url || baseUrl);
+        console.log(`[uazapi-instance-manager] Status: ${url}/instance/status`);
+        let res = await fetch(`${url}/instance/status`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json', 'token': token },
+        });
 
-        // If 401 with instance token, retry with admin token
-        if (result.status === 401 && token !== adminToken) {
-          console.log('[uazapi-instance-manager] Retrying with admin token...');
-          const retry = await uazapiRequest('GET', '/instance/status', adminToken, queue.evo_url || baseUrl);
-          return respond({ success: retry.ok, data: retry.data });
+        // If 401, retry with admin token
+        if (res.status === 401 && token !== adminToken) {
+          console.log('[uazapi-instance-manager] Retrying status with admintoken...');
+          res = await fetch(`${url}/instance/status`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json', 'admintoken': adminToken },
+          });
         }
 
-        return respond({ success: result.ok, data: result.data });
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch { data = { response: text }; }
+        console.log(`[uazapi-instance-manager] Status response: ${res.status}`);
+
+        return respond({ success: res.ok, data });
       }
 
       // ==========================================
@@ -137,17 +169,27 @@ Deno.serve(async (req) => {
         if (!queue_id) return respond({ error: 'queue_id required' }, 400);
         const queue = await getQueueCredentials(queue_id);
         const token = queue.evo_apikey || adminToken;
+        const url = queue.evo_url || baseUrl;
         const instanceName = queue.evo_instance;
 
-        const result = await uazapiRequest('DELETE', `/instance/logout/${instanceName}`, token, queue.evo_url || baseUrl);
+        console.log(`[uazapi-instance-manager] Disconnect: ${instanceName}`);
+        let res = await fetch(`${url}/instance/logout/${instanceName}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json', 'token': token },
+        });
 
-        // Retry with admin token if 401
-        if (result.status === 401 && token !== adminToken) {
-          const retry = await uazapiRequest('DELETE', `/instance/logout/${instanceName}`, adminToken, queue.evo_url || baseUrl);
-          return respond({ success: retry.ok, data: retry.data });
+        if (res.status === 401 && token !== adminToken) {
+          res = await fetch(`${url}/instance/logout/${instanceName}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json', 'admintoken': adminToken },
+          });
         }
 
-        return respond({ success: result.ok, data: result.data });
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch { data = { response: text }; }
+
+        return respond({ success: res.ok, data });
       }
 
       default:
