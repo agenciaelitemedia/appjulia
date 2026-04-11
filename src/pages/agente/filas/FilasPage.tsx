@@ -8,7 +8,6 @@ import { QueueCard } from './components/QueueCard';
 import { QueueFormDialog } from './components/QueueFormDialog';
 import { QueueWizardDialog } from './components/QueueWizardDialog';
 import { DeleteQueueDialog } from './components/DeleteQueueDialog';
-import { ManageAgentsDialog } from './components/ManageAgentsDialog';
 import { useEnsureFilasModule } from '@/hooks/useEnsureFilasModule';
 
 export default function FilasPage() {
@@ -21,7 +20,6 @@ export default function FilasPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingQueue, setEditingQueue] = useState<Queue | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Queue | null>(null);
-  const [manageAgentsTarget, setManageAgentsTarget] = useState<Queue | null>(null);
 
   const handleEdit = (queue: Queue) => {
     setEditingQueue(queue);
@@ -75,7 +73,6 @@ export default function FilasPage() {
               onEdit={handleEdit}
               onDelete={setDeleteTarget}
               onRestore={(q) => restoreQueue.mutate(q.id)}
-              onManageAgents={setManageAgentsTarget}
             />
           ))}
         </div>
@@ -95,14 +92,6 @@ export default function FilasPage() {
           onOpenChange={(open) => !open && setDeleteTarget(null)}
           queue={deleteTarget}
           otherQueues={activeQueues.filter((q) => q.id !== deleteTarget.id)}
-        />
-      )}
-
-      {manageAgentsTarget && (
-        <ManageAgentsDialog
-          open={!!manageAgentsTarget}
-          onOpenChange={(open) => !open && setManageAgentsTarget(null)}
-          queue={manageAgentsTarget}
         />
       )}
     </div>
