@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { Check, CheckCheck, Clock, AlertCircle, Download, Play, Pause, Loader2, FileText, MapPin, User } from 'lucide-react';
+import { Check, CheckCheck, Clock, AlertCircle, Download, Play, Pause, Loader2, FileText, MapPin, User, StickyNote as StickyNoteIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { QuotedMessage } from './QuotedMessage';
 import { format } from 'date-fns';
