@@ -80,7 +80,7 @@ function WebChatConfigPanel() {
     const { data } = await supabase
       .from('webchat_config')
       .select('*')
-      .eq('cod_agent', user.cod_agent)
+      .eq('cod_agent', String(user.cod_agent))
       .limit(1)
       .single();
 
@@ -109,14 +109,14 @@ function WebChatConfigPanel() {
     const domains = domainsText.split('\n').map(d => d.trim()).filter(Boolean);
     const payload = {
       ...config,
-      cod_agent: user.cod_agent,
+      cod_agent: String(user.cod_agent),
       client_id: String(user.id),
       allowed_domains: domains,
     };
 
     const { error } = await supabase
       .from('webchat_config')
-      .upsert(payload, { onConflict: 'cod_agent' });
+      .upsert([payload] as any, { onConflict: 'cod_agent' });
 
     setLoading(false);
     if (error) {
