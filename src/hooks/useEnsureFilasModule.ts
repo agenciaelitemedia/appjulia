@@ -16,11 +16,12 @@ export function useEnsureFilasModule() {
         const mod = modules.find((m: any) => m.route === '/agente/filas');
 
         if (mod) {
-          if (!mod.is_menu_visible || mod.menu_group !== 'AGENTES DA JULIA') {
+          if (!mod.is_menu_visible || mod.menu_group !== 'CONFIGURAÇÕES' || mod.name !== 'Filas') {
             await externalDb.updateModule(mod.id, {
+              name: 'Filas',
               route: '/agente/filas',
               is_menu_visible: true,
-              menu_group: 'AGENTES DA JULIA',
+              menu_group: 'CONFIGURAÇÕES',
             });
             queryClient.invalidateQueries({ queryKey: ['menu-modules'] });
           }
@@ -28,10 +29,10 @@ export function useEnsureFilasModule() {
         }
 
         await externalDb.createModule({
-          name: 'Filas de Atendimento',
+          name: 'Filas',
           icon: 'Network',
           route: '/agente/filas',
-          menu_group: 'AGENTES DA JULIA',
+          menu_group: 'CONFIGURAÇÕES',
           is_menu_visible: true,
           display_order: 15,
         });
