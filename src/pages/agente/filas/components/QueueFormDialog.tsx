@@ -55,17 +55,19 @@ export function QueueFormDialog({ open, onOpenChange, queue }: QueueFormDialogPr
       const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
         body: {
           method: 'GET',
-          path: `/instance/connectionState/${queue.evo_instance}`,
-          evo_url: queue.evo_url,
-          evo_apikey: queue.evo_apikey,
+          endpoint: '/instance/status',
+          baseUrl: queue.evo_url,
+          token: queue.evo_apikey,
         },
       });
-      if (!error && data) {
+      if (!error && data?.data) {
+        const inst = data.data.instance || {};
+        const status = data.data.status || {};
         setInstanceInfo({
-          instanceName: queue.evo_instance,
-          status: data?.instance?.state || data?.state || 'unknown',
-          phoneNumber: data?.instance?.phoneNumber || data?.phoneNumber || '',
-          profileName: data?.instance?.profileName || data?.profileName || '',
+          instanceName: inst.name || queue.evo_instance,
+          status: status.connected ? 'open' : 'close',
+          phoneNumber: inst.owner || '',
+          profileName: inst.profileName || '',
         });
       }
     } catch {
@@ -82,9 +84,9 @@ export function QueueFormDialog({ open, onOpenChange, queue }: QueueFormDialogPr
       const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
         body: {
           method: 'POST',
-          path: `/instance/connect/${queue.evo_instance}`,
-          evo_url: queue.evo_url,
-          evo_apikey: queue.evo_apikey,
+          endpoint: `/instance/connect/${queue.evo_instance}`,
+          baseUrl: queue.evo_url,
+          token: queue.evo_apikey,
         },
       });
       if (error) throw new Error(error.message);
@@ -105,9 +107,9 @@ export function QueueFormDialog({ open, onOpenChange, queue }: QueueFormDialogPr
       const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
         body: {
           method: 'DELETE',
-          path: `/instance/logout/${queue.evo_instance}`,
-          evo_url: queue.evo_url,
-          evo_apikey: queue.evo_apikey,
+          endpoint: `/instance/logout/${queue.evo_instance}`,
+          baseUrl: queue.evo_url,
+          token: queue.evo_apikey,
         },
       });
       if (error) throw new Error(error.message);
