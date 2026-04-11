@@ -2577,6 +2577,17 @@ serve(async (req) => {
         break;
       }
 
+      case 'get_agent_by_cod': {
+        const { codAgent } = data;
+        if (!codAgent) throw new Error('codAgent is required');
+        result = await sql.unsafe(
+          `SELECT id, cod_agent, hub, evo_url, evo_apikey, evo_instance, waba_id, waba_token, waba_number_id
+           FROM agents WHERE cod_agent = $1 LIMIT 1`,
+          [codAgent]
+        );
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
