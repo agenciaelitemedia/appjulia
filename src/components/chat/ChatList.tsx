@@ -6,11 +6,11 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RefreshCw, Search, MessageCircle, Users, Bot, Clock, CheckCircle2, Inbox, Globe, Instagram, Settings2, BarChart3 } from 'lucide-react';
+import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Globe, Instagram, Settings2, BarChart3, Layers } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { ChatContactItem } from './ChatContactItem';
 import { Badge } from '@/components/ui/badge';
-import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
+import { useQueues } from '@/pages/agente/filas/hooks/useQueues';
 import type { ConversationFilterStatus } from '@/types/conversation';
 
 type ChannelFilter = 'all' | 'whatsapp_uazapi' | 'whatsapp_waba' | 'webchat' | 'instagram';
@@ -30,32 +30,34 @@ export function ChatList() {
     totalUnreadCount,
     individualUnreadCount,
     groupUnreadCount,
-    selectedAgent,
-    setSelectedAgent,
+    selectedQueue,
+    setSelectedQueue,
     conversationStatusFilter,
     setConversationStatusFilter,
     conversations,
   } = useWhatsAppData();
 
   const navigate = useNavigate();
-  const { data: agentsData } = useMyAgents();
+  const { data: queues = [] } = useQueues();
   const [channelFilter, setChannelFilter] = React.useState<ChannelFilter>('all');
-  
-  const allAgents = [
-    ...(agentsData?.myAgents || []),
-    ...(agentsData?.monitoredAgents || []),
-  ].filter(a => a.hub);
 
+  const activeQueues = queues.filter(q => q.is_active && !q.is_deleted);
+
+  // Auto-select first queue
   useEffect(() => {
-    if (!selectedAgent && allAgents.length > 0) {
-      const first = allAgents[0];
-      setSelectedAgent({
-        cod_agent: first.cod_agent,
-        hub: first.hub as 'uazapi' | 'waba',
-        name: first.business_name || first.client_name || first.cod_agent,
+    if (!selectedQueue && activeQueues.length > 0) {
+      const first = activeQueues[0];
+      setSelectedQueue({
+        id: first.id,
+        name: first.name,
+        channel_type: first.channel_type,
+        hub: first.hub,
+        evo_url: first.evo_url,
+        evo_apikey: first.evo_apikey,
+        evo_instance: first.evo_instance,
       });
     }
-  }, [allAgents.length, selectedAgent, setSelectedAgent]);
+  }, [activeQueues.length, selectedQueue, setSelectedQueue]);
 
   // Count conversations by status
   const pendingCount = conversations.filter(c => c.status === 'pending').length;
@@ -84,6 +86,16 @@ export function ChatList() {
       return conv?.channel === channelFilter;
     });
   }, [filteredContacts, conversations, channelFilter]);
+
+  const channelBadge = (type: string) => {
+    switch (type) {
+      case 'uazapi': return <Badge variant="outline" className="text-[10px] px-1 text-emerald-600 border-emerald-300">WhatsApp</Badge>;
+      case 'waba': return <Badge variant="outline" className="text-[10px] px-1 text-emerald-700 border-emerald-400">WABA</Badge>;
+      case 'webchat': return <Badge variant="outline" className="text-[10px] px-1 text-blue-600 border-blue-300">WebChat</Badge>;
+      case 'instagram': return <Badge variant="outline" className="text-[10px] px-1 text-pink-600 border-pink-300">Instagram</Badge>;
+      default: return <Badge variant="outline" className="text-[10px] px-1">{type}</Badge>;
+    }
+  };
 
   return (
     <div className="h-full flex flex-col bg-background overflow-hidden">
@@ -119,7 +131,7 @@ export function ChatList() {
               variant="ghost"
               size="icon"
               onClick={() => syncContacts()}
-              disabled={isSyncing || !selectedAgent}
+              disabled={isSyncing || !selectedQueue}
               title="Sincronizar contatos"
             >
               <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
@@ -127,35 +139,37 @@ export function ChatList() {
           </div>
         </div>
 
-        {/* Agent selector */}
-        {allAgents.length > 0 && (
+        {/* Queue selector */}
+        {activeQueues.length > 0 && (
           <Select
-            value={selectedAgent?.cod_agent || ''}
+            value={selectedQueue?.id || ''}
             onValueChange={(val) => {
-              const agent = allAgents.find(a => a.cod_agent === val);
-              if (agent) {
-                setSelectedAgent({
-                  cod_agent: agent.cod_agent,
-                  hub: agent.hub as 'uazapi' | 'waba',
-                  name: agent.business_name || agent.client_name || agent.cod_agent,
+              const queue = activeQueues.find(q => q.id === val);
+              if (queue) {
+                setSelectedQueue({
+                  id: queue.id,
+                  name: queue.name,
+                  channel_type: queue.channel_type,
+                  hub: queue.hub,
+                  evo_url: queue.evo_url,
+                  evo_apikey: queue.evo_apikey,
+                  evo_instance: queue.evo_instance,
                 });
               }
             }}
           >
             <SelectTrigger className="w-full">
               <div className="flex items-center gap-2">
-                <Bot className="h-4 w-4 text-muted-foreground" />
-                <SelectValue placeholder="Selecionar agente..." />
+                <Layers className="h-4 w-4 text-muted-foreground" />
+                <SelectValue placeholder="Selecionar fila..." />
               </div>
             </SelectTrigger>
             <SelectContent>
-              {allAgents.map((agent) => (
-                <SelectItem key={agent.cod_agent} value={agent.cod_agent}>
+              {activeQueues.map((queue) => (
+                <SelectItem key={queue.id} value={queue.id}>
                   <div className="flex items-center gap-2">
-                    <span>{agent.business_name || agent.client_name || agent.cod_agent}</span>
-                    <Badge variant="outline" className="text-[10px] px-1">
-                      {agent.hub === 'waba' ? 'API Oficial' : 'UaZapi'}
-                    </Badge>
+                    <span>{queue.name}</span>
+                    {channelBadge(queue.channel_type)}
                   </div>
                 </SelectItem>
               ))}
@@ -247,11 +261,11 @@ export function ChatList() {
       {/* Contact List */}
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-1">
-          {!selectedAgent ? (
+          {!selectedQueue ? (
             <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-              <Bot className="h-12 w-12 mb-4 opacity-50" />
-              <p className="font-medium">Selecione um agente</p>
-              <p className="text-sm mt-1">Escolha um agente acima para ver as conversas</p>
+              <Layers className="h-12 w-12 mb-4 opacity-50" />
+              <p className="font-medium">Selecione uma fila</p>
+              <p className="text-sm mt-1">Escolha uma fila acima para ver as conversas</p>
             </div>
           ) : isLoading ? (
             Array.from({ length: 8 }).map((_, i) => (
@@ -270,7 +284,7 @@ export function ChatList() {
               <p className="text-sm mt-1">
                 {searchQuery 
                   ? 'Tente uma busca diferente'
-                  : 'Clique em sincronizar para carregar'}
+                  : 'As mensagens aparecerão aqui quando recebidas'}
               </p>
             </div>
           ) : (
