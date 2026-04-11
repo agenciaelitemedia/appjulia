@@ -2317,6 +2317,69 @@ export type Database = {
           },
         ]
       }
+      queue_providers: {
+        Row: {
+          client_id: string
+          created_at: string
+          evo_apikey: string | null
+          evo_url: string | null
+          id: string
+          instagram_page_id: string | null
+          instagram_user_id: string | null
+          is_active: boolean
+          meta_app_id: string | null
+          meta_app_secret: string | null
+          name: string
+          page_access_token: string | null
+          page_name: string | null
+          provider_type: string
+          updated_at: string
+          waba_business_id: string | null
+          waba_token: string | null
+          webchat_config_id: string | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          evo_apikey?: string | null
+          evo_url?: string | null
+          id?: string
+          instagram_page_id?: string | null
+          instagram_user_id?: string | null
+          is_active?: boolean
+          meta_app_id?: string | null
+          meta_app_secret?: string | null
+          name: string
+          page_access_token?: string | null
+          page_name?: string | null
+          provider_type: string
+          updated_at?: string
+          waba_business_id?: string | null
+          waba_token?: string | null
+          webchat_config_id?: string | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          evo_apikey?: string | null
+          evo_url?: string | null
+          id?: string
+          instagram_page_id?: string | null
+          instagram_user_id?: string | null
+          is_active?: boolean
+          meta_app_id?: string | null
+          meta_app_secret?: string | null
+          name?: string
+          page_access_token?: string | null
+          page_name?: string | null
+          provider_type?: string
+          updated_at?: string
+          waba_business_id?: string | null
+          waba_token?: string | null
+          webchat_config_id?: string | null
+        }
+        Relationships: []
+      }
       queues: {
         Row: {
           channel_type: string
