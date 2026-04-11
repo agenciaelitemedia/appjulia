@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { useQueues, useQueueMutations, Queue } from './hooks/useQueues';
 import { QueueCard } from './components/QueueCard';
 import { QueueFormDialog } from './components/QueueFormDialog';
+import { QueueWizardDialog } from './components/QueueWizardDialog';
 import { DeleteQueueDialog } from './components/DeleteQueueDialog';
 import { ManageAgentsDialog } from './components/ManageAgentsDialog';
 import { useEnsureFilasModule } from '@/hooks/useEnsureFilasModule';

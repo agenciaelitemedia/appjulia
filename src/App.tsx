@@ -67,6 +67,7 @@ import CRMComercialPage from "./pages/comercial/crm/CRMComercialPage";
 import SupportAssistantPage from "./pages/suporte-assistente/SupportAssistantPage";
 import QuickMessagesPage from "./pages/mensagens-rapidas/QuickMessagesPage";
 import FilasPage from "./pages/agente/filas/FilasPage";
+import ConfiguracoesPage from "./pages/configuracoes/ConfiguracoesPage";
 
 const queryClient = new QueryClient();
 
