@@ -1,205 +1,120 @@
 
 
-## Plano: Módulo de Chat/Atendimento Omnichannel Completo
+## Plano Revisado: Filas de Atendimento (Supabase) com Sincronização para Agents
 
-### Diagnóstico do Estado Atual
+### Conceito Atualizado
 
-O módulo `/chat` atual é um **viewer de conversas** básico com:
-- Lista de contatos com busca e filtro (individual/grupos)
-- Seleção de agente (UaZapi/WABA)
-- Envio de texto e mídia (imagem, vídeo, documento)
-- Mensagens em tempo real via Realtime
-- Armazenamento em `chat_contacts` + `chat_messages`
-
-**O que falta para ser um sistema de atendimento real** (comparando com Whaticket, Chatwoot, Typebot, etc.):
-- Sem conceito de "ticket/conversa" (abertura, fechamento, protocolo)
-- Sem filas de atendimento ou distribuição de conversas
-- Sem transferência entre atendentes
-- Sem notas internas no chat (existe no CRM popup, mas não no módulo /chat)
-- Sem tags/etiquetas nas conversas
-- Sem mensagens rápidas integradas
-- Sem gravação de áudio funcional
-- Mídias não são persistidas em Storage (ficam como URLs externas que expiram)
-- Sem suporte a WebChat ou Instagram
-- Sem métricas de atendimento (tempo de resposta, SLA)
-- Sem indicador de "digitando..." ou presença online
-
----
-
-### Arquitetura Proposta
+A tabela `queues` será criada **no Supabase** (não no DB externo). As credenciais de conexão continuam existindo na tabela `agents` do DB externo para **retrocompatibilidade total** — CRM, Follow-up, Notificações, waba-send, meta-webhook continuam funcionando sem mudança. A tabela `queues` é a **fonte primária** de configuração, e uma tabela de vínculo `queue_agent_links` conecta filas a agentes. Quando uma fila é atualizada, as credenciais são **sincronizadas automaticamente** para a tabela `agents` via edge function.
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│                    CANAIS DE ENTRADA                            │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────┐   │
-│  │  UaZapi   │  │  WABA    │  │ WebChat  │  │  Instagram   │   │
-│  │ (webhook) │  │(webhook) │  │(realtime)│  │  (webhook)   │   │
-│  └─────┬─────┘  └─────┬────┘  └────┬─────┘  └──────┬───────┘  │
-│        └──────────┬────┴────────────┴───────────────┘          │
-│                   ▼                                             │
-│         chat_conversations (ticket)                             │
-│         chat_messages (mensagens)                               │
-│         chat_media (storage bucket)                             │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────┐       ┌─────────────────────┐
+│  QUEUES (Supabase)   │       │  AGENTS (DB Externo) │
+│  fonte primária de   │──sync─│  mantém credenciais  │
+│  credenciais/canal   │       │  para retrocompat.   │
+└──────────┬───────────┘       └──────────────────────┘
+           │
+   ┌───────┴────────┐
+   │ queue_agent_    │
+   │ links           │
+   │ (Supabase)      │
+   └───────┬─────────┘
+           │
+   ┌───────┴────────┐
+   │ CHAT            │
+   │ conversations   │
+   │ + queue_id      │
+   └────────────────┘
 ```
 
----
+### Regras de Segurança
 
-### Fases de Implementação
-
-#### Fase 1 — Modelo de Conversas (Tickets) + Persistência de Mídia
-
-**Banco de dados — nova tabela `chat_conversations`:**
-- `id`, `contact_id`, `client_id`, `cod_agent`
-- `channel` (uazapi | waba | webchat | instagram)
-- `status` (pending | open | closed | resolved)
-- `protocol` (número sequencial gerado automaticamente)
-- `assigned_to` (ID do atendente)
-- `department` (setor/fila)
-- `priority` (low | normal | high | urgent)
-- `tags` (text[])
-- `opened_at`, `first_response_at`, `closed_at`, `resolved_at`
-- `close_reason`, `close_note`
-- `metadata` (jsonb)
-
-**Alterações em `chat_messages`:**
-- Adicionar coluna `conversation_id` (FK para chat_conversations)
-- Adicionar coluna `internal_note` (boolean, default false) — notas internas
-- Adicionar coluna `sender_name` (nome do atendente que enviou)
-
-**Persistência de mídias em Storage:**
-- Criar Edge Function `chat-media-upload` que recebe base64, salva no bucket `chat-media` e retorna a URL pública
-- Ao enviar/receber mídia, gravar no Storage e salvar URL permanente em `chat_messages.media_url`
-- Atualizar webhooks (meta-webhook, uazapi-webhook) para baixar e persistir mídias recebidas
-
-**Regras de negócio:**
-- Ao receber mensagem de contato sem conversa aberta → criar conversa com status `pending`
-- Ao atendente responder → mudar para `open`, registrar `first_response_at`
-- Botão de "Encerrar conversa" → status `closed`, registrar motivo
-- Protocolo auto-gerado (ex: `#2025-001234`)
-
-#### Fase 2 — Interface do Módulo de Chat Redesenhada
-
-**Layout 3 painéis (estilo Chatwoot/Whaticket):**
-
-```text
-┌──────────────┬────────────────────┬──────────────┐
-│  SIDEBAR     │    CHAT AREA       │  DETALHES    │
-│              │                    │  DO CONTATO  │
-│ • Filtros    │  Header + Status   │              │
-│ • Filas      │  Mensagens         │  • Info      │
-│ • Busca      │  Input + Ações     │  • Tags      │
-│ • Conversas  │                    │  • Histórico │
-│              │                    │  • Notas     │
-└──────────────┴────────────────────┴──────────────┘
-```
-
-**Sidebar esquerda (lista de conversas):**
-- Filtros por status: Pendentes | Em atendimento | Resolvidas
-- Filtro por canal (ícone WhatsApp/WABA/Web/Instagram)
-- Filtro por atendente (meus | todos)
-- Indicador visual de canal em cada conversa
-- Badge de tempo de espera (ex: "Aguardando há 15min")
-- Contagem de não lidas por filtro
-
-**Área central (chat):**
-- Header com: nome, canal, status da conversa, botões de ação
-- Botões: Transferir | Encerrar | Marcar como Resolvido
-- Input com: mensagens rápidas, notas internas (toggle azul como no CRM), assinatura, gravação de áudio funcional (MediaRecorder), anexos
-- Indicador de "digitando..." via Realtime
-- Timeline de eventos (conversa aberta, transferida, encerrada)
-
-**Painel direito (detalhes):**
-- Informações do contato (nome editável, telefone, email)
-- Canal de origem
-- Tags da conversa (adicionar/remover)
-- Protocolo e timestamps
-- Histórico de conversas anteriores do contato
-- Notas internas
-- Dados do CRM (se existir card vinculado)
-
-#### Fase 3 — Funcionalidades Avançadas de Atendimento
-
-**Filas e distribuição:**
-- Tabela `chat_departments` (id, name, agents[])
-- Distribuição round-robin ou por menor carga
-- Transferência entre atendentes/setores com nota
-
-**Mensagens rápidas no chat:**
-- Integrar com tabela `quick_messages` existente
-- Atalho `/` no input para buscar mensagens rápidas
-- Filtro por `use_locations` incluindo `chat_module`
-
-**Gravação de áudio:**
-- MediaRecorder API com timer e cancelamento
-- Upload para Storage via edge function
-- Envio via adaptador do canal (UaZapi/WABA)
-
-**Tags e etiquetas:**
-- Tabela `chat_tags` (id, name, color, client_id)
-- Associação conversa ↔ tags
-- Filtro por tags na sidebar
-
-**Histórico completo:**
-- Ao encerrar conversa, todo histórico permanece acessível
-- Busca global por mensagens (full-text search)
-- Exportação de conversa
-
-#### Fase 4 — Novos Canais (WebChat + Instagram)
-
-**WebChat:**
-- Widget embeddable (React component isolado)
-- Comunicação via Supabase Realtime diretamente
-- Canal `webchat` → mesma tabela `chat_messages`
-- Customização visual (cores, logo, posição)
-
-**Instagram:**
-- Edge Function `instagram-webhook` para receber mensagens da Graph API
-- Envio via `instagram-send` (Graph API Messaging)
-- Canal `instagram` → mesma tabela `chat_messages`
-- Requer configuração do Instagram Business via Facebook App
-
-#### Fase 5 — Métricas e Dashboard de Atendimento
-
-- Tempo médio de primeira resposta
-- Tempo médio de resolução
-- Conversas por canal/atendente/período
-- SLA (conversas respondidas dentro do prazo)
-- Dashboard com gráficos no módulo `/chat`
+- **Soft delete em filas**: campo `is_deleted` + `deleted_at`. Fila deletada mantém histórico de conversas.
+- **Proteção contra orfandade**: Antes de desativar/deletar uma fila, verificar se há agentes vinculados. Se houver, exigir migração para outra fila ou desvinculação explícita.
+- **Migração de atendimentos**: Ao deletar (soft) uma fila, oferecer opção de migrar conversas ativas para outra fila.
+- **Sincronização**: Edge function `sync-queue-to-agent` atualiza credenciais na tabela `agents` do DB externo sempre que uma fila é criada/atualizada.
 
 ---
 
-### Detalhes Técnicos
+### Fase 1 — Modelo de Dados (Supabase)
 
-**Tabelas novas (migration SQL):**
-- `chat_conversations` — ticket principal
-- `chat_departments` — filas/setores
-- `chat_tags` + `chat_conversation_tags` — etiquetas
-- `chat_conversation_history` — log de eventos (transfer, close, reopen)
+**Tabela `queues`:**
+- `id` (uuid, PK)
+- `client_id` (text, NOT NULL)
+- `name` (text, NOT NULL) — ex: "WhatsApp Principal", "WABA Comercial"
+- `channel_type` (text) — `uazapi`, `waba`, `webchat`, `instagram`
+- `hub` (text) — valor sincronizado com agents
+- `evo_url`, `evo_apikey`, `evo_instance` (text, nullable) — credenciais UaZapi
+- `waba_id`, `waba_token`, `waba_number_id` (text, nullable) — credenciais WABA
+- `is_active` (boolean, default true)
+- `is_deleted` (boolean, default false) — soft delete
+- `deleted_at` (timestamptz, nullable)
+- `created_at`, `updated_at`
 
-**Edge Functions novas:**
-- `chat-media-upload` — persistir mídias no Storage
-- `instagram-webhook` — receber mensagens do Instagram
-- `instagram-send` — enviar mensagens via Instagram
+**Tabela `queue_agent_links`:**
+- `id` (uuid, PK)
+- `queue_id` (uuid, FK → queues.id)
+- `cod_agent` (text, NOT NULL) — referência ao agente no DB externo
+- `is_primary` (boolean, default false) — indica se é a fila principal do agente
+- `created_at`
 
-**Alterações em Edge Functions existentes:**
-- `meta-webhook` e `uazapi-webhook` — criar/atualizar `chat_conversations` automaticamente ao receber mensagem
-- `waba-send` — atualizar `first_response_at` quando atendente responde
+**Alterações em tabelas existentes:**
+- `chat_conversations`: adicionar `queue_id` (uuid, nullable, FK → queues.id)
+- `webchat_config`: adicionar `queue_id` (uuid, nullable, FK → queues.id)
+- `instagram_config`: adicionar `queue_id` (uuid, nullable, FK → queues.id)
 
-**Frontend — arquivos novos/alterados:**
-- Refatorar `WhatsAppDataContext` para incluir conceito de conversas
-- Novos componentes: `ConversationFilters`, `ConversationDetailPanel`, `ConversationTimeline`, `AudioRecorder`, `QuickMessagePicker`, `ChatTagManager`
-- Redesign do `ChatContainer` para layout 3 painéis
+### Fase 2 — Edge Function de Sincronização
+
+**`sync-queue-to-agent`**: Chamada sempre que uma fila é salva/atualizada.
+- Recebe `queue_id`
+- Busca todos os `cod_agent` vinculados via `queue_agent_links`
+- Para cada agente, atualiza os campos `hub`, `evo_url`, `evo_apikey`, `waba_token`, `waba_number_id` na tabela `agents` do DB externo via `db-query`
+- Retorna status de sincronização
+
+**`queue-management`**: CRUD de filas com validações:
+- **Criar**: Cria fila + opcionalmente vincula agente + sincroniza
+- **Atualizar**: Atualiza credenciais + sincroniza para todos agentes vinculados
+- **Deletar (soft)**: Verifica conversas ativas, oferece migração, marca `is_deleted=true`
+- **Migrar**: Move conversas de uma fila para outra (atualiza `queue_id` em `chat_conversations`)
+
+### Fase 3 — Frontend: Módulo de Filas
+
+**Nova página `/agente/filas`:**
+- Lista de filas com status (ativa, inativa, deletada)
+- Criar/editar fila: nome, tipo de canal, credenciais
+- QR Code para UaZapi, config WABA (reuso dos componentes existentes)
+- Vincular/desvincular agentes (multi-select)
+- Ação "Migrar Atendimentos" ao deletar fila
+- Indicador visual de agentes vinculados
+
+**Alterações em telas existentes:**
+- `AgentCard` / Meus Agentes: mostrar nome da fila vinculada, link para gerenciar
+- `ChatList`: filtro por fila além de filtro por agente/canal
+
+### Fase 4 — Atualização dos Webhooks (Chat)
+
+- `meta-webhook`: Após resolver o agente pelo `waba_number_id`, também buscar a `queue_id` correspondente e gravar em `chat_conversations`
+- `uazapi-webhook`: Idem, resolver `queue_id` e gravar
+- `webchat-api` e `instagram-webhook`: Resolver `queue_id` pela config
+
+**Ponto chave**: Os webhooks continuam resolvendo credenciais pela tabela `agents` (retrocompatibilidade). A `queue_id` é adicionada como metadado extra nas conversas.
 
 ---
 
-### Prioridade de Execução Sugerida
+### O que NÃO muda
 
-1. **Fase 1** — Fundação (conversations + media storage) — essencial
-2. **Fase 2** — Interface redesenhada — visível ao usuário
-3. **Fase 3** — Funcionalidades avançadas — diferencial competitivo
-4. **Fase 4** — Novos canais — expansão
-5. **Fase 5** — Métricas — gestão
+- `get-agent-credentials.ts` — continua lendo de `agents` (dados sincronizados)
+- `messaging-factory.ts` — sem alteração
+- `contract-notifications-cron/queue` — sem alteração
+- `waba-send` — sem alteração  
+- CRM, Follow-up, DataJud — sem alteração
+- Toda funcionalidade existente permanece 100% operacional
 
-Devo começar pela **Fase 1** (modelo de dados + persistência de mídia)?
+### Estimativa
+
+| Fase | Escopo | Risco |
+|---|---|---|
+| 1 - Tabelas Supabase | 1 migration | Baixo |
+| 2 - Edge functions sync + CRUD | 2 funções | Médio |
+| 3 - Frontend filas | 1 página + ajustes | Baixo |
+| 4 - Webhooks queue_id | 4 funções ajustadas | Médio |
 
