@@ -29,7 +29,9 @@ export function useEnsureFilasModule() {
         }
 
         await externalDb.createModule({
+          code: 'filas',
           name: 'Filas',
+          category: 'sistema',
           icon: 'Network',
           route: '/agente/filas',
           menu_group: 'CONFIGURAÇÕES',
