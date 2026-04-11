@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
@@ -25,17 +26,24 @@ interface QueueWizardDialogProps {
 }
 
 export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps) {
+  const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [selectedType, setSelectedType] = useState('');
   const [selectedProviderId, setSelectedProviderId] = useState('');
   const [queueName, setQueueName] = useState('');
-  // UaZapi-specific
-  const [evoInstance, setEvoInstance] = useState('');
   // WABA-specific
   const [wabaNumberId, setWabaNumberId] = useState('');
 
   const { data: allProviders = [] } = useQueueProviders();
   const { createQueue } = useQueueMutations();
+
+  // Auto-generate UaZapi instance name
+  const evoInstance = useMemo(() => {
+    if (selectedType !== 'uazapi') return '';
+    const uid = user?.id || '0';
+    const uuid = crypto.randomUUID().split('-')[0];
+    return `QUEUE_${uid}_${uuid}`;
+  }, [selectedType, user?.id]);
 
   const filteredProviders = allProviders.filter(
     (p) => p.provider_type === selectedType && p.is_active
@@ -49,7 +57,6 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
       setSelectedType('');
       setSelectedProviderId('');
       setQueueName('');
-      setEvoInstance('');
       setWabaNumberId('');
     }
   }, [open]);
@@ -66,8 +73,9 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
   const canGoStep2 = !!selectedType;
   const canGoStep3 = selectedType === 'webchat'
     ? true
+    : selectedType === 'uazapi'
+    ? !!selectedProviderId
     : !!selectedProviderId && (
-      selectedType === 'uazapi' ? !!evoInstance.trim() :
       selectedType === 'waba' ? !!wabaNumberId.trim() :
       true
     );
@@ -198,15 +206,9 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
                 </div>
 
                 {selectedType === 'uazapi' && selectedProviderId && (
-                  <div>
-                    <Label>Nome da Instância</Label>
-                    <Input
-                      value={evoInstance}
-                      onChange={(e) => setEvoInstance(e.target.value)}
-                      placeholder="minha-instancia"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Nome da instância UaZapi que será conectada a esta fila
+                  <div className="p-3 border border-border rounded-lg bg-muted/50">
+                    <p className="text-sm text-muted-foreground">
+                      A instância será criada automaticamente com o nome <strong className="text-foreground">{evoInstance}</strong>.
                     </p>
                   </div>
                 )}
