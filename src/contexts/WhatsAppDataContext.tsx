@@ -484,10 +484,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         // UaZapi send via proxy with queue credentials
         const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
           body: {
-            path: '/message/sendText',
             method: 'POST',
-            queue_id: selectedQueue.id,
-            payload: {
+            endpoint: '/message/sendText',
+            token: selectedQueue.evo_apikey,
+            baseUrl: selectedQueue.evo_url,
+            body: {
               number: contact.phone,
               text,
               quotedMessageId: replyToId,
@@ -495,7 +496,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           },
         });
         if (error) throw error;
-        externalMessageId = data?.messageId || data?.id;
+        const proxyData = data?.data || data;
+        externalMessageId = proxyData?.messageId || proxyData?.id;
       }
 
       setMessages(prev => ({
@@ -652,10 +654,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
         const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
           body: {
-            path,
             method: 'POST',
-            queue_id: selectedQueue.id,
-            payload: {
+            endpoint: path,
+            token: selectedQueue.evo_apikey,
+            baseUrl: selectedQueue.evo_url,
+            body: {
               number: contact.phone,
               mediaBase64: base64,
               mimetype: file.type,
@@ -665,7 +668,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           },
         });
         if (error) throw error;
-        externalMessageId = data?.messageId || data?.id;
+        const mediaProxyData = data?.data || data;
+        externalMessageId = mediaProxyData?.messageId || mediaProxyData?.id;
       }
 
       setMessages(prev => ({
@@ -723,10 +727,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         try {
           await supabase.functions.invoke('uazapi-proxy', {
             body: {
-              path: '/chat/markRead',
               method: 'POST',
-              queue_id: selectedQueue.id,
-              payload: { number: contact.phone, read: true },
+              endpoint: '/chat/markRead',
+              token: selectedQueue.evo_apikey,
+              baseUrl: selectedQueue.evo_url,
+              body: { number: contact.phone, read: true },
             },
           });
         } catch { /* ignore read errors */ }
@@ -759,15 +764,16 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       if (selectedQueue.channel_type === 'uazapi') {
         const { data: response, error } = await supabase.functions.invoke('uazapi-proxy', {
           body: {
-            path: '/chat/find',
             method: 'POST',
-            queue_id: selectedQueue.id,
-            payload: { limit: 100, sort: '-wa_lastMsgTimestamp' },
+            endpoint: '/chat/find',
+            token: selectedQueue.evo_apikey,
+            baseUrl: selectedQueue.evo_url,
+            body: { limit: 100, sort: '-wa_lastMsgTimestamp' },
           },
         });
         if (error) throw error;
 
-        const chats = response?.chats || [];
+        const chats = response?.data?.chats || response?.data || [];
 
         for (const c of chats) {
           const phone = (c.phone || c.id || '').replace(/[^\d]/g, '').replace(/@.*/, '');
