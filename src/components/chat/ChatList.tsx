@@ -102,6 +102,14 @@ export function ChatList() {
             <Button
               variant="ghost"
               size="icon"
+              onClick={() => navigate('/chat/metricas')}
+              title="Métricas de atendimento"
+            >
+              <BarChart3 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => navigate('/chat/canais')}
               title="Configurar canais"
             >
