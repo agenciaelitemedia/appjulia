@@ -2,8 +2,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, Users, RotateCcw } from 'lucide-react';
+import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw } from 'lucide-react';
 import { Queue } from '../hooks/useQueues';
+import { UazapiInstanceStatus } from './UazapiInstanceStatus';
 
 const channelIcons: Record<string, React.ReactNode> = {
   uazapi: <Phone className="w-4 h-4" />,
@@ -24,12 +25,9 @@ interface QueueCardProps {
   onEdit: (queue: Queue) => void;
   onDelete: (queue: Queue) => void;
   onRestore: (queue: Queue) => void;
-  onManageAgents: (queue: Queue) => void;
 }
 
-export function QueueCard({ queue, onEdit, onDelete, onRestore, onManageAgents }: QueueCardProps) {
-  const linkedAgents = queue.queue_agent_links || [];
-
+export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps) {
   return (
     <Card className={`hover:shadow-md transition-shadow ${queue.is_deleted ? 'opacity-60 border-dashed' : ''}`}>
       <CardContent className="p-4">
@@ -52,9 +50,6 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore, onManageAgents }
                   <DropdownMenuItem onClick={() => onEdit(queue)}>
                     <Pencil className="mr-2 h-4 w-4" /> Editar
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onManageAgents(queue)}>
-                    <Users className="mr-2 h-4 w-4" /> Gerenciar Agentes
-                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => onDelete(queue)} className="text-destructive">
                     <Trash2 className="mr-2 h-4 w-4" /> Excluir
                   </DropdownMenuItem>
@@ -70,7 +65,7 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore, onManageAgents }
         </div>
 
         <h3 className="font-semibold text-foreground truncate mb-1">{queue.name}</h3>
-        <p className="text-xs text-muted-foreground mb-2">
+        <p className="text-xs text-muted-foreground mb-1">
           {channelLabels[queue.channel_type] || queue.channel_type}
         </p>
 
@@ -85,12 +80,14 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore, onManageAgents }
           </p>
         )}
 
-        <div className="flex items-center gap-1 mt-3 pt-3 border-t border-border/50">
-          <Users className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">
-            {linkedAgents.length} agente{linkedAgents.length !== 1 ? 's' : ''} vinculado{linkedAgents.length !== 1 ? 's' : ''}
-          </span>
-        </div>
+        {/* UaZapi connection status inline */}
+        {queue.channel_type === 'uazapi' && queue.evo_instance && queue.evo_url && queue.evo_apikey && !queue.is_deleted && (
+          <UazapiInstanceStatus
+            evoUrl={queue.evo_url}
+            evoApikey={queue.evo_apikey}
+            evoInstance={queue.evo_instance}
+          />
+        )}
       </CardContent>
     </Card>
   );
