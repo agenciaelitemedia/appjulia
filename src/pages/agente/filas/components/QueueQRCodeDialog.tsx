@@ -14,9 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface QueueQRCodeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  evoUrl: string;
-  evoApikey: string;
-  evoInstance: string;
+  queueId: string;
   queueName: string;
   onConnected: () => void;
 }
@@ -24,9 +22,7 @@ interface QueueQRCodeDialogProps {
 export function QueueQRCodeDialog({
   open,
   onOpenChange,
-  evoUrl,
-  evoApikey,
-  evoInstance,
+  queueId,
   queueName,
   onConnected,
 }: QueueQRCodeDialogProps) {
@@ -39,33 +35,23 @@ export function QueueQRCodeDialog({
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchQRCode = useCallback(async () => {
-    if (!evoUrl || !evoApikey) return;
+    if (!queueId) return;
     setLoading(true);
     try {
-      // First trigger connect to generate QR
-      await supabase.functions.invoke('uazapi-proxy', {
-        body: {
-          method: 'POST',
-          endpoint: '/instance/connect',
-          baseUrl: evoUrl,
-          token: evoApikey,
-        },
+      // Trigger connect to generate QR
+      await supabase.functions.invoke('uazapi-instance-manager', {
+        body: { action: 'connect', queue_id: queueId },
       });
 
-      // Then fetch status which contains the QR code
-      const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
-        body: {
-          method: 'GET',
-          endpoint: '/instance/status',
-          baseUrl: evoUrl,
-          token: evoApikey,
-        },
+      // Fetch status which contains QR code
+      const { data, error } = await supabase.functions.invoke('uazapi-instance-manager', {
+        body: { action: 'status', queue_id: queueId },
       });
 
       if (!error && data?.data) {
         const inst = data.data.instance || {};
         const status = data.data.status || {};
-        const connected = status.connected === true && status.loggedIn === true;
+        const connected = status.connected === true;
 
         if (connected) {
           setIsConnected(true);
@@ -83,7 +69,7 @@ export function QueueQRCodeDialog({
       setLoading(false);
       setCountdown(30);
     }
-  }, [evoUrl, evoApikey, onConnected]);
+  }, [queueId, onConnected]);
 
   // Polling every 30s
   useEffect(() => {

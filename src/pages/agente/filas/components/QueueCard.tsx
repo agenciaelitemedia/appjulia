@@ -80,12 +80,10 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
           </p>
         )}
 
-        {/* UaZapi connection status inline */}
-        {queue.channel_type === 'uazapi' && queue.evo_instance && queue.evo_url && queue.evo_apikey && !queue.is_deleted && (
+        {/* UaZapi connection status - uses queue_id only */}
+        {queue.channel_type === 'uazapi' && queue.evo_instance && !queue.is_deleted && (
           <UazapiInstanceStatus
-            evoUrl={queue.evo_url}
-            evoApikey={queue.evo_apikey}
-            evoInstance={queue.evo_instance}
+            queueId={queue.id}
             queueName={queue.name}
           />
         )}

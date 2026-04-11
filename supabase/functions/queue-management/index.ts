@@ -114,6 +114,36 @@ serve(async (req) => {
 
         if (error) throw error;
 
+        // For UaZapi queues, create the real instance on the UaZapi server
+        if (channel_type === 'uazapi' && queue.evo_instance) {
+          try {
+            const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+            const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+            const createRes = await fetch(`${supabaseUrl}/functions/v1/uazapi-instance-manager`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseKey}`,
+              },
+              body: JSON.stringify({ action: 'create', instance_name: queue.evo_instance }),
+            });
+            const createData = await createRes.json();
+            console.log('[queue-management] Instance create result:', JSON.stringify(createData));
+
+            // Update queue with the real instance token
+            if (createData.instance_token) {
+              await supabase
+                .from('queues')
+                .update({ evo_apikey: createData.instance_token })
+                .eq('id', queue.id);
+            }
+          } catch (err) {
+            console.error('[queue-management] Failed to create UaZapi instance:', err);
+            // Queue was created in DB, report warning
+            return respond({ queue, instance_warning: 'Failed to create instance on UaZapi server' });
+          }
+        }
+
         // Link agents if provided
         if (link_agents && Array.isArray(link_agents) && link_agents.length > 0) {
           const links = link_agents.map((la: { cod_agent: string; is_primary?: boolean }) => ({

@@ -14,35 +14,28 @@ interface InstanceInfo {
 }
 
 interface UazapiInstanceStatusProps {
-  evoUrl: string;
-  evoApikey: string;
-  evoInstance: string;
+  queueId: string;
   queueName?: string;
 }
 
-export function UazapiInstanceStatus({ evoUrl, evoApikey, evoInstance, queueName }: UazapiInstanceStatusProps) {
+export function UazapiInstanceStatus({ queueId, queueName }: UazapiInstanceStatusProps) {
   const [instanceInfo, setInstanceInfo] = useState<InstanceInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
 
   const fetchStatus = async () => {
-    if (!evoInstance || !evoUrl || !evoApikey) return;
+    if (!queueId) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
-        body: {
-          method: 'GET',
-          endpoint: '/instance/status',
-          baseUrl: evoUrl,
-          token: evoApikey,
-        },
+      const { data, error } = await supabase.functions.invoke('uazapi-instance-manager', {
+        body: { action: 'status', queue_id: queueId },
       });
       if (!error && data?.data) {
         const inst = data.data.instance || {};
         const status = data.data.status || {};
         setInstanceInfo({
-          instanceName: inst.name || evoInstance,
+          instanceName: inst.name || '',
           status: status.connected ? 'open' : 'close',
           phoneNumber: inst.owner || '',
           profileName: inst.profileName || '',
@@ -57,18 +50,13 @@ export function UazapiInstanceStatus({ evoUrl, evoApikey, evoInstance, queueName
 
   useEffect(() => {
     fetchStatus();
-  }, [evoInstance, evoUrl, evoApikey]);
+  }, [queueId]);
 
   const handleDisconnect = async () => {
     setDisconnecting(true);
     try {
-      const { error } = await supabase.functions.invoke('uazapi-proxy', {
-        body: {
-          method: 'DELETE',
-          endpoint: `/instance/logout/${evoInstance}`,
-          baseUrl: evoUrl,
-          token: evoApikey,
-        },
+      const { error } = await supabase.functions.invoke('uazapi-instance-manager', {
+        body: { action: 'disconnect', queue_id: queueId },
       });
       if (error) throw new Error(error.message);
       toast.success('Instância desconectada');
@@ -133,10 +121,8 @@ export function UazapiInstanceStatus({ evoUrl, evoApikey, evoInstance, queueName
       <QueueQRCodeDialog
         open={qrDialogOpen}
         onOpenChange={setQrDialogOpen}
-        evoUrl={evoUrl}
-        evoApikey={evoApikey}
-        evoInstance={evoInstance}
-        queueName={queueName || evoInstance}
+        queueId={queueId}
+        queueName={queueName || ''}
         onConnected={() => {
           fetchStatus();
           toast.success('WhatsApp conectado com sucesso!');
