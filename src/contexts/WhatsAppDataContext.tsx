@@ -668,7 +668,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           },
         });
         if (error) throw error;
-        externalMessageId = data?.messageId || data?.id;
+        const mediaProxyData = data?.data || data;
+        externalMessageId = mediaProxyData?.messageId || mediaProxyData?.id;
       }
 
       setMessages(prev => ({
@@ -772,7 +773,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         });
         if (error) throw error;
 
-        const chats = response?.chats || [];
+        const chats = response?.data?.chats || response?.data || [];
 
         for (const c of chats) {
           const phone = (c.phone || c.id || '').replace(/[^\d]/g, '').replace(/@.*/, '');
