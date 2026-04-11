@@ -39,6 +39,7 @@ import VideoQueuePage from "./pages/video/VideoQueuePage";
 import JoinCallPage from "./pages/video/JoinCallPage";
 import ChatPage from "./pages/chat/ChatPage";
 import ChatChannelsPage from "./pages/chat/ChatChannelsPage";
+import ChatMetricsPage from "./pages/chat/ChatMetricsPage";
 import AdvboxIntegrationPage from "./pages/advbox/IntegrationPage";
 import AdvboxNotificationRulesPage from "./pages/advbox/NotificationRulesPage";
 import AdvboxProcessesPage from "./pages/advbox/ProcessesPage";
@@ -99,6 +100,7 @@ const App = () => (
                   <Route path="/video/queue" element={<VideoQueuePage />} />
                   <Route path="/chat" element={<ChatPage />} />
                   <Route path="/chat/canais" element={<ChatChannelsPage />} />
+                  <Route path="/chat/metricas" element={<ChatMetricsPage />} />
                   <Route path="/biblioteca" element={<CriativosPage />} />
                   <Route path="/equipe" element={<EquipePage />} />
                   <Route path="/perfil" element={<ProfileSettingsPage />} />
