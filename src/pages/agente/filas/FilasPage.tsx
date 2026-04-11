@@ -17,6 +17,7 @@ export default function FilasPage() {
   const { data: queues = [], isLoading } = useQueues(showDeleted);
   const { restoreQueue } = useQueueMutations();
 
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingQueue, setEditingQueue] = useState<Queue | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Queue | null>(null);
@@ -28,8 +29,7 @@ export default function FilasPage() {
   };
 
   const handleNew = () => {
-    setEditingQueue(null);
-    setFormOpen(true);
+    setWizardOpen(true);
   };
 
   const activeQueues = queues.filter((q) => !q.is_deleted);
@@ -80,6 +80,8 @@ export default function FilasPage() {
           ))}
         </div>
       )}
+
+      <QueueWizardDialog open={wizardOpen} onOpenChange={setWizardOpen} />
 
       <QueueFormDialog
         open={formOpen}
