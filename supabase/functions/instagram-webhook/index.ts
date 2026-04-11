@@ -95,6 +95,7 @@ async function insertMessage(
   message: any,
   msgType: string,
   msgText: string,
+  pageId?: string,
 ) {
   let mediaUrl: string | null = null;
   let caption: string | null = null;
@@ -105,6 +106,15 @@ async function insertMessage(
     mediaUrl = att.payload?.url || null;
     type = att.type === 'image' ? 'image' : att.type === 'video' ? 'video' : att.type === 'audio' ? 'audio' : 'document';
     caption = msgText || null;
+  }
+
+  // Resolve queue_id
+  let queueId: string | null = null;
+  if (pageId) {
+    queueId = await resolveQueueByInstagramPageId(supabase, pageId);
+  }
+  if (!queueId) {
+    queueId = await resolveQueueId(supabase, agentInfo.cod_agent, 'instagram');
   }
 
   // Check/create conversation
@@ -126,6 +136,7 @@ async function insertMessage(
         cod_agent: agentInfo.cod_agent,
         channel: 'instagram',
         status: 'pending',
+        queue_id: queueId,
       })
       .select('id')
       .single();
@@ -188,7 +199,7 @@ Deno.serve(async (req) => {
           // For Instagram, we may not have the name directly
           const senderName = `Instagram ${senderId.slice(-6)}`;
 
-          await persistMessage(agentInfo, senderId, senderName, event.message);
+          await persistMessage(agentInfo, senderId, senderName, event.message, pageId);
         }
       }
     }
