@@ -1671,7 +1671,7 @@ export function WhatsAppMessagesDialog({
   const Description = isSheet ? SheetDescription : DialogDescription;
 
   const sheetWidth = contractSidebarOpen
-    ? 'w-[calc(100vw-1rem)] sm:w-[1100px] sm:!max-w-[1100px]'
+    ? 'w-[calc(100vw-1rem)] sm:w-[1140px] sm:!max-w-[1140px]'
     : 'w-[calc(100vw-1rem)] sm:w-[640px] sm:!max-w-[640px]';
   const contentProps = isSheet
     ? { side: 'right' as const, className: `${sheetWidth} !gap-0 overflow-hidden p-0 flex flex-row h-full transition-all duration-300` }
@@ -1684,7 +1684,7 @@ export function WhatsAppMessagesDialog({
       <Content {...contentProps} aria-describedby={undefined}>
         {/* Contract Details Panel - inline side by side (LEFT of chat) */}
         {contractSidebarOpen && (
-          <div className="w-[440px] border-r flex flex-col h-full bg-background">
+          <div className="w-[480px] min-w-0 border-r flex flex-col h-full bg-background">
             <div className="px-4 py-3 border-b bg-muted/30 flex items-center justify-between">
               <div className="flex items-center gap-2 font-semibold">
                 <Scale className="h-5 w-5" />
