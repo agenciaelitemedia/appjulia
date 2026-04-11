@@ -38,6 +38,7 @@ import ModulosPage from "./pages/admin/modulos/ModulosPage";
 import VideoQueuePage from "./pages/video/VideoQueuePage";
 import JoinCallPage from "./pages/video/JoinCallPage";
 import ChatPage from "./pages/chat/ChatPage";
+import ChatChannelsPage from "./pages/chat/ChatChannelsPage";
 import AdvboxIntegrationPage from "./pages/advbox/IntegrationPage";
 import AdvboxNotificationRulesPage from "./pages/advbox/NotificationRulesPage";
 import AdvboxProcessesPage from "./pages/advbox/ProcessesPage";
@@ -97,6 +98,7 @@ const App = () => (
                   <Route path="/agente/followup" element={<FollowupPage />} />
                   <Route path="/video/queue" element={<VideoQueuePage />} />
                   <Route path="/chat" element={<ChatPage />} />
+                  <Route path="/chat/canais" element={<ChatChannelsPage />} />
                   <Route path="/biblioteca" element={<CriativosPage />} />
                   <Route path="/equipe" element={<EquipePage />} />
                   <Route path="/perfil" element={<ProfileSettingsPage />} />

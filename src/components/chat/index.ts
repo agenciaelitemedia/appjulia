@@ -12,3 +12,5 @@ export { MessageBubble } from './MessageBubble';
 export { QuotedMessage } from './QuotedMessage';
 export { QuickMessagePicker } from './QuickMessagePicker';
 export { ContactDetailPanel } from './ContactDetailPanel';
+export { ChatChannelsConfig } from './ChatChannelsConfig';
+export { WebChatWidgetPreview } from './WebChatWidgetPreview';

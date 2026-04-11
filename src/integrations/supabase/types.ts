@@ -1794,6 +1794,45 @@ export type Database = {
         }
         Relationships: []
       }
+      instagram_config: {
+        Row: {
+          client_id: string
+          cod_agent: string
+          created_at: string
+          id: string
+          instagram_page_id: string | null
+          instagram_user_id: string | null
+          is_active: boolean
+          page_access_token: string | null
+          page_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          cod_agent: string
+          created_at?: string
+          id?: string
+          instagram_page_id?: string | null
+          instagram_user_id?: string | null
+          is_active?: boolean
+          page_access_token?: string | null
+          page_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          cod_agent?: string
+          created_at?: string
+          id?: string
+          instagram_page_id?: string | null
+          instagram_user_id?: string | null
+          is_active?: boolean
+          page_access_token?: string | null
+          page_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       julia_contract_template: {
         Row: {
           body_markdown: string
@@ -2549,6 +2588,111 @@ export type Database = {
           started_at?: string | null
           status?: string | null
           whatsapp_number?: string | null
+        }
+        Relationships: []
+      }
+      webchat_config: {
+        Row: {
+          allowed_domains: string[] | null
+          auto_open_delay_seconds: number | null
+          client_id: string
+          cod_agent: string
+          collect_email: boolean | null
+          collect_name: boolean | null
+          created_at: string
+          id: string
+          is_active: boolean
+          logo_url: string | null
+          offline_message: string | null
+          position: string
+          primary_color: string
+          updated_at: string
+          welcome_message: string | null
+          widget_title: string
+        }
+        Insert: {
+          allowed_domains?: string[] | null
+          auto_open_delay_seconds?: number | null
+          client_id: string
+          cod_agent: string
+          collect_email?: boolean | null
+          collect_name?: boolean | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          offline_message?: string | null
+          position?: string
+          primary_color?: string
+          updated_at?: string
+          welcome_message?: string | null
+          widget_title?: string
+        }
+        Update: {
+          allowed_domains?: string[] | null
+          auto_open_delay_seconds?: number | null
+          client_id?: string
+          cod_agent?: string
+          collect_email?: boolean | null
+          collect_name?: boolean | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          offline_message?: string | null
+          position?: string
+          primary_color?: string
+          updated_at?: string
+          welcome_message?: string | null
+          widget_title?: string
+        }
+        Relationships: []
+      }
+      webchat_sessions: {
+        Row: {
+          client_id: string
+          cod_agent: string
+          contact_id: string | null
+          conversation_id: string | null
+          created_at: string
+          id: string
+          last_seen_at: string | null
+          metadata: Json | null
+          status: string
+          updated_at: string
+          visitor_email: string | null
+          visitor_id: string
+          visitor_name: string | null
+        }
+        Insert: {
+          client_id: string
+          cod_agent: string
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          last_seen_at?: string | null
+          metadata?: Json | null
+          status?: string
+          updated_at?: string
+          visitor_email?: string | null
+          visitor_id: string
+          visitor_name?: string | null
+        }
+        Update: {
+          client_id?: string
+          cod_agent?: string
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          last_seen_at?: string | null
+          metadata?: Json | null
+          status?: string
+          updated_at?: string
+          visitor_email?: string | null
+          visitor_id?: string
+          visitor_name?: string | null
         }
         Relationships: []
       }

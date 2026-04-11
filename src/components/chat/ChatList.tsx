@@ -1,11 +1,12 @@
 import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RefreshCw, Search, MessageCircle, Users, Bot, Clock, CheckCircle2, Inbox, Globe, Instagram } from 'lucide-react';
+import { RefreshCw, Search, MessageCircle, Users, Bot, Clock, CheckCircle2, Inbox, Globe, Instagram, Settings2 } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { ChatContactItem } from './ChatContactItem';
 import { Badge } from '@/components/ui/badge';
@@ -36,6 +37,7 @@ export function ChatList() {
     conversations,
   } = useWhatsAppData();
 
+  const navigate = useNavigate();
   const { data: agentsData } = useMyAgents();
   const [channelFilter, setChannelFilter] = React.useState<ChannelFilter>('all');
   
@@ -96,15 +98,25 @@ export function ChatList() {
               </Badge>
             )}
           </h2>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => syncContacts()}
-            disabled={isSyncing || !selectedAgent}
-            title="Sincronizar contatos"
-          >
-            <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate('/chat/canais')}
+              title="Configurar canais"
+            >
+              <Settings2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => syncContacts()}
+              disabled={isSyncing || !selectedAgent}
+              title="Sincronizar contatos"
+            >
+              <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
         </div>
 
         {/* Agent selector */}
