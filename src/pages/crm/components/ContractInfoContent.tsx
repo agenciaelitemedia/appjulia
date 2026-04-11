@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -267,7 +268,9 @@ export const ContractInfoContent: React.FC<ContractInfoContentProps> = ({ contra
                 Resumo do Caso
               </h3>
               <div className="p-4 bg-muted/30 rounded-lg">
-                <p className="text-sm whitespace-pre-wrap">{contractInfo.resumo_do_caso}</p>
+                <div className="text-sm prose prose-sm dark:prose-invert max-w-none">
+                  <ReactMarkdown>{contractInfo.resumo_do_caso}</ReactMarkdown>
+                </div>
               </div>
             </div>
             <Separator />
