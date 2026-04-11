@@ -42,6 +42,7 @@ async function persistMessage(
   senderId: string,
   senderName: string,
   message: any,
+  pageId?: string,
 ) {
   const contactPhone = `ig_${senderId}`;
   const msgText = message.text || '';
@@ -82,11 +83,11 @@ async function persistMessage(
       return;
     }
 
-    await insertMessage(existing.id, agentInfo, message, msgType, msgText);
+    await insertMessage(existing.id, agentInfo, message, msgType, msgText, pageId);
     return;
   }
 
-  await insertMessage(contact.id, agentInfo, message, msgType, msgText);
+  await insertMessage(contact.id, agentInfo, message, msgType, msgText, pageId);
 }
 
 async function insertMessage(
