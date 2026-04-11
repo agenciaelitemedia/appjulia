@@ -35,7 +35,8 @@ export type ModuleCode =
   | 'crm_comercial'
   | 'support_assistant'
   | 'quick_messages'
-  | 'filas';
+  | 'filas'
+  | 'configuracoes';
 
 export interface Module {
   id: number;

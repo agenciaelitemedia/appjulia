@@ -67,6 +67,7 @@ import CRMComercialPage from "./pages/comercial/crm/CRMComercialPage";
 import SupportAssistantPage from "./pages/suporte-assistente/SupportAssistantPage";
 import QuickMessagesPage from "./pages/mensagens-rapidas/QuickMessagesPage";
 import FilasPage from "./pages/agente/filas/FilasPage";
+import ConfiguracoesPage from "./pages/configuracoes/ConfiguracoesPage";
 
 const queryClient = new QueryClient();
 
@@ -98,6 +99,7 @@ const App = () => (
                   <Route path="/agente/meus-agentes" element={<MyAgentsPage />} />
                   <Route path="/agente/meus-agentes/:codAgent/editar" element={<MyAgentEditPage />} />
                   <Route path="/agente/filas" element={<FilasPage />} />
+                  <Route path="/configuracoes" element={<ConfiguracoesPage />} />
                   <Route path="/agente/followup" element={<FollowupPage />} />
                   <Route path="/video/queue" element={<VideoQueuePage />} />
                   <Route path="/chat" element={<ChatPage />} />

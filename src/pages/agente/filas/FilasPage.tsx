@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { useQueues, useQueueMutations, Queue } from './hooks/useQueues';
 import { QueueCard } from './components/QueueCard';
 import { QueueFormDialog } from './components/QueueFormDialog';
+import { QueueWizardDialog } from './components/QueueWizardDialog';
 import { DeleteQueueDialog } from './components/DeleteQueueDialog';
 import { ManageAgentsDialog } from './components/ManageAgentsDialog';
 import { useEnsureFilasModule } from '@/hooks/useEnsureFilasModule';
@@ -16,6 +17,7 @@ export default function FilasPage() {
   const { data: queues = [], isLoading } = useQueues(showDeleted);
   const { restoreQueue } = useQueueMutations();
 
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingQueue, setEditingQueue] = useState<Queue | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Queue | null>(null);
@@ -27,8 +29,7 @@ export default function FilasPage() {
   };
 
   const handleNew = () => {
-    setEditingQueue(null);
-    setFormOpen(true);
+    setWizardOpen(true);
   };
 
   const activeQueues = queues.filter((q) => !q.is_deleted);
@@ -79,6 +80,8 @@ export default function FilasPage() {
           ))}
         </div>
       )}
+
+      <QueueWizardDialog open={wizardOpen} onOpenChange={setWizardOpen} />
 
       <QueueFormDialog
         open={formOpen}
