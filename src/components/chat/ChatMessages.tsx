@@ -20,12 +20,15 @@ type TimelineItem =
 export function ChatMessages({ contactId }: ChatMessagesProps) {
   const { messages, loadMessages, markAsRead, conversationHistory, loadConversationHistory, selectedConversation } = useWhatsAppData();
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
   
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const topSentinelRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
+  const prevScrollHeight = useRef(0);
   
   const contactMessages = messages[contactId] || [];
 
@@ -40,62 +43,88 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
   useEffect(() => {
     isInitialLoad.current = true;
     setIsLoading(true);
+    setHasMore(true);
     loadMessages(contactId, 50, 0)
       .then(({ hasMore: more }) => {
         setHasMore(more);
         setTimeout(() => {
           bottomRef.current?.scrollIntoView({ behavior: 'auto' });
           isInitialLoad.current = false;
-        }, 100);
+        }, 150);
       })
       .finally(() => setIsLoading(false));
     
     markAsRead(contactId);
   }, [contactId, loadMessages, markAsRead]);
 
-  // Load more messages
-  const handleLoadMore = useCallback(async () => {
-    if (isLoading || !hasMore) return;
-    
-    setIsLoading(true);
-    try {
-      const { hasMore: more } = await loadMessages(
-        contactId, 
-        50, 
-        contactMessages.length
-      );
-      setHasMore(more);
-    } finally {
-      setIsLoading(false);
+  // Auto-scroll to bottom on new messages (if near bottom)
+  useEffect(() => {
+    if (isInitialLoad.current || !scrollContainerRef.current) return;
+    const el = scrollContainerRef.current;
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+    if (isNearBottom) {
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     }
-  }, [contactId, contactMessages.length, hasMore, isLoading, loadMessages]);
+  }, [contactMessages.length]);
+
+  // Load more messages with scroll position preservation
+  const handleLoadMore = useCallback(async () => {
+    if (isLoadingMore || !hasMore) return;
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    prevScrollHeight.current = el.scrollHeight;
+    setIsLoadingMore(true);
+    try {
+      const { hasMore: more } = await loadMessages(contactId, 50, contactMessages.length);
+      setHasMore(more);
+      // Preserve scroll position after prepending older messages
+      requestAnimationFrame(() => {
+        if (el) {
+          const newScrollHeight = el.scrollHeight;
+          el.scrollTop = newScrollHeight - prevScrollHeight.current;
+        }
+      });
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [contactId, contactMessages.length, hasMore, isLoadingMore, loadMessages]);
+
+  // IntersectionObserver for infinite scroll (top sentinel)
+  useEffect(() => {
+    if (!topSentinelRef.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && hasMore && !isLoadingMore && !isInitialLoad.current) {
+          handleLoadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(topSentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore, handleLoadMore]);
 
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const target = e.currentTarget;
-    const isNearBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 100;
+  const handleScroll = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
     setShowScrollButton(!isNearBottom);
-    
-    if (target.scrollTop < 100 && hasMore && !isLoading) {
-      handleLoadMore();
-    }
   };
 
   // Merge messages and events into a unified timeline
   const timeline = useMemo<TimelineItem[]>(() => {
     const items: TimelineItem[] = [];
-    
     for (const msg of contactMessages) {
       items.push({ kind: 'message', data: msg, ts: new Date(msg.timestamp).getTime() });
     }
-    
     for (const evt of conversationHistory) {
       items.push({ kind: 'event', data: evt, ts: new Date(evt.created_at).getTime() });
     }
-    
     items.sort((a, b) => a.ts - b.ts);
     return items;
   }, [contactMessages, conversationHistory]);
@@ -116,7 +145,6 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    
     if (isSameDay(date, today)) return 'Hoje';
     if (isSameDay(date, yesterday)) return 'Ontem';
     return format(date, "d 'de' MMMM 'de' yyyy", { locale: ptBR });
@@ -124,26 +152,19 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
 
   return (
     <div className="flex-1 relative flex flex-col overflow-hidden">
-      <ScrollArea 
-        ref={scrollRef}
-        className="flex-1 p-4"
-        onScrollCapture={handleScroll}
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto p-4"
+        onScroll={handleScroll}
       >
         <div className="space-y-4">
-          {/* Load more button */}
-          {hasMore && (
+          {/* Top sentinel for IntersectionObserver */}
+          <div ref={topSentinelRef} className="h-1" />
+
+          {/* Loading more indicator */}
+          {isLoadingMore && (
             <div className="flex justify-center py-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLoadMore}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : null}
-                {isLoading ? 'Carregando...' : 'Carregar mais mensagens'}
-              </Button>
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             </div>
           )}
 
@@ -157,16 +178,13 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
           {/* Timeline grouped by date */}
           {Object.entries(groupedTimeline).map(([dateKey, items]) => (
             <div key={dateKey}>
-              {/* Date header */}
               <div className="flex items-center justify-center my-4">
                 <div className="bg-muted px-3 py-1 rounded-full text-xs text-muted-foreground">
                   {formatDateHeader(dateKey)}
                 </div>
               </div>
-
-              {/* Items */}
               <div className="space-y-2">
-                {items.map((item, idx) => {
+                {items.map((item) => {
                   if (item.kind === 'event') {
                     return <ConversationEvent key={`evt-${item.data.id}`} entry={item.data} />;
                   }
@@ -187,7 +205,7 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
           {/* Bottom anchor */}
           <div ref={bottomRef} />
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Scroll to bottom button */}
       {showScrollButton && (

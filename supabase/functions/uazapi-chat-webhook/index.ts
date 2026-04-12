@@ -30,7 +30,10 @@ function normalizePhone(raw: string): string {
 }
 
 function extractMessageText(msg: any): string | undefined {
-  if (msg.text) return msg.text;
+  // msg.text can be string or {body: "..."} depending on UaZapi version
+  if (typeof msg.text === 'string' && msg.text) return msg.text;
+  if (msg.text?.body) return msg.text.body;
+  if (msg.body) return msg.body;
   if (msg.message?.conversation) return msg.message.conversation;
   if (msg.message?.extendedTextMessage?.text) return msg.message.extendedTextMessage.text;
   if (msg.message?.imageMessage?.caption) return msg.message.imageMessage.caption;
@@ -39,10 +42,10 @@ function extractMessageText(msg: any): string | undefined {
 }
 
 function extractMessageType(msg: any): string {
-  const mt = (msg.messageType || '').toLowerCase();
-  if (mt.includes('image') || msg.message?.imageMessage) return 'image';
+  const mt = (msg.messageType || msg.type || '').toLowerCase();
+  if (mt.includes('image') || msg.message?.imageMessage || msg.isMedia && mt.includes('image')) return 'image';
   if (mt.includes('video') || msg.message?.videoMessage) return 'video';
-  if (mt.includes('ptt') || msg.message?.audioMessage?.ptt) return 'ptt';
+  if (mt.includes('ptt') || msg.message?.audioMessage?.ptt || msg.isPtt) return 'ptt';
   if (mt.includes('audio') || msg.message?.audioMessage) return 'audio';
   if (mt.includes('document') || msg.message?.documentMessage) return 'document';
   if (mt.includes('sticker') || msg.message?.stickerMessage) return 'sticker';
@@ -54,7 +57,9 @@ function extractMessageType(msg: any): string {
 }
 
 function extractMediaUrl(msg: any): string | undefined {
-  return msg.fileURL
+  return msg.mediaUrl
+    || msg.media?.url
+    || msg.fileURL
     || msg.message?.imageMessage?.url
     || msg.message?.videoMessage?.url
     || msg.message?.audioMessage?.url
@@ -186,7 +191,7 @@ Deno.serve(async (req) => {
     for (const msg of messages) {
       try {
         // Skip group messages
-        const chatId = msg.chatid || msg.key?.remoteJid || '';
+        const chatId = msg.chatid || msg.key?.remoteJid || msg.from || '';
         const isGroup = chatId.includes('@g.us') || msg.isGroup || msg.wa_isGroup;
         if (isGroup) continue;
 
@@ -195,7 +200,7 @@ Deno.serve(async (req) => {
 
         const fromMe = msg.from_me ?? msg.fromMe ?? msg.key?.fromMe ?? false;
         const senderPhone = normalizePhone(
-          msg.sender_pn || msg.PhoneNumber || msg.phone || chatId || ''
+          msg.from || msg.sender_pn || msg.PhoneNumber || msg.phone || chatId || ''
         );
         if (!senderPhone) continue;
 
