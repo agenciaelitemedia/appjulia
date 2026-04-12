@@ -66,6 +66,9 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
     }
   };
 
+  const isMercadoPago = orderData.payment_gateway === 'mercadopago';
+  const gatewayLabel = isMercadoPago ? 'Mercado Pago' : 'InfinityPay';
+
   const handlePay = async () => {
     if (!orderData.id) {
       setError('Pedido não encontrado. Volte e preencha novamente.');
@@ -82,11 +85,14 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
           plan_name: orderData.plan_name,
           plan_price: orderData.plan_price,
           billing_period: orderData.billing_period || 'monthly',
+          payment_gateway: orderData.payment_gateway || 'infinitypay',
           updated_at: new Date().toISOString(),
         })
         .eq('id', orderData.id);
 
-      const { data, error: fnError } = await supabase.functions.invoke('infinitypay-checkout', {
+      const functionName = isMercadoPago ? 'mercadopago-checkout' : 'infinitypay-checkout';
+
+      const { data, error: fnError } = await supabase.functions.invoke(functionName, {
         body: { order_id: orderData.id },
       });
 
@@ -164,7 +170,7 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
 
           <div className="flex items-center gap-2 justify-center text-gray-400 text-xs">
             <ShieldCheck className="w-4 h-4" />
-            Pagamento seguro via InfinityPay • Verificação automática ativa
+            Pagamento seguro via {gatewayLabel} • Verificação automática ativa
           </div>
         </CardContent>
       </Card>
@@ -208,7 +214,7 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
 
         <div className="flex items-center gap-2 justify-center text-gray-400 text-xs">
           <ShieldCheck className="w-4 h-4" />
-          Pagamento seguro via InfinityPay
+          Pagamento seguro via {gatewayLabel}
         </div>
 
         <div className="flex gap-3">
