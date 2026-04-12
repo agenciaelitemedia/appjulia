@@ -86,10 +86,13 @@ export const OrderDetailSheet = ({ order, open, onClose }: Props) => {
           <section>
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Pagamento</h3>
             <div className="rounded-lg border p-3 space-y-0.5">
+              <Row label="Gateway" value={order.payment_gateway === 'mercadopago' ? 'Mercado Pago' : 'InfinityPay'} />
               <Row label="Valor pago" value={order.paid_amount ? fmt(order.paid_amount) : 'Não pago'} />
               <Row label="Parcelas" value={order.installments ? `${order.installments}x` : undefined} />
               <Row label="Pago em" value={order.paid_at ? new Date(order.paid_at).toLocaleString('pt-BR') : undefined} />
               <Row label="NSU Transação" value={order.infinitypay_transaction_nsu} mono />
+              <Row label="MP Preference ID" value={order.mp_preference_id} mono />
+              <Row label="MP Payment ID" value={order.mp_payment_id} mono />
               <Row label="Agente" value={order.cod_agent} mono />
             </div>
           </section>
