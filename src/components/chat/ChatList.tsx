@@ -2,18 +2,16 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Globe, Instagram, Settings2, BarChart3, Layers } from 'lucide-react';
+import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, ArrowUpDown, Plus } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { ChatContactItem } from './ChatContactItem';
 import { Badge } from '@/components/ui/badge';
 import { useQueues } from '@/pages/agente/filas/hooks/useQueues';
 import type { ConversationFilterStatus } from '@/types/conversation';
-
-type ChannelFilter = 'all' | 'whatsapp_uazapi' | 'whatsapp_waba' | 'webchat' | 'instagram';
+import { cn } from '@/lib/utils';
 
 export function ChatList() {
   const {
@@ -39,7 +37,6 @@ export function ChatList() {
 
   const navigate = useNavigate();
   const { data: queues = [] } = useQueues();
-  const [channelFilter, setChannelFilter] = React.useState<ChannelFilter>('all');
 
   const activeQueues = queues.filter(q => q.is_active && !q.is_deleted);
 
@@ -62,30 +59,13 @@ export function ChatList() {
   // Count conversations by status
   const pendingCount = conversations.filter(c => c.status === 'pending').length;
   const openCount = conversations.filter(c => c.status === 'open').length;
+  const resolvedCount = conversations.filter(c => c.status === 'resolved').length;
 
-  const statusFilters: { value: ConversationFilterStatus; label: string; icon: React.ReactNode; count?: number }[] = [
-    { value: 'all', label: 'Todas', icon: <Inbox className="h-3 w-3" /> },
-    { value: 'pending', label: 'Pendentes', icon: <Clock className="h-3 w-3" />, count: pendingCount },
-    { value: 'open', label: 'Abertas', icon: <MessageCircle className="h-3 w-3" />, count: openCount },
-    { value: 'resolved', label: 'Resolvidas', icon: <CheckCircle2 className="h-3 w-3" /> },
+  const statusPills: { value: ConversationFilterStatus; label: string; count?: number; color: string }[] = [
+    { value: 'pending', label: 'Novos', count: pendingCount, color: 'bg-red-500' },
+    { value: 'open', label: 'Meus', count: openCount, color: 'bg-blue-500' },
+    { value: 'resolved', label: 'Outros', count: resolvedCount, color: 'bg-muted-foreground' },
   ];
-
-  const channelFilters: { value: ChannelFilter; label: string; icon: React.ReactNode }[] = [
-    { value: 'all', label: 'Todos', icon: <Inbox className="h-3 w-3" /> },
-    { value: 'whatsapp_uazapi', label: 'WA', icon: <MessageCircle className="h-3 w-3 text-emerald-500" /> },
-    { value: 'whatsapp_waba', label: 'WABA', icon: <MessageCircle className="h-3 w-3 text-emerald-600" /> },
-    { value: 'webchat', label: 'Web', icon: <Globe className="h-3 w-3 text-blue-500" /> },
-    { value: 'instagram', label: 'IG', icon: <Instagram className="h-3 w-3 text-pink-500" /> },
-  ];
-
-  // Apply channel filter to contacts
-  const channelFilteredContacts = React.useMemo(() => {
-    if (channelFilter === 'all') return filteredContacts;
-    return filteredContacts.filter(contact => {
-      const conv = conversations.find(c => c.contact_id === contact.id && ['pending', 'open'].includes(c.status));
-      return conv?.channel === channelFilter;
-    });
-  }, [filteredContacts, conversations, channelFilter]);
 
   const channelBadge = (type: string) => {
     switch (type) {
@@ -99,168 +79,147 @@ export function ChatList() {
 
   return (
     <div className="h-full flex flex-col bg-background overflow-hidden">
-      {/* Header */}
-      <div className="p-4 border-b space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            Conversas
-            {totalUnreadCount > 0 && (
-              <Badge variant="default" className="text-xs">
-                {totalUnreadCount}
-              </Badge>
+      {/* Header - Helena style */}
+      <div className="border-b">
+        {/* Status pills row */}
+        <div className="flex items-center gap-2 px-4 pt-3 pb-2">
+          <button
+            onClick={() => setConversationStatusFilter('all')}
+            className={cn(
+              'text-sm font-medium transition-colors',
+              conversationStatusFilter === 'all' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
             )}
-          </h2>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate('/chat/metricas')}
-              title="Métricas de atendimento"
+          >
+            Todas
+          </button>
+          {statusPills.map(pill => (
+            <button
+              key={pill.value}
+              onClick={() => setConversationStatusFilter(pill.value)}
+              className={cn(
+                'flex items-center gap-1.5 text-sm font-medium transition-colors',
+                conversationStatusFilter === pill.value ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
+              )}
             >
+              {pill.label}
+              {pill.count !== undefined && pill.count > 0 && (
+                <span className={cn('text-[10px] text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 font-bold', pill.color)}>
+                  {pill.count}
+                </span>
+              )}
+            </button>
+          ))}
+
+          {/* Right side actions */}
+          <div className="ml-auto flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/metricas')} title="Métricas">
               <BarChart3 className="h-4 w-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate('/chat/canais')}
-              title="Configurar canais"
-            >
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/canais')} title="Canais">
               <Settings2 className="h-4 w-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => syncContacts()}
-              disabled={isSyncing || !selectedQueue}
-              title="Sincronizar contatos"
-            >
-              <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => syncContacts()} disabled={isSyncing || !selectedQueue} title="Sincronizar">
+              <RefreshCw className={cn('h-4 w-4', isSyncing && 'animate-spin')} />
+            </Button>
+          </div>
+        </div>
+
+        {/* Search bar with filter icons */}
+        <div className="px-4 pb-2">
+          <div className="relative flex items-center gap-1">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar atendimento"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-9 bg-muted/40 border-0"
+              />
+            </div>
+            <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0">
+              <Filter className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0">
+              <ArrowUpDown className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0">
+              <Plus className="h-4 w-4" />
             </Button>
           </div>
         </div>
 
         {/* Queue selector */}
         {activeQueues.length > 0 && (
-          <Select
-            value={selectedQueue?.id || ''}
-            onValueChange={(val) => {
-              const queue = activeQueues.find(q => q.id === val);
-              if (queue) {
-                setSelectedQueue({
-                  id: queue.id,
-                  name: queue.name,
-                  channel_type: queue.channel_type,
-                  hub: queue.hub,
-                  evo_url: queue.evo_url,
-                  evo_apikey: queue.evo_apikey,
-                  evo_instance: queue.evo_instance,
-                });
-              }
-            }}
-          >
-            <SelectTrigger className="w-full">
-              <div className="flex items-center gap-2">
-                <Layers className="h-4 w-4 text-muted-foreground" />
-                <SelectValue placeholder="Selecionar fila..." />
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              {activeQueues.map((queue) => (
-                <SelectItem key={queue.id} value={queue.id}>
-                  <div className="flex items-center gap-2">
-                    <span>{queue.name}</span>
-                    {channelBadge(queue.channel_type)}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="px-4 pb-2">
+            <Select
+              value={selectedQueue?.id || ''}
+              onValueChange={(val) => {
+                const queue = activeQueues.find(q => q.id === val);
+                if (queue) {
+                  setSelectedQueue({
+                    id: queue.id,
+                    name: queue.name,
+                    channel_type: queue.channel_type,
+                    hub: queue.hub,
+                    evo_url: queue.evo_url,
+                    evo_apikey: queue.evo_apikey,
+                    evo_instance: queue.evo_instance,
+                  });
+                }
+              }}
+            >
+              <SelectTrigger className="w-full h-8 text-xs">
+                <div className="flex items-center gap-2">
+                  <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+                  <SelectValue placeholder="Selecionar fila..." />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {activeQueues.map((queue) => (
+                  <SelectItem key={queue.id} value={queue.id}>
+                    <div className="flex items-center gap-2">
+                      <span>{queue.name}</span>
+                      {channelBadge(queue.channel_type)}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         )}
 
-        {/* Conversation status filters */}
-        <div className="flex gap-1">
-          {statusFilters.map(f => (
-            <Button
-              key={f.value}
-              variant={conversationStatusFilter === f.value ? 'default' : 'ghost'}
-              size="sm"
-              className="h-7 text-xs flex-1 gap-1"
-              onClick={() => setConversationStatusFilter(f.value)}
-            >
-              {f.icon}
-              {f.label}
-              {f.count !== undefined && f.count > 0 && (
-                <Badge variant="secondary" className="text-[9px] px-1 h-4 ml-0.5">
-                  {f.count}
-                </Badge>
+        {/* Individual / Groups toggle */}
+        <div className="flex border-t">
+          {[
+            { value: 'all' as const, label: 'Todas', count: totalUnreadCount },
+            { value: 'individual' as const, label: 'Individual', icon: <MessageCircle className="h-3 w-3" />, count: individualUnreadCount },
+            { value: 'groups' as const, label: 'Grupos', icon: <Users className="h-3 w-3" />, count: groupUnreadCount },
+          ].map(tab => (
+            <button
+              key={tab.value}
+              onClick={() => setActiveTab(tab.value)}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1 py-2 text-xs font-medium border-b-2 transition-colors',
+                activeTab === tab.value
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
               )}
-            </Button>
+            >
+              {tab.icon}
+              {tab.label}
+              {tab.count > 0 && (
+                <span className="text-[9px] bg-primary text-primary-foreground rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+                  {tab.count}
+                </span>
+              )}
+            </button>
           ))}
         </div>
-
-        {/* Channel filters */}
-        <div className="flex gap-1">
-          {channelFilters.map(f => (
-            <Button
-              key={f.value}
-              variant={channelFilter === f.value ? 'secondary' : 'ghost'}
-              size="sm"
-              className="h-6 text-[10px] flex-1 gap-0.5 px-1"
-              onClick={() => setChannelFilter(f.value)}
-            >
-              {f.icon}
-              {f.label}
-            </Button>
-          ))}
-        </div>
-        
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar conversa..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
-          <TabsList className="w-full grid grid-cols-3">
-            <TabsTrigger value="all" className="text-xs">
-              Todas
-              {totalUnreadCount > 0 && (
-                <Badge variant="secondary" className="ml-1 text-[10px] px-1">
-                  {totalUnreadCount}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="individual" className="text-xs">
-              <MessageCircle className="h-3 w-3 mr-1" />
-              Individual
-              {individualUnreadCount > 0 && (
-                <Badge variant="secondary" className="ml-1 text-[10px] px-1">
-                  {individualUnreadCount}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="groups" className="text-xs">
-              <Users className="h-3 w-3 mr-1" />
-              Grupos
-              {groupUnreadCount > 0 && (
-                <Badge variant="secondary" className="ml-1 text-[10px] px-1">
-                  {groupUnreadCount}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
       </div>
-      
+
       {/* Contact List */}
       <ScrollArea className="flex-1">
-        <div className="p-2 space-y-1">
+        <div className="py-1">
           {!selectedQueue ? (
             <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
               <Layers className="h-12 w-12 mb-4 opacity-50" />
@@ -269,32 +228,33 @@ export function ChatList() {
             </div>
           ) : isLoading ? (
             Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 p-3">
-                <Skeleton className="h-12 w-12 rounded-full" />
+              <div key={i} className="flex items-center gap-3 px-4 py-3">
+                <Skeleton className="h-10 w-10 rounded-full" />
                 <div className="flex-1 space-y-2">
                   <Skeleton className="h-4 w-3/4" />
                   <Skeleton className="h-3 w-1/2" />
                 </div>
               </div>
             ))
-          ) : channelFilteredContacts.length === 0 ? (
+          ) : filteredContacts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
               <MessageCircle className="h-12 w-12 mb-4 opacity-50" />
               <p className="font-medium">Nenhuma conversa</p>
               <p className="text-sm mt-1">
-                {searchQuery 
+                {searchQuery
                   ? 'Tente uma busca diferente'
                   : 'As mensagens aparecerão aqui quando recebidas'}
               </p>
             </div>
           ) : (
-            channelFilteredContacts.map((contact) => (
+            filteredContacts.map((contact) => (
               <ChatContactItem
                 key={contact.id}
                 contact={contact}
                 isSelected={contact.id === selectedContactId}
                 onClick={() => selectContact(contact.id)}
                 conversation={conversations.find(c => c.contact_id === contact.id && ['pending', 'open'].includes(c.status))}
+                queueName={selectedQueue?.name}
               />
             ))
           )}

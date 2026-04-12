@@ -1,10 +1,9 @@
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Users, Clock, MessageSquare, MessageCircle, Globe, Instagram, Camera, Video, Mic, FileText } from 'lucide-react';
+import { Users, MessageCircle, Globe, Instagram, Camera, Video, Mic, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, isToday, isYesterday, differenceInDays, differenceInMinutes } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { differenceInMinutes, differenceInHours } from 'date-fns';
 import type { ChatContact } from '@/types/chat';
 import type { ChatConversation } from '@/types/conversation';
 
@@ -13,51 +12,101 @@ interface ChatContactItemProps {
   isSelected: boolean;
   onClick: () => void;
   conversation?: ChatConversation;
+  queueName?: string;
 }
 
-function ChannelIcon({ channel }: { channel?: string }) {
+function ChannelOverlay({ channel }: { channel?: string }) {
+  const iconClass = 'h-3 w-3 text-white';
+  let bg = 'bg-emerald-500';
+  let icon = <MessageCircle className={iconClass} />;
+
   switch (channel) {
     case 'whatsapp_waba':
-      return <MessageCircle className="h-3 w-3 text-emerald-600" />;
+      bg = 'bg-emerald-600';
+      break;
     case 'webchat':
-      return <Globe className="h-3 w-3 text-blue-500" />;
+      bg = 'bg-blue-500';
+      icon = <Globe className={iconClass} />;
+      break;
     case 'instagram':
-      return <Instagram className="h-3 w-3 text-pink-500" />;
-    default:
-      return <MessageCircle className="h-3 w-3 text-emerald-500" />;
+      bg = 'bg-pink-500';
+      icon = <Instagram className={iconClass} />;
+      break;
   }
+
+  return (
+    <div className={cn('absolute -bottom-0.5 -left-0.5 h-5 w-5 rounded-full flex items-center justify-center border-2 border-background', bg)}>
+      {icon}
+    </div>
+  );
 }
 
-/** WhatsApp-style time formatting */
-function formatWhatsAppTime(dateStr: string): string {
+/** Helena-style relative time */
+function formatRelativeTime(dateStr: string): string {
   const date = new Date(dateStr);
-  if (isToday(date)) return format(date, 'HH:mm');
-  if (isYesterday(date)) return 'Ontem';
-  if (differenceInDays(new Date(), date) < 7) return format(date, 'EEEE', { locale: ptBR }).replace(/^\w/, c => c.toUpperCase());
-  return format(date, 'dd/MM/yyyy');
+  const mins = differenceInMinutes(new Date(), date);
+  if (mins < 1) return 'há poucos segundos';
+  if (mins < 60) return `há ${mins} minutos`;
+  const hrs = differenceInHours(new Date(), date);
+  if (hrs < 24) return `há ${hrs} hora${hrs > 1 ? 's' : ''}`;
+  const days = Math.floor(hrs / 24);
+  return `há ${days} dia${days > 1 ? 's' : ''}`;
 }
 
 /** Message preview with media type icon */
 function MessagePreview({ text, type }: { text?: string; type?: string }) {
   if (!text && !type) return null;
 
-  // Detect media type from text like "[image]" or from type field
   const mediaType = type || (text?.match(/^\[(\w+)\]$/)?.[1]);
-  
+
   const mediaIcons: Record<string, React.ReactNode> = {
-    image: <><Camera className="h-3 w-3 text-muted-foreground inline mr-1 flex-shrink-0" /> Foto</>,
-    video: <><Video className="h-3 w-3 text-muted-foreground inline mr-1 flex-shrink-0" /> Vídeo</>,
-    audio: <><Mic className="h-3 w-3 text-muted-foreground inline mr-1 flex-shrink-0" /> Áudio</>,
-    ptt: <><Mic className="h-3 w-3 text-muted-foreground inline mr-1 flex-shrink-0" /> Áudio</>,
-    document: <><FileText className="h-3 w-3 text-muted-foreground inline mr-1 flex-shrink-0" /> Documento</>,
+    image: <><Camera className="h-3 w-3 text-muted-foreground inline mr-1" /> Foto</>,
+    video: <><Video className="h-3 w-3 text-muted-foreground inline mr-1" /> Vídeo</>,
+    audio: <><Mic className="h-3 w-3 text-muted-foreground inline mr-1" /> Áudio</>,
+    ptt: <><Mic className="h-3 w-3 text-muted-foreground inline mr-1" /> Áudio</>,
+    document: <><FileText className="h-3 w-3 text-muted-foreground inline mr-1" /> Documento</>,
     sticker: <>🏷️ Sticker</>,
   };
 
   if (mediaType && mediaIcons[mediaType]) {
-    return <span className="flex items-center text-sm text-muted-foreground truncate">{mediaIcons[mediaType]}</span>;
+    return <span className="flex items-center text-muted-foreground">{mediaIcons[mediaType]}</span>;
   }
 
   return <span className="truncate">{text}</span>;
+}
+
+/** Status/tag badges like Helena */
+function ConversationBadges({ conversation }: { conversation?: ChatConversation }) {
+  if (!conversation) return null;
+
+  const badges: { label: string; className: string }[] = [];
+
+  if (conversation.status === 'pending') {
+    badges.push({ label: 'SUPORTE', className: 'bg-blue-600 text-white' });
+  }
+  if (conversation.status === 'open') {
+    badges.push({ label: 'SUPORTE', className: 'bg-blue-600 text-white' });
+  }
+  if (conversation.priority === 'high' || conversation.priority === 'urgent') {
+    badges.push({ label: 'PRIORIDADE', className: 'bg-red-500 text-white' });
+  }
+  if (conversation.tags && conversation.tags.length > 0) {
+    conversation.tags.slice(0, 2).forEach(tag => {
+      badges.push({ label: tag.toUpperCase(), className: 'bg-emerald-600 text-white' });
+    });
+  }
+
+  if (badges.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      {badges.map((b, i) => (
+        <span key={i} className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded', b.className)}>
+          {b.label}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 export const ChatContactItem = React.memo(function ChatContactItem({
@@ -65,6 +114,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   isSelected,
   onClick,
   conversation,
+  queueName,
 }: ChatContactItemProps) {
   const initials = contact.name
     .split(' ')
@@ -74,109 +124,71 @@ export const ChatContactItem = React.memo(function ChatContactItem({
     .toUpperCase();
 
   const formattedTime = contact.last_message_at
-    ? formatWhatsAppTime(contact.last_message_at)
-    : null;
-
-  const statusIndicator = conversation ? {
-    pending: { color: 'bg-yellow-500', icon: <Clock className="h-2.5 w-2.5" /> },
-    open: { color: 'bg-emerald-500', icon: <MessageSquare className="h-2.5 w-2.5" /> },
-  }[conversation.status] : null;
-
-  const waitingMinutes = conversation?.status === 'pending' && conversation.opened_at
-    ? differenceInMinutes(new Date(), new Date(conversation.opened_at))
-    : null;
-
-  const waitingLabel = waitingMinutes !== null
-    ? waitingMinutes < 60
-      ? `${waitingMinutes}min`
-      : `${Math.floor(waitingMinutes / 60)}h${waitingMinutes % 60 > 0 ? `${waitingMinutes % 60}m` : ''}`
+    ? formatRelativeTime(contact.last_message_at)
     : null;
 
   return (
     <button
       onClick={onClick}
       className={cn(
-        'w-full flex items-center gap-3 p-3 text-left transition-colors rounded-lg',
-        'hover:bg-accent/50',
-        isSelected && 'bg-accent'
+        'w-full flex items-start gap-3 px-4 py-3 text-left transition-colors border-l-3',
+        isSelected
+          ? 'bg-accent/40 border-l-primary'
+          : 'border-l-transparent hover:bg-accent/20'
       )}
     >
-      <div className="relative flex-shrink-0">
-        <Avatar className="h-12 w-12">
+      {/* Avatar with channel overlay */}
+      <div className="relative flex-shrink-0 mt-0.5">
+        <Avatar className="h-10 w-10">
           <AvatarImage src={contact.avatar} alt={contact.name} />
-          <AvatarFallback className="bg-primary/10 text-primary font-medium">
-            {contact.is_group ? <Users className="h-5 w-5" /> : initials}
+          <AvatarFallback className="bg-muted text-muted-foreground text-sm font-semibold">
+            {contact.is_group ? <Users className="h-4 w-4" /> : initials}
           </AvatarFallback>
         </Avatar>
-        
-        {statusIndicator && (
-          <div className={cn(
-            'absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-background flex items-center justify-center',
-            statusIndicator.color
-          )}>
-            <span className="text-white">{statusIndicator.icon}</span>
-          </div>
-        )}
-        
-        {contact.unread_count > 0 && (
-          <Badge
-            variant="default"
-            className="absolute -top-1 -right-1 h-5 min-w-5 flex items-center justify-center p-0 text-xs"
-          >
-            {contact.unread_count > 99 ? '99+' : contact.unread_count}
-          </Badge>
-        )}
+        <ChannelOverlay channel={conversation?.channel} />
       </div>
-      
-      <div className="flex-1 min-w-0">
+
+      {/* Content */}
+      <div className="flex-1 min-w-0 space-y-0.5">
+        {/* Row 1: Name + Queue name */}
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <ChannelIcon channel={conversation?.channel} />
-            <span className={cn(
-              'font-medium truncate',
-              contact.unread_count > 0 && 'text-foreground'
-            )}>
-              {contact.name}
+          <span className={cn(
+            'font-semibold text-sm truncate',
+            contact.unread_count > 0 ? 'text-foreground' : 'text-foreground/80'
+          )}>
+            {contact.name}
+          </span>
+          {queueName && (
+            <span className="text-[10px] text-muted-foreground flex-shrink-0 truncate max-w-[100px]">
+              {queueName}
             </span>
-          </div>
+          )}
+        </div>
+
+        {/* Row 2: Badges + time + unread */}
+        <div className="flex items-center justify-between gap-1">
+          <ConversationBadges conversation={conversation} />
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            {waitingLabel && (
-              <Badge variant="outline" className={cn(
-                'text-[9px] px-1.5 h-4 gap-0.5 border',
-                waitingMinutes! > 30
-                  ? 'text-destructive border-destructive/30 bg-destructive/5'
-                  : waitingMinutes! > 10
-                    ? 'text-yellow-600 border-yellow-500/30 bg-yellow-500/5'
-                    : 'text-muted-foreground'
-              )}>
-                <Clock className="h-2.5 w-2.5" />
-                {waitingLabel}
-              </Badge>
-            )}
             {formattedTime && (
-              <span className={cn(
-                'text-xs',
-                contact.unread_count > 0 ? 'text-primary font-medium' : 'text-muted-foreground'
-              )}>
+              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                 {formattedTime}
+              </span>
+            )}
+            {contact.unread_count > 0 && (
+              <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                {contact.unread_count > 99 ? '99+' : contact.unread_count}
               </span>
             )}
           </div>
         </div>
-        
-        <div className="flex items-center gap-1.5 mt-0.5">
-          {conversation?.protocol && (
-            <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1 rounded flex-shrink-0">
-              {conversation.protocol}
-            </span>
-          )}
-          <p className={cn(
-            'text-sm truncate',
-            contact.unread_count > 0 ? 'text-foreground' : 'text-muted-foreground'
-          )}>
-            <MessagePreview text={contact.last_message_text || undefined} />
-          </p>
-        </div>
+
+        {/* Row 3: Message preview */}
+        <p className={cn(
+          'text-xs truncate',
+          contact.unread_count > 0 ? 'text-foreground/70' : 'text-muted-foreground'
+        )}>
+          <MessagePreview text={contact.last_message_text || undefined} />
+        </p>
       </div>
     </button>
   );
