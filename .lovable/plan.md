@@ -1,96 +1,68 @@
 
 
-## Plano: Integração Mercado Pago + Configurações de Pagamento no Admin
+## Plano: Valor Bruto vs Líquido nos Pedidos
 
-### Visão Geral
+### Contexto
 
-Adicionar Mercado Pago como opção de pagamento na página `/comprar` via Checkout Pro (preferências com redirect — a abordagem mais robusta e sem necessidade de SDK frontend). O método de pagamento é selecionado pelo parâmetro `p=mp` ou `p=ip` na URL. No admin, adicionar botão de configurações nos Pedidos com tela para gerenciar credenciais de ambos os gateways.
+A API do Mercado Pago retorna no objeto de pagamento os campos `fee_details` (array com as taxas cobradas) e `net_received_amount` (valor líquido). O webhook já salva o payload completo em `webhook_payload`, então esses dados já estão disponíveis. Precisamos:
 
-### Estratégia Mercado Pago
+1. Extrair e persistir esses valores em colunas dedicadas
+2. Mostrar na UI: bruto, taxas, líquido
 
-Usar a **API de Preferências** (`POST https://api.mercadopago.com/checkout/preferences`) que retorna um `init_point` (produção) ou `sandbox_init_point` (testes). É a forma mais confiável — não requer SDK no frontend, funciona como o InfinityPay atual (abre link em nova aba). O webhook do MP confirma o pagamento via IPN.
+### Dados disponíveis na API do MP
 
----
+```json
+{
+  "transaction_amount": 120.00,       // valor bruto
+  "net_received_amount": 112.80,      // valor líquido
+  "fee_details": [
+    { "type": "mercadopago_fee", "amount": 7.20, "fee_payer": "collector" }
+  ],
+  "taxes_amount": 0
+}
+```
 
-### 1. Migração de Banco de Dados
+### Mudanças
 
-Adicionar à tabela `julia_orders`:
-- `payment_gateway` TEXT DEFAULT 'infinitypay' — identifica qual gateway processou (`infinitypay` ou `mercadopago`)
-- `mp_preference_id` TEXT — ID da preferência do Mercado Pago
-- `mp_payment_id` TEXT — ID do pagamento confirmado
+#### 1. Migração — Adicionar colunas em `julia_orders`
 
-Criar tabela `julia_payment_config`:
-- `id` UUID PK
-- `gateway` TEXT NOT NULL (`infinitypay` | `mercadopago`)
-- `is_active` BOOLEAN DEFAULT true
-- `is_sandbox` BOOLEAN DEFAULT false
-- `config` JSONB DEFAULT '{}' — armazena access_token, public_key, etc.
-- `created_at`, `updated_at` TIMESTAMPTZ
+- `net_amount` INTEGER (centavos) — valor líquido recebido
+- `fee_amount` INTEGER (centavos) — total de taxas descontadas
 
-### 2. Edge Function `mercadopago-checkout`
+#### 2. Webhook do MP — Extrair dados financeiros
 
-Nova edge function que:
-1. Recebe `{ order_id }` 
-2. Busca o pedido e as credenciais da tabela `julia_payment_config`
-3. Cria preferência via `POST https://api.mercadopago.com/checkout/preferences` com:
-   - `items`, `payer`, `back_urls`, `notification_url`, `external_reference: order_id`
-   - Usa `sandbox_init_point` ou `init_point` conforme `is_sandbox`
-4. Atualiza o pedido com `mp_preference_id`, `checkout_url`, `status: pending`, `payment_gateway: mercadopago`
-5. Retorna `checkout_url`
+No `mercadopago-webhook/index.ts`, ao processar pagamento aprovado, extrair:
+- `net_received_amount` → converter para centavos → salvar em `net_amount`
+- Somar `fee_details[].amount` → converter para centavos → salvar em `fee_amount`
 
-### 3. Edge Function `mercadopago-webhook`
+#### 3. Hook `useOrders` — Incluir novos campos e stats
 
-Nova edge function que:
-1. Recebe notificação IPN do Mercado Pago (`topic=payment`, `id=...`)
-2. Consulta `GET https://api.mercadopago.com/v1/payments/{id}` com access_token
-3. Se `status === 'approved'`, atualiza o pedido: `status: paid`, `paid_amount`, `paid_at`, `mp_payment_id`, `webhook_payload`
+- Adicionar `net_amount` e `fee_amount` ao tipo `JuliaOrder`
+- Adicionar aos stats: `totalNetRevenue` (soma dos líquidos) e `totalFees` (soma das taxas)
+- Para pedidos que não têm `net_amount` (IP ou antigos), calcular a partir do `webhook_payload` se disponível
 
-### 4. Frontend — ComprarPage e CheckoutStep
+#### 4. `PedidosPage.tsx` — Cards de resumo financeiro
 
-**`ComprarPage.tsx`**:
-- Ler parâmetro `p` da URL (`mp` ou `ip`, default `ip`)
-- Adicionar `payment_gateway` ao `OrderData`
-- Passar ao `CheckoutStep`
+Substituir o card "Receita" por 3 cards:
+- **Receita Bruta** (verde) — soma dos `paid_amount`
+- **Taxas** (vermelho) — soma dos `fee_amount`
+- **Receita Líquida** (roxo) — soma dos `net_amount`
 
-**`CheckoutStep.tsx`**:
-- Se `payment_gateway === 'mercadopago'`: chamar `mercadopago-checkout` em vez de `infinitypay-checkout`
-- Ajustar textos ("Pagamento seguro via Mercado Pago" vs "via InfinityPay")
-- Mesma lógica de polling para confirmar pagamento
+Na tabela, adicionar coluna "Líquido" ao lado de "Valor".
 
-### 5. Admin — Configurações de Pagamento
+#### 5. `OrderDetailSheet.tsx` — Seção financeira detalhada
 
-**Novo componente `PaymentSettingsDialog.tsx`**:
-- Botão "Configurações" (ícone engrenagem) no header da `PedidosPage`
-- Dialog com Tabs: "Geral" | "Métodos de Pagamento"
-- Tab "Métodos de Pagamento":
-  - Seção InfinityPay: handle (já fixo), toggle ativo
-  - Seção Mercado Pago: campos access_token, public_key, toggle sandbox, toggle ativo
-  - Salva na tabela `julia_payment_config`
-
-**`PedidosPage.tsx`**:
-- Adicionar coluna "Gateway" na tabela com badge (MP azul, IP verde)
-- Botão de configurações no header
-
-**`OrderDetailSheet.tsx`**:
-- Mostrar gateway de pagamento e IDs específicos (MP preference_id, payment_id)
+Na seção "Pagamento", mostrar:
+- Valor bruto, taxas, valor líquido
+- Detalhamento das taxas do `fee_details` quando disponível no `webhook_payload`
 
 ### Arquivos
 
 | Arquivo | Mudança |
 |---------|---------|
-| Migração SQL | Adicionar colunas `payment_gateway`, `mp_*` em `julia_orders` + criar `julia_payment_config` |
-| `supabase/functions/mercadopago-checkout/index.ts` | Nova edge function — criar preferência MP |
-| `supabase/functions/mercadopago-webhook/index.ts` | Nova edge function — processar IPN |
-| `src/pages/comprar/ComprarPage.tsx` | Ler param `p`, passar `payment_gateway` ao fluxo |
-| `src/pages/comprar/steps/CheckoutStep.tsx` | Condicional MP vs IP para gerar checkout |
-| `src/pages/admin/pedidos/PedidosPage.tsx` | Coluna gateway + botão configurações |
-| `src/pages/admin/pedidos/components/OrderDetailSheet.tsx` | Mostrar dados MP |
-| `src/pages/admin/pedidos/components/PaymentSettingsDialog.tsx` | Novo — configurações de gateways |
-| `src/pages/admin/pedidos/hooks/useOrders.ts` | Incluir `payment_gateway` no tipo |
-
-### Segurança
-
-- Access tokens do MP ficam na tabela `julia_payment_config` (não em secrets hardcoded), permitindo que o admin altere via UI
-- O webhook do MP valida o pagamento consultando a API do MP antes de marcar como pago
-- RLS permissiva (consistente com o padrão atual das tabelas julia_*)
+| Migração SQL | Adicionar `net_amount`, `fee_amount` em `julia_orders` |
+| `supabase/functions/mercadopago-webhook/index.ts` | Extrair `net_received_amount` e `fee_details` |
+| `src/pages/admin/pedidos/hooks/useOrders.ts` | Novos campos + stats financeiros |
+| `src/pages/admin/pedidos/PedidosPage.tsx` | Cards bruto/taxas/líquido + coluna líquido na tabela |
+| `src/pages/admin/pedidos/components/OrderDetailSheet.tsx` | Detalhamento financeiro |
 
