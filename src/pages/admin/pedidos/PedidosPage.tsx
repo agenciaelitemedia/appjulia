@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useOrders, type JuliaOrder } from './hooks/useOrders';
 import { OrderDetailSheet } from './components/OrderDetailSheet';
+import { PaymentSettingsDialog } from './components/PaymentSettingsDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { Search, DollarSign, Clock, CheckCircle, FileText, Loader2, Eye, Filter, X } from 'lucide-react';
 
@@ -65,7 +66,10 @@ const PedidosPage = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Pedidos</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Pedidos</h1>
+        <PaymentSettingsDialog />
+      </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -136,6 +140,7 @@ const PedidosPage = () => {
                   <th className="pb-3 font-medium text-muted-foreground">Documento</th>
                   <th className="pb-3 font-medium text-muted-foreground">Plano</th>
                   <th className="pb-3 font-medium text-muted-foreground">Valor</th>
+                  <th className="pb-3 font-medium text-muted-foreground">Gateway</th>
                   <th className="pb-3 font-medium text-muted-foreground">Status</th>
                   <th className="pb-3 font-medium text-muted-foreground">Data</th>
                   <th className="pb-3 font-medium text-muted-foreground"></th>
@@ -155,6 +160,11 @@ const PedidosPage = () => {
                       <td className="py-3 font-mono text-xs">{order.customer_document}</td>
                       <td className="py-3">{order.plan_name || '-'}</td>
                       <td className="py-3 font-medium">{order.plan_price ? formatCurrency(order.plan_price) : '-'}</td>
+                      <td className="py-3">
+                        <Badge variant="outline" className={order.payment_gateway === 'mercadopago' ? 'border-blue-400 text-blue-600' : 'border-green-400 text-green-600'}>
+                          {order.payment_gateway === 'mercadopago' ? 'MP' : 'IP'}
+                        </Badge>
+                      </td>
                       <td className="py-3"><Badge variant={st.variant}>{st.label}</Badge></td>
                       <td className="py-3 text-muted-foreground text-xs">{new Date(order.created_at).toLocaleDateString('pt-BR')}</td>
                       <td className="py-3">
@@ -167,7 +177,7 @@ const PedidosPage = () => {
                 })}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-10 text-center text-muted-foreground">Nenhum pedido encontrado</td>
+                    <td colSpan={8} className="py-10 text-center text-muted-foreground">Nenhum pedido encontrado</td>
                   </tr>
                 )}
               </tbody>
