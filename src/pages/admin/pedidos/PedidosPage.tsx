@@ -8,7 +8,7 @@ import { useOrders, type JuliaOrder } from './hooks/useOrders';
 import { OrderDetailSheet } from './components/OrderDetailSheet';
 import { PaymentSettingsDialog } from './components/PaymentSettingsDialog';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, DollarSign, Clock, CheckCircle, FileText, Loader2, Eye, Filter, X } from 'lucide-react';
+import { Search, DollarSign, Clock, CheckCircle, FileText, Loader2, Eye, Filter, X, TrendingDown, Wallet } from 'lucide-react';
 
 const statusMap: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   draft: { label: 'Rascunho', variant: 'outline' },
@@ -177,7 +177,7 @@ const PedidosPage = () => {
                 })}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="py-10 text-center text-muted-foreground">Nenhum pedido encontrado</td>
+                    <td colSpan={9} className="py-10 text-center text-muted-foreground">Nenhum pedido encontrado</td>
                   </tr>
                 )}
               </tbody>

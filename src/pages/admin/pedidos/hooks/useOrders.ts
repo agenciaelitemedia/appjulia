@@ -56,12 +56,21 @@ export function useOrders() {
     fetchOrders();
   }, [fetchOrders]);
 
+  const paidOrders = orders.filter(o => o.status === 'paid');
+
   const stats = {
     total: orders.length,
-    paid: orders.filter(o => o.status === 'paid').length,
+    paid: paidOrders.length,
     pending: orders.filter(o => o.status === 'pending').length,
     draft: orders.filter(o => o.status === 'draft').length,
-    totalRevenue: orders.filter(o => o.status === 'paid').reduce((sum, o) => sum + (o.paid_amount || o.plan_price), 0),
+    totalRevenue: paidOrders.reduce((sum, o) => sum + (o.paid_amount || o.plan_price), 0),
+    totalFees: paidOrders.reduce((sum, o) => sum + (o.fee_amount || 0), 0),
+    totalNetRevenue: paidOrders.reduce((sum, o) => {
+      if (o.net_amount != null) return sum + o.net_amount;
+      // Fallback: paid_amount - fee_amount
+      const paid = o.paid_amount || o.plan_price;
+      return sum + paid - (o.fee_amount || 0);
+    }, 0),
   };
 
   return { orders, isLoading, error, refetch: fetchOrders, stats };
