@@ -166,6 +166,7 @@ const PedidosPage = () => {
                       <td className="py-3 text-muted-foreground text-xs">
                         {order.net_amount != null ? formatCurrency(order.net_amount) : order.status === 'paid' && order.fee_amount != null ? formatCurrency((order.paid_amount || order.plan_price) - order.fee_amount) : '-'}
                       </td>
+                      <td className="py-3">
                         <Badge variant="outline" className={order.payment_gateway === 'mercadopago' ? 'border-blue-400 text-blue-600' : 'border-green-400 text-green-600'}>
                           {order.payment_gateway === 'mercadopago' ? 'MP' : 'IP'}
                         </Badge>
