@@ -797,6 +797,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               const d = new Date(msTs);
               return (d.getFullYear() > 2000 && d.getFullYear() < 2100) ? d.toISOString() : null;
             })(),
+            last_message_text: c.wa_lastMessage || c.wa_lastMessageContent || c.lastMessage || null,
           } as any, {
             onConflict: 'phone,client_id',
           });
@@ -850,6 +851,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       filtered = filtered.filter(c => contactIdsWithStatus.includes(c.id));
     }
 
+    // Always sort by most recent message (WhatsApp-style)
+    filtered = [...filtered].sort((a, b) => {
+      const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+      const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+      return bTime - aTime;
+    });
+
     return filtered;
   }, [contacts, activeTab, searchQuery, conversationStatusFilter, conversations]);
 
@@ -894,9 +902,15 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               return [newContact, ...prev];
             });
           } else if (payload.eventType === 'UPDATE') {
-            setContacts(prev =>
-              prev.map(c => (c.id === (payload.new as ChatContact).id ? payload.new as ChatContact : c))
-            );
+            setContacts(prev => {
+              const updated = prev.map(c => (c.id === (payload.new as ChatContact).id ? payload.new as ChatContact : c));
+              // Re-sort by last_message_at so new messages bubble up
+              return updated.sort((a, b) => {
+                const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+                const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+                return bTime - aTime;
+              });
+            });
           } else if (payload.eventType === 'DELETE') {
             setContacts(prev => prev.filter(c => c.id !== (payload.old as ChatContact).id));
           }
