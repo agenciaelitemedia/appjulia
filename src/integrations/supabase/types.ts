@@ -1889,11 +1889,13 @@ export type Database = {
           customer_email: string
           customer_name: string
           customer_whatsapp: string
+          fee_amount: number | null
           id: string
           infinitypay_transaction_nsu: string | null
           installments: number | null
           mp_payment_id: string | null
           mp_preference_id: string | null
+          net_amount: number | null
           notes: string | null
           order_nsu: string | null
           paid_amount: number | null
@@ -1916,11 +1918,13 @@ export type Database = {
           customer_email?: string
           customer_name: string
           customer_whatsapp?: string
+          fee_amount?: number | null
           id?: string
           infinitypay_transaction_nsu?: string | null
           installments?: number | null
           mp_payment_id?: string | null
           mp_preference_id?: string | null
+          net_amount?: number | null
           notes?: string | null
           order_nsu?: string | null
           paid_amount?: number | null
@@ -1943,11 +1947,13 @@ export type Database = {
           customer_email?: string
           customer_name?: string
           customer_whatsapp?: string
+          fee_amount?: number | null
           id?: string
           infinitypay_transaction_nsu?: string | null
           installments?: number | null
           mp_payment_id?: string | null
           mp_preference_id?: string | null
+          net_amount?: number | null
           notes?: string | null
           order_nsu?: string | null
           paid_amount?: number | null
