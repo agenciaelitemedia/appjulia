@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { DocumentStep } from './steps/DocumentStep';
 import { CustomerStep } from './steps/CustomerStep';
 import { PlanStep } from './steps/PlanStep';
@@ -17,11 +18,16 @@ export interface OrderData {
   plan_price: number;
   billing_period: 'monthly' | 'semiannual' | 'annual';
   checkout_url?: string;
+  payment_gateway: 'mercadopago' | 'infinitypay';
 }
 
 const steps = ['Documento', 'Dados', 'Plano', 'Contrato', 'Pagamento'];
 
 const ComprarPage = () => {
+  const [searchParams] = useSearchParams();
+  const paymentParam = searchParams.get('p');
+  const paymentGateway: 'mercadopago' | 'infinitypay' = paymentParam === 'mp' ? 'mercadopago' : 'infinitypay';
+
   const [currentStep, setCurrentStep] = useState(0);
   const [orderData, setOrderData] = useState<OrderData>({
     customer_document: '',
@@ -32,6 +38,7 @@ const ComprarPage = () => {
     plan_name: '',
     plan_price: 0,
     billing_period: 'monthly',
+    payment_gateway: paymentGateway,
   });
 
   const updateOrder = (data: Partial<OrderData>) => {
