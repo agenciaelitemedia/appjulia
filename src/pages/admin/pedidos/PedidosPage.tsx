@@ -81,14 +81,14 @@ const PedidosPage = () => {
           { icon: DollarSign, color: 'text-green-600', label: 'Receita Bruta', value: formatCurrency(stats.totalRevenue) },
           { icon: TrendingDown, color: 'text-red-600', label: 'Taxas', value: formatCurrency(stats.totalFees), valueColor: 'text-red-600' },
           { icon: Wallet, color: 'text-green-800', label: 'Receita Líquida', value: formatCurrency(stats.totalNetRevenue), valueColor: 'text-green-800' },
-        ].map(({ icon: Icon, color, label, value }) => (
+        ].map(({ icon: Icon, color, label, value, valueColor }: any) => (
           <Card key={label}>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
                 <Icon className={`w-8 h-8 ${color}`} />
                 <div>
                   <p className="text-sm text-muted-foreground">{label}</p>
-                  <p className="text-2xl font-bold">{value}</p>
+                  <p className={`text-2xl font-bold ${valueColor || ''}`}>{value}</p>
                 </div>
               </div>
             </CardContent>
