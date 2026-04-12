@@ -1892,10 +1892,13 @@ export type Database = {
           id: string
           infinitypay_transaction_nsu: string | null
           installments: number | null
+          mp_payment_id: string | null
+          mp_preference_id: string | null
           notes: string | null
           order_nsu: string | null
           paid_amount: number | null
           paid_at: string | null
+          payment_gateway: string
           plan_name: string
           plan_price: number
           receipt_url: string | null
@@ -1916,10 +1919,13 @@ export type Database = {
           id?: string
           infinitypay_transaction_nsu?: string | null
           installments?: number | null
+          mp_payment_id?: string | null
+          mp_preference_id?: string | null
           notes?: string | null
           order_nsu?: string | null
           paid_amount?: number | null
           paid_at?: string | null
+          payment_gateway?: string
           plan_name?: string
           plan_price?: number
           receipt_url?: string | null
@@ -1940,16 +1946,49 @@ export type Database = {
           id?: string
           infinitypay_transaction_nsu?: string | null
           installments?: number | null
+          mp_payment_id?: string | null
+          mp_preference_id?: string | null
           notes?: string | null
           order_nsu?: string | null
           paid_amount?: number | null
           paid_at?: string | null
+          payment_gateway?: string
           plan_name?: string
           plan_price?: number
           receipt_url?: string | null
           status?: string
           updated_at?: string
           webhook_payload?: Json | null
+        }
+        Relationships: []
+      }
+      julia_payment_config: {
+        Row: {
+          config: Json
+          created_at: string
+          gateway: string
+          id: string
+          is_active: boolean
+          is_sandbox: boolean
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          gateway: string
+          id?: string
+          is_active?: boolean
+          is_sandbox?: boolean
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          gateway?: string
+          id?: string
+          is_active?: boolean
+          is_sandbox?: boolean
+          updated_at?: string
         }
         Relationships: []
       }
