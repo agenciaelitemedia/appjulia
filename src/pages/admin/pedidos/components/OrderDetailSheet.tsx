@@ -87,7 +87,13 @@ export const OrderDetailSheet = ({ order, open, onClose }: Props) => {
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Pagamento</h3>
             <div className="rounded-lg border p-3 space-y-0.5">
               <Row label="Gateway" value={order.payment_gateway === 'mercadopago' ? 'Mercado Pago' : 'InfinityPay'} />
-              <Row label="Valor pago" value={order.paid_amount ? fmt(order.paid_amount) : 'Não pago'} />
+              <Row label="Valor bruto" value={order.paid_amount ? fmt(order.paid_amount) : 'Não pago'} />
+              {order.fee_amount != null && order.fee_amount > 0 && (
+                <Row label="Taxas" value={`- ${fmt(order.fee_amount)}`} />
+              )}
+              {(order.net_amount != null || (order.paid_amount && order.fee_amount != null)) && (
+                <Row label="Valor líquido" value={fmt(order.net_amount ?? ((order.paid_amount || 0) - (order.fee_amount || 0)))} />
+              )}
               <Row label="Parcelas" value={order.installments ? `${order.installments}x` : undefined} />
               <Row label="Pago em" value={order.paid_at ? new Date(order.paid_at).toLocaleString('pt-BR') : undefined} />
               <Row label="NSU Transação" value={order.infinitypay_transaction_nsu} mono />

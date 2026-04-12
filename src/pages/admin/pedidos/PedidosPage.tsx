@@ -72,13 +72,15 @@ const PedidosPage = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
         {[
           { icon: FileText, color: 'text-blue-500', label: 'Total', value: stats.total },
           { icon: CheckCircle, color: 'text-green-500', label: 'Pagos', value: stats.paid },
           { icon: Clock, color: 'text-yellow-500', label: 'Pendentes', value: stats.pending },
           { icon: FileText, color: 'text-gray-400', label: 'Rascunhos', value: stats.draft },
-          { icon: DollarSign, color: 'text-[#6C3AED]', label: 'Receita', value: formatCurrency(stats.totalRevenue) },
+          { icon: DollarSign, color: 'text-green-600', label: 'Receita Bruta', value: formatCurrency(stats.totalRevenue) },
+          { icon: TrendingDown, color: 'text-red-500', label: 'Taxas', value: formatCurrency(stats.totalFees) },
+          { icon: Wallet, color: 'text-[#6C3AED]', label: 'Receita Líquida', value: formatCurrency(stats.totalNetRevenue) },
         ].map(({ icon: Icon, color, label, value }) => (
           <Card key={label}>
             <CardContent className="pt-6">
@@ -140,6 +142,7 @@ const PedidosPage = () => {
                   <th className="pb-3 font-medium text-muted-foreground">Documento</th>
                   <th className="pb-3 font-medium text-muted-foreground">Plano</th>
                   <th className="pb-3 font-medium text-muted-foreground">Valor</th>
+                  <th className="pb-3 font-medium text-muted-foreground">Líquido</th>
                   <th className="pb-3 font-medium text-muted-foreground">Gateway</th>
                   <th className="pb-3 font-medium text-muted-foreground">Status</th>
                   <th className="pb-3 font-medium text-muted-foreground">Data</th>
@@ -160,7 +163,9 @@ const PedidosPage = () => {
                       <td className="py-3 font-mono text-xs">{order.customer_document}</td>
                       <td className="py-3">{order.plan_name || '-'}</td>
                       <td className="py-3 font-medium">{order.plan_price ? formatCurrency(order.plan_price) : '-'}</td>
-                      <td className="py-3">
+                      <td className="py-3 text-muted-foreground text-xs">
+                        {order.net_amount != null ? formatCurrency(order.net_amount) : order.status === 'paid' && order.fee_amount != null ? formatCurrency((order.paid_amount || order.plan_price) - order.fee_amount) : '-'}
+                      </td>
                         <Badge variant="outline" className={order.payment_gateway === 'mercadopago' ? 'border-blue-400 text-blue-600' : 'border-green-400 text-green-600'}>
                           {order.payment_gateway === 'mercadopago' ? 'MP' : 'IP'}
                         </Badge>

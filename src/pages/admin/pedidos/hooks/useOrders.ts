@@ -27,6 +27,8 @@ export interface JuliaOrder {
   payment_gateway: string;
   mp_preference_id: string | null;
   mp_payment_id: string | null;
+  net_amount: number | null;
+  fee_amount: number | null;
 }
 
 export function useOrders() {
