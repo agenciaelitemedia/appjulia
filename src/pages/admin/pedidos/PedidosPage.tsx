@@ -88,7 +88,7 @@ const PedidosPage = () => {
                 <Icon className={`w-8 h-8 ${color}`} />
                 <div>
                   <p className="text-sm text-muted-foreground">{label}</p>
-                  <p className={`text-2xl font-bold ${valueColor || ''}`}>{value}</p>
+                  <p className={`text-lg font-bold ${valueColor || ''}`}>{value}</p>
                 </div>
               </div>
             </CardContent>
