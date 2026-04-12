@@ -24,6 +24,9 @@ export interface JuliaOrder {
   created_at: string;
   updated_at: string;
   paid_at: string | null;
+  payment_gateway: string;
+  mp_preference_id: string | null;
+  mp_payment_id: string | null;
 }
 
 export function useOrders() {
