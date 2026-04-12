@@ -79,8 +79,8 @@ const PedidosPage = () => {
           { icon: Clock, color: 'text-yellow-500', label: 'Pendentes', value: stats.pending },
           { icon: FileText, color: 'text-gray-400', label: 'Rascunhos', value: stats.draft },
           { icon: DollarSign, color: 'text-green-600', label: 'Receita Bruta', value: formatCurrency(stats.totalRevenue) },
-          { icon: TrendingDown, color: 'text-red-500', label: 'Taxas', value: formatCurrency(stats.totalFees) },
-          { icon: Wallet, color: 'text-[#6C3AED]', label: 'Receita Líquida', value: formatCurrency(stats.totalNetRevenue) },
+          { icon: TrendingDown, color: 'text-red-600', label: 'Taxas', value: formatCurrency(stats.totalFees), valueColor: 'text-red-600' },
+          { icon: Wallet, color: 'text-green-800', label: 'Receita Líquida', value: formatCurrency(stats.totalNetRevenue), valueColor: 'text-green-800' },
         ].map(({ icon: Icon, color, label, value }) => (
           <Card key={label}>
             <CardContent className="pt-6">
