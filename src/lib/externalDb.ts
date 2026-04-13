@@ -627,6 +627,13 @@ class ExternalDatabase {
     return result.length > 0 ? result[0] : null;
   }
 
+  async getInactiveSessions(agentCodes: string[]): Promise<InactiveSession[]> {
+    return this.invoke({
+      action: 'get_inactive_sessions',
+      data: { agentCodes },
+    });
+  }
+
   async updateSessionStatus(sessionId: number, active: boolean): Promise<void> {
     await this.invoke({
       action: 'update_session_status',
@@ -681,6 +688,21 @@ export interface SessionStatus {
   cod_agent: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface InactiveSession {
+  id: number;
+  whatsapp_number: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+  cod_agent: string;
+  contact_name: string | null;
+  business_name: string | null;
+  card_id: number | null;
+  stage_id: number | null;
+  stage_name: string | null;
+  stage_color: string | null;
 }
 
 export const externalDb = new ExternalDatabase();

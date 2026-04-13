@@ -2588,6 +2588,40 @@ serve(async (req) => {
         break;
       }
 
+      case 'get_inactive_sessions': {
+        const { agentCodes } = data;
+        if (!agentCodes || !Array.isArray(agentCodes) || agentCodes.length === 0) {
+          throw new Error('agentCodes array is required');
+        }
+        const rows = await sql.unsafe(
+          `SELECT 
+            s.id,
+            s.whatsapp_number::text,
+            s.active,
+            s.created_at,
+            s.updated_at,
+            a.cod_agent::text,
+            c.contact_name,
+            c.business_name,
+            c.id as card_id,
+            c.stage_id,
+            st.name as stage_name,
+            st.color as stage_color
+          FROM sessions s
+          JOIN agents a ON a.id = s.agent_id
+          LEFT JOIN crm_atendimento_cards c 
+            ON c.whatsapp_number::text = s.whatsapp_number::text 
+            AND c.cod_agent = a.cod_agent
+          LEFT JOIN crm_atendimento_stages st ON st.id = c.stage_id
+          WHERE s.active = false 
+            AND a.cod_agent::text = ANY($1)
+          ORDER BY s.updated_at DESC`,
+          [agentCodes]
+        );
+        result = rows;
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }

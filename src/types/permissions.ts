@@ -36,7 +36,8 @@ export type ModuleCode =
   | 'support_assistant'
   | 'quick_messages'
   | 'filas'
-  | 'configuracoes';
+  | 'configuracoes'
+  | 'human_support';
 
 export interface Module {
   id: number;
