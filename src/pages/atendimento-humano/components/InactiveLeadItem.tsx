@@ -37,8 +37,8 @@ function formatPhone(phone: string): string {
 function getUrgencyStyle(updatedAt: string | null) {
   if (!updatedAt) return { className: 'text-muted-foreground', badge: '' };
   const mins = differenceInMinutes(new Date(), new Date(updatedAt));
-  if (mins >= 30) return { className: 'text-red-600 font-semibold', badge: 'bg-red-500/10 text-red-600 border-red-200' };
-  if (mins >= 10) return { className: 'text-amber-600 font-medium', badge: 'bg-amber-500/10 text-amber-600 border-amber-200' };
+  if (mins >= 30) return { className: 'text-red-600 font-semibold', badge: 'bg-red-500/10 text-red-600 border-red-200 px-1.5 rounded' };
+  if (mins >= 10) return { className: 'text-amber-600 font-medium', badge: 'bg-amber-500/10 text-amber-600 border-amber-200 px-1.5 rounded' };
   return { className: 'text-muted-foreground', badge: '' };
 }
 
@@ -65,27 +65,41 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
       type="button"
       onClick={() => onSelect(lead)}
       className={cn(
-        'w-full flex items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/50',
-        isSelected && 'bg-muted/70 border-l-2 border-l-primary'
+        'w-full flex items-start gap-3 px-4 py-3 text-left transition-colors border-l-3',
+        isSelected
+          ? 'bg-accent/40 border-l-primary'
+          : 'border-l-transparent hover:bg-accent/20'
       )}
     >
-      <Avatar className="h-10 w-10 shrink-0 bg-primary/10">
-        <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
-          {getInitials(lead.contact_name, lead.whatsapp_number)}
-        </AvatarFallback>
-      </Avatar>
+      {/* Avatar */}
+      <div className="relative flex-shrink-0 mt-0.5">
+        <Avatar className="h-10 w-10">
+          <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
+            {getInitials(lead.contact_name, lead.whatsapp_number)}
+          </AvatarFallback>
+        </Avatar>
+      </div>
 
-      <div className="flex-1 min-w-0 space-y-1">
+      {/* Content */}
+      <div className="flex-1 min-w-0 space-y-0.5">
+        {/* Row 1: Name + Time */}
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium truncate">{displayName}</span>
+          <span className="text-sm font-semibold truncate text-foreground/90">
+            {displayName}
+          </span>
           {timeAgo && (
-            <span className={cn('flex items-center gap-1 text-[11px] whitespace-nowrap shrink-0', urgency.className)}>
+            <span className={cn(
+              'flex items-center gap-1 text-[11px] whitespace-nowrap shrink-0',
+              urgency.className,
+              urgency.badge
+            )}>
               <Clock className="h-3 w-3" />
               {timeAgo}
             </span>
           )}
         </div>
 
+        {/* Row 2: Phone + Stage badge */}
         <div className="flex items-center gap-1.5">
           {lead.contact_name && (
             <span className="text-xs text-muted-foreground truncate">
@@ -106,6 +120,13 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
             </Badge>
           )}
         </div>
+
+        {/* Row 3: Last message preview */}
+        {(lead as any).last_message && (
+          <p className="text-xs text-muted-foreground truncate">
+            {(lead as any).last_message}
+          </p>
+        )}
       </div>
     </button>
   );
