@@ -55,7 +55,7 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
       type="button"
       onClick={() => onSelect(lead)}
       className={cn(
-        'w-full flex items-start gap-2.5 px-3 py-2.5 text-left transition-colors border-l-2 border-b border-border/40',
+        'w-full max-w-full overflow-hidden flex items-start gap-2.5 px-3 py-2.5 text-left transition-colors border-l-2 border-b border-border/40',
         isSelected
           ? 'bg-accent/50 border-l-primary'
           : 'border-l-transparent hover:bg-accent/20'
