@@ -829,6 +829,7 @@ export function WhatsAppMessagesDialog({
 
   // Editable name state
   const { data: crmCard } = useCRMCardByWhatsapp(open ? whatsappNumber : null);
+  const { data: stages = [] } = useCRMStages();
   const updateCardName = useUpdateCardName();
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(leadName || '');
