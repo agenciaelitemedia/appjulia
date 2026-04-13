@@ -690,4 +690,19 @@ export interface SessionStatus {
   updated_at: string;
 }
 
+export interface InactiveSession {
+  id: number;
+  whatsapp_number: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+  cod_agent: string;
+  contact_name: string | null;
+  business_name: string | null;
+  card_id: number | null;
+  stage_id: number | null;
+  stage_name: string | null;
+  stage_color: string | null;
+}
+
 export const externalDb = new ExternalDatabase();
