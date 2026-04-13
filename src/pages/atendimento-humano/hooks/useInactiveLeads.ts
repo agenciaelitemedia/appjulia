@@ -7,17 +7,17 @@ export function useInactiveLeads() {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Get agent codes from user
+  // Get agent codes from user_agents table
+  const { data: userAgents = [] } = useQuery({
+    queryKey: ['user-agents-for-support', user?.id],
+    queryFn: () => externalDb.getUserAgents(user!.id),
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const agentCodes = useMemo(() => {
-    if (!user) return [];
-    const codes: string[] = [];
-    if (user.agents && Array.isArray(user.agents)) {
-      user.agents.forEach((a: any) => {
-        if (a.cod_agent) codes.push(String(a.cod_agent));
-      });
-    }
-    return codes;
-  }, [user]);
+    return userAgents.map((a: any) => String(a.cod_agent));
+  }, [userAgents]);
 
   const { data: leads = [], isLoading, refetch } = useQuery({
     queryKey: ['inactive-sessions', agentCodes],
