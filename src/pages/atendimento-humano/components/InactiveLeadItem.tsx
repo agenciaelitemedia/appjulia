@@ -82,7 +82,12 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
           )}
         </div>
 
-        {/* Row 2: Stage badge */}
+        {/* Row 2: Phone */}
+        <p className="text-xs text-muted-foreground truncate">
+          {formatPhone(lead.whatsapp_number)}
+        </p>
+
+        {/* Row 3: Stage badge */}
         {lead.stage_name && (
           <div>
             <Badge
@@ -98,11 +103,6 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
             </Badge>
           </div>
         )}
-
-        {/* Row 3: Phone */}
-        <p className="text-xs text-muted-foreground truncate">
-          {formatPhone(lead.whatsapp_number)}
-        </p>
       </div>
     </button>
   );
