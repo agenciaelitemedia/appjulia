@@ -1,33 +1,38 @@
 
 
-## Plano: Corrigir Layout da Lista de Conversas — Atendimento Humano
+## Plano: Corrigir Layout da Lista de Atendimento Humano
 
-### Problemas Identificados (da screenshot)
+### Problemas
 
-1. **Timestamps não aparecem** — o horário da última mensagem não está visível em nenhum item da lista
-2. **Scrollbar horizontal nos filtros de período** — os badges "3 meses" está cortado, scrollbar aparente
-3. **Stage badges ausentes** — nenhum item mostra o badge de fase do CRM
-4. **Sem indicador de seleção** — falta borda lateral para indicar item selecionado (padrão Helena)
+Com base no código atual e nos problemas relatados:
+
+1. **Sidebar estreita demais** — `w-80` (320px) comprime nome + timestamp na mesma linha, fazendo o horário sumir
+2. **Avatar grande demais** — `h-[42px] w-[42px]` ocupa espaço excessivo na sidebar de 320px
+3. **Falta `max-w` no nome** — nome longo empurra o timestamp para fora da tela
+4. **Badge de stage pode ficar invisível** — quando `stage_color` é `null`, o badge fica sem cor visível
 
 ### Mudanças
 
-#### `InactiveLeadItem.tsx`
+#### 1. `HumanSupportPage.tsx` — Aumentar largura da sidebar
 
-- **Garantir timestamp visível**: mover o timestamp para uma posição fixa no canto superior direito com `shrink-0` e largura mínima, usando cor de urgência
-- **Ajustar Row 1**: nome com `font-medium` truncado + timestamp sempre visível à direita
-- **Row 2**: telefone formatado (sempre visível, mesmo sem `contact_name`) + stage badge à direita
-- **Seleção**: adicionar `border-l-2 border-l-primary` quando selecionado
-- **Remover border-b do content div** (já existe `divide-y` no container pai — duplica o separador)
+- `w-80 min-w-[320px]` → `w-[360px] min-w-[360px]`
 
-#### `InactiveLeadsList.tsx`
+#### 2. `InactiveLeadItem.tsx` — Ajustar tamanhos e garantir visibilidade
 
-- **Filtros de período**: adicionar `scrollbar-hide` ou `flex-nowrap` para evitar scrollbar horizontal visível
-- Remover `divide-y` do container (separador já está no item via `border-b`)
+- Avatar: `h-[42px] w-[42px]` → `h-9 w-9` (36px, compacto)
+- Row 1 (nome + hora): forçar nome com `max-w-[65%]` e `truncate`; timestamp com `shrink-0 ml-auto`
+- Row 2 (telefone + stage): manter como está, mas garantir fallback de cor no badge quando `stage_color` é null
+- Padding: `py-3` → `py-2.5` para itens mais compactos
+- Gap: `gap-3` → `gap-2.5`
+
+#### 3. `InactiveLeadsList.tsx` — Sem mudanças necessárias
+
+O código dos filtros já está correto com `scrollbar-hide`.
 
 ### Arquivos afetados
 
 | Arquivo | Mudança |
 |---------|---------|
-| `InactiveLeadItem.tsx` | Corrigir visibilidade do timestamp, seleção, separador |
-| `InactiveLeadsList.tsx` | Corrigir scroll horizontal nos filtros |
+| `HumanSupportPage.tsx` | Aumentar largura sidebar para 360px |
+| `InactiveLeadItem.tsx` | Reduzir avatar, limitar largura do nome, compactar padding |
 
