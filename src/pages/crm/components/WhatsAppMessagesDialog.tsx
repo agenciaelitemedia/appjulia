@@ -2,8 +2,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   MessageCircle, Send, Loader2, 
   Mic, FileText, Download, MapPin, User, Image as ImageIcon, Video, Play, Bot,
-  Zap, Paperclip, StickyNote, Search, Square, X, Scale, Pencil, Check
+  Zap, Paperclip, StickyNote, Search, Square, X, Scale, Pencil, Check,
+  Eye, Phone, ExternalLink
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -35,8 +37,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useQuickMessages } from '@/hooks/useQuickMessages';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useContractInfo } from '../hooks/useContractInfo';
-import { useCRMCardByWhatsapp, useUpdateCardName } from '../hooks/useCRMData';
+import { useCRMCardByWhatsapp, useCRMStages, useUpdateCardName } from '../hooks/useCRMData';
 import { ContractInfoContent } from './ContractInfoContent';
+import { CRMLeadDetailsDialog } from './CRMLeadDetailsDialog';
+import { PhoneCallDialog } from './PhoneCallDialog';
 
 
 // ============================================
@@ -797,6 +801,9 @@ export function WhatsAppMessagesDialog({
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [updatingSession, setUpdatingSession] = useState(false);
   const [sendingFile, setSendingFile] = useState(false);
+  const [phoneCallOpen, setPhoneCallOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const navigate = useNavigate();
   const [quickMsgSearch, setQuickMsgSearch] = useState('');
   const [quickMsgOpen, setQuickMsgOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -822,6 +829,7 @@ export function WhatsAppMessagesDialog({
 
   // Editable name state
   const { data: crmCard } = useCRMCardByWhatsapp(open ? whatsappNumber : null);
+  const { data: stages = [] } = useCRMStages();
   const updateCardName = useUpdateCardName();
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(leadName || '');
@@ -1761,6 +1769,46 @@ export function WhatsAppMessagesDialog({
                   {contractInfo ? 'Ver detalhes do contrato' : 'Sem contrato'}
                 </TooltipContent>
               </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => crmCard && setDetailsOpen(true)}
+                    className={cn(
+                      "hover:opacity-80 transition-opacity p-1 rounded",
+                      crmCard ? "cursor-pointer" : "cursor-not-allowed opacity-40"
+                    )}
+                    disabled={!crmCard}
+                  >
+                    <Eye className={cn("h-5 w-5", crmCard ? "text-foreground" : "text-muted-foreground")} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Detalhes do card CRM</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => setPhoneCallOpen(true)}
+                    className="hover:opacity-80 transition-opacity p-1 rounded cursor-pointer"
+                  >
+                    <Phone className="h-5 w-5 text-orange-500" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Ligar</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/crm/leads?search=${encodeURIComponent(whatsappNumber)}`)}
+                    className="hover:opacity-80 transition-opacity p-1 rounded cursor-pointer"
+                  >
+                    <ExternalLink className="h-5 w-5 text-blue-500" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Ver no CRM</TooltipContent>
+              </Tooltip>
               <button
                 type="button"
                 onClick={() => setStatusDialogOpen(true)}
@@ -2243,6 +2291,19 @@ export function WhatsAppMessagesDialog({
           whatsappNumber={whatsappNumber}
           codAgent={codAgent}
         />
+        <CRMLeadDetailsDialog
+          card={crmCard || null}
+          stages={stages}
+          open={detailsOpen}
+          onOpenChange={setDetailsOpen}
+        />
+        <PhoneCallDialog
+          open={phoneCallOpen}
+          onOpenChange={setPhoneCallOpen}
+          whatsappNumber={whatsappNumber}
+          contactName={displayName || whatsappNumber}
+          codAgent={codAgent}
+        />
       </>
     );
   }
@@ -2267,6 +2328,19 @@ export function WhatsAppMessagesDialog({
         }
       }}
       whatsappNumber={whatsappNumber}
+      codAgent={codAgent}
+    />
+    <CRMLeadDetailsDialog
+      card={crmCard || null}
+      stages={stages}
+      open={detailsOpen}
+      onOpenChange={setDetailsOpen}
+    />
+    <PhoneCallDialog
+      open={phoneCallOpen}
+      onOpenChange={setPhoneCallOpen}
+      whatsappNumber={whatsappNumber}
+      contactName={displayName || whatsappNumber}
       codAgent={codAgent}
     />
     </>
