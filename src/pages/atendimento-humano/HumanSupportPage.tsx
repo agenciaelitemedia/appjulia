@@ -51,7 +51,7 @@ export default function HumanSupportPage() {
   return (
     <div className="flex h-[calc(100vh-64px)] overflow-hidden">
       {/* Sidebar - Lead List */}
-      <div className="w-[360px] min-w-[360px] shrink-0">
+      <div className="w-96 min-w-[384px] shrink-0">
         <InactiveLeadsList
           leads={leads}
           isLoading={isLoading}

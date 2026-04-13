@@ -48,6 +48,8 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
   const timeLabel = formatWhatsAppTime(lead.updated_at);
   const urgencyClass = getUrgencyColor(lead.updated_at);
 
+  const badgeColor = lead.stage_color || 'hsl(var(--muted-foreground))';
+
   return (
     <button
       type="button"
@@ -59,44 +61,48 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
           : 'border-l-transparent hover:bg-accent/20'
       )}
     >
+      {/* Avatar */}
       <Avatar className="h-9 w-9 shrink-0 mt-0.5">
         <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
           {getInitials(lead.contact_name, lead.whatsapp_number)}
         </AvatarFallback>
       </Avatar>
 
-      <div className="flex-1 min-w-0">
-        {/* Row 1: Name + Time */}
+      {/* Content area */}
+      <div className="flex-1 min-w-0 space-y-0.5">
+        {/* Row 1: Name + Time (fixed right) */}
         <div className="flex items-baseline justify-between gap-2">
-          <span className="text-sm font-medium truncate max-w-[65%] text-foreground">
+          <span className="text-sm font-medium truncate text-foreground">
             {displayName}
           </span>
           {timeLabel && (
-            <span className={cn('text-[11px] whitespace-nowrap shrink-0 ml-auto', urgencyClass)}>
+            <span className={cn('text-[11px] whitespace-nowrap shrink-0', urgencyClass)}>
               {timeLabel}
             </span>
           )}
         </div>
 
-        {/* Row 2: Phone + Stage */}
-        <div className="flex items-center justify-between gap-1.5 mt-0.5">
-          <span className="text-xs text-muted-foreground truncate">
-            {formatPhone(lead.whatsapp_number)}
-          </span>
-          {lead.stage_name && (
+        {/* Row 2: Stage badge */}
+        {lead.stage_name && (
+          <div>
             <Badge
               variant="outline"
-              className="text-[10px] px-1.5 py-0 h-4 font-normal border shrink-0"
+              className="text-[10px] px-1.5 py-0 h-4 font-normal border w-fit max-w-full truncate"
               style={{
-                borderColor: lead.stage_color || 'hsl(var(--muted-foreground))',
-                color: lead.stage_color || 'hsl(var(--muted-foreground))',
+                borderColor: badgeColor,
+                color: badgeColor,
                 backgroundColor: lead.stage_color ? `${lead.stage_color}15` : 'hsl(var(--muted) / 0.5)',
               }}
             >
               {lead.stage_name}
             </Badge>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Row 3: Phone */}
+        <p className="text-xs text-muted-foreground truncate">
+          {formatPhone(lead.whatsapp_number)}
+        </p>
       </div>
     </button>
   );
