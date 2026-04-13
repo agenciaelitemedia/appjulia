@@ -3,16 +3,41 @@ import { Headset } from 'lucide-react';
 import { useInactiveLeads } from './hooks/useInactiveLeads';
 import { InactiveLeadsList } from './components/InactiveLeadsList';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
+import { AgentSearchSelect } from '@/components/AgentSearchSelect';
+import { useJuliaAgents } from '@/pages/estrategico/hooks/useJuliaData';
+import { getSavedAgentCodes, saveAgentCodes } from '@/hooks/usePersistedPeriod';
 import type { InactiveSession } from '@/lib/externalDb';
+import { useEffect } from 'react';
 
 export default function HumanSupportPage() {
+  const { data: agents = [], isLoading: isLoadingAgents } = useJuliaAgents();
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+
+  // Restore saved agent on load
+  useEffect(() => {
+    if (agents.length > 0 && !selectedAgent) {
+      const saved = getSavedAgentCodes();
+      if (saved && agents.some(a => a.cod_agent === saved)) {
+        setSelectedAgent(saved);
+      } else {
+        setSelectedAgent(agents[0].cod_agent);
+      }
+    }
+  }, [agents, selectedAgent]);
+
+  const handleAgentChange = useCallback((code: string) => {
+    setSelectedAgent(code);
+    saveAgentCodes(code);
+    setSelectedLead(null);
+  }, []);
+
   const {
     leads,
     allLeads,
     isLoading,
     searchQuery,
     setSearchQuery,
-  } = useInactiveLeads();
+  } = useInactiveLeads(selectedAgent || undefined);
 
   const [selectedLead, setSelectedLead] = useState<InactiveSession | null>(null);
 
@@ -32,6 +57,16 @@ export default function HumanSupportPage() {
           selectedLeadId={selectedLead?.id ?? null}
           onSelectLead={handleSelectLead}
           totalCount={allLeads.length}
+          agentSelect={
+            <AgentSearchSelect
+              agents={agents}
+              value={selectedAgent}
+              onValueChange={handleAgentChange}
+              disabled={isLoadingAgents}
+              placeholder="Selecione um agente"
+              className="w-full"
+            />
+          }
         />
       </div>
 
@@ -46,7 +81,7 @@ export default function HumanSupportPage() {
             whatsappNumber={selectedLead.whatsapp_number}
             leadName={selectedLead.contact_name || undefined}
             codAgent={selectedLead.cod_agent}
-            variant="sheet"
+            variant="inline"
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-4 bg-muted/20">

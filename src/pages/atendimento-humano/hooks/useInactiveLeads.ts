@@ -3,7 +3,7 @@ import { externalDb, InactiveSession } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMemo, useState } from 'react';
 
-export function useInactiveLeads() {
+export function useInactiveLeads(selectedAgentCode?: string) {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -16,8 +16,9 @@ export function useInactiveLeads() {
   });
 
   const agentCodes = useMemo(() => {
+    if (selectedAgentCode) return [selectedAgentCode];
     return userAgents.map((a: any) => String(a.cod_agent));
-  }, [userAgents]);
+  }, [userAgents, selectedAgentCode]);
 
   const { data: leads = [], isLoading, refetch } = useQuery({
     queryKey: ['inactive-sessions', agentCodes],
