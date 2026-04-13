@@ -1,8 +1,7 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow, differenceInMinutes } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { differenceInMinutes, differenceInHours, differenceInDays } from 'date-fns';
 import { Clock } from 'lucide-react';
 import type { InactiveSession } from '@/lib/externalDb';
 
