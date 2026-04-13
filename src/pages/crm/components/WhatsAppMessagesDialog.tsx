@@ -1769,6 +1769,45 @@ export function WhatsAppMessagesDialog({
                   {contractInfo ? 'Ver detalhes do contrato' : 'Sem contrato'}
                 </TooltipContent>
               </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => crmCard && setDetailsOpen(true)}
+                    className={cn(
+                      "hover:opacity-80 transition-opacity p-1 rounded",
+                      crmCard ? "cursor-pointer" : "cursor-not-allowed opacity-40"
+                    )}
+                    disabled={!crmCard}
+                  >
+                    <Eye className={cn("h-5 w-5", crmCard ? "text-foreground" : "text-muted-foreground")} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Detalhes do card CRM</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => setPhoneCallOpen(true)}
+                    className="hover:opacity-80 transition-opacity p-1 rounded cursor-pointer"
+                  >
+                    <Phone className="h-5 w-5 text-orange-500" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Ligar</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/crm/leads?search=${encodeURIComponent(whatsappNumber)}`)}
+                    className="hover:opacity-80 transition-opacity p-1 rounded cursor-pointer"
+                  >
+                    <ExternalLink className="h-5 w-5 text-blue-500" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Ver no CRM</TooltipContent>
               <button
                 type="button"
                 onClick={() => setStatusDialogOpen(true)}
