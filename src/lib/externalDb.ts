@@ -627,6 +627,13 @@ class ExternalDatabase {
     return result.length > 0 ? result[0] : null;
   }
 
+  async getInactiveSessions(agentCodes: string[]): Promise<InactiveSession[]> {
+    return this.invoke({
+      action: 'get_inactive_sessions',
+      data: { agentCodes },
+    });
+  }
+
   async updateSessionStatus(sessionId: number, active: boolean): Promise<void> {
     await this.invoke({
       action: 'update_session_status',

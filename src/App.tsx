@@ -68,6 +68,7 @@ import SupportAssistantPage from "./pages/suporte-assistente/SupportAssistantPag
 import QuickMessagesPage from "./pages/mensagens-rapidas/QuickMessagesPage";
 import FilasPage from "./pages/agente/filas/FilasPage";
 import ConfiguracoesPage from "./pages/configuracoes/ConfiguracoesPage";
+import HumanSupportPage from "./pages/atendimento-humano/HumanSupportPage";
 
 const queryClient = new QueryClient();
 
@@ -122,6 +123,7 @@ const App = () => (
                   <Route path="/comercial/crm" element={<ProtectedRoute module="crm_comercial"><CRMComercialPage /></ProtectedRoute>} />
                   <Route path="/suporte-assistente" element={<ProtectedRoute module="support_assistant"><SupportAssistantPage /></ProtectedRoute>} />
                   <Route path="/mensagens-rapidas" element={<ProtectedRoute module="quick_messages"><QuickMessagesPage /></ProtectedRoute>} />
+                  <Route path="/atendimento-humano" element={<ProtectedRoute module="human_support"><HumanSupportPage /></ProtectedRoute>} />
                   
                   {/* Admin routes - protected by module permission */}
                   <Route path="/admin/agentes" element={<ProtectedRoute module="admin_agents"><AgentsList /></ProtectedRoute>} />
