@@ -34,12 +34,14 @@ export default function HumanSupportPage() {
 
   const {
     leads,
-    allLeads,
+    totalFiltered,
     isLoading,
     searchQuery,
     setSearchQuery,
     selectedPeriod,
     setSelectedPeriod,
+    hasMore,
+    loadMore,
   } = useInactiveLeads(selectedAgent || undefined);
 
   const [selectedLead, setSelectedLead] = useState<InactiveSession | null>(null);
