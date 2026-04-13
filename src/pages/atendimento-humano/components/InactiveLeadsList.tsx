@@ -64,7 +64,7 @@ export function InactiveLeadsList({
             className="pl-8 h-8 text-xs"
           />
         </div>
-        <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+        <div className="flex gap-1.5 flex-nowrap overflow-x-auto pb-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {PERIOD_OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -96,7 +96,7 @@ export function InactiveLeadsList({
             </p>
           </div>
         ) : (
-          <div className="divide-y">
+          <div>
             {leads.map((lead) => (
               <InactiveLeadItem
                 key={`${lead.id}-${lead.whatsapp_number}`}

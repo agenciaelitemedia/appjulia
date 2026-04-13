@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { differenceInMinutes, differenceInHours, differenceInDays, format, isToday, isYesterday } from 'date-fns';
+import { differenceInMinutes, format, isToday, isYesterday, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { InactiveSession } from '@/lib/externalDb';
 
@@ -13,28 +13,18 @@ interface InactiveLeadItemProps {
 
 function getInitials(name: string | null, phone: string): string {
   if (name) {
-    return name
-      .split(' ')
-      .slice(0, 2)
-      .map(w => w[0])
-      .join('')
-      .toUpperCase();
+    return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
   }
   return phone.slice(-2);
 }
 
 function formatPhone(phone: string): string {
   const clean = phone.replace(/\D/g, '');
-  if (clean.length === 13) {
-    return `+${clean.slice(0, 2)} (${clean.slice(2, 4)}) ${clean.slice(4, 9)}-${clean.slice(9)}`;
-  }
-  if (clean.length === 12) {
-    return `+${clean.slice(0, 2)} (${clean.slice(2, 4)}) ${clean.slice(4, 8)}-${clean.slice(8)}`;
-  }
+  if (clean.length === 13) return `+${clean.slice(0, 2)} (${clean.slice(2, 4)}) ${clean.slice(4, 9)}-${clean.slice(9)}`;
+  if (clean.length === 12) return `+${clean.slice(0, 2)} (${clean.slice(2, 4)}) ${clean.slice(4, 8)}-${clean.slice(8)}`;
   return phone;
 }
 
-/** WhatsApp-style timestamp: "14:35", "Ontem", "12/04/2026" */
 function formatWhatsAppTime(dateStr: string | null): string {
   if (!dateStr) return '';
   const date = new Date(dateStr);
@@ -63,44 +53,40 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
       type="button"
       onClick={() => onSelect(lead)}
       className={cn(
-        'w-full flex items-center gap-3 px-4 py-[10px] text-left transition-colors',
+        'w-full flex items-start gap-3 px-4 py-3 text-left transition-colors border-l-2 border-b border-border/40',
         isSelected
-          ? 'bg-accent/50'
-          : 'hover:bg-accent/20'
+          ? 'bg-accent/50 border-l-primary'
+          : 'border-l-transparent hover:bg-accent/20'
       )}
     >
-      {/* Avatar */}
-      <Avatar className="h-[49px] w-[49px] shrink-0">
+      <Avatar className="h-[42px] w-[42px] shrink-0 mt-0.5">
         <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
           {getInitials(lead.contact_name, lead.whatsapp_number)}
         </AvatarFallback>
       </Avatar>
 
-      {/* Content */}
-      <div className="flex-1 min-w-0 border-b border-border/40 pb-[10px]">
+      <div className="flex-1 min-w-0">
         {/* Row 1: Name + Time */}
         <div className="flex items-baseline justify-between gap-2">
-          <span className="text-[15px] font-normal truncate text-foreground">
+          <span className="text-sm font-medium truncate text-foreground">
             {displayName}
           </span>
           {timeLabel && (
-            <span className={cn('text-[12px] whitespace-nowrap shrink-0', urgencyClass)}>
+            <span className={cn('text-[11px] whitespace-nowrap shrink-0', urgencyClass)}>
               {timeLabel}
             </span>
           )}
         </div>
 
         {/* Row 2: Phone + Stage */}
-        <div className="flex items-center gap-1.5 mt-0.5">
-          {lead.contact_name && (
-            <span className="text-[13px] text-muted-foreground truncate">
-              {formatPhone(lead.whatsapp_number)}
-            </span>
-          )}
+        <div className="flex items-center justify-between gap-1.5 mt-0.5">
+          <span className="text-xs text-muted-foreground truncate">
+            {formatPhone(lead.whatsapp_number)}
+          </span>
           {lead.stage_name && (
             <Badge
               variant="outline"
-              className="text-[10px] px-1.5 py-0 h-4 font-normal border ml-auto shrink-0"
+              className="text-[10px] px-1.5 py-0 h-4 font-normal border shrink-0"
               style={{
                 borderColor: lead.stage_color || undefined,
                 color: lead.stage_color || undefined,
