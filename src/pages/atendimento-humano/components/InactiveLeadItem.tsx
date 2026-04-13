@@ -1,8 +1,9 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Clock } from 'lucide-react';
 import type { InactiveSession } from '@/lib/externalDb';
 
 interface InactiveLeadItemProps {
@@ -34,11 +35,20 @@ function formatPhone(phone: string): string {
   return phone;
 }
 
+function getUrgencyStyle(updatedAt: string | null) {
+  if (!updatedAt) return { className: 'text-muted-foreground', badge: '' };
+  const mins = differenceInMinutes(new Date(), new Date(updatedAt));
+  if (mins >= 30) return { className: 'text-red-600 font-semibold', badge: 'bg-red-500/10 text-red-600 border-red-200' };
+  if (mins >= 10) return { className: 'text-amber-600 font-medium', badge: 'bg-amber-500/10 text-amber-600 border-amber-200' };
+  return { className: 'text-muted-foreground', badge: '' };
+}
+
 export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadItemProps) {
   const displayName = lead.contact_name || formatPhone(lead.whatsapp_number);
   const timeAgo = lead.updated_at
     ? formatDistanceToNow(new Date(lead.updated_at), { addSuffix: true, locale: ptBR })
     : '';
+  const urgency = getUrgencyStyle(lead.updated_at);
 
   return (
     <button
@@ -58,7 +68,12 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
       <div className="flex-1 min-w-0 space-y-1">
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-medium truncate">{displayName}</span>
-          <span className="text-[10px] text-muted-foreground whitespace-nowrap">{timeAgo}</span>
+          {timeAgo && (
+            <span className={cn('flex items-center gap-1 text-[11px] whitespace-nowrap shrink-0', urgency.className)}>
+              <Clock className="h-3 w-3" />
+              {timeAgo}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5">
@@ -67,21 +82,20 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
               {formatPhone(lead.whatsapp_number)}
             </span>
           )}
+          {lead.stage_name && (
+            <Badge
+              variant="outline"
+              className="text-[10px] px-1.5 py-0 h-4 font-normal border"
+              style={{
+                borderColor: lead.stage_color || undefined,
+                color: lead.stage_color || undefined,
+                backgroundColor: lead.stage_color ? `${lead.stage_color}15` : undefined,
+              }}
+            >
+              {lead.stage_name}
+            </Badge>
+          )}
         </div>
-
-        {lead.stage_name && (
-          <Badge
-            variant="outline"
-            className="text-[10px] px-1.5 py-0 h-4 font-normal border"
-            style={{
-              borderColor: lead.stage_color || undefined,
-              color: lead.stage_color || undefined,
-              backgroundColor: lead.stage_color ? `${lead.stage_color}15` : undefined,
-            }}
-          >
-            {lead.stage_name}
-          </Badge>
-        )}
       </div>
     </button>
   );
