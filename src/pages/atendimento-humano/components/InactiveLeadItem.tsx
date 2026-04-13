@@ -53,14 +53,14 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
       type="button"
       onClick={() => onSelect(lead)}
       className={cn(
-        'w-full flex items-start gap-3 px-4 py-3 text-left transition-colors border-l-2 border-b border-border/40',
+        'w-full flex items-start gap-2.5 px-3 py-2.5 text-left transition-colors border-l-2 border-b border-border/40',
         isSelected
           ? 'bg-accent/50 border-l-primary'
           : 'border-l-transparent hover:bg-accent/20'
       )}
     >
-      <Avatar className="h-[42px] w-[42px] shrink-0 mt-0.5">
-        <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
+      <Avatar className="h-9 w-9 shrink-0 mt-0.5">
+        <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
           {getInitials(lead.contact_name, lead.whatsapp_number)}
         </AvatarFallback>
       </Avatar>
@@ -68,11 +68,11 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
       <div className="flex-1 min-w-0">
         {/* Row 1: Name + Time */}
         <div className="flex items-baseline justify-between gap-2">
-          <span className="text-sm font-medium truncate text-foreground">
+          <span className="text-sm font-medium truncate max-w-[65%] text-foreground">
             {displayName}
           </span>
           {timeLabel && (
-            <span className={cn('text-[11px] whitespace-nowrap shrink-0', urgencyClass)}>
+            <span className={cn('text-[11px] whitespace-nowrap shrink-0 ml-auto', urgencyClass)}>
               {timeLabel}
             </span>
           )}
@@ -88,9 +88,9 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
               variant="outline"
               className="text-[10px] px-1.5 py-0 h-4 font-normal border shrink-0"
               style={{
-                borderColor: lead.stage_color || undefined,
-                color: lead.stage_color || undefined,
-                backgroundColor: lead.stage_color ? `${lead.stage_color}15` : undefined,
+                borderColor: lead.stage_color || 'hsl(var(--muted-foreground))',
+                color: lead.stage_color || 'hsl(var(--muted-foreground))',
+                backgroundColor: lead.stage_color ? `${lead.stage_color}15` : 'hsl(var(--muted) / 0.5)',
               }}
             >
               {lead.stage_name}
