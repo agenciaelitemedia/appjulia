@@ -1,8 +1,7 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow, differenceInMinutes } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { differenceInMinutes, differenceInHours, differenceInDays } from 'date-fns';
 import { Clock } from 'lucide-react';
 import type { InactiveSession } from '@/lib/externalDb';
 
@@ -43,11 +42,22 @@ function getUrgencyStyle(updatedAt: string | null) {
   return { className: 'text-muted-foreground', badge: '' };
 }
 
+function formatShortTime(dateStr: string | null): string {
+  if (!dateStr) return '';
+  const now = new Date();
+  const date = new Date(dateStr);
+  const mins = differenceInMinutes(now, date);
+  if (mins < 1) return 'agora';
+  if (mins < 60) return `${mins}min`;
+  const hours = differenceInHours(now, date);
+  if (hours < 24) return `${hours}h`;
+  const days = differenceInDays(now, date);
+  return `${days}d`;
+}
+
 export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadItemProps) {
   const displayName = lead.contact_name || formatPhone(lead.whatsapp_number);
-  const timeAgo = lead.updated_at
-    ? formatDistanceToNow(new Date(lead.updated_at), { addSuffix: true, locale: ptBR })
-    : '';
+  const timeAgo = formatShortTime(lead.updated_at);
   const urgency = getUrgencyStyle(lead.updated_at);
 
   return (
