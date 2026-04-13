@@ -2611,7 +2611,7 @@ serve(async (req) => {
           JOIN agents a ON a.id = s.agent_id
           LEFT JOIN crm_atendimento_cards c 
             ON c.whatsapp_number::text = s.whatsapp_number::text 
-            AND c.cod_agent = a.cod_agent
+            AND c.cod_agent::text = a.cod_agent::text
           LEFT JOIN crm_atendimento_stages st ON st.id = c.stage_id
           WHERE s.active = false 
             AND a.cod_agent::text = ANY($1)
