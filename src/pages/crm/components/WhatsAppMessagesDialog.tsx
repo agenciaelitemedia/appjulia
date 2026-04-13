@@ -2237,7 +2237,39 @@ export function WhatsAppMessagesDialog({
           />
         </div>
         </div>
-        
+    </>
+  );
+
+  // --- Inline variant: no wrapper ---
+  if (isInline) {
+    return (
+      <>
+        <div className="flex flex-row h-full w-full bg-background">
+          {renderInnerContent()}
+        </div>
+        <SessionStatusDialog
+          open={statusDialogOpen}
+          onOpenChange={(open) => {
+            setStatusDialogOpen(open);
+            if (!open && whatsappNumber && codAgent) {
+              externalDb.getSessionStatus(whatsappNumber, codAgent)
+                .then(result => setSessionData(result))
+                .catch(console.error);
+            }
+          }}
+          whatsappNumber={whatsappNumber}
+          codAgent={codAgent}
+        />
+      </>
+    );
+  }
+
+  return (
+    <>
+    <Wrapper open={open} onOpenChange={onOpenChange}>
+      {/* @ts-ignore - dynamic component props */}
+      <Content {...contentProps} aria-describedby={undefined}>
+        {renderInnerContent()}
       </Content>
     </Wrapper>
 
