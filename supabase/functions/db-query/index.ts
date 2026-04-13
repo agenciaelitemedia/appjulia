@@ -2606,7 +2606,8 @@ serve(async (req) => {
             c.id as card_id,
             c.stage_id,
             st.name as stage_name,
-            st.color as stage_color
+            st.color as stage_color,
+            COALESCE(c.owner_name, '') as owner_name
           FROM sessions s
           JOIN agents a ON a.id = s.agent_id
           LEFT JOIN crm_atendimento_cards c 

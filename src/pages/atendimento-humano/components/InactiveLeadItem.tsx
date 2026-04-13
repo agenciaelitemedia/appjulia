@@ -87,12 +87,12 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
           {formatPhone(lead.whatsapp_number)}
         </p>
 
-        {/* Row 3: Stage badge */}
-        {lead.stage_name && (
-          <div>
+        {/* Row 3: Stage badge + owner */}
+        <div className="flex items-center justify-between gap-1.5 mt-0.5">
+          {lead.stage_name ? (
             <Badge
               variant="outline"
-              className="text-[10px] px-1.5 py-0 h-4 font-normal border w-fit max-w-full truncate"
+              className="text-[10px] px-1.5 py-0 h-4 font-normal border w-fit max-w-[60%] truncate shrink-0"
               style={{
                 borderColor: badgeColor,
                 color: badgeColor,
@@ -101,8 +101,13 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
             >
               {lead.stage_name}
             </Badge>
-          </div>
-        )}
+          ) : <span />}
+          {lead.owner_name && (
+            <span className="text-[10px] text-muted-foreground truncate text-right shrink min-w-0">
+              {lead.owner_name}
+            </span>
+          )}
+        </div>
       </div>
     </button>
   );
