@@ -1,38 +1,59 @@
 
+## Plano: corrigir de vez o item da lista no Atendimento Humano
 
-## Plano: Corrigir Layout da Lista de Atendimento Humano
+### Problema real no layout atual
+O item está tentando encaixar **nome, horário, telefone e badge** em pouco espaço horizontal. Isso faz o horário sumir e o badge competir com o telefone. Para ficar como WhatsApp e manter legibilidade, o layout precisa mudar de estrutura, não só de espaçamento.
 
-### Problemas
+### O que vou ajustar
 
-Com base no código atual e nos problemas relatados:
+#### 1. `InactiveLeadItem.tsx` — reestruturar o card em 3 áreas
+Vou trocar o layout atual por uma composição mais estável:
 
-1. **Sidebar estreita demais** — `w-80` (320px) comprime nome + timestamp na mesma linha, fazendo o horário sumir
-2. **Avatar grande demais** — `h-[42px] w-[42px]` ocupa espaço excessivo na sidebar de 320px
-3. **Falta `max-w` no nome** — nome longo empurra o timestamp para fora da tela
-4. **Badge de stage pode ficar invisível** — quando `stage_color` é `null`, o badge fica sem cor visível
+```text
+[ avatar ] [ nome                 ] [ hora ]
+          [ badge da fase         ]
+          [ telefone              ]
+```
 
-### Mudanças
+#### 2. Horário igual ao comportamento visual do WhatsApp
+- deixar o horário em uma **coluna fixa à direita**
+- usar `text-right`, `whitespace-nowrap`, `shrink-0`
+- reservar largura para ele (`min-w`/`w-fit` com largura mínima)
+- manter a formatação:
+  - hoje: `14:35`
+  - ontem: `Ontem`
+  - últimos dias: dia da semana curto
+  - mais antigos: data
 
-#### 1. `HumanSupportPage.tsx` — Aumentar largura da sidebar
+Isso evita o nome empurrar o horário para fora.
 
-- `w-80 min-w-[320px]` → `w-[360px] min-w-[360px]`
+#### 3. Badge abaixo do nome
+- mover `stage_name` para a linha logo abaixo do nome
+- deixar o badge sempre visível com `inline-flex w-fit max-w-full`
+- adicionar fallback visual quando `stage_color` vier vazio
+- impedir que o badge dispute espaço com o horário
 
-#### 2. `InactiveLeadItem.tsx` — Ajustar tamanhos e garantir visibilidade
+#### 4. Telefone em linha separada
+- telefone fica sozinho na terceira linha
+- `text-xs truncate text-muted-foreground`
+- isso melhora leitura e evita quebra visual
 
-- Avatar: `h-[42px] w-[42px]` → `h-9 w-9` (36px, compacto)
-- Row 1 (nome + hora): forçar nome com `max-w-[65%]` e `truncate`; timestamp com `shrink-0 ml-auto`
-- Row 2 (telefone + stage): manter como está, mas garantir fallback de cor no badge quando `stage_color` é null
-- Padding: `py-3` → `py-2.5` para itens mais compactos
-- Gap: `gap-3` → `gap-2.5`
+#### 5. Ajustar densidade do item
+- reduzir ligeiramente gaps e paddings internos
+- manter avatar compacto
+- preservar borda lateral de seleção
+- suavizar separador inferior para ficar mais próximo de uma lista de conversa
 
-#### 3. `InactiveLeadsList.tsx` — Sem mudanças necessárias
+#### 6. `HumanSupportPage.tsx` — ajustar largura da lateral
+A lateral já foi ampliada antes, mas o padrão Helena/WhatsApp funciona melhor com mais respiro. Vou alinhar a sidebar para a largura do padrão de chat (`w-96 / min-w-96`) para o item caber sem gambiarra.
 
-O código dos filtros já está correto com `scrollbar-hide`.
+### Arquivos a alterar
+- `src/pages/atendimento-humano/components/InactiveLeadItem.tsx`
+- `src/pages/atendimento-humano/HumanSupportPage.tsx`
 
-### Arquivos afetados
-
-| Arquivo | Mudança |
-|---------|---------|
-| `HumanSupportPage.tsx` | Aumentar largura sidebar para 360px |
-| `InactiveLeadItem.tsx` | Reduzir avatar, limitar largura do nome, compactar padding |
-
+### Resultado esperado
+- horário sempre visível no canto superior direito
+- badge da fase imediatamente abaixo do nome
+- telefone legível sem disputar espaço
+- item visualmente parecido com lista de conversas do WhatsApp
+- sidebar com largura suficiente para não “quebrar” os elementos
