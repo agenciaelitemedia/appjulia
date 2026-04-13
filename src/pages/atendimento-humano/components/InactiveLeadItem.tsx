@@ -122,9 +122,9 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
         </div>
 
         {/* Row 3: Last message preview */}
-        {lead.last_message && (
+        {(lead as any).last_message && (
           <p className="text-xs text-muted-foreground truncate">
-            {lead.last_message}
+            {(lead as any).last_message}
           </p>
         )}
       </div>
