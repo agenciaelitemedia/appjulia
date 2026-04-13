@@ -1,9 +1,8 @@
-import { ReactNode } from 'react';
+import { ReactNode, useRef, useEffect, useCallback } from 'react';
 import { Search, Loader2, Headset } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { InactiveLeadItem } from './InactiveLeadItem';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { InactiveSession } from '@/lib/externalDb';
 import type { LeadPeriod } from '../hooks/useInactiveLeads';
@@ -27,6 +26,8 @@ interface InactiveLeadsListProps {
   agentSelect?: ReactNode;
   selectedPeriod: LeadPeriod;
   onPeriodChange: (p: LeadPeriod) => void;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
 }
 
 export function InactiveLeadsList({
@@ -40,7 +41,28 @@ export function InactiveLeadsList({
   agentSelect,
   selectedPeriod,
   onPeriodChange,
+  hasMore,
+  onLoadMore,
 }: InactiveLeadsListProps) {
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!hasMore || !onLoadMore) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          onLoadMore();
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, onLoadMore]);
+
   return (
     <div className="flex flex-col h-full border-r bg-background">
       {/* Header */}
@@ -105,6 +127,11 @@ export function InactiveLeadsList({
                 onSelect={onSelectLead}
               />
             ))}
+            {hasMore && (
+              <div ref={sentinelRef} className="flex items-center justify-center py-3">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            )}
           </div>
         )}
       </ScrollArea>
