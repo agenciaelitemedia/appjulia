@@ -801,6 +801,9 @@ export function WhatsAppMessagesDialog({
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [updatingSession, setUpdatingSession] = useState(false);
   const [sendingFile, setSendingFile] = useState(false);
+  const [phoneCallOpen, setPhoneCallOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const navigate = useNavigate();
   const [quickMsgSearch, setQuickMsgSearch] = useState('');
   const [quickMsgOpen, setQuickMsgOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
