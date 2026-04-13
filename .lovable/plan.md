@@ -1,41 +1,36 @@
 
 
-## Plano: Agent Select + Chat Inline no Atendimento Humano
+## Plano: Ações no Header do Chat — Atendimento Humano
 
-### Problema Atual
+### Objetivo
 
-1. Não existe seletor de agente — carrega todos os agentes do usuário automaticamente
-2. O chat usa `WhatsAppMessagesDialog` com `variant="sheet"`, que abre como overlay (Sheet do Radix) em vez de renderizar inline ao lado da lista
+Adicionar ao header do chat inline (`variant="inline"`) no Atendimento Humano:
+1. **Detalhes do Contrato** como sidebar (já existe, funciona no inline)
+2. **Ícone de Detalhes do Card** (Eye) — abre o `CRMLeadDetailsDialog` com dados do card do CRM
+3. **Ícone de Telefonia** (Phone) — abre o `PhoneCallDialog` para ligar via ramal
+4. **Ícone de link para CRM** (ExternalLink) — navega direto para `/crm/leads` filtrando pelo lead
 
 ### Mudanças
 
-#### 1. Adicionar `variant="inline"` ao `WhatsAppMessagesDialog`
+#### 1. `WhatsAppMessagesDialog.tsx` — Adicionar ícones ao header
 
-No componente `WhatsAppMessagesDialog.tsx`, adicionar suporte a um terceiro variant `'inline'`. Quando `variant === 'inline'`:
-- Não usar wrapper `Sheet`/`Dialog` — renderizar diretamente um `div` com `flex flex-col h-full`
-- Remover o portal/overlay — o conteúdo fica inline no DOM pai
-- Manter 100% da lógica interna: header (nome editável, bot switch, contrato), mensagens, input (texto, áudio, mídia, notas, mensagens rápidas)
+Na área de ícones do header (linhas ~1745), adicionar 3 novos botões com tooltip **antes ou após** os ícones existentes (Scale + Bot + Switch):
 
-Alteração localizada: nas linhas ~1665-1684, adicionar condição para `inline` que renderiza sem wrapper.
+- **Eye** → abre `CRMLeadDetailsDialog` usando o card obtido por `useCRMCardByWhatsapp` (já importado)
+- **Phone** → abre `PhoneCallDialog` (já usado no CRMLeadCard)
+- **ExternalLink** → `navigate('/crm/leads?search=WHATSAPP_NUMBER')` para filtrar no CRM
 
-#### 2. Adicionar `AgentSearchSelect` ao header do `HumanSupportPage`
+Importar `Eye`, `Phone`, `ExternalLink` do lucide-react. Importar `PhoneCallDialog`, `CRMLeadDetailsDialog`, `useCRMStages` e `useNavigate`.
 
-- Importar `AgentSearchSelect` e `useJuliaAgents` (já existentes)
-- Adicionar state `selectedAgent` no hook `useInactiveLeads` (ou na page)
-- Filtrar leads pelo `cod_agent` selecionado
-- Posicionar o select no header acima da lista de leads
-- Quando nenhum agente selecionado, mostrar leads de todos os agentes do usuário
+Adicionar states: `phoneCallOpen`, `detailsOpen`.
 
-#### 3. Atualizar `HumanSupportPage` para usar variant inline
+Renderizar os dialogs (`PhoneCallDialog`, `CRMLeadDetailsDialog`) junto aos outros dialogs no final do componente (inline e wrapper).
 
-Trocar `variant="sheet"` por `variant="inline"`, eliminando o comportamento de overlay. O chat renderiza diretamente no `div.flex-1` ao lado da lista.
-
-### Arquivos
+#### 2. Arquivos afetados
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/pages/crm/components/WhatsAppMessagesDialog.tsx` | Adicionar `variant="inline"` — renderizar sem Sheet/Dialog wrapper |
-| `src/pages/atendimento-humano/HumanSupportPage.tsx` | Usar `variant="inline"`, adicionar `AgentSearchSelect` no header |
-| `src/pages/atendimento-humano/hooks/useInactiveLeads.ts` | Aceitar filtro por `selectedAgentCode` opcional |
-| `src/pages/atendimento-humano/components/InactiveLeadsList.tsx` | Adicionar slot para o agent select no header |
+| `src/pages/crm/components/WhatsAppMessagesDialog.tsx` | Adicionar 3 ícones ao header + seus dialogs |
+
+Nenhum outro arquivo precisa ser alterado — o `HumanSupportPage` já renderiza o `WhatsAppMessagesDialog` com `variant="inline"` e as mudanças ficam no componente compartilhado.
 
