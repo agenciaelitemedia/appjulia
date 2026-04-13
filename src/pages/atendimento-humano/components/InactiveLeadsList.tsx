@@ -1,3 +1,4 @@
+import { ReactNode } from 'react';
 import { Search, Loader2, Headset } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -12,6 +13,7 @@ interface InactiveLeadsListProps {
   selectedLeadId: number | null;
   onSelectLead: (lead: InactiveSession) => void;
   totalCount: number;
+  agentSelect?: ReactNode;
 }
 
 export function InactiveLeadsList({
@@ -22,6 +24,7 @@ export function InactiveLeadsList({
   selectedLeadId,
   onSelectLead,
   totalCount,
+  agentSelect,
 }: InactiveLeadsListProps) {
   return (
     <div className="flex flex-col h-full border-r bg-background">
@@ -36,6 +39,7 @@ export function InactiveLeadsList({
             {totalCount}
           </span>
         </div>
+        {agentSelect && <div>{agentSelect}</div>}
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input

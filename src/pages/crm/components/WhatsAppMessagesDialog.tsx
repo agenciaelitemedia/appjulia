@@ -87,8 +87,8 @@ interface WhatsAppMessagesDialogProps {
   whatsappNumber: string;
   leadName?: string;
   codAgent: string;
-  /** 'dialog' (popup, default) or 'sheet' (right sidebar panel) */
-  variant?: 'dialog' | 'sheet';
+  /** 'dialog' (popup, default), 'sheet' (right sidebar panel), or 'inline' (no wrapper) */
+  variant?: 'dialog' | 'sheet' | 'inline';
 }
 
 // ============================================
@@ -1663,12 +1663,13 @@ export function WhatsAppMessagesDialog({
   }, {} as Record<string, Message[]>);
 
   const isSheet = variant === 'sheet';
+  const isInline = variant === 'inline';
 
   const Wrapper = isSheet ? Sheet : Dialog;
   const Content = isSheet ? SheetContent : DialogContent;
-  const Header = isSheet ? SheetHeader : DialogHeader;
-  const Title = isSheet ? SheetTitle : DialogTitle;
-  const Description = isSheet ? SheetDescription : DialogDescription;
+  const Header = isInline ? 'div' : (isSheet ? SheetHeader : DialogHeader);
+  const Title = isInline ? 'h2' : (isSheet ? SheetTitle : DialogTitle);
+  const Description = isInline ? 'p' : (isSheet ? SheetDescription : DialogDescription);
 
   const sheetWidth = contractSidebarOpen
     ? 'w-[calc(100vw-1rem)] sm:w-[1140px] sm:!max-w-[1140px]'
@@ -1677,11 +1678,9 @@ export function WhatsAppMessagesDialog({
     ? { side: 'right' as const, className: `${sheetWidth} !gap-0 overflow-hidden p-0 flex flex-row h-full transition-all duration-300` }
     : { className: 'sm:max-w-[500px] h-[600px] flex flex-col p-0 bg-card' };
 
-  return (
+  // --- Inline content (contract sidebar + chat column) ---
+  const renderInnerContent = () => (
     <>
-    <Wrapper open={open} onOpenChange={onOpenChange}>
-      {/* @ts-ignore - dynamic component props */}
-      <Content {...contentProps} aria-describedby={undefined}>
         {/* Contract Details Panel - inline side by side (LEFT of chat) */}
         {contractSidebarOpen && (
           <div className="w-[480px] min-w-0 border-r flex flex-col h-full bg-background">
@@ -2221,7 +2220,39 @@ export function WhatsAppMessagesDialog({
           />
         </div>
         </div>
-        
+    </>
+  );
+
+  // --- Inline variant: no wrapper ---
+  if (isInline) {
+    return (
+      <>
+        <div className="flex flex-row h-full w-full bg-background">
+          {renderInnerContent()}
+        </div>
+        <SessionStatusDialog
+          open={statusDialogOpen}
+          onOpenChange={(open) => {
+            setStatusDialogOpen(open);
+            if (!open && whatsappNumber && codAgent) {
+              externalDb.getSessionStatus(whatsappNumber, codAgent)
+                .then(result => setSessionData(result))
+                .catch(console.error);
+            }
+          }}
+          whatsappNumber={whatsappNumber}
+          codAgent={codAgent}
+        />
+      </>
+    );
+  }
+
+  return (
+    <>
+    <Wrapper open={open} onOpenChange={onOpenChange}>
+      {/* @ts-ignore - dynamic component props */}
+      <Content {...contentProps} aria-describedby={undefined}>
+        {renderInnerContent()}
       </Content>
     </Wrapper>
 
