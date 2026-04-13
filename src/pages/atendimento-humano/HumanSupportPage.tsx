@@ -38,6 +38,8 @@ export default function HumanSupportPage() {
     isLoading,
     searchQuery,
     setSearchQuery,
+    selectedPeriod,
+    setSelectedPeriod,
   } = useInactiveLeads(selectedAgent || undefined);
 
   const [selectedLead, setSelectedLead] = useState<InactiveSession | null>(null);
@@ -58,6 +60,8 @@ export default function HumanSupportPage() {
           selectedLeadId={selectedLead?.id ?? null}
           onSelectLead={handleSelectLead}
           totalCount={allLeads.length}
+          selectedPeriod={selectedPeriod}
+          onPeriodChange={setSelectedPeriod}
           agentSelect={
             <AgentSearchSelect
               agents={agents}

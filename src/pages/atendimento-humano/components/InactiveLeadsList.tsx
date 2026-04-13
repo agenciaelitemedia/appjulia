@@ -3,7 +3,18 @@ import { Search, Loader2, Headset } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { InactiveLeadItem } from './InactiveLeadItem';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import type { InactiveSession } from '@/lib/externalDb';
+import type { LeadPeriod } from '../hooks/useInactiveLeads';
+
+const PERIOD_OPTIONS: { value: LeadPeriod; label: string }[] = [
+  { value: 'today', label: 'Hoje' },
+  { value: 'yesterday', label: 'Ontem' },
+  { value: 'last7days', label: '7 dias' },
+  { value: 'thisMonth', label: 'Mês atual' },
+  { value: 'last3Months', label: '3 meses' },
+];
 
 interface InactiveLeadsListProps {
   leads: InactiveSession[];
@@ -14,6 +25,8 @@ interface InactiveLeadsListProps {
   onSelectLead: (lead: InactiveSession) => void;
   totalCount: number;
   agentSelect?: ReactNode;
+  selectedPeriod: LeadPeriod;
+  onPeriodChange: (p: LeadPeriod) => void;
 }
 
 export function InactiveLeadsList({
@@ -25,6 +38,8 @@ export function InactiveLeadsList({
   onSelectLead,
   totalCount,
   agentSelect,
+  selectedPeriod,
+  onPeriodChange,
 }: InactiveLeadsListProps) {
   return (
     <div className="flex flex-col h-full border-r bg-background">
@@ -48,6 +63,22 @@ export function InactiveLeadsList({
             placeholder="Buscar por nome ou telefone..."
             className="pl-8 h-8 text-xs"
           />
+        </div>
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+          {PERIOD_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => onPeriodChange(opt.value)}
+              className={cn(
+                "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer border",
+                selectedPeriod === opt.value
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-muted text-muted-foreground border-transparent hover:bg-accent"
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
       </div>
 

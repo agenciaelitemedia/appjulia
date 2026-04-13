@@ -2,10 +2,33 @@ import { useQuery } from '@tanstack/react-query';
 import { externalDb, InactiveSession } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMemo, useState } from 'react';
+import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
+
+export type LeadPeriod = 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'last3Months';
+
+function getDateRange(period: LeadPeriod): { from: Date; to: Date } {
+  const now = new Date();
+  const todayStart = startOfDay(now);
+  switch (period) {
+    case 'today':
+      return { from: todayStart, to: now };
+    case 'yesterday': {
+      const yStart = subDays(todayStart, 1);
+      return { from: yStart, to: todayStart };
+    }
+    case 'last7days':
+      return { from: subDays(todayStart, 7), to: now };
+    case 'thisMonth':
+      return { from: startOfMonth(now), to: now };
+    case 'last3Months':
+      return { from: subMonths(todayStart, 3), to: now };
+  }
+}
 
 export function useInactiveLeads(selectedAgentCode?: string) {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedPeriod, setSelectedPeriod] = useState<LeadPeriod>('last7days');
 
   // Get agent codes from user_agents table
   const { data: userAgents = [] } = useQuery({
@@ -29,14 +52,24 @@ export function useInactiveLeads(selectedAgentCode?: string) {
   });
 
   const filteredLeads = useMemo(() => {
-    if (!searchQuery.trim()) return leads;
-    const q = searchQuery.toLowerCase();
-    return leads.filter((lead: InactiveSession) =>
-      (lead.contact_name && lead.contact_name.toLowerCase().includes(q)) ||
-      lead.whatsapp_number.includes(q) ||
-      (lead.stage_name && lead.stage_name.toLowerCase().includes(q))
-    );
-  }, [leads, searchQuery]);
+    const range = getDateRange(selectedPeriod);
+    let result = leads.filter((lead: InactiveSession) => {
+      const updatedAt = lead.updated_at ? new Date(lead.updated_at) : null;
+      if (!updatedAt) return false;
+      return updatedAt >= range.from && updatedAt <= range.to;
+    });
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter((lead: InactiveSession) =>
+        (lead.contact_name && lead.contact_name.toLowerCase().includes(q)) ||
+        lead.whatsapp_number.includes(q) ||
+        (lead.stage_name && lead.stage_name.toLowerCase().includes(q))
+      );
+    }
+
+    return result;
+  }, [leads, searchQuery, selectedPeriod]);
 
   return {
     leads: filteredLeads,
@@ -44,6 +77,8 @@ export function useInactiveLeads(selectedAgentCode?: string) {
     isLoading,
     searchQuery,
     setSearchQuery,
+    selectedPeriod,
+    setSelectedPeriod,
     refetch,
     agentCodes,
   };
