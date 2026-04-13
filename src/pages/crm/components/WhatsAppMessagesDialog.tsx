@@ -1801,7 +1801,7 @@ export function WhatsAppMessagesDialog({
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    onClick={() => navigate(`/crm/leads?search=${encodeURIComponent(whatsappNumber)}`)}
+                    onClick={() => navigate(`/crm/leads?whatsapp=${encodeURIComponent(whatsappNumber)}`)}
                     className="hover:opacity-80 transition-opacity p-1 rounded cursor-pointer"
                   >
                     <ExternalLink className="h-5 w-5 text-blue-500" />
