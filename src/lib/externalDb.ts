@@ -703,6 +703,7 @@ export interface InactiveSession {
   stage_id: number | null;
   stage_name: string | null;
   stage_color: string | null;
+  owner_name: string | null;
 }
 
 export const externalDb = new ExternalDatabase();
