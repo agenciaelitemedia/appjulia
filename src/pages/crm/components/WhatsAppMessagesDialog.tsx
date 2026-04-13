@@ -1808,6 +1808,7 @@ export function WhatsAppMessagesDialog({
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>Ver no CRM</TooltipContent>
+              </Tooltip>
               <button
                 type="button"
                 onClick={() => setStatusDialogOpen(true)}
