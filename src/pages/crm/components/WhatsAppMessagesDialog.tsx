@@ -2291,6 +2291,19 @@ export function WhatsAppMessagesDialog({
           whatsappNumber={whatsappNumber}
           codAgent={codAgent}
         />
+        <CRMLeadDetailsDialog
+          card={crmCard || null}
+          stages={stages}
+          open={detailsOpen}
+          onOpenChange={setDetailsOpen}
+        />
+        <PhoneCallDialog
+          open={phoneCallOpen}
+          onOpenChange={setPhoneCallOpen}
+          whatsappNumber={whatsappNumber}
+          contactName={displayName || whatsappNumber}
+          codAgent={codAgent}
+        />
       </>
     );
   }
