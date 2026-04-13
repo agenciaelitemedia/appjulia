@@ -1,8 +1,8 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { differenceInMinutes, differenceInHours, differenceInDays } from 'date-fns';
-import { Clock } from 'lucide-react';
+import { differenceInMinutes, differenceInHours, differenceInDays, format, isToday, isYesterday } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import type { InactiveSession } from '@/lib/externalDb';
 
 interface InactiveLeadItemProps {
@@ -34,82 +34,73 @@ function formatPhone(phone: string): string {
   return phone;
 }
 
-function getUrgencyStyle(updatedAt: string | null) {
-  if (!updatedAt) return { className: 'text-muted-foreground', badge: '' };
-  const mins = differenceInMinutes(new Date(), new Date(updatedAt));
-  if (mins >= 30) return { className: 'text-red-600 font-semibold', badge: 'bg-red-500/10 text-red-600 border-red-200 px-1.5 rounded' };
-  if (mins >= 10) return { className: 'text-amber-600 font-medium', badge: 'bg-amber-500/10 text-amber-600 border-amber-200 px-1.5 rounded' };
-  return { className: 'text-muted-foreground', badge: '' };
+/** WhatsApp-style timestamp: "14:35", "Ontem", "12/04/2026" */
+function formatWhatsAppTime(dateStr: string | null): string {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (isToday(date)) return format(date, 'HH:mm');
+  if (isYesterday(date)) return 'Ontem';
+  const days = differenceInDays(new Date(), date);
+  if (days < 7) return format(date, 'EEEEEE', { locale: ptBR });
+  return format(date, 'dd/MM/yyyy');
 }
 
-function formatShortTime(dateStr: string | null): string {
-  if (!dateStr) return '';
-  const now = new Date();
-  const date = new Date(dateStr);
-  const mins = differenceInMinutes(now, date);
-  if (mins < 1) return 'agora';
-  if (mins < 60) return `${mins}min`;
-  const hours = differenceInHours(now, date);
-  if (hours < 24) return `${hours}h`;
-  const days = differenceInDays(now, date);
-  return `${days}d`;
+function getUrgencyColor(updatedAt: string | null): string {
+  if (!updatedAt) return 'text-muted-foreground';
+  const mins = differenceInMinutes(new Date(), new Date(updatedAt));
+  if (mins >= 30) return 'text-red-500 font-semibold';
+  if (mins >= 10) return 'text-amber-500 font-medium';
+  return 'text-muted-foreground';
 }
 
 export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadItemProps) {
   const displayName = lead.contact_name || formatPhone(lead.whatsapp_number);
-  const timeAgo = formatShortTime(lead.updated_at);
-  const urgency = getUrgencyStyle(lead.updated_at);
+  const timeLabel = formatWhatsAppTime(lead.updated_at);
+  const urgencyClass = getUrgencyColor(lead.updated_at);
 
   return (
     <button
       type="button"
       onClick={() => onSelect(lead)}
       className={cn(
-        'w-full flex items-start gap-3 px-4 py-3 text-left transition-colors border-l-3',
+        'w-full flex items-center gap-3 px-4 py-[10px] text-left transition-colors',
         isSelected
-          ? 'bg-accent/40 border-l-primary'
-          : 'border-l-transparent hover:bg-accent/20'
+          ? 'bg-accent/50'
+          : 'hover:bg-accent/20'
       )}
     >
       {/* Avatar */}
-      <div className="relative flex-shrink-0 mt-0.5">
-        <Avatar className="h-10 w-10">
-          <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
-            {getInitials(lead.contact_name, lead.whatsapp_number)}
-          </AvatarFallback>
-        </Avatar>
-      </div>
+      <Avatar className="h-[49px] w-[49px] shrink-0">
+        <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
+          {getInitials(lead.contact_name, lead.whatsapp_number)}
+        </AvatarFallback>
+      </Avatar>
 
       {/* Content */}
-      <div className="flex-1 min-w-0 space-y-0.5">
+      <div className="flex-1 min-w-0 border-b border-border/40 pb-[10px]">
         {/* Row 1: Name + Time */}
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-semibold truncate text-foreground/90">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-[15px] font-normal truncate text-foreground">
             {displayName}
           </span>
-          {timeAgo && (
-            <span className={cn(
-              'flex items-center gap-1 text-[11px] whitespace-nowrap shrink-0',
-              urgency.className,
-              urgency.badge
-            )}>
-              <Clock className="h-3 w-3" />
-              {timeAgo}
+          {timeLabel && (
+            <span className={cn('text-[12px] whitespace-nowrap shrink-0', urgencyClass)}>
+              {timeLabel}
             </span>
           )}
         </div>
 
-        {/* Row 2: Phone + Stage badge */}
-        <div className="flex items-center gap-1.5">
+        {/* Row 2: Phone + Stage */}
+        <div className="flex items-center gap-1.5 mt-0.5">
           {lead.contact_name && (
-            <span className="text-xs text-muted-foreground truncate">
+            <span className="text-[13px] text-muted-foreground truncate">
               {formatPhone(lead.whatsapp_number)}
             </span>
           )}
           {lead.stage_name && (
             <Badge
               variant="outline"
-              className="text-[10px] px-1.5 py-0 h-4 font-normal border"
+              className="text-[10px] px-1.5 py-0 h-4 font-normal border ml-auto shrink-0"
               style={{
                 borderColor: lead.stage_color || undefined,
                 color: lead.stage_color || undefined,
@@ -120,13 +111,6 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
             </Badge>
           )}
         </div>
-
-        {/* Row 3: Last message preview */}
-        {(lead as any).last_message && (
-          <p className="text-xs text-muted-foreground truncate">
-            {(lead as any).last_message}
-          </p>
-        )}
       </div>
     </button>
   );
