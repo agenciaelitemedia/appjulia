@@ -1,36 +1,33 @@
 
 
-## Plano: Adicionar Filtros de Data na Lista do Atendimento Humano
+## Plano: Corrigir Layout da Lista de Conversas — Atendimento Humano
 
-### Objetivo
-Adicionar badges de período (Hoje, Ontem, 7 dias, Mês atual, 3 meses) acima da lista de leads, com "7 dias" selecionado por padrão. O filtro será aplicado client-side sobre o campo `updated_at` dos leads.
+### Problemas Identificados (da screenshot)
+
+1. **Timestamps não aparecem** — o horário da última mensagem não está visível em nenhum item da lista
+2. **Scrollbar horizontal nos filtros de período** — os badges "3 meses" está cortado, scrollbar aparente
+3. **Stage badges ausentes** — nenhum item mostra o badge de fase do CRM
+4. **Sem indicador de seleção** — falta borda lateral para indicar item selecionado (padrão Helena)
 
 ### Mudanças
 
-#### 1. `useInactiveLeads.ts` — Adicionar estado e lógica de filtro por data
+#### `InactiveLeadItem.tsx`
 
-- Adicionar estado `selectedPeriod` com default `'last7days'`
-- Criar função `getDateRange(period)` que retorna `{ from: Date, to: Date }` para cada período
-- Filtrar leads por `updated_at` dentro do range, combinando com o filtro de busca existente
-- Expor `selectedPeriod` e `setSelectedPeriod` no retorno
+- **Garantir timestamp visível**: mover o timestamp para uma posição fixa no canto superior direito com `shrink-0` e largura mínima, usando cor de urgência
+- **Ajustar Row 1**: nome com `font-medium` truncado + timestamp sempre visível à direita
+- **Row 2**: telefone formatado (sempre visível, mesmo sem `contact_name`) + stage badge à direita
+- **Seleção**: adicionar `border-l-2 border-l-primary` quando selecionado
+- **Remover border-b do content div** (já existe `divide-y` no container pai — duplica o separador)
 
-#### 2. `InactiveLeadsList.tsx` — Renderizar badges de período
+#### `InactiveLeadsList.tsx`
 
-- Adicionar uma linha de badges horizontais entre o campo de busca e a lista
-- Badges: `Hoje`, `Ontem`, `7 dias`, `Mês atual`, `3 meses`
-- Estilo: botões compactos com `text-xs`, o ativo recebe `bg-primary text-primary-foreground`, os demais `bg-muted text-muted-foreground`
-- Scroll horizontal com `overflow-x-auto flex gap-1.5` para caber em telas menores
-- Receber `selectedPeriod` e `onPeriodChange` como props
-
-#### 3. Página pai (`HumanSupportPage` ou equivalente) — Passar as novas props
-
-- Conectar `selectedPeriod` e `setSelectedPeriod` do hook à `InactiveLeadsList`
+- **Filtros de período**: adicionar `scrollbar-hide` ou `flex-nowrap` para evitar scrollbar horizontal visível
+- Remover `divide-y` do container (separador já está no item via `border-b`)
 
 ### Arquivos afetados
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/pages/atendimento-humano/hooks/useInactiveLeads.ts` | Adicionar filtro por período com default 7 dias |
-| `src/pages/atendimento-humano/components/InactiveLeadsList.tsx` | Renderizar badges de período no header |
-| Página pai do Atendimento Humano | Passar props de período |
+| `InactiveLeadItem.tsx` | Corrigir visibilidade do timestamp, seleção, separador |
+| `InactiveLeadsList.tsx` | Corrigir scroll horizontal nos filtros |
 
