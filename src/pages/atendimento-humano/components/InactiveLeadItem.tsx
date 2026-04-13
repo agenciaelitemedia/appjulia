@@ -102,11 +102,9 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
               {lead.stage_name}
             </Badge>
           ) : <span />}
-          {lead.owner_name && (
-            <span className="text-[10px] text-muted-foreground truncate text-right shrink min-w-0">
-              {lead.owner_name}
-            </span>
-          )}
+          <span className="text-[10px] text-muted-foreground truncate text-right shrink min-w-0">
+            {lead.owner_name || 'Sem responsável'}
+          </span>
         </div>
       </div>
     </button>
