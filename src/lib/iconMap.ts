@@ -40,6 +40,7 @@ import {
   Scale,
   Kanban,
   Megaphone,
+  Headset,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -85,6 +86,7 @@ export const iconMap: Record<string, LucideIcon> = {
   Scale,
   Kanban,
   Megaphone,
+  Headset,
 };
 
 export const availableIcons = Object.keys(iconMap);
