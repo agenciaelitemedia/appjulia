@@ -17,8 +17,9 @@ export default function HumanSupportPage() {
   useEffect(() => {
     if (agents.length > 0 && !selectedAgent) {
       const saved = getSavedAgentCodes();
-      if (saved && agents.some(a => a.cod_agent === saved)) {
-        setSelectedAgent(saved);
+      const first = saved?.[0];
+      if (first && agents.some(a => a.cod_agent === first)) {
+        setSelectedAgent(first);
       } else {
         setSelectedAgent(agents[0].cod_agent);
       }
@@ -27,7 +28,7 @@ export default function HumanSupportPage() {
 
   const handleAgentChange = useCallback((code: string) => {
     setSelectedAgent(code);
-    saveAgentCodes(code);
+    saveAgentCodes([code]);
     setSelectedLead(null);
   }, []);
 
