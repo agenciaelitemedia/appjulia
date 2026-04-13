@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { externalDb, InactiveSession } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
 
 export type LeadPeriod = 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'last3Months';
+
+const PAGE_SIZE = 50;
 
 function getDateRange(period: LeadPeriod): { from: Date; to: Date } {
   const now = new Date();
@@ -29,8 +31,8 @@ export function useInactiveLeads(selectedAgentCode?: string) {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState<LeadPeriod>('last7days');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  // Get agent codes from user_agents table
   const { data: userAgents = [] } = useQuery({
     queryKey: ['user-agents-for-support', user?.id],
     queryFn: () => externalDb.getUserAgents(user!.id),
@@ -71,15 +73,40 @@ export function useInactiveLeads(selectedAgentCode?: string) {
     return result;
   }, [leads, searchQuery, selectedPeriod]);
 
+  // Reset visible count when filters change
+  const setSearchQueryWithReset = useCallback((q: string) => {
+    setSearchQuery(q);
+    setVisibleCount(PAGE_SIZE);
+  }, []);
+
+  const setSelectedPeriodWithReset = useCallback((p: LeadPeriod) => {
+    setSelectedPeriod(p);
+    setVisibleCount(PAGE_SIZE);
+  }, []);
+
+  const paginatedLeads = useMemo(
+    () => filteredLeads.slice(0, visibleCount),
+    [filteredLeads, visibleCount]
+  );
+
+  const hasMore = visibleCount < filteredLeads.length;
+
+  const loadMore = useCallback(() => {
+    setVisibleCount(prev => prev + PAGE_SIZE);
+  }, []);
+
   return {
-    leads: filteredLeads,
+    leads: paginatedLeads,
+    totalFiltered: filteredLeads.length,
     allLeads: leads,
     isLoading,
     searchQuery,
-    setSearchQuery,
+    setSearchQuery: setSearchQueryWithReset,
     selectedPeriod,
-    setSelectedPeriod,
+    setSelectedPeriod: setSelectedPeriodWithReset,
     refetch,
     agentCodes,
+    hasMore,
+    loadMore,
   };
 }
