@@ -32,6 +32,7 @@ export function useInactiveLeads(selectedAgentCode?: string) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState<LeadPeriod>('last7days');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [ownerFilter, setOwnerFilter] = useState<string>('all');
 
   const { data: userAgents = [] } = useQuery({
     queryKey: ['user-agents-for-support', user?.id],
