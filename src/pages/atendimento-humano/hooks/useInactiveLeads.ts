@@ -80,7 +80,8 @@ export function useInactiveLeads(selectedAgentCode?: string) {
   const setSelectedPeriodWithReset = useCallback((p: LeadPeriod) => {
     setSelectedPeriod(p);
     setVisibleCount(PAGE_SIZE);
-  }, []);
+    refetch();
+  }, [refetch]);
 
   const paginatedLeads = useMemo(
     () => filteredLeads.slice(0, visibleCount),
