@@ -30,6 +30,7 @@ function getDateRange(period: LeadPeriod): { from: Date; to: Date } {
 
 export function useInactiveLeads(selectedAgentCode?: string) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState<LeadPeriod>('last7days');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
