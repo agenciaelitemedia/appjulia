@@ -66,7 +66,7 @@ export function InactiveLeadsList({
   return (
     <div className="flex flex-col h-full border-r bg-background">
       {/* Header */}
-      <div className="p-3 border-b space-y-2">
+      <div className="px-3 pt-2 pb-2 border-b space-y-1.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Headset className="h-5 w-5 text-primary" />
