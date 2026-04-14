@@ -8,6 +8,8 @@ import { PhoneProvider, usePhone } from '@/contexts/PhoneContext';
 import { CopilotWidget } from '@/components/copilot/CopilotWidget';
 import { SoftphoneWidget } from '@/pages/telefonia/components/SoftphoneWidget';
 import { cn } from '@/lib/utils';
+import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
+import { AgentBlockedScreen } from './AgentBlockedScreen';
 
 function GlobalSoftphone() {
   const { sip, showSoftphone, setShowSoftphone, softphoneCentered, setSoftphoneCentered, dialContactName, isDialing, dialError, clearDialError, retryDial, cancelDial } = usePhone();
@@ -43,7 +45,8 @@ function GlobalSoftphone() {
 export function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, isAdmin } = useAuth();
+  const { data: agentsData, isLoading: agentsLoading } = useMyAgents();
 
   if (isLoading) {
     return (
@@ -58,6 +61,15 @@ export function MainLayout() {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Check if non-admin user has all agents inactive
+  if (!isAdmin && !agentsLoading && agentsData) {
+    const allAgents = [...agentsData.myAgents, ...agentsData.monitoredAgents];
+    const hasActiveAgent = allAgents.length === 0 || allAgents.some(a => a.status === true);
+    if (!hasActiveAgent) {
+      return <AgentBlockedScreen />;
+    }
   }
 
   return (
