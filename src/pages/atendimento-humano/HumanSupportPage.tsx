@@ -5,6 +5,7 @@ import { InactiveLeadsList } from './components/InactiveLeadsList';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
 import { AgentSearchSelect } from '@/components/AgentSearchSelect';
 import { useJuliaAgents } from '@/pages/estrategico/hooks/useJuliaData';
+import { useTeamForCurrentUser } from '@/pages/crm/hooks/useCRMData';
 import { getSavedAgentCodes, saveAgentCodes } from '@/hooks/usePersistedPeriod';
 import type { InactiveSession } from '@/lib/externalDb';
 import { useEffect } from 'react';
