@@ -1,46 +1,35 @@
 
 
-## Problem
+## Plano: Adicionar filtro de responsável no Atendimento Humano
 
-The agent blocking logic has a gap: when `getUserAgents` returns an empty array (no linked agents found for the user), the condition `allAgents.length === 0` evaluates to `true`, which means `hasActiveAgent = true` and the user is **not blocked**. This defeats the purpose.
+### O que será feito
+Adicionar um filtro de responsável (owner) na sidebar do Atendimento Humano, idêntico ao que existe no CRM da Julia — com as opções "Todos", "MEUS CARDS" e "Sem Responsável", além da lista de membros da equipe.
 
-Additionally, the check only happens in the layouts (`MainLayout` and `AdvLayout`) after login succeeds, but the user still sees the dashboard momentarily while agents load.
+### Arquivos a modificar
 
-## Root Cause
+**1. `src/pages/atendimento-humano/hooks/useInactiveLeads.ts`**
+- Adicionar estado `ownerFilter` (valores: `'all'`, `'mine'`, `'unassigned'`, ou nome do responsável)
+- Filtrar `filteredLeads` pelo `owner_name` do lead, usando a mesma lógica do CRM:
+  - `'mine'` → filtra por `owner_name === authUser.name`
+  - `'unassigned'` → filtra por `!owner_name`
+  - outro valor → filtra por `owner_name === ownerFilter`
+- Expor `ownerFilter` e `setOwnerFilter` no retorno
 
-The condition:
-```ts
-const hasActiveAgent = allAgents.length === 0 || allAgents.some(a => a.status === true);
-```
+**2. `src/pages/atendimento-humano/components/InactiveLeadsList.tsx`**
+- Adicionar prop `ownerFilter` e `onOwnerFilterChange`
+- Adicionar prop `teamMembers` (lista de membros da equipe)
+- Renderizar um `Select` com ícone `UserCircle` no header, abaixo do seletor de agente, com as opções:
+  - "Todos" (`all`)
+  - "MEUS CARDS" (`mine`) — em negrito/uppercase como no CRM
+  - "Sem Responsável" (`unassigned`) — em itálico
+  - Lista dinâmica de membros da equipe
 
-The `allAgents.length === 0` clause was added as a safety net so users without any agents aren't locked out, but it creates a loophole for users whose agent data isn't returned.
+**3. `src/pages/atendimento-humano/HumanSupportPage.tsx`**
+- Importar `useTeamForCurrentUser` do CRM hooks
+- Passar `ownerFilter`, `onOwnerFilterChange` e `teamMembers` para `InactiveLeadsList`
 
-## Plan
-
-### 1. Fix the blocking logic in MainLayout and AdvLayout
-
-Change the condition to: if a non-admin user has `cod_agent` set (meaning they are associated with an agent), they **must** have at least one active agent to proceed. If they have no agents returned but have a `cod_agent`, they should be blocked.
-
-```ts
-if (!isAdmin && !agentsLoading && agentsData) {
-  const allAgents = [...agentsData.myAgents, ...agentsData.monitoredAgents];
-  // If user has a cod_agent but no active agents found, block them
-  if (allAgents.length > 0 && !allAgents.some(a => a.status === true)) {
-    return <AgentBlockedScreen />;
-  }
-  // If user has cod_agent but no agents returned at all, also block
-  if (allAgents.length === 0 && user?.cod_agent) {
-    return <AgentBlockedScreen />;
-  }
-}
-```
-
-This ensures:
-- Admin users always pass through
-- Users with no `cod_agent` (e.g. pure admin/office staff) are not blocked
-- Users linked to an agent are blocked if all their agents are inactive or no agents are found
-
-### Files to modify
-- `src/components/layout/MainLayout.tsx` — update blocking condition
-- `src/components/layout/AdvLayout.tsx` — update blocking condition
+### Detalhes técnicos
+- Reutiliza o hook `useTeamForCurrentUser` já existente em `src/pages/crm/hooks/useCRMData.ts`
+- O campo `owner_name` já existe na interface `InactiveSession`
+- Filtragem client-side, sem alterações no backend
 
