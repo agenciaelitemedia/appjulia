@@ -91,34 +91,34 @@ const App = () => (
                 <Route element={<MainLayout />}>
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/crm/leads" element={<CRMPage />} />
-                  <Route path="/crm/lead-estatisticas" element={<CRMStatisticsPage />} />
-                  <Route path="/crm/lead-monitoramento" element={<CRMMonitoringPage />} />
-                  <Route path="/estrategico/desempenho" element={<DesempenhoPage />} />
-                  <Route path="/estrategico/contratos" element={<ContratosPage />} />
-                  <Route path="/estrategico/campanhas" element={<CampanhasPage />} />
-                  <Route path="/agente/meus-agentes" element={<MyAgentsPage />} />
-                  <Route path="/agente/meus-agentes/:codAgent/editar" element={<MyAgentEditPage />} />
-                  <Route path="/agente/filas" element={<FilasPage />} />
-                  <Route path="/configuracoes" element={<ConfiguracoesPage />} />
-                  <Route path="/agente/followup" element={<FollowupPage />} />
+                  <Route path="/crm/leads" element={<ProtectedRoute module="crm_leads"><CRMPage /></ProtectedRoute>} />
+                  <Route path="/crm/lead-estatisticas" element={<ProtectedRoute module="crm_statistics"><CRMStatisticsPage /></ProtectedRoute>} />
+                  <Route path="/crm/lead-monitoramento" element={<ProtectedRoute module="crm_monitoring"><CRMMonitoringPage /></ProtectedRoute>} />
+                  <Route path="/estrategico/desempenho" element={<ProtectedRoute module="strategic_perf"><DesempenhoPage /></ProtectedRoute>} />
+                  <Route path="/estrategico/contratos" element={<ProtectedRoute module="strategic_contract"><ContratosPage /></ProtectedRoute>} />
+                  <Route path="/estrategico/campanhas" element={<ProtectedRoute module="strategic_perf"><CampanhasPage /></ProtectedRoute>} />
+                  <Route path="/agente/meus-agentes" element={<ProtectedRoute module="agent_management"><MyAgentsPage /></ProtectedRoute>} />
+                  <Route path="/agente/meus-agentes/:codAgent/editar" element={<ProtectedRoute module="agent_management"><MyAgentEditPage /></ProtectedRoute>} />
+                  <Route path="/agente/filas" element={<ProtectedRoute module="filas"><FilasPage /></ProtectedRoute>} />
+                  <Route path="/configuracoes" element={<ProtectedRoute module="configuracoes"><ConfiguracoesPage /></ProtectedRoute>} />
+                  <Route path="/agente/followup" element={<ProtectedRoute module="followup"><FollowupPage /></ProtectedRoute>} />
                   <Route path="/video/queue" element={<VideoQueuePage />} />
                   <Route path="/chat" element={<ChatPage />} />
                   <Route path="/chat/canais" element={<ChatChannelsPage />} />
                   <Route path="/chat/metricas" element={<ChatMetricsPage />} />
-                  <Route path="/biblioteca" element={<CriativosPage />} />
-                  <Route path="/equipe" element={<EquipePage />} />
+                  <Route path="/biblioteca" element={<ProtectedRoute module="library"><CriativosPage /></ProtectedRoute>} />
+                  <Route path="/equipe" element={<ProtectedRoute module="team"><EquipePage /></ProtectedRoute>} />
                   <Route path="/perfil" element={<ProfileSettingsPage />} />
                   <Route path="/advbox" element={<AdvboxIntegrationPage />} />
                   <Route path="/advbox/regras" element={<AdvboxNotificationRulesPage />} />
                   <Route path="/advbox/processos" element={<AdvboxProcessesPage />} />
                   <Route path="/advbox/logs" element={<AdvboxLogsPage />} />
                   <Route path="/advbox/consultas" element={<AdvboxQueriesPage />} />
-                  <Route path="/crm-builder" element={<CRMBuilderPage />} />
-                  <Route path="/crm-builder/:boardId" element={<BoardPage />} />
-                  <Route path="/datajud" element={<DataJudSearchPage />} />
-                  <Route path="/casos-juridicos" element={<LegalCasesPage />} />
-                  <Route path="/notificacoes-contrato" element={<ContractNotificationsPage />} />
+                  <Route path="/crm-builder" element={<ProtectedRoute module="crm_leads"><CRMBuilderPage /></ProtectedRoute>} />
+                  <Route path="/crm-builder/:boardId" element={<ProtectedRoute module="crm_leads"><BoardPage /></ProtectedRoute>} />
+                  <Route path="/datajud" element={<ProtectedRoute module="datajud"><DataJudSearchPage /></ProtectedRoute>} />
+                  <Route path="/casos-juridicos" element={<ProtectedRoute module="legal_cases"><LegalCasesPage /></ProtectedRoute>} />
+                  <Route path="/notificacoes-contrato" element={<ProtectedRoute module="contract_notifications"><ContractNotificationsPage /></ProtectedRoute>} />
                   <Route path="/telefonia" element={<ProtectedRoute module="telephony"><TelefoniaPage /></ProtectedRoute>} />
                   <Route path="/comercial/crm" element={<ProtectedRoute module="crm_comercial"><CRMComercialPage /></ProtectedRoute>} />
                   <Route path="/suporte-assistente" element={<ProtectedRoute module="support_assistant"><SupportAssistantPage /></ProtectedRoute>} />
