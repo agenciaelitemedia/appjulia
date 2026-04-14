@@ -544,6 +544,19 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         })
         .eq('id', contactId);
 
+      // Update stage_entered_at on external CRM card
+      if (contact.cod_agent && contact.phone) {
+        try {
+          const cleanNum = contact.phone.replace(/\D/g, '');
+          await externalDb.raw({
+            query: `UPDATE crm_atendimento_cards SET stage_entered_at = NOW(), updated_at = NOW() WHERE whatsapp_number = $1 AND cod_agent = $2`,
+            params: [cleanNum, contact.cod_agent],
+          });
+        } catch (e) {
+          console.warn('[Chat] Failed to update stage_entered_at:', e);
+        }
+      }
+
     } catch (error) {
       console.error('Error sending message:', error);
       toast.error('Erro ao enviar mensagem');
