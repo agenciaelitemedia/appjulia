@@ -1,9 +1,8 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { externalDb, InactiveSession } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
-import { supabase } from '@/integrations/supabase/client';
 
 export type LeadPeriod = 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'last3Months';
 
@@ -30,7 +29,6 @@ function getDateRange(period: LeadPeriod): { from: Date; to: Date } {
 
 export function useInactiveLeads(selectedAgentCode?: string) {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState<LeadPeriod>('last7days');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -51,27 +49,7 @@ export function useInactiveLeads(selectedAgentCode?: string) {
     queryKey: ['inactive-sessions', agentCodes],
     queryFn: () => externalDb.getInactiveSessions(agentCodes),
     enabled: agentCodes.length > 0,
-    refetchInterval: 30_000,
-    staleTime: 15_000,
   });
-
-  // Realtime: refetch when chat_messages change
-  useEffect(() => {
-    const channel = supabase
-      .channel('human-support-messages')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'chat_messages' },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['inactive-sessions'] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
 
   const filteredLeads = useMemo(() => {
     const range = getDateRange(selectedPeriod);
@@ -102,7 +80,8 @@ export function useInactiveLeads(selectedAgentCode?: string) {
   const setSelectedPeriodWithReset = useCallback((p: LeadPeriod) => {
     setSelectedPeriod(p);
     setVisibleCount(PAGE_SIZE);
-  }, []);
+    refetch();
+  }, [refetch]);
 
   const paginatedLeads = useMemo(
     () => filteredLeads.slice(0, visibleCount),
