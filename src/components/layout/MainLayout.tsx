@@ -45,7 +45,7 @@ function GlobalSoftphone() {
 export function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { isAuthenticated, isLoading, isAdmin } = useAuth();
+  const { isAuthenticated, isLoading, isAdmin, user } = useAuth();
   const { data: agentsData, isLoading: agentsLoading } = useMyAgents();
 
   if (isLoading) {
@@ -66,8 +66,10 @@ export function MainLayout() {
   // Check if non-admin user has all agents inactive
   if (!isAdmin && !agentsLoading && agentsData) {
     const allAgents = [...agentsData.myAgents, ...agentsData.monitoredAgents];
-    const hasActiveAgent = allAgents.length === 0 || allAgents.some(a => a.status === true);
-    if (!hasActiveAgent) {
+    if (allAgents.length > 0 && !allAgents.some(a => a.status === true)) {
+      return <AgentBlockedScreen />;
+    }
+    if (allAgents.length === 0 && user?.cod_agent) {
       return <AgentBlockedScreen />;
     }
   }

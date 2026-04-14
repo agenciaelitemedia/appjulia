@@ -26,8 +26,10 @@ export function AdvLayout() {
   // Check if non-admin user has all agents inactive
   if (!isAdmin && !agentsLoading && agentsData) {
     const allAgents = [...agentsData.myAgents, ...agentsData.monitoredAgents];
-    const hasActiveAgent = allAgents.length === 0 || allAgents.some(a => a.status === true);
-    if (!hasActiveAgent) {
+    if (allAgents.length > 0 && !allAgents.some(a => a.status === true)) {
+      return <AgentBlockedScreen />;
+    }
+    if (allAgents.length === 0 && user?.cod_agent) {
       return <AgentBlockedScreen />;
     }
   }
