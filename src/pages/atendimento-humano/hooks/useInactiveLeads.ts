@@ -55,6 +55,24 @@ export function useInactiveLeads(selectedAgentCode?: string) {
     staleTime: 15_000,
   });
 
+  // Realtime: refetch when chat_messages change
+  useEffect(() => {
+    const channel = supabase
+      .channel('human-support-messages')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['inactive-sessions'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
   const filteredLeads = useMemo(() => {
     const range = getDateRange(selectedPeriod);
     let result = leads.filter((lead: InactiveSession) => {
