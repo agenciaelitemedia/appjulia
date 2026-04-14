@@ -55,15 +55,15 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
       type="button"
       onClick={() => onSelect(lead)}
       className={cn(
-        'w-full max-w-full overflow-hidden flex items-start gap-2.5 px-3 py-2.5 text-left transition-colors border-l-2 border-b border-border/40',
+        'w-full max-w-full overflow-hidden flex items-start gap-3 px-4 py-3 text-left transition-colors border-l-3',
         isSelected
-          ? 'bg-accent/50 border-l-primary'
+          ? 'bg-accent/40 border-l-primary'
           : 'border-l-transparent hover:bg-accent/20'
       )}
     >
       {/* Avatar */}
-      <Avatar className="h-9 w-9 shrink-0 mt-0.5">
-        <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
+      <Avatar className="h-10 w-10 shrink-0 mt-0.5">
+        <AvatarFallback className="bg-muted text-muted-foreground text-sm font-semibold">
           {getInitials(lead.contact_name, lead.whatsapp_number)}
         </AvatarFallback>
       </Avatar>
