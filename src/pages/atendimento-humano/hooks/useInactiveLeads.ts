@@ -97,6 +97,11 @@ export function useInactiveLeads(selectedAgentCode?: string) {
     refetch();
   }, [refetch]);
 
+  const setOwnerFilterWithReset = useCallback((f: string) => {
+    setOwnerFilter(f);
+    setVisibleCount(PAGE_SIZE);
+  }, []);
+
   const paginatedLeads = useMemo(
     () => filteredLeads.slice(0, visibleCount),
     [filteredLeads, visibleCount]
