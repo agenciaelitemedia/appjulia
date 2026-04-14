@@ -64,7 +64,7 @@ export function InactiveLeadsList({
   }, [hasMore, onLoadMore]);
 
   return (
-    <div className="flex flex-col h-full border-r bg-background">
+    <div className="flex flex-col h-full bg-background">
       {/* Header */}
       <div className="px-3 pt-2 pb-2 border-b space-y-1.5">
         <div className="flex items-center justify-between">
