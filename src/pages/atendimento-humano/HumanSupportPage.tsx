@@ -70,6 +70,9 @@ export default function HumanSupportPage() {
           onLoadMore={loadMore}
           selectedPeriod={selectedPeriod}
           onPeriodChange={setSelectedPeriod}
+          ownerFilter={ownerFilter}
+          onOwnerFilterChange={setOwnerFilter}
+          teamMembers={teamMembers}
           agentSelect={
             <AgentSearchSelect
               agents={agents}
