@@ -12,6 +12,7 @@ import { useEffect } from 'react';
 
 export default function HumanSupportPage() {
   const { data: agents = [], isLoading: isLoadingAgents } = useJuliaAgents();
+  const { data: teamMembers = [] } = useTeamForCurrentUser();
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
 
   // Restore saved agent on load
@@ -41,6 +42,8 @@ export default function HumanSupportPage() {
     setSearchQuery,
     selectedPeriod,
     setSelectedPeriod,
+    ownerFilter,
+    setOwnerFilter,
     hasMore,
     loadMore,
   } = useInactiveLeads(selectedAgent || undefined);
