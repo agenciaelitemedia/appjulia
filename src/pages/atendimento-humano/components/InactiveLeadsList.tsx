@@ -16,6 +16,11 @@ const PERIOD_OPTIONS: { value: LeadPeriod; label: string }[] = [
   { value: 'last3Months', label: '3 meses' },
 ];
 
+interface TeamMember {
+  id: number;
+  name: string;
+}
+
 interface InactiveLeadsListProps {
   leads: InactiveSession[];
   isLoading: boolean;
@@ -29,6 +34,9 @@ interface InactiveLeadsListProps {
   onPeriodChange: (p: LeadPeriod) => void;
   hasMore?: boolean;
   onLoadMore?: () => void;
+  ownerFilter: string;
+  onOwnerFilterChange: (f: string) => void;
+  teamMembers: TeamMember[];
 }
 
 export function InactiveLeadsList({
