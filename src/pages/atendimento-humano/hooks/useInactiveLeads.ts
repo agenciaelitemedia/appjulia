@@ -32,6 +32,7 @@ export function useInactiveLeads(selectedAgentCode?: string) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState<LeadPeriod>('last7days');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [ownerFilter, setOwnerFilter] = useState<string>('all');
 
   const { data: userAgents = [] } = useQuery({
     queryKey: ['user-agents-for-support', user?.id],
@@ -61,6 +62,17 @@ export function useInactiveLeads(selectedAgentCode?: string) {
       return updatedAt >= range.from && updatedAt <= range.to;
     });
 
+    // Owner filter
+    if (ownerFilter !== 'all') {
+      if (ownerFilter === 'mine') {
+        result = result.filter((lead: InactiveSession) => lead.owner_name === user?.name);
+      } else if (ownerFilter === 'unassigned') {
+        result = result.filter((lead: InactiveSession) => !lead.owner_name);
+      } else {
+        result = result.filter((lead: InactiveSession) => lead.owner_name === ownerFilter);
+      }
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter((lead: InactiveSession) =>
@@ -71,7 +83,7 @@ export function useInactiveLeads(selectedAgentCode?: string) {
     }
 
     return result;
-  }, [leads, searchQuery, selectedPeriod]);
+  }, [leads, searchQuery, selectedPeriod, ownerFilter, user?.name]);
 
   // Reset visible count when filters change
   const setSearchQueryWithReset = useCallback((q: string) => {
@@ -84,6 +96,11 @@ export function useInactiveLeads(selectedAgentCode?: string) {
     setVisibleCount(PAGE_SIZE);
     refetch();
   }, [refetch]);
+
+  const setOwnerFilterWithReset = useCallback((f: string) => {
+    setOwnerFilter(f);
+    setVisibleCount(PAGE_SIZE);
+  }, []);
 
   const paginatedLeads = useMemo(
     () => filteredLeads.slice(0, visibleCount),
@@ -105,6 +122,8 @@ export function useInactiveLeads(selectedAgentCode?: string) {
     setSearchQuery: setSearchQueryWithReset,
     selectedPeriod,
     setSelectedPeriod: setSelectedPeriodWithReset,
+    ownerFilter,
+    setOwnerFilter: setOwnerFilterWithReset,
     refetch,
     agentCodes,
     hasMore,

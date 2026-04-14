@@ -5,12 +5,14 @@ import { InactiveLeadsList } from './components/InactiveLeadsList';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
 import { AgentSearchSelect } from '@/components/AgentSearchSelect';
 import { useJuliaAgents } from '@/pages/estrategico/hooks/useJuliaData';
+import { useTeamForCurrentUser } from '@/pages/crm/hooks/useCRMData';
 import { getSavedAgentCodes, saveAgentCodes } from '@/hooks/usePersistedPeriod';
 import type { InactiveSession } from '@/lib/externalDb';
 import { useEffect } from 'react';
 
 export default function HumanSupportPage() {
   const { data: agents = [], isLoading: isLoadingAgents } = useJuliaAgents();
+  const { data: teamMembers = [] } = useTeamForCurrentUser();
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
 
   // Restore saved agent on load
@@ -40,6 +42,8 @@ export default function HumanSupportPage() {
     setSearchQuery,
     selectedPeriod,
     setSelectedPeriod,
+    ownerFilter,
+    setOwnerFilter,
     hasMore,
     loadMore,
   } = useInactiveLeads(selectedAgent || undefined);
@@ -66,6 +70,9 @@ export default function HumanSupportPage() {
           onLoadMore={loadMore}
           selectedPeriod={selectedPeriod}
           onPeriodChange={setSelectedPeriod}
+          ownerFilter={ownerFilter}
+          onOwnerFilterChange={setOwnerFilter}
+          teamMembers={teamMembers}
           agentSelect={
             <AgentSearchSelect
               agents={agents}

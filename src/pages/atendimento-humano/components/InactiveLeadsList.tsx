@@ -1,7 +1,8 @@
 import { ReactNode, useRef, useEffect, useCallback } from 'react';
-import { Search, Loader2, Headset } from 'lucide-react';
+import { Search, Loader2, Headset, UserCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { InactiveLeadItem } from './InactiveLeadItem';
 import { cn } from '@/lib/utils';
 import type { InactiveSession } from '@/lib/externalDb';
@@ -14,6 +15,11 @@ const PERIOD_OPTIONS: { value: LeadPeriod; label: string }[] = [
   { value: 'thisMonth', label: 'Mês atual' },
   { value: 'last3Months', label: '3 meses' },
 ];
+
+interface TeamMember {
+  id: number;
+  name: string;
+}
 
 interface InactiveLeadsListProps {
   leads: InactiveSession[];
@@ -28,6 +34,9 @@ interface InactiveLeadsListProps {
   onPeriodChange: (p: LeadPeriod) => void;
   hasMore?: boolean;
   onLoadMore?: () => void;
+  ownerFilter: string;
+  onOwnerFilterChange: (f: string) => void;
+  teamMembers: TeamMember[];
 }
 
 export function InactiveLeadsList({
@@ -43,6 +52,9 @@ export function InactiveLeadsList({
   onPeriodChange,
   hasMore,
   onLoadMore,
+  ownerFilter,
+  onOwnerFilterChange,
+  teamMembers,
 }: InactiveLeadsListProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -77,6 +89,28 @@ export function InactiveLeadsList({
           </span>
         </div>
         {agentSelect && <div>{agentSelect}</div>}
+        <div className="flex items-center gap-2">
+          <UserCircle className="h-4 w-4 text-muted-foreground shrink-0" />
+          <Select value={ownerFilter} onValueChange={onOwnerFilterChange}>
+            <SelectTrigger className="h-8 w-full text-xs">
+              <SelectValue placeholder="Responsável" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" className="text-xs">Todos</SelectItem>
+              <SelectItem value="mine" className="text-xs font-bold uppercase tracking-wide text-primary">
+                MEUS CARDS
+              </SelectItem>
+              <SelectItem value="unassigned" className="text-xs text-muted-foreground italic">
+                Sem Responsável
+              </SelectItem>
+              {teamMembers.map((member) => (
+                <SelectItem key={member.id} value={member.name} className="text-xs">
+                  {member.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
