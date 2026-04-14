@@ -122,6 +122,8 @@ export function useInactiveLeads(selectedAgentCode?: string) {
     setSearchQuery: setSearchQueryWithReset,
     selectedPeriod,
     setSelectedPeriod: setSelectedPeriodWithReset,
+    ownerFilter,
+    setOwnerFilter: setOwnerFilterWithReset,
     refetch,
     agentCodes,
     hasMore,

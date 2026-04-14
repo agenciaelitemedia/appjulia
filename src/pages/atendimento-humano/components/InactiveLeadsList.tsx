@@ -1,7 +1,8 @@
 import { ReactNode, useRef, useEffect, useCallback } from 'react';
-import { Search, Loader2, Headset } from 'lucide-react';
+import { Search, Loader2, Headset, UserCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { InactiveLeadItem } from './InactiveLeadItem';
 import { cn } from '@/lib/utils';
 import type { InactiveSession } from '@/lib/externalDb';
