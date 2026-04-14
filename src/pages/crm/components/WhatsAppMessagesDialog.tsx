@@ -1643,6 +1643,17 @@ export function WhatsAppMessagesDialog({
       ]);
       
       setNewMessage('');
+
+      // Update stage_entered_at on CRM card
+      try {
+        const cleanNum = whatsappNumber.replace(/\D/g, '');
+        await externalDb.raw({
+          query: `UPDATE crm_atendimento_cards SET stage_entered_at = NOW(), updated_at = NOW() WHERE whatsapp_number = $1 AND cod_agent = $2`,
+          params: [cleanNum, codAgent],
+        });
+      } catch (e) {
+        console.warn('[CRM] Failed to update stage_entered_at:', e);
+      }
       
       toast.success('Mensagem enviada: A mensagem foi enviada com sucesso.');
     } catch (error: any) {

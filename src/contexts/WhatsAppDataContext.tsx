@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { externalDb } from '@/lib/externalDb';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 import type {
@@ -542,6 +543,19 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           last_message_text: text,
         })
         .eq('id', contactId);
+
+      // Update stage_entered_at on external CRM card
+      if (contact.cod_agent && contact.phone) {
+        try {
+          const cleanNum = contact.phone.replace(/\D/g, '');
+          await externalDb.raw({
+            query: `UPDATE crm_atendimento_cards SET stage_entered_at = NOW(), updated_at = NOW() WHERE whatsapp_number = $1 AND cod_agent = $2`,
+            params: [cleanNum, contact.cod_agent],
+          });
+        } catch (e) {
+          console.warn('[Chat] Failed to update stage_entered_at:', e);
+        }
+      }
 
     } catch (error) {
       console.error('Error sending message:', error);
