@@ -49,6 +49,8 @@ export function useInactiveLeads(selectedAgentCode?: string) {
     queryKey: ['inactive-sessions', agentCodes],
     queryFn: () => externalDb.getInactiveSessions(agentCodes),
     enabled: agentCodes.length > 0,
+    refetchInterval: 30_000,
+    staleTime: 15_000,
   });
 
   const filteredLeads = useMemo(() => {
