@@ -62,6 +62,17 @@ export function useInactiveLeads(selectedAgentCode?: string) {
       return updatedAt >= range.from && updatedAt <= range.to;
     });
 
+    // Owner filter
+    if (ownerFilter !== 'all') {
+      if (ownerFilter === 'mine') {
+        result = result.filter((lead: InactiveSession) => lead.owner_name === user?.name);
+      } else if (ownerFilter === 'unassigned') {
+        result = result.filter((lead: InactiveSession) => !lead.owner_name);
+      } else {
+        result = result.filter((lead: InactiveSession) => lead.owner_name === ownerFilter);
+      }
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter((lead: InactiveSession) =>
@@ -72,7 +83,7 @@ export function useInactiveLeads(selectedAgentCode?: string) {
     }
 
     return result;
-  }, [leads, searchQuery, selectedPeriod]);
+  }, [leads, searchQuery, selectedPeriod, ownerFilter, user?.name]);
 
   // Reset visible count when filters change
   const setSearchQueryWithReset = useCallback((q: string) => {
