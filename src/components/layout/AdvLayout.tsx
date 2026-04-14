@@ -4,9 +4,12 @@ import { LogOut, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PhoneProvider } from '@/contexts/PhoneContext';
 import juliaLogo from '@/assets/julia-logo.png';
+import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
+import { AgentBlockedScreen } from './AgentBlockedScreen';
 
 export function AdvLayout() {
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, isAdmin, logout } = useAuth();
+  const { data: agentsData, isLoading: agentsLoading } = useMyAgents();
 
   if (isLoading) {
     return (
@@ -18,6 +21,15 @@ export function AdvLayout() {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Check if non-admin user has all agents inactive
+  if (!isAdmin && !agentsLoading && agentsData) {
+    const allAgents = [...agentsData.myAgents, ...agentsData.monitoredAgents];
+    const hasActiveAgent = allAgents.length === 0 || allAgents.some(a => a.status === true);
+    if (!hasActiveAgent) {
+      return <AgentBlockedScreen />;
+    }
   }
 
   return (
