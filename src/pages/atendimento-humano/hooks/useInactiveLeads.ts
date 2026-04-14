@@ -1,8 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { externalDb, InactiveSession } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
 
 export type LeadPeriod = 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'last3Months';
 
