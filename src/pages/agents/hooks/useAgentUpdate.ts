@@ -122,17 +122,7 @@ export function useAgentUpdate() {
         status: formData.status,
       });
 
-      return { success: true, error: null };
-    } catch (error) {
-      console.error('Error saving changes:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Erro ao salvar alterações' 
-      };
-    } finally {
-      setIsSaving(false);
-
-      // Log change outside try/catch to ensure it runs even on partial errors
+      // Log BEFORE returning so cache invalidation finds the record
       try {
         const logResult = await insertAgentChangeLog({
           agent_id: agentId,
@@ -157,6 +147,16 @@ export function useAgentUpdate() {
       } catch (logErr) {
         console.warn('Change log exception:', logErr);
       }
+
+      return { success: true, error: null };
+    } catch (error) {
+      console.error('Error saving changes:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Erro ao salvar alterações' 
+      };
+    } finally {
+      setIsSaving(false);
     }
   };
 
