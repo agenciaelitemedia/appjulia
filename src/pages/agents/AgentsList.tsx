@@ -207,7 +207,6 @@ export default function AgentsList() {
         changed_by: authUser?.name,
         changed_by_id: authUser?.id,
         change_summary: newStatus ? 'Agente ativado' : 'Agente desativado',
-        snapshot: { status: newStatus },
       });
       await refetchChanges();
 
