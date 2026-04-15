@@ -51,9 +51,10 @@ export async function subscribeToPush(userId: number): Promise<boolean> {
     const permission = await Notification.requestPermission();
     if (permission !== "granted") return false;
 
+    const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      applicationServerKey: applicationServerKey.buffer as ArrayBuffer,
     });
 
     const json = subscription.toJSON();

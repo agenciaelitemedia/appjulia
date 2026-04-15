@@ -9,14 +9,14 @@ export function useEnsurePushNotificationsModule() {
     if (!user || user.role !== "admin") return;
 
     const ensureModule = async () => {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from("modules")
         .select("id")
         .eq("code", "push_notifications")
         .maybeSingle();
 
       if (!data) {
-        await supabase.from("modules").insert({
+        await (supabase as any).from("modules").insert({
           code: "push_notifications",
           name: "Notificações Push",
           icon: "bell-ring",
