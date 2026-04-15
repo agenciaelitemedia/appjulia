@@ -169,6 +169,17 @@ export function ContratoDetailsDialog({
                       Baixar Contrato
                     </Button>
                   )}
+                  {['CREATED', 'PENDING'].includes(contrato.status_document) && contrato.zapsing_doctoken && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openExternalLink(`https://app.zapsign.com.br/verificar/${contrato.zapsing_doctoken}`)}
+                      className="gap-2"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      Link do Contrato
+                    </Button>
+                  )}
                 </div>
                 {contrato.data_assinatura && (
                   <div>
