@@ -65,6 +65,7 @@ export default function EditAgentPage() {
   const { user: authUser } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [details, setDetails] = useState<AgentDetails | null>(null);
