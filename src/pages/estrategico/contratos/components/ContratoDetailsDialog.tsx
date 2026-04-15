@@ -10,7 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { FileText, User, MapPin, Briefcase, MessageSquare, Download, Loader2 } from 'lucide-react';
+import { FileText, User, MapPin, Briefcase, MessageSquare, Download, Loader2, ExternalLink } from 'lucide-react';
+import { openExternalLink } from '@/lib/externalLink';
 import { JuliaContrato } from '../../types';
 import { formatDbDateTime } from '@/lib/dateUtils';
 import { useToast } from '@/hooks/use-toast';
@@ -166,6 +167,17 @@ export function ContratoDetailsDialog({
                         <Download className="h-4 w-4" />
                       )}
                       Baixar Contrato
+                    </Button>
+                  )}
+                  {['CREATED', 'PENDING'].includes(contrato.status_document) && contrato.zapsing_doctoken && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openExternalLink(`https://app.zapsign.com.br/verificar/${contrato.zapsing_doctoken}`)}
+                      className="gap-2"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      Link do Contrato
                     </Button>
                   )}
                 </div>
