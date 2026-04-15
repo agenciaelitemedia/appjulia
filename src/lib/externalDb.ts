@@ -330,6 +330,7 @@ class ExternalDatabase {
     });
   }
 
+  async getPrincipalUsers<T = any>(userId: number, isAdmin: boolean): Promise<T[]> {
     return this.invoke({
       action: 'get_principal_users',
       data: { userId, isAdmin },
