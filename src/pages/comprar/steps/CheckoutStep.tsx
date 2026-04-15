@@ -86,6 +86,7 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
           plan_price: orderData.plan_price,
           billing_period: orderData.billing_period || 'monthly',
           payment_gateway: orderData.payment_gateway || 'infinitypay',
+          contract_body: orderData.contract_body || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', orderData.id);
