@@ -12,6 +12,7 @@ import { externalDb } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMyAgents } from './hooks/useMyAgents';
 import { toast } from 'sonner';
+import { insertAgentChangeLog } from '@/pages/agents/hooks/useAgentChangeLog';
 
 interface AgentDetails {
   id: number;
@@ -105,6 +106,22 @@ export default function MyAgentEditPage() {
         canEditConfig ? formData.config_json : undefined,
         canEditPrompt ? formData.system_prompt : undefined
       );
+
+      // Log change
+      if (userAgent?.agent_id_from_agents) {
+        await insertAgentChangeLog({
+          agent_id: userAgent.agent_id_from_agents,
+          cod_agent: codAgent,
+          action: 'update',
+          changed_by: user.name,
+          changed_by_id: user.id,
+          change_summary: 'Agente atualizado pelo proprietário',
+          snapshot: {
+            config_json: canEditConfig ? formData.config_json : undefined,
+            system_prompt: canEditPrompt ? formData.system_prompt : undefined,
+          } as any,
+        });
+      }
 
       toast.success('Agente atualizado com sucesso!');
       navigate('/agente/meus-agentes');
