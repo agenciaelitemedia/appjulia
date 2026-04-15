@@ -52,7 +52,9 @@ export default function HumanSupportPage() {
       owner_name: null,
     };
     setSelectedLead(syntheticLead);
-  }, [selectedAgent]);
+    // Refetch the list so the new session appears
+    refetch();
+  }, [selectedAgent, refetch]);
 
   const {
     leads,
