@@ -121,6 +121,13 @@ export function StartConversationDialog({
         console.warn('[CRM] Failed to create/update card:', crmError);
       }
 
+      // 4. Create session in external DB so lead appears in inactive list
+      try {
+        await externalDb.createManualSession(whatsappNumber, codAgent);
+      } catch (sessionError) {
+        console.warn('[Session] Failed to create session:', sessionError);
+      }
+
       toast.success('Mensagem enviada com sucesso!');
       setMessage('');
       setLeadName('');

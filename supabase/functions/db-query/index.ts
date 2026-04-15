@@ -2623,6 +2623,33 @@ serve(async (req) => {
         break;
       }
 
+      case 'create_manual_session': {
+        const { whatsappNumber, codAgent } = data;
+        if (!whatsappNumber || !codAgent) {
+          throw new Error('whatsappNumber and codAgent are required');
+        }
+        // Get agent_id from cod_agent
+        const agentRows = await sql.unsafe(
+          `SELECT id FROM agents WHERE cod_agent = $1 LIMIT 1`,
+          [codAgent]
+        );
+        if (!agentRows || agentRows.length === 0) {
+          throw new Error(`Agent not found for cod_agent: ${codAgent}`);
+        }
+        const agentId = agentRows[0].id;
+        
+        // Insert session with ON CONFLICT to avoid duplicates
+        await sql.unsafe(
+          `INSERT INTO sessions (agent_id, whatsapp_number, active, created_at, updated_at)
+           VALUES ($1, $2, false, NOW(), NOW())
+           ON CONFLICT (agent_id, whatsapp_number) 
+           DO UPDATE SET active = false, updated_at = NOW()`,
+          [agentId, whatsappNumber]
+        );
+        result = [{ success: true }];
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
