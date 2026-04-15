@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { InactiveLeadItem } from './InactiveLeadItem';
+import { StartConversationFooter } from './StartConversationFooter';
 import { cn } from '@/lib/utils';
 import type { InactiveSession } from '@/lib/externalDb';
 import type { LeadPeriod } from '../hooks/useInactiveLeads';
@@ -37,6 +38,8 @@ interface InactiveLeadsListProps {
   ownerFilter: string;
   onOwnerFilterChange: (f: string) => void;
   teamMembers: TeamMember[];
+  codAgent: string | null;
+  onStartConversation: (whatsappNumber: string) => void;
 }
 
 export function InactiveLeadsList({
@@ -55,6 +58,8 @@ export function InactiveLeadsList({
   ownerFilter,
   onOwnerFilterChange,
   teamMembers,
+  codAgent,
+  onStartConversation,
 }: InactiveLeadsListProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -169,6 +174,11 @@ export function InactiveLeadsList({
           </div>
         )}
       </ScrollArea>
+
+      <StartConversationFooter
+        codAgent={codAgent}
+        onConversationStarted={onStartConversation}
+      />
     </div>
   );
 }
