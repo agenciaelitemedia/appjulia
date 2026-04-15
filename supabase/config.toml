@@ -62,3 +62,6 @@ verify_jwt = false
 
 [functions.support-group-discovery]
 verify_jwt = false
+
+[functions.send-push]
+verify_jwt = false

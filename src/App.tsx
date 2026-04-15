@@ -69,6 +69,7 @@ import QuickMessagesPage from "./pages/mensagens-rapidas/QuickMessagesPage";
 import FilasPage from "./pages/agente/filas/FilasPage";
 import ConfiguracoesPage from "./pages/configuracoes/ConfiguracoesPage";
 import HumanSupportPage from "./pages/atendimento-humano/HumanSupportPage";
+import PushNotificationsPage from "./pages/admin/push-notifications/PushNotificationsPage";
 
 const queryClient = new QueryClient();
 
@@ -142,6 +143,7 @@ const App = () => (
                   <Route path="/admin/pedidos" element={<ProtectedRoute module="julia_orders"><PedidosPage /></ProtectedRoute>} />
                   <Route path="/admin/planos" element={<ProtectedRoute module="julia_plans"><PlanosPage /></ProtectedRoute>} />
                   <Route path="/admin/contrato-template" element={<ProtectedRoute module="admin_agents"><ContratoTemplatePage /></ProtectedRoute>} />
+                  <Route path="/admin/notificacoes-push" element={<ProtectedRoute module="push_notifications"><PushNotificationsPage /></ProtectedRoute>} />
                 </Route>
                 {/* Advogado routes - mobile layout */}
                 <Route element={<AdvLayout />}>
