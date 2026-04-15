@@ -24,7 +24,7 @@ export function useCRMStuckLeads(filters: CRMFiltersState, daysThreshold: number
             c.business_name, c.stage_id, c.notes,
             c.created_at, c.updated_at, c.stage_entered_at,
             s.name as stage_name, s.color as stage_color,
-            a.owner_name, a.owner_business_name,
+            c.owner_name, a.owner_business_name,
             EXTRACT(DAY FROM (NOW() AT TIME ZONE 'America/Sao_Paulo') - (c.stage_entered_at AT TIME ZONE 'America/Sao_Paulo'))::int as days_stuck
           FROM crm_atendimento_cards c
           LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
