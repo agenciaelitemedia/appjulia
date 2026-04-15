@@ -2,7 +2,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ExternalLink, ChevronDown, Copy } from 'lucide-react';
+import { ExternalLink, ChevronDown, Copy, FileText } from 'lucide-react';
 import type { JuliaOrder } from '../hooks/useOrders';
 import { toast } from 'sonner';
 
@@ -127,6 +127,20 @@ export const OrderDetailSheet = ({ order, open, onClose }: Props) => {
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Notas</h3>
               <p className="text-sm bg-muted p-3 rounded-lg whitespace-pre-wrap">{order.notes}</p>
             </section>
+          )}
+
+          {/* Contrato */}
+          {order.contract_body && (
+            <Collapsible>
+              <CollapsibleTrigger className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+                <FileText className="w-4 h-4" /> <ChevronDown className="w-4 h-4" /> Contrato
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <pre className="mt-2 text-xs bg-muted p-3 rounded-lg overflow-x-auto max-h-60 whitespace-pre-wrap">
+                  {order.contract_body}
+                </pre>
+              </CollapsibleContent>
+            </Collapsible>
           )}
 
           {/* Webhook payload */}
