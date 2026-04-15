@@ -1,28 +1,40 @@
 
 
-## Plano: Corrigir versionamento de alterações na edição de agentes
+## Plano: Corrigir race condition no versionamento de alterações
 
 ### Diagnóstico
-A tabela `agent_change_log` tem registros apenas para o agente 310. Ao salvar alterações no agente 307, o log não foi criado. O código atual em `useAgentUpdate.ts` chama `insertAgentChangeLog` após os updates, mas erros são silenciados (`console.error` sem throw).
+Os logs estão sendo criados no banco, mas a listagem não os exibe porque:
+1. Em `useAgentUpdate.ts`, o `insertAgentChangeLog` está no bloco `finally`, que executa APÓS o `return { success: true }` do `try`
+2. Na `EditAgentPage.tsx`, a invalidação do cache `agents-last-changes` acontece imediatamente após receber `result.success`, antes do `finally` completar a inserção do log
+3. Resultado: a listagem busca os dados antes do log existir no banco
 
-### Correções
+### Correção
 
-**1. `useAgentUpdate.ts`** — Tornar o log mais resiliente
-- Mover o `insertAgentChangeLog` para FORA do try/catch principal, garantindo que seja chamado mesmo se houver erro parcial
-- Adicionar log de erro visível (toast warning) se o log falhar, mas sem bloquear o save
-- Separar o snapshot em `config_json` e `system_prompt` explicitamente
+**1. `useAgentUpdate.ts`** — Mover log para DENTRO do try, ANTES do return
+- Mover `insertAgentChangeLog` para dentro do bloco `try`, logo antes de `return { success: true }`
+- Isso garante que o log é inserido ANTES da função retornar o resultado ao chamador
+- Manter tratamento de erro não-bloqueante (try/catch interno)
 
-**2. `useAgentChangeLog.ts`** — Melhorar feedback de erros
-- Retornar o resultado do insert para que o chamador saiba se falhou
-- Adicionar log mais detalhado do erro
+```
+try {
+  await updateClient(...);
+  await updateAgent(...);
+  
+  // Log ANTES de retornar
+  try {
+    await insertAgentChangeLog({...});
+  } catch (logErr) {
+    console.warn('Change log failed:', logErr);
+  }
+  
+  return { success: true, error: null };
+} catch (error) { ... }
+finally { setIsSaving(false); }
+```
 
-**3. `EditAgentPage.tsx`** — Garantir invalidação do cache
-- Invalidar também `['agents-list']` além de `['agents-last-changes']` para forçar refresh total
-- Mover a invalidação para dentro do `onSubmit` antes da navegação
-
-**4. `AgentsList.tsx`** — Já funcional
-- A coluna "Última Alteração" já existe e exibe dados corretamente quando há registros
+**2. `EditAgentPage.tsx`** — Adicionar pequeno delay antes de invalidar
+- Opcional: garantir que a invalidação force um refetch real com `{ exact: false }`
 
 ### Resultado
-Todo save na edição admin (`/admin/agentes/:id/editar`) criará um registro confiável no `agent_change_log` com config, prompt, autor e timestamp, visível na listagem.
+O log será gravado ANTES do caller receber sucesso, garantindo que a invalidação do cache já encontre o registro no banco.
 
