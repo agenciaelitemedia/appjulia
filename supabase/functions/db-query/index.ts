@@ -806,6 +806,30 @@ serve(async (req) => {
         break;
       }
 
+      case 'get_team_for_agent': {
+        const { codAgent } = data;
+        // 1. Get owner user_id from agents table
+        const agentRows = await sql.unsafe(
+          `SELECT user_id FROM agents WHERE cod_agent = $1::bigint LIMIT 1`,
+          [codAgent]
+        );
+        const ownerId = agentRows[0]?.user_id;
+        if (!ownerId) {
+          result = [];
+          break;
+        }
+        // 2. Get owner + team members in one query
+        const members = await sql.unsafe(
+          `SELECT id, name, 'Titular' as role FROM users WHERE id = $1
+           UNION ALL
+           SELECT id, name, role FROM users WHERE user_id = $1 AND role IN ('time', 'advogado', 'comercial')
+           ORDER BY role, name`,
+          [ownerId]
+        );
+        result = members;
+        break;
+      }
+
       case 'get_agent_details': {
         const { agentId } = data;
         const rows = await sql.unsafe(
