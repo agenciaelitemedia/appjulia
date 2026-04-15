@@ -1,5 +1,6 @@
 import { Menu, Bell, Search, LogOut, User, Settings, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { HeaderDialer } from './HeaderDialer';
+import { PushNotificationOptIn } from '@/components/notifications/PushNotificationOptIn';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -92,6 +93,9 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
         <div className="flex items-center gap-4 ml-auto">
           {/* Phone Dialer */}
           <HeaderDialer />
+
+          {/* Push Notification Opt-in */}
+          <PushNotificationOptIn />
 
           {/* Notifications */}
           <Button variant="ghost" size="icon" className="relative">
