@@ -379,6 +379,7 @@ export default function AgentsList() {
                 <TableHead>Limite/Uso</TableHead>
                 <TableHead>Last</TableHead>
                 <TableHead>Venci.</TableHead>
+                <TableHead>Última Alt.</TableHead>
                 <TableHead className="w-[50px]">Ação</TableHead>
               </TableRow>
             </TableHeader>
