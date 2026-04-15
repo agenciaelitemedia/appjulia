@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
-export type AgentLastChangeMap = Map<number, { changed_by: string | null; created_at: string }>;
+export type AgentLastChangeMap = Map<number, { changed_by: string | null; changed_by_id: number | null; created_at: string }>;
 
 export async function insertAgentChangeLog(params: {
   agent_id: number;
@@ -39,7 +39,7 @@ export function useAgentsLastChanges(agentIds: number[]) {
 
       const { data, error } = await supabase
         .from('agent_change_log')
-        .select('agent_id, changed_by, created_at')
+        .select('agent_id, changed_by, changed_by_id, created_at')
         .in('agent_id', agentIds)
         .order('created_at', { ascending: false });
 
@@ -49,9 +49,9 @@ export function useAgentsLastChanges(agentIds: number[]) {
       }
 
       const map: AgentLastChangeMap = new Map();
-      for (const row of (data as { agent_id: number; changed_by: string | null; created_at: string }[])) {
+      for (const row of (data as { agent_id: number; changed_by: string | null; changed_by_id: number | null; created_at: string }[])) {
         if (!map.has(row.agent_id)) {
-          map.set(row.agent_id, { changed_by: row.changed_by, created_at: row.created_at });
+          map.set(row.agent_id, { changed_by: row.changed_by, changed_by_id: row.changed_by_id, created_at: row.created_at });
         }
       }
       return map;
