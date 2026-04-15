@@ -2333,6 +2333,84 @@ export type Database = {
           },
         ]
       }
+      push_notifications: {
+        Row: {
+          body: string
+          created_at: string | null
+          created_by: number | null
+          error_count: number | null
+          icon: string | null
+          id: string
+          sent_at: string | null
+          sent_count: number | null
+          status: string | null
+          target_type: string
+          target_value: string | null
+          title: string
+          url: string | null
+        }
+        Insert: {
+          body: string
+          created_at?: string | null
+          created_by?: number | null
+          error_count?: number | null
+          icon?: string | null
+          id?: string
+          sent_at?: string | null
+          sent_count?: number | null
+          status?: string | null
+          target_type?: string
+          target_value?: string | null
+          title: string
+          url?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string | null
+          created_by?: number | null
+          error_count?: number | null
+          icon?: string | null
+          id?: string
+          sent_at?: string | null
+          sent_count?: number | null
+          status?: string | null
+          target_type?: string
+          target_value?: string | null
+          title?: string
+          url?: string | null
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string | null
+          endpoint: string
+          id: string
+          p256dh: string
+          user_agent: string | null
+          user_id: number
+        }
+        Insert: {
+          auth: string
+          created_at?: string | null
+          endpoint: string
+          id?: string
+          p256dh: string
+          user_agent?: string | null
+          user_id: number
+        }
+        Update: {
+          auth?: string
+          created_at?: string | null
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          user_agent?: string | null
+          user_id?: number
+        }
+        Relationships: []
+      }
       queue_agent_links: {
         Row: {
           cod_agent: string
