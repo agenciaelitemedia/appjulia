@@ -12,6 +12,7 @@ import { externalDb } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMyAgents } from './hooks/useMyAgents';
 import { toast } from 'sonner';
+import { insertAgentChangeLog } from '@/pages/agents/hooks/useAgentChangeLog';
 
 interface AgentDetails {
   id: number;
