@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import bcrypt from 'bcryptjs';
 import type { AgentFormData } from '../components/CreateAgentWizard';
 import { generateSecurePassword } from '@/lib/crypto';
+import { insertAgentChangeLog } from './useAgentChangeLog';
 
 interface SaveResult {
   success: boolean;
@@ -51,7 +52,8 @@ export function useAgentSave() {
 
   const saveAgent = useCallback(async (
     data: AgentFormData,
-    regenerateCode: () => Promise<string | null>
+    regenerateCode: () => Promise<string | null>,
+    changedBy?: { name: string; id: number },
   ): Promise<SaveResult> => {
     setIsSaving(true);
 
@@ -162,6 +164,17 @@ export function useAgentSave() {
 
       // === CREATE USER-AGENT LINK ===
       await externalDb.insertUserAgent(createdUserId, createdAgentId, data.cod_agent);
+
+      // === LOG CREATION ===
+      await insertAgentChangeLog({
+        agent_id: createdAgentId,
+        cod_agent: data.cod_agent,
+        action: 'create',
+        changed_by: changedBy?.name,
+        changed_by_id: changedBy?.id,
+        change_summary: 'Agente criado',
+        snapshot: agentData as any,
+      });
 
       return { 
         success: true, 
