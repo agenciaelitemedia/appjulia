@@ -61,7 +61,8 @@ export function useAgentsLastChanges(agentIds: number[]) {
       }
       return map;
     },
-    staleTime: 60000,
+    staleTime: 30000,
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
     enabled: agentIds.length > 0,
   });

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useForm, FormProvider } from 'react-hook-form';
 import { Card, CardContent } from '@/components/ui/card';
@@ -64,6 +65,7 @@ export default function EditAgentPage() {
   const { user: authUser } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [details, setDetails] = useState<AgentDetails | null>(null);
@@ -226,6 +228,7 @@ export default function EditAgentPage() {
     }
     
     if (result.success) {
+      queryClient.invalidateQueries({ queryKey: ['agents-last-changes'] });
       toast.success('Agente atualizado com sucesso!');
       navigate(`/admin/agentes/${id}/detalhes`);
     } else {
