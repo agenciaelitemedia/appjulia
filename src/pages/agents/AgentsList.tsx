@@ -678,6 +678,22 @@ export default function AgentsList() {
                     )}
                   </TableCell>
                   <TableCell className="text-center">
+                    {(() => {
+                      const change = lastChangesMap?.get(agent.id);
+                      if (!change) return <span className="text-muted-foreground text-xs">-</span>;
+                      const d = new Date(change.created_at);
+                      const dateStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                      return (
+                        <div title={d.toLocaleString('pt-BR')}>
+                          <div className="text-xs">{dateStr}</div>
+                          {change.changed_by && (
+                            <div className="text-xs text-muted-foreground truncate max-w-[100px]">{change.changed_by}</div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </TableCell>
+                  <TableCell className="text-center">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon">
