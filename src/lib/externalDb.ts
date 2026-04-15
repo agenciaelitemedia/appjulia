@@ -323,7 +323,13 @@ class ExternalDatabase {
     });
   }
 
-  async getPrincipalUsers<T = any>(userId: number, isAdmin: boolean): Promise<T[]> {
+  async getTeamForAgent<T = any>(codAgent: string): Promise<T[]> {
+    return this.invoke({
+      action: 'get_team_for_agent',
+      data: { codAgent },
+    });
+  }
+
     return this.invoke({
       action: 'get_principal_users',
       data: { userId, isAdmin },
