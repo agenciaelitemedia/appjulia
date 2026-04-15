@@ -657,6 +657,7 @@ export interface AgentInsertData {
   is_closer: boolean;
   agent_plan_id: number;
   due_date: number;
+  user_id: number;
 }
 
 export interface AgentUpdateData {

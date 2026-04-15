@@ -154,6 +154,7 @@ export function useAgentSave() {
         is_closer: data.is_closer,
         agent_plan_id: parseInt(data.plan_id),
         due_date: data.due_day,
+        user_id: createdUserId,
       };
 
       const agentResult = await externalDb.insertAgent(agentData);
