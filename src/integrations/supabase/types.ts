@@ -1883,6 +1883,7 @@ export type Database = {
           billing_period: string | null
           checkout_url: string | null
           cod_agent: string | null
+          contract_body: string | null
           created_at: string
           customer_address: string
           customer_document: string
@@ -1912,6 +1913,7 @@ export type Database = {
           billing_period?: string | null
           checkout_url?: string | null
           cod_agent?: string | null
+          contract_body?: string | null
           created_at?: string
           customer_address?: string
           customer_document: string
@@ -1941,6 +1943,7 @@ export type Database = {
           billing_period?: string | null
           checkout_url?: string | null
           cod_agent?: string | null
+          contract_body?: string | null
           created_at?: string
           customer_address?: string
           customer_document?: string
