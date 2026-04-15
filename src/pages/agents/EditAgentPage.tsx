@@ -228,6 +228,7 @@ export default function EditAgentPage() {
     }
     
     if (result.success) {
+      queryClient.invalidateQueries({ queryKey: ['agents-last-changes'] });
       toast.success('Agente atualizado com sucesso!');
       navigate(`/admin/agentes/${id}/detalhes`);
     } else {
