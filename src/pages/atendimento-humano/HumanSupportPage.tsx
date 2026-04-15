@@ -34,6 +34,26 @@ export default function HumanSupportPage() {
     setSelectedLead(null);
   }, []);
 
+  const handleStartConversation = useCallback((whatsappNumber: string) => {
+    // Create a synthetic lead to open the chat
+    const syntheticLead: InactiveSession = {
+      id: Date.now(),
+      whatsapp_number: whatsappNumber,
+      active: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      cod_agent: selectedAgent || '',
+      contact_name: null,
+      business_name: null,
+      card_id: null,
+      stage_id: null,
+      stage_name: null,
+      stage_color: null,
+      owner_name: null,
+    };
+    setSelectedLead(syntheticLead);
+  }, [selectedAgent]);
+
   const {
     leads,
     totalFiltered,
@@ -73,6 +93,8 @@ export default function HumanSupportPage() {
           ownerFilter={ownerFilter}
           onOwnerFilterChange={setOwnerFilter}
           teamMembers={teamMembers}
+          codAgent={selectedAgent}
+          onStartConversation={handleStartConversation}
           agentSelect={
             <AgentSearchSelect
               agents={agents}
