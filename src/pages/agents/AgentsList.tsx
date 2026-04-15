@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Bot,
   Plus,
@@ -66,6 +67,8 @@ import { externalDb } from '@/lib/externalDb';
 import { useToast } from '@/hooks/use-toast';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useAgentsList, AgentListItem } from './hooks/useAgentsList';
+import { useAgentsLastChanges } from './hooks/useAgentChangeLog';
+import { insertAgentChangeLog } from './hooks/useAgentChangeLog';
 import { usePlans } from './hooks/usePlans';
 import { BusinessHoursBadge } from '@/components/BusinessHoursBadge';
 import { STORAGE_KEYS } from '@/lib/constants';
