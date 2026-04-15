@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { Info, Loader2, Send } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { externalDb } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
@@ -26,11 +28,12 @@ export function StartConversationDialog({
   onSuccess,
 }: StartConversationDialogProps) {
   const { user: authUser } = useAuth();
+  const [leadName, setLeadName] = useState('');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
 
   const handleSend = async () => {
-    if (!message.trim() || sending) return;
+    if (!leadName.trim() || !message.trim() || sending) return;
     setSending(true);
 
     try {
@@ -88,7 +91,6 @@ export function StartConversationDialog({
 
       // 3. Create CRM card in "Atendimento Humano" stage
       try {
-        // Find the stage
         const stageResult = await externalDb.raw<{ id: number }>({
           query: `SELECT id FROM crm_atendimento_stages WHERE LOWER(name) LIKE '%atendimento humano%' LIMIT 1`,
           params: [],
@@ -97,24 +99,21 @@ export function StartConversationDialog({
         if (stageResult && stageResult.length > 0) {
           const stageId = stageResult[0].id;
 
-          // Check if card already exists for this number/agent
           const existingCard = await externalDb.raw<{ id: number }>({
             query: `SELECT id FROM crm_atendimento_cards WHERE whatsapp_number = $1 AND cod_agent = $2 LIMIT 1`,
             params: [whatsappNumber, codAgent],
           });
 
           if (!existingCard || existingCard.length === 0) {
-            // Create new card
             await externalDb.raw({
               query: `INSERT INTO crm_atendimento_cards (whatsapp_number, cod_agent, stage_id, owner_name, contact_name, created_at, updated_at, stage_entered_at)
                       VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NOW())`,
-              params: [whatsappNumber, codAgent, stageId, authUser?.name || null, whatsappNumber],
+              params: [whatsappNumber, codAgent, stageId, authUser?.name || null, leadName.trim()],
             });
           } else {
-            // Update existing card owner
             await externalDb.raw({
-              query: `UPDATE crm_atendimento_cards SET owner_name = $1, stage_id = $2, stage_entered_at = NOW(), updated_at = NOW() WHERE whatsapp_number = $3 AND cod_agent = $4`,
-              params: [authUser?.name || null, stageId, whatsappNumber, codAgent],
+              query: `UPDATE crm_atendimento_cards SET owner_name = $1, stage_id = $2, contact_name = $3, stage_entered_at = NOW(), updated_at = NOW() WHERE whatsapp_number = $4 AND cod_agent = $5`,
+              params: [authUser?.name || null, stageId, leadName.trim(), whatsappNumber, codAgent],
             });
           }
         }
@@ -122,10 +121,9 @@ export function StartConversationDialog({
         console.warn('[CRM] Failed to create/update card:', crmError);
       }
 
-      // Session creation is handled automatically by the CRM card above
-
       toast.success('Mensagem enviada com sucesso!');
       setMessage('');
+      setLeadName('');
       onSuccess();
     } catch (error: any) {
       console.error('Error starting conversation:', error);
@@ -157,25 +155,40 @@ export function StartConversationDialog({
             </AlertDescription>
           </Alert>
 
-          <Textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Digite a primeira mensagem..."
-            className="min-h-[100px] text-sm"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-          />
+          <div className="space-y-1.5">
+            <Label htmlFor="lead-name" className="text-sm">Nome do lead <span className="text-destructive">*</span></Label>
+            <Input
+              id="lead-name"
+              value={leadName}
+              onChange={(e) => setLeadName(e.target.value)}
+              placeholder="Nome do contato"
+              className="text-sm"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="first-message" className="text-sm">Mensagem <span className="text-destructive">*</span></Label>
+            <Textarea
+              id="first-message"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Digite a primeira mensagem..."
+              className="min-h-[100px] text-sm"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+            />
+          </div>
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={sending}>
             Cancelar
           </Button>
-          <Button onClick={handleSend} disabled={!message.trim() || sending}>
+          <Button onClick={handleSend} disabled={!message.trim() || !leadName.trim() || sending}>
             {sending ? (
               <Loader2 className="h-4 w-4 animate-spin mr-1" />
             ) : (
