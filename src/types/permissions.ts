@@ -37,7 +37,8 @@ export type ModuleCode =
   | 'quick_messages'
   | 'filas'
   | 'configuracoes'
-  | 'human_support';
+  | 'human_support'
+  | 'push_notifications';
 
 export interface Module {
   id: number;
