@@ -848,8 +848,14 @@ serve(async (req) => {
           FROM agents a
           JOIN clients c ON c.id = a.client_id
           LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
-          LEFT JOIN user_agents ua ON ua.agent_id = a.id
-          LEFT JOIN users u ON u.id = ua.user_id AND u.role = 'user'
+          LEFT JOIN LATERAL (
+            SELECT ua2.user_id, ua2.can_edit_prompt, ua2.can_edit_config
+            FROM user_agents ua2
+            JOIN users u2 ON u2.id = ua2.user_id AND u2.role = 'user'
+            WHERE ua2.agent_id = a.id
+            LIMIT 1
+          ) ua ON true
+          LEFT JOIN users u ON u.id = ua.user_id
           WHERE a.id = $1
           LIMIT 1`,
           [agentId]
