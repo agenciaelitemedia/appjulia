@@ -327,6 +327,20 @@ export function useTeamForCurrentUser() {
   });
 }
 
+// Hook to get team members for a specific agent (by cod_agent)
+export function useTeamForAgent(codAgent: string | null | undefined) {
+  return useQuery({
+    queryKey: ['crm-team-for-agent', codAgent],
+    queryFn: async () => {
+      if (!codAgent) return [];
+      const members = await externalDb.getTeamForAgent<{ id: number; name: string; role: string }>(codAgent);
+      return members;
+    },
+    enabled: !!codAgent,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
 // Keep backward-compatible alias
 export function useTeamMembersForAgent(_codAgent: string | null, _fallbackUserId?: number | null) {
   return useTeamForCurrentUser();

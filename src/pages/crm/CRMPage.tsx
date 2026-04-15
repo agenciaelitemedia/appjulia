@@ -11,7 +11,7 @@ import { CRMDashboardSummary } from './components/CRMDashboardSummary';
 import { CRMTotalizers } from './components/CRMTotalizers';
 import { CRMPipeline } from './components/CRMPipeline';
 import { CRMLeadDetailsDialog } from './components/CRMLeadDetailsDialog';
-import { useCRMStages, useCRMCards, useCRMAgents, useCRMJuliaSessions, useCRMJuliaConversations, useTeamForCurrentUser } from './hooks/useCRMData';
+import { useCRMStages, useCRMCards, useCRMAgents, useCRMJuliaSessions, useCRMJuliaConversations, useTeamForAgent } from './hooks/useCRMData';
 import { useFollowupActiveLeads } from './hooks/useFollowupActiveLeads';
 import { useFollowupReturnRate } from './hooks/useFollowupReturnRate';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
@@ -59,7 +59,8 @@ export default function CRMPage() {
   const { data: juliaConversations } = useCRMJuliaConversations(filters);
   const { data: followupMap = new Map() } = useFollowupActiveLeads(filters.agentCodes, filters.dateFrom, filters.dateTo);
   const { data: returnRateData } = useFollowupReturnRate(filters.agentCodes, filters.dateFrom, filters.dateTo);
-  const { data: teamMembers = [] } = useTeamForCurrentUser();
+  const firstAgentCode = filters.agentCodes.length === 1 ? filters.agentCodes[0] : filters.agentCodes[0] || null;
+  const { data: teamMembers = [] } = useTeamForAgent(firstAgentCode);
 
   // Clean up whatsapp param from URL after consuming it
   useEffect(() => {
