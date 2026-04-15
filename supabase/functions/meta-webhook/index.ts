@@ -21,9 +21,8 @@ async function resolveAgent(phoneNumberId: string): Promise<{ cod_agent: string;
       body: {
         action: 'raw',
         data: {
-          query: `SELECT a.cod_agent, ua.user_id 
+          query: `SELECT a.cod_agent, a.user_id 
                   FROM agents a 
-                  JOIN user_agents ua ON ua.cod_agent = a.cod_agent 
                   WHERE a.waba_number_id = $1 
                   LIMIT 1`,
           params: [phoneNumberId],
