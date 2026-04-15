@@ -1,3 +1,4 @@
+import ReactMarkdown from 'react-markdown';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -136,9 +137,9 @@ export const OrderDetailSheet = ({ order, open, onClose }: Props) => {
                 <FileText className="w-4 h-4" /> <ChevronDown className="w-4 h-4" /> Contrato
               </CollapsibleTrigger>
               <CollapsibleContent>
-                <pre className="mt-2 text-xs bg-muted p-3 rounded-lg overflow-x-auto max-h-60 whitespace-pre-wrap">
-                  {order.contract_body}
-                </pre>
+                <div className="mt-2 bg-muted p-3 rounded-lg overflow-y-auto max-h-60 prose prose-sm dark:prose-invert max-w-none">
+                  <ReactMarkdown>{order.contract_body}</ReactMarkdown>
+                </div>
               </CollapsibleContent>
             </Collapsible>
           )}
