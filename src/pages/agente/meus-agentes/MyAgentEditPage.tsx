@@ -107,6 +107,22 @@ export default function MyAgentEditPage() {
         canEditPrompt ? formData.system_prompt : undefined
       );
 
+      // Log change
+      if (userAgent?.agent_id_from_agents) {
+        await insertAgentChangeLog({
+          agent_id: userAgent.agent_id_from_agents,
+          cod_agent: codAgent,
+          action: 'update',
+          changed_by: user.name,
+          changed_by_id: user.id,
+          change_summary: 'Agente atualizado pelo proprietário',
+          snapshot: {
+            config_json: canEditConfig ? formData.config_json : undefined,
+            system_prompt: canEditPrompt ? formData.system_prompt : undefined,
+          } as any,
+        });
+      }
+
       toast.success('Agente atualizado com sucesso!');
       navigate('/agente/meus-agentes');
     } catch (error) {
