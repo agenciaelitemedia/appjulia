@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useForm, FormProvider } from 'react-hook-form';
 import { Card, CardContent } from '@/components/ui/card';
@@ -60,6 +61,7 @@ const STEPS = [
 ];
 
 export default function EditAgentPage() {
+  const { user: authUser } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
@@ -207,7 +209,7 @@ export default function EditAgentPage() {
       client_neighborhood: data.client_neighborhood,
       client_city: data.client_city,
       client_state: data.client_state,
-    });
+    }, details.cod_agent, authUser ? { name: authUser.name, id: authUser.id } : undefined);
     
     // Save user agent permissions if user is linked
     if (result.success && details.user_id && details.cod_agent) {

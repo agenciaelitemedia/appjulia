@@ -3,7 +3,6 @@ import { externalDb, AgentUpdateData } from '@/lib/externalDb';
 import { unmask } from '@/lib/inputMasks';
 import bcrypt from 'bcryptjs';
 import { insertAgentChangeLog } from './useAgentChangeLog';
-import bcrypt from 'bcryptjs';
 
 interface ClientUpdateData {
   name: string;
