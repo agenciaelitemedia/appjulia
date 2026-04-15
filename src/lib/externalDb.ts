@@ -640,6 +640,13 @@ class ExternalDatabase {
       data: { sessionId, active },
     });
   }
+
+  async createManualSession(whatsappNumber: string, codAgent: string): Promise<void> {
+    await this.invoke({
+      action: 'create_manual_session',
+      data: { whatsappNumber, codAgent },
+    });
+  }
 }
 
 export interface AgentInsertData {
