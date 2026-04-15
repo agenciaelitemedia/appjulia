@@ -138,7 +138,7 @@ export function useCRMCards(filters: CRMFiltersState) {
             c.business_name, c.stage_id, c.notes,
             c.created_at, c.updated_at, c.stage_entered_at,
             s.name as stage_name, s.color as stage_color,
-            a.owner_name, a.owner_business_name,
+            c.owner_name, a.owner_business_name,
             EXISTS (
               SELECT 1 FROM crm_atendimento_history h
               JOIN crm_atendimento_stages hs ON h.to_stage_id = hs.id
@@ -200,7 +200,7 @@ export function useCRMCardByWhatsapp(whatsapp: string | null) {
             c.business_name, c.stage_id, c.notes,
             c.created_at, c.updated_at, c.stage_entered_at,
             s.name as stage_name, s.color as stage_color,
-            a.owner_name, a.owner_business_name,
+            c.owner_name, a.owner_business_name,
             EXISTS (
               SELECT 1 FROM crm_atendimento_history h
               JOIN crm_atendimento_stages hs ON h.to_stage_id = hs.id
