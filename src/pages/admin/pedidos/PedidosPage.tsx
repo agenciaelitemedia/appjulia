@@ -4,11 +4,13 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useOrders, type JuliaOrder } from './hooks/useOrders';
 import { OrderDetailSheet } from './components/OrderDetailSheet';
 import { PaymentSettingsDialog } from './components/PaymentSettingsDialog';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, DollarSign, Clock, CheckCircle, FileText, Loader2, Eye, Filter, X, TrendingDown, Wallet } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import { Search, DollarSign, Clock, CheckCircle, FileText, Loader2, Eye, Filter, X, TrendingDown, Wallet, ScrollText } from 'lucide-react';
 
 const statusMap: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   draft: { label: 'Rascunho', variant: 'outline' },
@@ -29,6 +31,7 @@ const PedidosPage = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<JuliaOrder | null>(null);
+  const [contractOrder, setContractOrder] = useState<JuliaOrder | null>(null);
   const [planNames, setPlanNames] = useState<string[]>([]);
 
   useEffect(() => {
@@ -173,7 +176,12 @@ const PedidosPage = () => {
                       </td>
                       <td className="py-3"><Badge variant={st.variant}>{st.label}</Badge></td>
                       <td className="py-3 text-muted-foreground text-xs">{new Date(order.created_at).toLocaleDateString('pt-BR')}</td>
-                      <td className="py-3">
+                      <td className="py-3 flex items-center gap-1">
+                        {order.contract_body && (
+                          <Button variant="ghost" size="sm" onClick={() => setContractOrder(order)} title="Ver contrato">
+                            <ScrollText className="w-4 h-4" />
+                          </Button>
+                        )}
                         <Button variant="ghost" size="sm" onClick={() => setSelectedOrder(order)}>
                           <Eye className="w-4 h-4" />
                         </Button>
@@ -193,6 +201,20 @@ const PedidosPage = () => {
       </Card>
 
       <OrderDetailSheet order={selectedOrder} open={!!selectedOrder} onClose={() => setSelectedOrder(null)} />
+
+      <Dialog open={!!contractOrder} onOpenChange={(o) => !o && setContractOrder(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ScrollText className="w-5 h-5" />
+              Contrato — {contractOrder?.customer_name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="prose prose-sm dark:prose-invert max-w-none">
+            <ReactMarkdown>{contractOrder?.contract_body || ''}</ReactMarkdown>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
