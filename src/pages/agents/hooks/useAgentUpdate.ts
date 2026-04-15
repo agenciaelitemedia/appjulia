@@ -122,17 +122,6 @@ export function useAgentUpdate() {
         status: formData.status,
       });
 
-      // Log change
-      await insertAgentChangeLog({
-        agent_id: agentId,
-        cod_agent: codAgent,
-        action: 'update',
-        changed_by: changedBy?.name,
-        changed_by_id: changedBy?.id,
-        change_summary: 'Dados do agente atualizados',
-        snapshot: formData as any,
-      });
-
       return { success: true, error: null };
     } catch (error) {
       console.error('Error saving changes:', error);
@@ -142,6 +131,32 @@ export function useAgentUpdate() {
       };
     } finally {
       setIsSaving(false);
+
+      // Log change outside try/catch to ensure it runs even on partial errors
+      try {
+        const logResult = await insertAgentChangeLog({
+          agent_id: agentId,
+          cod_agent: codAgent,
+          action: 'update',
+          changed_by: changedBy?.name,
+          changed_by_id: changedBy?.id,
+          change_summary: 'Dados do agente atualizados',
+          snapshot: {
+            config_json: formData.config_json,
+            system_prompt: formData.system_prompt,
+            status: formData.status,
+            is_closer: formData.is_closer,
+            plan_id: formData.plan_id,
+            lead_limit: formData.lead_limit,
+            due_day: formData.due_day,
+          } as any,
+        });
+        if (!logResult.success) {
+          console.warn('Change log failed:', logResult.error);
+        }
+      } catch (logErr) {
+        console.warn('Change log exception:', logErr);
+      }
     }
   };
 

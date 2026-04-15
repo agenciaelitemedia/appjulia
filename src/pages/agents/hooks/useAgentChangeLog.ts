@@ -18,19 +18,26 @@ export async function insertAgentChangeLog(params: {
   change_summary?: string;
   snapshot?: Record<string, unknown>;
   changes?: Record<string, unknown>;
-}) {
-  const { error } = await supabase.from('agent_change_log').insert([{
-    agent_id: params.agent_id,
-    cod_agent: params.cod_agent,
-    action: params.action,
-    changed_by: params.changed_by || null,
-    changed_by_id: params.changed_by_id || null,
-    change_summary: params.change_summary || null,
-    snapshot: (params.snapshot || null) as any,
-    changes: (params.changes || null) as any,
-  }]);
-  if (error) {
-    console.error('Failed to insert agent change log:', error);
+}): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const { error } = await supabase.from('agent_change_log').insert([{
+      agent_id: params.agent_id,
+      cod_agent: params.cod_agent,
+      action: params.action,
+      changed_by: params.changed_by || null,
+      changed_by_id: params.changed_by_id || null,
+      change_summary: params.change_summary || null,
+      snapshot: (params.snapshot || null) as any,
+      changes: (params.changes || null) as any,
+    }]);
+    if (error) {
+      console.error('Failed to insert agent change log:', error.message, error.details, error.hint);
+      return { success: false, error: error.message };
+    }
+    return { success: true, error: null };
+  } catch (err) {
+    console.error('Exception inserting agent change log:', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }
 

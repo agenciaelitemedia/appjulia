@@ -229,6 +229,7 @@ export default function EditAgentPage() {
     
     if (result.success) {
       queryClient.invalidateQueries({ queryKey: ['agents-last-changes'] });
+      queryClient.invalidateQueries({ queryKey: ['agents-list'] });
       toast.success('Agente atualizado com sucesso!');
       navigate(`/admin/agentes/${id}/detalhes`);
     } else {
