@@ -623,6 +623,7 @@ export default function AgentsList() {
                   {getSortIcon('due_date')}
                 </Button>
               </TableHead>
+              <TableHead className="text-center">Última Alteração</TableHead>
               <TableHead className="w-[50px] text-center">Ação</TableHead>
             </TableRow>
           </TableHeader>
