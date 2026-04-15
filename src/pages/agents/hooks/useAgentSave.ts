@@ -173,7 +173,6 @@ export function useAgentSave() {
         changed_by: changedBy?.name,
         changed_by_id: changedBy?.id,
         change_summary: 'Agente criado',
-        snapshot: agentData as any,
       });
 
       return { 

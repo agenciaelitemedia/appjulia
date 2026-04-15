@@ -116,10 +116,6 @@ export default function MyAgentEditPage() {
           changed_by: user.name,
           changed_by_id: user.id,
           change_summary: 'Agente atualizado pelo proprietário',
-          snapshot: {
-            config_json: canEditConfig ? formData.config_json : undefined,
-            system_prompt: canEditPrompt ? formData.system_prompt : undefined,
-          } as any,
         });
       }
 
