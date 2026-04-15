@@ -24,8 +24,23 @@ export function StartConversationFooter({ codAgent, onConversationStarted }: Sta
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const phoneDigits = phone.replace(/\D/g, '');
-  const fullNumber = `${countryCode}${phoneDigits}`;
   const isValid = phoneDigits.length >= 10;
+
+  // Format number based on DDD rules
+  const getFormattedNumber = useCallback(() => {
+    const ddd = phoneDigits.slice(0, 2);
+    const dddNum = parseInt(ddd, 10);
+    let localDigits = phoneDigits.slice(2);
+    
+    // If DDD > 30 and number has 9 digits, remove the leading 9
+    if (dddNum > 30 && localDigits.length === 9 && localDigits.startsWith('9')) {
+      localDigits = localDigits.slice(1);
+    }
+    
+    return `${countryCode}${ddd}${localDigits}`;
+  }, [phoneDigits, countryCode]);
+
+  const fullNumber = getFormattedNumber();
 
   const handlePhoneChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setPhone(formatPhoneInput(e.target.value));
