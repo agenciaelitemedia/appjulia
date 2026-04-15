@@ -704,7 +704,7 @@ serve(async (req) => {
       }
 
       case 'insert_agent': {
-        const { client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date } = data;
+        const { client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date, user_id } = data;
         
         // Normalize settings using robust function (handles double-stringified JSON)
         const normalizedSettings = normalizeSettings(settings);
@@ -712,13 +712,13 @@ serve(async (req) => {
         // Use CTE + CASE to ensure settings is ALWAYS stored as JSONB object (never string)
         const rows = await sql.unsafe(
           `WITH s AS (SELECT $3::jsonb AS v)
-           INSERT INTO agents (client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date, status, is_visibilided, created_at, updated_at)
+           INSERT INTO agents (client_id, cod_agent, settings, prompt, is_closer, agent_plan_id, due_date, user_id, status, is_visibilided, created_at, updated_at)
            SELECT $1, $2, 
              CASE WHEN jsonb_typeof(s.v) = 'string' THEN (s.v #>> '{}')::jsonb ELSE s.v END,
-             $4, $5, $6, $7, true, true, now(), now()
+             $4, $5, $6, $7, $8, true, true, now(), now()
            FROM s
            RETURNING id`,
-          [client_id, cod_agent, normalizedSettings, prompt, is_closer, agent_plan_id, due_date]
+          [client_id, cod_agent, normalizedSettings, prompt, is_closer, agent_plan_id, due_date, user_id ?? null]
         );
         result = rows;
         break;
@@ -752,6 +752,15 @@ serve(async (req) => {
            RETURNING id`,
           [userId, agentId ?? null, codAgent]
         );
+        
+        // If this is a primary owner link (agentId is set), also update agents.user_id
+        if (agentId !== null && agentId !== undefined) {
+          await sql.unsafe(
+            `UPDATE agents SET user_id = $1 WHERE id = $2`,
+            [userId, agentId]
+          );
+        }
+        
         result = rows;
         break;
       }
@@ -832,7 +841,7 @@ serve(async (req) => {
             ap.id as plan_id,
             ap.name as plan_name,
             ap."limit" as plan_limit,
-            -- Usuario
+            -- Usuario (direto da coluna user_id do agents)
             u.id as user_id,
             u.name as user_name,
             u.email as user_email,
@@ -848,14 +857,8 @@ serve(async (req) => {
           FROM agents a
           JOIN clients c ON c.id = a.client_id
           LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
-          LEFT JOIN LATERAL (
-            SELECT ua2.user_id, ua2.can_edit_prompt, ua2.can_edit_config
-            FROM user_agents ua2
-            JOIN users u2 ON u2.id = ua2.user_id AND u2.role = 'user'
-            WHERE ua2.agent_id = a.id
-            LIMIT 1
-          ) ua ON true
-          LEFT JOIN users u ON u.id = ua.user_id
+          LEFT JOIN users u ON u.id = a.user_id
+          LEFT JOIN user_agents ua ON ua.agent_id = a.id AND ua.user_id = a.user_id
           WHERE a.id = $1
           LIMIT 1`,
           [agentId]
