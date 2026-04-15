@@ -14,6 +14,7 @@ export default function HumanSupportPage() {
   const { data: agents = [], isLoading: isLoadingAgents } = useJuliaAgents();
   const { data: teamMembers = [] } = useTeamForCurrentUser();
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [selectedLead, setSelectedLead] = useState<InactiveSession | null>(null);
 
   // Restore saved agent on load
   useEffect(() => {
@@ -28,6 +29,21 @@ export default function HumanSupportPage() {
     }
   }, [agents, selectedAgent]);
 
+  const {
+    leads,
+    totalFiltered,
+    isLoading,
+    searchQuery,
+    setSearchQuery,
+    selectedPeriod,
+    setSelectedPeriod,
+    ownerFilter,
+    setOwnerFilter,
+    hasMore,
+    loadMore,
+    refetch,
+  } = useInactiveLeads(selectedAgent || undefined);
+
   const handleAgentChange = useCallback((code: string) => {
     setSelectedAgent(code);
     saveAgentCodes([code]);
@@ -35,7 +51,6 @@ export default function HumanSupportPage() {
   }, []);
 
   const handleStartConversation = useCallback((whatsappNumber: string) => {
-    // Create a synthetic lead to open the chat
     const syntheticLead: InactiveSession = {
       id: Date.now(),
       whatsapp_number: whatsappNumber,
@@ -52,25 +67,9 @@ export default function HumanSupportPage() {
       owner_name: null,
     };
     setSelectedLead(syntheticLead);
-    // Refetch the list so the new session appears
-    refetch();
+    // Refetch after a short delay to allow the session to be created
+    setTimeout(() => refetch(), 1000);
   }, [selectedAgent, refetch]);
-
-  const {
-    leads,
-    totalFiltered,
-    isLoading,
-    searchQuery,
-    setSearchQuery,
-    selectedPeriod,
-    setSelectedPeriod,
-    ownerFilter,
-    setOwnerFilter,
-    hasMore,
-    loadMore,
-  } = useInactiveLeads(selectedAgent || undefined);
-
-  const [selectedLead, setSelectedLead] = useState<InactiveSession | null>(null);
 
   const handleSelectLead = useCallback((lead: InactiveSession) => {
     setSelectedLead(lead);
