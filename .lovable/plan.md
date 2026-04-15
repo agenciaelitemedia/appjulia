@@ -1,94 +1,68 @@
 
 
-## Plano: Adicionar `user_id` na tabela `agents` e remover filtro por role
+## Plano: Corrigir lista de responsáveis por cod_agent
 
-### Problema atual
-O dono do agente é determinado via JOIN com `user_agents` + filtro `u.role = 'user'`, o que é frágil e pode retornar o usuário errado (como aconteceu com Kaio vs Marcia).
+### Problema
+`useTeamForCurrentUser()` retorna o time do **usuário logado**, não do **dono do cod_agent**. Quando admin ou outro usuário visualiza um lead de outro agente, a lista mostra os membros errados.
 
 ### Solução
-Adicionar coluna `user_id` diretamente na tabela `agents` do banco externo, preenchê-la para os 21 agentes existentes, e usar essa coluna como fonte de verdade para o proprietário.
+Criar um novo hook `useTeamForAgent(codAgent)` que busca o time com base no `user_id` da tabela `agents`, e usá-lo nos 3 pontos: CRM Details, CRM Filters e Atendimento Humano.
 
 ---
 
-### Etapa 1 — Adicionar coluna `user_id` na tabela `agents` (banco externo)
+### Etapa 1 — Nova action `get_team_for_agent` no db-query
 
-Executar via `db-query` action `raw`:
+**Arquivo: `supabase/functions/db-query/index.ts`**
+
+Nova action que recebe `codAgent` e retorna o dono + membros do time:
 ```sql
-ALTER TABLE agents ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
+-- Busca user_id do agents
+SELECT user_id FROM agents WHERE cod_agent = $1 LIMIT 1
+-- Busca dono
+SELECT id, name, 'Titular' as role FROM users WHERE id = <owner_id>
+-- Busca membros do time do dono
+SELECT id, name, role FROM users WHERE user_id = <owner_id> AND role IN ('time','advogado','comercial')
 ```
 
-### Etapa 2 — Popular `user_id` para os 21 agentes existentes
+### Etapa 2 — Novo método em `externalDb.ts`
 
-Executar via `db-query` action `raw`:
-```sql
-UPDATE agents a
-SET user_id = (
-  SELECT ua.user_id 
-  FROM user_agents ua 
-  JOIN users u ON u.id = ua.user_id AND u.role = 'user'
-  WHERE ua.agent_id = a.id
-  LIMIT 1
-)
-WHERE a.user_id IS NULL;
-```
+**Arquivo: `src/lib/externalDb.ts`**
 
-### Etapa 3 — Atualizar `insert_agent` para receber `user_id`
+Adicionar `getTeamForAgent(codAgent: string)` que invoca a nova action.
 
-**Arquivo: `supabase/functions/db-query/index.ts`** — case `insert_agent` (~linha 706)
+### Etapa 3 — Novo hook `useTeamForAgent`
 
-- Adicionar `user_id` no destructuring e no INSERT SQL
+**Arquivo: `src/pages/crm/hooks/useCRMData.ts`**
 
-### Etapa 4 — Atualizar `insert_user_agent` para setar `user_id` no agent
+Novo hook que recebe `codAgent`, chama `externalDb.getTeamForAgent(codAgent)` e retorna a lista ordenada (owner + membros).
 
-**Arquivo: `supabase/functions/db-query/index.ts`** — case `insert_user_agent` (~linha 727)
+### Etapa 4 — Atualizar CRMLeadDetailsDialog
 
-- Quando `agentId` não é null (vínculo de proprietário), também executar:
-  ```sql
-  UPDATE agents SET user_id = $1 WHERE id = $2
-  ```
+**Arquivo: `src/pages/crm/components/CRMLeadDetailsDialog.tsx`**
 
-### Etapa 5 — Simplificar `get_agent_details`
+Trocar `useTeamForCurrentUser()` por `useTeamForAgent(card?.cod_agent)`.
 
-**Arquivo: `supabase/functions/db-query/index.ts`** — case `get_agent_details` (~linha 800)
+### Etapa 5 — Atualizar CRMPage (filtro de responsáveis)
 
-Remover o `LEFT JOIN LATERAL` e o filtro `u.role = 'user'`. Substituir por:
-```sql
-LEFT JOIN users u ON u.id = a.user_id
-LEFT JOIN user_agents ua ON ua.agent_id = a.id AND ua.user_id = a.user_id
-```
+**Arquivo: `src/pages/crm/CRMPage.tsx`**
 
-### Etapa 6 — Atualizar `meta-webhook` resolveAgent
+Trocar para usar `useTeamForAgent` com base nos agentes selecionados (ou manter `useTeamForCurrentUser` no filtro geral se múltiplos agentes são exibidos).
 
-**Arquivo: `supabase/functions/meta-webhook/index.ts`** (~linha 24)
+### Etapa 6 — Atualizar HumanSupportPage
 
-Alterar de:
-```sql
-SELECT a.cod_agent, ua.user_id FROM agents a JOIN user_agents ua ...
-```
-Para:
-```sql
-SELECT a.cod_agent, a.user_id FROM agents a WHERE a.waba_number_id = $1 LIMIT 1
-```
+**Arquivo: `src/pages/atendimento-humano/HumanSupportPage.tsx`**
 
-### Etapa 7 — Atualizar `useAgentSave` para passar `user_id`
+Trocar `useTeamForCurrentUser()` por `useTeamForAgent(selectedAgent)`.
 
-**Arquivo: `src/lib/externalDb.ts`** — método `insertAgent`
-
-- Adicionar `user_id` ao payload enviado para `insert_agent`
-
-**Arquivo: `src/pages/agents/hooks/useAgentSave.ts`** (~linha 144)
-
-- Incluir `user_id: createdUserId` no `agentData`
-
-### Etapa 8 — Deploy das Edge Functions
-
-- Redeploiar `db-query` e `meta-webhook`
+### Etapa 7 — Deploy do db-query
 
 ---
 
-### Resumo de arquivos alterados
-1. `supabase/functions/db-query/index.ts` — cases `insert_agent`, `insert_user_agent`, `get_agent_details`
-2. `supabase/functions/meta-webhook/index.ts` — `resolveAgent`
-3. `src/lib/externalDb.ts` — `insertAgent` payload
-4. `src/pages/agents/hooks/useAgentSave.ts` — passar `user_id`
+### Arquivos alterados
+1. `supabase/functions/db-query/index.ts` — nova action `get_team_for_agent`
+2. `src/lib/externalDb.ts` — método `getTeamForAgent`
+3. `src/pages/crm/hooks/useCRMData.ts` — novo hook `useTeamForAgent`
+4. `src/pages/crm/components/CRMLeadDetailsDialog.tsx` — usar novo hook
+5. `src/pages/crm/CRMPage.tsx` — avaliar troca do hook
+6. `src/pages/atendimento-humano/HumanSupportPage.tsx` — usar novo hook
 
