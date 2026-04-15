@@ -122,17 +122,7 @@ export function StartConversationDialog({
         console.warn('[CRM] Failed to create/update card:', crmError);
       }
 
-      // 4. Create/update session as inactive (so it appears in the list)
-      try {
-        await externalDb.raw({
-          query: `INSERT INTO julia_sessions (whatsapp_number, cod_agent, active, created_at, updated_at)
-                  VALUES ($1, $2, false, NOW(), NOW())
-                  ON CONFLICT (whatsapp_number, cod_agent) DO UPDATE SET active = false, updated_at = NOW()`,
-          params: [whatsappNumber, codAgent],
-        });
-      } catch (sessionError) {
-        console.warn('[Session] Failed to create/update session:', sessionError);
-      }
+      // Session creation is handled automatically by the CRM card above
 
       toast.success('Mensagem enviada com sucesso!');
       setMessage('');
