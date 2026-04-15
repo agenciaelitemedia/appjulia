@@ -683,12 +683,14 @@ export default function AgentsList() {
                       const change = lastChangesMap?.get(agent.id);
                       if (!change) return <span className="text-muted-foreground text-xs">-</span>;
                       const d = new Date(change.created_at);
-                      const dateStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                      const dateStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
                       return (
                         <div title={d.toLocaleString('pt-BR')}>
-                          <div className="text-xs">{dateStr}</div>
+                          <div className="text-xs font-medium">{dateStr}</div>
                           {change.changed_by && (
-                            <div className="text-xs text-muted-foreground truncate max-w-[100px]">{change.changed_by}</div>
+                            <div className="text-xs text-muted-foreground truncate max-w-[140px]">
+                              {change.changed_by}{change.changed_by_id ? ` (ID: ${change.changed_by_id})` : ''}
+                            </div>
                           )}
                         </div>
                       );
