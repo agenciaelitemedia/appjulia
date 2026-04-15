@@ -80,6 +80,7 @@ const STEPS = [
 ];
 
 export function CreateAgentWizard() {
+  const { user: authUser } = useAuth();
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
