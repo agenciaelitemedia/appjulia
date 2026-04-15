@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { DocumentStep } from './steps/DocumentStep';
 import { CustomerStep } from './steps/CustomerStep';
 import { PlanStep } from './steps/PlanStep';
 import { ContractStep } from './steps/ContractStep';
 import { CheckoutStep } from './steps/CheckoutStep';
-import { Check } from 'lucide-react';
+import { generateContractBody } from './steps/ContractStep';
+import { Check, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 export interface OrderData {
   id?: string;
@@ -19,16 +22,23 @@ export interface OrderData {
   billing_period: 'monthly' | 'semiannual' | 'annual';
   checkout_url?: string;
   payment_gateway: 'mercadopago' | 'infinitypay';
+  contract_body?: string;
 }
 
-const steps = ['Documento', 'Dados', 'Plano', 'Contrato', 'Pagamento'];
+const NORMAL_STEPS = ['Documento', 'Dados', 'Plano', 'Contrato', 'Pagamento'];
+const EXPRESS_STEPS = ['Documento', 'Dados', 'Pagamento'];
 
 const ComprarPage = () => {
   const [searchParams] = useSearchParams();
   const paymentParam = searchParams.get('p');
   const paymentGateway: 'mercadopago' | 'infinitypay' = paymentParam === 'mp' ? 'mercadopago' : 'infinitypay';
+  const isExpress = searchParams.get('t') === 'express';
+  const channelParam = searchParams.get('c')?.toLowerCase() || '';
+
+  const steps = isExpress ? EXPRESS_STEPS : NORMAL_STEPS;
 
   const [currentStep, setCurrentStep] = useState(0);
+  const [expressPreparing, setExpressPreparing] = useState(false);
   const [orderData, setOrderData] = useState<OrderData>({
     customer_document: '',
     customer_name: '',
@@ -46,8 +56,103 @@ const ComprarPage = () => {
   };
 
   const goToStep = (step: number) => setCurrentStep(step);
-  const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, 4));
   const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 0));
+
+  // Express mode: auto-select plan + generate contract before going to payment
+  const prepareExpressAndAdvance = useCallback(async () => {
+    setExpressPreparing(true);
+    try {
+      // Fetch plans
+      const { data: plans } = await supabase
+        .from('julia_plans')
+        .select('*')
+        .eq('is_active', true)
+        .order('position');
+
+      if (!plans || plans.length === 0) {
+        toast.error('Nenhum plano disponível.');
+        setExpressPreparing(false);
+        return;
+      }
+
+      // Filter by channel (same logic as PlanStep)
+      let filtered = plans;
+      if (channelParam === 'vendedora') filtered = plans.filter(p => p.price === 1200000);
+      else if (channelParam === 'atendente') filtered = plans.filter(p => p.price === 300000);
+
+      if (filtered.length === 0) {
+        toast.error('Nenhum plano disponível para este canal.');
+        setExpressPreparing(false);
+        return;
+      }
+
+      const plan = filtered[0];
+      const planPrice = plan.price_monthly || plan.price_semiannual || plan.price_annual || plan.price;
+      const billingPeriod = plan.price_monthly > 0 ? 'monthly' : plan.price_semiannual > 0 ? 'semiannual' : 'annual';
+
+      const updatedOrder: Partial<OrderData> = {
+        plan_name: plan.name,
+        plan_price: planPrice,
+        billing_period: billingPeriod as OrderData['billing_period'],
+      };
+
+      // Generate contract in background
+      const tempOrder = { ...orderData, ...updatedOrder };
+      const contractBody = await generateContractBody(tempOrder as OrderData);
+
+      setOrderData(prev => ({
+        ...prev,
+        ...updatedOrder,
+        contract_body: contractBody,
+      }));
+
+      // Advance to payment (step 2 in express)
+      setCurrentStep(2);
+    } catch (err) {
+      console.error('Express prepare error:', err);
+      toast.error('Erro ao preparar pedido express.');
+    } finally {
+      setExpressPreparing(false);
+    }
+  }, [orderData, channelParam]);
+
+  const nextStep = () => {
+    if (isExpress && currentStep === 1) {
+      // After CustomerStep in express mode, prepare and skip to payment
+      prepareExpressAndAdvance();
+      return;
+    }
+    setCurrentStep(prev => Math.min(prev + 1, steps.length - 1));
+  };
+
+  // Map current step index to the right component
+  const getStepComponent = () => {
+    const stepLabel = steps[currentStep];
+
+    if (expressPreparing) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-[#6C3AED]" />
+          <p className="text-gray-500 text-sm">Preparando seu pedido...</p>
+        </div>
+      );
+    }
+
+    switch (stepLabel) {
+      case 'Documento':
+        return <DocumentStep orderData={orderData} updateOrder={updateOrder} onNext={nextStep} goToStep={goToStep} />;
+      case 'Dados':
+        return <CustomerStep orderData={orderData} updateOrder={updateOrder} onNext={nextStep} onBack={prevStep} />;
+      case 'Plano':
+        return <PlanStep orderData={orderData} updateOrder={updateOrder} onNext={nextStep} onBack={prevStep} />;
+      case 'Contrato':
+        return <ContractStep orderData={orderData} updateOrder={updateOrder} onNext={nextStep} onBack={prevStep} />;
+      case 'Pagamento':
+        return <CheckoutStep orderData={orderData} onBack={prevStep} />;
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F8F7FF] via-white to-[#F0EAFF]">
@@ -91,21 +196,7 @@ const ComprarPage = () => {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 pb-12">
-        {currentStep === 0 && (
-          <DocumentStep orderData={orderData} updateOrder={updateOrder} onNext={nextStep} goToStep={goToStep} />
-        )}
-        {currentStep === 1 && (
-          <CustomerStep orderData={orderData} updateOrder={updateOrder} onNext={nextStep} onBack={prevStep} />
-        )}
-        {currentStep === 2 && (
-          <PlanStep orderData={orderData} updateOrder={updateOrder} onNext={nextStep} onBack={prevStep} />
-        )}
-        {currentStep === 3 && (
-          <ContractStep orderData={orderData} onNext={nextStep} onBack={prevStep} />
-        )}
-        {currentStep === 4 && (
-          <CheckoutStep orderData={orderData} onBack={prevStep} />
-        )}
+        {getStepComponent()}
       </div>
 
       <footer className="text-center py-6 text-sm text-gray-400 space-y-1">

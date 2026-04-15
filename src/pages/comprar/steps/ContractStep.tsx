@@ -10,6 +10,7 @@ import type { OrderData } from '../ComprarPage';
 
 interface Props {
   orderData: OrderData;
+  updateOrder: (data: Partial<OrderData>) => void;
   onNext: () => void;
   onBack: () => void;
 }
@@ -20,39 +21,49 @@ const periodLabels: Record<string, string> = {
   annual: 'Anual',
 };
 
-export const ContractStep = ({ orderData, onNext, onBack }: Props) => {
+const formatPrice = (cents: number) => {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
+};
+
+/** Fetch contract template and replace placeholders */
+export const generateContractBody = async (orderData: OrderData): Promise<string> => {
+  const { data } = await supabase
+    .from('julia_contract_template')
+    .select('body_markdown')
+    .limit(1)
+    .single();
+
+  if (!data?.body_markdown) return '';
+
+  return data.body_markdown
+    .replace(/\{\{customer_name\}\}/g, orderData.customer_name || '—')
+    .replace(/\{\{customer_document\}\}/g, orderData.customer_document || '—')
+    .replace(/\{\{customer_email\}\}/g, orderData.customer_email || '—')
+    .replace(/\{\{customer_whatsapp\}\}/g, orderData.customer_whatsapp || '—')
+    .replace(/\{\{customer_address\}\}/g, orderData.customer_address || '—')
+    .replace(/\{\{plan_name\}\}/g, orderData.plan_name || '—')
+    .replace(/\{\{plan_price\}\}/g, formatPrice(orderData.plan_price))
+    .replace(/\{\{billing_period\}\}/g, periodLabels[orderData.billing_period] || orderData.billing_period);
+};
+
+export const ContractStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
   const [contractBody, setContractBody] = useState('');
   const [loading, setLoading] = useState(true);
   const [accepted, setAccepted] = useState(false);
 
-  const formatPrice = (cents: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
-  };
-
   useEffect(() => {
     const fetchContract = async () => {
-      const { data } = await supabase
-        .from('julia_contract_template')
-        .select('body_markdown')
-        .limit(1)
-        .single();
-
-      if (data?.body_markdown) {
-        const body = data.body_markdown
-          .replace(/\{\{customer_name\}\}/g, orderData.customer_name || '—')
-          .replace(/\{\{customer_document\}\}/g, orderData.customer_document || '—')
-          .replace(/\{\{customer_email\}\}/g, orderData.customer_email || '—')
-          .replace(/\{\{customer_whatsapp\}\}/g, orderData.customer_whatsapp || '—')
-          .replace(/\{\{customer_address\}\}/g, orderData.customer_address || '—')
-          .replace(/\{\{plan_name\}\}/g, orderData.plan_name || '—')
-          .replace(/\{\{plan_price\}\}/g, formatPrice(orderData.plan_price))
-          .replace(/\{\{billing_period\}\}/g, periodLabels[orderData.billing_period] || orderData.billing_period);
-        setContractBody(body);
-      }
+      const body = await generateContractBody(orderData);
+      setContractBody(body);
       setLoading(false);
     };
     fetchContract();
   }, [orderData]);
+
+  const handleNext = () => {
+    updateOrder({ contract_body: contractBody });
+    onNext();
+  };
 
   if (loading) {
     return (
@@ -104,7 +115,7 @@ export const ContractStep = ({ orderData, onNext, onBack }: Props) => {
               Voltar
             </Button>
             <Button
-              onClick={onNext}
+              onClick={handleNext}
               disabled={!accepted}
               className="flex-1 h-12 bg-[#6C3AED] hover:bg-[#5B2BD4] text-white font-semibold rounded-xl disabled:opacity-50"
             >

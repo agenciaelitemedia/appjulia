@@ -1,0 +1,1 @@
+ALTER TABLE julia_orders ADD COLUMN contract_body text;
