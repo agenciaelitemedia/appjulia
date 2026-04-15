@@ -167,6 +167,7 @@ export default function AgentsList() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { isAdmin } = usePermission();
+  const { user: authUser } = useAuth();
   
   // Persist filters to localStorage
   useEffect(() => {
