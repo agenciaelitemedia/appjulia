@@ -12,9 +12,9 @@ import { useEffect } from 'react';
 
 export default function HumanSupportPage() {
   const { data: agents = [], isLoading: isLoadingAgents } = useJuliaAgents();
-  const { data: teamMembers = [] } = useTeamForAgent(selectedAgent);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<InactiveSession | null>(null);
+  const { data: teamMembers = [] } = useTeamForAgent(selectedAgent);
 
   // Restore saved agent on load
   useEffect(() => {
