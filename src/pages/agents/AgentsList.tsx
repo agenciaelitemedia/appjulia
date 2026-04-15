@@ -178,6 +178,10 @@ export default function AgentsList() {
   // React Query for optimized data fetching with caching
   const { data: agents = [], isLoading, refetch } = useAgentsList(showLegacy, showAll);
   const { plans } = usePlans();
+
+  // Fetch last changes for all agents
+  const agentIds = useMemo(() => agents.map(a => a.id), [agents]);
+  const { data: lastChangesMap, refetch: refetchChanges } = useAgentsLastChanges(agentIds);
   
   // Debounced search for better performance
   const debouncedSearch = useDebounce(searchTerm, 300);
@@ -194,6 +198,19 @@ export default function AgentsList() {
       });
       // Refetch to update the cache with new status
       await refetch();
+
+      // Log status change
+      await insertAgentChangeLog({
+        agent_id: agentToToggle.id,
+        cod_agent: agentToToggle.cod_agent,
+        action: 'status_change',
+        changed_by: authUser?.name,
+        changed_by_id: authUser?.id,
+        change_summary: newStatus ? 'Agente ativado' : 'Agente desativado',
+        snapshot: { status: newStatus },
+      });
+      await refetchChanges();
+
       toast({
         title: newStatus ? 'Agente ativado' : 'Agente desativado',
         description: `${agentToToggle.business_name || agentToToggle.client_name} foi ${newStatus ? 'ativado' : 'desativado'} com sucesso.`,
