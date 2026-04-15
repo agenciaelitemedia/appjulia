@@ -5,14 +5,14 @@ import { InactiveLeadsList } from './components/InactiveLeadsList';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
 import { AgentSearchSelect } from '@/components/AgentSearchSelect';
 import { useJuliaAgents } from '@/pages/estrategico/hooks/useJuliaData';
-import { useTeamForCurrentUser } from '@/pages/crm/hooks/useCRMData';
+import { useTeamForAgent } from '@/pages/crm/hooks/useCRMData';
 import { getSavedAgentCodes, saveAgentCodes } from '@/hooks/usePersistedPeriod';
 import type { InactiveSession } from '@/lib/externalDb';
 import { useEffect } from 'react';
 
 export default function HumanSupportPage() {
   const { data: agents = [], isLoading: isLoadingAgents } = useJuliaAgents();
-  const { data: teamMembers = [] } = useTeamForCurrentUser();
+  const { data: teamMembers = [] } = useTeamForAgent(selectedAgent);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<InactiveSession | null>(null);
 
