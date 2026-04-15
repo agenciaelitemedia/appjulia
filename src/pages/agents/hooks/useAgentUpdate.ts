@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { externalDb, AgentUpdateData } from '@/lib/externalDb';
 import { unmask } from '@/lib/inputMasks';
 import bcrypt from 'bcryptjs';
+import { insertAgentChangeLog } from './useAgentChangeLog';
 
 interface ClientUpdateData {
   name: string;
@@ -81,7 +82,9 @@ export function useAgentUpdate() {
       client_neighborhood: string;
       client_city: string;
       client_state: string;
-    }
+    },
+    codAgent: string,
+    changedBy?: { name: string; id: number },
   ): Promise<{ success: boolean; error: string | null }> => {
     setIsSaving(true);
     
@@ -117,6 +120,17 @@ export function useAgentUpdate() {
         agent_plan_id: parseInt(formData.plan_id),
         due_date: formData.due_day,
         status: formData.status,
+      });
+
+      // Log change
+      await insertAgentChangeLog({
+        agent_id: agentId,
+        cod_agent: codAgent,
+        action: 'update',
+        changed_by: changedBy?.name,
+        changed_by_id: changedBy?.id,
+        change_summary: 'Dados do agente atualizados',
+        snapshot: formData as any,
       });
 
       return { success: true, error: null };

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useForm, FormProvider } from 'react-hook-form';
 import { Card, CardContent } from '@/components/ui/card';
@@ -79,6 +80,7 @@ const STEPS = [
 ];
 
 export function CreateAgentWizard() {
+  const { user: authUser } = useAuth();
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
@@ -143,7 +145,7 @@ export function CreateAgentWizard() {
   const [createdAgentId, setCreatedAgentId] = useState<number | null>(null);
 
   const onSubmit = async (data: AgentFormData) => {
-    const result = await saveAgent(data, generateCode);
+    const result = await saveAgent(data, generateCode, authUser ? { name: authUser.name, id: authUser.id } : undefined);
     
     if (result.success && result.agentId) {
       toast.success('Agente criado com sucesso!');

@@ -38,6 +38,45 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_change_log: {
+        Row: {
+          action: string
+          agent_id: number
+          change_summary: string | null
+          changed_by: string | null
+          changed_by_id: number | null
+          changes: Json | null
+          cod_agent: string
+          created_at: string | null
+          id: string
+          snapshot: Json | null
+        }
+        Insert: {
+          action?: string
+          agent_id: number
+          change_summary?: string | null
+          changed_by?: string | null
+          changed_by_id?: number | null
+          changes?: Json | null
+          cod_agent: string
+          created_at?: string | null
+          id?: string
+          snapshot?: Json | null
+        }
+        Update: {
+          action?: string
+          agent_id?: number
+          change_summary?: string | null
+          changed_by?: string | null
+          changed_by_id?: number | null
+          changes?: Json | null
+          cod_agent?: string
+          created_at?: string | null
+          id?: string
+          snapshot?: Json | null
+        }
+        Relationships: []
+      }
       chat_contacts: {
         Row: {
           avatar: string | null

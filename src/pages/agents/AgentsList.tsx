@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Bot,
   Plus,
@@ -66,6 +67,8 @@ import { externalDb } from '@/lib/externalDb';
 import { useToast } from '@/hooks/use-toast';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useAgentsList, AgentListItem } from './hooks/useAgentsList';
+import { useAgentsLastChanges } from './hooks/useAgentChangeLog';
+import { insertAgentChangeLog } from './hooks/useAgentChangeLog';
 import { usePlans } from './hooks/usePlans';
 import { BusinessHoursBadge } from '@/components/BusinessHoursBadge';
 import { STORAGE_KEYS } from '@/lib/constants';
@@ -164,6 +167,7 @@ export default function AgentsList() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { isAdmin } = usePermission();
+  const { user: authUser } = useAuth();
   
   // Persist filters to localStorage
   useEffect(() => {
@@ -174,6 +178,10 @@ export default function AgentsList() {
   // React Query for optimized data fetching with caching
   const { data: agents = [], isLoading, refetch } = useAgentsList(showLegacy, showAll);
   const { plans } = usePlans();
+
+  // Fetch last changes for all agents
+  const agentIds = useMemo(() => agents.map(a => a.id), [agents]);
+  const { data: lastChangesMap, refetch: refetchChanges } = useAgentsLastChanges(agentIds);
   
   // Debounced search for better performance
   const debouncedSearch = useDebounce(searchTerm, 300);
@@ -190,6 +198,19 @@ export default function AgentsList() {
       });
       // Refetch to update the cache with new status
       await refetch();
+
+      // Log status change
+      await insertAgentChangeLog({
+        agent_id: agentToToggle.id,
+        cod_agent: agentToToggle.cod_agent,
+        action: 'status_change',
+        changed_by: authUser?.name,
+        changed_by_id: authUser?.id,
+        change_summary: newStatus ? 'Agente ativado' : 'Agente desativado',
+        snapshot: { status: newStatus },
+      });
+      await refetchChanges();
+
       toast({
         title: newStatus ? 'Agente ativado' : 'Agente desativado',
         description: `${agentToToggle.business_name || agentToToggle.client_name} foi ${newStatus ? 'ativado' : 'desativado'} com sucesso.`,
@@ -358,6 +379,7 @@ export default function AgentsList() {
                 <TableHead>Limite/Uso</TableHead>
                 <TableHead>Last</TableHead>
                 <TableHead>Venci.</TableHead>
+                <TableHead>Última Alt.</TableHead>
                 <TableHead className="w-[50px]">Ação</TableHead>
               </TableRow>
             </TableHeader>
@@ -374,6 +396,7 @@ export default function AgentsList() {
                   <TableCell><Skeleton className="h-6 w-16" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                   <TableCell><Skeleton className="h-6 w-14" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                   <TableCell><Skeleton className="h-8 w-8" /></TableCell>
                 </TableRow>
               ))}
@@ -602,6 +625,7 @@ export default function AgentsList() {
                   {getSortIcon('due_date')}
                 </Button>
               </TableHead>
+              <TableHead className="text-center">Última Alteração</TableHead>
               <TableHead className="w-[50px] text-center">Ação</TableHead>
             </TableRow>
           </TableHeader>
@@ -654,6 +678,22 @@ export default function AgentsList() {
                     ) : (
                       <span className="text-muted-foreground">-</span>
                     )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {(() => {
+                      const change = lastChangesMap?.get(agent.id);
+                      if (!change) return <span className="text-muted-foreground text-xs">-</span>;
+                      const d = new Date(change.created_at);
+                      const dateStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                      return (
+                        <div title={d.toLocaleString('pt-BR')}>
+                          <div className="text-xs">{dateStr}</div>
+                          {change.changed_by && (
+                            <div className="text-xs text-muted-foreground truncate max-w-[100px]">{change.changed_by}</div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell className="text-center">
                     <DropdownMenu>
