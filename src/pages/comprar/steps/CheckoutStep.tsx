@@ -94,9 +94,13 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
         .eq('id', orderData.id);
 
       const functionName = isMercadoPago ? 'mercadopago-checkout' : isAsaas ? 'asaas-checkout' : 'infinitypay-checkout';
+      const invokeBody: Record<string, unknown> = { order_id: orderData.id };
+      if (isAsaas) {
+        invokeBody.billing_type = billingType;
+      }
 
       const { data, error: fnError } = await supabase.functions.invoke(functionName, {
-        body: { order_id: orderData.id },
+        body: invokeBody,
       });
 
       if (fnError) throw fnError;
