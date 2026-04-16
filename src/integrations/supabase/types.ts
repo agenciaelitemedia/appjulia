@@ -178,6 +178,36 @@ export type Database = {
           },
         ]
       }
+      chat_conversation_participants: {
+        Row: {
+          added_by: string | null
+          conversation_id: string
+          created_at: string
+          id: string
+          role: string
+          user_identifier: string
+          user_name: string | null
+        }
+        Insert: {
+          added_by?: string | null
+          conversation_id: string
+          created_at?: string
+          id?: string
+          role?: string
+          user_identifier: string
+          user_name?: string | null
+        }
+        Update: {
+          added_by?: string | null
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+          user_identifier?: string
+          user_name?: string | null
+        }
+        Relationships: []
+      }
       chat_conversation_tags: {
         Row: {
           conversation_id: string
@@ -301,6 +331,48 @@ export type Database = {
           },
         ]
       }
+      chat_csat_responses: {
+        Row: {
+          client_id: string
+          cod_agent: string | null
+          contact_id: string | null
+          conversation_id: string
+          feedback: string | null
+          id: string
+          responded_at: string | null
+          score: number
+          sent_at: string
+          status: string
+          survey_type: string
+        }
+        Insert: {
+          client_id: string
+          cod_agent?: string | null
+          contact_id?: string | null
+          conversation_id: string
+          feedback?: string | null
+          id?: string
+          responded_at?: string | null
+          score: number
+          sent_at?: string
+          status?: string
+          survey_type?: string
+        }
+        Update: {
+          client_id?: string
+          cod_agent?: string | null
+          contact_id?: string | null
+          conversation_id?: string
+          feedback?: string | null
+          id?: string
+          responded_at?: string | null
+          score?: number
+          sent_at?: string
+          status?: string
+          survey_type?: string
+        }
+        Relationships: []
+      }
       chat_departments: {
         Row: {
           agents: string[] | null
@@ -328,6 +400,78 @@ export type Database = {
           is_active?: boolean
           name?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      chat_mentions: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          is_read: boolean
+          mentioned_by: string | null
+          mentioned_by_name: string | null
+          mentioned_user: string
+          mentioned_user_name: string | null
+          message_id: string | null
+          preview_text: string | null
+          read_at: string | null
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          mentioned_by?: string | null
+          mentioned_by_name?: string | null
+          mentioned_user: string
+          mentioned_user_name?: string | null
+          message_id?: string | null
+          preview_text?: string | null
+          read_at?: string | null
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          mentioned_by?: string | null
+          mentioned_by_name?: string | null
+          mentioned_user?: string
+          mentioned_user_name?: string | null
+          message_id?: string | null
+          preview_text?: string | null
+          read_at?: string | null
+        }
+        Relationships: []
+      }
+      chat_message_reactions: {
+        Row: {
+          created_at: string
+          emoji: string
+          external_message_id: string | null
+          from_me: boolean
+          id: string
+          message_id: string
+          reactor: string
+        }
+        Insert: {
+          created_at?: string
+          emoji: string
+          external_message_id?: string | null
+          from_me?: boolean
+          id?: string
+          message_id: string
+          reactor: string
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          external_message_id?: string | null
+          from_me?: boolean
+          id?: string
+          message_id?: string
+          reactor?: string
         }
         Relationships: []
       }
