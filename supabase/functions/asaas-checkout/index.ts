@@ -12,15 +12,13 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { order_id, billing_type } = await req.json();
+    const { order_id } = await req.json();
     if (!order_id) {
       return new Response(JSON.stringify({ error: "order_id required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const selectedBillingType = billing_type === "PIX" ? "PIX" : "CREDIT_CARD";
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -109,45 +107,21 @@ Deno.serve(async (req) => {
     }
 
     const originalValue = order.plan_price / 100; // cents to BRL
+    const maxInstallments = 12;
+    const installmentValue = parseFloat((originalValue / maxInstallments).toFixed(2));
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 1);
 
-    let paymentBody: Record<string, unknown>;
-
-    if (selectedBillingType === "CREDIT_CARD") {
-      // Credit card with installments and fee markup
-      const maxInstallments = 12;
-      const baseFeeRate = 0.0349;
-      const installmentFeeRate = 0.0249;
-      const totalFeeRate = baseFeeRate + installmentFeeRate * (maxInstallments - 1);
-      const valueWithMarkup = parseFloat(
-        (originalValue / (1 - totalFeeRate)).toFixed(2)
-      );
-      const installmentValue = parseFloat(
-        (valueWithMarkup / maxInstallments).toFixed(2)
-      );
-
-      paymentBody = {
-        customer: customerId,
-        billingType: "CREDIT_CARD",
-        value: valueWithMarkup,
-        dueDate: dueDate.toISOString().split("T")[0],
-        description: `Plano ${order.plan_name} - AtendeJulIA`,
-        externalReference: order_id,
-        installmentCount: maxInstallments,
-        installmentValue,
-      };
-    } else {
-      // PIX - no markup, no installments
-      paymentBody = {
-        customer: customerId,
-        billingType: "PIX",
-        value: originalValue,
-        dueDate: dueDate.toISOString().split("T")[0],
-        description: `Plano ${order.plan_name} - AtendeJulIA`,
-        externalReference: order_id,
-      };
-    }
+    const paymentBody: Record<string, unknown> = {
+      customer: customerId,
+      billingType: "CREDIT_CARD",
+      value: originalValue,
+      dueDate: dueDate.toISOString().split("T")[0],
+      description: `Plano ${order.plan_name} - AtendeJulIA`,
+      externalReference: order_id,
+      installmentCount: maxInstallments,
+      installmentValue,
+    };
 
     const paymentRes = await fetch(`${baseUrl}/payments`, {
       method: "POST",
