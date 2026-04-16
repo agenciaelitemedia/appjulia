@@ -13,6 +13,9 @@ import { AudioRecorder } from './AudioRecorder';
 import { MentionAutocomplete } from './MentionAutocomplete';
 import { ScheduleMessageDialog } from './ScheduleMessageDialog';
 import { ScheduledMessagesList } from './ScheduledMessagesList';
+import { FormatToolbar } from './FormatToolbar';
+import { MessagePreview } from './MessagePreview';
+import { applyFormat, type FormatToken } from '@/lib/whatsappFormat';
 import { externalDb } from '@/lib/externalDb';
 
 interface ChatInputProps {
