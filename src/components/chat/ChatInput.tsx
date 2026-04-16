@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap } from 'lucide-react';
+import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap, Calendar } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,8 @@ import type { MessageType } from '@/types/chat';
 import { QuickMessagePicker } from './QuickMessagePicker';
 import { AudioRecorder } from './AudioRecorder';
 import { MentionAutocomplete } from './MentionAutocomplete';
+import { ScheduleMessageDialog } from './ScheduleMessageDialog';
+import { ScheduledMessagesList } from './ScheduledMessagesList';
 import { externalDb } from '@/lib/externalDb';
 
 interface ChatInputProps {
@@ -24,13 +26,15 @@ interface TeamMember { id: number | string; name: string }
 const QUICK_EMOJIS = ['😀', '😂', '❤️', '👍', '🙏', '🎉', '🔥', '💯', '😊', '😍', '🤔', '👏'];
 
 export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProps) {
-  const { sendMessage, sendMedia, sendInternalNote } = useWhatsAppData();
+  const { sendMessage, sendMedia, sendInternalNote, selectedConversation, selectedContact } = useWhatsAppData();
   const { user } = useAuth();
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [noteMode, setNoteMode] = useState(false);
   const [showQuickMessages, setShowQuickMessages] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [showScheduledList, setShowScheduledList] = useState(false);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
