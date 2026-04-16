@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap, Calendar } from 'lucide-react';
+import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap, Calendar, Type } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -329,6 +329,22 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
               title="Agendar mensagem"
             >
               <Calendar className="h-5 w-5 text-muted-foreground" />
+            </Button>
+          )}
+
+          {/* Format toggle */}
+          {!noteMode && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                'h-9 w-9 flex-shrink-0',
+                showFormatBar && 'bg-accent text-accent-foreground'
+              )}
+              onClick={() => setShowFormatBar((v) => !v)}
+              title="Formatação WhatsApp"
+            >
+              <Type className="h-5 w-5 text-muted-foreground" />
             </Button>
           )}
 
