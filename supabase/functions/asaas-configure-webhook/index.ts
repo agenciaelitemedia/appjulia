@@ -18,49 +18,29 @@ Deno.serve(async (req) => {
       });
     }
 
-    const baseUrl = is_sandbox
+    // Auto-detect environment from key prefix
+    const isProduction = api_key.startsWith("$aact_prod_");
+    const useSandbox = isProduction ? false : (is_sandbox ?? true);
+
+    const baseUrl = useSandbox
       ? "https://sandbox.asaas.com/api/v3"
-      : "https://api.asaas.com/api/v3";
+      : "https://api.asaas.com/v3";
 
-    const headers = {
-      "Content-Type": "application/json",
-      access_token: api_key,
-    };
+    console.log("Asaas env:", { isProduction, useSandbox, baseUrl });
 
-    // Check existing webhooks
-    const listRes = await fetch(`${baseUrl}/webhooks`, { headers });
-    const listData = await listRes.json();
+    const postHeaders = { "Content-Type": "application/json", access_token: api_key };
 
-    const existing = listData.data?.find(
-      (w: { url: string }) => w.url === WEBHOOK_URL
-    );
-
-    if (existing) {
-      // Update if disabled
-      if (!existing.enabled) {
-        await fetch(`${baseUrl}/webhooks/${existing.id}`, {
-          method: "PUT",
-          headers,
-          body: JSON.stringify({ enabled: true }),
-        });
-      }
-      return new Response(
-        JSON.stringify({ success: true, message: "Webhook already configured", webhook_id: existing.id }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Create new webhook
+    // Try to create webhook directly
     const createRes = await fetch(`${baseUrl}/webhooks`, {
       method: "POST",
-      headers,
+      headers: postHeaders,
       body: JSON.stringify({
+        name: "AtendeJulia Payments",
         url: WEBHOOK_URL,
         email: "suporte@atendejulia.com.br",
         enabled: true,
         interrupted: false,
         apiVersion: 3,
-        authToken: null,
         sendType: "SEQUENTIALLY",
         events: [
           "PAYMENT_CONFIRMED",
@@ -70,11 +50,25 @@ Deno.serve(async (req) => {
         ],
       }),
     });
-    const createData = await createRes.json();
+    const createText = await createRes.text();
+    console.log("Asaas create webhook:", createRes.status, createText.substring(0, 500));
 
-    if (createData.errors) {
+    let createData: any = {};
+    try { createData = JSON.parse(createText); } catch { /* empty */ }
+
+    // If webhook already exists with same URL, treat as success
+    if (!createRes.ok) {
+      const isDuplicate = createData.errors?.some(
+        (e: any) => e.code === "invalid_value" || e.description?.includes("já existe") || e.description?.includes("already")
+      );
+      if (isDuplicate) {
+        return new Response(
+          JSON.stringify({ success: true, message: "Webhook already configured" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       return new Response(
-        JSON.stringify({ error: "Failed to create webhook", details: createData.errors }),
+        JSON.stringify({ error: "Failed to create webhook", details: createData.errors || createData }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

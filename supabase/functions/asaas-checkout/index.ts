@@ -54,10 +54,11 @@ Deno.serve(async (req) => {
     }
 
     const apiKey = (config.config as Record<string, string>).api_key;
-    const isSandbox = config.is_sandbox;
-    const baseUrl = isSandbox
+    const isProduction = apiKey.startsWith("$aact_prod_");
+    const useSandbox = isProduction ? false : (config.is_sandbox ?? true);
+    const baseUrl = useSandbox
       ? "https://sandbox.asaas.com/api/v3"
-      : "https://api.asaas.com/api/v3";
+      : "https://api.asaas.com/v3";
 
     const headers = {
       "Content-Type": "application/json",
