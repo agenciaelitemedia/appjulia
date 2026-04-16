@@ -26,45 +26,11 @@ Deno.serve(async (req) => {
       ? "https://sandbox.asaas.com/api/v3"
       : "https://api.asaas.com/api/v3";
 
-    console.log("Asaas env:", { isProduction, useSandbox, baseUrl, keyPrefix: api_key.substring(0, 12) });
+    console.log("Asaas env:", { isProduction, useSandbox, baseUrl });
 
-    const getHeaders = { access_token: api_key };
     const postHeaders = { "Content-Type": "application/json", access_token: api_key };
 
-    // Check existing webhooks
-    const listRes = await fetch(`${baseUrl}/webhooks`, { headers: getHeaders });
-    const listText = await listRes.text();
-    console.log("Asaas list webhooks:", listRes.status, listText.substring(0, 500));
-
-    let listData: any = { data: [] };
-    try { listData = JSON.parse(listText); } catch { /* empty */ }
-
-    if (!listRes.ok) {
-      return new Response(
-        JSON.stringify({ error: "Failed to list webhooks", status: listRes.status, details: listData }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const existing = listData.data?.find(
-      (w: { url: string }) => w.url === WEBHOOK_URL
-    );
-
-    if (existing) {
-      if (!existing.enabled) {
-        await fetch(`${baseUrl}/webhooks/${existing.id}`, {
-          method: "PUT",
-          headers: postHeaders,
-          body: JSON.stringify({ enabled: true }),
-        });
-      }
-      return new Response(
-        JSON.stringify({ success: true, message: "Webhook already configured", webhook_id: existing.id }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Create new webhook
+    // Try to create webhook directly
     const createRes = await fetch(`${baseUrl}/webhooks`, {
       method: "POST",
       headers: postHeaders,
@@ -90,7 +56,17 @@ Deno.serve(async (req) => {
     let createData: any = {};
     try { createData = JSON.parse(createText); } catch { /* empty */ }
 
-    if (!createRes.ok || createData.errors) {
+    // If webhook already exists with same URL, treat as success
+    if (!createRes.ok) {
+      const isDuplicate = createData.errors?.some(
+        (e: any) => e.code === "invalid_value" || e.description?.includes("já existe") || e.description?.includes("already")
+      );
+      if (isDuplicate) {
+        return new Response(
+          JSON.stringify({ success: true, message: "Webhook already configured" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       return new Response(
         JSON.stringify({ error: "Failed to create webhook", details: createData.errors || createData }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
