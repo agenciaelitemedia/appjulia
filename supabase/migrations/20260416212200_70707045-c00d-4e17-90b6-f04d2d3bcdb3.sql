@@ -1,0 +1,1 @@
+DELETE FROM julia_orders WHERE customer_document IN ('71361499168','713.614.991-68');
