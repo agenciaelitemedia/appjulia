@@ -36,6 +36,15 @@ export const PaymentSettingsDialog = () => {
     config: { access_token: '', public_key: '', site_url: '' },
   });
 
+  const [asConfig, setAsConfig] = useState<PaymentConfig>({
+    gateway: 'asaas',
+    is_active: false,
+    is_sandbox: true,
+    config: { api_key: '' },
+  });
+
+  const [configuringWebhook, setConfiguringWebhook] = useState(false);
+
   useEffect(() => {
     if (!open) return;
     setLoading(true);
@@ -46,8 +55,10 @@ export const PaymentSettingsDialog = () => {
         if (data) {
           const ip = data.find((c: any) => c.gateway === 'infinitypay');
           const mp = data.find((c: any) => c.gateway === 'mercadopago');
+          const as_ = data.find((c: any) => c.gateway === 'asaas');
           if (ip) setIpConfig({ ...ip, config: (ip.config || {}) as Record<string, string> });
           if (mp) setMpConfig({ ...mp, config: (mp.config || {}) as Record<string, string> });
+          if (as_) setAsConfig({ ...as_, config: (as_.config || {}) as Record<string, string> });
         }
         setLoading(false);
       });
@@ -81,6 +92,28 @@ export const PaymentSettingsDialog = () => {
     try {
       await saveConfig(ipConfig);
       await saveConfig(mpConfig);
+      await saveConfig(asConfig);
+
+      // Auto-configure Asaas webhook if api_key is set
+      if (asConfig.config.api_key) {
+        setConfiguringWebhook(true);
+        try {
+          const { data, error: fnErr } = await supabase.functions.invoke('asaas-configure-webhook', {
+            body: { api_key: asConfig.config.api_key, is_sandbox: asConfig.is_sandbox },
+          });
+          if (fnErr) {
+            console.warn('Webhook config failed:', fnErr);
+            toast.warning('Configurações salvas, mas falha ao registrar webhook no Asaas.');
+          } else {
+            console.log('Asaas webhook configured:', data);
+          }
+        } catch (whErr) {
+          console.warn('Webhook config error:', whErr);
+        } finally {
+          setConfiguringWebhook(false);
+        }
+      }
+
       toast.success('Configurações salvas');
       setOpen(false);
     } catch (err: any) {
