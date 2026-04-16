@@ -3,13 +3,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { cn } from '@/lib/utils';
 import type { ChatContact } from '@/types/chat';
 import { TransferDialog } from './TransferDialog';
+import { CSATDialog } from './CSATDialog';
 
 interface ChatHeaderProps {
   contact: ChatContact;
@@ -37,7 +36,6 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const { selectedConversation, updateConversationStatus, assignConversation } = useWhatsAppData();
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
-  const [closeNote, setCloseNote] = useState('');
 
   const initials = contact.name
     .split(' ')
@@ -56,11 +54,9 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const currentStatus = selectedConversation?.status || 'pending';
   const statusInfo = statusConfig[currentStatus] || statusConfig.pending;
 
-  const handleClose = async () => {
+  const handleConfirmClose = async (closeNote: string, _sendSurvey: boolean) => {
     if (!selectedConversation) return;
     await updateConversationStatus(selectedConversation.id, 'closed', closeNote || undefined);
-    setShowCloseDialog(false);
-    setCloseNote('');
   };
 
   const handleResolve = async () => {
@@ -201,31 +197,18 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         </div>
       </div>
 
-      {/* Close conversation dialog */}
-      <Dialog open={showCloseDialog} onOpenChange={setShowCloseDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Encerrar conversa</DialogTitle>
-            <DialogDescription>
-              Tem certeza que deseja encerrar esta conversa? Adicione uma nota opcional.
-            </DialogDescription>
-          </DialogHeader>
-          <Textarea
-            placeholder="Motivo do encerramento (opcional)..."
-            value={closeNote}
-            onChange={(e) => setCloseNote(e.target.value)}
-            rows={3}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCloseDialog(false)}>
-              Cancelar
-            </Button>
-            <Button variant="destructive" onClick={handleClose}>
-              Encerrar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Close conversation dialog with CSAT survey */}
+      {selectedConversation && (
+        <CSATDialog
+          open={showCloseDialog}
+          onOpenChange={setShowCloseDialog}
+          conversationId={selectedConversation.id}
+          contactId={selectedConversation.contact_id}
+          clientId={selectedConversation.client_id}
+          codAgent={selectedConversation.cod_agent}
+          onConfirm={handleConfirmClose}
+        />
+      )}
 
       {/* Transfer dialog */}
       <TransferDialog

@@ -59,7 +59,12 @@ interface ExtendedContextValue extends ChatContextValue {
   createTag: (name: string, color: string) => Promise<ChatTag | null>;
 
   // Internal notes
-  sendInternalNote: (contactId: string, text: string, senderName: string) => Promise<void>;
+  sendInternalNote: (
+    contactId: string,
+    text: string,
+    senderName: string,
+    options?: { team?: Array<{ id: number | string; name: string }>; byId?: string }
+  ) => Promise<void>;
 
   // Contact detail panel
   showDetailPanel: boolean;
@@ -344,11 +349,17 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // ============================================
   // Internal Notes
   // ============================================
-  const sendInternalNote = useCallback(async (contactId: string, text: string, senderName: string) => {
+  const sendInternalNote = useCallback(async (
+    contactId: string,
+    text: string,
+    senderName: string,
+    options?: { team?: Array<{ id: number | string; name: string }>; byId?: string }
+  ) => {
     if (!clientId) return;
 
+    const noteId = crypto.randomUUID();
     const noteMessage: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: noteId,
       contact_id: contactId,
       client_id: clientId,
       text,
@@ -359,10 +370,14 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       created_at: new Date().toISOString(),
     };
 
+    // Resolve current conversation for this contact (for mention persistence)
+    const conv = conversations.find(c => c.contact_id === contactId && ['pending', 'open'].includes(c.status));
+
     await supabase.from('chat_messages').insert({
-      id: noteMessage.id,
+      id: noteId,
       contact_id: contactId,
       client_id: clientId,
+      conversation_id: conv?.id || null,
       text,
       type: 'text',
       from_me: true,
@@ -372,17 +387,34 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       timestamp: noteMessage.timestamp,
     });
 
+    // Persist @mentions if team list provided and we have a conversation
+    if (conv && options?.team && options.team.length > 0) {
+      try {
+        const { persistMentionsFromNote } = await import('@/lib/chat/mentions');
+        await persistMentionsFromNote({
+          conversation_id: conv.id,
+          message_id: noteId,
+          text,
+          team: options.team,
+          by_id: options.byId,
+          by_name: senderName,
+        });
+      } catch (e) {
+        console.warn('[mentions] persist failed', e);
+      }
+    }
+
     const noteWithMeta = {
       ...noteMessage,
       metadata: { ...noteMessage.metadata, internal_note: true, sender_name: senderName },
     };
 
-    knownMessageIds.current.add(noteMessage.id);
+    knownMessageIds.current.add(noteId);
     setMessages(prev => ({
       ...prev,
       [contactId]: [...(prev[contactId] || []), noteWithMeta],
     }));
-  }, [clientId]);
+  }, [clientId, conversations]);
 
   // ============================================
   // Load Messages from Supabase
