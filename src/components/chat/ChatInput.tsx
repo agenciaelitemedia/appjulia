@@ -38,6 +38,8 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
   const [showQuickMessages, setShowQuickMessages] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [showScheduledList, setShowScheduledList] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [showFormatBar, setShowFormatBar] = useState(false);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
