@@ -12,13 +12,15 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { order_id } = await req.json();
+    const { order_id, billing_type } = await req.json();
     if (!order_id) {
       return new Response(JSON.stringify({ error: "order_id required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const selectedBillingType = billing_type === "PIX" ? "PIX" : "CREDIT_CARD";
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -106,38 +108,46 @@ Deno.serve(async (req) => {
       customerId = createData.id;
     }
 
-    // Calculate value with fee markup for installments
-    // Asaas credit card fee: ~2.99% + R$0.49 per transaction
-    // For installments, additional ~2.49% per installment after the first
     const originalValue = order.plan_price / 100; // cents to BRL
-    const maxInstallments = 12;
-
-    // Markup formula: value / (1 - fee_rate)
-    // Base fee: 3.49%, installment fee: 2.49% per additional installment
-    const baseFeeRate = 0.0349;
-    const installmentFeeRate = 0.0249;
-    const totalFeeRate = baseFeeRate + installmentFeeRate * (maxInstallments - 1);
-    const valueWithMarkup = parseFloat(
-      (originalValue / (1 - totalFeeRate)).toFixed(2)
-    );
-    const installmentValue = parseFloat(
-      (valueWithMarkup / maxInstallments).toFixed(2)
-    );
-
-    // Create payment
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 1);
 
-    const paymentBody: Record<string, unknown> = {
-      customer: customerId,
-      billingType: "CREDIT_CARD",
-      value: valueWithMarkup,
-      dueDate: dueDate.toISOString().split("T")[0],
-      description: `Plano ${order.plan_name} - AtendeJulIA`,
-      externalReference: order_id,
-      installmentCount: maxInstallments,
-      installmentValue,
-    };
+    let paymentBody: Record<string, unknown>;
+
+    if (selectedBillingType === "CREDIT_CARD") {
+      // Credit card with installments and fee markup
+      const maxInstallments = 12;
+      const baseFeeRate = 0.0349;
+      const installmentFeeRate = 0.0249;
+      const totalFeeRate = baseFeeRate + installmentFeeRate * (maxInstallments - 1);
+      const valueWithMarkup = parseFloat(
+        (originalValue / (1 - totalFeeRate)).toFixed(2)
+      );
+      const installmentValue = parseFloat(
+        (valueWithMarkup / maxInstallments).toFixed(2)
+      );
+
+      paymentBody = {
+        customer: customerId,
+        billingType: "CREDIT_CARD",
+        value: valueWithMarkup,
+        dueDate: dueDate.toISOString().split("T")[0],
+        description: `Plano ${order.plan_name} - AtendeJulIA`,
+        externalReference: order_id,
+        installmentCount: maxInstallments,
+        installmentValue,
+      };
+    } else {
+      // PIX - no markup, no installments
+      paymentBody = {
+        customer: customerId,
+        billingType: "PIX",
+        value: originalValue,
+        dueDate: dueDate.toISOString().split("T")[0],
+        description: `Plano ${order.plan_name} - AtendeJulIA`,
+        externalReference: order_id,
+      };
+    }
 
     const paymentRes = await fetch(`${baseUrl}/payments`, {
       method: "POST",
