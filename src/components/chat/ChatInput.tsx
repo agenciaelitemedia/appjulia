@@ -291,21 +291,31 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
             }}
           />
 
-          {/* Text input */}
-          <Textarea
-            ref={textareaRef}
-            value={text}
-            onChange={handleTextChange}
-            onKeyDown={handleKeyDown}
-            placeholder={noteMode ? 'Digite uma nota interna...' : 'Digite uma mensagem... (/ para atalhos)'}
-            className={cn(
-              'flex-1 min-h-[36px] max-h-[150px] py-2 resize-none',
-              'scrollbar-thin scrollbar-thumb-muted',
-              noteMode && 'border-blue-500/30 focus-visible:ring-blue-500'
+          {/* Text input + mention autocomplete (note mode) */}
+          <div className="flex-1 relative">
+            {noteMode && (
+              <MentionAutocomplete
+                text={text}
+                textareaRef={textareaRef}
+                team={team}
+                onPick={handleMentionPick}
+              />
             )}
-            rows={1}
-            disabled={isSending}
-          />
+            <Textarea
+              ref={textareaRef}
+              value={text}
+              onChange={handleTextChange}
+              onKeyDown={handleKeyDown}
+              placeholder={noteMode ? 'Digite uma nota interna... (use @ para mencionar)' : 'Digite uma mensagem... (/ para atalhos)'}
+              className={cn(
+                'w-full min-h-[36px] max-h-[150px] py-2 resize-none',
+                'scrollbar-thin scrollbar-thumb-muted',
+                noteMode && 'border-blue-500/30 focus-visible:ring-blue-500'
+              )}
+              rows={1}
+              disabled={isSending}
+            />
+          </div>
 
           {/* Send or record button */}
           {text.trim() ? (
