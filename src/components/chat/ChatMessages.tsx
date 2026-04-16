@@ -150,6 +150,31 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
     return groups;
   }, [timeline]);
 
+  // Reactions
+  const visibleMessageIds = useMemo(
+    () => contactMessages.map((m: any) => m.id).filter(Boolean),
+    [contactMessages]
+  );
+  const { reactionsByMsg } = useMessageReactions(visibleMessageIds);
+  const contact = contacts.find((c: any) => c.id === contactId);
+
+  const handleReact = useCallback(async (msg: ChatMessage, emoji: string) => {
+    if (!selectedQueue || !contact) { toast.error('Selecione uma fila para reagir'); return; }
+    try {
+      await sendReaction({
+        message_id: msg.id,
+        external_message_id: msg.message_id,
+        emoji,
+        queue_id: selectedQueue.id,
+        contact_phone: contact.phone,
+        reactor: String(user?.id || 'me'),
+        from_me: true,
+      });
+    } catch (e) { console.error(e); toast.error('Erro ao reagir'); }
+  }, [selectedQueue, contact, user?.id]);
+
+  const handleForward = useCallback((msg: ChatMessage) => setForwardMessage(msg), []);
+
   const formatDateHeader = (dateKey: string) => {
     const date = new Date(dateKey);
     const today = new Date();
