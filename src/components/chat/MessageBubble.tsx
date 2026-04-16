@@ -1,14 +1,19 @@
 import React, { useState, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { Check, CheckCheck, Clock, AlertCircle, Download, Play, Pause, Loader2, FileText, MapPin, User, StickyNote as StickyNoteIcon } from 'lucide-react';
+import { Check, CheckCheck, Clock, AlertCircle, Download, Play, Pause, Loader2, FileText, MapPin, User, StickyNote as StickyNoteIcon, Forward } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { QuotedMessage } from './QuotedMessage';
+import { ReactionPicker } from './ReactionPicker';
 import { format } from 'date-fns';
 import type { ChatMessage, MessageStatus, MessageType } from '@/types/chat';
+import type { MessageReaction } from '@/hooks/useMessageReactions';
 
 interface MessageBubbleProps {
   message: ChatMessage;
+  reactions?: MessageReaction[];
   onDownloadMedia?: (messageId: string) => Promise<string | undefined>;
+  onReact?: (message: ChatMessage, emoji: string) => void;
+  onForward?: (message: ChatMessage) => void;
 }
 
 // WhatsApp text formatting - fixed regex bug (no global flag in test)
