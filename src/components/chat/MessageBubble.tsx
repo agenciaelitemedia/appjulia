@@ -324,7 +324,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
 }
 
 export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
-  function MessageBubble({ message, onDownloadMedia }, ref) {
+  function MessageBubble({ message, reactions, onDownloadMedia, onReact, onForward }, ref) {
     const isMedia = ['image', 'video', 'audio', 'ptt', 'document', 'sticker', 'location', 'contact'].includes(message.type);
     const hasQuote = message.metadata?.quoted_message;
     const isInternalNote = !!(message.metadata as any)?.internal_note;
@@ -372,59 +372,126 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
       );
     }
 
+    // Aggregate reactions by emoji
+    const grouped: Record<string, MessageReaction[]> = {};
+    (reactions || []).forEach((r) => {
+      if (!grouped[r.emoji]) grouped[r.emoji] = [];
+      grouped[r.emoji].push(r);
+    });
+
     return (
       <div
         ref={ref}
         className={cn(
-          'flex',
+          'flex group',
           message.from_me ? 'justify-end' : 'justify-start'
         )}
       >
-        <div
-          className={cn(
-            'max-w-[75%] rounded-lg px-3 py-2',
-            message.from_me
-              ? 'bg-primary text-primary-foreground rounded-br-none'
-              : 'bg-muted rounded-bl-none'
-          )}
-        >
-          {/* Sender name (groups) */}
-          {!message.from_me && message.metadata?.sender_name && (
-            <p className="text-xs font-medium text-primary mb-1">
-              {message.metadata.sender_name}
-            </p>
-          )}
-
-          {/* Quoted message */}
-          {hasQuote && (
-            <QuotedMessage quoted={message.metadata!.quoted_message!} />
-          )}
-
-          {/* Media content */}
-          {isMedia && (
-            <MediaContent 
-              message={message} 
-              onDownload={onDownloadMedia ? () => onDownloadMedia(message.message_id || '') : undefined}
-            />
+        <div className="flex items-end gap-1 max-w-[75%]">
+          {/* Action buttons (forward + react) — left of bubble for incoming, right for outgoing */}
+          {message.from_me && (
+            <div className="flex flex-col gap-0.5 items-center">
+              {onReact && <ReactionPicker onSelect={(emoji) => onReact(message, emoji)} side="top" align="end" />}
+              {onForward && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => onForward(message)}
+                  aria-label="Encaminhar"
+                >
+                  <Forward className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
           )}
 
-          {/* Text content */}
-          {message.text && message.type === 'text' && (
-            <p className="text-sm whitespace-pre-wrap break-words">
-              {formatWhatsAppText(message.text)}
-            </p>
-          )}
+          <div className="flex flex-col items-stretch min-w-0">
+            <div
+              className={cn(
+                'rounded-lg px-3 py-2',
+                message.from_me
+                  ? 'bg-primary text-primary-foreground rounded-br-none'
+                  : 'bg-muted rounded-bl-none'
+              )}
+            >
+              {/* Sender name (groups) */}
+              {!message.from_me && message.metadata?.sender_name && (
+                <p className="text-xs font-medium text-primary mb-1">
+                  {message.metadata.sender_name}
+                </p>
+              )}
 
-          {/* Timestamp and status */}
-          <div className={cn(
-            'flex items-center justify-end gap-1 mt-1',
-            message.from_me ? 'text-primary-foreground/70' : 'text-muted-foreground'
-          )}>
-            <span className="text-[10px]">
-              {format(new Date(message.timestamp), 'HH:mm')}
-            </span>
-            {message.from_me && <StatusIcon status={message.status} />}
+              {/* Quoted message */}
+              {hasQuote && (
+                <QuotedMessage quoted={message.metadata!.quoted_message!} />
+              )}
+
+              {/* Media content */}
+              {isMedia && (
+                <MediaContent
+                  message={message}
+                  onDownload={onDownloadMedia ? () => onDownloadMedia(message.message_id || '') : undefined}
+                />
+              )}
+
+              {/* Text content */}
+              {message.text && message.type === 'text' && (
+                <p className="text-sm whitespace-pre-wrap break-words">
+                  {formatWhatsAppText(message.text)}
+                </p>
+              )}
+
+              {/* Timestamp and status */}
+              <div className={cn(
+                'flex items-center justify-end gap-1 mt-1',
+                message.from_me ? 'text-primary-foreground/70' : 'text-muted-foreground'
+              )}>
+                <span className="text-[10px]">
+                  {format(new Date(message.timestamp), 'HH:mm')}
+                </span>
+                {message.from_me && <StatusIcon status={message.status} />}
+              </div>
+            </div>
+
+            {/* Reaction badges */}
+            {Object.keys(grouped).length > 0 && (
+              <div className={cn(
+                'flex gap-1 mt-1 flex-wrap',
+                message.from_me ? 'justify-end' : 'justify-start'
+              )}>
+                {Object.entries(grouped).map(([emoji, list]) => (
+                  <div
+                    key={emoji}
+                    className="bg-background border rounded-full px-1.5 py-0.5 text-xs shadow-sm flex items-center gap-1"
+                    title={list.map((r) => r.reactor).join(', ')}
+                  >
+                    <span>{emoji}</span>
+                    {list.length > 1 && (
+                      <span className="text-muted-foreground text-[10px]">{list.length}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+
+          {!message.from_me && (
+            <div className="flex flex-col gap-0.5 items-center">
+              {onReact && <ReactionPicker onSelect={(emoji) => onReact(message, emoji)} side="top" align="start" />}
+              {onForward && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => onForward(message)}
+                  aria-label="Encaminhar"
+                >
+                  <Forward className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
