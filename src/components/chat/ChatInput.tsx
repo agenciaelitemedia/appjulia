@@ -228,7 +228,20 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
         </div>
       )}
 
-      <div className="p-3">
+      {/* Format toolbar (above input) */}
+      {showFormatBar && !noteMode && (
+        <FormatToolbar
+          onFormat={handleFormat}
+          showPreview={showPreview}
+          onTogglePreview={() => setShowPreview((v) => !v)}
+          disabled={isSending}
+        />
+      )}
+
+      {/* Live preview */}
+      {showPreview && !noteMode && showFormatBar && (
+        <MessagePreview text={text} />
+      )}
         <div className="flex items-end gap-2">
           {/* Emoji picker */}
           <Popover>
