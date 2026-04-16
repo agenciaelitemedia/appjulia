@@ -147,7 +147,37 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
     target.style.height = Math.min(target.scrollHeight, 150) + 'px';
   };
 
-  const handleQuickMessageSelect = (messageText: string) => {
+  const handleFormat = (token: FormatToken) => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart ?? text.length;
+    const end = ta.selectionEnd ?? text.length;
+    const result = applyFormat(text, start, end, token);
+    setText(result.text);
+    setTimeout(() => {
+      ta.focus();
+      ta.setSelectionRange(result.selStart, result.selEnd);
+    }, 0);
+  };
+
+  const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (noteMode) return;
+    const items = Array.from(e.clipboardData?.items || []);
+    const fileItem = items.find((it) => it.kind === 'file' && it.type.startsWith('image/'));
+    if (!fileItem) return;
+    const blob = fileItem.getAsFile();
+    if (!blob) return;
+    e.preventDefault();
+    const ext = blob.type.split('/')[1] || 'png';
+    const file = new File([blob], `pasted_${Date.now()}.${ext}`, { type: blob.type });
+    setIsSending(true);
+    try {
+      await sendMedia(contactId, file, 'image', text.trim() || undefined);
+      setText('');
+    } finally {
+      setIsSending(false);
+    }
+  }, [contactId, noteMode, sendMedia, text]);
     setText(messageText);
     setShowQuickMessages(false);
     textareaRef.current?.focus();
