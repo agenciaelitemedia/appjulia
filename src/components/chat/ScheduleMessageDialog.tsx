@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label';
 import { Calendar, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { toast } from 'sonner';
 
 interface ScheduleMessageDialogProps {
@@ -18,6 +17,7 @@ interface ScheduleMessageDialogProps {
   codAgent?: string | null;
   conversationId?: string | null;
   initialText?: string;
+  onScheduled?: () => void;
 }
 
 function defaultDateTime(): string {
@@ -36,9 +36,9 @@ export function ScheduleMessageDialog({
   codAgent,
   conversationId,
   initialText = '',
+  onScheduled,
 }: ScheduleMessageDialogProps) {
   const { user } = useAuth();
-  const { refreshScheduled } = useWhatsAppData();
   const [text, setText] = useState(initialText);
   const [when, setWhen] = useState<string>(defaultDateTime());
   const [saving, setSaving] = useState(false);
@@ -69,7 +69,7 @@ export function ScheduleMessageDialog({
       toast.success(`Agendada para ${dt.toLocaleString('pt-BR')}`);
       setText('');
       onOpenChange(false);
-      refreshScheduled?.(contactId);
+      onScheduled?.();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Erro ao agendar';
       toast.error(msg);
