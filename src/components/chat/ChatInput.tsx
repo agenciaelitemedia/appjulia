@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap, Calendar } from 'lucide-react';
+import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap, Calendar, Type } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -13,6 +13,9 @@ import { AudioRecorder } from './AudioRecorder';
 import { MentionAutocomplete } from './MentionAutocomplete';
 import { ScheduleMessageDialog } from './ScheduleMessageDialog';
 import { ScheduledMessagesList } from './ScheduledMessagesList';
+import { FormatToolbar } from './FormatToolbar';
+import { MessagePreview } from './MessagePreview';
+import { applyFormat, type FormatToken } from '@/lib/whatsappFormat';
 import { externalDb } from '@/lib/externalDb';
 
 interface ChatInputProps {
@@ -35,6 +38,8 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
   const [showQuickMessages, setShowQuickMessages] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [showScheduledList, setShowScheduledList] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [showFormatBar, setShowFormatBar] = useState(false);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -142,6 +147,38 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
     target.style.height = Math.min(target.scrollHeight, 150) + 'px';
   };
 
+  const handleFormat = (token: FormatToken) => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart ?? text.length;
+    const end = ta.selectionEnd ?? text.length;
+    const result = applyFormat(text, start, end, token);
+    setText(result.text);
+    setTimeout(() => {
+      ta.focus();
+      ta.setSelectionRange(result.selStart, result.selEnd);
+    }, 0);
+  };
+
+  const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (noteMode) return;
+    const items = Array.from(e.clipboardData?.items || []);
+    const fileItem = items.find((it) => it.kind === 'file' && it.type.startsWith('image/'));
+    if (!fileItem) return;
+    const blob = fileItem.getAsFile();
+    if (!blob) return;
+    e.preventDefault();
+    const ext = blob.type.split('/')[1] || 'png';
+    const file = new File([blob], `pasted_${Date.now()}.${ext}`, { type: blob.type });
+    setIsSending(true);
+    try {
+      await sendMedia(contactId, file, 'image', text.trim() || undefined);
+      setText('');
+    } finally {
+      setIsSending(false);
+    }
+  }, [contactId, noteMode, sendMedia, text]);
+
   const handleQuickMessageSelect = (messageText: string) => {
     setText(messageText);
     setShowQuickMessages(false);
@@ -189,6 +226,21 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
             <X className="h-4 w-4" />
           </Button>
         </div>
+      )}
+
+      {/* Format toolbar (above input) */}
+      {showFormatBar && !noteMode && (
+        <FormatToolbar
+          onFormat={handleFormat}
+          showPreview={showPreview}
+          onTogglePreview={() => setShowPreview((v) => !v)}
+          disabled={isSending}
+        />
+      )}
+
+      {/* Live preview */}
+      {showPreview && !noteMode && showFormatBar && (
+        <MessagePreview text={text} />
       )}
 
       <div className="p-3">
@@ -280,6 +332,22 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
             </Button>
           )}
 
+          {/* Format toggle */}
+          {!noteMode && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                'h-9 w-9 flex-shrink-0',
+                showFormatBar && 'bg-accent text-accent-foreground'
+              )}
+              onClick={() => setShowFormatBar((v) => !v)}
+              title="Formatação WhatsApp"
+            >
+              <Type className="h-5 w-5 text-muted-foreground" />
+            </Button>
+          )}
+
           {/* Note toggle */}
           <Button
             variant="ghost"
@@ -323,7 +391,8 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
               value={text}
               onChange={handleTextChange}
               onKeyDown={handleKeyDown}
-              placeholder={noteMode ? 'Digite uma nota interna... (use @ para mencionar)' : 'Digite uma mensagem... (/ para atalhos)'}
+              onPaste={handlePaste}
+              placeholder={noteMode ? 'Digite uma nota interna... (use @ para mencionar)' : 'Digite uma mensagem... (/ atalhos, cole imagem)'}
               className={cn(
                 'w-full min-h-[36px] max-h-[150px] py-2 resize-none',
                 'scrollbar-thin scrollbar-thumb-muted',
