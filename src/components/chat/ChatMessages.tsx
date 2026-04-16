@@ -223,7 +223,15 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
                   if (item.kind === 'event') {
                     return <ConversationEvent key={`evt-${item.data.id}`} entry={item.data} />;
                   }
-                  return <MessageBubble key={item.data.id} message={item.data} />;
+                  return (
+                    <MessageBubble
+                      key={item.data.id}
+                      message={item.data}
+                      reactions={reactionsByMsg[item.data.id]}
+                      onReact={handleReact}
+                      onForward={handleForward}
+                    />
+                  );
                 })}
               </div>
             </div>
