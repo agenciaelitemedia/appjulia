@@ -25,3 +25,5 @@ export { ChatSearchDialog } from './ChatSearchDialog';
 export { PresenceIndicator } from './PresenceIndicator';
 export { SnoozeDialog } from './SnoozeDialog';
 export { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
+export { FormatToolbar } from './FormatToolbar';
+export { MessagePreview } from './MessagePreview';
