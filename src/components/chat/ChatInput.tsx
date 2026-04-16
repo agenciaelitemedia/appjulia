@@ -364,6 +364,25 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
           )}
         </div>
       </div>
+
+      {/* Schedule message dialog */}
+      <ScheduleMessageDialog
+        open={showSchedule}
+        onOpenChange={setShowSchedule}
+        contactId={contactId}
+        clientId={selectedContact?.client_id || ''}
+        codAgent={selectedContact?.cod_agent || null}
+        conversationId={selectedConversation?.id || null}
+        initialText={text}
+        onScheduled={() => setShowScheduledList(true)}
+      />
+
+      {/* Scheduled messages list */}
+      <ScheduledMessagesList
+        open={showScheduledList}
+        onOpenChange={setShowScheduledList}
+        contactId={contactId}
+      />
     </div>
   );
 }
