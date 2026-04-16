@@ -252,6 +252,21 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         onOpenChange={setShowTransferDialog}
         onTransfer={handleTransfer}
       />
+
+      {/* Conversation search */}
+      <ChatSearchDialog
+        open={showSearch}
+        onOpenChange={setShowSearch}
+        contactId={contact.id}
+        clientId={contact.client_id}
+      />
+
+      {/* Scheduled messages list */}
+      <ScheduledMessagesList
+        open={showScheduledList}
+        onOpenChange={setShowScheduledList}
+        contactId={contact.id}
+      />
     </>
   );
 }

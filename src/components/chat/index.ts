@@ -19,3 +19,7 @@ export { ForwardDialog } from './ForwardDialog';
 export { ConversationParticipants } from './ConversationParticipants';
 export { CSATDialog } from './CSATDialog';
 export { MentionAutocomplete } from './MentionAutocomplete';
+export { ScheduleMessageDialog } from './ScheduleMessageDialog';
+export { ScheduledMessagesList } from './ScheduledMessagesList';
+export { ChatSearchDialog } from './ChatSearchDialog';
+export { PresenceIndicator } from './PresenceIndicator';
