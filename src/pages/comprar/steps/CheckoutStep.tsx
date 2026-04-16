@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, CreditCard, Loader2, ShieldCheck, ExternalLink, CheckCircle2, QrCode } from 'lucide-react';
+import { ArrowLeft, CreditCard, Loader2, ShieldCheck, ExternalLink, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import type { OrderData } from '../ComprarPage';
 
