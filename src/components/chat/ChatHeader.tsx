@@ -119,10 +119,33 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
             {selectedConversation && (
               <ChannelBadge channel={selectedConversation.channel} />
             )}
+            <PresenceIndicator users={presenceUsers} meId={user?.id ? String(user.id) : null} />
           </div>
         </div>
         
         <div className="flex items-center gap-1">
+          {/* Search inside conversation */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setShowSearch(true)}
+            title="Buscar nesta conversa"
+          >
+            <Search className="h-4 w-4" />
+          </Button>
+
+          {/* Scheduled messages */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setShowScheduledList(true)}
+            title="Mensagens agendadas"
+          >
+            <Calendar className="h-4 w-4" />
+          </Button>
+
           {/* Quick action buttons for conversation */}
           {selectedConversation && ['pending', 'open'].includes(currentStatus) && (
             <>
