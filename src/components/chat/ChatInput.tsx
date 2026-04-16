@@ -267,6 +267,19 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
             </PopoverContent>
           </Popover>
 
+          {/* Schedule */}
+          {!noteMode && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 flex-shrink-0"
+              onClick={() => setShowSchedule(true)}
+              title="Agendar mensagem"
+            >
+              <Calendar className="h-5 w-5 text-muted-foreground" />
+            </Button>
+          )}
+
           {/* Note toggle */}
           <Button
             variant="ghost"
