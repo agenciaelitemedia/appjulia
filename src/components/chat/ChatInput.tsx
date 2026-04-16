@@ -375,7 +375,8 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
               value={text}
               onChange={handleTextChange}
               onKeyDown={handleKeyDown}
-              placeholder={noteMode ? 'Digite uma nota interna... (use @ para mencionar)' : 'Digite uma mensagem... (/ para atalhos)'}
+              onPaste={handlePaste}
+              placeholder={noteMode ? 'Digite uma nota interna... (use @ para mencionar)' : 'Digite uma mensagem... (/ atalhos, cole imagem)'}
               className={cn(
                 'w-full min-h-[36px] max-h-[150px] py-2 resize-none',
                 'scrollbar-thin scrollbar-thumb-muted',
