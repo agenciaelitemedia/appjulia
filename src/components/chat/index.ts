@@ -17,4 +17,5 @@ export { WebChatWidgetPreview } from './WebChatWidgetPreview';
 export { ReactionPicker } from './ReactionPicker';
 export { ForwardDialog } from './ForwardDialog';
 export { ConversationParticipants } from './ConversationParticipants';
+export { CSATDialog } from './CSATDialog';
 export { MentionAutocomplete } from './MentionAutocomplete';
