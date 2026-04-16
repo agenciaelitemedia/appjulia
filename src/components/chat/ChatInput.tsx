@@ -178,6 +178,8 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
       setIsSending(false);
     }
   }, [contactId, noteMode, sendMedia, text]);
+
+  const handleQuickMessageSelect = (messageText: string) => {
     setText(messageText);
     setShowQuickMessages(false);
     textareaRef.current?.focus();
