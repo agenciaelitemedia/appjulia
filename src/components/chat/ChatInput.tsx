@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -10,12 +10,16 @@ import { cn } from '@/lib/utils';
 import type { MessageType } from '@/types/chat';
 import { QuickMessagePicker } from './QuickMessagePicker';
 import { AudioRecorder } from './AudioRecorder';
+import { MentionAutocomplete } from './MentionAutocomplete';
+import { externalDb } from '@/lib/externalDb';
 
 interface ChatInputProps {
   contactId: string;
   replyToId?: string;
   onCancelReply?: () => void;
 }
+
+interface TeamMember { id: number | string; name: string }
 
 const QUICK_EMOJIS = ['😀', '😂', '❤️', '👍', '🙏', '🎉', '🔥', '💯', '😊', '😍', '🤔', '👏'];
 
@@ -27,8 +31,33 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
   const [isRecording, setIsRecording] = useState(false);
   const [noteMode, setNoteMode] = useState(false);
   const [showQuickMessages, setShowQuickMessages] = useState(false);
+  const [team, setTeam] = useState<TeamMember[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load team members for @mention autocomplete when entering note mode
+  useEffect(() => {
+    if (!noteMode || team.length > 0 || !user?.id) return;
+    externalDb.getTeamMembers<TeamMember>(Number(user.id), user.role === 'admin')
+      .then((m) => setTeam(m || []))
+      .catch(() => setTeam([]));
+  }, [noteMode, team.length, user?.id, user?.role]);
+
+  const handleMentionPick = (member: TeamMember) => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const cursor = ta.selectionStart ?? text.length;
+    const before = text.slice(0, cursor);
+    const after = text.slice(cursor);
+    const replaced = before.replace(/@([\p{L}\p{N}_]*)$/u, `@${member.name} `);
+    const newText = replaced + after;
+    setText(newText);
+    setTimeout(() => {
+      ta.focus();
+      const pos = replaced.length;
+      ta.setSelectionRange(pos, pos);
+    }, 0);
+  };
 
   const handleSend = async () => {
     if (!text.trim() || isSending) return;
@@ -39,7 +68,12 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
 
     try {
       if (noteMode) {
-        await sendInternalNote(contactId, messageText, user?.name || 'Atendente');
+        await sendInternalNote(
+          contactId,
+          messageText,
+          user?.name || 'Atendente',
+          { team, byId: user?.id ? String(user.id) : undefined }
+        );
       } else {
         await sendMessage(contactId, messageText, replyToId);
         onCancelReply?.();
