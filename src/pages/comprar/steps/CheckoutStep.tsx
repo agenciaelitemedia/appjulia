@@ -67,7 +67,8 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
   };
 
   const isMercadoPago = orderData.payment_gateway === 'mercadopago';
-  const gatewayLabel = isMercadoPago ? 'Mercado Pago' : 'InfinityPay';
+  const isAsaas = orderData.payment_gateway === 'asaas';
+  const gatewayLabel = isMercadoPago ? 'Mercado Pago' : isAsaas ? 'Asaas' : 'InfinityPay';
 
   const handlePay = async () => {
     if (!orderData.id) {
@@ -91,7 +92,7 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
         })
         .eq('id', orderData.id);
 
-      const functionName = isMercadoPago ? 'mercadopago-checkout' : 'infinitypay-checkout';
+      const functionName = isMercadoPago ? 'mercadopago-checkout' : isAsaas ? 'asaas-checkout' : 'infinitypay-checkout';
 
       const { data, error: fnError } = await supabase.functions.invoke(functionName, {
         body: { order_id: orderData.id },

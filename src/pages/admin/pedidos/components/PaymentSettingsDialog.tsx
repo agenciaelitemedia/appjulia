@@ -36,6 +36,15 @@ export const PaymentSettingsDialog = () => {
     config: { access_token: '', public_key: '', site_url: '' },
   });
 
+  const [asConfig, setAsConfig] = useState<PaymentConfig>({
+    gateway: 'asaas',
+    is_active: false,
+    is_sandbox: true,
+    config: { api_key: '' },
+  });
+
+  const [configuringWebhook, setConfiguringWebhook] = useState(false);
+
   useEffect(() => {
     if (!open) return;
     setLoading(true);
@@ -46,8 +55,10 @@ export const PaymentSettingsDialog = () => {
         if (data) {
           const ip = data.find((c: any) => c.gateway === 'infinitypay');
           const mp = data.find((c: any) => c.gateway === 'mercadopago');
+          const as_ = data.find((c: any) => c.gateway === 'asaas');
           if (ip) setIpConfig({ ...ip, config: (ip.config || {}) as Record<string, string> });
           if (mp) setMpConfig({ ...mp, config: (mp.config || {}) as Record<string, string> });
+          if (as_) setAsConfig({ ...as_, config: (as_.config || {}) as Record<string, string> });
         }
         setLoading(false);
       });
@@ -81,6 +92,28 @@ export const PaymentSettingsDialog = () => {
     try {
       await saveConfig(ipConfig);
       await saveConfig(mpConfig);
+      await saveConfig(asConfig);
+
+      // Auto-configure Asaas webhook if api_key is set
+      if (asConfig.config.api_key) {
+        setConfiguringWebhook(true);
+        try {
+          const { data, error: fnErr } = await supabase.functions.invoke('asaas-configure-webhook', {
+            body: { api_key: asConfig.config.api_key, is_sandbox: asConfig.is_sandbox },
+          });
+          if (fnErr) {
+            console.warn('Webhook config failed:', fnErr);
+            toast.warning('Configurações salvas, mas falha ao registrar webhook no Asaas.');
+          } else {
+            console.log('Asaas webhook configured:', data);
+          }
+        } catch (whErr) {
+          console.warn('Webhook config error:', whErr);
+        } finally {
+          setConfiguringWebhook(false);
+        }
+      }
+
       toast.success('Configurações salvas');
       setOpen(false);
     } catch (err: any) {
@@ -212,9 +245,60 @@ export const PaymentSettingsDialog = () => {
                 </div>
               </div>
 
-              <Button onClick={handleSave} disabled={saving} className="w-full">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                Salvar Configurações
+              {/* Asaas */}
+              <div className="rounded-lg border p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-sm">Asaas</h3>
+                    <p className="text-xs text-muted-foreground">Cartão de crédito com parcelamento até 12x</p>
+                  </div>
+                  <Switch
+                    checked={asConfig.is_active}
+                    onCheckedChange={(v) => setAsConfig(prev => ({ ...prev, is_active: v }))}
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={asConfig.is_sandbox}
+                    onCheckedChange={(v) => setAsConfig(prev => ({ ...prev, is_sandbox: v }))}
+                  />
+                  <Label className="text-xs">Modo Sandbox (testes)</Label>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs">API Key</Label>
+                  <Input
+                    type="password"
+                    value={asConfig.config.api_key || ''}
+                    onChange={(e) => setAsConfig(prev => ({
+                      ...prev,
+                      config: { ...prev.config, api_key: e.target.value },
+                    }))}
+                    placeholder="$aact_..."
+                    className="text-sm font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Encontre em: Asaas → Configurações → Integrações → API Key
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs">Webhook URL (automático)</Label>
+                  <Input
+                    value="https://zenizgyrwlonmufxnjqt.supabase.co/functions/v1/asaas-webhook"
+                    readOnly
+                    className="text-sm font-mono bg-muted cursor-default"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    O webhook é configurado automaticamente ao salvar.
+                  </p>
+                </div>
+              </div>
+
+              <Button onClick={handleSave} disabled={saving || configuringWebhook} className="w-full">
+                {(saving || configuringWebhook) ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                {configuringWebhook ? 'Configurando webhook...' : 'Salvar Configurações'}
               </Button>
             </TabsContent>
           </Tabs>
