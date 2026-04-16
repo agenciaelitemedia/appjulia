@@ -23,3 +23,5 @@ export { ScheduleMessageDialog } from './ScheduleMessageDialog';
 export { ScheduledMessagesList } from './ScheduledMessagesList';
 export { ChatSearchDialog } from './ChatSearchDialog';
 export { PresenceIndicator } from './PresenceIndicator';
+export { SnoozeDialog } from './SnoozeDialog';
+export { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';

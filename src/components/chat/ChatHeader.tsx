@@ -314,6 +314,16 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         onOpenChange={setShowScheduledList}
         contactId={contact.id}
       />
+
+      {/* Snooze dialog */}
+      <SnoozeDialog
+        open={showSnooze}
+        onOpenChange={setShowSnooze}
+        conversationId={selectedConversation?.id || null}
+      />
+
+      {/* Keyboard shortcuts help */}
+      <KeyboardShortcutsHelp open={showHelp} onOpenChange={setShowHelp} />
     </>
   );
 }
