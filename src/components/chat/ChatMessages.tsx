@@ -3,10 +3,15 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Loader2, ChevronDown } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { MessageBubble } from './MessageBubble';
 import { ConversationEvent } from './ConversationEvent';
+import { ForwardDialog } from './ForwardDialog';
+import { useMessageReactions, sendReaction } from '@/hooks/useMessageReactions';
 import { format, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { toast } from 'sonner';
+import type { ChatMessage } from '@/types/chat';
 import type { ConversationHistoryEntry } from '@/types/conversation';
 
 interface ChatMessagesProps {
@@ -18,12 +23,17 @@ type TimelineItem =
   | { kind: 'event'; data: ConversationHistoryEntry; ts: number };
 
 export function ChatMessages({ contactId }: ChatMessagesProps) {
-  const { messages, loadMessages, markAsRead, conversationHistory, loadConversationHistory, selectedConversation } = useWhatsAppData();
+  const ctx: any = useWhatsAppData();
+  const { messages, loadMessages, markAsRead, conversationHistory, loadConversationHistory, selectedConversation } = ctx;
+  const selectedQueue = ctx.selectedQueue;
+  const contacts = ctx.contacts;
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
-  
+  const [forwardMessage, setForwardMessage] = useState<ChatMessage | null>(null);
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
@@ -140,6 +150,31 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
     return groups;
   }, [timeline]);
 
+  // Reactions
+  const visibleMessageIds = useMemo(
+    () => contactMessages.map((m: any) => m.id).filter(Boolean),
+    [contactMessages]
+  );
+  const { reactionsByMsg } = useMessageReactions(visibleMessageIds);
+  const contact = contacts.find((c: any) => c.id === contactId);
+
+  const handleReact = useCallback(async (msg: ChatMessage, emoji: string) => {
+    if (!selectedQueue || !contact) { toast.error('Selecione uma fila para reagir'); return; }
+    try {
+      await sendReaction({
+        message_id: msg.id,
+        external_message_id: msg.message_id,
+        emoji,
+        queue_id: selectedQueue.id,
+        contact_phone: contact.phone,
+        reactor: String(user?.id || 'me'),
+        from_me: true,
+      });
+    } catch (e) { console.error(e); toast.error('Erro ao reagir'); }
+  }, [selectedQueue, contact, user?.id]);
+
+  const handleForward = useCallback((msg: ChatMessage) => setForwardMessage(msg), []);
+
   const formatDateHeader = (dateKey: string) => {
     const date = new Date(dateKey);
     const today = new Date();
@@ -188,7 +223,15 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
                   if (item.kind === 'event') {
                     return <ConversationEvent key={`evt-${item.data.id}`} entry={item.data} />;
                   }
-                  return <MessageBubble key={item.data.id} message={item.data} />;
+                  return (
+                    <MessageBubble
+                      key={item.data.id}
+                      message={item.data}
+                      reactions={reactionsByMsg[item.data.id]}
+                      onReact={handleReact}
+                      onForward={handleForward}
+                    />
+                  );
                 })}
               </div>
             </div>
@@ -218,6 +261,12 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
           <ChevronDown className="h-4 w-4" />
         </Button>
       )}
+
+      <ForwardDialog
+        open={!!forwardMessage}
+        onOpenChange={(o) => !o && setForwardMessage(null)}
+        message={forwardMessage}
+      />
     </div>
   );
 }

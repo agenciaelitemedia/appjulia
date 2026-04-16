@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { ConversationParticipants } from './ConversationParticipants';
 import type { ChatContact } from '@/types/chat';
 import type { ChatConversation } from '@/types/conversation';
 
@@ -284,7 +285,13 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
 
           <Separator />
 
-          {/* Past Conversations */}
+          {/* Observers / Participants */}
+          {selectedConversation && (
+            <>
+              <ConversationParticipants conversationId={selectedConversation.id} />
+              <Separator />
+            </>
+          )}
           <div className="space-y-3">
             <h5 className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1">
               <History className="h-3 w-3" /> Histórico de Conversas
