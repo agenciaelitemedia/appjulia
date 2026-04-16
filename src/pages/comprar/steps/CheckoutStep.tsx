@@ -16,6 +16,7 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
   const [error, setError] = useState('');
   const [checkoutUrl, setCheckoutUrl] = useState('');
   const [checking, setChecking] = useState(false);
+  const [billingType, setBillingType] = useState<'CREDIT_CARD' | 'PIX'>('CREDIT_CARD');
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
 
