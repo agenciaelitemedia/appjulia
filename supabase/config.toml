@@ -65,3 +65,12 @@ verify_jwt = false
 
 [functions.send-push]
 verify_jwt = false
+
+[functions.asaas-checkout]
+verify_jwt = false
+
+[functions.asaas-webhook]
+verify_jwt = false
+
+[functions.asaas-configure-webhook]
+verify_jwt = false

@@ -21,7 +21,7 @@ export interface OrderData {
   plan_price: number;
   billing_period: 'monthly' | 'semiannual' | 'annual';
   checkout_url?: string;
-  payment_gateway: 'mercadopago' | 'infinitypay';
+  payment_gateway: 'mercadopago' | 'infinitypay' | 'asaas';
   contract_body?: string;
 }
 
@@ -31,7 +31,7 @@ const EXPRESS_STEPS = ['Documento', 'Dados', 'Pagamento'];
 const ComprarPage = () => {
   const [searchParams] = useSearchParams();
   const paymentParam = searchParams.get('p');
-  const paymentGateway: 'mercadopago' | 'infinitypay' = paymentParam === 'mp' ? 'mercadopago' : 'infinitypay';
+  const paymentGateway: 'mercadopago' | 'infinitypay' | 'asaas' = paymentParam === 'mp' ? 'mercadopago' : paymentParam === 'as' ? 'asaas' : 'infinitypay';
   const isExpress = searchParams.get('t') === 'express';
   const channelParam = searchParams.get('c')?.toLowerCase() || '';
 
