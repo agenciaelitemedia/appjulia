@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     const useSandbox = isProduction ? false : (config.is_sandbox ?? true);
     const baseUrl = useSandbox
       ? "https://sandbox.asaas.com/api/v3"
-      : "https://api.asaas.com/api/v3";
+      : "https://api.asaas.com/v3";
 
     const headers = {
       "Content-Type": "application/json",
