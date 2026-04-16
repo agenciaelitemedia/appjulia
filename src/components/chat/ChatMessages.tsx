@@ -261,6 +261,12 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
           <ChevronDown className="h-4 w-4" />
         </Button>
       )}
+
+      <ForwardDialog
+        open={!!forwardMessage}
+        onOpenChange={(o) => !o && setForwardMessage(null)}
+        message={forwardMessage}
+      />
     </div>
   );
 }

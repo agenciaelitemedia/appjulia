@@ -14,3 +14,7 @@ export { QuickMessagePicker } from './QuickMessagePicker';
 export { ContactDetailPanel } from './ContactDetailPanel';
 export { ChatChannelsConfig } from './ChatChannelsConfig';
 export { WebChatWidgetPreview } from './WebChatWidgetPreview';
+export { ReactionPicker } from './ReactionPicker';
+export { ForwardDialog } from './ForwardDialog';
+export { ConversationParticipants } from './ConversationParticipants';
+export { MentionAutocomplete } from './MentionAutocomplete';
