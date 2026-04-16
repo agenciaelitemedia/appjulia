@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
 
     const baseUrl = useSandbox
       ? "https://sandbox.asaas.com/api/v3"
-      : "https://api.asaas.com/api/v3";
+      : "https://api.asaas.com/v3";
 
     console.log("Asaas env:", { isProduction, useSandbox, baseUrl });
 
