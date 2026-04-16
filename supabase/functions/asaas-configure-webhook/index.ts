@@ -18,7 +18,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    const baseUrl = is_sandbox
+    // Auto-detect environment from key prefix, fallback to is_sandbox flag
+    const isProduction = api_key.startsWith("$aact_prod_");
+    const isSandboxKey = api_key.startsWith("$aact_");
+    const useSandbox = isProduction ? false : (is_sandbox ?? true);
+
+    const baseUrl = useSandbox
       ? "https://sandbox.asaas.com/api/v3"
       : "https://api.asaas.com/api/v3";
 
