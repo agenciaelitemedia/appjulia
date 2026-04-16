@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap } from 'lucide-react';
+import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap, Calendar } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,8 @@ import type { MessageType } from '@/types/chat';
 import { QuickMessagePicker } from './QuickMessagePicker';
 import { AudioRecorder } from './AudioRecorder';
 import { MentionAutocomplete } from './MentionAutocomplete';
+import { ScheduleMessageDialog } from './ScheduleMessageDialog';
+import { ScheduledMessagesList } from './ScheduledMessagesList';
 import { externalDb } from '@/lib/externalDb';
 
 interface ChatInputProps {
@@ -24,13 +26,15 @@ interface TeamMember { id: number | string; name: string }
 const QUICK_EMOJIS = ['😀', '😂', '❤️', '👍', '🙏', '🎉', '🔥', '💯', '😊', '😍', '🤔', '👏'];
 
 export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProps) {
-  const { sendMessage, sendMedia, sendInternalNote } = useWhatsAppData();
+  const { sendMessage, sendMedia, sendInternalNote, selectedConversation, selectedContact } = useWhatsAppData();
   const { user } = useAuth();
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [noteMode, setNoteMode] = useState(false);
   const [showQuickMessages, setShowQuickMessages] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [showScheduledList, setShowScheduledList] = useState(false);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -263,6 +267,19 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
             </PopoverContent>
           </Popover>
 
+          {/* Schedule */}
+          {!noteMode && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 flex-shrink-0"
+              onClick={() => setShowSchedule(true)}
+              title="Agendar mensagem"
+            >
+              <Calendar className="h-5 w-5 text-muted-foreground" />
+            </Button>
+          )}
+
           {/* Note toggle */}
           <Button
             variant="ghost"
@@ -347,6 +364,25 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
           )}
         </div>
       </div>
+
+      {/* Schedule message dialog */}
+      <ScheduleMessageDialog
+        open={showSchedule}
+        onOpenChange={setShowSchedule}
+        contactId={contactId}
+        clientId={selectedContact?.client_id || ''}
+        codAgent={selectedContact?.cod_agent || null}
+        conversationId={selectedConversation?.id || null}
+        initialText={text}
+        onScheduled={() => setShowScheduledList(true)}
+      />
+
+      {/* Scheduled messages list */}
+      <ScheduledMessagesList
+        open={showScheduledList}
+        onOpenChange={setShowScheduledList}
+        contactId={contactId}
+      />
     </div>
   );
 }

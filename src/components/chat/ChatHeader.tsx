@@ -3,12 +3,17 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram } from 'lucide-react';
+import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram, Search, Calendar } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useConversationPresence } from '@/hooks/useConversationPresence';
 import { cn } from '@/lib/utils';
 import type { ChatContact } from '@/types/chat';
 import { TransferDialog } from './TransferDialog';
 import { CSATDialog } from './CSATDialog';
+import { PresenceIndicator } from './PresenceIndicator';
+import { ChatSearchDialog } from './ChatSearchDialog';
+import { ScheduledMessagesList } from './ScheduledMessagesList';
 
 interface ChatHeaderProps {
   contact: ChatContact;
@@ -34,8 +39,16 @@ function ChannelBadge({ channel }: { channel?: string }) {
 
 export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps) {
   const { selectedConversation, updateConversationStatus, assignConversation } = useWhatsAppData();
+  const { user } = useAuth();
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showScheduledList, setShowScheduledList] = useState(false);
+
+  const presenceUsers = useConversationPresence(
+    selectedConversation?.id || null,
+    user?.id ? { id: String(user.id), name: user.name, avatar: (user as { avatar?: string }).avatar } : null,
+  );
 
   const initials = contact.name
     .split(' ')
@@ -106,10 +119,33 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
             {selectedConversation && (
               <ChannelBadge channel={selectedConversation.channel} />
             )}
+            <PresenceIndicator users={presenceUsers} meId={user?.id ? String(user.id) : null} />
           </div>
         </div>
         
         <div className="flex items-center gap-1">
+          {/* Search inside conversation */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setShowSearch(true)}
+            title="Buscar nesta conversa"
+          >
+            <Search className="h-4 w-4" />
+          </Button>
+
+          {/* Scheduled messages */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setShowScheduledList(true)}
+            title="Mensagens agendadas"
+          >
+            <Calendar className="h-4 w-4" />
+          </Button>
+
           {/* Quick action buttons for conversation */}
           {selectedConversation && ['pending', 'open'].includes(currentStatus) && (
             <>
@@ -215,6 +251,21 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         open={showTransferDialog}
         onOpenChange={setShowTransferDialog}
         onTransfer={handleTransfer}
+      />
+
+      {/* Conversation search */}
+      <ChatSearchDialog
+        open={showSearch}
+        onOpenChange={setShowSearch}
+        contactId={contact.id}
+        clientId={contact.client_id}
+      />
+
+      {/* Scheduled messages list */}
+      <ScheduledMessagesList
+        open={showScheduledList}
+        onOpenChange={setShowScheduledList}
+        contactId={contact.id}
       />
     </>
   );
