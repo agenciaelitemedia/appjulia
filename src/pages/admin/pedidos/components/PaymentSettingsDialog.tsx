@@ -245,9 +245,60 @@ export const PaymentSettingsDialog = () => {
                 </div>
               </div>
 
-              <Button onClick={handleSave} disabled={saving} className="w-full">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                Salvar Configurações
+              {/* Asaas */}
+              <div className="rounded-lg border p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-sm">Asaas</h3>
+                    <p className="text-xs text-muted-foreground">Cartão de crédito com parcelamento até 12x</p>
+                  </div>
+                  <Switch
+                    checked={asConfig.is_active}
+                    onCheckedChange={(v) => setAsConfig(prev => ({ ...prev, is_active: v }))}
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={asConfig.is_sandbox}
+                    onCheckedChange={(v) => setAsConfig(prev => ({ ...prev, is_sandbox: v }))}
+                  />
+                  <Label className="text-xs">Modo Sandbox (testes)</Label>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs">API Key</Label>
+                  <Input
+                    type="password"
+                    value={asConfig.config.api_key || ''}
+                    onChange={(e) => setAsConfig(prev => ({
+                      ...prev,
+                      config: { ...prev.config, api_key: e.target.value },
+                    }))}
+                    placeholder="$aact_..."
+                    className="text-sm font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Encontre em: Asaas → Configurações → Integrações → API Key
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs">Webhook URL (automático)</Label>
+                  <Input
+                    value="https://zenizgyrwlonmufxnjqt.supabase.co/functions/v1/asaas-webhook"
+                    readOnly
+                    className="text-sm font-mono bg-muted cursor-default"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    O webhook é configurado automaticamente ao salvar.
+                  </p>
+                </div>
+              </div>
+
+              <Button onClick={handleSave} disabled={saving || configuringWebhook} className="w-full">
+                {(saving || configuringWebhook) ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                {configuringWebhook ? 'Configurando webhook...' : 'Salvar Configurações'}
               </Button>
             </TabsContent>
           </Tabs>
