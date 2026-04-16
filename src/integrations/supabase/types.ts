@@ -208,6 +208,33 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_conversation_presence: {
+        Row: {
+          conversation_id: string
+          id: string
+          last_seen_at: string
+          user_avatar: string | null
+          user_identifier: string
+          user_name: string | null
+        }
+        Insert: {
+          conversation_id: string
+          id?: string
+          last_seen_at?: string
+          user_avatar?: string | null
+          user_identifier: string
+          user_name?: string | null
+        }
+        Update: {
+          conversation_id?: string
+          id?: string
+          last_seen_at?: string
+          user_avatar?: string | null
+          user_identifier?: string
+          user_name?: string | null
+        }
+        Relationships: []
+      }
       chat_conversation_tags: {
         Row: {
           conversation_id: string
@@ -264,6 +291,9 @@ export type Database = {
           protocol: string
           queue_id: string | null
           resolved_at: string | null
+          snooze_reason: string | null
+          snoozed_by: string | null
+          snoozed_until: string | null
           status: string
           tags: string[] | null
           updated_at: string
@@ -287,6 +317,9 @@ export type Database = {
           protocol: string
           queue_id?: string | null
           resolved_at?: string | null
+          snooze_reason?: string | null
+          snoozed_by?: string | null
+          snoozed_until?: string | null
           status?: string
           tags?: string[] | null
           updated_at?: string
@@ -310,6 +343,9 @@ export type Database = {
           protocol?: string
           queue_id?: string | null
           resolved_at?: string | null
+          snooze_reason?: string | null
+          snoozed_by?: string | null
+          snoozed_until?: string | null
           status?: string
           tags?: string[] | null
           updated_at?: string
@@ -567,6 +603,78 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      chat_scheduled_messages: {
+        Row: {
+          attempts: number
+          caption: string | null
+          client_id: string
+          cod_agent: string | null
+          contact_id: string
+          conversation_id: string | null
+          created_at: string
+          created_by: string | null
+          created_by_name: string | null
+          file_name: string | null
+          id: string
+          last_error: string | null
+          media_type: string | null
+          media_url: string | null
+          reply_to: string | null
+          scheduled_for: string
+          sent_at: string | null
+          sent_message_id: string | null
+          status: string
+          text: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          caption?: string | null
+          client_id: string
+          cod_agent?: string | null
+          contact_id: string
+          conversation_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          file_name?: string | null
+          id?: string
+          last_error?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          reply_to?: string | null
+          scheduled_for: string
+          sent_at?: string | null
+          sent_message_id?: string | null
+          status?: string
+          text?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          caption?: string | null
+          client_id?: string
+          cod_agent?: string | null
+          contact_id?: string
+          conversation_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          file_name?: string | null
+          id?: string
+          last_error?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          reply_to?: string | null
+          scheduled_for?: string
+          sent_at?: string | null
+          sent_message_id?: string | null
+          status?: string
+          text?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       chat_tags: {
         Row: {
@@ -3285,7 +3393,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       [_ in never]: never
