@@ -16,7 +16,6 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
   const [error, setError] = useState('');
   const [checkoutUrl, setCheckoutUrl] = useState('');
   const [checking, setChecking] = useState(false);
-  const [billingType, setBillingType] = useState<'CREDIT_CARD' | 'PIX'>('CREDIT_CARD');
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
 
@@ -94,13 +93,9 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
         .eq('id', orderData.id);
 
       const functionName = isMercadoPago ? 'mercadopago-checkout' : isAsaas ? 'asaas-checkout' : 'infinitypay-checkout';
-      const invokeBody: Record<string, unknown> = { order_id: orderData.id };
-      if (isAsaas) {
-        invokeBody.billing_type = billingType;
-      }
 
       const { data, error: fnError } = await supabase.functions.invoke(functionName, {
-        body: invokeBody,
+        body: { order_id: orderData.id },
       });
 
       if (fnError) throw fnError;
@@ -219,43 +214,6 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
           <div className="p-3 rounded-lg bg-red-50 text-red-600 text-sm">{error}</div>
         )}
 
-        {isAsaas && (
-          <div className="space-y-3">
-            <p className="text-sm font-semibold text-[#1a1a2e]">Forma de pagamento</p>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setBillingType('CREDIT_CARD')}
-                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                  billingType === 'CREDIT_CARD'
-                    ? 'border-[#6C3AED] bg-[#F8F7FF] shadow-md'
-                    : 'border-gray-200 bg-white hover:border-gray-300'
-                }`}
-              >
-                <CreditCard className={`w-6 h-6 ${billingType === 'CREDIT_CARD' ? 'text-[#6C3AED]' : 'text-gray-400'}`} />
-                <span className={`text-sm font-medium ${billingType === 'CREDIT_CARD' ? 'text-[#6C3AED]' : 'text-gray-600'}`}>
-                  Cartão de Crédito
-                </span>
-                <span className="text-xs text-gray-400">até 12x</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setBillingType('PIX')}
-                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                  billingType === 'PIX'
-                    ? 'border-[#6C3AED] bg-[#F8F7FF] shadow-md'
-                    : 'border-gray-200 bg-white hover:border-gray-300'
-                }`}
-              >
-                <QrCode className={`w-6 h-6 ${billingType === 'PIX' ? 'text-[#6C3AED]' : 'text-gray-400'}`} />
-                <span className={`text-sm font-medium ${billingType === 'PIX' ? 'text-[#6C3AED]' : 'text-gray-600'}`}>
-                  PIX
-                </span>
-                <span className="text-xs text-gray-400">à vista</span>
-              </button>
-            </div>
-          </div>
-        )}
 
         <div className="flex items-center gap-2 justify-center text-gray-400 text-xs">
           <ShieldCheck className="w-4 h-4" />
