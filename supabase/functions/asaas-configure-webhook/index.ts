@@ -34,7 +34,18 @@ Deno.serve(async (req) => {
 
     // Check existing webhooks
     const listRes = await fetch(`${baseUrl}/webhooks`, { headers });
-    const listData = await listRes.json();
+    const listText = await listRes.text();
+    console.log("Asaas webhooks list response:", listRes.status, listText);
+    
+    let listData: any = {};
+    try { listData = JSON.parse(listText); } catch { listData = { data: [] }; }
+
+    if (!listRes.ok) {
+      return new Response(
+        JSON.stringify({ error: "Failed to list webhooks", status: listRes.status, details: listData }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const existing = listData.data?.find(
       (w: { url: string }) => w.url === WEBHOOK_URL
