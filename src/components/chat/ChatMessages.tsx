@@ -23,12 +23,17 @@ type TimelineItem =
   | { kind: 'event'; data: ConversationHistoryEntry; ts: number };
 
 export function ChatMessages({ contactId }: ChatMessagesProps) {
-  const { messages, loadMessages, markAsRead, conversationHistory, loadConversationHistory, selectedConversation } = useWhatsAppData();
+  const ctx: any = useWhatsAppData();
+  const { messages, loadMessages, markAsRead, conversationHistory, loadConversationHistory, selectedConversation } = ctx;
+  const selectedQueue = ctx.selectedQueue;
+  const contacts = ctx.contacts;
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
-  
+  const [forwardMessage, setForwardMessage] = useState<ChatMessage | null>(null);
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
