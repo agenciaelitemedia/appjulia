@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     // If webhook already exists with same URL, treat as success
     if (!createRes.ok) {
       const isDuplicate = createData.errors?.some(
-        (e: any) => e.code === "invalid_value" || e.description?.includes("já existe") || e.description?.includes("already")
+        (e: any) => e.code === "invalid_object" || e.code === "invalid_value" || e.description?.includes("já existe") || e.description?.includes("already")
       );
       if (isDuplicate) {
         return new Response(
