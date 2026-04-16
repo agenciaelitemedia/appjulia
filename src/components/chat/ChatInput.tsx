@@ -242,6 +242,8 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
       {showPreview && !noteMode && showFormatBar && (
         <MessagePreview text={text} />
       )}
+
+      <div className="p-3">
         <div className="flex items-end gap-2">
           {/* Emoji picker */}
           <Popover>
