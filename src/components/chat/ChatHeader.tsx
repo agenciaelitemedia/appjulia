@@ -3,10 +3,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram, Search, Calendar } from 'lucide-react';
+import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram, Search, Calendar, BellOff, Keyboard } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConversationPresence } from '@/hooks/useConversationPresence';
+import { useChatKeyboardShortcuts } from '@/hooks/useChatKeyboardShortcuts';
 import { cn } from '@/lib/utils';
 import type { ChatContact } from '@/types/chat';
 import { TransferDialog } from './TransferDialog';
@@ -14,6 +15,8 @@ import { CSATDialog } from './CSATDialog';
 import { PresenceIndicator } from './PresenceIndicator';
 import { ChatSearchDialog } from './ChatSearchDialog';
 import { ScheduledMessagesList } from './ScheduledMessagesList';
+import { SnoozeDialog } from './SnoozeDialog';
+import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 
 interface ChatHeaderProps {
   contact: ChatContact;
@@ -38,12 +41,38 @@ function ChannelBadge({ channel }: { channel?: string }) {
 }
 
 export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps) {
-  const { selectedConversation, updateConversationStatus, assignConversation } = useWhatsAppData();
+  const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact } = useWhatsAppData();
   const { user } = useAuth();
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showScheduledList, setShowScheduledList] = useState(false);
+  const [showSnooze, setShowSnooze] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+
+  // Navigation between conversations (j/k)
+  const navigateBy = (delta: number) => {
+    if (!filteredContacts.length || !selectedContactId) return;
+    const idx = filteredContacts.findIndex((c) => c.id === selectedContactId);
+    if (idx === -1) return;
+    const next = filteredContacts[(idx + delta + filteredContacts.length) % filteredContacts.length];
+    if (next) selectContact(next.id);
+  };
+
+  useChatKeyboardShortcuts({
+    onNext: () => navigateBy(1),
+    onPrev: () => navigateBy(-1),
+    onResolve: () => {
+      if (selectedConversation && ['pending', 'open'].includes(selectedConversation.status)) {
+        updateConversationStatus(selectedConversation.id, 'resolved');
+      }
+    },
+    onTransfer: () => selectedConversation && setShowTransferDialog(true),
+    onSearch: () => setShowSearch(true),
+    onSnooze: () => selectedConversation && setShowSnooze(true),
+    onClose: () => onClose(),
+    onHelp: () => setShowHelp(true),
+  });
 
   const presenceUsers = useConversationPresence(
     selectedConversation?.id || null,
@@ -152,9 +181,18 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
               <Button
                 variant="ghost"
                 size="icon"
+                className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                onClick={() => setShowSnooze(true)}
+                title="Adiar conversa (z)"
+              >
+                <BellOff className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
                 className="h-8 w-8 text-purple-600 hover:text-purple-700 hover:bg-purple-50"
                 onClick={() => setShowTransferDialog(true)}
-                title="Transferir conversa"
+                title="Transferir conversa (#)"
               >
                 <ArrowRightLeft className="h-4 w-4" />
               </Button>
@@ -163,7 +201,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                 size="icon"
                 className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
                 onClick={handleResolve}
-                title="Marcar como resolvida"
+                title="Marcar como resolvida (e)"
               >
                 <CheckCircle2 className="h-4 w-4" />
               </Button>
@@ -175,6 +213,15 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                 title="Encerrar conversa"
               >
                 <XCircle className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setShowHelp(true)}
+                title="Atalhos de teclado (?)"
+              >
+                <Keyboard className="h-4 w-4" />
               </Button>
             </>
           )}
@@ -267,6 +314,16 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         onOpenChange={setShowScheduledList}
         contactId={contact.id}
       />
+
+      {/* Snooze dialog */}
+      <SnoozeDialog
+        open={showSnooze}
+        onOpenChange={setShowSnooze}
+        conversationId={selectedConversation?.id || null}
+      />
+
+      {/* Keyboard shortcuts help */}
+      <KeyboardShortcutsHelp open={showHelp} onOpenChange={setShowHelp} />
     </>
   );
 }
