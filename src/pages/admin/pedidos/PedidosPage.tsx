@@ -170,8 +170,8 @@ const PedidosPage = () => {
                         {order.net_amount != null ? formatCurrency(order.net_amount) : order.status === 'paid' && order.fee_amount != null ? formatCurrency((order.paid_amount || order.plan_price) - order.fee_amount) : '-'}
                       </td>
                       <td className="py-3">
-                        <Badge variant="outline" className={order.payment_gateway === 'mercadopago' ? 'border-blue-400 text-blue-600' : 'border-green-400 text-green-600'}>
-                          {order.payment_gateway === 'mercadopago' ? 'MP' : 'IP'}
+                        <Badge variant="outline" className={order.payment_gateway === 'mercadopago' ? 'border-blue-400 text-blue-600' : order.payment_gateway === 'asaas' ? 'border-orange-400 text-orange-600' : 'border-green-400 text-green-600'}>
+                          {order.payment_gateway === 'mercadopago' ? 'MP' : order.payment_gateway === 'asaas' ? 'Asaas' : 'IP'}
                         </Badge>
                       </td>
                       <td className="py-3"><Badge variant={st.variant}>{st.label}</Badge></td>
