@@ -895,6 +895,18 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         .filter(c => c.status === conversationStatusFilter)
         .map(c => c.contact_id);
       filtered = filtered.filter(c => contactIdsWithStatus.includes(c.id));
+    } else {
+      // Hide snoozed conversations from the default list
+      const now = Date.now();
+      const snoozedContactIds = new Set(
+        conversations
+          .filter(c => {
+            const conv = c as { snoozed_until?: string | null };
+            return conv.snoozed_until && new Date(conv.snoozed_until).getTime() > now;
+          })
+          .map(c => c.contact_id)
+      );
+      filtered = filtered.filter(c => !snoozedContactIds.has(c.id));
     }
 
     // Always sort by most recent message (WhatsApp-style)
