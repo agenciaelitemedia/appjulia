@@ -118,10 +118,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
     setIsLoading(true);
     try {
+      const windowStart = getChatHistoryWindowStart();
       let query = supabase
         .from('chat_contacts')
         .select('*')
         .eq('client_id', clientId)
+        .gte('last_message_at', windowStart)
         .order('last_message_at', { ascending: false, nullsFirst: false });
 
       if (currentQueueId) {
@@ -147,10 +149,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     if (!clientId) return;
 
     try {
+      const windowStart = getChatHistoryWindowStart();
       let query = supabase
         .from('chat_conversations')
         .select('*')
         .eq('client_id', clientId)
+        .gte('updated_at', windowStart)
         .order('updated_at', { ascending: false });
 
       if (currentQueueId) {
@@ -443,10 +447,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     if (!clientId) return { messages: [], hasMore: false };
 
     try {
+      const windowStart = getChatHistoryWindowStart();
       const { data: cachedMessages, error } = await supabase
         .from('chat_messages')
         .select('*')
         .eq('contact_id', contactId)
+        .gte('timestamp', windowStart)
         .order('timestamp', { ascending: false })
         .range(offset, offset + limit - 1);
 
