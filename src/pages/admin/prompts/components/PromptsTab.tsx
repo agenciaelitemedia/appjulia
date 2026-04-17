@@ -120,7 +120,16 @@ export function PromptsTab() {
         toast.error(`Agente ${viewing.cod_agent} não encontrado no sistema externo.`);
         return;
       }
-      await externalDb.updateAgent(agent.id, { prompt: viewing.generated_prompt } as any);
+      // Buscar dados atuais do agente para preservar settings e demais campos
+      const current = await externalDb.getAgentDetails<any>(agent.id);
+      await externalDb.updateAgent(agent.id, {
+        settings: current?.settings ?? {},
+        prompt: viewing.generated_prompt,
+        is_closer: current?.is_closer ?? false,
+        agent_plan_id: current?.agent_plan_id ?? null,
+        due_date: current?.due_date ?? null,
+        status: current?.status ?? true,
+      } as any);
       await markAsPublished(viewing.id, user?.name);
       // Atualizar viewing local
       setViewing({
