@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Plus, Search, Pencil, Trash2, Eye, History, Copy, Check } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Eye, History, Copy, Check, Upload, CheckCircle2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { externalDb } from '@/lib/externalDb';
+import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialogAction, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
