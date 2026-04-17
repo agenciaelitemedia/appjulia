@@ -1153,7 +1153,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             }));
 
             // Persist to DB (best-effort) so other clients/refresh see the badge
-            supabase.rpc as unknown; // no-op typing guard
             (async () => {
               try {
                 const { data: current } = await supabase
