@@ -17,6 +17,7 @@ import type {
   ConversationHistoryEntry,
   ChatTag,
 } from '@/types/conversation';
+import { getChatHistoryWindowStart } from '@/config/chat';
 
 // ============================================
 // Types
