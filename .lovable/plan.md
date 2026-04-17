@@ -1,47 +1,60 @@
 
-User wants:
-1. Replace hardcoded "SUPORTE" badge with the actual **queue name** the conversation belongs to
-2. Queue selector should support "All queues" as default + ability to filter by a specific queue
-3. Keep the message-loading fix from previous plan
 
-## Plano consolidado
+## Diagnóstico
 
-### 1. Badge da fila no card de conversa
-- Em `src/components/chat/ChatContactItem.tsx`:
-  - Remover badges hardcoded "SUPORTE" (linhas 86–91)
-  - Adicionar um badge derivado do `queueName` (já recebido via prop) — exibido com cor neutra/azul ao lado do nome ou abaixo
-  - Manter badges reais de `tags` e `priority`
-- O `queueName` precisa refletir a fila **da conversa específica** (não a fila selecionada no filtro). Para isso:
-  - Em `ChatList.tsx`, ao passar `queueName` para o item, resolver pelo `conversation.queue_id` consultando a lista de `activeQueues` (não usar `selectedQueue.name`)
+Após adicionarmos "Todas as filas" como default (`selectedQueue = null`), duas coisas quebraram:
 
-### 2. Filtro de filas com opção "Todas"
-- Em `src/contexts/WhatsAppDataContext.tsx`:
-  - Permitir `selectedQueue = null` significar "todas as filas do cliente"
-  - Ajustar queries de `contacts`, `conversations` e `messages` para:
-    - Quando `selectedQueue` definido → filtrar por `queue_id`
-    - Quando `null` (Todas) → não aplicar filtro de queue, retornar tudo do `client_id`
-  - Remover o auto-select da primeira fila (deixar "Todas" como default)
-- Em `src/components/chat/ChatList.tsx`:
-  - Adicionar item `<SelectItem value="__all__">Todas as filas</SelectItem>` no topo
-  - Tratar valor `__all__` como `setSelectedQueue(null)`
-  - Mostrar label "Todas as filas" no trigger quando nada selecionado
-  - Atualizar empty-state: remover bloqueio "Selecione uma fila" — mostrar lista mesmo sem fila selecionada
+### 1. Não envia mensagem
+`sendMessage` e `sendMedia` em `WhatsAppDataContext.tsx` (linhas 497 e 634) fazem `if (!contact || !selectedQueue) return;` — silenciosamente abortam quando nenhuma fila está selecionada. Como o default agora é null, **nenhuma mensagem é enviada**.
 
-### 3. Correção das mensagens não carregando (do plano anterior)
-- Em `src/contexts/WhatsAppDataContext.tsx` — função `loadMessages`:
-  - Remover early-return em `if (!clientId)` (a query filtra por `contact_id`, não precisa de clientId)
-  - Adicionar logs temporários (`[loadMessages]` entrada/resultado/erro)
-- Em `src/components/chat/ChatMessages.tsx`:
-  - Confirmar que `useEffect` dispara `loadMessages(contactId)` quando contato muda
-  - Adicionar log para validar trigger
+### 2. Não "assume" a conversa
+Hoje não há nenhuma lógica que atribua (`assigned_to`) a conversa ao agente atual ao clicar. A função `assignConversation` existe mas só é chamada manualmente via `ChatHeader`. Resultado: o ticket fica em `pending` sem dono.
+
+## Plano de correção
+
+### A) Resolver a fila pela conversa do contato (não pela seleção global)
+
+Em `WhatsAppDataContext.tsx`, criar helper `resolveQueueForContact(contactId)`:
+- Busca a `conversation` ativa do contato (`pending`/`open`)
+- Pega o `queue_id` dela
+- Carrega da lista `useQueues` (precisa expor via contexto OU consultar `chat_queues` pontualmente)
+
+Mais simples: já temos `conversations[]` no estado e o contato sabe seu `channel_source` (= queue_id). Vou:
+- Adicionar `queues: Queue[]` ao contexto (carregar 1x via `useQueues` no Provider)
+- Helper `getEffectiveQueue(contactId)`: 
+  1. Se `selectedQueue` definido → usa ele
+  2. Senão → resolve via `contact.channel_source` ou `conversation.queue_id` na lista `queues`
+
+### B) Aplicar fila resolvida em `sendMessage` e `sendMedia`
+
+- Trocar `if (!selectedQueue) return` por `const queue = getEffectiveQueue(contactId); if (!queue) { toast.error('Sem fila ativa para este contato'); return; }`
+- Usar `queue.evo_url`, `queue.evo_apikey`, `queue.channel_type` para o envio
+- Mesmo tratamento em `sendMedia` e `sendInternalNote` (se aplicável)
+
+### C) Auto-assumir conversa ao clicar (comportamento WhatsApp Web)
+
+Em `selectContact` (atualmente é só `setSelectedContactId`), envolver numa função real:
+1. `setSelectedContactId(id)`
+2. Buscar/criar conversa do contato
+3. Se `conversation.assigned_to` está vazio E `status === 'pending'`:
+   - Atualizar `assigned_to = user.name` (ou `user.id`)
+   - Atualizar `status = 'open'`
+   - Inserir entrada em `chat_conversation_history` (`action: 'assigned'`)
+   - `markAsRead(contactId)` para zerar unread
+
+### D) Validação
+
+- Selecionar "Todas as filas", clicar numa conversa pendente → deve abrir, marcar como lida, virar "open" e mostrar você como responsável no header
+- Enviar texto → deve sair pelo provedor correto da fila daquela conversa
+- Enviar mídia/áudio → mesmo comportamento
+- Trocar para fila específica e repetir → continua funcionando
 
 ### Arquivos a editar
-- `src/contexts/WhatsAppDataContext.tsx` — suporte a "todas as filas", remover auto-select, fix loadMessages
-- `src/components/chat/ChatList.tsx` — opção "Todas" no Select, resolver queueName por conversa, remover bloqueio empty-state
-- `src/components/chat/ChatContactItem.tsx` — remover SUPORTE, adicionar badge da fila
 
-### Validação
-- Recarregar `/chat` → "Todas as filas" selecionado por padrão, todas conversas visíveis
-- Cards mostram nome da fila correta (não "SUPORTE")
-- Trocar para fila específica → filtra conversas
-- Clicar em conversa → mensagens carregam
+- `src/contexts/WhatsAppDataContext.tsx`
+  - Carregar `queues` (via supabase ou hook) e expor no contexto
+  - Helper `getEffectiveQueue(contactId)`
+  - Refatorar `sendMessage`, `sendMedia`, `sendInternalNote` para usar fila resolvida
+  - Substituir alias `selectContact: setSelectedContactId` por função que auto-assume conversa
+- `src/components/chat/ChatHeader.tsx` — confirmar que mostra `assigned_to` corretamente após auto-assign (pode já funcionar via realtime)
+
