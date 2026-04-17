@@ -27,3 +27,4 @@ export { SnoozeDialog } from './SnoozeDialog';
 export { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 export { FormatToolbar } from './FormatToolbar';
 export { MessagePreview } from './MessagePreview';
+export { CreateCrmLeadDialog } from './CreateCrmLeadDialog';

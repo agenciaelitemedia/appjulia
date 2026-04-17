@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram, Search, Calendar, BellOff, Keyboard } from 'lucide-react';
+import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram, Search, Calendar, BellOff, Keyboard, Sparkles } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConversationPresence } from '@/hooks/useConversationPresence';
@@ -17,6 +17,7 @@ import { ChatSearchDialog } from './ChatSearchDialog';
 import { ScheduledMessagesList } from './ScheduledMessagesList';
 import { SnoozeDialog } from './SnoozeDialog';
 import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
+import { CreateCrmLeadDialog } from './CreateCrmLeadDialog';
 
 interface ChatHeaderProps {
   contact: ChatContact;
@@ -49,6 +50,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const [showScheduledList, setShowScheduledList] = useState(false);
   const [showSnooze, setShowSnooze] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showCrmLead, setShowCrmLead] = useState(false);
 
   // Navigation between conversations (j/k)
   const navigateBy = (delta: number) => {
@@ -250,8 +252,13 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                 Ver detalhes
               </DropdownMenuItem>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setShowCrmLead(true)}>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Criar lead no CRM
+              </DropdownMenuItem>
               {selectedConversation && ['pending', 'open'].includes(currentStatus) && (
                 <>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => setShowTransferDialog(true)}>
                     <ArrowRightLeft className="h-4 w-4 mr-2" />
                     Transferir
@@ -268,6 +275,14 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          <CreateCrmLeadDialog
+            open={showCrmLead}
+            onOpenChange={setShowCrmLead}
+            contact={contact}
+            codAgent={selectedConversation?.cod_agent || (contact as any).cod_agent || null}
+            conversationId={selectedConversation?.id || null}
+          />
           
           <Button 
             variant="ghost" 
