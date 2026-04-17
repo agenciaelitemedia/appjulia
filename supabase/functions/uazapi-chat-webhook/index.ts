@@ -260,8 +260,8 @@ Deno.serve(async (req) => {
           }
         }
 
-        // pushName/senderName belongs to the message author. For fromMe=true that's the OWNER —
-        // we must NOT use it to name the peer contact.
+        // pushName/senderName belongs to the message author. For fromMe=true that's the OWNER.
+        // In groups, pushName is the in-group sender — store on message but never use as contact name.
         const pushName = fromMe ? '' : (msg.pushName || msg.senderName || msg.wa_contactName || '');
         const text = extractMessageText(msg);
         const type = extractMessageType(msg);
@@ -278,8 +278,6 @@ Deno.serve(async (req) => {
         }
 
         // ── Upsert contact ──
-        // For fromMe messages we don't have a usable name from the payload (it's the owner's name).
-        // Keep the existing contact name; only fall back to the phone if the contact is brand new.
         const { data: preExisting } = await supabase
           .from('chat_contacts')
           .select('id, name, avatar, history_backfilled, unread_count')
@@ -292,25 +290,23 @@ Deno.serve(async (req) => {
           ? (preExisting?.unread_count || 0)
           : (preExisting?.unread_count || 0) + 1;
 
-        // Decide which name to write. NEVER overwrite an existing name with the owner's name.
-        // But DO overwrite if existing name is just a phone number (digits/symbols only).
         const isPhoneLikeName = (n: string | null | undefined): boolean => {
           if (!n) return true;
           if (n === senderPhone) return true;
           if (normalizePhone(n) === senderPhone) return true;
-          // only digits, spaces, +, -, (, )
           return /^[\d\s+\-()]+$/.test(n.trim());
         };
 
         let contactNameToWrite: string;
-        if (preExisting?.name) {
-          // Keep existing name unless we have a better pushName for an incoming message
-          // and the existing name is just a phone-like string
+        if (isGroup) {
+          contactNameToWrite = preExisting?.name && !isPhoneLikeName(preExisting.name)
+            ? preExisting.name
+            : groupName;
+        } else if (preExisting?.name) {
           contactNameToWrite = (!fromMe && pushName && isPhoneLikeName(preExisting.name))
             ? pushName
             : preExisting.name;
         } else {
-          // New contact: only use pushName if incoming, else fallback to phone
           contactNameToWrite = (!fromMe && pushName) ? pushName : senderPhone;
         }
 
@@ -323,10 +319,10 @@ Deno.serve(async (req) => {
             channel_type: 'whatsapp_uazapi',
             channel_source: queueId,
             remote_jid: chatId || null,
-            // avatar from payload only applies to incoming messages (fromMe avatar is the owner's)
-            avatar: fromMe ? ((preExisting as any)?.avatar ?? null) : (msg.profilePictureUrl || null),
+            is_group: isGroup,
+            avatar: fromMe ? ((preExisting as any)?.avatar ?? null) : (msg.profilePictureUrl || msg.groupPictureUrl || null),
             last_message_at: isoTimestamp,
-            last_message_text: text || `[${type}]`,
+            last_message_text: (isGroup && pushName ? `${pushName}: ` : '') + (text || `[${type}]`),
             unread_count: nextUnreadCount,
           }, {
             onConflict: 'phone,client_id',
