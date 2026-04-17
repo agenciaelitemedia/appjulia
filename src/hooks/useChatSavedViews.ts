@@ -47,7 +47,8 @@ export function useChatSavedViews() {
   });
 
   const upsert = useMutation({
-    mutationFn: async (view: Partial<SavedView> & { name: string }) => {
+    mutationFn: async (view: Partial<SavedView>) => {
+      if (!view.name) throw new Error('Nome é obrigatório');
       const payload = {
         ...view,
         client_id: clientId,

@@ -74,7 +74,8 @@ export function useChatRouting() {
   });
 
   const upsertRule = useMutation({
-    mutationFn: async (rule: Partial<RoutingRule> & { name: string }) => {
+    mutationFn: async (rule: Partial<RoutingRule>) => {
+      if (!rule.name) throw new Error('Nome é obrigatório');
       const payload = { ...rule, client_id: clientId, cod_agent: user?.cod_agent ? String(user.cod_agent) : null };
       const { error } = rule.id
         ? await supabase.from('chat_routing_rules').update(payload as never).eq('id', rule.id)
@@ -97,7 +98,8 @@ export function useChatRouting() {
   });
 
   const upsertCapacity = useMutation({
-    mutationFn: async (cap: Partial<AgentCapacity> & { agent_identifier: string }) => {
+    mutationFn: async (cap: Partial<AgentCapacity>) => {
+      if (!cap.agent_identifier) throw new Error('Identificador é obrigatório');
       const payload = { ...cap, client_id: clientId };
       const { error } = await supabase
         .from('chat_agent_capacity')
