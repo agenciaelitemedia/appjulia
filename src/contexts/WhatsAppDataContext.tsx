@@ -1211,6 +1211,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     loadMessages,
     sendMessage,
     sendMedia,
+    downloadMedia,
     markAsRead,
     syncContacts,
     selectContact,
