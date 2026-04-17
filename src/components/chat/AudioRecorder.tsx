@@ -30,11 +30,17 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : 'audio/webm',
-      });
+      // Prefer ogg/opus (WhatsApp-compatible). Fall back to webm/opus.
+      const preferred = [
+        'audio/ogg;codecs=opus',
+        'audio/ogg',
+        'audio/webm;codecs=opus',
+        'audio/webm',
+      ];
+      const chosenMime = preferred.find((m) => MediaRecorder.isTypeSupported(m)) || '';
+      const mediaRecorder = chosenMime
+        ? new MediaRecorder(stream, { mimeType: chosenMime })
+        : new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
@@ -43,7 +49,8 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
       };
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm;codecs=opus' });
+        // Always label as audio/ogg;codecs=opus for WhatsApp playback compatibility
+        const blob = new Blob(chunksRef.current, { type: 'audio/ogg;codecs=opus' });
         setAudioBlob(blob);
         stream.getTracks().forEach(t => t.stop());
       };

@@ -24,7 +24,7 @@ type TimelineItem =
 
 export function ChatMessages({ contactId }: ChatMessagesProps) {
   const ctx: any = useWhatsAppData();
-  const { messages, loadMessages, markAsRead, conversationHistory, loadConversationHistory, selectedConversation } = ctx;
+  const { messages, loadMessages, markAsRead, conversationHistory, loadConversationHistory, selectedConversation, downloadMedia } = ctx;
   const selectedQueue = ctx.selectedQueue;
   const contacts = ctx.contacts;
   const { user } = useAuth();
@@ -230,6 +230,7 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
                       reactions={reactionsByMsg[item.data.id]}
                       onReact={handleReact}
                       onForward={handleForward}
+                      onDownloadMedia={downloadMedia}
                     />
                   );
                 })}

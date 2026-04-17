@@ -752,6 +752,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       } else {
         // UaZapi: single endpoint /send/media with mediaType
         const mediaType = type === 'ptt' ? 'audio' : type;
+        // For audio/ptt: force ogg/opus mimetype for WhatsApp compatibility
+        const sendMimetype = (type === 'audio' || type === 'ptt')
+          ? 'audio/ogg; codecs=opus'
+          : (file.type || undefined);
         const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
           body: {
             method: 'POST',
@@ -763,8 +767,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               mediaUrl: persistedUrl,
               type: mediaType,
               mediaType,
+              mimetype: sendMimetype,
               caption,
               fileName: file.name,
+              docName: type === 'document' ? file.name : undefined,
+              ptt: type === 'ptt' ? true : undefined,
             },
           },
         });
@@ -821,8 +828,37 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   }, [clientId, contacts, getEffectiveQueue, getOrCreateConversation, user?.name]);
 
   // ============================================
-  // Mark as Read
+  // Download Media (decrypt UaZapi + persist)
   // ============================================
+  const downloadMedia = useCallback(async (messageId: string): Promise<string | undefined> => {
+    if (!messageId) return undefined;
+    try {
+      const queueId = selectedQueue?.id;
+      const { data, error } = await supabase.functions.invoke('chat-media-download', {
+        body: { messageId, queueId },
+      });
+      if (error) throw error;
+      const url: string | undefined = data?.url;
+      if (!url) return undefined;
+      // Update local state for any matching message
+      setMessages(prev => {
+        const next: Record<string, ChatMessage[]> = {};
+        for (const [cid, list] of Object.entries(prev)) {
+          next[cid] = list.map(m =>
+            (m.id === messageId || m.message_id === messageId)
+              ? { ...m, media_url: url }
+              : m
+          );
+        }
+        return next;
+      });
+      return url;
+    } catch (e) {
+      console.error('[downloadMedia] failed:', e);
+      return undefined;
+    }
+  }, [selectedQueue?.id]);
+
   const markAsRead = useCallback(async (contactId: string) => {
     const contact = contacts.find(c => c.id === contactId);
     if (!contact || contact.unread_count === 0) return;
@@ -1204,6 +1240,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     loadMessages,
     sendMessage,
     sendMedia,
+    downloadMedia,
     markAsRead,
     syncContacts,
     selectContact,
@@ -1258,7 +1295,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     loadConversationHistory,
   }), [
     contacts, messages, selectedContactId, activeTab, searchQuery, isLoading, isSyncing,
-    loadContacts, loadMessages, sendMessage, sendMedia, markAsRead, syncContacts, selectContact,
+    loadContacts, loadMessages, sendMessage, sendMedia, downloadMedia, markAsRead, syncContacts, selectContact,
     selectedContact, filteredContacts, totalUnreadCount, individualUnreadCount, groupUnreadCount,
     selectedQueue, conversations, selectedConversation, conversationStatusFilter,
     loadConversations, getOrCreateConversation, updateConversationStatus, assignConversation,
