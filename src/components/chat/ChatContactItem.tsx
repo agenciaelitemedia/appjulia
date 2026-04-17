@@ -146,8 +146,8 @@ export const ChatContactItem = React.memo(function ChatContactItem({
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-w-0 space-y-0.5">
-        {/* Row 1: Name + Queue name */}
+      <div className="flex-1 min-w-0 space-y-1">
+        {/* Row 1: Name (left) + time (right) */}
         <div className="flex items-center justify-between gap-2">
           <span className={cn(
             'font-semibold text-sm truncate',
@@ -155,36 +155,45 @@ export const ChatContactItem = React.memo(function ChatContactItem({
           )}>
             {contact.name}
           </span>
-          {/* queue name now shown as a badge in row 2 */}
+          {formattedTime && (
+            <span className={cn(
+              'text-[10px] whitespace-nowrap flex-shrink-0',
+              contact.unread_count > 0 ? 'text-primary font-semibold' : 'text-muted-foreground'
+            )}>
+              {formattedTime}
+            </span>
+          )}
         </div>
 
-        {/* Row 2: Badges + time + unread */}
-        <div className="flex items-center justify-between gap-1">
-          <div className="flex items-center gap-1 flex-wrap">
-            <ConversationBadges conversation={conversation} queueName={queueName} assignedAgentName={assignedAgentName} />
-            {slaEvaluation && <SlaBadge evaluation={slaEvaluation} compact />}
-          </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            {formattedTime && (
-              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                {formattedTime}
-              </span>
-            )}
-            {contact.unread_count > 0 && (
-              <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-                {contact.unread_count > 99 ? '99+' : contact.unread_count}
-              </span>
-            )}
-          </div>
+        {/* Row 2: Last message preview (left) + unread badge (right) */}
+        <div className="flex items-center justify-between gap-2">
+          <p className={cn(
+            'text-xs truncate flex-1 min-w-0',
+            contact.unread_count > 0 ? 'text-foreground/80' : 'text-muted-foreground'
+          )}>
+            <MessagePreview text={contact.last_message_text || undefined} />
+          </p>
+          {contact.unread_count > 0 && (
+            <span className="flex-shrink-0 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+              {contact.unread_count > 99 ? '99+' : contact.unread_count}
+            </span>
+          )}
         </div>
 
-        {/* Row 3: Message preview */}
-        <p className={cn(
-          'text-xs truncate',
-          contact.unread_count > 0 ? 'text-foreground/70' : 'text-muted-foreground'
-        )}>
-          <MessagePreview text={contact.last_message_text || undefined} />
-        </p>
+        {/* Row 3: Tags — fila → SLA → atribuído → extras */}
+        <div className="flex items-center gap-1 flex-wrap">
+          {queueName && (
+            <Pill label={queueName.toUpperCase()} className="bg-blue-600 text-white" />
+          )}
+          {slaEvaluation && <SlaBadge evaluation={slaEvaluation} compact />}
+          <Pill
+            label={assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO'}
+            className={assignedAgentName ? 'bg-muted text-foreground' : 'bg-muted/60 text-muted-foreground'}
+          />
+          {extraBadges.map((b, i) => (
+            <Pill key={i} label={b.label} className={b.className} />
+          ))}
+        </div>
       </div>
     </button>
   );
