@@ -48,6 +48,9 @@ import ChatKnowledgeBasePage from "./pages/chat/ChatKnowledgeBasePage";
 import ChatCsatPage from "./pages/chat/ChatCsatPage";
 import ChatBotsPage from "./pages/chat/ChatBotsPage";
 import ChatCampaignsPage from "./pages/chat/ChatCampaignsPage";
+import ChatBotBuilderPage from "./pages/chat/ChatBotBuilderPage";
+import ChatRoutingPage from "./pages/chat/ChatRoutingPage";
+import ChatInboxViewsPage from "./pages/chat/ChatInboxViewsPage";
 import AdvboxIntegrationPage from "./pages/advbox/IntegrationPage";
 import AdvboxNotificationRulesPage from "./pages/advbox/NotificationRulesPage";
 import AdvboxProcessesPage from "./pages/advbox/ProcessesPage";
@@ -123,6 +126,9 @@ const App = () => (
                   <Route path="/chat/csat" element={<ChatCsatPage />} />
                   <Route path="/chat/bots" element={<ChatBotsPage />} />
                   <Route path="/chat/campanhas" element={<ChatCampaignsPage />} />
+                  <Route path="/chat/builder" element={<ChatBotBuilderPage />} />
+                  <Route path="/chat/roteamento" element={<ChatRoutingPage />} />
+                  <Route path="/chat/visoes" element={<ChatInboxViewsPage />} />
                   <Route path="/biblioteca" element={<ProtectedRoute module="library"><CriativosPage /></ProtectedRoute>} />
                   <Route path="/equipe" element={<ProtectedRoute module="team"><EquipePage /></ProtectedRoute>} />
                   <Route path="/perfil" element={<ProfileSettingsPage />} />

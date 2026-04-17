@@ -77,6 +77,48 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_agent_capacity: {
+        Row: {
+          agent_identifier: string
+          agent_name: string | null
+          client_id: string
+          created_at: string
+          current_load: number
+          id: string
+          is_active: boolean
+          last_assigned_at: string | null
+          max_concurrent: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          agent_identifier: string
+          agent_name?: string | null
+          client_id: string
+          created_at?: string
+          current_load?: number
+          id?: string
+          is_active?: boolean
+          last_assigned_at?: string | null
+          max_concurrent?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          agent_identifier?: string
+          agent_name?: string | null
+          client_id?: string
+          created_at?: string
+          current_load?: number
+          id?: string
+          is_active?: boolean
+          last_assigned_at?: string | null
+          max_concurrent?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chat_api_keys: {
         Row: {
           client_id: string
@@ -213,6 +255,119 @@ export type Database = {
           name?: string
           position?: number
           trigger_config?: Json
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      chat_bot_flow_runs: {
+        Row: {
+          client_id: string
+          contact_id: string | null
+          context: Json
+          conversation_id: string | null
+          current_node_id: string | null
+          finished_at: string | null
+          flow_id: string
+          id: string
+          last_step_at: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          client_id: string
+          contact_id?: string | null
+          context?: Json
+          conversation_id?: string | null
+          current_node_id?: string | null
+          finished_at?: string | null
+          flow_id: string
+          id?: string
+          last_step_at?: string
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          client_id?: string
+          contact_id?: string | null
+          context?: Json
+          conversation_id?: string | null
+          current_node_id?: string | null
+          finished_at?: string | null
+          flow_id?: string
+          id?: string
+          last_step_at?: string
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_bot_flow_runs_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "chat_bot_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_bot_flows: {
+        Row: {
+          client_id: string
+          cod_agent: string | null
+          created_at: string
+          description: string | null
+          edges: Json
+          execution_count: number
+          id: string
+          is_active: boolean
+          last_executed_at: string | null
+          match_mode: string
+          name: string
+          nodes: Json
+          only_business_hours: boolean
+          position: number
+          start_node_id: string | null
+          trigger_keywords: string[]
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          cod_agent?: string | null
+          created_at?: string
+          description?: string | null
+          edges?: Json
+          execution_count?: number
+          id?: string
+          is_active?: boolean
+          last_executed_at?: string | null
+          match_mode?: string
+          name: string
+          nodes?: Json
+          only_business_hours?: boolean
+          position?: number
+          start_node_id?: string | null
+          trigger_keywords?: string[]
+          trigger_type?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          cod_agent?: string | null
+          created_at?: string
+          description?: string | null
+          edges?: Json
+          execution_count?: number
+          id?: string
+          is_active?: boolean
+          last_executed_at?: string | null
+          match_mode?: string
+          name?: string
+          nodes?: Json
+          only_business_hours?: boolean
+          position?: number
+          start_node_id?: string | null
+          trigger_keywords?: string[]
           trigger_type?: string
           updated_at?: string
         }
@@ -1048,6 +1203,114 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      chat_routing_rules: {
+        Row: {
+          agent_pool: string[]
+          client_id: string
+          cod_agent: string | null
+          conditions: Json
+          created_at: string
+          description: string | null
+          execution_count: number
+          fallback_assigned_to: string | null
+          id: string
+          is_active: boolean
+          last_assigned_to: string | null
+          last_executed_at: string | null
+          name: string
+          only_business_hours: boolean
+          position: number
+          strategy: string
+          target_queue_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          agent_pool?: string[]
+          client_id: string
+          cod_agent?: string | null
+          conditions?: Json
+          created_at?: string
+          description?: string | null
+          execution_count?: number
+          fallback_assigned_to?: string | null
+          id?: string
+          is_active?: boolean
+          last_assigned_to?: string | null
+          last_executed_at?: string | null
+          name: string
+          only_business_hours?: boolean
+          position?: number
+          strategy?: string
+          target_queue_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agent_pool?: string[]
+          client_id?: string
+          cod_agent?: string | null
+          conditions?: Json
+          created_at?: string
+          description?: string | null
+          execution_count?: number
+          fallback_assigned_to?: string | null
+          id?: string
+          is_active?: boolean
+          last_assigned_to?: string | null
+          last_executed_at?: string | null
+          name?: string
+          only_business_hours?: boolean
+          position?: number
+          strategy?: string
+          target_queue_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      chat_saved_views: {
+        Row: {
+          client_id: string
+          cod_agent: string | null
+          color: string | null
+          created_at: string
+          filters: Json
+          icon: string | null
+          id: string
+          is_shared: boolean
+          name: string
+          owner_identifier: string | null
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          cod_agent?: string | null
+          color?: string | null
+          created_at?: string
+          filters?: Json
+          icon?: string | null
+          id?: string
+          is_shared?: boolean
+          name: string
+          owner_identifier?: string | null
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          cod_agent?: string | null
+          color?: string | null
+          created_at?: string
+          filters?: Json
+          icon?: string | null
+          id?: string
+          is_shared?: boolean
+          name?: string
+          owner_identifier?: string | null
+          position?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       chat_scheduled_messages: {
         Row: {
