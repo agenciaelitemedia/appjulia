@@ -853,6 +853,48 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   }, [contacts, selectedQueue]);
 
   // ============================================
+  // Select Contact + Auto-assign pending conversation
+  // ============================================
+  const selectContact = useCallback((contactId: string | null) => {
+    setSelectedContactId(contactId);
+    if (!contactId || !user?.name) return;
+
+    (async () => {
+      try {
+        const conv = await getOrCreateConversation(contactId);
+        if (!conv) return;
+
+        markAsRead(contactId);
+
+        if (conv.status === 'pending' && !conv.assigned_to) {
+          const { error } = await supabase
+            .from('chat_conversations')
+            .update({ assigned_to: user.name, status: 'open' })
+            .eq('id', conv.id);
+
+          if (error) {
+            console.warn('[selectContact] auto-assign failed', error);
+            return;
+          }
+
+          setConversations(prev => prev.map(c =>
+            c.id === conv.id ? { ...c, assigned_to: user.name!, status: 'open' as const } : c
+          ));
+
+          await supabase.from('chat_conversation_history').insert({
+            conversation_id: conv.id,
+            action: 'assigned',
+            actor_name: user.name,
+            to_value: user.name,
+          });
+        }
+      } catch (e) {
+        console.warn('[selectContact] error', e);
+      }
+    })();
+  }, [user?.name, getOrCreateConversation, markAsRead]);
+
+  // ============================================
   // Sync Contacts (pull from UaZapi API via proxy)
   // ============================================
   const syncContacts = useCallback(async () => {
