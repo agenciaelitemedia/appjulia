@@ -169,7 +169,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
           </div>
         </div>
         
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap justify-end">
           {/* Assumir conversa */}
           {canTakeOver && (
             <Button
@@ -184,95 +184,70 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
             </Button>
           )}
 
-          {/* AI Assist */}
-          {selectedConversation && (
-            <AIAssistPanel conversationId={selectedConversation.id} />
-          )}
+          {selectedConversation && (() => {
+            const isActive = ['pending', 'open'].includes(currentStatus);
+            return (
+              <>
+                <AIAssistPanel conversationId={selectedConversation.id} />
 
-          {/* Search inside conversation */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => setShowSearch(true)}
-            title="Buscar nesta conversa"
-          >
-            <Search className="h-4 w-4" />
-          </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50 disabled:opacity-40"
+                  onClick={() => setShowSnooze(true)}
+                  disabled={!isActive}
+                  title="Adiar conversa (z)"
+                >
+                  <BellOff className="h-4 w-4" />
+                </Button>
 
-          {/* Scheduled messages */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => setShowScheduledList(true)}
-            title="Mensagens agendadas"
-          >
-            <Calendar className="h-4 w-4" />
-          </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-purple-600 hover:text-purple-700 hover:bg-purple-50 disabled:opacity-40"
+                  onClick={() => setShowTransferDialog(true)}
+                  disabled={!isActive}
+                  title="Transferir conversa (#)"
+                >
+                  <ArrowRightLeft className="h-4 w-4" />
+                </Button>
 
-          {/* Quick action buttons for conversation */}
-          {selectedConversation && ['pending', 'open'].includes(currentStatus) && (
-            <>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                onClick={() => setShowSnooze(true)}
-                title="Adiar conversa (z)"
-              >
-                <BellOff className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-purple-600 hover:text-purple-700 hover:bg-purple-50"
-                onClick={() => setShowTransferDialog(true)}
-                title="Transferir conversa (#)"
-              >
-                <ArrowRightLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                onClick={handleResolve}
-                title="Marcar como resolvida (e)"
-              >
-                <CheckCircle2 className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={() => setShowCloseDialog(true)}
-                title="Encerrar conversa"
-              >
-                <XCircle className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setShowHelp(true)}
-                title="Atalhos de teclado (?)"
-              >
-                <Keyboard className="h-4 w-4" />
-              </Button>
-            </>
-          )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
+                  onClick={handleResolve}
+                  disabled={!isActive}
+                  title="Marcar como resolvida (e)"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                </Button>
 
-          {selectedConversation && ['closed', 'resolved'].includes(currentStatus) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 text-xs"
-              onClick={handleReopen}
-            >
-              <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
-              Reabrir
-            </Button>
-          )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 disabled:opacity-40"
+                  onClick={() => setShowCloseDialog(true)}
+                  disabled={!isActive}
+                  title="Encerrar conversa"
+                >
+                  <XCircle className="h-4 w-4" />
+                </Button>
+
+                {!isActive && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={handleReopen}
+                  >
+                    <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
+                    Reabrir
+                  </Button>
+                )}
+              </>
+            );
+          })()}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -281,32 +256,27 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setShowSearch(true)}>
+                <Search className="h-4 w-4 mr-2" />
+                Buscar nesta conversa
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowScheduledList(true)}>
+                <Calendar className="h-4 w-4 mr-2" />
+                Mensagens agendadas
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowHelp(true)}>
+                <Keyboard className="h-4 w-4 mr-2" />
+                Atalhos de teclado
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onShowDetails}>
                 <Info className="h-4 w-4 mr-2" />
                 Ver detalhes
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setShowCrmLead(true)}>
                 <Sparkles className="h-4 w-4 mr-2" />
                 Criar lead no CRM
               </DropdownMenuItem>
-              {selectedConversation && ['pending', 'open'].includes(currentStatus) && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setShowTransferDialog(true)}>
-                    <ArrowRightLeft className="h-4 w-4 mr-2" />
-                    Transferir
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleResolve}>
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Marcar como resolvida
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setShowCloseDialog(true)} className="text-destructive">
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Encerrar conversa
-                  </DropdownMenuItem>
-                </>
-              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
