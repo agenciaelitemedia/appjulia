@@ -21,6 +21,9 @@ import {
   Inbox,
   Tag,
   Timer,
+  Key,
+  BookOpen,
+  Star,
 } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { toast } from 'sonner';
@@ -118,6 +121,18 @@ export function ChatCommandPalette({ open, onOpenChange }: ChatCommandPalettePro
           <CommandItem onSelect={() => { navigate('/chat/sla'); close(); }}>
             <Timer className="mr-2 h-4 w-4 text-blue-500" />
             <span>Configurações de SLA</span>
+          </CommandItem>
+          <CommandItem onSelect={() => { navigate('/chat/csat'); close(); }}>
+            <Star className="mr-2 h-4 w-4 text-amber-500" />
+            <span>CSAT & NPS</span>
+          </CommandItem>
+          <CommandItem onSelect={() => { navigate('/chat/kb'); close(); }}>
+            <BookOpen className="mr-2 h-4 w-4 text-emerald-500" />
+            <span>Base de Conhecimento</span>
+          </CommandItem>
+          <CommandItem onSelect={() => { navigate('/chat/api-keys'); close(); }}>
+            <Key className="mr-2 h-4 w-4 text-purple-500" />
+            <span>API Keys</span>
           </CommandItem>
           <CommandItem onSelect={() => { navigate('/chat/canais'); close(); }}>
             <Settings className="mr-2 h-4 w-4" />
