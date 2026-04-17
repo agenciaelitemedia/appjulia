@@ -238,6 +238,19 @@ export function PromptsTab() {
           <DialogHeader>
             <DialogTitle>[{viewing?.cod_agent}] - {viewing?.agent_name}</DialogTitle>
             {viewing?.business_name && <DialogDescription>{viewing.business_name}</DialogDescription>}
+            {viewing && (
+              <div className="pt-1">
+                {viewing.prompt_published_at ? (
+                  <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border border-emerald-200">
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                    Publicado em {format(new Date(viewing.prompt_published_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                    {viewing.prompt_published_by ? ` por ${viewing.prompt_published_by}` : ''}
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary">Nunca publicado</Badge>
+                )}
+              </div>
+            )}
           </DialogHeader>
           <div className="space-y-4">
             {/* ZapSign Links Card */}
@@ -248,12 +261,12 @@ export function PromptsTab() {
                   <div key={c.id} className="flex items-center gap-2 text-xs">
                     <span className="font-medium">{c.case_name}:</span>
                     <a
-                      href={`https://app.zapsign.com.br/verificar/${c.zapsign_doc_token}`}
+                      href={`https://app.zapsign.com.br/verificar/doc/${c.zapsign_doc_token}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-primary underline break-all"
                     >
-                      https://app.zapsign.com.br/verificar/{c.zapsign_doc_token}
+                      https://app.zapsign.com.br/verificar/doc/{c.zapsign_doc_token}
                     </a>
                   </div>
                 ))}
@@ -286,10 +299,20 @@ export function PromptsTab() {
             {/* Prompt Final */}
             <div className="flex items-center justify-between">
               <Label className="text-sm font-semibold">Prompt Final Gerado</Label>
-              <Button variant="outline" size="sm" onClick={handleCopyPrompt}>
-                {copied ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
-                {copied ? 'Copiado!' : 'Copiar'}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleCopyPrompt}>
+                  {copied ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+                  {copied ? 'Copiado!' : 'Copiar'}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setConfirmPublish(true)}
+                  disabled={!viewing?.generated_prompt || publishing}
+                >
+                  <Upload className="h-3 w-3 mr-1" />
+                  Publicar
+                </Button>
+              </div>
             </div>
             {viewing?.generated_prompt ? (
               <Textarea
@@ -306,6 +329,25 @@ export function PromptsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm Publish Dialog */}
+      <AlertDialog open={confirmPublish} onOpenChange={o => !publishing && setConfirmPublish(o)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Publicar prompt?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação irá <strong>substituir</strong> o prompt atual do agente <strong>{viewing?.cod_agent}</strong> ({viewing?.agent_name}) em produção.
+              Tem certeza que deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={publishing}>Cancelar</AlertDialogCancel>
+            <Button onClick={handlePublish} disabled={publishing}>
+              {publishing ? 'Publicando...' : 'Sim, publicar'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Dialog */}
       <AlertDialog open={!!deleting} onOpenChange={o => !o && setDeleting(null)}>
