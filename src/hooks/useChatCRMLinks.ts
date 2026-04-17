@@ -22,7 +22,7 @@ export interface CRMLink {
 export function useChatCRMLinks(conversationId?: string) {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const clientId = user?.cod_client || user?.codAgent || 'default';
+  const clientId = String(user?.cod_agent || user?.id || 'default');
 
   const list = useQuery({
     queryKey: ['chat-crm-links', clientId, conversationId],

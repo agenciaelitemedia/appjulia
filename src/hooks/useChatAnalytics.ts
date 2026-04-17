@@ -35,7 +35,7 @@ const SECONDS = (a: string | null, b: string | null) => {
 
 export function useChatAnalytics(filters: AnalyticsFilters) {
   const { user } = useAuth();
-  const clientId = user?.cod_client || user?.codAgent || 'default';
+  const clientId = String(user?.cod_agent || user?.id || 'default');
 
   return useQuery({
     queryKey: ['chat-analytics', clientId, filters],
