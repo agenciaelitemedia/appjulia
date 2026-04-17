@@ -191,6 +191,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             <ConversationBadges conversation={conversation} />
             {slaEvaluation && <SlaBadge evaluation={slaEvaluation} compact />}
           </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             {formattedTime && (
               <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                 {formattedTime}
