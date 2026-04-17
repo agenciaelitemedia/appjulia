@@ -1,63 +1,68 @@
 
+## Contexto
 
-## Diagnóstico
+Tela `/admin/prompts` → "Visualizar prompt do agente" exibe o prompt final gerado. Hoje mostra link de assinatura do ZapSign de forma incompleta. Falta também botão para publicar o prompt diretamente no banco externo (tabela `agents`, coluna `prompt`) do `cod_agent` correspondente.
 
-### Bug 1 — Mídias recebidas não aparecem
-Confirmado no banco: 30 mensagens de mídia (imagem/vídeo/áudio/doc), **0 com `media_url`**. Causas combinadas:
-1. **Webhook não decifra**: `uazapi-chat-webhook/index.ts` só copia `msg.message.imageMessage.url` (que vem como `.enc` criptografado ou ausente em payloads novos da UaZapi). Não chama `POST /message/download` para decifrar e obter `fileURL`/`base64`.
-2. **Frontend não baixa sob demanda**: `ChatMessages.tsx` linha 227 instancia `<MessageBubble>` **sem passar `onDownloadMedia`**. O `MessageBubble` mostra botão "Baixar" mas a callback é `undefined` → clique não faz nada.
-3. **Sem persistência**: mesmo se baixasse, não há lógica para salvar no bucket `chat-media` e atualizar `media_url` da mensagem (próximo carregamento perderia o blob).
+## Investigação necessária (rápida, antes de implementar)
 
-### Bug 2 — Envio de mídia (parcial)
-`sendMedia` em `WhatsAppDataContext.tsx` faz upload para `chat-media` e envia `mediaUrl` para UaZapi `/send/media`. Fluxo OK, mas:
-- Áudio gravado é enviado como `audio/webm;codecs=opus` → WhatsApp não toca (espera `ogg/opus` puro). Precisa converter ou marcar mimetype `audio/ogg; codecs=opus`.
-- Documento ignora mimetype no payload (UaZapi precisa de `mimetype` explícito para alguns tipos).
-- `fileName` não é repassado a UaZapi como `docName` (campo esperado pela API).
+1. Encontrar o componente de visualização do prompt em `src/pages/admin/prompts/` (provavelmente um `ViewPromptDialog` ou similar) — ver onde o link ZapSign é renderizado hoje.
+2. Confirmar formato esperado do link: `https://app.zapsign.com.br/verificar/doc/{zapsign_doc_token}`. Os tokens já estão em `generation_agent_prompt_cases.zapsign_doc_token`.
+3. Confirmar que `externalDb.updateAgent(agentId, { prompt })` aceita atualizar somente o campo `prompt` (já existe em `useAgentUpdate.ts`).
+4. Verificar como obter `agent_id` (numérico do banco externo) a partir do `cod_agent` da tabela `generation_agent_prompts` — provavelmente via `externalDb.getAgentByCodAgent(cod_agent)`.
 
----
+## Plano
 
-## Correção
+### 1. Ajuste do link ZapSign (visualização)
+No componente de visualização do prompt do agente, onde os casos são renderizados, substituir/exibir o link como:
+```
+https://app.zapsign.com.br/verificar/doc/{zapsign_doc_token}
+```
+- Renderizar como `<a target="_blank">` clicável.
+- Se `zapsign_doc_token` estiver vazio, ocultar o link.
 
-### A. Edge Function nova: `chat-media-download`
-Centraliza decifragem + persistência no Storage. Recebe `{ messageId, queueId }`, busca credenciais da fila, chama `POST /message/download` na UaZapi com `return_link: true`, baixa o `fileURL` retornado, faz upload ao bucket `chat-media` em `{clientId}/{contactId}/{messageId}.{ext}`, atualiza `chat_messages.media_url` com a URL pública e retorna a URL.
+Adicionalmente, no motor de substituição de placeholders do prompt final (`processFinalPrompt` em `promptDefaults.ts`), garantir que o placeholder de link de verificação ZapSign seja resolvido para essa URL completa (caso seja usado dentro do texto do prompt). Verificar nomes de placeholders existentes antes de tocar.
 
-Idempotente: se a mensagem já tem `media_url` salva (não-`.enc`), retorna direto.
+### 2. Botão "Publicar" ao lado do "Copiar"
+No componente que mostra o prompt final (provavelmente `StepFinalPrompt.tsx` ou um `ViewPromptDialog`):
 
-### B. `MessageBubble` + `ChatMessages`
-- `ChatMessages.tsx`: passar `onDownloadMedia={handleDownloadMedia}` ao `MessageBubble`. Implementar `handleDownloadMedia(messageId)` que invoca `chat-media-download` e atualiza estado local da mensagem com a URL retornada.
-- `MessageBubble`: para imagens/áudio/vídeo, **disparar download automaticamente** ao montar (não exigir clique), com loading state — exatamente como WhatsApp Web. Documentos seguem com botão manual.
-- Áudio/vídeo: usar tag nativa `<audio controls>` / `<video controls>` quando URL disponível (já está, mas garantir `preload="metadata"` em áudio também).
-- Imagem: ao clicar, abrir lightbox fullscreen (novo componente leve com `Dialog`).
-- Áudio: melhorar player — barra de progresso clicável (seek), velocidade 1x/1.5x/2x, tempo decorrido + total.
+- Adicionar botão **Publicar** (variant default, ícone `Upload` ou `Send`) ao lado do botão **Copiar**.
+- Ao clicar → abrir `AlertDialog` de confirmação:
+  > "Publicar este prompt no agente {cod_agent}? Esta ação substituirá o prompt atual do agente em produção."
+- Ao confirmar:
+  1. Buscar `agent_id` numérico via `externalDb.getAgentByCodAgent(cod_agent)`.
+  2. Chamar `externalDb.updateAgent(agentId, { prompt: generatedPrompt })`.
+  3. Registrar no Supabase em `generation_agent_prompts` (novos campos abaixo): `prompt_published_at = now()` e `prompt_published_by = userName/userId`.
+  4. Opcional: log em `agent_change_log` (action: `prompt_publish`, change_summary: "Prompt publicado via Gerador de Prompt").
+  5. Toast de sucesso.
 
-### C. `sendMedia` (envio)
-- Ao gravar áudio: rotular o blob como `audio/ogg; codecs=opus` no upload (renomear extensão `.ogg`) — UaZapi/WhatsApp aceitam melhor.
-- Passar `mimetype` e `docName` (= `fileName`) ao endpoint UaZapi.
-- Para imagem grande (>5MB): comprimir antes do upload (canvas → jpeg q=0.85).
-- Adicionar feedback visual de progresso (já existe `tempMessage` com status `sending`; garantir spinner sobre o preview).
+### 3. Schema — 2 novos campos
+Migration em `generation_agent_prompts` (Supabase):
+```sql
+ALTER TABLE public.generation_agent_prompts
+  ADD COLUMN prompt_published_at timestamptz NULL,
+  ADD COLUMN prompt_published_by text NULL;
+```
+- `prompt_published_at`: data/hora da última publicação.
+- `prompt_published_by`: nome do usuário que publicou (texto, mesmo padrão de `created_by`/`updated_by` já usado).
 
-### D. Webhook (preventivo)
-Quando o payload já trouxer `fileURL` ou `base64` decifrado (UaZapi pode mandar dependendo da configuração da instância), salvar diretamente em vez de depender do download sob demanda. Manter download sob demanda como fallback.
+Atualizar `AgentPrompt` interface em `useAgentPrompts.ts` com os dois campos opcionais e expor função `markAsPublished(id, userName)` que faz o `UPDATE`.
 
-### E. Lightbox de imagem (novo)
-Componente `MediaLightbox.tsx` simples com `Dialog`, navegação prev/next entre mídias da conversa, download e zoom — padrão WhatsApp Web.
+### 4. UI — exibir status de publicação
+No header da visualização do prompt, mostrar badge:
+- "Nunca publicado" (cinza) se `prompt_published_at` for nulo.
+- "Publicado em {data} por {user}" (verde) caso contrário.
 
-### Validação
-1. Abrir conversa com mensagens de imagem → imagens carregam sozinhas (sem clicar). Clicar abre lightbox.
-2. Áudios PTT recebidos → tocam com player completo (play/pause/seek/velocidade).
-3. Vídeos recebidos → player nativo HTML5 funciona.
-4. Documentos → botão de download abre arquivo.
-5. Enviar imagem do botão de anexo → aparece imediatamente como preview, depois confirmada.
-6. Gravar áudio e enviar → contato recebe áudio que toca no WhatsApp normal.
-7. Enviar PDF → contato recebe com nome correto.
-8. Recarregar página → mídias persistem (URL no Storage).
+## Arquivos a editar
+- `src/pages/admin/prompts/components/wizard/StepFinalPrompt.tsx` — botão Publicar + confirmação + badge de status (precisa receber `codAgent` e `publishedAt/publishedBy` via props).
+- Componente "Visualizar" do prompt (a confirmar localização) — renderizar links ZapSign completos.
+- `src/pages/admin/prompts/hooks/useAgentPrompts.ts` — adicionar campos na interface + `markAsPublished()`.
+- `src/pages/admin/prompts/constants/promptDefaults.ts` — garantir placeholder ZapSign resolve para URL completa.
+- Migration SQL — adicionar 2 colunas em `generation_agent_prompts`.
 
-### Arquivos a editar/criar
-- **Nova edge function**: `supabase/functions/chat-media-download/index.ts` — decifrar + persistir.
-- `src/components/chat/ChatMessages.tsx` — passar `onDownloadMedia` + auto-download trigger.
-- `src/components/chat/MessageBubble.tsx` — auto-download em mount para img/audio/video, melhor player de áudio, abrir lightbox.
-- `src/components/chat/MediaLightbox.tsx` — **novo**, visualização fullscreen.
-- `src/contexts/WhatsAppDataContext.tsx` — `downloadMedia(messageId)` invocando edge function + atualizando estado; ajustar `sendMedia` (mimetype áudio, docName).
-- `src/components/chat/AudioRecorder.tsx` — rotular blob como `audio/ogg; codecs=opus` (extensão `.ogg`).
-- `supabase/functions/uazapi-chat-webhook/index.ts` — capturar `fileURL`/`base64` quando vier no payload.
-
+## Validação
+1. Abrir visualizar de um prompt que tenha caso com `zapsign_doc_token` → link aparece como `https://app.zapsign.com.br/verificar/doc/{token}` e abre em nova aba.
+2. Clicar "Publicar" → modal de confirmação aparece.
+3. Confirmar → prompt salvo em `agents.prompt` no banco externo para o `cod_agent` correto.
+4. Banner muda para "Publicado em DD/MM/AAAA HH:mm por {nome}".
+5. Reabrir visualização: status persiste.
+6. Cancelar confirmação → nada é alterado.
