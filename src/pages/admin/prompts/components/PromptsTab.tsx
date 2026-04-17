@@ -29,10 +29,14 @@ import { ptBR } from 'date-fns/locale';
 
 export function PromptsTab() {
   const { user } = useAuth();
-  const { prompts, isLoading, fetchPrompts, fetchCases, deletePrompt, updatePrompt } = useAgentPrompts();
+  const { prompts, isLoading, fetchPrompts, fetchCases, deletePrompt, updatePrompt, markAsPublished } = useAgentPrompts();
   const [search, setSearch] = useState('');
   const [showWizard, setShowWizard] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Publish
+  const [confirmPublish, setConfirmPublish] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   // View
   const [viewing, setViewing] = useState<AgentPrompt | null>(null);
@@ -105,6 +109,35 @@ export function PromptsTab() {
       await navigator.clipboard.writeText(viewing.generated_prompt);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!viewing?.generated_prompt || !viewing.cod_agent) return;
+    setPublishing(true);
+    try {
+      // Buscar agent_id numérico no banco externo via cod_agent
+      const matches = await externalDb.searchAgents<{ id: number; cod_agent: string }>(viewing.cod_agent);
+      const agent = matches?.find(a => String(a.cod_agent) === String(viewing.cod_agent));
+      if (!agent?.id) {
+        toast.error(`Agente ${viewing.cod_agent} não encontrado no sistema externo.`);
+        return;
+      }
+      await externalDb.updateAgent(agent.id, { prompt: viewing.generated_prompt } as any);
+      await markAsPublished(viewing.id, user?.name);
+      // Atualizar viewing local
+      setViewing({
+        ...viewing,
+        prompt_published_at: new Date().toISOString(),
+        prompt_published_by: user?.name || null,
+      });
+      toast.success(`Prompt publicado no agente ${viewing.cod_agent} com sucesso!`);
+      setConfirmPublish(false);
+    } catch (e: any) {
+      console.error('Erro ao publicar prompt:', e);
+      toast.error('Falha ao publicar prompt: ' + (e?.message || 'erro desconhecido'));
+    } finally {
+      setPublishing(false);
     }
   };
 
