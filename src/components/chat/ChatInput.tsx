@@ -193,7 +193,7 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
   };
 
   const handleAudioSend = useCallback(async (audioBlob: Blob) => {
-    const file = new File([audioBlob], `audio_${Date.now()}.webm`, { type: 'audio/webm;codecs=opus' });
+    const file = new File([audioBlob], `audio_${Date.now()}.ogg`, { type: 'audio/ogg;codecs=opus' });
     await sendMedia(contactId, file, 'ptt');
     setIsRecording(false);
   }, [contactId, sendMedia]);

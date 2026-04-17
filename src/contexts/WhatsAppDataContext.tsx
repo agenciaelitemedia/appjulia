@@ -752,6 +752,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       } else {
         // UaZapi: single endpoint /send/media with mediaType
         const mediaType = type === 'ptt' ? 'audio' : type;
+        // For audio/ptt: force ogg/opus mimetype for WhatsApp compatibility
+        const sendMimetype = (type === 'audio' || type === 'ptt')
+          ? 'audio/ogg; codecs=opus'
+          : (file.type || undefined);
         const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
           body: {
             method: 'POST',
@@ -763,8 +767,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               mediaUrl: persistedUrl,
               type: mediaType,
               mediaType,
+              mimetype: sendMimetype,
               caption,
               fileName: file.name,
+              docName: type === 'document' ? file.name : undefined,
+              ptt: type === 'ptt' ? true : undefined,
             },
           },
         });
