@@ -119,6 +119,240 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_ai_autoreply_logs: {
+        Row: {
+          client_id: string
+          confidence: number | null
+          conversation_id: string
+          created_at: string
+          error_message: string | null
+          generated_text: string | null
+          id: string
+          message_id: string | null
+          rule_id: string | null
+          sent: boolean
+          used_kb_articles: string[] | null
+        }
+        Insert: {
+          client_id: string
+          confidence?: number | null
+          conversation_id: string
+          created_at?: string
+          error_message?: string | null
+          generated_text?: string | null
+          id?: string
+          message_id?: string | null
+          rule_id?: string | null
+          sent?: boolean
+          used_kb_articles?: string[] | null
+        }
+        Update: {
+          client_id?: string
+          confidence?: number | null
+          conversation_id?: string
+          created_at?: string
+          error_message?: string | null
+          generated_text?: string | null
+          id?: string
+          message_id?: string | null
+          rule_id?: string | null
+          sent?: boolean
+          used_kb_articles?: string[] | null
+        }
+        Relationships: []
+      }
+      chat_ai_autoreply_rules: {
+        Row: {
+          client_id: string
+          cod_agent: string | null
+          confidence_threshold: number
+          created_at: string
+          description: string | null
+          execution_count: number
+          handoff_after_max: boolean
+          id: string
+          is_active: boolean
+          kb_category_id: string | null
+          last_executed_at: string | null
+          match_intents: string[]
+          match_keywords: string[]
+          max_replies_per_conversation: number
+          model: string
+          name: string
+          only_business_hours: boolean
+          position: number
+          system_prompt: string | null
+          updated_at: string
+          use_knowledge_base: boolean
+        }
+        Insert: {
+          client_id: string
+          cod_agent?: string | null
+          confidence_threshold?: number
+          created_at?: string
+          description?: string | null
+          execution_count?: number
+          handoff_after_max?: boolean
+          id?: string
+          is_active?: boolean
+          kb_category_id?: string | null
+          last_executed_at?: string | null
+          match_intents?: string[]
+          match_keywords?: string[]
+          max_replies_per_conversation?: number
+          model?: string
+          name: string
+          only_business_hours?: boolean
+          position?: number
+          system_prompt?: string | null
+          updated_at?: string
+          use_knowledge_base?: boolean
+        }
+        Update: {
+          client_id?: string
+          cod_agent?: string | null
+          confidence_threshold?: number
+          created_at?: string
+          description?: string | null
+          execution_count?: number
+          handoff_after_max?: boolean
+          id?: string
+          is_active?: boolean
+          kb_category_id?: string | null
+          last_executed_at?: string | null
+          match_intents?: string[]
+          match_keywords?: string[]
+          max_replies_per_conversation?: number
+          model?: string
+          name?: string
+          only_business_hours?: boolean
+          position?: number
+          system_prompt?: string | null
+          updated_at?: string
+          use_knowledge_base?: boolean
+        }
+        Relationships: []
+      }
+      chat_ai_classifications: {
+        Row: {
+          client_id: string
+          cod_agent: string | null
+          confidence: number | null
+          conversation_id: string
+          created_at: string
+          id: string
+          intent: string | null
+          language: string | null
+          message_id: string | null
+          model: string | null
+          raw_response: Json | null
+          sentiment: string | null
+          topics: string[]
+          urgency: string | null
+        }
+        Insert: {
+          client_id: string
+          cod_agent?: string | null
+          confidence?: number | null
+          conversation_id: string
+          created_at?: string
+          id?: string
+          intent?: string | null
+          language?: string | null
+          message_id?: string | null
+          model?: string | null
+          raw_response?: Json | null
+          sentiment?: string | null
+          topics?: string[]
+          urgency?: string | null
+        }
+        Update: {
+          client_id?: string
+          cod_agent?: string | null
+          confidence?: number | null
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          intent?: string | null
+          language?: string | null
+          message_id?: string | null
+          model?: string | null
+          raw_response?: Json | null
+          sentiment?: string | null
+          topics?: string[]
+          urgency?: string | null
+        }
+        Relationships: []
+      }
+      chat_analytics_daily: {
+        Row: {
+          avg_first_response_seconds: number | null
+          avg_resolution_seconds: number | null
+          by_agent: Json
+          by_channel: Json
+          by_tag: Json
+          client_id: string
+          cod_agent: string | null
+          created_at: string
+          csat_avg: number | null
+          csat_responses: number
+          date: string
+          id: string
+          inbound_messages: number
+          new_conversations: number
+          outbound_messages: number
+          resolved_conversations: number
+          sla_compliance_pct: number | null
+          total_conversations: number
+          total_messages: number
+          updated_at: string
+        }
+        Insert: {
+          avg_first_response_seconds?: number | null
+          avg_resolution_seconds?: number | null
+          by_agent?: Json
+          by_channel?: Json
+          by_tag?: Json
+          client_id: string
+          cod_agent?: string | null
+          created_at?: string
+          csat_avg?: number | null
+          csat_responses?: number
+          date: string
+          id?: string
+          inbound_messages?: number
+          new_conversations?: number
+          outbound_messages?: number
+          resolved_conversations?: number
+          sla_compliance_pct?: number | null
+          total_conversations?: number
+          total_messages?: number
+          updated_at?: string
+        }
+        Update: {
+          avg_first_response_seconds?: number | null
+          avg_resolution_seconds?: number | null
+          by_agent?: Json
+          by_channel?: Json
+          by_tag?: Json
+          client_id?: string
+          cod_agent?: string | null
+          created_at?: string
+          csat_avg?: number | null
+          csat_responses?: number
+          date?: string
+          id?: string
+          inbound_messages?: number
+          new_conversations?: number
+          outbound_messages?: number
+          resolved_conversations?: number
+          sla_compliance_pct?: number | null
+          total_conversations?: number
+          total_messages?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chat_api_keys: {
         Row: {
           client_id: string
@@ -832,6 +1066,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      chat_crm_links: {
+        Row: {
+          client_id: string
+          cod_agent: string | null
+          contact_id: string | null
+          conversation_id: string
+          created_at: string
+          external_id: string
+          external_system: string
+          external_url: string | null
+          id: string
+          last_synced_at: string | null
+          metadata: Json
+          sync_direction: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          cod_agent?: string | null
+          contact_id?: string | null
+          conversation_id: string
+          created_at?: string
+          external_id: string
+          external_system?: string
+          external_url?: string | null
+          id?: string
+          last_synced_at?: string | null
+          metadata?: Json
+          sync_direction?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          cod_agent?: string | null
+          contact_id?: string | null
+          conversation_id?: string
+          created_at?: string
+          external_id?: string
+          external_system?: string
+          external_url?: string | null
+          id?: string
+          last_synced_at?: string | null
+          metadata?: Json
+          sync_direction?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       chat_csat_config: {
         Row: {
