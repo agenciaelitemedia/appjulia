@@ -1,0 +1,17 @@
+DELETE FROM chat_campaign_variants WHERE campaign_id IN (SELECT id FROM chat_campaigns WHERE client_id='demo-test');
+DELETE FROM chat_campaign_schedules WHERE client_id='demo-test';
+DELETE FROM chat_campaigns WHERE client_id='demo-test';
+DELETE FROM chat_call_logs WHERE client_id='demo-test';
+DELETE FROM chat_audit_log WHERE client_id='demo-test';
+DELETE FROM chat_lgpd_requests WHERE client_id='demo-test';
+DELETE FROM chat_role_permissions WHERE client_id='demo-test';
+DELETE FROM chat_ai_autoreply_rules WHERE client_id='demo-test';
+DELETE FROM chat_bots WHERE client_id='demo-test';
+DELETE FROM chat_routing_rules WHERE client_id='demo-test';
+DELETE FROM chat_sla_configs WHERE client_id='demo-test';
+DELETE FROM chat_csat_config WHERE client_id='demo-test';
+DELETE FROM chat_webhooks WHERE client_id='demo-test';
+DELETE FROM chat_kb_categories WHERE client_id='demo-test';
+DELETE FROM chat_tags WHERE client_id='demo-test';
+DELETE FROM chat_saved_views WHERE client_id='demo-test';
+DELETE FROM chat_automation_rules WHERE client_id='demo-test';
