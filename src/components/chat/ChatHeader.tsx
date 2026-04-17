@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram, Search, Calendar, BellOff, Keyboard, Sparkles } from 'lucide-react';
+import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram, Search, Calendar, BellOff, Keyboard, Sparkles, UserCheck } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConversationPresence } from '@/hooks/useConversationPresence';
@@ -104,6 +104,20 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
     await updateConversationStatus(selectedConversation.id, 'closed', closeNote || undefined);
   };
 
+  const currentUserName = user?.name || (user?.id ? String(user.id) : '');
+  const isAssignedToMe = !!selectedConversation?.assigned_to && !!currentUserName && selectedConversation.assigned_to === currentUserName;
+  const canTakeOver = !!selectedConversation
+    && ['pending', 'open'].includes(selectedConversation.status)
+    && !isAssignedToMe;
+
+  const handleTakeOver = async () => {
+    if (!selectedConversation || !currentUserName) return;
+    await assignConversation(selectedConversation.id, currentUserName);
+    if (selectedConversation.status === 'pending') {
+      await updateConversationStatus(selectedConversation.id, 'open');
+    }
+  };
+
   const handleResolve = async () => {
     if (!selectedConversation) return;
     await updateConversationStatus(selectedConversation.id, 'resolved');
@@ -156,6 +170,20 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         </div>
         
         <div className="flex items-center gap-1">
+          {/* Assumir conversa */}
+          {canTakeOver && (
+            <Button
+              variant="default"
+              size="sm"
+              className="h-8 gap-1.5"
+              onClick={handleTakeOver}
+              title={selectedConversation?.assigned_to ? `Assumir de ${selectedConversation.assigned_to}` : 'Assumir conversa'}
+            >
+              <UserCheck className="h-4 w-4" />
+              Assumir
+            </Button>
+          )}
+
           {/* AI Assist */}
           {selectedConversation && (
             <AIAssistPanel conversationId={selectedConversation.id} />
