@@ -124,6 +124,16 @@ export const ChatContactItem = React.memo(function ChatContactItem({
     ? formatRelativeTime(contact.last_message_at)
     : null;
 
+  const extraBadges: { label: string; className: string }[] = [];
+  if (conversation?.priority === 'high' || conversation?.priority === 'urgent') {
+    extraBadges.push({ label: 'PRIORIDADE', className: 'bg-red-500 text-white' });
+  }
+  if (conversation?.tags && conversation.tags.length > 0) {
+    conversation.tags.slice(0, 2).forEach(tag => {
+      extraBadges.push({ label: tag.toUpperCase(), className: 'bg-emerald-600 text-white' });
+    });
+  }
+
   return (
     <button
       onClick={onClick}
