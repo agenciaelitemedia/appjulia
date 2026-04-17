@@ -68,13 +68,15 @@ Deno.serve(async (req) => {
     const { messageId, queueId } = body || {};
     if (!messageId) return respond({ error: "messageId required" }, 400);
 
-    // Load message
-    const { data: msg, error: msgErr } = await supabase
+    // Load message — detect UUID vs external message_id to avoid cast errors
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(messageId));
+    const query = supabase
       .from("chat_messages")
       .select("id, message_id, contact_id, client_id, media_url, type, raw_payload, file_name, metadata")
-      .or(`id.eq.${messageId},message_id.eq.${messageId}`)
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+    const { data: msg, error: msgErr } = await (isUuid
+      ? query.eq("id", messageId).maybeSingle()
+      : query.eq("message_id", messageId).maybeSingle());
 
     if (msgErr || !msg) {
       return respond({ error: "Message not found", details: msgErr?.message }, 404);
