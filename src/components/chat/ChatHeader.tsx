@@ -18,6 +18,7 @@ import { ScheduledMessagesList } from './ScheduledMessagesList';
 import { SnoozeDialog } from './SnoozeDialog';
 import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 import { CreateCrmLeadDialog } from './CreateCrmLeadDialog';
+import { AIAssistPanel } from './AIAssistPanel';
 
 interface ChatHeaderProps {
   contact: ChatContact;

@@ -218,6 +218,176 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_bots: {
+        Row: {
+          client_id: string
+          cod_agent: string | null
+          created_at: string
+          description: string | null
+          execution_count: number
+          handoff_to_human: boolean
+          id: string
+          is_active: boolean
+          last_executed_at: string | null
+          match_mode: string
+          name: string
+          only_business_hours: boolean
+          position: number
+          response_text: string
+          trigger_keywords: string[]
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          cod_agent?: string | null
+          created_at?: string
+          description?: string | null
+          execution_count?: number
+          handoff_to_human?: boolean
+          id?: string
+          is_active?: boolean
+          last_executed_at?: string | null
+          match_mode?: string
+          name: string
+          only_business_hours?: boolean
+          position?: number
+          response_text: string
+          trigger_keywords?: string[]
+          trigger_type?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          cod_agent?: string | null
+          created_at?: string
+          description?: string | null
+          execution_count?: number
+          handoff_to_human?: boolean
+          id?: string
+          is_active?: boolean
+          last_executed_at?: string | null
+          match_mode?: string
+          name?: string
+          only_business_hours?: boolean
+          position?: number
+          response_text?: string
+          trigger_keywords?: string[]
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      chat_campaign_recipients: {
+        Row: {
+          campaign_id: string
+          contact_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          phone: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          campaign_id: string
+          contact_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          phone: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          campaign_id?: string
+          contact_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          phone?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_campaign_recipients_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "chat_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_campaigns: {
+        Row: {
+          client_id: string
+          cod_agent: string | null
+          completed_at: string | null
+          contacts_failed: number
+          contacts_sent: number
+          contacts_total: number
+          created_at: string
+          created_by: string | null
+          filter_channel: string | null
+          filter_tags: string[]
+          id: string
+          media_type: string | null
+          media_url: string | null
+          message_text: string
+          name: string
+          scheduled_for: string | null
+          started_at: string | null
+          status: string
+          throttle_seconds: number
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          cod_agent?: string | null
+          completed_at?: string | null
+          contacts_failed?: number
+          contacts_sent?: number
+          contacts_total?: number
+          created_at?: string
+          created_by?: string | null
+          filter_channel?: string | null
+          filter_tags?: string[]
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          message_text: string
+          name: string
+          scheduled_for?: string | null
+          started_at?: string | null
+          status?: string
+          throttle_seconds?: number
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          cod_agent?: string | null
+          completed_at?: string | null
+          contacts_failed?: number
+          contacts_sent?: number
+          contacts_total?: number
+          created_at?: string
+          created_by?: string | null
+          filter_channel?: string | null
+          filter_tags?: string[]
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          message_text?: string
+          name?: string
+          scheduled_for?: string | null
+          started_at?: string | null
+          status?: string
+          throttle_seconds?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chat_contacts: {
         Row: {
           avatar: string | null
