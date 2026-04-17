@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueries } from '@tanstack/react-query';
 import { AlertTriangle } from 'lucide-react';
@@ -17,7 +17,10 @@ import { UaZapiClient } from '@/lib/uazapi/client';
 import { supabase } from '@/integrations/supabase/client';
 import type { UserAgent } from '@/pages/agente/meus-agentes/types';
 
-const SESSION_KEY = 'julia_disconnected_alert_shown';
+const LOGIN_FLAG = 'julia_just_logged_in';
+export function markJustLoggedIn() {
+  try { sessionStorage.setItem(LOGIN_FLAG, '1'); } catch {}
+}
 
 async function checkAgentConnected(agent: UserAgent): Promise<boolean | null> {
   if (!agent.hub) return null; // sem config — ignora
@@ -69,22 +72,25 @@ export function DisconnectedAgentsAlert() {
 
   const allDone = queries.length > 0 && queries.every(q => !q.isLoading);
 
+  const handledRef = useRef(false);
+
   useEffect(() => {
-    if (!isAuthenticated || !user?.id || !allDone) return;
-    const sessionKey = `${SESSION_KEY}_${user.id}`;
-    if (sessionStorage.getItem(sessionKey)) return;
+    if (!isAuthenticated || !user?.id || !allDone || handledRef.current) return;
+    if (sessionStorage.getItem(LOGIN_FLAG) !== '1') return;
 
     const off = queries
       .map(q => q.data)
       .filter((d): d is { agent: UserAgent; connected: boolean | null } => !!d && d.connected === false)
       .map(d => d.agent);
 
+    handledRef.current = true;
+    sessionStorage.removeItem(LOGIN_FLAG);
+
     if (off.length > 0) {
       setDisconnected(off);
       setOpen(true);
-      sessionStorage.setItem(sessionKey, '1');
     }
-  }, [allDone, isAuthenticated, user?.id]);
+  }, [allDone, isAuthenticated, user?.id, queries]);
 
   if (disconnected.length === 0) return null;
 
