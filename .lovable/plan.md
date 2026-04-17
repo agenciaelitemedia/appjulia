@@ -1,35 +1,49 @@
 
-## Ajuste do plano (estilo WhatsApp Web)
+## Diagnóstico
 
-Layout final do `ChatContactItem`:
+Olhando a request mais recente nos network logs:
 
-```text
-┌─────────────────────────────────────────────────┐
-│ [Avatar]  Nome do contato              há 5 min │ ← linha 1: nome (esq) + tempo (dir)
-│           Última mensagem truncada...      (3)  │ ← linha 2: preview (esq) + badge unread (dir)
-│           [FILA] [SLA 12min] [JOÃO]             │ ← linha 3: tags na ordem fila → SLA → atribuído
-└─────────────────────────────────────────────────┘
+```
+PATCH chat_contacts?id=eq.d1df9ee5-... { "unread_count": 0 }
 ```
 
-## Mudanças em `src/components/chat/ChatContactItem.tsx`
+Isso aconteceu **automaticamente** logo após o `loadMessages` (GET chat_messages). Ou seja, mesmo após removermos `markAsRead` do `selectContact`, **algum outro lugar ainda está zerando `unread_count` ao abrir/carregar mensagens**.
 
-1. **Linha 1** — `flex justify-between`:
-   - Esquerda: nome do contato (truncado)
-   - Direita: `formattedTime` (sempre visível, `flex-shrink-0`)
+Suspeitos prováveis:
+1. `loadMessages` em `WhatsAppDataContext.tsx` pode estar chamando `markAsRead` internamente.
+2. Realtime subscription que dispara `markAsRead` quando a conversa está selecionada.
+3. `ChatMessageList` / `ChatContainer` que dispara efeito ao montar para marcar como lida.
+4. Trigger no banco em `chat_messages` SELECT (improvável — não há triggers).
 
-2. **Linha 2** — `flex justify-between items-center gap-2`:
-   - Esquerda: `<MessagePreview>` da última mensagem (`truncate`, `min-w-0`, `flex-1`)
-   - Direita: badge vermelho redondo de `unread_count` (somente quando `> 0`, `flex-shrink-0`)
+Vou inspecionar:
+- `src/contexts/WhatsAppDataContext.tsx` (loadMessages, realtime handlers, qualquer chamada residual a markAsRead)
+- `src/components/chat/ChatContainer.tsx`
+- `src/components/chat/ChatMessageList.tsx`
+- `src/components/chat/ChatList.tsx`
+- buscar todas as ocorrências de `markAsRead` e `unread_count: 0` no projeto
 
-3. **Linha 3** — tags na ordem exata:
-   - `[FILA]` (queueName) → `[SLA]` (SlaBadge) → `[ATRIBUÍDO]` (assignedAgentName / "NÃO ATRIBUÍDO")
-   - Refatorar `ConversationBadges` para aceitar slots ordenados, ou montar inline na ordem correta
-   - Manter badges extras (prioridade, tags da conversa) ao final
+## Plano de correção
 
-4. **Garantir visibilidade do badge unread**:
-   - Tamanho mínimo `min-w-[20px] h-5`, `bg-red-500 text-white`, `rounded-full`, fonte bold
-   - `flex-shrink-0` para nunca ser comprimido
+1. **Localizar** todos os pontos onde `unread_count` é zerado (PATCH com `unread_count: 0` ou chamadas a `markAsRead`).
+2. **Remover** as chamadas automáticas que ocorrem ao:
+   - selecionar contato
+   - carregar mensagens
+   - abrir o painel de mensagens
+3. **Manter** a chamada a `markAsRead` **apenas** dentro do fluxo de "Assumir conversa" (`ChatHeader.handleTakeOver`).
+4. **Validar** que `ChatContactItem` continua exibindo o badge vermelho quando `unread_count > 0` (já está correto).
 
-## Arquivo a editar
+## Ação concreta
 
-- `src/components/chat/ChatContactItem.tsx` (apenas reestruturação do JSX e da função `ConversationBadges`)
+Editar `src/contexts/WhatsAppDataContext.tsx` (e possivelmente `ChatContainer`/`ChatMessageList` se houver efeitos lá) para remover qualquer `markAsRead` ou update direto de `unread_count` que ocorra fora do fluxo de "Assumir".
+
+Após implementar, validar:
+- Receber nova mensagem de Saulo → badge vermelho aparece com contagem
+- Clicar na conversa → mensagens carregam, **badge permanece**
+- Clicar em "Assumir" → badge zera
+
+## Arquivos a investigar/editar
+
+- `src/contexts/WhatsAppDataContext.tsx` (principal suspeito — loadMessages e realtime)
+- `src/components/chat/ChatContainer.tsx` (efeitos ao selecionar contato)
+- `src/components/chat/ChatMessageList.tsx` (efeito ao montar)
+- `src/components/chat/ChatList.tsx` (qualquer efeito ao clicar)
