@@ -36,8 +36,8 @@ serve(async (req) => {
     const body = await req.json();
     const { event, conversation_id, client_id, message_text, tag } = body;
 
-    if (!event || !client_id) {
-      return new Response(JSON.stringify({ error: "event and client_id required" }), {
+    if (!event) {
+      return new Response(JSON.stringify({ error: "event required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -57,14 +57,23 @@ serve(async (req) => {
       });
     }
 
-    // Fetch active rules
-    const { data: rules } = await supabase
+    // For cron events without a specific client, iterate over all active inactivity rules
+    const isCron = event === "cron_inactivity" || event === "cron_outside_hours";
+    let query = supabase
       .from("chat_automation_rules")
       .select("*")
-      .eq("client_id", client_id)
       .eq("is_active", true)
       .eq("trigger_type", triggerType)
       .order("position");
+    if (!isCron) {
+      if (!client_id) {
+        return new Response(JSON.stringify({ error: "client_id required for non-cron events" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      query = query.eq("client_id", client_id);
+    }
+    const { data: rules } = await query;
 
     if (!rules || rules.length === 0) {
       return new Response(JSON.stringify({ executed: 0 }), {
