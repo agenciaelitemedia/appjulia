@@ -40,21 +40,7 @@ export function ChatList() {
 
   const activeQueues = queues.filter(q => q.is_active && !q.is_deleted);
 
-  // Auto-select first queue
-  useEffect(() => {
-    if (!selectedQueue && activeQueues.length > 0) {
-      const first = activeQueues[0];
-      setSelectedQueue({
-        id: first.id,
-        name: first.name,
-        channel_type: first.channel_type,
-        hub: first.hub,
-        evo_url: first.evo_url,
-        evo_apikey: first.evo_apikey,
-        evo_instance: first.evo_instance,
-      });
-    }
-  }, [activeQueues.length, selectedQueue, setSelectedQueue]);
+  // Default = "Todas as filas" (selectedQueue null). No auto-select.
 
   // Count conversations by status
   const pendingCount = conversations.filter(c => c.status === 'pending').length;
@@ -151,12 +137,16 @@ export function ChatList() {
           </div>
         </div>
 
-        {/* Queue selector */}
+        {/* Queue selector - includes "Todas as filas" option */}
         {activeQueues.length > 0 && (
           <div className="px-4 pb-2">
             <Select
-              value={selectedQueue?.id || ''}
+              value={selectedQueue?.id || '__all__'}
               onValueChange={(val) => {
+                if (val === '__all__') {
+                  setSelectedQueue(null);
+                  return;
+                }
                 const queue = activeQueues.find(q => q.id === val);
                 if (queue) {
                   setSelectedQueue({
@@ -174,10 +164,15 @@ export function ChatList() {
               <SelectTrigger className="w-full h-8 text-xs">
                 <div className="flex items-center gap-2">
                   <Layers className="h-3.5 w-3.5 text-muted-foreground" />
-                  <SelectValue placeholder="Selecionar fila..." />
+                  <SelectValue placeholder="Todas as filas" />
                 </div>
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="__all__">
+                  <div className="flex items-center gap-2">
+                    <span>Todas as filas</span>
+                  </div>
+                </SelectItem>
                 {activeQueues.map((queue) => (
                   <SelectItem key={queue.id} value={queue.id}>
                     <div className="flex items-center gap-2">
@@ -223,13 +218,7 @@ export function ChatList() {
       {/* Contact List */}
       <ScrollArea className="flex-1">
         <div className="py-1">
-          {!selectedQueue ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-              <Layers className="h-12 w-12 mb-4 opacity-50" />
-              <p className="font-medium">Selecione uma fila</p>
-              <p className="text-sm mt-1">Escolha uma fila acima para ver as conversas</p>
-            </div>
-          ) : isLoading ? (
+          {isLoading ? (
             Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-3">
                 <Skeleton className="h-10 w-10 rounded-full" />
@@ -250,16 +239,20 @@ export function ChatList() {
               </p>
             </div>
           ) : (
-            filteredContacts.map((contact) => (
-              <ChatContactItem
-                key={contact.id}
-                contact={contact}
-                isSelected={contact.id === selectedContactId}
-                onClick={() => selectContact(contact.id)}
-                conversation={conversations.find(c => c.contact_id === contact.id && ['pending', 'open'].includes(c.status))}
-                queueName={selectedQueue?.name}
-              />
-            ))
+            filteredContacts.map((contact) => {
+              const conv = conversations.find(c => c.contact_id === contact.id && ['pending', 'open'].includes(c.status));
+              const convQueue = conv?.queue_id ? activeQueues.find(q => q.id === conv.queue_id) : undefined;
+              return (
+                <ChatContactItem
+                  key={contact.id}
+                  contact={contact}
+                  isSelected={contact.id === selectedContactId}
+                  onClick={() => selectContact(contact.id)}
+                  conversation={conv}
+                  queueName={convQueue?.name}
+                />
+              );
+            })
           )}
         </div>
       </ScrollArea>
