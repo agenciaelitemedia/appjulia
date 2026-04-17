@@ -78,7 +78,15 @@ export function StepFinalPrompt({
         toast.error(`Agente ${codAgent} não encontrado no sistema externo.`);
         return;
       }
-      await externalDb.updateAgent(agent.id, { prompt: generatedPrompt } as any);
+      const current = await externalDb.getAgentDetails<any>(agent.id);
+      await externalDb.updateAgent(agent.id, {
+        settings: current?.settings ?? {},
+        prompt: generatedPrompt,
+        is_closer: current?.is_closer ?? false,
+        agent_plan_id: current?.agent_plan_id ?? null,
+        due_date: current?.due_date ?? null,
+        status: current?.status ?? true,
+      } as any);
 
       if (promptId) {
         const nowIso = new Date().toISOString();
