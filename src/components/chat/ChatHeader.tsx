@@ -43,7 +43,7 @@ function ChannelBadge({ channel }: { channel?: string }) {
 }
 
 export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps) {
-  const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact } = useWhatsAppData();
+  const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact, markAsRead } = useWhatsAppData();
   const { user } = useAuth();
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
@@ -116,6 +116,8 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
     if (selectedConversation.status === 'pending') {
       await updateConversationStatus(selectedConversation.id, 'open');
     }
+    // Now that the agent claimed the conversation, clear the unread badge.
+    try { await markAsRead(contact.id); } catch (e) { /* noop */ }
   };
 
   const handleResolve = async () => {
