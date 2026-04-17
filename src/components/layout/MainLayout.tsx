@@ -10,6 +10,7 @@ import { SoftphoneWidget } from '@/pages/telefonia/components/SoftphoneWidget';
 import { cn } from '@/lib/utils';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { AgentBlockedScreen } from './AgentBlockedScreen';
+import { DisconnectedAgentsAlert } from './DisconnectedAgentsAlert';
 
 function GlobalSoftphone() {
   const { sip, showSoftphone, setShowSoftphone, softphoneCentered, setSoftphoneCentered, dialContactName, isDialing, dialError, clearDialError, retryDial, cancelDial } = usePhone();
