@@ -728,11 +728,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
       let externalMessageId: string | undefined;
 
-      if (selectedQueue.channel_type === 'waba') {
+      if (queue.channel_type === 'waba') {
         const { data, error } = await supabase.functions.invoke('waba-send', {
           body: {
             action: 'send_media',
-            queue_id: selectedQueue.id,
+            queue_id: queue.id,
             to: contact.phone,
             mediaBase64: base64,
             mimetype: file.type,
@@ -758,8 +758,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           body: {
             method: 'POST',
             endpoint: path,
-            token: selectedQueue.evo_apikey,
-            baseUrl: selectedQueue.evo_url,
+            token: queue.evo_apikey,
+            baseUrl: queue.evo_url,
             body: {
               number: contact.phone,
               mediaBase64: base64,
