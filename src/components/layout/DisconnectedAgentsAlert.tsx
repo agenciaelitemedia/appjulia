@@ -56,8 +56,9 @@ export function DisconnectedAgentsAlert() {
   const [open, setOpen] = useState(false);
   const [disconnected, setDisconnected] = useState<UserAgent[]>([]);
 
+  // Apenas agentes onde o usuário é owner (agent_id !== null) e ativos
   const allAgents: UserAgent[] = agentsData
-    ? [...agentsData.myAgents, ...agentsData.monitoredAgents].filter(a => a.status === true)
+    ? agentsData.myAgents.filter(a => a.status === true)
     : [];
 
   const queries = useQueries({
