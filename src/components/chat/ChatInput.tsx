@@ -306,7 +306,7 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
           {!noteMode && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0">
+                <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" disabled={!canSend}>
                   <Paperclip className="h-5 w-5 text-muted-foreground" />
                 </Button>
               </DropdownMenuTrigger>
@@ -341,9 +341,9 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
           )}
 
           {/* Quick Messages */}
-          <Popover open={showQuickMessages} onOpenChange={setShowQuickMessages}>
+          <Popover open={showQuickMessages} onOpenChange={(o) => canSend && setShowQuickMessages(o)}>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" title="Mensagens rápidas (/)">
+              <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" title="Mensagens rápidas (/)" disabled={!canSend}>
                 <Zap className="h-5 w-5 text-muted-foreground" />
               </Button>
             </PopoverTrigger>
