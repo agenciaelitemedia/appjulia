@@ -3304,6 +3304,8 @@ export type Database = {
           is_active: boolean | null
           office_info: string | null
           practice_areas: string | null
+          prompt_published_at: string | null
+          prompt_published_by: string | null
           template_id: string | null
           updated_at: string | null
           updated_by: string | null
@@ -3322,6 +3324,8 @@ export type Database = {
           is_active?: boolean | null
           office_info?: string | null
           practice_areas?: string | null
+          prompt_published_at?: string | null
+          prompt_published_by?: string | null
           template_id?: string | null
           updated_at?: string | null
           updated_by?: string | null
@@ -3340,6 +3344,8 @@ export type Database = {
           is_active?: boolean | null
           office_info?: string | null
           practice_areas?: string | null
+          prompt_published_at?: string | null
+          prompt_published_by?: string | null
           template_id?: string | null
           updated_at?: string | null
           updated_by?: string | null

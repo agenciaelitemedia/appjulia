@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Plus, Search, Pencil, Trash2, Eye, History, Copy, Check } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Eye, History, Copy, Check, Upload, CheckCircle2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { externalDb } from '@/lib/externalDb';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,10 +26,14 @@ import { ptBR } from 'date-fns/locale';
 
 export function PromptsTab() {
   const { user } = useAuth();
-  const { prompts, isLoading, fetchPrompts, fetchCases, deletePrompt, updatePrompt } = useAgentPrompts();
+  const { prompts, isLoading, fetchPrompts, fetchCases, deletePrompt, updatePrompt, markAsPublished } = useAgentPrompts();
   const [search, setSearch] = useState('');
   const [showWizard, setShowWizard] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Publish
+  const [confirmPublish, setConfirmPublish] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   // View
   const [viewing, setViewing] = useState<AgentPrompt | null>(null);
@@ -99,6 +106,35 @@ export function PromptsTab() {
       await navigator.clipboard.writeText(viewing.generated_prompt);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!viewing?.generated_prompt || !viewing.cod_agent) return;
+    setPublishing(true);
+    try {
+      // Buscar agent_id numérico no banco externo via cod_agent
+      const matches = await externalDb.searchAgents<{ id: number; cod_agent: string }>(viewing.cod_agent);
+      const agent = matches?.find(a => String(a.cod_agent) === String(viewing.cod_agent));
+      if (!agent?.id) {
+        toast.error(`Agente ${viewing.cod_agent} não encontrado no sistema externo.`);
+        return;
+      }
+      await externalDb.updateAgent(agent.id, { prompt: viewing.generated_prompt } as any);
+      await markAsPublished(viewing.id, user?.name);
+      // Atualizar viewing local
+      setViewing({
+        ...viewing,
+        prompt_published_at: new Date().toISOString(),
+        prompt_published_by: user?.name || null,
+      });
+      toast.success(`Prompt publicado no agente ${viewing.cod_agent} com sucesso!`);
+      setConfirmPublish(false);
+    } catch (e: any) {
+      console.error('Erro ao publicar prompt:', e);
+      toast.error('Falha ao publicar prompt: ' + (e?.message || 'erro desconhecido'));
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -199,6 +235,19 @@ export function PromptsTab() {
           <DialogHeader>
             <DialogTitle>[{viewing?.cod_agent}] - {viewing?.agent_name}</DialogTitle>
             {viewing?.business_name && <DialogDescription>{viewing.business_name}</DialogDescription>}
+            {viewing && (
+              <div className="pt-1">
+                {viewing.prompt_published_at ? (
+                  <Badge variant="default">
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                    Publicado em {format(new Date(viewing.prompt_published_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                    {viewing.prompt_published_by ? ` por ${viewing.prompt_published_by}` : ''}
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary">Nunca publicado</Badge>
+                )}
+              </div>
+            )}
           </DialogHeader>
           <div className="space-y-4">
             {/* ZapSign Links Card */}
@@ -209,12 +258,12 @@ export function PromptsTab() {
                   <div key={c.id} className="flex items-center gap-2 text-xs">
                     <span className="font-medium">{c.case_name}:</span>
                     <a
-                      href={`https://app.zapsign.com.br/verificar/${c.zapsign_doc_token}`}
+                      href={`https://app.zapsign.com.br/verificar/doc/${c.zapsign_doc_token}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-primary underline break-all"
                     >
-                      https://app.zapsign.com.br/verificar/{c.zapsign_doc_token}
+                      https://app.zapsign.com.br/verificar/doc/{c.zapsign_doc_token}
                     </a>
                   </div>
                 ))}
@@ -247,10 +296,20 @@ export function PromptsTab() {
             {/* Prompt Final */}
             <div className="flex items-center justify-between">
               <Label className="text-sm font-semibold">Prompt Final Gerado</Label>
-              <Button variant="outline" size="sm" onClick={handleCopyPrompt}>
-                {copied ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
-                {copied ? 'Copiado!' : 'Copiar'}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleCopyPrompt}>
+                  {copied ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+                  {copied ? 'Copiado!' : 'Copiar'}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setConfirmPublish(true)}
+                  disabled={!viewing?.generated_prompt || publishing}
+                >
+                  <Upload className="h-3 w-3 mr-1" />
+                  Publicar
+                </Button>
+              </div>
             </div>
             {viewing?.generated_prompt ? (
               <Textarea
@@ -267,6 +326,25 @@ export function PromptsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm Publish Dialog */}
+      <AlertDialog open={confirmPublish} onOpenChange={o => !publishing && setConfirmPublish(o)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Publicar prompt?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação irá <strong>substituir</strong> o prompt atual do agente <strong>{viewing?.cod_agent}</strong> ({viewing?.agent_name}) em produção.
+              Tem certeza que deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={publishing}>Cancelar</AlertDialogCancel>
+            <Button onClick={handlePublish} disabled={publishing}>
+              {publishing ? 'Publicando...' : 'Sim, publicar'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Dialog */}
       <AlertDialog open={!!deleting} onOpenChange={o => !o && setDeleting(null)}>

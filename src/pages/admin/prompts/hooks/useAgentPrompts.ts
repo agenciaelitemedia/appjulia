@@ -19,6 +19,8 @@ export interface AgentPrompt {
   updated_by: string | null;
   created_at: string;
   updated_at: string;
+  prompt_published_at?: string | null;
+  prompt_published_by?: string | null;
 }
 
 export interface AgentPromptCase {
@@ -179,5 +181,26 @@ export function useAgentPrompts() {
     return true;
   };
 
-  return { prompts, isLoading, fetchPrompts, fetchCases, createPrompt, updatePrompt, deletePrompt };
+  const markAsPublished = async (id: string, userName?: string) => {
+    const nowIso = new Date().toISOString();
+    const { error } = await supabase
+      .from('generation_agent_prompts')
+      .update({
+        prompt_published_at: nowIso,
+        prompt_published_by: userName || null,
+      } as any)
+      .eq('id', id);
+
+    if (error) {
+      console.error('Erro ao marcar como publicado:', error);
+      return false;
+    }
+    setPrompts(prev => prev.map(p => p.id === id
+      ? { ...p, prompt_published_at: nowIso, prompt_published_by: userName || null }
+      : p
+    ));
+    return true;
+  };
+
+  return { prompts, isLoading, fetchPrompts, fetchCases, createPrompt, updatePrompt, deletePrompt, markAsPublished };
 }
