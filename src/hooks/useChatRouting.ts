@@ -1,0 +1,122 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+
+export interface RoutingCondition {
+  field: 'channel' | 'tag' | 'priority' | 'keyword' | 'business_hours';
+  op: 'equals' | 'contains' | 'in' | 'not_in';
+  value: string;
+}
+
+export interface RoutingRule {
+  id: string;
+  client_id: string;
+  cod_agent: string | null;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+  position: number;
+  conditions: RoutingCondition[];
+  strategy: 'round_robin' | 'least_busy' | 'specific_agent' | 'manual_pool';
+  agent_pool: string[];
+  target_queue_id: string | null;
+  fallback_assigned_to: string | null;
+  only_business_hours: boolean;
+  execution_count: number;
+  last_executed_at: string | null;
+  last_assigned_to: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentCapacity {
+  id: string;
+  client_id: string;
+  agent_identifier: string;
+  agent_name: string | null;
+  max_concurrent: number;
+  status: 'online' | 'away' | 'busy' | 'offline';
+  is_active: boolean;
+  current_load: number;
+  last_assigned_at: string | null;
+}
+
+export function useChatRouting() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const clientId = String(user?.cod_agent || user?.id || 'default');
+
+  const rules = useQuery({
+    queryKey: ['chat-routing-rules', clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('chat_routing_rules')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('position', { ascending: true });
+      if (error) throw error;
+      return (data || []) as unknown as RoutingRule[];
+    },
+  });
+
+  const capacities = useQuery({
+    queryKey: ['chat-agent-capacity', clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('chat_agent_capacity')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('agent_name', { ascending: true });
+      if (error) throw error;
+      return (data || []) as unknown as AgentCapacity[];
+    },
+  });
+
+  const upsertRule = useMutation({
+    mutationFn: async (rule: Partial<RoutingRule> & { name: string }) => {
+      const payload = { ...rule, client_id: clientId, cod_agent: user?.cod_agent ? String(user.cod_agent) : null };
+      const { error } = rule.id
+        ? await supabase.from('chat_routing_rules').update(payload as never).eq('id', rule.id)
+        : await supabase.from('chat_routing_rules').insert(payload as never);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['chat-routing-rules', clientId] });
+      toast.success('Regra salva');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const removeRule = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('chat_routing_rules').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['chat-routing-rules', clientId] }),
+  });
+
+  const upsertCapacity = useMutation({
+    mutationFn: async (cap: Partial<AgentCapacity> & { agent_identifier: string }) => {
+      const payload = { ...cap, client_id: clientId };
+      const { error } = await supabase
+        .from('chat_agent_capacity')
+        .upsert(payload as never, { onConflict: 'client_id,agent_identifier' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['chat-agent-capacity', clientId] });
+      toast.success('Capacidade atualizada');
+    },
+  });
+
+  const removeCapacity = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('chat_agent_capacity').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['chat-agent-capacity', clientId] }),
+  });
+
+  return { rules, capacities, upsertRule, removeRule, upsertCapacity, removeCapacity };
+}
