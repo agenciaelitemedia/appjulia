@@ -188,7 +188,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
         {/* Row 2: Badges + time + unread */}
         <div className="flex items-center justify-between gap-1">
           <div className="flex items-center gap-1 flex-wrap">
-            <ConversationBadges conversation={conversation} queueName={queueName} />
+            <ConversationBadges conversation={conversation} queueName={queueName} assignedAgentName={assignedAgentName} />
             {slaEvaluation && <SlaBadge evaluation={slaEvaluation} compact />}
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
