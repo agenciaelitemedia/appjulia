@@ -104,6 +104,20 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
     await updateConversationStatus(selectedConversation.id, 'closed', closeNote || undefined);
   };
 
+  const currentUserName = user?.name || (user?.id ? String(user.id) : '');
+  const isAssignedToMe = !!selectedConversation?.assigned_to && !!currentUserName && selectedConversation.assigned_to === currentUserName;
+  const canTakeOver = !!selectedConversation
+    && ['pending', 'open'].includes(selectedConversation.status)
+    && !isAssignedToMe;
+
+  const handleTakeOver = async () => {
+    if (!selectedConversation || !currentUserName) return;
+    await assignConversation(selectedConversation.id, currentUserName);
+    if (selectedConversation.status === 'pending') {
+      await updateConversationStatus(selectedConversation.id, 'open');
+    }
+  };
+
   const handleResolve = async () => {
     if (!selectedConversation) return;
     await updateConversationStatus(selectedConversation.id, 'resolved');
