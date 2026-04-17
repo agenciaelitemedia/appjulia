@@ -552,12 +552,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     try {
       let externalMessageId: string | undefined;
 
-      if (selectedQueue.channel_type === 'waba') {
+      if (queue.channel_type === 'waba') {
         // WABA send via edge function
         const { data, error } = await supabase.functions.invoke('waba-send', {
           body: {
             action: 'send_text',
-            queue_id: selectedQueue.id,
+            queue_id: queue.id,
             to: contact.phone,
             text,
           },
@@ -570,8 +570,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           body: {
             method: 'POST',
             endpoint: '/message/sendText',
-            token: selectedQueue.evo_apikey,
-            baseUrl: selectedQueue.evo_url,
+            token: queue.evo_apikey,
+            baseUrl: queue.evo_url,
             body: {
               number: contact.phone,
               text,
