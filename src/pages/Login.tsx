@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { markJustLoggedIn } from '@/components/layout/DisconnectedAgentsAlert';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -41,6 +42,7 @@ export default function Login() {
     const result = await login(email, password);
     
     if (result.success) {
+      markJustLoggedIn();
       toast({
         title: 'Bem-vindo!',
         description: 'Login realizado com sucesso',
