@@ -79,18 +79,23 @@ function MessagePreview({ text, type }: { text?: string; type?: string }) {
 }
 
 /** Status/tag badges like Helena */
-function ConversationBadges({ conversation, queueName }: { conversation?: ChatConversation; queueName?: string }) {
-  if (!conversation) return null;
-
+function ConversationBadges({ conversation, queueName, assignedAgentName }: { conversation?: ChatConversation; queueName?: string; assignedAgentName?: string }) {
   const badges: { label: string; className: string }[] = [];
 
   if (queueName) {
     badges.push({ label: queueName.toUpperCase(), className: 'bg-blue-600 text-white' });
   }
-  if (conversation.priority === 'high' || conversation.priority === 'urgent') {
+
+  // Team / assigned agent — always show, even when empty
+  badges.push({
+    label: assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO',
+    className: assignedAgentName ? 'bg-muted text-foreground' : 'bg-muted/60 text-muted-foreground',
+  });
+
+  if (conversation?.priority === 'high' || conversation?.priority === 'urgent') {
     badges.push({ label: 'PRIORIDADE', className: 'bg-red-500 text-white' });
   }
-  if (conversation.tags && conversation.tags.length > 0) {
+  if (conversation?.tags && conversation.tags.length > 0) {
     conversation.tags.slice(0, 2).forEach(tag => {
       badges.push({ label: tag.toUpperCase(), className: 'bg-emerald-600 text-white' });
     });
