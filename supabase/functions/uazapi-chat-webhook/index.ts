@@ -209,10 +209,38 @@ Deno.serve(async (req) => {
         if (!messageId) { skipped.no_id++; console.log('[uazapi-chat-webhook] no messageId, sample:', JSON.stringify(msg).slice(0, 400)); continue; }
 
         const fromMe = msg.from_me ?? msg.fromMe ?? msg.key?.fromMe ?? msg.wa_fromMe ?? false;
-        const senderPhone = normalizePhone(
-          msg.sender || msg.from || msg.sender_pn || msg.PhoneNumber || msg.phone || msg.wa_chatid || chatId || ''
-        );
-        if (!senderPhone) { skipped.no_phone++; continue; }
+
+        // Resolve real phone number, NOT the WhatsApp LID (internal ID, format 15+ digits @lid).
+        // Priority: chatid (canonical for 1:1 chats) > sender_pn (real phone) > PhoneNumber > sender/from (last resort, may be @lid).
+        const candidates = [
+          msg.chatid,        // canonical chat id, e.g. "5511999999999@s.whatsapp.net"
+          msg.chatId,
+          msg.sender_pn,     // sender phone number (real)
+          msg.PhoneNumber,
+          msg.phone,
+          msg.from,
+          msg.sender,        // may be a LID (e.g. "135630956830767@lid")
+          msg.wa_chatid,
+          chatId,
+        ];
+        let senderPhone = '';
+        for (const cand of candidates) {
+          if (!cand) continue;
+          const raw = String(cand);
+          // Skip LIDs explicitly — they are internal WhatsApp IDs, not phone numbers
+          if (raw.includes('@lid')) continue;
+          const normalized = normalizePhone(raw);
+          // Real phone numbers are 8–13 digits (E.164). Anything longer is a LID/group/internal ID.
+          if (normalized && normalized.length >= 8 && normalized.length <= 13) {
+            senderPhone = normalized;
+            break;
+          }
+        }
+        if (!senderPhone) {
+          skipped.no_phone++;
+          console.log('[uazapi-chat-webhook] no valid phone (LID-only msg?), sample:', JSON.stringify({ chatid: msg.chatid, sender: msg.sender, sender_pn: msg.sender_pn, from: msg.from }).slice(0, 300));
+          continue;
+        }
 
         const pushName = msg.pushName || msg.senderName || msg.wa_contactName || '';
         const text = extractMessageText(msg);
