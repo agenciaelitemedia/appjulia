@@ -233,12 +233,15 @@ Deno.serve(async (req) => {
         // Check if contact already existed BEFORE upsert (for backfill detection)
         const { data: preExisting } = await supabase
           .from('chat_contacts')
-          .select('id, history_backfilled')
+          .select('id, history_backfilled, unread_count')
           .eq('phone', senderPhone)
           .eq('client_id', queue.client_id)
           .maybeSingle();
         const isNewContact = !preExisting;
         const alreadyBackfilled = preExisting?.history_backfilled === true;
+        const nextUnreadCount = fromMe
+          ? (preExisting?.unread_count || 0)
+          : (preExisting?.unread_count || 0) + 1;
 
         const { data: contact } = await supabase
           .from('chat_contacts')
@@ -252,7 +255,7 @@ Deno.serve(async (req) => {
             avatar: msg.profilePictureUrl || null,
             last_message_at: isoTimestamp,
             last_message_text: text || `[${type}]`,
-            unread_count: fromMe ? 0 : 1,
+            unread_count: nextUnreadCount,
           }, {
             onConflict: 'phone,client_id',
             ignoreDuplicates: false,
@@ -266,8 +269,7 @@ Deno.serve(async (req) => {
         if ((isNewContact || !alreadyBackfilled) && !backfillTriggered.has(contact.id)) {
           backfillTriggered.add(contact.id);
           const backfillUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/uazapi-chat-backfill`;
-          // fire-and-forget
-          fetch(backfillUrl, {
+          void fetch(backfillUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -281,23 +283,6 @@ Deno.serve(async (req) => {
               limit: 50,
             }),
           }).catch((e) => console.warn('[uazapi-chat-webhook] backfill trigger failed:', e));
-        }
-
-
-        // If not from_me, increment unread_count
-        if (!fromMe) {
-          await supabase.rpc('increment_unread_count' as any, { contact_uuid: contact.id }).catch(() => {
-            // Fallback: direct update
-            supabase
-              .from('chat_contacts')
-              .update({
-                unread_count: (contact.unread_count || 0) + 1,
-                last_message_at: isoTimestamp,
-                last_message_text: text || `[${type}]`,
-              })
-              .eq('id', contact.id)
-              .then(() => {});
-          });
         }
 
         // Update contact name/avatar if we have new data
