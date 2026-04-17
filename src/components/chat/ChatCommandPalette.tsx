@@ -32,6 +32,9 @@ import {
   Sparkles,
   Plug,
   FileBarChart,
+  Phone,
+  FlaskConical,
+  Shield,
 } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { toast } from 'sonner';
@@ -165,6 +168,18 @@ export function ChatCommandPalette({ open, onOpenChange }: ChatCommandPalettePro
           <CommandItem onSelect={() => { navigate('/chat/integracoes'); close(); }}>
             <Plug className="mr-2 h-4 w-4 text-emerald-500" />
             <span>Integrações</span>
+          </CommandItem>
+          <CommandItem onSelect={() => { navigate('/chat/telefonia'); close(); }}>
+            <Phone className="mr-2 h-4 w-4 text-orange-500" />
+            <span>Telefonia no chat</span>
+          </CommandItem>
+          <CommandItem onSelect={() => { navigate('/chat/marketing'); close(); }}>
+            <FlaskConical className="mr-2 h-4 w-4 text-pink-500" />
+            <span>Marketing avançado (A/B)</span>
+          </CommandItem>
+          <CommandItem onSelect={() => { navigate('/chat/compliance'); close(); }}>
+            <Shield className="mr-2 h-4 w-4 text-red-500" />
+            <span>Segurança & Compliance</span>
           </CommandItem>
           <CommandItem onSelect={() => { navigate('/chat/campanhas'); close(); }}>
             <Send className="mr-2 h-4 w-4 text-pink-500" />

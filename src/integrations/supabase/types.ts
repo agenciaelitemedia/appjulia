@@ -398,6 +398,60 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_audit_log: {
+        Row: {
+          action: string
+          actor_identifier: string | null
+          actor_ip: string | null
+          actor_name: string | null
+          after_state: Json | null
+          before_state: Json | null
+          client_id: string
+          cod_agent: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          resource_id: string | null
+          resource_type: string
+          severity: string
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          actor_identifier?: string | null
+          actor_ip?: string | null
+          actor_name?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          client_id: string
+          cod_agent?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          resource_id?: string | null
+          resource_type: string
+          severity?: string
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          actor_identifier?: string | null
+          actor_ip?: string | null
+          actor_name?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          client_id?: string
+          cod_agent?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          resource_id?: string | null
+          resource_type?: string
+          severity?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       chat_automation_logs: {
         Row: {
           action_type: string
@@ -667,36 +721,120 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_call_logs: {
+        Row: {
+          agent_identifier: string | null
+          answered_at: string | null
+          client_id: string
+          cod_agent: string | null
+          contact_id: string | null
+          conversation_id: string | null
+          created_at: string
+          direction: string
+          duration_seconds: number | null
+          ended_at: string | null
+          external_call_id: string | null
+          from_number: string | null
+          id: string
+          metadata: Json
+          notes: string | null
+          provider: string | null
+          recording_url: string | null
+          started_at: string
+          status: string
+          to_number: string | null
+          transcription: string | null
+          updated_at: string
+        }
+        Insert: {
+          agent_identifier?: string | null
+          answered_at?: string | null
+          client_id: string
+          cod_agent?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          direction?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          external_call_id?: string | null
+          from_number?: string | null
+          id?: string
+          metadata?: Json
+          notes?: string | null
+          provider?: string | null
+          recording_url?: string | null
+          started_at?: string
+          status?: string
+          to_number?: string | null
+          transcription?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agent_identifier?: string | null
+          answered_at?: string | null
+          client_id?: string
+          cod_agent?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          direction?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          external_call_id?: string | null
+          from_number?: string | null
+          id?: string
+          metadata?: Json
+          notes?: string | null
+          provider?: string | null
+          recording_url?: string | null
+          started_at?: string
+          status?: string
+          to_number?: string | null
+          transcription?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chat_campaign_recipients: {
         Row: {
           campaign_id: string
           contact_id: string
+          converted_at: string | null
           created_at: string
           error_message: string | null
           id: string
           phone: string
+          replied_at: string | null
           sent_at: string | null
           status: string
+          variant_id: string | null
         }
         Insert: {
           campaign_id: string
           contact_id: string
+          converted_at?: string | null
           created_at?: string
           error_message?: string | null
           id?: string
           phone: string
+          replied_at?: string | null
           sent_at?: string | null
           status?: string
+          variant_id?: string | null
         }
         Update: {
           campaign_id?: string
           contact_id?: string
+          converted_at?: string | null
           created_at?: string
           error_message?: string | null
           id?: string
           phone?: string
+          replied_at?: string | null
           sent_at?: string | null
           status?: string
+          variant_id?: string | null
         }
         Relationships: [
           {
@@ -707,6 +845,96 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      chat_campaign_schedules: {
+        Row: {
+          campaign_id: string
+          client_id: string
+          created_at: string
+          cron_expression: string | null
+          id: string
+          is_active: boolean
+          last_run_at: string | null
+          max_runs: number | null
+          next_run_at: string | null
+          run_count: number
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          client_id: string
+          created_at?: string
+          cron_expression?: string | null
+          id?: string
+          is_active?: boolean
+          last_run_at?: string | null
+          max_runs?: number | null
+          next_run_at?: string | null
+          run_count?: number
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          client_id?: string
+          created_at?: string
+          cron_expression?: string | null
+          id?: string
+          is_active?: boolean
+          last_run_at?: string | null
+          max_runs?: number | null
+          next_run_at?: string | null
+          run_count?: number
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      chat_campaign_variants: {
+        Row: {
+          campaign_id: string
+          contacts_converted: number
+          contacts_delivered: number
+          contacts_replied: number
+          contacts_sent: number
+          created_at: string
+          id: string
+          label: string
+          media_type: string | null
+          media_url: string | null
+          message_text: string
+          weight: number
+        }
+        Insert: {
+          campaign_id: string
+          contacts_converted?: number
+          contacts_delivered?: number
+          contacts_replied?: number
+          contacts_sent?: number
+          created_at?: string
+          id?: string
+          label: string
+          media_type?: string | null
+          media_url?: string | null
+          message_text: string
+          weight?: number
+        }
+        Update: {
+          campaign_id?: string
+          contacts_converted?: number
+          contacts_delivered?: number
+          contacts_replied?: number
+          contacts_sent?: number
+          created_at?: string
+          id?: string
+          label?: string
+          media_type?: string | null
+          media_url?: string | null
+          message_text?: string
+          weight?: number
+        }
+        Relationships: []
       }
       chat_campaigns: {
         Row: {
@@ -1321,6 +1549,60 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_lgpd_requests: {
+        Row: {
+          client_id: string
+          cod_agent: string | null
+          contact_id: string | null
+          contact_phone: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          processed_at: string | null
+          processed_by: string | null
+          reason: string | null
+          request_type: string
+          requested_by: string | null
+          result_url: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          cod_agent?: string | null
+          contact_id?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          reason?: string | null
+          request_type: string
+          requested_by?: string | null
+          result_url?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          cod_agent?: string | null
+          contact_id?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          reason?: string | null
+          request_type?: string
+          requested_by?: string | null
+          result_url?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chat_mentions: {
         Row: {
           conversation_id: string
@@ -1485,6 +1767,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      chat_role_permissions: {
+        Row: {
+          client_id: string
+          created_at: string
+          description: string | null
+          id: string
+          is_system: boolean
+          permissions: Json
+          role_name: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          permissions?: Json
+          role_name: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          permissions?: Json
+          role_name?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       chat_routing_rules: {
         Row: {
@@ -1723,6 +2038,51 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+        }
+        Relationships: []
+      }
+      chat_user_security: {
+        Row: {
+          backup_codes: Json | null
+          created_at: string
+          failed_attempts: number
+          id: string
+          last_login_at: string | null
+          last_login_ip: string | null
+          locked_until: string | null
+          totp_enabled: boolean
+          totp_secret: string | null
+          totp_verified_at: string | null
+          updated_at: string
+          user_identifier: string
+        }
+        Insert: {
+          backup_codes?: Json | null
+          created_at?: string
+          failed_attempts?: number
+          id?: string
+          last_login_at?: string | null
+          last_login_ip?: string | null
+          locked_until?: string | null
+          totp_enabled?: boolean
+          totp_secret?: string | null
+          totp_verified_at?: string | null
+          updated_at?: string
+          user_identifier: string
+        }
+        Update: {
+          backup_codes?: Json | null
+          created_at?: string
+          failed_attempts?: number
+          id?: string
+          last_login_at?: string | null
+          last_login_ip?: string | null
+          locked_until?: string | null
+          totp_enabled?: boolean
+          totp_secret?: string | null
+          totp_verified_at?: string | null
+          updated_at?: string
+          user_identifier?: string
         }
         Relationships: []
       }
