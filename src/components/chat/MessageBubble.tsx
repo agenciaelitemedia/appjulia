@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Check, CheckCheck, Clock, AlertCircle, Download, Play, Pause, Loader2, FileText, MapPin, User, StickyNote as StickyNoteIcon, Forward } from 'lucide-react';
+import { MediaLightbox } from './MediaLightbox';
 import { Button } from '@/components/ui/button';
 import { QuotedMessage } from './QuotedMessage';
 import { ReactionPicker } from './ReactionPicker';
@@ -87,14 +88,27 @@ function StatusIcon({ status }: { status: MessageStatus }) {
 
 function MediaContent({ message, onDownload }: { message: ChatMessage; onDownload?: () => void }) {
   const [isLoading, setIsLoading] = useState(false);
-  const [mediaUrl, setMediaUrl] = useState(message.media_url);
+  const [mediaUrl, setMediaUrl] = useState<string | undefined>(message.media_url);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioProgress, setAudioProgress] = useState(0);
-  const [audioDuration, setAudioDuration] = useState(message.metadata?.duration || 0);
+  const [audioCurrent, setAudioCurrent] = useState(0);
+  const [audioDuration, setAudioDuration] = useState<number>(message.metadata?.duration || 0);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
+  // Sync local URL with prop when parent updates message
+  useEffect(() => {
+    if (message.media_url && message.media_url !== mediaUrl) {
+      setMediaUrl(message.media_url);
+    }
+  }, [message.media_url]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isEncrypted = (u?: string) => !u || u.includes('.enc') || u.includes('mmg.whatsapp.net');
+
   const handleDownload = async () => {
-    if (!onDownload || mediaUrl) return;
+    if (!onDownload) return;
+    if (mediaUrl && !isEncrypted(mediaUrl)) return;
     setIsLoading(true);
     try {
       const url = await (onDownload as any)();
@@ -104,79 +118,117 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
     }
   };
 
+  // Auto-fetch for image/video/audio/sticker on mount (WhatsApp Web behavior)
+  useEffect(() => {
+    if (!onDownload) return;
+    const autoTypes = ['image', 'video', 'audio', 'ptt', 'sticker'];
+    if (!autoTypes.includes(message.type)) return;
+    if (mediaUrl && !isEncrypted(mediaUrl)) return;
+    handleDownload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [message.id]);
+
   const toggleAudio = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play().catch(() => {});
     }
+    setIsPlaying(!isPlaying);
   };
 
   const handleTimeUpdate = () => {
     if (audioRef.current) {
       const { currentTime, duration } = audioRef.current;
-      if (duration && !isNaN(duration)) {
+      setAudioCurrent(currentTime || 0);
+      if (duration && !isNaN(duration) && isFinite(duration)) {
         setAudioProgress((currentTime / duration) * 100);
         setAudioDuration(duration);
       }
     }
   };
 
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!audioRef.current) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = (e.clientX - rect.left) / rect.width;
+    const dur = audioRef.current.duration;
+    if (dur && isFinite(dur)) {
+      audioRef.current.currentTime = ratio * dur;
+    }
+  };
+
+  const cyclePlaybackRate = () => {
+    const rates = [1, 1.5, 2];
+    const next = rates[(rates.indexOf(playbackRate) + 1) % rates.length];
+    setPlaybackRate(next);
+    if (audioRef.current) audioRef.current.playbackRate = next;
+  };
+
   const formatDuration = (seconds: number) => {
+    if (!seconds || !isFinite(seconds)) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const usable = mediaUrl && !isEncrypted(mediaUrl);
+
   switch (message.type) {
     case 'image':
       return (
-        <div className="relative max-w-[280px]">
-          {mediaUrl ? (
-            <img
-              src={mediaUrl}
-              alt="Imagem"
-              className="rounded-lg max-w-full cursor-pointer hover:opacity-90 transition-opacity"
-              loading="lazy"
-            />
-          ) : message.metadata?.thumbnail ? (
-            <div className="relative">
+        <>
+          <div className="relative max-w-[280px]">
+            {usable ? (
               <img
-                src={`data:image/jpeg;base64,${message.metadata.thumbnail}`}
-                alt="Preview"
-                className="rounded-lg max-w-full blur-sm"
+                src={mediaUrl}
+                alt={message.caption || 'Imagem'}
+                className="rounded-lg max-w-full cursor-pointer hover:opacity-90 transition-opacity"
+                loading="lazy"
+                onClick={() => setLightboxOpen(true)}
               />
-              <Button
-                variant="secondary"
-                size="sm"
-                className="absolute inset-0 m-auto w-fit"
-                onClick={handleDownload}
-                disabled={isLoading}
-              >
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              </Button>
-            </div>
-          ) : (
-            <div className="bg-muted rounded-lg p-8 flex items-center justify-center">
-              <Button variant="ghost" size="sm" onClick={handleDownload} disabled={isLoading}>
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
-                Baixar imagem
-              </Button>
-            </div>
-          )}
-          {message.caption && (
-            <p className="mt-1 text-sm">{formatWhatsAppText(message.caption)}</p>
-          )}
-        </div>
+            ) : message.metadata?.thumbnail ? (
+              <div className="relative">
+                <img
+                  src={`data:image/jpeg;base64,${message.metadata.thumbnail}`}
+                  alt="Preview"
+                  className="rounded-lg max-w-full blur-sm"
+                />
+                <div className="absolute inset-0 flex items-center justify-center bg-background/30">
+                  <Loader2 className="h-6 w-6 animate-spin text-foreground" />
+                </div>
+              </div>
+            ) : (
+              <div className="bg-muted rounded-lg p-8 flex items-center justify-center min-h-[180px] min-w-[200px]">
+                {isLoading ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                ) : (
+                  <Button variant="ghost" size="sm" onClick={handleDownload}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Baixar imagem
+                  </Button>
+                )}
+              </div>
+            )}
+            {message.caption && (
+              <p className="mt-1 text-sm">{formatWhatsAppText(message.caption)}</p>
+            )}
+          </div>
+          <MediaLightbox
+            open={lightboxOpen}
+            onOpenChange={setLightboxOpen}
+            url={mediaUrl || null}
+            caption={message.caption}
+            fileName={message.file_name}
+          />
+        </>
       );
 
     case 'video':
       return (
         <div className="relative max-w-[280px]">
-          {mediaUrl ? (
+          {usable ? (
             <video
               src={mediaUrl}
               controls
@@ -185,10 +237,14 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
             />
           ) : (
             <div className="bg-muted rounded-lg p-8 flex items-center justify-center aspect-video">
-              <Button variant="ghost" size="sm" onClick={handleDownload} disabled={isLoading}>
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
-                Baixar vídeo
-              </Button>
+              {isLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              ) : (
+                <Button variant="ghost" size="sm" onClick={handleDownload}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Baixar vídeo
+                </Button>
+              )}
             </div>
           )}
           {message.caption && (
@@ -200,40 +256,64 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
     case 'audio':
     case 'ptt':
       return (
-        <div className="flex items-center gap-2 min-w-[200px]">
-          {mediaUrl ? (
+        <div className="flex items-center gap-2 min-w-[240px]">
+          {usable ? (
             <>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-full"
+                className="h-9 w-9 rounded-full shrink-0"
                 onClick={toggleAudio}
               >
                 {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
               </Button>
-              <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-primary rounded-full transition-all duration-200" 
-                  style={{ width: `${audioProgress}%` }} 
-                />
+              <div className="flex-1 flex flex-col gap-1">
+                <div
+                  className="h-1.5 bg-muted rounded-full overflow-hidden cursor-pointer"
+                  onClick={handleSeek}
+                  role="slider"
+                  aria-label="Posição do áudio"
+                >
+                  <div
+                    className="h-full bg-primary rounded-full transition-all duration-100"
+                    style={{ width: `${audioProgress}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                  <span className="font-mono">{formatDuration(audioCurrent)}</span>
+                  <span className="font-mono">{formatDuration(audioDuration)}</span>
+                </div>
               </div>
-              <span className="text-xs text-muted-foreground min-w-[32px] text-right">
-                {formatDuration(audioDuration)}
-              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-[10px] font-mono shrink-0"
+                onClick={cyclePlaybackRate}
+                aria-label="Velocidade"
+              >
+                {playbackRate}x
+              </Button>
               <audio
                 ref={audioRef}
                 src={mediaUrl}
+                preload="metadata"
                 onTimeUpdate={handleTimeUpdate}
                 onLoadedMetadata={handleTimeUpdate}
-                onEnded={() => { setIsPlaying(false); setAudioProgress(0); }}
+                onEnded={() => { setIsPlaying(false); setAudioProgress(0); setAudioCurrent(0); }}
                 className="hidden"
               />
             </>
           ) : (
-            <Button variant="ghost" size="sm" onClick={handleDownload} disabled={isLoading}>
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
-              Baixar áudio
-            </Button>
+            <div className="flex items-center gap-2 py-1">
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              ) : (
+                <Button variant="ghost" size="sm" onClick={handleDownload}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Baixar áudio
+                </Button>
+              )}
+            </div>
           )}
         </div>
       );
@@ -241,7 +321,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
     case 'document':
       return (
         <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg min-w-[200px]">
-          <FileText className="h-8 w-8 text-muted-foreground" />
+          <FileText className="h-8 w-8 text-muted-foreground shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{message.file_name || 'Documento'}</p>
             {message.metadata?.file_size && (
@@ -250,8 +330,8 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
               </p>
             )}
           </div>
-          {mediaUrl ? (
-            <a href={mediaUrl} target="_blank" rel="noopener noreferrer">
+          {usable ? (
+            <a href={mediaUrl} target="_blank" rel="noopener noreferrer" download={message.file_name || true}>
               <Button variant="ghost" size="icon" className="h-8 w-8">
                 <Download className="h-4 w-4" />
               </Button>
@@ -303,7 +383,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
       );
 
     case 'sticker':
-      return mediaUrl ? (
+      return usable ? (
         <img
           src={mediaUrl}
           alt="Figurinha"
@@ -311,10 +391,8 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
           loading="lazy"
         />
       ) : (
-        <div className="bg-muted rounded-lg p-4">
-          <Button variant="ghost" size="sm" onClick={handleDownload} disabled={isLoading}>
-            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : '🖼️ Figurinha'}
-          </Button>
+        <div className="bg-muted rounded-lg p-4 min-w-[100px] min-h-[100px] flex items-center justify-center">
+          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : '🖼️'}
         </div>
       );
 
@@ -322,6 +400,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
       return null;
   }
 }
+
 
 export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
   function MessageBubble({ message, reactions, onDownloadMedia, onReact, onForward }, ref) {
