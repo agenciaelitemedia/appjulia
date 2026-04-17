@@ -187,7 +187,12 @@ Deno.serve(async (req) => {
     // Accept both 'messages' event and default
     const messages = Array.isArray(payload.data) ? payload.data : [payload.data || payload];
 
+    // 3-day window: ignore messages older than this
+    const HISTORY_WINDOW_DAYS = 3;
+    const windowStartMs = Date.now() - HISTORY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
     let processed = 0;
+    let skippedOld = 0;
     for (const msg of messages) {
       try {
         // Skip group messages
@@ -210,13 +215,22 @@ Deno.serve(async (req) => {
         const mediaUrl = extractMediaUrl(msg);
         const timestamp = msg.messageTimestamp || msg.timestamp;
         let isoTimestamp: string;
+        let msTs: number;
         if (timestamp) {
           const ts = typeof timestamp === 'number' ? timestamp : Number(timestamp);
-          const msTs = ts > 1e12 ? ts : ts * 1000;
+          msTs = ts > 1e12 ? ts : ts * 1000;
           const d = new Date(msTs);
           isoTimestamp = (d.getFullYear() > 2000 && d.getFullYear() < 2100) ? d.toISOString() : new Date().toISOString();
+          if (d.getFullYear() <= 2000 || d.getFullYear() >= 2100) msTs = Date.now();
         } else {
+          msTs = Date.now();
           isoTimestamp = new Date().toISOString();
+        }
+
+        // Skip messages older than the 3-day window
+        if (msTs < windowStartMs) {
+          skippedOld++;
+          continue;
         }
 
         // ── Upsert contact ──
@@ -358,7 +372,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return respond({ ok: true, event, processed });
+    return respond({ ok: true, event, processed, skipped_old: skippedOld });
   } catch (error) {
     console.error('[uazapi-chat-webhook] Error:', error);
     return respond({ error: (error as Error).message }, 500);
