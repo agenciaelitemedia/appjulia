@@ -240,7 +240,11 @@ export function ChatList() {
             </div>
           ) : (
             filteredContacts.map((contact) => {
-              const conv = conversations.find(c => c.contact_id === contact.id && ['pending', 'open'].includes(c.status));
+              // Pick most recent conversation (any status) so queue/team stay visible
+              const contactConvs = conversations
+                .filter(c => c.contact_id === contact.id)
+                .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
+              const conv = contactConvs[0];
               const convQueue = conv?.queue_id ? activeQueues.find(q => q.id === conv.queue_id) : undefined;
               return (
                 <ChatContactItem
@@ -250,6 +254,7 @@ export function ChatList() {
                   onClick={() => selectContact(contact.id)}
                   conversation={conv}
                   queueName={convQueue?.name}
+                  assignedAgentName={conv?.assigned_to || undefined}
                 />
               );
             })

@@ -288,15 +288,25 @@ Deno.serve(async (req) => {
           : (preExisting?.unread_count || 0) + 1;
 
         // Decide which name to write. NEVER overwrite an existing name with the owner's name.
+        // But DO overwrite if existing name is just a phone number (digits/symbols only).
+        const isPhoneLikeName = (n: string | null | undefined): boolean => {
+          if (!n) return true;
+          if (n === senderPhone) return true;
+          if (normalizePhone(n) === senderPhone) return true;
+          // only digits, spaces, +, -, (, )
+          return /^[\d\s+\-()]+$/.test(n.trim());
+        };
+
         let contactNameToWrite: string;
         if (preExisting?.name) {
           // Keep existing name unless we have a better pushName for an incoming message
-          contactNameToWrite = (!fromMe && pushName && preExisting.name === senderPhone)
+          // and the existing name is just a phone-like string
+          contactNameToWrite = (!fromMe && pushName && isPhoneLikeName(preExisting.name))
             ? pushName
             : preExisting.name;
         } else {
           // New contact: only use pushName if incoming, else fallback to phone
-          contactNameToWrite = pushName || senderPhone;
+          contactNameToWrite = (!fromMe && pushName) ? pushName : senderPhone;
         }
 
         const { data: contact } = await supabase
