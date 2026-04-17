@@ -273,11 +273,22 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         status === 'resolved' ? 'Conversa resolvida' :
         'Conversa reaberta'
       );
+
+      // Fire webhooks + automation engine for resolved/closed
+      if (status === 'resolved' || status === 'closed') {
+        supabase.functions.invoke('chat-webhook-dispatcher', {
+          body: {
+            event: 'conversation_resolved',
+            client_id: clientId,
+            payload: { conversation_id: conversationId, status, note },
+          },
+        }).catch((err) => console.warn('webhook dispatcher error:', err));
+      }
     } catch (error) {
       console.error('Error updating conversation status:', error);
       toast.error('Erro ao atualizar status');
     }
-  }, [user?.name]);
+  }, [user?.name, clientId]);
 
   const assignConversation = useCallback(async (conversationId: string, assignedTo: string) => {
     try {
