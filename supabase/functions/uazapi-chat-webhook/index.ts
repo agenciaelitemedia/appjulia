@@ -34,6 +34,7 @@ function extractMessageText(msg: any): string | undefined {
   if (typeof msg.text === 'string' && msg.text) return msg.text;
   if (msg.text?.body) return msg.text.body;
   if (msg.body) return msg.body;
+  if (msg.content) return msg.content;
   if (msg.message?.conversation) return msg.message.conversation;
   if (msg.message?.extendedTextMessage?.text) return msg.message.extendedTextMessage.text;
   if (msg.message?.imageMessage?.caption) return msg.message.imageMessage.caption;
@@ -337,9 +338,21 @@ Deno.serve(async (req) => {
         }
 
         // ── Insert message (deduplicate by message_id) ──
+        const { data: existingMessage } = await supabase
+          .from('chat_messages')
+          .select('id')
+          .eq('message_id', messageId)
+          .limit(1)
+          .maybeSingle();
+
+        if (existingMessage) {
+          processed++;
+          continue;
+        }
+
         const { error: msgError } = await supabase
           .from('chat_messages')
-          .upsert({
+          .insert({
             contact_id: contact.id,
             client_id: queue.client_id,
             message_id: messageId,
@@ -369,13 +382,14 @@ Deno.serve(async (req) => {
                 || msg.message?.documentMessage?.mimetype
                 || null,
             },
-          }, {
-            onConflict: 'message_id',
-            ignoreDuplicates: true,
           });
 
-        if (msgError && !msgError.message?.includes('duplicate')) {
-          console.error('[uazapi-chat-webhook] Message insert error:', msgError);
+        if (msgError) {
+          const isDuplicate = msgError.code === '23505' || msgError.message?.toLowerCase().includes('duplicate');
+          if (!isDuplicate) {
+            console.error('[uazapi-chat-webhook] Message insert error:', msgError);
+            continue;
+          }
         }
 
         processed++;
