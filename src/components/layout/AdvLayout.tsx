@@ -6,6 +6,7 @@ import { PhoneProvider } from '@/contexts/PhoneContext';
 import juliaLogo from '@/assets/julia-logo.png';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { AgentBlockedScreen } from './AgentBlockedScreen';
+import { DisconnectedAgentsAlert } from './DisconnectedAgentsAlert';
 
 export function AdvLayout() {
   const { user, isAuthenticated, isLoading, isAdmin, logout } = useAuth();
@@ -57,6 +58,7 @@ export function AdvLayout() {
         <main className="flex-1 overflow-auto">
           <Outlet />
         </main>
+        <DisconnectedAgentsAlert />
       </div>
     </PhoneProvider>
   );
