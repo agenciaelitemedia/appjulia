@@ -424,6 +424,9 @@ export default function ChatMetricsPage() {
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={filtered.length === 0}>
             <Download className="h-4 w-4 mr-1" /> CSV
           </Button>
+          <Button variant="outline" size="sm" onClick={exportPdf} disabled={filtered.length === 0}>
+            <FileDown className="h-4 w-4 mr-1" /> PDF
+          </Button>
         </div>
       </div>
 
