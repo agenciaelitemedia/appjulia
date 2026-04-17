@@ -1114,19 +1114,66 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             },
           };
 
+          let wasDuplicate = false;
           setMessages(prev => {
             const existing = prev[enriched.contact_id] || [];
             const isDuplicate = existing.some(m =>
               m.id === enriched.id ||
               (m.message_id && enriched.message_id && m.message_id === enriched.message_id)
             );
-            if (isDuplicate) return prev;
+            if (isDuplicate) {
+              wasDuplicate = true;
+              return prev;
+            }
 
             return {
               ...prev,
               [enriched.contact_id]: [...existing, enriched],
             };
           });
+
+          // For inbound (not from me, not internal note): bump unread_count locally
+          // and persist to DB so the badge appears immediately. We do NOT skip when
+          // the conversation is open — the badge must remain visible until the agent
+          // explicitly assumes the conversation (which calls markAsRead).
+          if (!wasDuplicate && !newMessage.from_me && !newMessage.internal_note) {
+            setContacts(prev => prev.map(c =>
+              c.id === newMessage.contact_id
+                ? {
+                    ...c,
+                    unread_count: (c.unread_count || 0) + 1,
+                    last_message_text: newMessage.text || c.last_message_text,
+                    last_message_at: newMessage.timestamp || newMessage.created_at || c.last_message_at,
+                  }
+                : c
+            ).sort((a, b) => {
+              const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+              const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+              return bTime - aTime;
+            }));
+
+            // Persist to DB (best-effort) so other clients/refresh see the badge
+            (async () => {
+              try {
+                const { data: current } = await supabase
+                  .from('chat_contacts')
+                  .select('unread_count')
+                  .eq('id', newMessage.contact_id)
+                  .single();
+                const next = (current?.unread_count || 0) + 1;
+                await supabase
+                  .from('chat_contacts')
+                  .update({
+                    unread_count: next,
+                    last_message_text: newMessage.text || null,
+                    last_message_at: newMessage.timestamp || newMessage.created_at || new Date().toISOString(),
+                  })
+                  .eq('id', newMessage.contact_id);
+              } catch (e) {
+                console.warn('failed to bump unread_count:', e);
+              }
+            })();
+          }
 
           // Hook automation + webhooks for inbound messages only
           if (!newMessage.from_me && !newMessage.internal_note) {
