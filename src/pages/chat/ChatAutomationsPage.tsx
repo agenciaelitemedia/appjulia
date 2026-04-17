@@ -11,8 +11,9 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowLeft, Plus, Trash2, Edit, Zap, Activity } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Edit, Zap, Activity, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import { AutomationTemplatesDialog } from '@/components/chat/AutomationTemplatesDialog';
 
 interface Rule {
   id: string;
@@ -52,6 +53,7 @@ export default function ChatAutomationsPage() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Partial<Rule> | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
 
   const clientId = String(user?.id ?? '');
 
@@ -114,10 +116,22 @@ export default function ChatAutomationsPage() {
             <p className="text-muted-foreground text-sm">Regras automáticas para atribuição, tags, mensagens e fechamento</p>
           </div>
         </div>
-        <Button onClick={() => setEditing({ is_active: true, trigger_type: 'new_conversation', action_type: 'auto_tag', trigger_config: {}, action_config: {} })}>
-          <Plus className="h-4 w-4 mr-1" /> Nova regra
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowTemplates(true)}>
+            <Sparkles className="h-4 w-4 mr-1 text-amber-500" /> Templates
+          </Button>
+          <Button onClick={() => setEditing({ is_active: true, trigger_type: 'new_conversation', action_type: 'auto_tag', trigger_config: {}, action_config: {} })}>
+            <Plus className="h-4 w-4 mr-1" /> Nova regra
+          </Button>
+        </div>
       </div>
+
+      <AutomationTemplatesDialog
+        open={showTemplates}
+        onOpenChange={setShowTemplates}
+        clientId={clientId}
+        onCreated={load}
+      />
 
       {loading ? (
         <div className="flex items-center justify-center py-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
