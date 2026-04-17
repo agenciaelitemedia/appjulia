@@ -1174,9 +1174,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     };
   }, [clientId, currentQueueId]);
 
-  // Reload when queue changes
+  // Reload when queue changes (or on initial load with "All queues")
   useEffect(() => {
-    if (currentQueueId && clientId) {
+    if (clientId) {
       loadContacts();
       loadConversations();
       loadTags();
