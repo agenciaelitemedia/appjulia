@@ -20,6 +20,7 @@ import {
   Settings,
   Inbox,
   Tag,
+  Timer,
 } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { toast } from 'sonner';
@@ -113,6 +114,10 @@ export function ChatCommandPalette({ open, onOpenChange }: ChatCommandPalettePro
           <CommandItem onSelect={() => { navigate('/chat/webhooks'); close(); }}>
             <Webhook className="mr-2 h-4 w-4" />
             <span>Webhooks</span>
+          </CommandItem>
+          <CommandItem onSelect={() => { navigate('/chat/sla'); close(); }}>
+            <Timer className="mr-2 h-4 w-4 text-blue-500" />
+            <span>Configurações de SLA</span>
           </CommandItem>
           <CommandItem onSelect={() => { navigate('/chat/canais'); close(); }}>
             <Settings className="mr-2 h-4 w-4" />
