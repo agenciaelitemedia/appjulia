@@ -54,6 +54,9 @@ import ChatInboxViewsPage from "./pages/chat/ChatInboxViewsPage";
 import ChatReportsPage from "./pages/chat/ChatReportsPage";
 import ChatAIAutoreplyPage from "./pages/chat/ChatAIAutoreplyPage";
 import ChatIntegrationsPage from "./pages/chat/ChatIntegrationsPage";
+import ChatTelephonyPage from "./pages/chat/ChatTelephonyPage";
+import ChatMarketingAdvancedPage from "./pages/chat/ChatMarketingAdvancedPage";
+import ChatComplianceCenterPage from "./pages/chat/ChatComplianceCenterPage";
 import AdvboxIntegrationPage from "./pages/advbox/IntegrationPage";
 import AdvboxNotificationRulesPage from "./pages/advbox/NotificationRulesPage";
 import AdvboxProcessesPage from "./pages/advbox/ProcessesPage";
@@ -135,6 +138,9 @@ const App = () => (
                   <Route path="/chat/relatorios" element={<ChatReportsPage />} />
                   <Route path="/chat/ia-autoresposta" element={<ChatAIAutoreplyPage />} />
                   <Route path="/chat/integracoes" element={<ChatIntegrationsPage />} />
+                  <Route path="/chat/telefonia" element={<ChatTelephonyPage />} />
+                  <Route path="/chat/marketing" element={<ChatMarketingAdvancedPage />} />
+                  <Route path="/chat/compliance" element={<ChatComplianceCenterPage />} />
                   <Route path="/biblioteca" element={<ProtectedRoute module="library"><CriativosPage /></ProtectedRoute>} />
                   <Route path="/equipe" element={<ProtectedRoute module="team"><EquipePage /></ProtectedRoute>} />
                   <Route path="/perfil" element={<ProfileSettingsPage />} />
