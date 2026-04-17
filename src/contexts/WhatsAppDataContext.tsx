@@ -108,7 +108,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
   const knownMessageIds = useRef<Set<string>>(new Set());
 
-  const clientId = user?.id ? String(user.id) : '';
+  const clientId = user?.client_id ? String(user.client_id) : '';
   const currentQueueId = selectedQueue?.id;
 
   // ============================================
