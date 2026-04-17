@@ -97,16 +97,19 @@ Deno.serve(async (req) => {
         .maybeSingle();
       queue = data;
     }
-    if (!queue) {
-      // Fallback: any active queue for this client
+    if (!queue?.evo_url || !queue?.evo_apikey) {
+      // Fallback: any UaZapi queue for this client with credentials
       const { data } = await supabase
         .from("queues")
-        .select("id, evo_url, evo_apikey")
+        .select("id, evo_url, evo_apikey, is_active")
         .eq("client_id", msg.client_id)
-        .eq("channel_type", "whatsapp_uazapi")
+        .in("channel_type", ["uazapi", "whatsapp_uazapi"])
+        .not("evo_url", "is", null)
+        .not("evo_apikey", "is", null)
+        .order("is_active", { ascending: false })
         .limit(1)
         .maybeSingle();
-      queue = data;
+      if (data) queue = data;
     }
 
     if (!queue?.evo_url || !queue?.evo_apikey) {
