@@ -175,17 +175,13 @@ export const ChatContactItem = React.memo(function ChatContactItem({
           )}>
             {contact.name}
           </span>
-          {queueName && (
-            <span className="text-[10px] text-muted-foreground flex-shrink-0 truncate max-w-[100px]">
-              {queueName}
-            </span>
-          )}
+          {/* queue name now shown as a badge in row 2 */}
         </div>
 
         {/* Row 2: Badges + time + unread */}
         <div className="flex items-center justify-between gap-1">
           <div className="flex items-center gap-1 flex-wrap">
-            <ConversationBadges conversation={conversation} />
+            <ConversationBadges conversation={conversation} queueName={queueName} />
             {slaEvaluation && <SlaBadge evaluation={slaEvaluation} compact />}
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
