@@ -212,7 +212,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         .limit(1)
         .single();
 
-      if (existing) return existing as ChatConversation;
+      if (existing) {
+        const conv = existing as ChatConversation;
+        setConversations(prev => prev.some(c => c.id === conv.id) ? prev : [conv, ...prev]);
+        return conv;
+      }
 
       const channel = selectedQueue?.channel_type === 'waba' ? 'whatsapp_waba' : 'whatsapp_uazapi';
       const { data: newConv, error } = await supabase
