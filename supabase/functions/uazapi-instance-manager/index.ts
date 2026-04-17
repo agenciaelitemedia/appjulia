@@ -11,6 +11,36 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Eventos padrão do webhook UaZapi (chat moderno completo)
+const DEFAULT_WEBHOOK_EVENTS = [
+  'messages',
+  'messages.update',
+  'messages.delete',
+  'chats.update',
+  'chats.upsert',
+  'contacts.update',
+  'contacts.upsert',
+  'groups.update',
+  'connection.update',
+  'presence.update',
+];
+
+async function configureWebhook(baseUrl: string, instanceToken: string, supabaseUrl: string, queueId: string) {
+  const webhookEndpoint = `${supabaseUrl}/functions/v1/uazapi-chat-webhook?queue_id=${queueId}`;
+  const res = await fetch(`${baseUrl}/webhook`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'token': instanceToken },
+    body: JSON.stringify({
+      url: webhookEndpoint,
+      enabled: true,
+      events: DEFAULT_WEBHOOK_EVENTS,
+    }),
+  });
+  const text = await res.text();
+  console.log(`[uazapi-instance-manager] Webhook set (${res.status}): ${webhookEndpoint}`);
+  return { ok: res.ok, status: res.status, body: text, url: webhookEndpoint };
+}
+
 function getSupabase() {
   return createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -82,28 +112,10 @@ Deno.serve(async (req) => {
 
         // Configure webhook with full event set for modern chat
         const supabaseUrl = Deno.env.get('SUPABASE_URL');
-        const webhookQueueId = queue_id; // passed from caller
+        const webhookQueueId = queue_id;
         if (supabaseUrl && instanceToken) {
-          const webhookEndpoint = `${supabaseUrl}/functions/v1/uazapi-chat-webhook?queue_id=${webhookQueueId || ''}`;
           try {
-            await fetch(`${baseUrl}/webhook`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'token': instanceToken },
-              body: JSON.stringify({
-                url: webhookEndpoint,
-                enabled: true,
-                events: [
-                  'messages',
-                  'messages.update',
-                  'messages.delete',
-                  'contacts.update',
-                  'chats.update',
-                  'connection.update',
-                  'groups.update',
-                ],
-              }),
-            });
-            console.log(`[uazapi-instance-manager] Webhook configured: ${webhookEndpoint}`);
+            await configureWebhook(baseUrl, instanceToken, supabaseUrl, webhookQueueId || '');
           } catch (e) {
             console.warn('[uazapi-instance-manager] Webhook config failed:', e);
           }
@@ -114,6 +126,22 @@ Deno.serve(async (req) => {
           instance_token: instanceToken,
           instance_name: finalName,
         });
+      }
+
+      // ==========================================
+      // RECONFIGURE WEBHOOK on existing instance
+      // ==========================================
+      case 'reconfigure_webhook': {
+        if (!queue_id) return respond({ error: 'queue_id required' }, 400);
+        const queue = await getQueueCredentials(queue_id);
+        const token = queue.evo_apikey;
+        const url = queue.evo_url || baseUrl;
+        const supabaseUrl = Deno.env.get('SUPABASE_URL');
+        if (!token || !supabaseUrl) {
+          return respond({ error: 'Queue without instance token or SUPABASE_URL' }, 400);
+        }
+        const result = await configureWebhook(url, token, supabaseUrl, queue_id);
+        return respond({ success: result.ok, ...result, events: DEFAULT_WEBHOOK_EVENTS });
       }
 
       // ==========================================
