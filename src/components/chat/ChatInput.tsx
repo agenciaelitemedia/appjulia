@@ -30,10 +30,11 @@ interface TeamMember { id: number | string; name: string }
 const QUICK_EMOJIS = ['😀', '😂', '❤️', '👍', '🙏', '🎉', '🔥', '💯', '😊', '😍', '🤔', '👏'];
 
 export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProps) {
-  const { sendMessage, sendMedia, sendInternalNote, selectedConversation, selectedContact } = useWhatsAppData();
+  const { sendMessage, sendMedia, sendInternalNote, selectedConversation, selectedContact, assignConversation, updateConversationStatus, markAsRead } = useWhatsAppData();
   const { user } = useAuth();
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [noteMode, setNoteMode] = useState(false);
   const [showQuickMessages, setShowQuickMessages] = useState(false);
@@ -44,6 +45,31 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
   const [team, setTeam] = useState<TeamMember[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Claim guard — only the assigned agent can send outbound messages.
+  // Internal notes remain enabled for any observer.
+  const currentUserName = user?.name || (user?.id ? String(user.id) : '');
+  const isActiveStatus = !!selectedConversation && ['pending', 'open'].includes(selectedConversation.status);
+  const isAssignedToMe = !!selectedConversation?.assigned_to
+    && !!currentUserName
+    && selectedConversation.assigned_to === currentUserName;
+  const canSend = noteMode || (isAssignedToMe && isActiveStatus);
+  const showClaimBanner = !!selectedConversation && isActiveStatus && !isAssignedToMe && !noteMode;
+
+  const handleClaim = async () => {
+    if (!selectedConversation || !currentUserName || isClaiming) return;
+    setIsClaiming(true);
+    try {
+      await assignConversation(selectedConversation.id, currentUserName);
+      if (selectedConversation.status === 'pending') {
+        await updateConversationStatus(selectedConversation.id, 'open');
+      }
+      try { await markAsRead(contactId); } catch { /* noop */ }
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    } finally {
+      setIsClaiming(false);
+    }
+  };
 
   // Load team members for @mention autocomplete when entering note mode
   useEffect(() => {
@@ -210,6 +236,22 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
 
   return (
     <div className="border-t bg-background">
+      {/* Claim banner — visible when conversation is active but not assigned to current user */}
+      {showClaimBanner && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border-b border-amber-500/20">
+          <span className="text-xs font-medium text-amber-700 dark:text-amber-400 flex-1">
+            Assuma esta conversa para responder. Notas internas continuam disponíveis.
+          </span>
+          <Button
+            size="sm"
+            className="h-7 text-xs"
+            onClick={handleClaim}
+            disabled={isClaiming}
+          >
+            {isClaiming ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Assumir'}
+          </Button>
+        </div>
+      )}
       {/* Note mode indicator */}
       {noteMode && (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border-b border-blue-500/20">
@@ -255,7 +297,7 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
           {/* Emoji picker */}
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0">
+              <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" disabled={!canSend}>
                 <Smile className="h-5 w-5 text-muted-foreground" />
               </Button>
             </PopoverTrigger>
@@ -280,7 +322,7 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
           {!noteMode && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0">
+                <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" disabled={!canSend}>
                   <Paperclip className="h-5 w-5 text-muted-foreground" />
                 </Button>
               </DropdownMenuTrigger>
@@ -315,9 +357,9 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
           )}
 
           {/* Quick Messages */}
-          <Popover open={showQuickMessages} onOpenChange={setShowQuickMessages}>
+          <Popover open={showQuickMessages} onOpenChange={(o) => canSend && setShowQuickMessages(o)}>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" title="Mensagens rápidas (/)">
+              <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" title="Mensagens rápidas (/)" disabled={!canSend}>
                 <Zap className="h-5 w-5 text-muted-foreground" />
               </Button>
             </PopoverTrigger>
@@ -334,6 +376,7 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
               className="h-9 w-9 flex-shrink-0"
               onClick={() => setShowSchedule(true)}
               title="Agendar mensagem"
+              disabled={!canSend}
             >
               <Calendar className="h-5 w-5 text-muted-foreground" />
             </Button>

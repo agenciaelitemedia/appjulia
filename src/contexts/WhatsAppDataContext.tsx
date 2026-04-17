@@ -898,16 +898,16 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const selectContact = useCallback((contactId: string | null) => {
     setSelectedContactId(contactId);
     if (!contactId) return;
-    // Ensure conversation exists so header actions render, then mark as read.
+    // Ensure conversation exists so header actions render.
+    // Do NOT mark as read here — unread badge must persist until user claims ("Assumir") the conversation.
     (async () => {
       try {
         await getOrCreateConversation(contactId);
-        markAsRead(contactId);
       } catch (e) {
         console.warn('[selectContact] error', e);
       }
     })();
-  }, [getOrCreateConversation, markAsRead]);
+  }, [getOrCreateConversation]);
 
   // ============================================
   // Sync Contacts (pull from UaZapi API via proxy)
