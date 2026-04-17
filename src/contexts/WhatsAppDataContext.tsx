@@ -112,6 +112,32 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const clientId = user?.client_id ? String(user.client_id) : '';
   const currentQueueId = selectedQueue?.id;
 
+  // Load all active queues for this client (used to resolve effective queue per-contact)
+  const { data: allQueues = [] } = useQueues(false);
+
+  // Resolve effective queue for a given contact:
+  // 1) if a queue is selected globally, use it
+  // 2) else, look up by contact.channel_source (= queue id)
+  // 3) else, look up by active conversation.queue_id
+  const getEffectiveQueue = useCallback((contactId: string): SelectedQueue | null => {
+    if (selectedQueue) return selectedQueue;
+    const contact = contacts.find(c => c.id === contactId);
+    const conv = conversations.find(c => c.contact_id === contactId && ['pending', 'open'].includes(c.status));
+    const queueId = contact?.channel_source || conv?.queue_id;
+    if (!queueId) return null;
+    const q = allQueues.find((x: Queue) => x.id === queueId);
+    if (!q) return null;
+    return {
+      id: q.id,
+      name: q.name,
+      channel_type: q.channel_type,
+      hub: q.hub,
+      evo_url: q.evo_url,
+      evo_apikey: q.evo_apikey,
+      evo_instance: q.evo_instance,
+    };
+  }, [selectedQueue, contacts, conversations, allQueues]);
+
   // ============================================
   // Load Contacts from Supabase (filtered by queue via channel_source)
   // ============================================
