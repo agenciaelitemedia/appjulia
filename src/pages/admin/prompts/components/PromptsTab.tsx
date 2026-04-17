@@ -122,8 +122,15 @@ export function PromptsTab() {
       }
       // Buscar dados atuais do agente para preservar settings e demais campos
       const current = await externalDb.getAgentDetails<any>(agent.id);
+      let safeSettings: any = current?.settings;
+      if (typeof safeSettings === 'string') {
+        try { safeSettings = JSON.parse(safeSettings); } catch { safeSettings = {}; }
+      }
+      if (!safeSettings || typeof safeSettings !== 'object' || Array.isArray(safeSettings)) {
+        safeSettings = {};
+      }
       await externalDb.updateAgent(agent.id, {
-        settings: current?.settings ?? {},
+        settings: safeSettings,
         prompt: viewing.generated_prompt,
         is_closer: current?.is_closer ?? false,
         agent_plan_id: current?.agent_plan_id ?? null,
