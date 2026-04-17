@@ -102,6 +102,7 @@ export function MainLayout() {
           </div>
           <GlobalSoftphone />
           <CopilotWidget />
+          <DisconnectedAgentsAlert />
         </div>
       </SidebarProvider>
     </PhoneProvider>
