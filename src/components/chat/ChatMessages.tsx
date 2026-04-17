@@ -24,7 +24,7 @@ type TimelineItem =
 
 export function ChatMessages({ contactId }: ChatMessagesProps) {
   const ctx: any = useWhatsAppData();
-  const { messages, loadMessages, markAsRead, conversationHistory, loadConversationHistory, selectedConversation, downloadMedia } = ctx;
+  const { messages, loadMessages, conversationHistory, loadConversationHistory, selectedConversation, downloadMedia } = ctx;
   const selectedQueue = ctx.selectedQueue;
   const contacts = ctx.contacts;
   const { user } = useAuth();
@@ -63,9 +63,7 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
         }, 150);
       })
       .finally(() => setIsLoading(false));
-    
-    markAsRead(contactId);
-  }, [contactId, loadMessages, markAsRead]);
+  }, [contactId, loadMessages]);
 
   // Auto-scroll to bottom on new messages (if near bottom)
   useEffect(() => {
