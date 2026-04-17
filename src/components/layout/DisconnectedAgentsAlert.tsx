@@ -118,8 +118,7 @@ export function DisconnectedAgentsAlert() {
           <AlertDialogAction
             onClick={() => {
               setOpen(false);
-              const target = user?.role === 'advogado' ? '/adv/meus-agentes' : '/meus-agentes';
-              navigate(target);
+              if (user?.role !== 'advogado') navigate('/agente/meus-agentes');
             }}
           >
             Ver meus agentes
