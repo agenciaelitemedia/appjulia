@@ -30,10 +30,11 @@ interface TeamMember { id: number | string; name: string }
 const QUICK_EMOJIS = ['😀', '😂', '❤️', '👍', '🙏', '🎉', '🔥', '💯', '😊', '😍', '🤔', '👏'];
 
 export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProps) {
-  const { sendMessage, sendMedia, sendInternalNote, selectedConversation, selectedContact } = useWhatsAppData();
+  const { sendMessage, sendMedia, sendInternalNote, selectedConversation, selectedContact, assignConversation, updateConversationStatus, markAsRead } = useWhatsAppData();
   const { user } = useAuth();
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [noteMode, setNoteMode] = useState(false);
   const [showQuickMessages, setShowQuickMessages] = useState(false);
@@ -44,6 +45,31 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
   const [team, setTeam] = useState<TeamMember[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Claim guard — only the assigned agent can send outbound messages.
+  // Internal notes remain enabled for any observer.
+  const currentUserName = user?.name || (user?.id ? String(user.id) : '');
+  const isActiveStatus = !!selectedConversation && ['pending', 'open'].includes(selectedConversation.status);
+  const isAssignedToMe = !!selectedConversation?.assigned_to
+    && !!currentUserName
+    && selectedConversation.assigned_to === currentUserName;
+  const canSend = noteMode || (isAssignedToMe && isActiveStatus);
+  const showClaimBanner = !!selectedConversation && isActiveStatus && !isAssignedToMe && !noteMode;
+
+  const handleClaim = async () => {
+    if (!selectedConversation || !currentUserName || isClaiming) return;
+    setIsClaiming(true);
+    try {
+      await assignConversation(selectedConversation.id, currentUserName);
+      if (selectedConversation.status === 'pending') {
+        await updateConversationStatus(selectedConversation.id, 'open');
+      }
+      try { await markAsRead(contactId); } catch { /* noop */ }
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    } finally {
+      setIsClaiming(false);
+    }
+  };
 
   // Load team members for @mention autocomplete when entering note mode
   useEffect(() => {
