@@ -115,6 +115,9 @@ export function ChatList() {
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/metricas')} title="Métricas">
               <BarChart3 className="h-4 w-4" />
             </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/automacoes')} title="Automações">
+              <Settings2 className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/canais')} title="Canais">
               <Settings2 className="h-4 w-4" />
             </Button>
