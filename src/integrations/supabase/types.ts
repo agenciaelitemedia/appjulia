@@ -77,6 +77,102 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_automation_logs: {
+        Row: {
+          action_type: string
+          client_id: string
+          conversation_id: string | null
+          details: Json | null
+          error_message: string | null
+          executed_at: string
+          id: string
+          rule_id: string
+          success: boolean
+          trigger_type: string
+        }
+        Insert: {
+          action_type: string
+          client_id: string
+          conversation_id?: string | null
+          details?: Json | null
+          error_message?: string | null
+          executed_at?: string
+          id?: string
+          rule_id: string
+          success?: boolean
+          trigger_type: string
+        }
+        Update: {
+          action_type?: string
+          client_id?: string
+          conversation_id?: string | null
+          details?: Json | null
+          error_message?: string | null
+          executed_at?: string
+          id?: string
+          rule_id?: string
+          success?: boolean
+          trigger_type?: string
+        }
+        Relationships: []
+      }
+      chat_automation_rules: {
+        Row: {
+          action_config: Json
+          action_type: string
+          client_id: string
+          cod_agent: string | null
+          conditions: Json
+          created_at: string
+          description: string | null
+          execution_count: number
+          id: string
+          is_active: boolean
+          last_executed_at: string | null
+          name: string
+          position: number
+          trigger_config: Json
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          action_config?: Json
+          action_type: string
+          client_id: string
+          cod_agent?: string | null
+          conditions?: Json
+          created_at?: string
+          description?: string | null
+          execution_count?: number
+          id?: string
+          is_active?: boolean
+          last_executed_at?: string | null
+          name: string
+          position?: number
+          trigger_config?: Json
+          trigger_type: string
+          updated_at?: string
+        }
+        Update: {
+          action_config?: Json
+          action_type?: string
+          client_id?: string
+          cod_agent?: string | null
+          conditions?: Json
+          created_at?: string
+          description?: string | null
+          execution_count?: number
+          id?: string
+          is_active?: boolean
+          last_executed_at?: string | null
+          name?: string
+          position?: number
+          trigger_config?: Json
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chat_contacts: {
         Row: {
           avatar: string | null
