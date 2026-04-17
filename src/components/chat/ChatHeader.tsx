@@ -156,6 +156,11 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         </div>
         
         <div className="flex items-center gap-1">
+          {/* AI Assist */}
+          {selectedConversation && (
+            <AIAssistPanel conversationId={selectedConversation.id} />
+          )}
+
           {/* Search inside conversation */}
           <Button
             variant="ghost"
