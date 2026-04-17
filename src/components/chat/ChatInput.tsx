@@ -236,6 +236,22 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
 
   return (
     <div className="border-t bg-background">
+      {/* Claim banner — visible when conversation is active but not assigned to current user */}
+      {showClaimBanner && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border-b border-amber-500/20">
+          <span className="text-xs font-medium text-amber-700 dark:text-amber-400 flex-1">
+            Assuma esta conversa para responder. Notas internas continuam disponíveis.
+          </span>
+          <Button
+            size="sm"
+            className="h-7 text-xs"
+            onClick={handleClaim}
+            disabled={isClaiming}
+          >
+            {isClaiming ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Assumir'}
+          </Button>
+        </div>
+      )}
       {/* Note mode indicator */}
       {noteMode && (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border-b border-blue-500/20">
@@ -281,7 +297,7 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
           {/* Emoji picker */}
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0">
+              <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" disabled={!canSend}>
                 <Smile className="h-5 w-5 text-muted-foreground" />
               </Button>
             </PopoverTrigger>
@@ -360,6 +376,7 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
               className="h-9 w-9 flex-shrink-0"
               onClick={() => setShowSchedule(true)}
               title="Agendar mensagem"
+              disabled={!canSend}
             >
               <Calendar className="h-5 w-5 text-muted-foreground" />
             </Button>
