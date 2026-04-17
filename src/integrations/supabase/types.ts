@@ -796,6 +796,75 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_webhook_deliveries: {
+        Row: {
+          delivered_at: string
+          error_message: string | null
+          event: string
+          id: string
+          payload: Json
+          status_code: number | null
+          success: boolean
+          webhook_id: string
+        }
+        Insert: {
+          delivered_at?: string
+          error_message?: string | null
+          event: string
+          id?: string
+          payload: Json
+          status_code?: number | null
+          success?: boolean
+          webhook_id: string
+        }
+        Update: {
+          delivered_at?: string
+          error_message?: string | null
+          event?: string
+          id?: string
+          payload?: Json
+          status_code?: number | null
+          success?: boolean
+          webhook_id?: string
+        }
+        Relationships: []
+      }
+      chat_webhooks: {
+        Row: {
+          client_id: string
+          created_at: string
+          events: string[]
+          id: string
+          is_active: boolean
+          name: string
+          secret: string | null
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          events?: string[]
+          id?: string
+          is_active?: boolean
+          name: string
+          secret?: string | null
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          events?: string[]
+          id?: string
+          is_active?: boolean
+          name?: string
+          secret?: string | null
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
+      }
       contract_deletion_audit: {
         Row: {
           cod_agent: string | null
