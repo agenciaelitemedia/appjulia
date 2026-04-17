@@ -15,6 +15,7 @@ interface ChatContactItemProps {
   onClick: () => void;
   conversation?: ChatConversation;
   queueName?: string;
+  assignedAgentName?: string;
 }
 
 function ChannelOverlay({ channel }: { channel?: string }) {
