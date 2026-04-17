@@ -1227,7 +1227,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     sendMedia,
     markAsRead,
     syncContacts,
-    selectContact: setSelectedContactId,
+    selectContact,
     setActiveTab,
     setSearchQuery,
 
