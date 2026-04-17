@@ -72,7 +72,7 @@ function MessagePreview({ text, type }: { text?: string; type?: string }) {
   };
 
   if (mediaType && mediaIcons[mediaType]) {
-    return <span className="flex items-center text-muted-foreground">{mediaIcons[mediaType]}</span>;
+    return <span className="inline-flex items-center text-muted-foreground truncate">{mediaIcons[mediaType]}</span>;
   }
 
   return <span className="truncate">{text}</span>;
