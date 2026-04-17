@@ -273,11 +273,11 @@ Deno.serve(async (req) => {
         }
 
         // ── Upsert contact ──
-        const contactName = pushName || senderPhone;
-        // Check if contact already existed BEFORE upsert (for backfill detection)
+        // For fromMe messages we don't have a usable name from the payload (it's the owner's name).
+        // Keep the existing contact name; only fall back to the phone if the contact is brand new.
         const { data: preExisting } = await supabase
           .from('chat_contacts')
-          .select('id, history_backfilled, unread_count')
+          .select('id, name, avatar, history_backfilled, unread_count')
           .eq('phone', senderPhone)
           .eq('client_id', queue.client_id)
           .maybeSingle();
@@ -287,16 +287,29 @@ Deno.serve(async (req) => {
           ? (preExisting?.unread_count || 0)
           : (preExisting?.unread_count || 0) + 1;
 
+        // Decide which name to write. NEVER overwrite an existing name with the owner's name.
+        let contactNameToWrite: string;
+        if (preExisting?.name) {
+          // Keep existing name unless we have a better pushName for an incoming message
+          contactNameToWrite = (!fromMe && pushName && preExisting.name === senderPhone)
+            ? pushName
+            : preExisting.name;
+        } else {
+          // New contact: only use pushName if incoming, else fallback to phone
+          contactNameToWrite = pushName || senderPhone;
+        }
+
         const { data: contact } = await supabase
           .from('chat_contacts')
           .upsert({
             client_id: queue.client_id,
             phone: senderPhone,
-            name: contactName,
+            name: contactNameToWrite,
             channel_type: 'whatsapp_uazapi',
             channel_source: queueId,
             remote_jid: chatId || null,
-            avatar: msg.profilePictureUrl || null,
+            // avatar from payload only applies to incoming messages (fromMe avatar is the owner's)
+            avatar: fromMe ? ((preExisting as any)?.avatar ?? null) : (msg.profilePictureUrl || null),
             last_message_at: isoTimestamp,
             last_message_text: text || `[${type}]`,
             unread_count: nextUnreadCount,
@@ -327,15 +340,6 @@ Deno.serve(async (req) => {
               limit: 50,
             }),
           }).catch((e) => console.warn('[uazapi-chat-webhook] backfill trigger failed:', e));
-        }
-
-        // Update contact name/avatar if we have new data
-        if (pushName && pushName !== senderPhone) {
-          await supabase
-            .from('chat_contacts')
-            .update({ name: pushName })
-            .eq('id', contact.id)
-            .eq('name', senderPhone); // Only update if current name is just the phone
         }
 
         // ── Get or create conversation ──
