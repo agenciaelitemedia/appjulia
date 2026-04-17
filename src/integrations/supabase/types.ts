@@ -772,6 +772,42 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_sla_configs: {
+        Row: {
+          client_id: string
+          cod_agent: string | null
+          created_at: string
+          first_response_minutes: number
+          id: string
+          is_active: boolean
+          priority: string
+          resolution_minutes: number
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          cod_agent?: string | null
+          created_at?: string
+          first_response_minutes?: number
+          id?: string
+          is_active?: boolean
+          priority?: string
+          resolution_minutes?: number
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          cod_agent?: string | null
+          created_at?: string
+          first_response_minutes?: number
+          id?: string
+          is_active?: boolean
+          priority?: string
+          resolution_minutes?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chat_tags: {
         Row: {
           client_id: string

@@ -18,6 +18,8 @@ import { useNavigate } from 'react-router-dom';
 import { format, subDays, startOfDay, endOfDay, differenceInMinutes, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChatHeatmap } from '@/components/chat/analytics/ChatHeatmap';
+import { generateChatMetricsPdf } from '@/lib/chatPdfReport';
+import { FileDown } from 'lucide-react';
 
 interface ConversationRow {
   id: string;
@@ -325,6 +327,47 @@ export default function ChatMetricsPage() {
     URL.revokeObjectURL(url);
   };
 
+  // ─── PDF export ────────────────────────────────────────────────
+  const exportPdf = () => {
+    const periodLabel = `Período: ${format(startDate, 'dd/MM/yyyy', { locale: ptBR })} a ${format(endDate, 'dd/MM/yyyy', { locale: ptBR })}`;
+    const filtersList: { label: string; value: string }[] = [];
+    if (queueFilter !== 'all') filtersList.push({ label: 'Fila', value: queues.find(q => q.id === queueFilter)?.name ?? queueFilter });
+    if (channelFilter !== 'all') filtersList.push({ label: 'Canal', value: CHANNEL_LABELS[channelFilter] ?? channelFilter });
+    if (agentFilter !== 'all') filtersList.push({ label: 'Atendente', value: agentFilter === '__unassigned' ? 'Sem atendente' : agentFilter });
+
+    const doc = generateChatMetricsPdf({
+      title: 'Relatório de Métricas — Chat',
+      periodLabel,
+      filters: filtersList,
+      kpis: [
+        { label: 'Total de conversas', value: kpis.total },
+        { label: 'Pendentes agora', value: kpis.pending },
+        { label: 'Em atendimento', value: kpis.open },
+        { label: 'Resolvidas', value: kpis.resolved },
+        { label: 'TME (1ª resposta)', value: formatMinutes(kpis.avgFirstResponse) },
+        { label: 'TMA (resolução)', value: formatMinutes(kpis.avgResolution) },
+        { label: 'SLA (≤15min)', value: `${kpis.slaPercent}%` },
+        { label: 'Taxa de resolução', value: `${kpis.resolutionRate}%` },
+      ],
+      channelDistribution: channelData.map(c => ({ name: c.name, value: c.value })),
+      statusDistribution: statusData.map(s => ({ name: s.name, value: s.value })),
+      hourlyVolume: hourlyData,
+      dailyVolume: dailyData,
+      agentRanking: agentRanking.map(r => ({
+        agent: r.agent,
+        total: r.total,
+        resolved: r.resolved,
+        resolutionRate: r.resolutionRate,
+        avgFirst: r.avgFirst,
+        avgRes: r.avgRes,
+        csatAvg: r.csatAvg,
+        csatCount: r.csatCount,
+      })),
+      csat: csatStats.sent > 0 ? { avg: csatStats.avg, count: csatStats.count, sent: csatStats.sent } : undefined,
+    });
+    doc.save(`chat-metrics-${period}-${format(new Date(), 'yyyyMMdd-HHmm')}.pdf`);
+  };
+
   if (loading) {
     return (
       <div className="p-6 flex items-center justify-center h-full">
@@ -380,6 +423,9 @@ export default function ChatMetricsPage() {
           </Select>
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={filtered.length === 0}>
             <Download className="h-4 w-4 mr-1" /> CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportPdf} disabled={filtered.length === 0}>
+            <FileDown className="h-4 w-4 mr-1" /> PDF
           </Button>
         </div>
       </div>

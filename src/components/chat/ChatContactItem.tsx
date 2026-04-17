@@ -6,6 +6,8 @@ import { cn } from '@/lib/utils';
 import { differenceInMinutes, differenceInHours } from 'date-fns';
 import type { ChatContact } from '@/types/chat';
 import type { ChatConversation } from '@/types/conversation';
+import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
+import { SlaBadge } from '@/components/chat/SlaBadge';
 
 interface ChatContactItemProps {
   contact: ChatContact;
@@ -116,6 +118,24 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   conversation,
   queueName,
 }: ChatContactItemProps) {
+  const { configs } = useChatSlaConfigs();
+
+  const slaEvaluation = React.useMemo(() => {
+    if (!conversation) return null;
+    if (conversation.status === 'closed' || conversation.status === 'resolved') return null;
+    return evaluateSla(
+      {
+        status: conversation.status,
+        priority: conversation.priority ?? 'normal',
+        opened_at: conversation.opened_at ?? conversation.created_at ?? new Date().toISOString(),
+        first_response_at: conversation.first_response_at ?? null,
+        resolved_at: conversation.resolved_at ?? null,
+        closed_at: conversation.closed_at ?? null,
+      },
+      configs
+    );
+  }, [conversation, configs]);
+
   const initials = contact.name
     .split(' ')
     .slice(0, 2)
@@ -167,7 +187,10 @@ export const ChatContactItem = React.memo(function ChatContactItem({
 
         {/* Row 2: Badges + time + unread */}
         <div className="flex items-center justify-between gap-1">
-          <ConversationBadges conversation={conversation} />
+          <div className="flex items-center gap-1 flex-wrap">
+            <ConversationBadges conversation={conversation} />
+            {slaEvaluation && <SlaBadge evaluation={slaEvaluation} compact />}
+          </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
             {formattedTime && (
               <span className="text-[10px] text-muted-foreground whitespace-nowrap">
