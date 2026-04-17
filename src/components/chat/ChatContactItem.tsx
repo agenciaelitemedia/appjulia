@@ -78,39 +78,12 @@ function MessagePreview({ text, type }: { text?: string; type?: string }) {
   return <span className="truncate">{text}</span>;
 }
 
-/** Status/tag badges like Helena */
-function ConversationBadges({ conversation, queueName, assignedAgentName }: { conversation?: ChatConversation; queueName?: string; assignedAgentName?: string }) {
-  const badges: { label: string; className: string }[] = [];
-
-  if (queueName) {
-    badges.push({ label: queueName.toUpperCase(), className: 'bg-blue-600 text-white' });
-  }
-
-  // Team / assigned agent — always show, even when empty
-  badges.push({
-    label: assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO',
-    className: assignedAgentName ? 'bg-muted text-foreground' : 'bg-muted/60 text-muted-foreground',
-  });
-
-  if (conversation?.priority === 'high' || conversation?.priority === 'urgent') {
-    badges.push({ label: 'PRIORIDADE', className: 'bg-red-500 text-white' });
-  }
-  if (conversation?.tags && conversation.tags.length > 0) {
-    conversation.tags.slice(0, 2).forEach(tag => {
-      badges.push({ label: tag.toUpperCase(), className: 'bg-emerald-600 text-white' });
-    });
-  }
-
-  if (badges.length === 0) return null;
-
+/** Single pill */
+function Pill({ label, className }: { label: string; className: string }) {
   return (
-    <div className="flex items-center gap-1 flex-wrap">
-      {badges.map((b, i) => (
-        <span key={i} className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded', b.className)}>
-          {b.label}
-        </span>
-      ))}
-    </div>
+    <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap', className)}>
+      {label}
+    </span>
   );
 }
 
