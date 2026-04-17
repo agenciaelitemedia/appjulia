@@ -2,66 +2,62 @@
 
 ## Diagnóstico
 
-### Bug 1: Fila e time não aparecem na lista
-**Causa raiz** — `WhatsAppDataContext.tsx` linha 1178-1187:
-```ts
-useEffect(() => {
-  if (currentQueueId && clientId) {
-    loadContacts();
-    loadConversations();
-    ...
-  }
-}, [currentQueueId, ...]);
-```
-Quando o usuário escolhe **"Todas as filas"** (`selectedQueue=null` → `currentQueueId=undefined`), o efeito **não executa** → `conversations` permanece `[]` → `ChatList.tsx` não acha `conv` para nenhum contato → `queueName` fica `undefined` → badge azul some. O badge cinza "NÃO ATRIBUÍDO" aparece como fallback porque o componente sempre renderiza algo para o time.
+### Bug 1 — Mídias recebidas não aparecem
+Confirmado no banco: 30 mensagens de mídia (imagem/vídeo/áudio/doc), **0 com `media_url`**. Causas combinadas:
+1. **Webhook não decifra**: `uazapi-chat-webhook/index.ts` só copia `msg.message.imageMessage.url` (que vem como `.enc` criptografado ou ausente em payloads novos da UaZapi). Não chama `POST /message/download` para decifrar e obter `fileURL`/`base64`.
+2. **Frontend não baixa sob demanda**: `ChatMessages.tsx` linha 227 instancia `<MessageBubble>` **sem passar `onDownloadMedia`**. O `MessageBubble` mostra botão "Baixar" mas a callback é `undefined` → clique não faz nada.
+3. **Sem persistência**: mesmo se baixasse, não há lógica para salvar no bucket `chat-media` e atualizar `media_url` da mensagem (próximo carregamento perderia o blob).
 
-**Confirmado no banco:** as conversas TÊM `queue_id` setado (Leonardo, Tell, Sámia, Grupo AM apontam para fila "Agente Principal" ativa). O problema é puramente o efeito de carregamento.
-
-### Bug 2: Mensagens de grupos não chegam
-**Causa raiz** — `uazapi-chat-webhook/index.ts` linha 156-163:
-```ts
-const isGroup = String(chatId).includes('@g.us') || msg.isGroup || ...;
-if (isGroup) { skipped.group++; continue; }
-```
-Toda mensagem de grupo é **descartada** antes do upsert. Banco confirma: `0 grupos, 14 individuais`. Aba "Grupos" fica vazia. O contato "Grupo AM - Advogados Associados" no print é, na verdade, um contato individual cujo nome contém "Grupo" (`remote_jid: ...@s.whatsapp.net`).
-
-**Bonus encontrado:** existe um contato duplicado "Grupo AM" com phone `246600177864794` (LID que vazou antes do fix anterior) — limpar.
+### Bug 2 — Envio de mídia (parcial)
+`sendMedia` em `WhatsAppDataContext.tsx` faz upload para `chat-media` e envia `mediaUrl` para UaZapi `/send/media`. Fluxo OK, mas:
+- Áudio gravado é enviado como `audio/webm;codecs=opus` → WhatsApp não toca (espera `ogg/opus` puro). Precisa converter ou marcar mimetype `audio/ogg; codecs=opus`.
+- Documento ignora mimetype no payload (UaZapi precisa de `mimetype` explícito para alguns tipos).
+- `fileName` não é repassado a UaZapi como `docName` (campo esperado pela API).
 
 ---
 
 ## Correção
 
-### A. `src/contexts/WhatsAppDataContext.tsx`
-1. **Sempre carregar contatos e conversas**, independente de fila selecionada. Trocar a condição do efeito para apenas `clientId`:
-   ```ts
-   useEffect(() => {
-     if (clientId) { loadContacts(); loadConversations(); loadTags(); ... }
-   }, [currentQueueId, clientId, ...]);
-   ```
-2. Garantir que `loadConversations` retorne todas as conversas do cliente quando `currentQueueId` for `null` (já está OK — só falta rodar).
+### A. Edge Function nova: `chat-media-download`
+Centraliza decifragem + persistência no Storage. Recebe `{ messageId, queueId }`, busca credenciais da fila, chama `POST /message/download` na UaZapi com `return_link: true`, baixa o `fileURL` retornado, faz upload ao bucket `chat-media` em `{clientId}/{contactId}/{messageId}.{ext}`, atualiza `chat_messages.media_url` com a URL pública e retorna a URL.
 
-### B. `supabase/functions/uazapi-chat-webhook/index.ts`
-1. **Aceitar mensagens de grupo**:
-   - Detectar grupo via `chatId.includes('@g.us')` ou `msg.isGroup`/`msg.groupName`.
-   - Para grupos: usar `chatid` (ex.: `1203...@g.us`) como identificador único do contato (campo `phone` recebe o ID limpo do grupo, sem `@g.us`).
-   - Marcar `is_group: true` no upsert.
-   - Nome do contato: `groupName` / `wa_groupName` (cair pra "Grupo {id curto}" se ausente).
-   - **Não criar conversa** automaticamente para grupos `pending` (opcional, mas mantém sanidade) — OU criar com tag especial. Vou criar normalmente para que apareçam no chat.
-   - **Em mensagens de grupo, `pushName` representa o autor da mensagem dentro do grupo** (ex.: "João disse..."), gravar em `sender_name` da mensagem mas **nunca** sobrescrever `name` do contato grupo.
-2. Ampliar a checagem de "phone válido" para grupos: aceitar IDs de grupo (formato `digits-digits` ou só dígitos longos quando vem de `@g.us`).
-3. Manter validação rigorosa para LIDs em mensagens individuais.
+Idempotente: se a mensagem já tem `media_url` salva (não-`.enc`), retorna direto.
 
-### C. Limpeza de dados
-- Apagar contato duplicado `phone='246600177864794'` (LID residual).
+### B. `MessageBubble` + `ChatMessages`
+- `ChatMessages.tsx`: passar `onDownloadMedia={handleDownloadMedia}` ao `MessageBubble`. Implementar `handleDownloadMedia(messageId)` que invoca `chat-media-download` e atualiza estado local da mensagem com a URL retornada.
+- `MessageBubble`: para imagens/áudio/vídeo, **disparar download automaticamente** ao montar (não exigir clique), com loading state — exatamente como WhatsApp Web. Documentos seguem com botão manual.
+- Áudio/vídeo: usar tag nativa `<audio controls>` / `<video controls>` quando URL disponível (já está, mas garantir `preload="metadata"` em áudio também).
+- Imagem: ao clicar, abrir lightbox fullscreen (novo componente leve com `Dialog`).
+- Áudio: melhorar player — barra de progresso clicável (seek), velocidade 1x/1.5x/2x, tempo decorrido + total.
+
+### C. `sendMedia` (envio)
+- Ao gravar áudio: rotular o blob como `audio/ogg; codecs=opus` no upload (renomear extensão `.ogg`) — UaZapi/WhatsApp aceitam melhor.
+- Passar `mimetype` e `docName` (= `fileName`) ao endpoint UaZapi.
+- Para imagem grande (>5MB): comprimir antes do upload (canvas → jpeg q=0.85).
+- Adicionar feedback visual de progresso (já existe `tempMessage` com status `sending`; garantir spinner sobre o preview).
+
+### D. Webhook (preventivo)
+Quando o payload já trouxer `fileURL` ou `base64` decifrado (UaZapi pode mandar dependendo da configuração da instância), salvar diretamente em vez de depender do download sob demanda. Manter download sob demanda como fallback.
+
+### E. Lightbox de imagem (novo)
+Componente `MediaLightbox.tsx` simples com `Dialog`, navegação prev/next entre mídias da conversa, download e zoom — padrão WhatsApp Web.
 
 ### Validação
-1. Recarregar `/chat` com filtro "Todas as filas" → badges azuis de fila + cinza de time/não-atribuído aparecem em cada item.
-2. Receber mensagem em grupo WhatsApp monitorado → contato aparece na aba "Grupos" com `is_group=true`, mensagens aparecem no chat.
-3. Mensagens individuais continuam funcionando normalmente.
-4. Aba "Individual" não mostra grupos; aba "Grupos" mostra apenas grupos.
+1. Abrir conversa com mensagens de imagem → imagens carregam sozinhas (sem clicar). Clicar abre lightbox.
+2. Áudios PTT recebidos → tocam com player completo (play/pause/seek/velocidade).
+3. Vídeos recebidos → player nativo HTML5 funciona.
+4. Documentos → botão de download abre arquivo.
+5. Enviar imagem do botão de anexo → aparece imediatamente como preview, depois confirmada.
+6. Gravar áudio e enviar → contato recebe áudio que toca no WhatsApp normal.
+7. Enviar PDF → contato recebe com nome correto.
+8. Recarregar página → mídias persistem (URL no Storage).
 
-### Arquivos a editar
-- `src/contexts/WhatsAppDataContext.tsx` — remover dependência de `currentQueueId` no efeito de load inicial.
-- `supabase/functions/uazapi-chat-webhook/index.ts` — habilitar processamento de grupos com flag `is_group`.
-- Migration de limpeza para o contato LID duplicado.
+### Arquivos a editar/criar
+- **Nova edge function**: `supabase/functions/chat-media-download/index.ts` — decifrar + persistir.
+- `src/components/chat/ChatMessages.tsx` — passar `onDownloadMedia` + auto-download trigger.
+- `src/components/chat/MessageBubble.tsx` — auto-download em mount para img/audio/video, melhor player de áudio, abrir lightbox.
+- `src/components/chat/MediaLightbox.tsx` — **novo**, visualização fullscreen.
+- `src/contexts/WhatsAppDataContext.tsx` — `downloadMedia(messageId)` invocando edge function + atualizando estado; ajustar `sendMedia` (mimetype áudio, docName).
+- `src/components/chat/AudioRecorder.tsx` — rotular blob como `audio/ogg; codecs=opus` (extensão `.ogg`).
+- `supabase/functions/uazapi-chat-webhook/index.ts` — capturar `fileURL`/`base64` quando vier no payload.
 
