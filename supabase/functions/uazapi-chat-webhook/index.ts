@@ -187,12 +187,8 @@ Deno.serve(async (req) => {
     // Accept both 'messages' event and default
     const messages = Array.isArray(payload.data) ? payload.data : [payload.data || payload];
 
-    // 3-day window: ignore messages older than this
-    const HISTORY_WINDOW_DAYS = 3;
-    const windowStartMs = Date.now() - HISTORY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
-
     let processed = 0;
-    let skippedOld = 0;
+    const backfillTriggered = new Set<string>();
     for (const msg of messages) {
       try {
         // Skip group messages
@@ -215,26 +211,27 @@ Deno.serve(async (req) => {
         const mediaUrl = extractMediaUrl(msg);
         const timestamp = msg.messageTimestamp || msg.timestamp;
         let isoTimestamp: string;
-        let msTs: number;
         if (timestamp) {
           const ts = typeof timestamp === 'number' ? timestamp : Number(timestamp);
-          msTs = ts > 1e12 ? ts : ts * 1000;
+          const msTs = ts > 1e12 ? ts : ts * 1000;
           const d = new Date(msTs);
           isoTimestamp = (d.getFullYear() > 2000 && d.getFullYear() < 2100) ? d.toISOString() : new Date().toISOString();
-          if (d.getFullYear() <= 2000 || d.getFullYear() >= 2100) msTs = Date.now();
         } else {
-          msTs = Date.now();
           isoTimestamp = new Date().toISOString();
-        }
-
-        // Skip messages older than the 3-day window
-        if (msTs < windowStartMs) {
-          skippedOld++;
-          continue;
         }
 
         // ── Upsert contact ──
         const contactName = pushName || senderPhone;
+        // Check if contact already existed BEFORE upsert (for backfill detection)
+        const { data: preExisting } = await supabase
+          .from('chat_contacts')
+          .select('id, history_backfilled')
+          .eq('phone', senderPhone)
+          .eq('client_id', queue.client_id)
+          .maybeSingle();
+        const isNewContact = !preExisting;
+        const alreadyBackfilled = preExisting?.history_backfilled === true;
+
         const { data: contact } = await supabase
           .from('chat_contacts')
           .upsert({
@@ -256,6 +253,28 @@ Deno.serve(async (req) => {
           .single();
 
         if (!contact) continue;
+
+        // ── Trigger one-time backfill from UaZapi for new contacts ──
+        if ((isNewContact || !alreadyBackfilled) && !backfillTriggered.has(contact.id)) {
+          backfillTriggered.add(contact.id);
+          const backfillUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/uazapi-chat-backfill`;
+          // fire-and-forget
+          fetch(backfillUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            },
+            body: JSON.stringify({
+              queue_id: queueId,
+              contact_id: contact.id,
+              chat_id: chatId || senderPhone,
+              phone: senderPhone,
+              limit: 50,
+            }),
+          }).catch((e) => console.warn('[uazapi-chat-webhook] backfill trigger failed:', e));
+        }
+
 
         // If not from_me, increment unread_count
         if (!fromMe) {
@@ -372,7 +391,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return respond({ ok: true, event, processed, skipped_old: skippedOld });
+    return respond({ ok: true, event, processed, backfills: backfillTriggered.size });
   } catch (error) {
     console.error('[uazapi-chat-webhook] Error:', error);
     return respond({ error: (error as Error).message }, 500);

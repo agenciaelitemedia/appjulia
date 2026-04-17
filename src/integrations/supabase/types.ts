@@ -1013,6 +1013,7 @@ export type Database = {
           client_id: string
           cod_agent: string | null
           created_at: string | null
+          history_backfilled: boolean
           id: string
           is_archived: boolean | null
           is_group: boolean | null
@@ -1032,6 +1033,7 @@ export type Database = {
           client_id: string
           cod_agent?: string | null
           created_at?: string | null
+          history_backfilled?: boolean
           id?: string
           is_archived?: boolean | null
           is_group?: boolean | null
@@ -1051,6 +1053,7 @@ export type Database = {
           client_id?: string
           cod_agent?: string | null
           created_at?: string | null
+          history_backfilled?: boolean
           id?: string
           is_archived?: boolean | null
           is_group?: boolean | null
