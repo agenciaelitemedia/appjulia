@@ -66,7 +66,8 @@ export function useChatBotFlows() {
   });
 
   const upsert = useMutation({
-    mutationFn: async (flow: Partial<BotFlow> & { name: string }) => {
+    mutationFn: async (flow: Partial<BotFlow>) => {
+      if (!flow.name) throw new Error('Nome é obrigatório');
       const payload = {
         ...flow,
         client_id: clientId,
