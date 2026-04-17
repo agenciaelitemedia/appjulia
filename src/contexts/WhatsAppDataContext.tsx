@@ -1279,7 +1279,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     loadConversationHistory,
   }), [
     contacts, messages, selectedContactId, activeTab, searchQuery, isLoading, isSyncing,
-    loadContacts, loadMessages, sendMessage, sendMedia, markAsRead, syncContacts,
+    loadContacts, loadMessages, sendMessage, sendMedia, markAsRead, syncContacts, selectContact,
     selectedContact, filteredContacts, totalUnreadCount, individualUnreadCount, groupUnreadCount,
     selectedQueue, conversations, selectedConversation, conversationStatusFilter,
     loadConversations, getOrCreateConversation, updateConversationStatus, assignConversation,
