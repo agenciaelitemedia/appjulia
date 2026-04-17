@@ -567,13 +567,14 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           },
         });
         if (error) throw error;
+        if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : 'WABA send failed');
         externalMessageId = data?.messageId || data?.messages?.[0]?.id;
       } else {
         // UaZapi send via proxy with queue credentials
         const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
           body: {
             method: 'POST',
-            endpoint: '/message/sendText',
+            endpoint: '/send/text',
             token: queue.evo_apikey,
             baseUrl: queue.evo_url,
             body: {
@@ -584,8 +585,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           },
         });
         if (error) throw error;
-        const proxyData = data?.data || data;
-        externalMessageId = proxyData?.messageId || proxyData?.id;
+        if (!data?.ok) {
+          const upstream = data?.data;
+          const msg = upstream?.message || upstream?.error || `UaZapi status ${data?.status}`;
+          throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        }
+        const proxyData = data?.data || {};
+        externalMessageId = proxyData?.key?.id || proxyData?.id || proxyData?.messageId;
       }
 
       setMessages(prev => ({
@@ -710,25 +716,20 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         reader.readAsDataURL(file);
       });
 
-      // Upload to Storage
-      let persistedUrl = previewUrl;
-      try {
-        const { data: uploadData } = await supabase.functions.invoke('chat-media-upload', {
-          body: {
-            base64,
-            mimetype: file.type,
-            fileName: file.name,
-            contactId,
-            clientId,
-            source: 'outgoing',
-          },
-        });
-        if (uploadData?.url) {
-          persistedUrl = uploadData.url;
-        }
-      } catch (uploadErr) {
-        console.warn('Media upload to storage failed:', uploadErr);
-      }
+      // Upload to Storage FIRST — UaZapi needs a public URL
+      const { data: uploadData, error: uploadError } = await supabase.functions.invoke('chat-media-upload', {
+        body: {
+          base64,
+          mimetype: file.type,
+          fileName: file.name,
+          contactId,
+          clientId,
+          source: 'outgoing',
+        },
+      });
+      if (uploadError) throw uploadError;
+      if (!uploadData?.url) throw new Error('Falha no upload da mídia para o storage');
+      const persistedUrl: string = uploadData.url;
 
       let externalMessageId: string | undefined;
 
@@ -746,36 +747,35 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           },
         });
         if (error) throw error;
+        if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : 'WABA media send failed');
         externalMessageId = data?.messageId || data?.messages?.[0]?.id;
       } else {
-        // UaZapi - determine endpoint by type
-        const endpointMap: Record<string, string> = {
-          image: '/message/sendImage',
-          video: '/message/sendVideo',
-          audio: '/message/sendAudio',
-          ptt: '/message/sendAudio',
-          document: '/message/sendDocument',
-        };
-        const path = endpointMap[type] || '/message/sendDocument';
-
+        // UaZapi: single endpoint /send/media with mediaType
+        const mediaType = type === 'ptt' ? 'audio' : type;
         const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
           body: {
             method: 'POST',
-            endpoint: path,
+            endpoint: '/send/media',
             token: queue.evo_apikey,
             baseUrl: queue.evo_url,
             body: {
               number: contact.phone,
-              mediaBase64: base64,
-              mimetype: file.type,
+              mediaUrl: persistedUrl,
+              type: mediaType,
+              mediaType,
               caption,
               fileName: file.name,
             },
           },
         });
         if (error) throw error;
-        const mediaProxyData = data?.data || data;
-        externalMessageId = mediaProxyData?.messageId || mediaProxyData?.id;
+        if (!data?.ok) {
+          const upstream = data?.data;
+          const msg = upstream?.message || upstream?.error || `UaZapi status ${data?.status}`;
+          throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        }
+        const mediaProxyData = data?.data || {};
+        externalMessageId = mediaProxyData?.key?.id || mediaProxyData?.id || mediaProxyData?.messageId;
       }
 
       setMessages(prev => ({
