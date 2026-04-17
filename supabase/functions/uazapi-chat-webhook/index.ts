@@ -184,26 +184,34 @@ Deno.serve(async (req) => {
     }
 
     // ─── MESSAGES (main handler) ───
-    // Accept both 'messages' event and default
-    const messages = Array.isArray(payload.data) ? payload.data : [payload.data || payload];
+    // UaZapi pode enviar em payload.data, payload.message, payload.messages, ou direto
+    let messages: any[] = [];
+    if (Array.isArray(payload.data)) messages = payload.data;
+    else if (Array.isArray(payload.messages)) messages = payload.messages;
+    else if (payload.message) messages = [payload.message];
+    else if (payload.data) messages = [payload.data];
+    else messages = [payload];
+
+    console.log(`[uazapi-chat-webhook] Parsed ${messages.length} message(s). First keys: ${messages[0] ? Object.keys(messages[0]).slice(0, 20).join(',') : 'none'}`);
 
     let processed = 0;
+    const skipped: Record<string, number> = { group: 0, no_id: 0, no_phone: 0 };
     const backfillTriggered = new Set<string>();
     for (const msg of messages) {
       try {
         // Skip group messages
-        const chatId = msg.chatid || msg.key?.remoteJid || msg.from || '';
-        const isGroup = chatId.includes('@g.us') || msg.isGroup || msg.wa_isGroup;
-        if (isGroup) continue;
+        const chatId = msg.chatid || msg.chatId || msg.key?.remoteJid || msg.remoteJid || msg.from || msg.sender || '';
+        const isGroup = String(chatId).includes('@g.us') || msg.isGroup || msg.wa_isGroup || msg.wa_chatid?.includes('@g.us');
+        if (isGroup) { skipped.group++; continue; }
 
-        const messageId = msg.id || msg.messageId || msg.key?.id;
-        if (!messageId) continue;
+        const messageId = msg.id || msg.messageId || msg.message_id || msg.key?.id || msg.wa_messageid;
+        if (!messageId) { skipped.no_id++; console.log('[uazapi-chat-webhook] no messageId, sample:', JSON.stringify(msg).slice(0, 400)); continue; }
 
-        const fromMe = msg.from_me ?? msg.fromMe ?? msg.key?.fromMe ?? false;
+        const fromMe = msg.from_me ?? msg.fromMe ?? msg.key?.fromMe ?? msg.wa_fromMe ?? false;
         const senderPhone = normalizePhone(
-          msg.from || msg.sender_pn || msg.PhoneNumber || msg.phone || chatId || ''
+          msg.sender || msg.from || msg.sender_pn || msg.PhoneNumber || msg.phone || msg.wa_chatid || chatId || ''
         );
-        if (!senderPhone) continue;
+        if (!senderPhone) { skipped.no_phone++; continue; }
 
         const pushName = msg.pushName || msg.senderName || msg.wa_contactName || '';
         const text = extractMessageText(msg);
@@ -391,7 +399,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    return respond({ ok: true, event, processed, backfills: backfillTriggered.size });
+    console.log(`[uazapi-chat-webhook] Done. processed=${processed} skipped=${JSON.stringify(skipped)} backfills=${backfillTriggered.size}`);
+    return respond({ ok: true, event, processed, skipped, backfills: backfillTriggered.size });
   } catch (error) {
     console.error('[uazapi-chat-webhook] Error:', error);
     return respond({ error: (error as Error).message }, 500);
