@@ -230,6 +230,10 @@ export function AgentPromptWizard({ onClose, onSaved, editingPrompt, editingCase
               onBack={() => setStep(3)}
               onSave={handleSave}
               saving={saving}
+              codAgent={selectedAgent?.cod_agent}
+              promptId={editingPrompt?.id}
+              publishedAt={editingPrompt?.prompt_published_at ?? null}
+              publishedBy={editingPrompt?.prompt_published_by ?? null}
             />
           )}
         </CardContent>
