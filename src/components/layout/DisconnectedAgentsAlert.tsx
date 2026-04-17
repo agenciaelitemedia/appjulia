@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQueries } from '@tanstack/react-query';
 import { AlertTriangle } from 'lucide-react';
 import {
@@ -46,6 +47,7 @@ async function checkAgentConnected(agent: UserAgent): Promise<boolean | null> {
 }
 
 export function DisconnectedAgentsAlert() {
+  const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const { data: agentsData } = useMyAgents();
   const [open, setOpen] = useState(false);
@@ -113,7 +115,14 @@ export function DisconnectedAgentsAlert() {
         </ul>
 
         <AlertDialogFooter>
-          <AlertDialogAction onClick={() => setOpen(false)}>Entendi</AlertDialogAction>
+          <AlertDialogAction
+            onClick={() => {
+              setOpen(false);
+              if (user?.role !== 'advogado') navigate('/agente/meus-agentes');
+            }}
+          >
+            Ver meus agentes
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
