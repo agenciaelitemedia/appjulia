@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Search, Zap } from 'lucide-react';
+import { Loader2, Search, Zap, Variable } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { AVAILABLE_VARIABLES } from '@/lib/messageVariables';
 
 interface QuickMessagePickerProps {
   onSelect: (text: string) => void;
@@ -63,9 +65,30 @@ export function QuickMessagePicker({ onSelect }: QuickMessagePickerProps) {
   return (
     <div className="flex flex-col">
       <div className="p-3 border-b">
-        <div className="flex items-center gap-2 mb-2">
-          <Zap className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium">Mensagens Rápidas</span>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2">
+            <Zap className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">Mensagens Rápidas</span>
+          </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-accent">
+                <Variable className="h-3 w-3" /> Variáveis
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-2" side="top" align="end">
+              <p className="text-[11px] font-medium mb-1.5">Use estas variáveis no texto:</p>
+              <div className="space-y-1">
+                {AVAILABLE_VARIABLES.map(v => (
+                  <div key={v.key} className="flex items-center justify-between text-[11px] gap-2">
+                    <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-foreground">{`{{${v.key}}}`}</code>
+                    <span className="text-muted-foreground truncate">{v.label}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-2">Substituídas no envio.</p>
+            </PopoverContent>
+          </Popover>
         </div>
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
