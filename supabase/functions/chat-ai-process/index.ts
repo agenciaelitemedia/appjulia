@@ -1,5 +1,9 @@
-import { corsHeaders } from '@supabase/supabase-js/cors';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.95.0';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
