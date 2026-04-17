@@ -441,7 +441,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     limit = 50,
     offset = 0
   ): Promise<{ messages: ChatMessage[]; hasMore: boolean }> => {
-    if (!clientId) return { messages: [], hasMore: false };
+    console.log('[loadMessages] start', { contactId, limit, offset, clientId });
 
     try {
       const { data: cachedMessages, error } = await supabase
@@ -450,6 +450,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         .eq('contact_id', contactId)
         .order('timestamp', { ascending: false })
         .range(offset, offset + limit - 1);
+
+      console.log('[loadMessages] result', { contactId, count: cachedMessages?.length, error });
 
       if (error) throw error;
 

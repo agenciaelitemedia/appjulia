@@ -78,16 +78,13 @@ function MessagePreview({ text, type }: { text?: string; type?: string }) {
 }
 
 /** Status/tag badges like Helena */
-function ConversationBadges({ conversation }: { conversation?: ChatConversation }) {
+function ConversationBadges({ conversation, queueName }: { conversation?: ChatConversation; queueName?: string }) {
   if (!conversation) return null;
 
   const badges: { label: string; className: string }[] = [];
 
-  if (conversation.status === 'pending') {
-    badges.push({ label: 'SUPORTE', className: 'bg-blue-600 text-white' });
-  }
-  if (conversation.status === 'open') {
-    badges.push({ label: 'SUPORTE', className: 'bg-blue-600 text-white' });
+  if (queueName) {
+    badges.push({ label: queueName.toUpperCase(), className: 'bg-blue-600 text-white' });
   }
   if (conversation.priority === 'high' || conversation.priority === 'urgent') {
     badges.push({ label: 'PRIORIDADE', className: 'bg-red-500 text-white' });
