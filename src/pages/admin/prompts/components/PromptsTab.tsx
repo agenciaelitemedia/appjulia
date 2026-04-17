@@ -241,7 +241,7 @@ export function PromptsTab() {
             {viewing && (
               <div className="pt-1">
                 {viewing.prompt_published_at ? (
-                  <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border border-emerald-200">
+                  <Badge variant="default" className="bg-green-600 hover:bg-green-600 text-primary-foreground">
                     <CheckCircle2 className="h-3 w-3 mr-1" />
                     Publicado em {format(new Date(viewing.prompt_published_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                     {viewing.prompt_published_by ? ` por ${viewing.prompt_published_by}` : ''}
