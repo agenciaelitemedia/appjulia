@@ -58,15 +58,24 @@ function extractMessageType(msg: any): string {
 }
 
 function extractMediaUrl(msg: any): string | undefined {
-  return msg.mediaUrl
-    || msg.media?.url
-    || msg.fileURL
+  // Prefer decrypted/usable URLs first; fall back to encrypted ones (frontend will request decryption on demand)
+  const decrypted = msg.fileURL
+    || msg.file_url
+    || msg.mediaUrl
+    || msg.media?.url;
+  if (decrypted && !String(decrypted).includes('.enc')) return decrypted;
+
+  return decrypted
     || msg.message?.imageMessage?.url
     || msg.message?.videoMessage?.url
     || msg.message?.audioMessage?.url
     || msg.message?.documentMessage?.url
     || msg.message?.stickerMessage?.url
     || undefined;
+}
+
+function extractMediaBase64(msg: any): string | undefined {
+  return msg.fileBase64 || msg.base64 || undefined;
 }
 
 Deno.serve(async (req) => {
