@@ -1,6 +1,9 @@
 
-User wants a comprehensive checklist of ALL features (existing + newly implemented today across Sprints 8, 9, 10) with summary and usage instructions. This is a documentation/research task, not an implementation task. I should produce a markdown document.
+User wants to:
+1. Validate webhook functioning
+2. Reconfigure queue webhook with all necessary events as default for new UaZapi queues
+3. Limit message history to last 3 days only
+4. Limit conversations loaded to last 3 days
+5. NEW: Clean ALL chat-related tables to start /chat fresh from zero
 
-Best format: generate a downloadable markdown/PDF checklist file in /mnt/documents/ since it will be long and useful as reference. But user is in chat context — they may want it inline. Given the volume (50+ features), best to generate a downloadable markdown file AND give a summary in chat.
-
-Plan:
+Let me structure a concise plan.
