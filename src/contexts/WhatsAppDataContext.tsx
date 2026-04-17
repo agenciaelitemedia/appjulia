@@ -853,46 +853,21 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   }, [contacts, selectedQueue]);
 
   // ============================================
-  // Select Contact + Auto-assign pending conversation
+  // Select Contact (no auto-assign — user must click "Assumir")
   // ============================================
   const selectContact = useCallback((contactId: string | null) => {
     setSelectedContactId(contactId);
-    if (!contactId || !user?.name) return;
-
+    if (!contactId) return;
+    // Ensure conversation exists so header actions render, then mark as read.
     (async () => {
       try {
-        const conv = await getOrCreateConversation(contactId);
-        if (!conv) return;
-
+        await getOrCreateConversation(contactId);
         markAsRead(contactId);
-
-        if (conv.status === 'pending' && !conv.assigned_to) {
-          const { error } = await supabase
-            .from('chat_conversations')
-            .update({ assigned_to: user.name, status: 'open' })
-            .eq('id', conv.id);
-
-          if (error) {
-            console.warn('[selectContact] auto-assign failed', error);
-            return;
-          }
-
-          setConversations(prev => prev.map(c =>
-            c.id === conv.id ? { ...c, assigned_to: user.name!, status: 'open' as const } : c
-          ));
-
-          await supabase.from('chat_conversation_history').insert({
-            conversation_id: conv.id,
-            action: 'assigned',
-            actor_name: user.name,
-            to_value: user.name,
-          });
-        }
       } catch (e) {
         console.warn('[selectContact] error', e);
       }
     })();
-  }, [user?.name, getOrCreateConversation, markAsRead]);
+  }, [getOrCreateConversation, markAsRead]);
 
   // ============================================
   // Sync Contacts (pull from UaZapi API via proxy)
