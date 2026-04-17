@@ -120,6 +120,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   onClick,
   conversation,
   queueName,
+  assignedAgentName,
 }: ChatContactItemProps) {
   const { configs } = useChatSlaConfigs();
 
