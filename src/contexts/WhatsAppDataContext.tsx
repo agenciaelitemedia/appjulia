@@ -651,7 +651,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         ) || [],
       }));
     }
-  }, [clientId, contacts, selectedQueue, getOrCreateConversation, user?.name]);
+  }, [clientId, contacts, getEffectiveQueue, getOrCreateConversation, user?.name]);
 
   // ============================================
   // Send Media via Edge Function
