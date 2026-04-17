@@ -521,7 +521,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     replyToId?: string
   ) => {
     const contact = contacts.find(c => c.id === contactId);
-    if (!contact || !selectedQueue) return;
+    if (!contact) return;
+    const queue = getEffectiveQueue(contactId);
+    if (!queue) {
+      toast.error('Sem fila ativa para este contato');
+      return;
+    }
 
     const conversation = await getOrCreateConversation(contactId);
 
