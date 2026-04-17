@@ -1030,6 +1030,33 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               [enriched.contact_id]: [...existing, enriched],
             };
           });
+
+          // Hook automation + webhooks for inbound messages only
+          if (!newMessage.from_me && !newMessage.internal_note) {
+            supabase.functions.invoke('chat-automation-engine', {
+              body: {
+                event: 'message_received',
+                conversation_id: newMessage.conversation_id,
+                client_id: clientId,
+                message_text: newMessage.text || '',
+              },
+            }).catch((err) => console.warn('automation engine error:', err));
+
+            supabase.functions.invoke('chat-webhook-dispatcher', {
+              body: {
+                event: 'message_received',
+                client_id: clientId,
+                payload: {
+                  message_id: newMessage.id,
+                  conversation_id: newMessage.conversation_id,
+                  contact_id: newMessage.contact_id,
+                  text: newMessage.text,
+                  type: newMessage.type,
+                  timestamp: newMessage.timestamp,
+                },
+              },
+            }).catch((err) => console.warn('webhook dispatcher error:', err));
+          }
         }
       )
       .on(
