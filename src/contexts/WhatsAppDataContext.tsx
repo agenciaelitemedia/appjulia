@@ -214,6 +214,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           to_value: 'open',
         });
 
+        // Fire-and-forget automation engine
+        supabase.functions.invoke('chat-automation-engine', {
+          body: { event: 'conversation_created', conversation_id: conv.id, client_id: clientId },
+        }).catch((err) => console.warn('automation engine error:', err));
+
         return conv;
       }
 
