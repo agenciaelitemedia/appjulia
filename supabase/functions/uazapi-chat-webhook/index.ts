@@ -200,9 +200,14 @@ Deno.serve(async (req) => {
     const backfillTriggered = new Set<string>();
     for (const msg of messages) {
       try {
-        // Skip group messages
+        // Skip group messages (check chatid + extra signals like groupName)
         const chatId = msg.chatid || msg.chatId || msg.key?.remoteJid || msg.remoteJid || msg.from || msg.sender || '';
-        const isGroup = String(chatId).includes('@g.us') || msg.isGroup || msg.wa_isGroup || msg.wa_chatid?.includes('@g.us');
+        const isGroup = String(chatId).includes('@g.us')
+          || msg.isGroup
+          || msg.wa_isGroup
+          || msg.wa_chatid?.includes('@g.us')
+          || !!msg.groupName
+          || !!msg.wa_groupName;
         if (isGroup) { skipped.group++; continue; }
 
         const messageId = msg.id || msg.messageId || msg.message_id || msg.key?.id || msg.wa_messageid;
@@ -210,27 +215,35 @@ Deno.serve(async (req) => {
 
         const fromMe = msg.from_me ?? msg.fromMe ?? msg.key?.fromMe ?? msg.wa_fromMe ?? false;
 
-        // Resolve real phone number, NOT the WhatsApp LID (internal ID, format 15+ digits @lid).
-        // Priority: chatid (canonical for 1:1 chats) > sender_pn (real phone) > PhoneNumber > sender/from (last resort, may be @lid).
-        const candidates = [
-          msg.chatid,        // canonical chat id, e.g. "5511999999999@s.whatsapp.net"
-          msg.chatId,
-          msg.sender_pn,     // sender phone number (real)
-          msg.PhoneNumber,
-          msg.phone,
-          msg.from,
-          msg.sender,        // may be a LID (e.g. "135630956830767@lid")
-          msg.wa_chatid,
-          chatId,
-        ];
+        // Resolve the PEER phone (the "other side" of the conversation), NEVER the instance owner.
+        // - fromMe=true  → peer = recipient = chatid ONLY. sender/sender_pn/participant are the OWNER, must be ignored.
+        // - fromMe=false → peer = sender. Prioritize chatid → sender_pn → sender (skip @lid).
+        let candidates: any[];
+        if (fromMe) {
+          // Outgoing: only chatid is the recipient. Everything else identifies the owner.
+          candidates = [msg.chatid, msg.chatId, msg.wa_chatid, msg.to, msg.recipient];
+        } else {
+          // Incoming: chatid is canonical, sender_pn is the real phone, sender may be @lid.
+          candidates = [
+            msg.chatid,
+            msg.chatId,
+            msg.sender_pn,
+            msg.PhoneNumber,
+            msg.phone,
+            msg.from,
+            msg.sender,
+            msg.wa_chatid,
+            chatId,
+          ];
+        }
         let senderPhone = '';
         for (const cand of candidates) {
           if (!cand) continue;
           const raw = String(cand);
-          // Skip LIDs explicitly — they are internal WhatsApp IDs, not phone numbers
+          // Skip LIDs explicitly — internal WhatsApp IDs, not phone numbers
           if (raw.includes('@lid')) continue;
           const normalized = normalizePhone(raw);
-          // Real phone numbers are 8–13 digits (E.164). Anything longer is a LID/group/internal ID.
+          // Real phone numbers are 8–13 digits (E.164). Longer = LID/group/internal.
           if (normalized && normalized.length >= 8 && normalized.length <= 13) {
             senderPhone = normalized;
             break;
@@ -238,11 +251,13 @@ Deno.serve(async (req) => {
         }
         if (!senderPhone) {
           skipped.no_phone++;
-          console.log('[uazapi-chat-webhook] no valid phone (LID-only msg?), sample:', JSON.stringify({ chatid: msg.chatid, sender: msg.sender, sender_pn: msg.sender_pn, from: msg.from }).slice(0, 300));
+          console.log('[uazapi-chat-webhook] no valid peer phone, fromMe=', fromMe, 'sample:', JSON.stringify({ chatid: msg.chatid, sender: msg.sender, sender_pn: msg.sender_pn, from: msg.from }).slice(0, 300));
           continue;
         }
 
-        const pushName = msg.pushName || msg.senderName || msg.wa_contactName || '';
+        // pushName/senderName belongs to the message author. For fromMe=true that's the OWNER —
+        // we must NOT use it to name the peer contact.
+        const pushName = fromMe ? '' : (msg.pushName || msg.senderName || msg.wa_contactName || '');
         const text = extractMessageText(msg);
         const type = extractMessageType(msg);
         const mediaUrl = extractMediaUrl(msg);
@@ -258,11 +273,11 @@ Deno.serve(async (req) => {
         }
 
         // ── Upsert contact ──
-        const contactName = pushName || senderPhone;
-        // Check if contact already existed BEFORE upsert (for backfill detection)
+        // For fromMe messages we don't have a usable name from the payload (it's the owner's name).
+        // Keep the existing contact name; only fall back to the phone if the contact is brand new.
         const { data: preExisting } = await supabase
           .from('chat_contacts')
-          .select('id, history_backfilled, unread_count')
+          .select('id, name, avatar, history_backfilled, unread_count')
           .eq('phone', senderPhone)
           .eq('client_id', queue.client_id)
           .maybeSingle();
@@ -272,16 +287,29 @@ Deno.serve(async (req) => {
           ? (preExisting?.unread_count || 0)
           : (preExisting?.unread_count || 0) + 1;
 
+        // Decide which name to write. NEVER overwrite an existing name with the owner's name.
+        let contactNameToWrite: string;
+        if (preExisting?.name) {
+          // Keep existing name unless we have a better pushName for an incoming message
+          contactNameToWrite = (!fromMe && pushName && preExisting.name === senderPhone)
+            ? pushName
+            : preExisting.name;
+        } else {
+          // New contact: only use pushName if incoming, else fallback to phone
+          contactNameToWrite = pushName || senderPhone;
+        }
+
         const { data: contact } = await supabase
           .from('chat_contacts')
           .upsert({
             client_id: queue.client_id,
             phone: senderPhone,
-            name: contactName,
+            name: contactNameToWrite,
             channel_type: 'whatsapp_uazapi',
             channel_source: queueId,
             remote_jid: chatId || null,
-            avatar: msg.profilePictureUrl || null,
+            // avatar from payload only applies to incoming messages (fromMe avatar is the owner's)
+            avatar: fromMe ? ((preExisting as any)?.avatar ?? null) : (msg.profilePictureUrl || null),
             last_message_at: isoTimestamp,
             last_message_text: text || `[${type}]`,
             unread_count: nextUnreadCount,
@@ -312,15 +340,6 @@ Deno.serve(async (req) => {
               limit: 50,
             }),
           }).catch((e) => console.warn('[uazapi-chat-webhook] backfill trigger failed:', e));
-        }
-
-        // Update contact name/avatar if we have new data
-        if (pushName && pushName !== senderPhone) {
-          await supabase
-            .from('chat_contacts')
-            .update({ name: pushName })
-            .eq('id', contact.id)
-            .eq('name', senderPhone); // Only update if current name is just the phone
         }
 
         // ── Get or create conversation ──
