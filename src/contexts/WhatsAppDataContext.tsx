@@ -17,6 +17,7 @@ import type {
   ConversationHistoryEntry,
   ChatTag,
 } from '@/types/conversation';
+import { useQueues, type Queue } from '@/pages/agente/filas/hooks/useQueues';
 
 
 // ============================================
