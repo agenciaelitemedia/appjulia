@@ -24,6 +24,8 @@ import {
   Key,
   BookOpen,
   Star,
+  Bot,
+  Send,
 } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { toast } from 'sonner';
@@ -129,6 +131,14 @@ export function ChatCommandPalette({ open, onOpenChange }: ChatCommandPalettePro
           <CommandItem onSelect={() => { navigate('/chat/kb'); close(); }}>
             <BookOpen className="mr-2 h-4 w-4 text-emerald-500" />
             <span>Base de Conhecimento</span>
+          </CommandItem>
+          <CommandItem onSelect={() => { navigate('/chat/bots'); close(); }}>
+            <Bot className="mr-2 h-4 w-4 text-cyan-500" />
+            <span>Chatbots</span>
+          </CommandItem>
+          <CommandItem onSelect={() => { navigate('/chat/campanhas'); close(); }}>
+            <Send className="mr-2 h-4 w-4 text-pink-500" />
+            <span>Campanhas em massa</span>
           </CommandItem>
           <CommandItem onSelect={() => { navigate('/chat/api-keys'); close(); }}>
             <Key className="mr-2 h-4 w-4 text-purple-500" />
