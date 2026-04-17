@@ -1,0 +1,3 @@
+ALTER TABLE public.chat_messages REPLICA IDENTITY FULL;
+ALTER TABLE public.chat_contacts REPLICA IDENTITY FULL;
+ALTER TABLE public.chat_conversations REPLICA IDENTITY FULL;
