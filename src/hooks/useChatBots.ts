@@ -25,7 +25,7 @@ export interface ChatBot {
 
 export function useChatBots() {
   const { user } = useAuth();
-  const clientId = user?.id ?? '';
+  const clientId = user?.id != null ? String(user.id) : '';
   const [bots, setBots] = useState<ChatBot[]>([]);
   const [loading, setLoading] = useState(true);
 

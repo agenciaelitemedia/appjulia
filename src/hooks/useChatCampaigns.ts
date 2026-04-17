@@ -26,7 +26,7 @@ export interface ChatCampaign {
 
 export function useChatCampaigns() {
   const { user } = useAuth();
-  const clientId = user?.id ?? '';
+  const clientId = user?.id != null ? String(user.id) : '';
   const [campaigns, setCampaigns] = useState<ChatCampaign[]>([]);
   const [loading, setLoading] = useState(true);
 
