@@ -26,6 +26,9 @@ import {
   Star,
   Bot,
   Send,
+  Workflow,
+  GitFork,
+  Eye,
 } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { toast } from 'sonner';
@@ -134,7 +137,19 @@ export function ChatCommandPalette({ open, onOpenChange }: ChatCommandPalettePro
           </CommandItem>
           <CommandItem onSelect={() => { navigate('/chat/bots'); close(); }}>
             <Bot className="mr-2 h-4 w-4 text-cyan-500" />
-            <span>Chatbots</span>
+            <span>Chatbots (lista)</span>
+          </CommandItem>
+          <CommandItem onSelect={() => { navigate('/chat/builder'); close(); }}>
+            <Workflow className="mr-2 h-4 w-4 text-indigo-500" />
+            <span>Construtor visual de chatbot</span>
+          </CommandItem>
+          <CommandItem onSelect={() => { navigate('/chat/roteamento'); close(); }}>
+            <GitFork className="mr-2 h-4 w-4 text-teal-500" />
+            <span>Roteamento inteligente</span>
+          </CommandItem>
+          <CommandItem onSelect={() => { navigate('/chat/visoes'); close(); }}>
+            <Eye className="mr-2 h-4 w-4 text-violet-500" />
+            <span>Inbox unificada (visões salvas)</span>
           </CommandItem>
           <CommandItem onSelect={() => { navigate('/chat/campanhas'); close(); }}>
             <Send className="mr-2 h-4 w-4 text-pink-500" />
