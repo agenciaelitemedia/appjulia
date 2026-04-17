@@ -77,6 +77,51 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_api_keys: {
+        Row: {
+          client_id: string
+          cod_agent: string | null
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          key_hash: string
+          key_prefix: string
+          last_used_at: string | null
+          name: string
+          scopes: string[]
+        }
+        Insert: {
+          client_id: string
+          cod_agent?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          key_hash: string
+          key_prefix: string
+          last_used_at?: string | null
+          name: string
+          scopes?: string[]
+        }
+        Update: {
+          client_id?: string
+          cod_agent?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          key_hash?: string
+          key_prefix?: string
+          last_used_at?: string | null
+          name?: string
+          scopes?: string[]
+        }
+        Relationships: []
+      }
       chat_automation_logs: {
         Row: {
           action_type: string
@@ -463,6 +508,48 @@ export type Database = {
           },
         ]
       }
+      chat_csat_config: {
+        Row: {
+          auto_send_after_resolve: boolean
+          client_id: string
+          cod_agent: string | null
+          created_at: string
+          delay_minutes: number
+          id: string
+          is_active: boolean
+          message_template: string
+          survey_type: string
+          thank_you_message: string
+          updated_at: string
+        }
+        Insert: {
+          auto_send_after_resolve?: boolean
+          client_id: string
+          cod_agent?: string | null
+          created_at?: string
+          delay_minutes?: number
+          id?: string
+          is_active?: boolean
+          message_template?: string
+          survey_type?: string
+          thank_you_message?: string
+          updated_at?: string
+        }
+        Update: {
+          auto_send_after_resolve?: boolean
+          client_id?: string
+          cod_agent?: string | null
+          created_at?: string
+          delay_minutes?: number
+          id?: string
+          is_active?: boolean
+          message_template?: string
+          survey_type?: string
+          thank_you_message?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chat_csat_responses: {
         Row: {
           client_id: string
@@ -532,6 +619,98 @@ export type Database = {
           is_active?: boolean
           name?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      chat_kb_articles: {
+        Row: {
+          category_id: string | null
+          client_id: string
+          cod_agent: string | null
+          content: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_published: boolean
+          keywords: string[]
+          summary: string | null
+          tags: string[]
+          title: string
+          updated_at: string
+          use_count: number
+          view_count: number
+        }
+        Insert: {
+          category_id?: string | null
+          client_id: string
+          cod_agent?: string | null
+          content: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_published?: boolean
+          keywords?: string[]
+          summary?: string | null
+          tags?: string[]
+          title: string
+          updated_at?: string
+          use_count?: number
+          view_count?: number
+        }
+        Update: {
+          category_id?: string | null
+          client_id?: string
+          cod_agent?: string | null
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_published?: boolean
+          keywords?: string[]
+          summary?: string | null
+          tags?: string[]
+          title?: string
+          updated_at?: string
+          use_count?: number
+          view_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_kb_articles_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "chat_kb_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_kb_categories: {
+        Row: {
+          client_id: string
+          color: string
+          created_at: string
+          icon: string | null
+          id: string
+          name: string
+          position: number
+        }
+        Insert: {
+          client_id: string
+          color?: string
+          created_at?: string
+          icon?: string | null
+          id?: string
+          name: string
+          position?: number
+        }
+        Update: {
+          client_id?: string
+          color?: string
+          created_at?: string
+          icon?: string | null
+          id?: string
+          name?: string
+          position?: number
         }
         Relationships: []
       }
