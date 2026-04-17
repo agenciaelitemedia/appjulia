@@ -29,6 +29,9 @@ import {
   Workflow,
   GitFork,
   Eye,
+  Sparkles,
+  Plug,
+  FileBarChart,
 } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { toast } from 'sonner';
@@ -150,6 +153,18 @@ export function ChatCommandPalette({ open, onOpenChange }: ChatCommandPalettePro
           <CommandItem onSelect={() => { navigate('/chat/visoes'); close(); }}>
             <Eye className="mr-2 h-4 w-4 text-violet-500" />
             <span>Inbox unificada (visões salvas)</span>
+          </CommandItem>
+          <CommandItem onSelect={() => { navigate('/chat/relatorios'); close(); }}>
+            <FileBarChart className="mr-2 h-4 w-4 text-blue-500" />
+            <span>Relatórios & Analytics</span>
+          </CommandItem>
+          <CommandItem onSelect={() => { navigate('/chat/ia-autoresposta'); close(); }}>
+            <Sparkles className="mr-2 h-4 w-4 text-fuchsia-500" />
+            <span>IA Auto-resposta</span>
+          </CommandItem>
+          <CommandItem onSelect={() => { navigate('/chat/integracoes'); close(); }}>
+            <Plug className="mr-2 h-4 w-4 text-emerald-500" />
+            <span>Integrações</span>
           </CommandItem>
           <CommandItem onSelect={() => { navigate('/chat/campanhas'); close(); }}>
             <Send className="mr-2 h-4 w-4 text-pink-500" />
