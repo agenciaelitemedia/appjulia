@@ -567,13 +567,14 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           },
         });
         if (error) throw error;
+        if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : 'WABA send failed');
         externalMessageId = data?.messageId || data?.messages?.[0]?.id;
       } else {
         // UaZapi send via proxy with queue credentials
         const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
           body: {
             method: 'POST',
-            endpoint: '/message/sendText',
+            endpoint: '/send/text',
             token: queue.evo_apikey,
             baseUrl: queue.evo_url,
             body: {
@@ -584,8 +585,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           },
         });
         if (error) throw error;
-        const proxyData = data?.data || data;
-        externalMessageId = proxyData?.messageId || proxyData?.id;
+        if (!data?.ok) {
+          const upstream = data?.data;
+          const msg = upstream?.message || upstream?.error || `UaZapi status ${data?.status}`;
+          throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        }
+        const proxyData = data?.data || {};
+        externalMessageId = proxyData?.key?.id || proxyData?.id || proxyData?.messageId;
       }
 
       setMessages(prev => ({
