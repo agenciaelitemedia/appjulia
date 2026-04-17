@@ -17,6 +17,7 @@ import type {
   ConversationHistoryEntry,
   ChatTag,
 } from '@/types/conversation';
+import { useQueues, type Queue } from '@/pages/agente/filas/hooks/useQueues';
 
 
 // ============================================
@@ -110,6 +111,32 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
   const clientId = user?.client_id ? String(user.client_id) : '';
   const currentQueueId = selectedQueue?.id;
+
+  // Load all active queues for this client (used to resolve effective queue per-contact)
+  const { data: allQueues = [] } = useQueues(false);
+
+  // Resolve effective queue for a given contact:
+  // 1) if a queue is selected globally, use it
+  // 2) else, look up by contact.channel_source (= queue id)
+  // 3) else, look up by active conversation.queue_id
+  const getEffectiveQueue = useCallback((contactId: string): SelectedQueue | null => {
+    if (selectedQueue) return selectedQueue;
+    const contact = contacts.find(c => c.id === contactId);
+    const conv = conversations.find(c => c.contact_id === contactId && ['pending', 'open'].includes(c.status));
+    const queueId = contact?.channel_source || conv?.queue_id;
+    if (!queueId) return null;
+    const q = allQueues.find((x: Queue) => x.id === queueId);
+    if (!q) return null;
+    return {
+      id: q.id,
+      name: q.name,
+      channel_type: q.channel_type,
+      hub: q.hub,
+      evo_url: q.evo_url,
+      evo_apikey: q.evo_apikey,
+      evo_instance: q.evo_instance,
+    };
+  }, [selectedQueue, contacts, conversations, allQueues]);
 
   // ============================================
   // Load Contacts from Supabase (filtered by queue via channel_source)
@@ -494,7 +521,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     replyToId?: string
   ) => {
     const contact = contacts.find(c => c.id === contactId);
-    if (!contact || !selectedQueue) return;
+    if (!contact) return;
+    const queue = getEffectiveQueue(contactId);
+    if (!queue) {
+      toast.error('Sem fila ativa para este contato');
+      return;
+    }
 
     const conversation = await getOrCreateConversation(contactId);
 
@@ -520,12 +552,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     try {
       let externalMessageId: string | undefined;
 
-      if (selectedQueue.channel_type === 'waba') {
+      if (queue.channel_type === 'waba') {
         // WABA send via edge function
         const { data, error } = await supabase.functions.invoke('waba-send', {
           body: {
             action: 'send_text',
-            queue_id: selectedQueue.id,
+            queue_id: queue.id,
             to: contact.phone,
             text,
           },
@@ -538,8 +570,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           body: {
             method: 'POST',
             endpoint: '/message/sendText',
-            token: selectedQueue.evo_apikey,
-            baseUrl: selectedQueue.evo_url,
+            token: queue.evo_apikey,
+            baseUrl: queue.evo_url,
             body: {
               number: contact.phone,
               text,
@@ -619,7 +651,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         ) || [],
       }));
     }
-  }, [clientId, contacts, selectedQueue, getOrCreateConversation, user?.name]);
+  }, [clientId, contacts, getEffectiveQueue, getOrCreateConversation, user?.name]);
 
   // ============================================
   // Send Media via Edge Function
@@ -631,7 +663,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     caption?: string
   ) => {
     const contact = contacts.find(c => c.id === contactId);
-    if (!contact || !selectedQueue) return;
+    if (!contact) return;
+    const queue = getEffectiveQueue(contactId);
+    if (!queue) {
+      toast.error('Sem fila ativa para este contato');
+      return;
+    }
 
     const conversation = await getOrCreateConversation(contactId);
 
@@ -691,11 +728,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
       let externalMessageId: string | undefined;
 
-      if (selectedQueue.channel_type === 'waba') {
+      if (queue.channel_type === 'waba') {
         const { data, error } = await supabase.functions.invoke('waba-send', {
           body: {
             action: 'send_media',
-            queue_id: selectedQueue.id,
+            queue_id: queue.id,
             to: contact.phone,
             mediaBase64: base64,
             mimetype: file.type,
@@ -721,8 +758,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           body: {
             method: 'POST',
             endpoint: path,
-            token: selectedQueue.evo_apikey,
-            baseUrl: selectedQueue.evo_url,
+            token: queue.evo_apikey,
+            baseUrl: queue.evo_url,
             body: {
               number: contact.phone,
               mediaBase64: base64,
@@ -777,7 +814,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         ) || [],
       }));
     }
-  }, [clientId, contacts, selectedQueue, getOrCreateConversation, user?.name]);
+  }, [clientId, contacts, getEffectiveQueue, getOrCreateConversation, user?.name]);
 
   // ============================================
   // Mark as Read
@@ -814,6 +851,48 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       console.error('Error marking as read:', error);
     }
   }, [contacts, selectedQueue]);
+
+  // ============================================
+  // Select Contact + Auto-assign pending conversation
+  // ============================================
+  const selectContact = useCallback((contactId: string | null) => {
+    setSelectedContactId(contactId);
+    if (!contactId || !user?.name) return;
+
+    (async () => {
+      try {
+        const conv = await getOrCreateConversation(contactId);
+        if (!conv) return;
+
+        markAsRead(contactId);
+
+        if (conv.status === 'pending' && !conv.assigned_to) {
+          const { error } = await supabase
+            .from('chat_conversations')
+            .update({ assigned_to: user.name, status: 'open' })
+            .eq('id', conv.id);
+
+          if (error) {
+            console.warn('[selectContact] auto-assign failed', error);
+            return;
+          }
+
+          setConversations(prev => prev.map(c =>
+            c.id === conv.id ? { ...c, assigned_to: user.name!, status: 'open' as const } : c
+          ));
+
+          await supabase.from('chat_conversation_history').insert({
+            conversation_id: conv.id,
+            action: 'assigned',
+            actor_name: user.name,
+            to_value: user.name,
+          });
+        }
+      } catch (e) {
+        console.warn('[selectContact] error', e);
+      }
+    })();
+  }, [user?.name, getOrCreateConversation, markAsRead]);
 
   // ============================================
   // Sync Contacts (pull from UaZapi API via proxy)
@@ -1148,7 +1227,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     sendMedia,
     markAsRead,
     syncContacts,
-    selectContact: setSelectedContactId,
+    selectContact,
     setActiveTab,
     setSearchQuery,
 
@@ -1200,7 +1279,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     loadConversationHistory,
   }), [
     contacts, messages, selectedContactId, activeTab, searchQuery, isLoading, isSyncing,
-    loadContacts, loadMessages, sendMessage, sendMedia, markAsRead, syncContacts,
+    loadContacts, loadMessages, sendMessage, sendMedia, markAsRead, syncContacts, selectContact,
     selectedContact, filteredContacts, totalUnreadCount, individualUnreadCount, groupUnreadCount,
     selectedQueue, conversations, selectedConversation, conversationStatusFilter,
     loadConversations, getOrCreateConversation, updateConversationStatus, assignConversation,
