@@ -50,7 +50,7 @@ export default function ChatSlaConfigPage() {
   const save = (priority: string) => {
     const r = state[priority];
     upsert.mutate({
-      priority,
+      priority: priority as 'urgent' | 'high' | 'normal' | 'low',
       first_response_minutes: Number(r.first) || 0,
       resolution_minutes: Number(r.resolution) || 0,
       is_active: r.active,
