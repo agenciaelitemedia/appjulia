@@ -170,6 +170,20 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         </div>
         
         <div className="flex items-center gap-1">
+          {/* Assumir conversa */}
+          {canTakeOver && (
+            <Button
+              variant="default"
+              size="sm"
+              className="h-8 gap-1.5"
+              onClick={handleTakeOver}
+              title={selectedConversation?.assigned_to ? `Assumir de ${selectedConversation.assigned_to}` : 'Assumir conversa'}
+            >
+              <UserCheck className="h-4 w-4" />
+              Assumir
+            </Button>
+          )}
+
           {/* AI Assist */}
           {selectedConversation && (
             <AIAssistPanel conversationId={selectedConversation.id} />
