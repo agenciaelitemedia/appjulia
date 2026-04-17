@@ -200,9 +200,14 @@ Deno.serve(async (req) => {
     const backfillTriggered = new Set<string>();
     for (const msg of messages) {
       try {
-        // Skip group messages
+        // Skip group messages (check chatid + extra signals like groupName)
         const chatId = msg.chatid || msg.chatId || msg.key?.remoteJid || msg.remoteJid || msg.from || msg.sender || '';
-        const isGroup = String(chatId).includes('@g.us') || msg.isGroup || msg.wa_isGroup || msg.wa_chatid?.includes('@g.us');
+        const isGroup = String(chatId).includes('@g.us')
+          || msg.isGroup
+          || msg.wa_isGroup
+          || msg.wa_chatid?.includes('@g.us')
+          || !!msg.groupName
+          || !!msg.wa_groupName;
         if (isGroup) { skipped.group++; continue; }
 
         const messageId = msg.id || msg.messageId || msg.message_id || msg.key?.id || msg.wa_messageid;
@@ -210,27 +215,35 @@ Deno.serve(async (req) => {
 
         const fromMe = msg.from_me ?? msg.fromMe ?? msg.key?.fromMe ?? msg.wa_fromMe ?? false;
 
-        // Resolve real phone number, NOT the WhatsApp LID (internal ID, format 15+ digits @lid).
-        // Priority: chatid (canonical for 1:1 chats) > sender_pn (real phone) > PhoneNumber > sender/from (last resort, may be @lid).
-        const candidates = [
-          msg.chatid,        // canonical chat id, e.g. "5511999999999@s.whatsapp.net"
-          msg.chatId,
-          msg.sender_pn,     // sender phone number (real)
-          msg.PhoneNumber,
-          msg.phone,
-          msg.from,
-          msg.sender,        // may be a LID (e.g. "135630956830767@lid")
-          msg.wa_chatid,
-          chatId,
-        ];
+        // Resolve the PEER phone (the "other side" of the conversation), NEVER the instance owner.
+        // - fromMe=true  → peer = recipient = chatid ONLY. sender/sender_pn/participant are the OWNER, must be ignored.
+        // - fromMe=false → peer = sender. Prioritize chatid → sender_pn → sender (skip @lid).
+        let candidates: any[];
+        if (fromMe) {
+          // Outgoing: only chatid is the recipient. Everything else identifies the owner.
+          candidates = [msg.chatid, msg.chatId, msg.wa_chatid, msg.to, msg.recipient];
+        } else {
+          // Incoming: chatid is canonical, sender_pn is the real phone, sender may be @lid.
+          candidates = [
+            msg.chatid,
+            msg.chatId,
+            msg.sender_pn,
+            msg.PhoneNumber,
+            msg.phone,
+            msg.from,
+            msg.sender,
+            msg.wa_chatid,
+            chatId,
+          ];
+        }
         let senderPhone = '';
         for (const cand of candidates) {
           if (!cand) continue;
           const raw = String(cand);
-          // Skip LIDs explicitly — they are internal WhatsApp IDs, not phone numbers
+          // Skip LIDs explicitly — internal WhatsApp IDs, not phone numbers
           if (raw.includes('@lid')) continue;
           const normalized = normalizePhone(raw);
-          // Real phone numbers are 8–13 digits (E.164). Anything longer is a LID/group/internal ID.
+          // Real phone numbers are 8–13 digits (E.164). Longer = LID/group/internal.
           if (normalized && normalized.length >= 8 && normalized.length <= 13) {
             senderPhone = normalized;
             break;
@@ -238,11 +251,13 @@ Deno.serve(async (req) => {
         }
         if (!senderPhone) {
           skipped.no_phone++;
-          console.log('[uazapi-chat-webhook] no valid phone (LID-only msg?), sample:', JSON.stringify({ chatid: msg.chatid, sender: msg.sender, sender_pn: msg.sender_pn, from: msg.from }).slice(0, 300));
+          console.log('[uazapi-chat-webhook] no valid peer phone, fromMe=', fromMe, 'sample:', JSON.stringify({ chatid: msg.chatid, sender: msg.sender, sender_pn: msg.sender_pn, from: msg.from }).slice(0, 300));
           continue;
         }
 
-        const pushName = msg.pushName || msg.senderName || msg.wa_contactName || '';
+        // pushName/senderName belongs to the message author. For fromMe=true that's the OWNER —
+        // we must NOT use it to name the peer contact.
+        const pushName = fromMe ? '' : (msg.pushName || msg.senderName || msg.wa_contactName || '');
         const text = extractMessageText(msg);
         const type = extractMessageType(msg);
         const mediaUrl = extractMediaUrl(msg);
