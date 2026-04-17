@@ -42,6 +42,7 @@ import ChatChannelsPage from "./pages/chat/ChatChannelsPage";
 import ChatMetricsPage from "./pages/chat/ChatMetricsPage";
 import ChatAutomationsPage from "./pages/chat/ChatAutomationsPage";
 import ChatWebhooksPage from "./pages/chat/ChatWebhooksPage";
+import ChatSlaConfigPage from "./pages/chat/ChatSlaConfigPage";
 import AdvboxIntegrationPage from "./pages/advbox/IntegrationPage";
 import AdvboxNotificationRulesPage from "./pages/advbox/NotificationRulesPage";
 import AdvboxProcessesPage from "./pages/advbox/ProcessesPage";
@@ -111,6 +112,7 @@ const App = () => (
                   <Route path="/chat/metricas" element={<ChatMetricsPage />} />
                   <Route path="/chat/automacoes" element={<ChatAutomationsPage />} />
                   <Route path="/chat/webhooks" element={<ChatWebhooksPage />} />
+                  <Route path="/chat/sla" element={<ChatSlaConfigPage />} />
                   <Route path="/biblioteca" element={<ProtectedRoute module="library"><CriativosPage /></ProtectedRoute>} />
                   <Route path="/equipe" element={<ProtectedRoute module="team"><EquipePage /></ProtectedRoute>} />
                   <Route path="/perfil" element={<ProfileSettingsPage />} />

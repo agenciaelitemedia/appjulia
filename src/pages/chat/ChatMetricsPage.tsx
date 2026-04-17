@@ -18,6 +18,8 @@ import { useNavigate } from 'react-router-dom';
 import { format, subDays, startOfDay, endOfDay, differenceInMinutes, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChatHeatmap } from '@/components/chat/analytics/ChatHeatmap';
+import { generateChatMetricsPdf } from '@/lib/chatPdfReport';
+import { FileDown } from 'lucide-react';
 
 interface ConversationRow {
   id: string;
