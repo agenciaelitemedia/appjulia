@@ -399,7 +399,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    return respond({ ok: true, event, processed, backfills: backfillTriggered.size });
+    console.log(`[uazapi-chat-webhook] Done. processed=${processed} skipped=${JSON.stringify(skipped)} backfills=${backfillTriggered.size}`);
+    return respond({ ok: true, event, processed, skipped, backfills: backfillTriggered.size });
   } catch (error) {
     console.error('[uazapi-chat-webhook] Error:', error);
     return respond({ error: (error as Error).message }, 500);
