@@ -17,6 +17,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { format, subDays, startOfDay, endOfDay, differenceInMinutes, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { ChatHeatmap } from '@/components/chat/analytics/ChatHeatmap';
 
 interface ConversationRow {
   id: string;
@@ -464,7 +465,9 @@ export default function ChatMetricsPage() {
         </Card>
       </div>
 
-      {/* CSAT distribution */}
+      {/* Heatmap dia × hora */}
+      <ChatHeatmap conversations={filtered} />
+
       {csatStats.count > 0 && (
         <Card>
           <CardHeader className="pb-2">

@@ -17,6 +17,7 @@ import { FormatToolbar } from './FormatToolbar';
 import { MessagePreview } from './MessagePreview';
 import { applyFormat, type FormatToken } from '@/lib/whatsappFormat';
 import { externalDb } from '@/lib/externalDb';
+import { interpolateVariables } from '@/lib/messageVariables';
 
 interface ChatInputProps {
   contactId: string;
@@ -71,7 +72,13 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
   const handleSend = async () => {
     if (!text.trim() || isSending) return;
 
-    const messageText = text.trim();
+    const rawText = text.trim();
+    // Interpola variáveis: {{nome}}, {{primeiro_nome}}, {{protocolo}}, {{atendente}}, {{data}}, {{hora}}
+    const messageText = interpolateVariables(rawText, {
+      contactName: selectedContact?.name ?? null,
+      protocol: selectedConversation?.protocol ?? null,
+      agentName: user?.name ?? null,
+    });
     setText('');
     setIsSending(true);
 
@@ -88,7 +95,7 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
         onCancelReply?.();
       }
     } catch (error) {
-      setText(messageText);
+      setText(rawText);
     } finally {
       setIsSending(false);
       textareaRef.current?.focus();
