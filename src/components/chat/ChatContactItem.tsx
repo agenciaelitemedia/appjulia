@@ -78,16 +78,13 @@ function MessagePreview({ text, type }: { text?: string; type?: string }) {
 }
 
 /** Status/tag badges like Helena */
-function ConversationBadges({ conversation }: { conversation?: ChatConversation }) {
+function ConversationBadges({ conversation, queueName }: { conversation?: ChatConversation; queueName?: string }) {
   if (!conversation) return null;
 
   const badges: { label: string; className: string }[] = [];
 
-  if (conversation.status === 'pending') {
-    badges.push({ label: 'SUPORTE', className: 'bg-blue-600 text-white' });
-  }
-  if (conversation.status === 'open') {
-    badges.push({ label: 'SUPORTE', className: 'bg-blue-600 text-white' });
+  if (queueName) {
+    badges.push({ label: queueName.toUpperCase(), className: 'bg-blue-600 text-white' });
   }
   if (conversation.priority === 'high' || conversation.priority === 'urgent') {
     badges.push({ label: 'PRIORIDADE', className: 'bg-red-500 text-white' });
@@ -178,17 +175,13 @@ export const ChatContactItem = React.memo(function ChatContactItem({
           )}>
             {contact.name}
           </span>
-          {queueName && (
-            <span className="text-[10px] text-muted-foreground flex-shrink-0 truncate max-w-[100px]">
-              {queueName}
-            </span>
-          )}
+          {/* queue name now shown as a badge in row 2 */}
         </div>
 
         {/* Row 2: Badges + time + unread */}
         <div className="flex items-center justify-between gap-1">
           <div className="flex items-center gap-1 flex-wrap">
-            <ConversationBadges conversation={conversation} />
+            <ConversationBadges conversation={conversation} queueName={queueName} />
             {slaEvaluation && <SlaBadge evaluation={slaEvaluation} compact />}
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
