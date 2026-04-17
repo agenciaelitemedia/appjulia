@@ -431,7 +431,7 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
               {isMedia && (
                 <MediaContent
                   message={message}
-                  onDownload={onDownloadMedia ? () => onDownloadMedia(message.message_id || '') : undefined}
+                  onDownload={onDownloadMedia ? () => onDownloadMedia(message.message_id || message.id) : undefined}
                 />
               )}
 
