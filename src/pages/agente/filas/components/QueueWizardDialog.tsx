@@ -9,9 +9,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Phone, MessageSquare, Globe, Instagram, Loader2, ArrowLeft, ArrowRight, Check, AlertCircle } from 'lucide-react';
-import { useQueueProviders, type QueueProvider } from '@/pages/configuracoes/hooks/useQueueProviders';
+import { Phone, MessageSquare, Globe, Instagram, Loader2, ArrowLeft, ArrowRight, Check, AlertCircle, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { useQueueProviders, useQueueProviderMutations, type QueueProvider } from '@/pages/configuracoes/hooks/useQueueProviders';
 import { useQueueMutations, type QueueFormData } from '../hooks/useQueues';
+import { WabaEmbeddedSignupButton } from '@/components/waba/WabaEmbeddedSignupButton';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const channelTypes = [
   { value: 'uazapi', label: 'UaZapi', description: 'WhatsApp não-oficial via UaZapi', icon: Phone, color: 'text-green-600 bg-green-50' },
@@ -25,6 +28,13 @@ interface QueueWizardDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+type WabaPhoneNumber = {
+  id: string;
+  display_phone_number: string;
+  verified_name: string;
+  quality_rating: string;
+};
+
 export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps) {
   const { user } = useAuth();
   const [step, setStep] = useState(1);
@@ -33,8 +43,14 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
   const [queueName, setQueueName] = useState('');
   // WABA-specific
   const [wabaNumberId, setWabaNumberId] = useState('');
+  const [wabaNumbers, setWabaNumbers] = useState<WabaPhoneNumber[]>([]);
+  const [loadingNumbers, setLoadingNumbers] = useState(false);
+  const [numbersError, setNumbersError] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testOk, setTestOk] = useState<boolean | null>(null);
 
   const { data: allProviders = [] } = useQueueProviders();
+  const { createProvider } = useQueueProviderMutations();
   const { createQueue } = useQueueMutations();
 
   // Auto-generate UaZapi instance name
@@ -58,6 +74,9 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
       setSelectedProviderId('');
       setQueueName('');
       setWabaNumberId('');
+      setWabaNumbers([]);
+      setNumbersError(null);
+      setTestOk(null);
     }
   }, [open]);
 
@@ -68,7 +87,80 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
     } else {
       setSelectedProviderId('');
     }
+    setWabaNumberId('');
+    setWabaNumbers([]);
+    setTestOk(null);
   }, [selectedType, filteredProviders.length]);
+
+  // Load WABA phone numbers when provider selected
+  useEffect(() => {
+    if (selectedType !== 'waba' || !selectedProvider?.waba_business_id || !selectedProvider?.waba_token) {
+      setWabaNumbers([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingNumbers(true);
+    setNumbersError(null);
+    supabase.functions
+      .invoke('waba-admin', {
+        body: {
+          action: 'list_phone_numbers',
+          wabaBusinessId: selectedProvider.waba_business_id,
+          accessToken: selectedProvider.waba_token,
+        },
+      })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error || !data?.success) {
+          setNumbersError(data?.error || error?.message || 'Falha ao listar números');
+          setWabaNumbers([]);
+        } else {
+          setWabaNumbers(data.numbers || []);
+          if (data.numbers?.length === 1) setWabaNumberId(data.numbers[0].id);
+        }
+      })
+      .finally(() => { if (!cancelled) setLoadingNumbers(false); });
+    return () => { cancelled = true; };
+  }, [selectedType, selectedProvider?.waba_business_id, selectedProvider?.waba_token]);
+
+  const handleTestConnection = async () => {
+    if (!selectedProvider?.waba_token || !wabaNumberId) return;
+    setTesting(true);
+    setTestOk(null);
+    const { data, error } = await supabase.functions.invoke('waba-admin', {
+      body: {
+        action: 'test_credentials',
+        accessToken: selectedProvider.waba_token,
+        phoneNumberId: wabaNumberId,
+      },
+    });
+    setTesting(false);
+    if (error || !data?.success) {
+      setTestOk(false);
+      toast.error(`Falha: ${data?.error || error?.message || 'erro desconhecido'}`);
+    } else {
+      setTestOk(true);
+      toast.success(`Conexão OK — ${data.phone} (${data.verified_name || 'sem nome'})`);
+    }
+  };
+
+  const handleQuickCreateWabaProvider = (result: { accessToken: string; wabaBusinessId: string }) => {
+    createProvider.mutate(
+      {
+        provider_type: 'waba',
+        name: `WABA ${result.wabaBusinessId.slice(-6)}`,
+        is_active: true,
+        waba_business_id: result.wabaBusinessId,
+        waba_token: result.accessToken,
+      } as Parameters<typeof createProvider.mutate>[0],
+      {
+        onSuccess: () => toast.success('Provedor WABA criado — selecione na lista'),
+      }
+    );
+  };
+
+  const qualityColor = (rating: string) =>
+    rating === 'GREEN' ? 'bg-emerald-500' : rating === 'YELLOW' ? 'bg-yellow-500' : rating === 'RED' ? 'bg-red-500' : 'bg-muted-foreground';
 
   const canGoStep2 = !!selectedType;
   const canGoStep3 = selectedType === 'webchat'
@@ -181,15 +273,24 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
                 </p>
               </div>
             ) : filteredProviders.length === 0 ? (
-              <div className="flex items-center gap-3 p-4 border border-destructive/30 rounded-lg bg-destructive/5">
-                <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">Nenhum provedor configurado</p>
-                  <p className="text-xs text-muted-foreground">
-                    Vá em Configurações → Provedores de Fila para adicionar um provedor do tipo{' '}
-                    {channelTypes.find((c) => c.value === selectedType)?.label}.
-                  </p>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 p-4 border border-destructive/30 rounded-lg bg-destructive/5">
+                  <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Nenhum provedor configurado</p>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedType === 'waba'
+                        ? 'Conecte sua conta Meta agora ou adicione manualmente em Configurações → Provedores de Fila.'
+                        : `Vá em Configurações → Provedores de Fila para adicionar um provedor do tipo ${channelTypes.find((c) => c.value === selectedType)?.label}.`}
+                    </p>
+                  </div>
                 </div>
+                {selectedType === 'waba' && (
+                  <WabaEmbeddedSignupButton
+                    label="Conectar agora via Meta"
+                    onSuccess={handleQuickCreateWabaProvider}
+                  />
+                )}
               </div>
             ) : (
               <>
@@ -214,16 +315,74 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
                 )}
 
                 {selectedType === 'waba' && selectedProviderId && (
-                  <div>
-                    <Label>Phone Number ID</Label>
-                    <Input
-                      value={wabaNumberId}
-                      onChange={(e) => setWabaNumberId(e.target.value)}
-                      placeholder="ID do número no Meta Business"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      ID do número de telefone registrado na WABA
-                    </p>
+                  <div className="space-y-2">
+                    <Label>Número do WhatsApp (Phone Number ID)</Label>
+                    {loadingNumbers ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground p-3 border border-border rounded-md">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Buscando números na conta WABA...
+                      </div>
+                    ) : numbersError ? (
+                      <div className="space-y-2">
+                        <div className="flex items-start gap-2 p-3 border border-destructive/30 rounded-md bg-destructive/5">
+                          <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                          <div className="text-xs text-foreground">
+                            <p className="font-medium">Não foi possível listar os números</p>
+                            <p className="text-muted-foreground">{numbersError}</p>
+                          </div>
+                        </div>
+                        <Input
+                          value={wabaNumberId}
+                          onChange={(e) => setWabaNumberId(e.target.value)}
+                          placeholder="Cole o Phone Number ID manualmente"
+                        />
+                      </div>
+                    ) : wabaNumbers.length > 0 ? (
+                      <Select value={wabaNumberId} onValueChange={(v) => { setWabaNumberId(v); setTestOk(null); }}>
+                        <SelectTrigger><SelectValue placeholder="Selecione o número" /></SelectTrigger>
+                        <SelectContent>
+                          {wabaNumbers.map((n) => (
+                            <SelectItem key={n.id} value={n.id}>
+                              <span className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${qualityColor(n.quality_rating)}`} />
+                                {n.display_phone_number} — {n.verified_name || 'sem nome'}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        value={wabaNumberId}
+                        onChange={(e) => setWabaNumberId(e.target.value)}
+                        placeholder="Phone Number ID"
+                      />
+                    )}
+
+                    {wabaNumberId && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleTestConnection}
+                          disabled={testing}
+                        >
+                          {testing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}
+                          Testar conexão
+                        </Button>
+                        {testOk === true && (
+                          <span className="text-xs text-emerald-600 flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Token válido
+                          </span>
+                        )}
+                        {testOk === false && (
+                          <span className="text-xs text-destructive flex items-center gap-1">
+                            <AlertCircle className="w-3.5 h-3.5" /> Falhou
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 

@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2 } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Loader2, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { useQueueProviderMutations, type QueueProvider } from '../hooks/useQueueProviders';
+import { WabaEmbeddedSignupButton } from '@/components/waba/WabaEmbeddedSignupButton';
 
 const providerTypeOptions = [
   { value: 'uazapi', label: 'UaZapi (WhatsApp)' },
@@ -144,22 +146,54 @@ export function ProviderFormDialog({ open, onOpenChange, provider }: ProviderFor
 
           {providerType === 'waba' && (
             <>
-              <div>
-                <Label>Meta App ID</Label>
-                <Input value={metaAppId} onChange={(e) => setMetaAppId(e.target.value)} placeholder="ID do App Meta" />
+              <div className="rounded-md border border-blue-200 bg-blue-50 p-3 space-y-3 dark:border-blue-900/50 dark:bg-blue-950/30">
+                <div>
+                  <p className="text-sm font-medium">Conectar via Meta (recomendado)</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Use o Embedded Signup oficial. WABA Business ID e token serão preenchidos automaticamente.
+                  </p>
+                </div>
+                <WabaEmbeddedSignupButton
+                  onSuccess={({ accessToken, wabaBusinessId }) => {
+                    setWabaBusinessId(wabaBusinessId);
+                    setWabaToken(accessToken);
+                    if (!name.trim()) setName(`WABA ${wabaBusinessId.slice(-6)}`);
+                  }}
+                />
+                {(wabaBusinessId || wabaToken) && (
+                  <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    {wabaBusinessId ? `Business ID: ${wabaBusinessId}` : 'Token recebido'}
+                  </div>
+                )}
               </div>
-              <div>
-                <Label>Meta App Secret</Label>
-                <Input value={metaAppSecret} onChange={(e) => setMetaAppSecret(e.target.value)} type="password" placeholder="App Secret" />
-              </div>
-              <div>
-                <Label>WABA Business ID</Label>
-                <Input value={wabaBusinessId} onChange={(e) => setWabaBusinessId(e.target.value)} placeholder="ID da conta WABA" />
-              </div>
-              <div>
-                <Label>Access Token Permanente</Label>
-                <Input value={wabaToken} onChange={(e) => setWabaToken(e.target.value)} type="password" placeholder="Token permanente" />
-              </div>
+
+              <Collapsible>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="w-full justify-between">
+                    <span className="text-xs">Configuração avançada (app próprio)</span>
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-3 pt-3">
+                  <div>
+                    <Label>Meta App ID</Label>
+                    <Input value={metaAppId} onChange={(e) => setMetaAppId(e.target.value)} placeholder="Vazio = usar app global" />
+                  </div>
+                  <div>
+                    <Label>Meta App Secret</Label>
+                    <Input value={metaAppSecret} onChange={(e) => setMetaAppSecret(e.target.value)} type="password" placeholder="Vazio = usar app global" />
+                  </div>
+                  <div>
+                    <Label>WABA Business ID (manual)</Label>
+                    <Input value={wabaBusinessId} onChange={(e) => setWabaBusinessId(e.target.value)} placeholder="ID da conta WABA" />
+                  </div>
+                  <div>
+                    <Label>Access Token (manual)</Label>
+                    <Input value={wabaToken} onChange={(e) => setWabaToken(e.target.value)} type="password" placeholder="Token permanente" />
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             </>
           )}
 

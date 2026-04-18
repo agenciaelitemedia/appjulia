@@ -434,6 +434,67 @@ serve(async (req) => {
         );
       }
 
+      case 'list_phone_numbers': {
+        const wabaBusinessId = typeof params.wabaBusinessId === 'string' ? params.wabaBusinessId.trim() : '';
+        const accessToken = typeof params.accessToken === 'string' ? params.accessToken.trim() : '';
+        if (!wabaBusinessId) throw new Error('Missing wabaBusinessId');
+        if (!accessToken) throw new Error('Missing accessToken');
+
+        const res = await fetch(
+          `https://graph.facebook.com/v22.0/${wabaBusinessId}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,code_verification_status`,
+          { headers: { 'Authorization': `Bearer ${accessToken}` } }
+        );
+        const data = await res.json();
+        if (data?.error) {
+          return new Response(
+            JSON.stringify({ success: false, error: data.error.message || 'Failed to list phone numbers' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const numbers = (Array.isArray(data?.data) ? data.data : []).map((n: Record<string, unknown>) => ({
+          id: String(n.id ?? ''),
+          display_phone_number: String(n.display_phone_number ?? ''),
+          verified_name: String(n.verified_name ?? ''),
+          quality_rating: String(n.quality_rating ?? 'UNKNOWN'),
+          code_verification_status: String(n.code_verification_status ?? ''),
+        }));
+
+        return new Response(
+          JSON.stringify({ success: true, numbers }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'test_credentials': {
+        const accessToken = typeof params.accessToken === 'string' ? params.accessToken.trim() : '';
+        const phoneNumberId = typeof params.phoneNumberId === 'string' ? params.phoneNumberId.trim() : '';
+        if (!accessToken) throw new Error('Missing accessToken');
+        if (!phoneNumberId) throw new Error('Missing phoneNumberId');
+
+        const res = await fetch(
+          `https://graph.facebook.com/v22.0/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating`,
+          { headers: { 'Authorization': `Bearer ${accessToken}` } }
+        );
+        const data = await res.json();
+        if (!res.ok || data?.error) {
+          return new Response(
+            JSON.stringify({ success: false, error: data?.error?.message || `HTTP ${res.status}` }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            phone: data.display_phone_number,
+            verified_name: data.verified_name,
+            quality_rating: data.quality_rating,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       case 'list_waba_agents': {
         const rawCaCert = Deno.env.get('EXTERNAL_DB_CA_CERT') ?? '';
         const caCerts = rawCaCert ? normalizeCaCert(rawCaCert) : [];
