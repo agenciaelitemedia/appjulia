@@ -1,73 +1,64 @@
 
 
-## Diagnóstico (analisando as 4 imagens)
+## Goal
+Garantir que a fila usada em **toda** operação do chat (criar conversa, enviar texto/mídia, baixar mídia, marcar como lida) venha **sempre da conversa real do contato**, ignorando o filtro "Todas as filas / Fila X" do topo. O filtro deve servir apenas para **listar** conversas, não para definir a fila de operação.
 
-**Imagem 1 (problema atual):** Texto da última mensagem ("*NOTIFICAÇÃO DE CRIPTOGRAFIA* *Lead:* 5547961...") ultrapassa a borda direita do sidebar — não está sendo truncado corretamente. Pills (`AGENTE PRINCIPAL`, `+4h8m`, `NÃO ATRIBUÍDO`) também extrapolam.
+## Diagnóstico
+Em `src/contexts/WhatsAppDataContext.tsx`:
 
-**Imagem 2 (referência WhatsApp Web):** 
-- Nome à esquerda + horário à direita (alinhados na linha 1)
-- Preview de mensagem truncado com `...` antes da borda
-- Badge verde de não lidas (número) na direita, alinhado abaixo do horário
-- Espaçamento generoso do badge à borda direita (~16px)
-- Largura do sidebar ~400px confortável
+1. **`getEffectiveQueue(contactId)`** (linha ~122) hoje retorna `selectedQueue` se existir — ou seja, se o usuário escolher "Fila A" mas abrir um contato da "Fila B", ele opera na Fila A. Errado.
+2. **`getOrCreateConversation`** (linha ~201) prioriza `currentQueueId` (filtro). Se "Todas" está selecionado → null → fallback. Mas se uma fila errada está selecionada, cria conversa nessa fila errada.
+3. **`downloadMedia`** (linha ~891) usa `selectedQueue?.id` diretamente — ignora a fila do contato/conversa.
+4. **`markAsRead`** (linha ~917) usa `selectedQueue.evo_apikey` direto — idem.
 
-**Imagem 3 (problema):** Aparece uma barra de rolagem vertical no `<body>` da página inteira (lado direito do navegador) — o ChatPage está estourando a altura da viewport (`100vh - 4rem` provavelmente está somando padding extra).
+## Mudanças
 
-**Imagem 4 (problema):** Dentro do chat aberto há **duas barras de rolagem verticais** — uma do `ScrollArea` interno das mensagens e outra do container pai. Isso indica overflow duplo.
+### 1. Reescrever `getEffectiveQueue(contactId)` — fonte de verdade = conversa
+Nova ordem de prioridade (filtro deixa de ter peso):
+1. Conversa ativa do contato (`conversations` em estado, `pending`/`open`) → `queue_id`
+2. Conversa mais recente do contato (qualquer status) com `queue_id` (busca em `chat_conversations` se não estiver em memória)
+3. `contact.channel_source` (queue de origem)
+4. Qualquer fila ativa que combine com `contact.channel_type`
+5. **Último recurso**: `selectedQueue` (só se nada acima resolver — caso de contato totalmente novo sem conversa)
 
-**Badge de não lidas:** No print 1 não vejo o badge vermelho ao lado direito da mensagem da Maria/Saulo, mesmo havendo `unread_count`. Possível causa: o badge está sendo cortado pelo overflow ou está fora do flexbox por falta de espaço (texto ocupa 100% e empurra para fora).
+Tornar a função `async` (precisa consultar Supabase no caso 2/4) e atualizar quem a usa para `await`.
 
-## Plano de correção UX/UI
+### 2. Reescrever resolução em `getOrCreateConversation`
+Inverter prioridade:
+1. Conversa anterior do contato (qualquer status) com `queue_id` ← **primeiro**
+2. `contact.channel_source`
+3. Qualquer fila ativa do `channel_type` do contato
+4. `selectedQueue` (só se contato é novo e nada acima resolveu)
 
-### 1. ChatContactItem — Truncamento e badge de não lidas (estilo WhatsApp Web)
+Manter o toast de erro se nada resolver.
 
-Em `src/components/chat/ChatContactItem.tsx`:
+### 3. `sendMessage` / `sendMedia`
+Trocar a chamada síncrona `getEffectiveQueue(contactId)` por `await getEffectiveQueue(contactId)`. Lógica restante já consome `queue.*` corretamente — não muda.
 
-- **Linha 1 (nome + horário):** garantir `min-w-0` no nome para o `truncate` funcionar dentro do flex, horário com `flex-shrink-0`.
-- **Linha 2 (preview + badge unread):** 
-  - Container `flex items-center gap-2 min-w-0`
-  - Preview com `flex-1 min-w-0 truncate` (uma única linha, reticências)
-  - Badge vermelho `flex-shrink-0` à direita, sempre visível quando `unread_count > 0`
-  - Aumentar margem direita do badge (`mr-1` → respiração tipo WhatsApp)
-- **Linha 3 (pills):** adicionar `min-w-0 overflow-hidden` no container e limitar pills visíveis (truncar com `...` extra ou esconder excedentes via `flex-wrap` controlado). Reduzir tamanho dos pills (`text-[9px]` já está ok, validar `max-w-[120px] truncate` em cada pill).
-- **Container raiz do botão:** adicionar `min-w-0 overflow-hidden` para evitar que conteúdo force o sidebar a expandir.
+### 4. `downloadMedia(messageId)`
+Hoje recebe só `messageId`. Precisa descobrir a fila da **conversa daquela mensagem**:
+- Buscar `chat_messages` → `conversation_id` → `chat_conversations.queue_id` (uma única query). 
+- Passar esse `queueId` para a edge function `chat-media-download`.
+- Fallback final: `selectedQueue?.id` (mantém compat).
 
-### 2. ChatList — Largura e contenção do sidebar
+### 5. `markAsRead(contactId)`
+Trocar `selectedQueue` por `await getEffectiveQueue(contactId)`. Só executar o POST `/chat/markRead` se `queue.channel_type === 'uazapi'` e tiver `evo_apikey`/`evo_url`.
 
-Em `src/components/chat/ChatList.tsx`:
-- Garantir `w-full min-w-0 overflow-hidden` no container raiz para que nada ultrapasse a largura definida pelo `ChatContainer`.
-- Validar que o sidebar tem largura adequada (~384px / `w-96`) — manter como está, apenas garantir que conteúdo respeite.
+### 6. Limpeza de dependências dos `useCallback`
+Atualizar arrays de deps onde `selectedQueue` deixa de ser usado e onde `getEffectiveQueue` virou async.
 
-### 3. ChatPage — Eliminar barra de rolagem da página (Imagem 3)
+## Arquivos
+- `src/contexts/WhatsAppDataContext.tsx` (única mudança de código)
 
-Em `src/pages/chat/ChatPage.tsx`:
-- Atual: `h-[calc(100vh-4rem)] w-full overflow-hidden -mx-4 sm:-mx-6 -mb-4 sm:-mb-6`
-- Problema: o cálculo `100vh - 4rem` não está descontando padding do layout pai, e os `-mx`/`-mb` negativos podem estar criando overflow horizontal.
-- Correção: usar `h-[calc(100dvh-4rem)]` (dvh = dynamic viewport, mais preciso em mobile/desktop), adicionar `overflow-hidden` no `<html>`/`<body>` apenas para esta rota via classe no container, e validar que o layout pai (Layout.tsx) não está aplicando padding-bottom que somado estoura.
-- Alternativa mais segura: investigar `src/components/Layout.tsx` para entender o wrapper e aplicar `overflow-hidden` no nível certo.
+## Fora de escopo
+- UI do seletor de fila no topo continua igual (filtro de listagem).
+- `syncContacts` continua usando `selectedQueue` (é uma ação manual de sincronização de uma fila específica, não operação sobre conversa existente).
+- Tag de fila no `ChatList` (já corrigida na rodada anterior).
 
-### 4. ChatContainer / ChatMessages — Eliminar dupla barra de rolagem (Imagem 4)
-
-- Investigar `src/components/chat/ChatContainer.tsx` e `ChatMessages.tsx`.
-- Garantir que apenas **um** elemento na coluna de mensagens tenha `overflow-y-auto` (o `ScrollArea` das mensagens). 
-- O container pai deve ser `flex flex-col h-full overflow-hidden`.
-- Header e input fixos com `flex-shrink-0`, área de mensagens com `flex-1 min-h-0 overflow-hidden` envolvendo o `ScrollArea`.
-
-### 5. Validação do unread badge
-
-Após corrigir o truncamento, o badge vermelho voltará a aparecer porque terá espaço reservado (`flex-shrink-0`). Confirmar que `contact.unread_count > 0` está chegando corretamente (já validado em mensagens anteriores — o realtime incrementa).
-
-## Arquivos a editar
-
-1. `src/components/chat/ChatContactItem.tsx` — truncamento, badge unread, pills
-2. `src/components/chat/ChatList.tsx` — `min-w-0 overflow-hidden` no container
-3. `src/pages/chat/ChatPage.tsx` — altura/overflow corretos
-4. `src/components/chat/ChatContainer.tsx` — investigar e ajustar overflow
-5. `src/components/chat/ChatMessages.tsx` — garantir único scroll
-
-## Resultado esperado
-
-- Sidebar: nomes, mensagens e pills truncados com `...` antes da borda; badge vermelho de não lidas sempre visível com respiro à direita (estilo WhatsApp Web da Imagem 2).
-- Página `/chat`: sem barra de rolagem do navegador (Imagem 3 resolvida).
-- Conversa aberta: apenas uma barra de rolagem na área de mensagens (Imagem 4 resolvida).
+## Validação
+Após aplicar:
+1. Selecionar "Todas as filas", abrir contato cuja conversa veio da Fila A → enviar texto e mídia → checar nas Edge Function logs que o token usado é o da Fila A.
+2. Selecionar "Fila B", abrir o mesmo contato (conversa = Fila A) → enviar mensagem → deve continuar usando Fila A.
+3. Baixar áudio antigo de contato em outra fila → deve descriptografar com o token correto.
+4. Contato totalmente novo (sem conversa) com "Fila B" selecionada → cria conversa em Fila B (fallback funcionando).
 
