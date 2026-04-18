@@ -264,53 +264,62 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       }
 
       // ── Resolve queue_id (every conversation MUST have a queue) ──
-      // Priority: 1) selected queue, 2) contact.channel_source, 3) contact's prior conversation, 4) any active queue matching channel
-      let resolvedQueueId: string | null = currentQueueId || null;
-      let resolvedChannelType: string | undefined = selectedQueue?.channel_type;
+      // Priority: 1) prior conversation with queue_id, 2) contact.channel_source,
+      // 3) any active queue matching channel_type, 4) selectedQueue (last resort)
+      let resolvedQueueId: string | null = null;
+      let resolvedChannelType: string | undefined;
 
+      // 1) prior conversation with queue_id (any status)
+      const { data: priorConv } = await supabase
+        .from('chat_conversations')
+        .select('queue_id, channel')
+        .eq('contact_id', contactId)
+        .eq('client_id', clientId)
+        .not('queue_id', 'is', null)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (priorConv?.queue_id) {
+        resolvedQueueId = priorConv.queue_id;
+      }
+
+      // 2) contact.channel_source
+      let contactRow: { channel_source: string | null; channel_type: string | null } | null = null;
       if (!resolvedQueueId) {
-        const { data: contactRow } = await supabase
+        const { data } = await supabase
           .from('chat_contacts')
           .select('channel_source, channel_type')
           .eq('id', contactId)
           .maybeSingle();
-
+        contactRow = data as any;
         if (contactRow?.channel_source) {
-          // channel_source stores the originating queue_id
           resolvedQueueId = contactRow.channel_source;
         }
+      }
 
-        if (!resolvedQueueId) {
-          const { data: priorConv } = await supabase
-            .from('chat_conversations')
-            .select('queue_id, channel')
-            .eq('contact_id', contactId)
-            .eq('client_id', clientId)
-            .not('queue_id', 'is', null)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          if (priorConv?.queue_id) resolvedQueueId = priorConv.queue_id;
+      // 3) any active queue matching the contact's channel_type
+      if (!resolvedQueueId && contactRow?.channel_type) {
+        const wantedChannel = contactRow.channel_type === 'whatsapp_waba' ? 'waba' : 'uazapi';
+        const { data: anyQueue } = await supabase
+          .from('queues')
+          .select('id, channel_type')
+          .eq('client_id', clientId)
+          .eq('channel_type', wantedChannel)
+          .eq('is_active', true)
+          .eq('is_deleted', false)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        if (anyQueue?.id) {
+          resolvedQueueId = anyQueue.id;
+          resolvedChannelType = anyQueue.channel_type;
         }
+      }
 
-        // Last resort: pick any active queue matching the contact's channel_type
-        if (!resolvedQueueId && contactRow?.channel_type) {
-          const wantedChannel = contactRow.channel_type === 'whatsapp_waba' ? 'waba' : 'uazapi';
-          const { data: anyQueue } = await supabase
-            .from('queues')
-            .select('id, channel_type')
-            .eq('client_id', clientId)
-            .eq('channel_type', wantedChannel)
-            .eq('is_active', true)
-            .eq('is_deleted', false)
-            .order('created_at', { ascending: true })
-            .limit(1)
-            .maybeSingle();
-          if (anyQueue?.id) {
-            resolvedQueueId = anyQueue.id;
-            resolvedChannelType = anyQueue.channel_type;
-          }
-        }
+      // 4) last resort: globally selected queue (only for brand-new contacts)
+      if (!resolvedQueueId && currentQueueId) {
+        resolvedQueueId = currentQueueId;
+        resolvedChannelType = selectedQueue?.channel_type;
       }
 
       if (!resolvedQueueId) {
