@@ -5,6 +5,7 @@ import { MediaLightbox } from './MediaLightbox';
 import { Button } from '@/components/ui/button';
 import { QuotedMessage } from './QuotedMessage';
 import { ReactionPicker } from './ReactionPicker';
+import { ExpandableMessageText } from './ExpandableMessageText';
 import { format } from 'date-fns';
 import type { ChatMessage, MessageStatus, MessageType } from '@/types/chat';
 import type { MessageReaction } from '@/hooks/useMessageReactions';
