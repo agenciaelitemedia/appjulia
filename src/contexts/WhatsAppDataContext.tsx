@@ -218,13 +218,68 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         return conv;
       }
 
-      const channel = selectedQueue?.channel_type === 'waba' ? 'whatsapp_waba' : 'whatsapp_uazapi';
+      // ── Resolve queue_id (every conversation MUST have a queue) ──
+      // Priority: 1) selected queue, 2) contact.channel_source, 3) contact's prior conversation, 4) any active queue matching channel
+      let resolvedQueueId: string | null = currentQueueId || null;
+      let resolvedChannelType: string | undefined = selectedQueue?.channel_type;
+
+      if (!resolvedQueueId) {
+        const { data: contactRow } = await supabase
+          .from('chat_contacts')
+          .select('channel_source, channel_type')
+          .eq('id', contactId)
+          .maybeSingle();
+
+        if (contactRow?.channel_source) {
+          // channel_source stores the originating queue_id
+          resolvedQueueId = contactRow.channel_source;
+        }
+
+        if (!resolvedQueueId) {
+          const { data: priorConv } = await supabase
+            .from('chat_conversations')
+            .select('queue_id, channel')
+            .eq('contact_id', contactId)
+            .eq('client_id', clientId)
+            .not('queue_id', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (priorConv?.queue_id) resolvedQueueId = priorConv.queue_id;
+        }
+
+        // Last resort: pick any active queue matching the contact's channel_type
+        if (!resolvedQueueId && contactRow?.channel_type) {
+          const wantedChannel = contactRow.channel_type === 'whatsapp_waba' ? 'waba' : 'uazapi';
+          const { data: anyQueue } = await supabase
+            .from('queues')
+            .select('id, channel_type')
+            .eq('client_id', clientId)
+            .eq('channel_type', wantedChannel)
+            .eq('is_active', true)
+            .eq('is_deleted', false)
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          if (anyQueue?.id) {
+            resolvedQueueId = anyQueue.id;
+            resolvedChannelType = anyQueue.channel_type;
+          }
+        }
+      }
+
+      if (!resolvedQueueId) {
+        toast.error('Não foi possível identificar a fila para esta conversa. Selecione uma fila no topo.');
+        return null;
+      }
+
+      const channel = resolvedChannelType === 'waba' ? 'whatsapp_waba' : 'whatsapp_uazapi';
       const { data: newConv, error } = await supabase
         .from('chat_conversations')
         .insert({
           contact_id: contactId,
           client_id: clientId,
-          queue_id: currentQueueId,
+          queue_id: resolvedQueueId,
           channel,
           status: 'open',
           priority: 'normal',
