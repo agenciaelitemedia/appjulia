@@ -138,8 +138,13 @@ export function ConfigStep() {
             <Switch
               checked={config.COPILOT_ENABLED}
               onCheckedChange={(checked) => {
-                updateField('COPILOT_ENABLED', checked);
-                if (!checked) updateField('COPILOT_INTERACTIVE', false);
+                const currentConfig = parseConfig();
+                const newConfig = {
+                  ...currentConfig,
+                  COPILOT_ENABLED: checked,
+                  ...(checked ? {} : { COPILOT_INTERACTIVE: false }),
+                };
+                setValue('config_json', JSON.stringify(newConfig, null, 2));
               }}
               className="scale-125"
             />
