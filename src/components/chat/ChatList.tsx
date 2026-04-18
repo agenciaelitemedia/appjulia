@@ -40,10 +40,51 @@ export function ChatList() {
 
   const navigate = useNavigate();
   const { data: queues = [] } = useQueues();
+  const { configs: slaConfigs } = useChatSlaConfigs();
+  const [slaFilter, setSlaFilter] = useState<SlaFilter>('all');
 
   const activeQueues = queues.filter(q => q.is_active && !q.is_deleted);
 
   // Default = "Todas as filas" (selectedQueue null). No auto-select.
+
+  // SLA status per contact (worst across that contact's open conversations)
+  const slaStatusByContact = React.useMemo(() => {
+    const map = new Map<string, SlaStatus>();
+    const rank: Record<SlaStatus, number> = { breached: 3, at_risk: 2, on_track: 1, unknown: 0 };
+    conversations.forEach((conv) => {
+      if (!['pending', 'open'].includes(conv.status)) return;
+      const evalRes = evaluateSla(
+        {
+          status: conv.status,
+          priority: conv.priority,
+          opened_at: conv.opened_at,
+          first_response_at: conv.first_response_at || null,
+          resolved_at: conv.resolved_at || null,
+          closed_at: conv.closed_at || null,
+        },
+        slaConfigs
+      );
+      const prev = map.get(conv.contact_id);
+      if (!prev || rank[evalRes.status] > rank[prev]) {
+        map.set(conv.contact_id, evalRes.status);
+      }
+    });
+    return map;
+  }, [conversations, slaConfigs]);
+
+  const breachedCount = React.useMemo(
+    () => Array.from(slaStatusByContact.values()).filter((s) => s === 'breached').length,
+    [slaStatusByContact]
+  );
+  const atRiskCount = React.useMemo(
+    () => Array.from(slaStatusByContact.values()).filter((s) => s === 'at_risk').length,
+    [slaStatusByContact]
+  );
+
+  const visibleContacts = React.useMemo(() => {
+    if (slaFilter === 'all') return filteredContacts;
+    return filteredContacts.filter((c) => slaStatusByContact.get(c.id) === slaFilter);
+  }, [filteredContacts, slaFilter, slaStatusByContact]);
 
   // Count conversations by status
   const pendingCount = conversations.filter(c => c.status === 'pending').length;
