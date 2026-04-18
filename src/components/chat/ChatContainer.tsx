@@ -16,10 +16,10 @@ export function ChatContainer({ className }: ChatContainerProps) {
   const { selectedContact, selectContact, selectedContactId, showDetailPanel, setShowDetailPanel } = useWhatsAppData();
 
   return (
-    <div className={cn('flex h-full bg-background min-w-0 overflow-hidden', className)}>
+    <div className={cn('flex h-full w-full bg-background min-w-0 overflow-hidden', className)}>
       {/* Contact list sidebar */}
       <div className={cn(
-        'w-full lg:w-96 lg:max-w-96 lg:flex-shrink-0 flex-shrink-0 border-r',
+        'w-full lg:w-[400px] lg:max-w-[400px] lg:flex-shrink-0 flex-shrink-0 border-r min-w-0 overflow-hidden',
         selectedContact && 'hidden lg:flex lg:flex-col'
       )}>
         <ChatList />
