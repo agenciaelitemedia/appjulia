@@ -19,6 +19,8 @@ import { SnoozeDialog } from './SnoozeDialog';
 import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 import { CreateCrmLeadDialog } from './CreateCrmLeadDialog';
 import { AIAssistPanel } from './AIAssistPanel';
+import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
+import { SlaBadge } from './SlaBadge';
 
 interface ChatHeaderProps {
   contact: ChatContact;
@@ -45,6 +47,23 @@ function ChannelBadge({ channel }: { channel?: string }) {
 export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps) {
   const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact, markAsRead } = useWhatsAppData();
   const { user } = useAuth();
+  const { configs: slaConfigs } = useChatSlaConfigs();
+
+  const slaEvaluation = React.useMemo(() => {
+    if (!selectedConversation) return null;
+    if (['closed', 'resolved'].includes(selectedConversation.status)) return null;
+    return evaluateSla(
+      {
+        status: selectedConversation.status,
+        priority: selectedConversation.priority,
+        opened_at: selectedConversation.opened_at,
+        first_response_at: selectedConversation.first_response_at || null,
+        resolved_at: selectedConversation.resolved_at || null,
+        closed_at: selectedConversation.closed_at || null,
+      },
+      slaConfigs
+    );
+  }, [selectedConversation, slaConfigs]);
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -146,7 +165,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         </Avatar>
         
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-medium truncate">{contact.name}</h3>
             {selectedConversation && (
               <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0 h-5 gap-1 border', statusInfo.color)}>
@@ -154,6 +173,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                 {statusInfo.label}
               </Badge>
             )}
+            {slaEvaluation && <SlaBadge evaluation={slaEvaluation} />}
           </div>
           <div className="flex items-center gap-2">
             <p className="text-xs text-muted-foreground truncate">
