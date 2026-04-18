@@ -249,7 +249,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
             </div>
           )}
           {message.caption && (
-            <p className="mt-1 text-sm">{formatWhatsAppText(message.caption)}</p>
+            <div className="mt-1"><ExpandableMessageText text={message.caption} formatter={formatWhatsAppText} /></div>
           )}
         </div>
       );
