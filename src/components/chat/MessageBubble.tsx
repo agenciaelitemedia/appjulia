@@ -465,9 +465,11 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
               </span>
             </div>
             {message.text && (
-              <p className={cn('text-sm whitespace-pre-wrap break-words', noteStyles.body)}>
-                {formatWhatsAppText(message.text)}
-              </p>
+              <ExpandableMessageText
+                text={message.text}
+                formatter={formatWhatsAppText}
+                className={noteStyles.body}
+              />
             )}
             <div className={cn('flex items-center justify-end gap-1 mt-1', noteStyles.time)}>
               <span className="text-[10px]">
