@@ -110,6 +110,9 @@ export function ChatList() {
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/canais')} title="Canais">
               <Settings2 className="h-4 w-4" />
             </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/sla')} title="Configurar SLA">
+              <Timer className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => syncContacts()} disabled={isSyncing || !selectedQueue} title="Sincronizar">
               <RefreshCw className={cn('h-4 w-4', isSyncing && 'animate-spin')} />
             </Button>
@@ -139,6 +142,59 @@ export function ChatList() {
             </Button>
           </div>
         </div>
+
+        {/* SLA quick filters */}
+        {(breachedCount > 0 || atRiskCount > 0 || slaFilter !== 'all') && (
+          <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
+            <button
+              onClick={() => setSlaFilter('all')}
+              className={cn(
+                'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+                slaFilter === 'all'
+                  ? 'bg-foreground/10 text-foreground border-foreground/20'
+                  : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+              )}
+            >
+              Todos SLAs
+            </button>
+            <button
+              onClick={() => setSlaFilter(slaFilter === 'breached' ? 'all' : 'breached')}
+              className={cn(
+                'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+                slaFilter === 'breached'
+                  ? 'bg-destructive/15 text-destructive border-destructive/30'
+                  : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+              )}
+              title="Mostrar apenas tickets com SLA estourado"
+            >
+              <Flame className="h-3 w-3" />
+              Estourado
+              {breachedCount > 0 && (
+                <span className="ml-0.5 bg-destructive text-destructive-foreground rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
+                  {breachedCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setSlaFilter(slaFilter === 'at_risk' ? 'all' : 'at_risk')}
+              className={cn(
+                'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+                slaFilter === 'at_risk'
+                  ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                  : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+              )}
+              title="Mostrar apenas tickets com SLA em risco"
+            >
+              <AlertTriangle className="h-3 w-3" />
+              Em risco
+              {atRiskCount > 0 && (
+                <span className="ml-0.5 bg-amber-500 text-white rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
+                  {atRiskCount}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* Queue selector - includes "Todas as filas" option */}
         {activeQueues.length > 0 && (
