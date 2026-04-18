@@ -19,10 +19,11 @@ import { cn } from '@/lib/utils';
 
 export function CopilotWidget() {
   const [open, setOpen] = useState(false);
-  const { insights, unreadCount, isLoading, markAsRead, markAllAsRead, hasInteractive } =
+  const { insights, unreadCount, isLoading, markAsRead, markAllAsRead, hasInteractive, isCopilotEnabled: copilotOn } =
     useCopilotInsights();
 
   if (!isCopilotEnabled()) return null;
+  if (!copilotOn) return null;
 
   return (
     <>
