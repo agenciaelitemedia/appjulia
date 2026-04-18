@@ -72,10 +72,11 @@ function MessagePreview({ text, type }: { text?: string; type?: string }) {
   };
 
   if (mediaType && mediaIcons[mediaType]) {
-    return <span className="inline-flex items-center text-muted-foreground truncate">{mediaIcons[mediaType]}</span>;
+    return <span className="inline-flex items-center text-muted-foreground truncate whitespace-nowrap">{mediaIcons[mediaType]}</span>;
   }
 
-  return <span className="truncate">{text}</span>;
+  const singleLine = (text || '').replace(/\s+/g, ' ').trim();
+  return <span className="block truncate whitespace-nowrap">{singleLine}</span>;
 }
 
 /** Single pill */
