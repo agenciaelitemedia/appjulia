@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap, Calendar, Type } from 'lucide-react';
+import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap, Calendar, Type, Info, HelpCircle, AlertTriangle } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -37,6 +37,7 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
   const [isClaiming, setIsClaiming] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [noteMode, setNoteMode] = useState(false);
+  const [noteType, setNoteType] = useState<'info' | 'question' | 'urgent'>('info');
   const [showQuickMessages, setShowQuickMessages] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [showScheduledList, setShowScheduledList] = useState(false);
@@ -114,8 +115,11 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
           contactId,
           messageText,
           user?.name || 'Atendente',
-          { team, byId: user?.id ? String(user.id) : undefined }
+          { team, byId: user?.id ? String(user.id) : undefined, noteType }
         );
+        // Sair do modo nota após envio bem-sucedido
+        setNoteMode(false);
+        setNoteType('info');
       } else {
         await sendMessage(contactId, messageText, replyToId);
         onCancelReply?.();
