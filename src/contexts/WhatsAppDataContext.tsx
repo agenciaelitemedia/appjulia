@@ -94,7 +94,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const [contacts, setContacts] = useState<ChatContact[]>([]);
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<ChatTab>('all');
+  const [activeTab, setActiveTab] = useState<ChatTab>('individual');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
