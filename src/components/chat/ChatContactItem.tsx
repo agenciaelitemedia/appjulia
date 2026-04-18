@@ -180,7 +180,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
         {/* Row 2: Last message preview (left) + unread badge (right) */}
         <div className="flex items-center justify-between gap-2 min-w-0">
           <div className={cn(
-            'text-xs flex-1 min-w-0 truncate',
+            'text-xs flex-1 min-w-0 truncate whitespace-nowrap overflow-hidden',
             contact.unread_count > 0 ? 'text-foreground/80' : 'text-muted-foreground'
           )}>
             <MessagePreview text={contact.last_message_text || undefined} />
