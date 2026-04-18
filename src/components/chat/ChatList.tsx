@@ -327,18 +327,22 @@ export function ChatList() {
                 </div>
               </div>
             ))
-          ) : filteredContacts.length === 0 ? (
+          ) : visibleContacts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
               <MessageCircle className="h-12 w-12 mb-4 opacity-50" />
               <p className="font-medium">Nenhuma conversa</p>
               <p className="text-sm mt-1">
-                {searchQuery
-                  ? 'Tente uma busca diferente'
-                  : 'As mensagens aparecerão aqui quando recebidas'}
+                {slaFilter !== 'all'
+                  ? slaFilter === 'breached'
+                    ? 'Nenhum ticket com SLA estourado'
+                    : 'Nenhum ticket com SLA em risco'
+                  : searchQuery
+                    ? 'Tente uma busca diferente'
+                    : 'As mensagens aparecerão aqui quando recebidas'}
               </p>
             </div>
           ) : (
-            filteredContacts.map((contact) => {
+            visibleContacts.map((contact) => {
               // Pick most recent conversation (any status) so queue/team stay visible
               const contactConvs = conversations
                 .filter(c => c.contact_id === contact.id)
