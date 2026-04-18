@@ -273,15 +273,24 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
                 </p>
               </div>
             ) : filteredProviders.length === 0 ? (
-              <div className="flex items-center gap-3 p-4 border border-destructive/30 rounded-lg bg-destructive/5">
-                <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">Nenhum provedor configurado</p>
-                  <p className="text-xs text-muted-foreground">
-                    Vá em Configurações → Provedores de Fila para adicionar um provedor do tipo{' '}
-                    {channelTypes.find((c) => c.value === selectedType)?.label}.
-                  </p>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 p-4 border border-destructive/30 rounded-lg bg-destructive/5">
+                  <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Nenhum provedor configurado</p>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedType === 'waba'
+                        ? 'Conecte sua conta Meta agora ou adicione manualmente em Configurações → Provedores de Fila.'
+                        : `Vá em Configurações → Provedores de Fila para adicionar um provedor do tipo ${channelTypes.find((c) => c.value === selectedType)?.label}.`}
+                    </p>
+                  </div>
                 </div>
+                {selectedType === 'waba' && (
+                  <WabaEmbeddedSignupButton
+                    label="Conectar agora via Meta"
+                    onSuccess={handleQuickCreateWabaProvider}
+                  />
+                )}
               </div>
             ) : (
               <>
