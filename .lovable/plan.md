@@ -1,64 +1,34 @@
 
 
 ## Goal
-Garantir que a fila usada em **toda** operação do chat (criar conversa, enviar texto/mídia, baixar mídia, marcar como lida) venha **sempre da conversa real do contato**, ignorando o filtro "Todas as filas / Fila X" do topo. O filtro deve servir apenas para **listar** conversas, não para definir a fila de operação.
+Ajustar exibição de eventos no chat:
+1. **Ocultar** o evento `opened` quando o ator é "Sistema (webhook)".
+2. **Corrigir o "Ontem"** que aparece em mensagens/eventos do dia atual (problema de timezone — usa data crua do banco com `new Date()` em vez do helper `parseDbTimestamp`/`getDbDateGroupLabel`).
+3. **Reformular o evento `assigned`**: quando `from_value` é vazio/nulo (primeira atribuição = "assumir"), mostrar `"{actor} assumiu a conversa"` em vez de `"{actor} transferiu para {to_value}"`. Manter o texto atual de transferência apenas quando já existe um atendente anterior (`from_value` preenchido e diferente de `to_value`).
 
-## Diagnóstico
-Em `src/contexts/WhatsAppDataContext.tsx`:
-
-1. **`getEffectiveQueue(contactId)`** (linha ~122) hoje retorna `selectedQueue` se existir — ou seja, se o usuário escolher "Fila A" mas abrir um contato da "Fila B", ele opera na Fila A. Errado.
-2. **`getOrCreateConversation`** (linha ~201) prioriza `currentQueueId` (filtro). Se "Todas" está selecionado → null → fallback. Mas se uma fila errada está selecionada, cria conversa nessa fila errada.
-3. **`downloadMedia`** (linha ~891) usa `selectedQueue?.id` diretamente — ignora a fila do contato/conversa.
-4. **`markAsRead`** (linha ~917) usa `selectedQueue.evo_apikey` direto — idem.
+## Investigação necessária
+- `src/components/chat/ConversationEvent.tsx` — onde está a label e o `format()` do timestamp.
+- Verificar se `ConversationHistoryEntry` já expõe `from_value` (sim, está no `actionConfig.assigned` atual).
+- Confirmar onde a lista de eventos é renderizada para garantir que filtrar `opened`+webhook não quebra agrupamento por data (provavelmente `MessagesArea` ou similar — apenas precisa pular o item).
 
 ## Mudanças
 
-### 1. Reescrever `getEffectiveQueue(contactId)` — fonte de verdade = conversa
-Nova ordem de prioridade (filtro deixa de ter peso):
-1. Conversa ativa do contato (`conversations` em estado, `pending`/`open`) → `queue_id`
-2. Conversa mais recente do contato (qualquer status) com `queue_id` (busca em `chat_conversations` se não estiver em memória)
-3. `contact.channel_source` (queue de origem)
-4. Qualquer fila ativa que combine com `contact.channel_type`
-5. **Último recurso**: `selectedQueue` (só se nada acima resolver — caso de contato totalmente novo sem conversa)
+### `src/components/chat/ConversationEvent.tsx`
+1. **Datas**: trocar `format(new Date(entry.created_at), 'dd/MM HH:mm', ...)` por `formatDbDateTime` (ou montar com `parseDbTimestamp` + format curto `dd/MM HH:mm` sem ano) de `@/lib/dateUtils`. Isso resolve o "Ontem" incorreto, pois timestamps do banco externo vêm sem offset real.
+2. **`assigned` dinâmico**: transformar a label em função que decide:
+   - Se `!from_value` ou `from_value === to_value` ou `from_value === actor_name` → `"{actor_name} assumiu a conversa"`.
+   - Senão → manter `"{actor_name} transferiu para {to_value}"`.
+3. **Filtrar `opened` do webhook**: retornar `null` quando `entry.action === 'opened'` e (`actor_name` contém "webhook" ou `actor_name === 'Sistema'` sem identificação humana). Critério proposto: ocultar se `actor_name` for nulo, "Sistema", "Sistema (webhook)" ou contiver "webhook".
 
-Tornar a função `async` (precisa consultar Supabase no caso 2/4) e atualizar quem a usa para `await`.
-
-### 2. Reescrever resolução em `getOrCreateConversation`
-Inverter prioridade:
-1. Conversa anterior do contato (qualquer status) com `queue_id` ← **primeiro**
-2. `contact.channel_source`
-3. Qualquer fila ativa do `channel_type` do contato
-4. `selectedQueue` (só se contato é novo e nada acima resolveu)
-
-Manter o toast de erro se nada resolver.
-
-### 3. `sendMessage` / `sendMedia`
-Trocar a chamada síncrona `getEffectiveQueue(contactId)` por `await getEffectiveQueue(contactId)`. Lógica restante já consome `queue.*` corretamente — não muda.
-
-### 4. `downloadMedia(messageId)`
-Hoje recebe só `messageId`. Precisa descobrir a fila da **conversa daquela mensagem**:
-- Buscar `chat_messages` → `conversation_id` → `chat_conversations.queue_id` (uma única query). 
-- Passar esse `queueId` para a edge function `chat-media-download`.
-- Fallback final: `selectedQueue?.id` (mantém compat).
-
-### 5. `markAsRead(contactId)`
-Trocar `selectedQueue` por `await getEffectiveQueue(contactId)`. Só executar o POST `/chat/markRead` se `queue.channel_type === 'uazapi'` e tiver `evo_apikey`/`evo_url`.
-
-### 6. Limpeza de dependências dos `useCallback`
-Atualizar arrays de deps onde `selectedQueue` deixa de ser usado e onde `getEffectiveQueue` virou async.
+### Renderização (caller)
+Como o componente passa a poder retornar `null`, nenhuma mudança extra é necessária no caller — React simplesmente não renderiza nada para esse item.
 
 ## Arquivos
-- `src/contexts/WhatsAppDataContext.tsx` (única mudança de código)
-
-## Fora de escopo
-- UI do seletor de fila no topo continua igual (filtro de listagem).
-- `syncContacts` continua usando `selectedQueue` (é uma ação manual de sincronização de uma fila específica, não operação sobre conversa existente).
-- Tag de fila no `ChatList` (já corrigida na rodada anterior).
+- `src/components/chat/ConversationEvent.tsx` (única alteração)
 
 ## Validação
-Após aplicar:
-1. Selecionar "Todas as filas", abrir contato cuja conversa veio da Fila A → enviar texto e mídia → checar nas Edge Function logs que o token usado é o da Fila A.
-2. Selecionar "Fila B", abrir o mesmo contato (conversa = Fila A) → enviar mensagem → deve continuar usando Fila A.
-3. Baixar áudio antigo de contato em outra fila → deve descriptografar com o token correto.
-4. Contato totalmente novo (sem conversa) com "Fila B" selecionada → cria conversa em Fila B (fallback funcionando).
+1. Abrir conversa antiga: o card cinza "Sistema (webhook) abriu a conversa" não aparece mais.
+2. Eventos de hoje mostram "18/04 HH:mm" e qualquer agrupamento "Hoje" (não "Ontem").
+3. Primeira atribuição (advogado pega o lead): "Mario Castro assumiu a conversa 18/04 08:50".
+4. Transferência real (atendente A → atendente B): mantém "Mario Castro transferiu para João Silva 18/04 09:10".
 
