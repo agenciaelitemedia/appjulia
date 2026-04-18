@@ -75,8 +75,10 @@ function MessagePreview({ text, type }: { text?: string; type?: string }) {
     return <span className="inline-flex items-center text-muted-foreground truncate whitespace-nowrap">{mediaIcons[mediaType]}</span>;
   }
 
+  const MAX_CHARS = 45;
   const singleLine = (text || '').replace(/\s+/g, ' ').trim();
-  return <span className="block truncate whitespace-nowrap">{singleLine}</span>;
+  const clipped = singleLine.length > MAX_CHARS ? singleLine.slice(0, MAX_CHARS).trimEnd() + '…' : singleLine;
+  return <span className="block truncate whitespace-nowrap">{clipped}</span>;
 }
 
 /** Single pill */
