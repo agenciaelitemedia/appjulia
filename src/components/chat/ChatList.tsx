@@ -189,7 +189,6 @@ export function ChatList() {
         {/* Individual / Groups toggle */}
         <div className="flex border-t">
           {[
-            { value: 'all' as const, label: 'Todas', count: totalUnreadCount },
             { value: 'individual' as const, label: 'Individual', icon: <MessageCircle className="h-3 w-3" />, count: individualUnreadCount },
             { value: 'groups' as const, label: 'Grupos', icon: <Users className="h-3 w-3" />, count: groupUnreadCount },
           ].map(tab => (
