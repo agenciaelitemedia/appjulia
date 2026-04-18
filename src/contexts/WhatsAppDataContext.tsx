@@ -626,7 +626,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   ) => {
     const contact = contacts.find(c => c.id === contactId);
     if (!contact) return;
-    const queue = getEffectiveQueue(contactId);
+    const queue = await getEffectiveQueue(contactId);
     if (!queue) {
       toast.error('Sem fila ativa para este contato');
       return;
