@@ -188,6 +188,8 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             )}
             style={{ fontSize: '6px' }}
           >
+            <MessagePreview text={contact.last_message_text || undefined} />
+          </div>
           {contact.unread_count > 0 ? (
             <span className="flex-shrink-0 bg-emerald-500 text-white text-[11px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 shadow-sm">
               {contact.unread_count > 99 ? '99+' : contact.unread_count}
