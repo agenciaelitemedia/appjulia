@@ -238,8 +238,8 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
     );
   }
 
-  // Block entire input bar until conversation is claimed (notes still allowed)
-  const inputBlocked = showClaimBanner;
+  // (Lock total removido — apenas o botão de Nota Interna permanece ativo
+  // quando a conversa não está assumida; cada controle individual usa `disabled={!canSend}`.)
 
   return (
     <div className="border-t bg-background">
