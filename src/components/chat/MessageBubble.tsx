@@ -546,9 +546,7 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
 
               {/* Text content */}
               {message.text && message.type === 'text' && (
-                <p className="text-sm whitespace-pre-wrap break-words">
-                  {formatWhatsAppText(message.text)}
-                </p>
+                <ExpandableMessageText text={message.text} formatter={formatWhatsAppText} />
               )}
 
               {/* Timestamp and status */}
