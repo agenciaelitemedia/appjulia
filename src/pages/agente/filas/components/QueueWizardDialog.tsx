@@ -214,16 +214,74 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
                 )}
 
                 {selectedType === 'waba' && selectedProviderId && (
-                  <div>
-                    <Label>Phone Number ID</Label>
-                    <Input
-                      value={wabaNumberId}
-                      onChange={(e) => setWabaNumberId(e.target.value)}
-                      placeholder="ID do número no Meta Business"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      ID do número de telefone registrado na WABA
-                    </p>
+                  <div className="space-y-2">
+                    <Label>Número do WhatsApp (Phone Number ID)</Label>
+                    {loadingNumbers ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground p-3 border border-border rounded-md">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Buscando números na conta WABA...
+                      </div>
+                    ) : numbersError ? (
+                      <div className="space-y-2">
+                        <div className="flex items-start gap-2 p-3 border border-destructive/30 rounded-md bg-destructive/5">
+                          <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                          <div className="text-xs text-foreground">
+                            <p className="font-medium">Não foi possível listar os números</p>
+                            <p className="text-muted-foreground">{numbersError}</p>
+                          </div>
+                        </div>
+                        <Input
+                          value={wabaNumberId}
+                          onChange={(e) => setWabaNumberId(e.target.value)}
+                          placeholder="Cole o Phone Number ID manualmente"
+                        />
+                      </div>
+                    ) : wabaNumbers.length > 0 ? (
+                      <Select value={wabaNumberId} onValueChange={(v) => { setWabaNumberId(v); setTestOk(null); }}>
+                        <SelectTrigger><SelectValue placeholder="Selecione o número" /></SelectTrigger>
+                        <SelectContent>
+                          {wabaNumbers.map((n) => (
+                            <SelectItem key={n.id} value={n.id}>
+                              <span className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${qualityColor(n.quality_rating)}`} />
+                                {n.display_phone_number} — {n.verified_name || 'sem nome'}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        value={wabaNumberId}
+                        onChange={(e) => setWabaNumberId(e.target.value)}
+                        placeholder="Phone Number ID"
+                      />
+                    )}
+
+                    {wabaNumberId && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleTestConnection}
+                          disabled={testing}
+                        >
+                          {testing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}
+                          Testar conexão
+                        </Button>
+                        {testOk === true && (
+                          <span className="text-xs text-emerald-600 flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Token válido
+                          </span>
+                        )}
+                        {testOk === false && (
+                          <span className="text-xs text-destructive flex items-center gap-1">
+                            <AlertCircle className="w-3.5 h-3.5" /> Falhou
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
