@@ -517,6 +517,7 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
               className="h-9 w-9 flex-shrink-0 hover:text-destructive"
               onClick={() => setIsRecording(true)}
               title="Gravar áudio"
+              disabled={!canSend}
             >
               <Mic className="h-5 w-5 text-muted-foreground" />
             </Button>
