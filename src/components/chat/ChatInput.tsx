@@ -307,7 +307,7 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
         <MessagePreview text={text} />
       )}
 
-      <div className={cn('p-3', inputBlocked && 'opacity-50 pointer-events-none select-none')} aria-disabled={inputBlocked}>
+      <div className="p-3">
         <div className="flex items-end gap-2">
           {/* Emoji picker */}
           <Popover>
@@ -413,19 +413,38 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
             </Button>
           )}
 
-          {/* Note toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(
-              'h-9 w-9 flex-shrink-0',
-              noteMode && 'bg-blue-500 text-white hover:bg-blue-600 hover:text-white'
-            )}
-            onClick={() => setNoteMode(!noteMode)}
-            title="Nota interna"
-          >
-            <StickyNote className="h-5 w-5" />
-          </Button>
+          {/* Note type menu — always available, even when conversation is not claimed */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  'h-9 w-9 flex-shrink-0',
+                  noteMode && noteType === 'info' && 'bg-blue-500 text-white hover:bg-blue-600 hover:text-white',
+                  noteMode && noteType === 'question' && 'bg-yellow-500 text-white hover:bg-yellow-600 hover:text-white',
+                  noteMode && noteType === 'urgent' && 'bg-red-500 text-white hover:bg-red-600 hover:text-white',
+                )}
+                title="Nota interna"
+              >
+                <StickyNote className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="start">
+              <DropdownMenuItem onClick={() => { setNoteMode(true); setNoteType('info'); setTimeout(() => textareaRef.current?.focus(), 0); }}>
+                <Info className="h-4 w-4 mr-2 text-blue-600" />
+                Informativa
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setNoteMode(true); setNoteType('question'); setTimeout(() => textareaRef.current?.focus(), 0); }}>
+                <HelpCircle className="h-4 w-4 mr-2 text-yellow-600" />
+                Dúvida
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setNoteMode(true); setNoteType('urgent'); setTimeout(() => textareaRef.current?.focus(), 0); }}>
+                <AlertTriangle className="h-4 w-4 mr-2 text-red-600" />
+                Urgência
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Hidden file input */}
           <input
