@@ -490,7 +490,7 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
               className={cn(
                 'rounded-lg px-3 py-2',
                 message.from_me
-                  ? 'bg-primary text-primary-foreground rounded-br-none'
+                  ? 'bg-[#DCF8C6] text-foreground rounded-br-none'
                   : 'bg-card text-card-foreground border border-border/50 rounded-bl-none'
               )}
             >
