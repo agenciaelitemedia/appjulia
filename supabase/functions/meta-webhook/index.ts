@@ -383,11 +383,13 @@ serve(async (req) => {
         }
       }
 
-      // Resolve agents for all phone_number_ids
+      // Resolve agents and queues for all phone_number_ids
       const agentMap = new Map<string, { cod_agent: string; client_id: string }>();
+      const queueMap = new Map<string, { id: string; client_id: string; cod_agent: string | null }>();
       for (const pnId of phoneNumberIds) {
-        const info = await resolveAgent(pnId);
+        const [info, queue] = await Promise.all([resolveAgent(pnId), resolveQueueForWaba(pnId)]);
         if (info) agentMap.set(pnId, info);
+        if (queue) queueMap.set(pnId, queue);
       }
 
       for (const entry of body.entry || []) {
@@ -397,7 +399,11 @@ serve(async (req) => {
           if (change.field !== 'messages') continue;
           const value = change.value;
           const phoneNumberId = value?.metadata?.phone_number_id;
-          const agentInfo = phoneNumberId ? agentMap.get(phoneNumberId) : null;
+          const queueInfo = phoneNumberId ? queueMap.get(phoneNumberId) || null : null;
+          // Prefer queue's cod_agent/client_id when queue exists; fallback to agent lookup
+          const agentInfo = queueInfo
+            ? { cod_agent: queueInfo.cod_agent || (phoneNumberId && agentMap.get(phoneNumberId)?.cod_agent) || '', client_id: queueInfo.client_id }
+            : (phoneNumberId ? agentMap.get(phoneNumberId) || null : null);
 
           // Process messages
           for (const message of value?.messages || []) {
@@ -437,7 +443,7 @@ serve(async (req) => {
 
             // ── Persist to chat tables ──
             if (agentInfo) {
-              persistToChat(agentInfo, from, contactName, message, msgType, phoneNumberId)
+              persistToChat(agentInfo, from, contactName, message, msgType, phoneNumberId, queueInfo)
                 .catch(err => console.error('[persistToChat] background error:', err));
             }
           }
