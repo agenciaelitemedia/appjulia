@@ -295,7 +295,7 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
         <MessagePreview text={text} />
       )}
 
-      <div className="p-3">
+      <div className={cn('p-3', inputBlocked && 'opacity-50 pointer-events-none select-none')} aria-disabled={inputBlocked}>
         <div className="flex items-end gap-2">
           {/* Emoji picker */}
           <Popover>
