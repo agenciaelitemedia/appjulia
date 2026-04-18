@@ -988,15 +988,16 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     if (!contact || contact.unread_count === 0) return;
 
     try {
-      // Mark read on UaZapi server if queue is uazapi
-      if (selectedQueue?.channel_type === 'uazapi' && selectedQueue.evo_apikey) {
+      const queue = await getEffectiveQueue(contactId);
+      // Mark read on UaZapi server when applicable
+      if (queue?.channel_type === 'uazapi' && queue.evo_apikey && queue.evo_url) {
         try {
           await supabase.functions.invoke('uazapi-proxy', {
             body: {
               method: 'POST',
               endpoint: '/chat/markRead',
-              token: selectedQueue.evo_apikey,
-              baseUrl: selectedQueue.evo_url,
+              token: queue.evo_apikey,
+              baseUrl: queue.evo_url,
               body: { number: contact.phone, read: true },
             },
           });
@@ -1014,7 +1015,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     } catch (error) {
       console.error('Error marking as read:', error);
     }
-  }, [contacts, selectedQueue]);
+  }, [contacts, getEffectiveQueue]);
 
   // ============================================
   // Select Contact (no auto-assign — user must click "Assumir")
