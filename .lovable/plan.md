@@ -1,71 +1,39 @@
 
 
 ## Diagnóstico
-A criação de fila **API Oficial (WABA)** já existe end-to-end, mas tem fricções:
 
-1. **Provedor WABA é manual demais**: o `ProviderFormDialog` pede `Meta App ID/Secret/WABA Business ID/Access Token` digitados à mão. Não há atalho para usar o Embedded Signup (que já existe em `WabaSetupDialog` no módulo de Agentes) nem para reaproveitar o app global (`META_APP_ID/META_APP_SECRET` já estão como secrets do projeto).
-2. **Phone Number ID é opaco**: no Wizard (passo 2 WABA), o usuário precisa **digitar manualmente** o `Phone Number ID`. Não há listagem dos números disponíveis na conta WABA daquele provedor.
-3. **Sem validação prévia**: nada confirma que o token + business_id + phone_number_id batem antes de criar a fila — erro só aparece quando chega mensagem.
-4. **Falta feedback de webhook**: usuário não sabe se a URL `meta-webhook` está configurada no app Meta dele.
+Validei no banco: chegou mensagem WABA para o número `667282786474815` (fila "Oficial" — `queue_id=0f4abeb4...`, `client_id=30`), mas a tag exibida é "Agente Principal" (fila UaZapi `client_id=30`). Causas combinadas:
 
-## Objetivo
-Deixar o fluxo "Criar fila API Oficial" 100% guiado e funcional, com 2 caminhos:
-- **Atalho rápido**: usar o app Meta global da Julia (Embedded Signup) → cria provider + fila em um único fluxo.
-- **Manual avançado**: app Meta próprio do cliente (mantém formulário atual, mas com seletor de números e teste de conexão).
+1. **`meta-webhook/persistToChat` grava `client_id` errado**: usa `agents.user_id` (=145, dono Meta) em vez do `client_id=30` da fila WABA. O contato fica num tenant onde a fila WABA nem existe.
+2. **`meta-webhook` não cria `chat_conversations`** nem associa `queue_id`. Quem cria é o front (`getOrCreateConversation` em `WhatsAppDataContext`).
+3. **Fallback de fila no front confunde `channel_source` com `queue_id`** (linha 300 de `WhatsAppDataContext.tsx`): para UaZapi `channel_source` é UUID de fila, mas para WABA é o `phone_number_id` da Meta. O cast falha silenciosamente e o fluxo cai no fallback final → usa a fila selecionada no topo ("Agente Principal").
+4. **`channel_source` deveria ser o `queue_id` da fila WABA correta**, não o `phone_number_id` cru.
 
-## Mudanças
+## Correções
 
-### 1. `supabase/functions/waba-admin` — adicionar 2 actions
-- `list_phone_numbers`: recebe `{ wabaBusinessId, accessToken }` → chama `GET /{waba_id}/phone_numbers` e devolve `[{ id, display_phone_number, verified_name, quality_rating }]`. Permite popular dropdown no Wizard.
-- `test_credentials`: recebe `{ wabaBusinessId, accessToken, phoneNumberId }` → faz `GET /{phone_number_id}` validando token/permissões. Devolve `{ success, phone, error }`.
+### 1. `supabase/functions/meta-webhook/index.ts`
+- Antes de chamar `persistToChat`, resolver a fila WABA pelo `phone_number_id` usando `resolveQueueByWabaNumberId(supabase, phoneNumberId)` (já importado mas não usado).
+- Se encontrar fila, usar `queue.client_id` como `client_id` do contato (ignorando `agents.user_id`) e gravar `channel_source = queue.id` (UUID), não o `phone_number_id`.
+- Se não houver fila WABA configurada para aquele número, manter comportamento atual como fallback (logando warning), para não quebrar tenants antigos.
+- Adicionar `queue_id` no upsert de `chat_contacts` (coluna existe? vou checar; se não, fica só em `channel_source`).
+- Criar `chat_conversations` (status `pending`, `queue_id` = id da fila WABA, `channel='whatsapp_waba'`) na primeira mensagem se não houver conversa aberta para o contato. Idempotente: SELECT antes de INSERT.
 
-### 2. `ProviderFormDialog.tsx` (provedor WABA)
-Adicionar topo do bloco WABA um botão **"Conectar via Meta (recomendado)"** que dispara o mesmo fluxo de Embedded Signup já existente (`WabaSetupDialog` lógica) **adaptado para gravar em `queue_providers`** em vez da tabela `agents`:
-- Reaproveita `META_APP_ID` / `META_CONFIG_ID` do `.env`.
-- Após sucesso, preenche automaticamente `meta_app_id` (global), `waba_business_id` e `waba_token`. Esconde os campos manuais (mostra só leitura com botão "Reconectar").
-- Mantém formulário manual recolhido em `<Collapsible>Configuração avançada</Collapsible>` para quem quer usar app próprio.
+### 2. `src/contexts/WhatsAppDataContext.tsx` — `getOrCreateConversation`
+- Validar `channel_source` como UUID antes de usar como `queue_id`. Regex simples: `/^[0-9a-f-]{36}$/i`. Se não bater, ignora e segue para o passo 3 (busca por `channel_type`).
+- No passo 3, quando o contato é `whatsapp_waba`, **filtrar também por `waba_number_id` da fila** matching o `channel_source` do contato (que pode ser phone_number_id legado), garantindo que só a fila correta seja escolhida.
 
-Criar componente reutilizável `src/components/waba/WabaEmbeddedSignupButton.tsx` extraindo a lógica de `WabaSetupDialog` (FB SDK, listener de message, troca de token via `waba-admin/exchange_token`) com callback `onSuccess({ wabaBusinessId, accessToken, phoneNumberId, displayPhone })`. Vai ser usado tanto no provider quanto no wizard.
+### 3. Backfill (opcional, em SQL via migração)
+- Atualizar contatos WABA existentes para `channel_source = queue.id` quando `channel_source` bate com algum `queues.waba_number_id`.
+- Atualizar `chat_conversations` órfãs (queue_id de fila UaZapi mas contato é WABA) para a fila WABA correta.
 
-### 3. `QueueWizardDialog.tsx` (passo 2 — WABA)
-Substituir o `<Input>` cru de Phone Number ID por:
-- Quando provedor WABA selecionado → chamar `waba-admin/list_phone_numbers` com `waba_business_id` + `waba_token` do provedor.
-- Renderizar `<Select>` com os números (formato: `+55 11 9XXXX-XXXX — Verified Name`). Salva `phone_number_id` no estado.
-- Mostrar `quality_rating` (badge verde/amarelo/vermelho).
-- Botão **"Testar conexão"** que chama `waba-admin/test_credentials` antes de prosseguir → toast verde/vermelho.
-- Caso o provedor não tenha token válido, mostra alerta com link "Reconectar provedor" que abre o Embedded Signup novamente.
-
-Adicionar também atalho: se nenhum provedor WABA existe, oferecer botão **"Conectar agora via Meta"** direto no passo 2 (cria provider on-the-fly via Embedded Signup, depois segue o wizard).
-
-### 4. `src/pages/agente/filas/components/QueueCard.tsx`
-Adicionar badge de status para filas WABA: ícone azul + "API Oficial" + (se conectada) número verificado. Botão "Testar" que chama a mesma `test_credentials`.
-
-### 5. Memória
-Atualizar `mem://integrations/meta/waba-embedded-signup` com nota de que o Embedded Signup é reutilizado em **3 lugares**: agentes (legado), provedores de fila, wizard de fila.
-
-## Pré-requisitos (já atendidos)
-- Secrets já configurados: `META_APP_ID`, `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`.
-- `.env` com `VITE_META_APP_ID` e `VITE_META_CONFIG_ID`.
-- Edge functions `waba-admin`, `meta-webhook`, `waba-send` já operacionais.
-- Tabela `queue_providers` com colunas WABA já existe.
-- Tabela `queues` com `waba_id/waba_token/waba_number_id` já existe.
-- `resolveQueueByWabaNumberId` já roteia mensagens recebidas para a fila correta.
-
-**Nada de DB/secret novo — só código frontend + 2 actions na edge `waba-admin`.**
-
-## Arquivos a editar/criar
-- `supabase/functions/waba-admin/index.ts` (+2 actions)
-- `src/components/waba/WabaEmbeddedSignupButton.tsx` (novo, ~120 linhas — extraído de `WabaSetupDialog`)
-- `src/pages/configuracoes/components/ProviderFormDialog.tsx` (botão Embedded Signup + formulário avançado colapsável)
-- `src/pages/agente/filas/components/QueueWizardDialog.tsx` (Select de phone numbers + botão Testar + atalho criar provider)
-- `src/pages/agente/filas/components/QueueCard.tsx` (badge + teste de conexão WABA)
-- `mem://integrations/meta/waba-embedded-signup` (atualização)
+## Arquivos
+- `supabase/functions/meta-webhook/index.ts` — resolver fila WABA, corrigir client_id, gravar channel_source = queue.id, criar conversa.
+- `src/contexts/WhatsAppDataContext.tsx` — validação UUID em channel_source + match por waba_number_id no fallback.
+- Migração SQL de backfill (one-shot) para corrigir contatos/conversas WABA já existentes.
 
 ## Validação
-1. **Fluxo rápido**: Configurações → Novo Provedor → "WABA" → "Conectar via Meta" → Embedded Signup → provider salvo com token e business_id.
-2. Filas → Nova Fila → "API Oficial (WABA)" → seleciona provider → dropdown lista os números → escolhe → "Testar" mostra ✓ → cria fila.
-3. **Mensagem entra**: enviar mensagem de teste pro número escolhido → `meta-webhook` recebe → `resolveQueueByWabaNumberId` encontra a fila → conversa aparece no chat com a fila correta.
-4. **Mensagem sai**: enviar texto pelo chat → `waba-send` usa `waba_token` + `waba_number_id` da fila → entrega no WhatsApp.
-5. **Caminho manual**: criar provider WABA com app próprio (Meta App ID/Secret/Token manuais) → mesmo wizard funciona.
-6. **Sem provedor**: wizard oferece "Conectar agora" e cria provider in-line.
+1. Enviar nova mensagem para o número WABA (`667282786474815`) → contato deve aparecer no client_id correto, com `channel_source = 0f4abeb4...` (UUID da fila Oficial).
+2. Conversa criada deve ter `queue_id = 0f4abeb4...` e badge "Oficial" (não "Agente Principal").
+3. Contato/conversa antigos devem aparecer corrigidos após backfill.
+4. Mensagens UaZapi continuam roteando normalmente para "Agente Principal".
 
