@@ -72,10 +72,11 @@ function MessagePreview({ text, type }: { text?: string; type?: string }) {
   };
 
   if (mediaType && mediaIcons[mediaType]) {
-    return <span className="inline-flex items-center text-muted-foreground truncate">{mediaIcons[mediaType]}</span>;
+    return <span className="inline-flex items-center text-muted-foreground truncate whitespace-nowrap">{mediaIcons[mediaType]}</span>;
   }
 
-  return <span className="truncate">{text}</span>;
+  const singleLine = (text || '').replace(/\s+/g, ' ').trim();
+  return <span className="block truncate whitespace-nowrap">{singleLine}</span>;
 }
 
 /** Single pill */
@@ -137,8 +138,9 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   return (
     <button
       onClick={onClick}
+      style={{ maxWidth: '100%' }}
       className={cn(
-        'w-full max-w-full flex items-start gap-3 px-3 py-3 text-left transition-colors border-l-[3px] min-w-0 overflow-hidden',
+        'w-full flex items-start gap-3 px-3 py-3 text-left transition-colors border-l-[3px] min-w-0 overflow-hidden',
         isSelected
           ? 'bg-accent/40 border-l-primary'
           : 'border-l-transparent hover:bg-accent/20'
@@ -178,7 +180,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
         {/* Row 2: Last message preview (left) + unread badge (right) */}
         <div className="flex items-center justify-between gap-2 min-w-0">
           <div className={cn(
-            'text-xs flex-1 min-w-0 truncate',
+            'text-xs flex-1 min-w-0 truncate whitespace-nowrap overflow-hidden',
             contact.unread_count > 0 ? 'text-foreground/80' : 'text-muted-foreground'
           )}>
             <MessagePreview text={contact.last_message_text || undefined} />
