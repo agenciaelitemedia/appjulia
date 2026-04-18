@@ -942,7 +942,22 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const downloadMedia = useCallback(async (messageId: string): Promise<string | undefined> => {
     if (!messageId) return undefined;
     try {
-      const queueId = selectedQueue?.id;
+      // Resolve the queue from the message's conversation (source of truth),
+      // not from the UI's selected queue filter.
+      let queueId: string | undefined;
+      try {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(messageId);
+        const q = supabase
+          .from('chat_messages')
+          .select('conversation_id, chat_conversations:conversation_id(queue_id)')
+          .limit(1);
+        const { data: msgRow } = await (isUuid
+          ? q.eq('id', messageId).maybeSingle()
+          : q.eq('message_id', messageId).maybeSingle());
+        const convQueueId = (msgRow as any)?.chat_conversations?.queue_id;
+        if (convQueueId) queueId = convQueueId;
+      } catch { /* fall through */ }
+      if (!queueId) queueId = selectedQueue?.id;
       const { data, error } = await supabase.functions.invoke('chat-media-download', {
         body: { messageId, queueId },
       });
