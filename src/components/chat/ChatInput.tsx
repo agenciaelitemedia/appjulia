@@ -476,14 +476,20 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
               onChange={handleTextChange}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
-              placeholder={noteMode ? 'Digite uma nota interna... (use @ para mencionar)' : 'Digite uma mensagem... (/ atalhos, cole imagem)'}
+              placeholder={
+                !canSend
+                  ? 'Assuma a conversa ou abra uma nota interna para escrever...'
+                  : noteMode
+                    ? 'Digite uma nota interna... (use @ para mencionar)'
+                    : 'Digite uma mensagem... (/ atalhos, cole imagem)'
+              }
               className={cn(
                 'w-full min-h-[36px] max-h-[150px] py-2 resize-none',
                 'scrollbar-thin scrollbar-thumb-muted',
                 noteMode && 'border-blue-500/30 focus-visible:ring-blue-500'
               )}
               rows={1}
-              disabled={isSending}
+              disabled={isSending || !canSend}
             />
           </div>
 
@@ -511,6 +517,7 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
               className="h-9 w-9 flex-shrink-0 hover:text-destructive"
               onClick={() => setIsRecording(true)}
               title="Gravar áudio"
+              disabled={!canSend}
             >
               <Mic className="h-5 w-5 text-muted-foreground" />
             </Button>

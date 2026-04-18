@@ -5,6 +5,7 @@ import { MediaLightbox } from './MediaLightbox';
 import { Button } from '@/components/ui/button';
 import { QuotedMessage } from './QuotedMessage';
 import { ReactionPicker } from './ReactionPicker';
+import { ExpandableMessageText } from './ExpandableMessageText';
 import { format } from 'date-fns';
 import type { ChatMessage, MessageStatus, MessageType } from '@/types/chat';
 import type { MessageReaction } from '@/hooks/useMessageReactions';
@@ -212,7 +213,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
               </div>
             )}
             {message.caption && (
-              <p className="mt-1 text-sm">{formatWhatsAppText(message.caption)}</p>
+              <div className="mt-1"><ExpandableMessageText text={message.caption} formatter={formatWhatsAppText} /></div>
             )}
           </div>
           <MediaLightbox
@@ -248,7 +249,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
             </div>
           )}
           {message.caption && (
-            <p className="mt-1 text-sm">{formatWhatsAppText(message.caption)}</p>
+            <div className="mt-1"><ExpandableMessageText text={message.caption} formatter={formatWhatsAppText} /></div>
           )}
         </div>
       );
@@ -464,9 +465,11 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
               </span>
             </div>
             {message.text && (
-              <p className={cn('text-sm whitespace-pre-wrap break-words', noteStyles.body)}>
-                {formatWhatsAppText(message.text)}
-              </p>
+              <ExpandableMessageText
+                text={message.text}
+                formatter={formatWhatsAppText}
+                className={noteStyles.body}
+              />
             )}
             <div className={cn('flex items-center justify-end gap-1 mt-1', noteStyles.time)}>
               <span className="text-[10px]">
@@ -543,9 +546,7 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
 
               {/* Text content */}
               {message.text && message.type === 'text' && (
-                <p className="text-sm whitespace-pre-wrap break-words">
-                  {formatWhatsAppText(message.text)}
-                </p>
+                <ExpandableMessageText text={message.text} formatter={formatWhatsAppText} />
               )}
 
               {/* Timestamp and status */}
