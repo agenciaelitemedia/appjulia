@@ -137,8 +137,9 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   return (
     <button
       onClick={onClick}
+      style={{ maxWidth: '100%' }}
       className={cn(
-        'w-full max-w-full flex items-start gap-3 px-3 py-3 text-left transition-colors border-l-[3px] min-w-0 overflow-hidden',
+        'w-full flex items-start gap-3 px-3 py-3 text-left transition-colors border-l-[3px] min-w-0 overflow-hidden',
         isSelected
           ? 'bg-accent/40 border-l-primary'
           : 'border-l-transparent hover:bg-accent/20'
