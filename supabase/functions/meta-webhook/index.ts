@@ -15,11 +15,11 @@ const VERIFY_TOKEN = Deno.env.get('META_WEBHOOK_VERIFY_TOKEN') || 'julia_meta_ve
 const N8N_BASE_URL = 'https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start';
 
 // ─── Resolve queue (preferred) by waba phone_number_id ───────────
-async function resolveQueueForWaba(phoneNumberId: string): Promise<{ id: string; client_id: string; cod_agent: string | null } | null> {
+async function resolveQueueForWaba(phoneNumberId: string): Promise<{ id: string; client_id: string } | null> {
   try {
     const { data, error } = await supabase
       .from('queues')
-      .select('id, client_id, cod_agent')
+      .select('id, client_id')
       .eq('channel_type', 'waba')
       .eq('waba_number_id', phoneNumberId)
       .eq('is_active', true)
@@ -27,7 +27,7 @@ async function resolveQueueForWaba(phoneNumberId: string): Promise<{ id: string;
       .limit(1)
       .maybeSingle();
     if (error || !data) return null;
-    return { id: data.id, client_id: String(data.client_id), cod_agent: data.cod_agent ? String(data.cod_agent) : null };
+    return { id: data.id, client_id: String(data.client_id) };
   } catch (err) {
     console.error('[resolveQueueForWaba] Exception:', err);
     return null;
@@ -385,7 +385,7 @@ serve(async (req) => {
 
       // Resolve agents and queues for all phone_number_ids
       const agentMap = new Map<string, { cod_agent: string; client_id: string }>();
-      const queueMap = new Map<string, { id: string; client_id: string; cod_agent: string | null }>();
+      const queueMap = new Map<string, { id: string; client_id: string }>();
       for (const pnId of phoneNumberIds) {
         const [info, queue] = await Promise.all([resolveAgent(pnId), resolveQueueForWaba(pnId)]);
         if (info) agentMap.set(pnId, info);
@@ -400,10 +400,11 @@ serve(async (req) => {
           const value = change.value;
           const phoneNumberId = value?.metadata?.phone_number_id;
           const queueInfo = phoneNumberId ? queueMap.get(phoneNumberId) || null : null;
-          // Prefer queue's cod_agent/client_id when queue exists; fallback to agent lookup
+          const baseAgent = phoneNumberId ? agentMap.get(phoneNumberId) || null : null;
+          // Prefer queue's client_id when queue exists; fallback to agent lookup
           const agentInfo = queueInfo
-            ? { cod_agent: queueInfo.cod_agent || (phoneNumberId && agentMap.get(phoneNumberId)?.cod_agent) || '', client_id: queueInfo.client_id }
-            : (phoneNumberId ? agentMap.get(phoneNumberId) || null : null);
+            ? { cod_agent: baseAgent?.cod_agent || '', client_id: queueInfo.client_id }
+            : baseAgent;
 
           // Process messages
           for (const message of value?.messages || []) {
