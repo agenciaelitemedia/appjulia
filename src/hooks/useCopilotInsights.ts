@@ -37,20 +37,24 @@ export function useCopilotInsights() {
     enabled: !!user?.id,
   });
 
-  // Check if user has any agent with COPILOT_INTERACTIVE enabled
-  const interactiveQuery = useQuery({
-    queryKey: ['copilot-interactive-check', user?.id],
+  // Check copilot status across user's agents
+  const copilotStatusQuery = useQuery({
+    queryKey: ['copilot-status-check', user?.id],
     queryFn: async () => {
-      if (!user?.id) return false;
+      if (!user?.id) return { enabled: false, interactive: false };
       try {
         const agents = await externalDb.getUserAgents(user.id);
-        return agents.some((ua: any) => {
+        let enabled = false;
+        let interactive = false;
+        for (const ua of agents as any[]) {
           try {
             const settings = typeof ua.settings === 'string' ? JSON.parse(ua.settings) : ua.settings;
-            return settings?.COPILOT_INTERACTIVE === true;
-          } catch { return false; }
-        });
-      } catch { return false; }
+            if (settings?.COPILOT_ENABLED === true) enabled = true;
+            if (settings?.COPILOT_INTERACTIVE === true) interactive = true;
+          } catch { /* ignore */ }
+        }
+        return { enabled, interactive };
+      } catch { return { enabled: false, interactive: false }; }
     },
     enabled: !!user?.id,
     staleTime: 5 * 60 * 1000,
@@ -119,6 +123,7 @@ export function useCopilotInsights() {
     unreadCount,
     markAsRead,
     markAllAsRead,
-    hasInteractive: interactiveQuery.data ?? false,
+    hasInteractive: copilotStatusQuery.data?.interactive ?? false,
+    isCopilotEnabled: copilotStatusQuery.data?.enabled ?? false,
   };
 }
