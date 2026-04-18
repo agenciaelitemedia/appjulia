@@ -123,6 +123,7 @@ export function useCopilotInsights() {
     unreadCount,
     markAsRead,
     markAllAsRead,
-    hasInteractive: interactiveQuery.data ?? false,
+    hasInteractive: copilotStatusQuery.data?.interactive ?? false,
+    isCopilotEnabled: copilotStatusQuery.data?.enabled ?? false,
   };
 }
