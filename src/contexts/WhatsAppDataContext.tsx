@@ -287,7 +287,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         resolvedQueueId = priorConv.queue_id;
       }
 
-      // 2) contact.channel_source
+      // 2) contact.channel_source — only if it is a UUID (queue id)
+      const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       let contactRow: { channel_source: string | null; channel_type: string | null } | null = null;
       if (!resolvedQueueId) {
         const { data } = await supabase
@@ -296,7 +297,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           .eq('id', contactId)
           .maybeSingle();
         contactRow = data as any;
-        if (contactRow?.channel_source) {
+        if (contactRow?.channel_source && UUID_RE.test(contactRow.channel_source)) {
           resolvedQueueId = contactRow.channel_source;
         }
       }
@@ -304,13 +305,18 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       // 3) any active queue matching the contact's channel_type
       if (!resolvedQueueId && contactRow?.channel_type) {
         const wantedChannel = contactRow.channel_type === 'whatsapp_waba' ? 'waba' : 'uazapi';
-        const { data: anyQueue } = await supabase
+        let queueQuery = supabase
           .from('queues')
-          .select('id, channel_type')
+          .select('id, channel_type, waba_number_id')
           .eq('client_id', clientId)
           .eq('channel_type', wantedChannel)
           .eq('is_active', true)
-          .eq('is_deleted', false)
+          .eq('is_deleted', false);
+        // For WABA: prefer the queue whose waba_number_id matches the legacy phone_number_id stored in channel_source
+        if (wantedChannel === 'waba' && contactRow.channel_source && !UUID_RE.test(contactRow.channel_source)) {
+          queueQuery = queueQuery.eq('waba_number_id', contactRow.channel_source);
+        }
+        const { data: anyQueue } = await queueQuery
           .order('created_at', { ascending: true })
           .limit(1)
           .maybeSingle();

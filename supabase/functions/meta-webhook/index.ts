@@ -14,6 +14,26 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 const VERIFY_TOKEN = Deno.env.get('META_WEBHOOK_VERIFY_TOKEN') || 'julia_meta_verify_token_test_123';
 const N8N_BASE_URL = 'https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start';
 
+// ─── Resolve queue (preferred) by waba phone_number_id ───────────
+async function resolveQueueForWaba(phoneNumberId: string): Promise<{ id: string; client_id: string; cod_agent: string | null } | null> {
+  try {
+    const { data, error } = await supabase
+      .from('queues')
+      .select('id, client_id, cod_agent')
+      .eq('channel_type', 'waba')
+      .eq('waba_number_id', phoneNumberId)
+      .eq('is_active', true)
+      .eq('is_deleted', false)
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return null;
+    return { id: data.id, client_id: String(data.client_id), cod_agent: data.cod_agent ? String(data.cod_agent) : null };
+  } catch (err) {
+    console.error('[resolveQueueForWaba] Exception:', err);
+    return null;
+  }
+}
+
 // ─── Resolve cod_agent + client_id from phone_number_id ──────────
 async function resolveAgent(phoneNumberId: string): Promise<{ cod_agent: string; client_id: string } | null> {
   try {
