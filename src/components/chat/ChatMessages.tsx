@@ -40,7 +40,21 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
   const isInitialLoad = useRef(true);
   const prevScrollHeight = useRef(0);
   
-  const contactMessages = messages[contactId] || [];
+  const allContactMessages = messages[contactId] || [];
+
+  // Internal notes are scoped per conversation: hide notes that belong to a
+  // different conversation than the one currently selected. Legacy notes
+  // (without a conversation_id) remain visible to avoid hiding old data.
+  const contactMessages = useMemo(() => {
+    const currentConvId = selectedConversation?.id ?? null;
+    return allContactMessages.filter((m: any) => {
+      const isNote = !!(m?.metadata?.internal_note ?? m?.internal_note);
+      if (!isNote) return true;
+      const noteConvId = m?.conversation_id ?? m?.metadata?.conversation_id ?? null;
+      if (!noteConvId) return true; // legacy note → keep
+      return currentConvId ? noteConvId === currentConvId : true;
+    });
+  }, [allContactMessages, selectedConversation?.id]);
 
   // Load conversation history when conversation changes
   useEffect(() => {
