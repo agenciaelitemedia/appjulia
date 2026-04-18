@@ -234,6 +234,9 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
     );
   }
 
+  // Block entire input bar until conversation is claimed (notes still allowed)
+  const inputBlocked = showClaimBanner;
+
   return (
     <div className="border-t bg-background">
       {/* Claim banner — visible when conversation is active but not assigned to current user */}
