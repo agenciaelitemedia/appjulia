@@ -34,7 +34,10 @@ Deno.serve(async (req) => {
     }
 
     // Build storage path: {clientId}/{contactId}/{timestamp}_{fileName}
-    const ext = mimetype.split("/")[1]?.split(";")[0] || "bin";
+    // Strip codec parameters (e.g. "audio/ogg;codecs=opus" → "audio/ogg").
+    // Supabase Storage rejects MIME types with parameters.
+    const cleanMime = String(mimetype).split(";")[0].trim();
+    const ext = cleanMime.split("/")[1] || "bin";
     const safeName = (fileName || `media_${Date.now()}`).replace(/[^a-zA-Z0-9._-]/g, "_");
     const timestamp = Date.now();
     const storagePath = `${clientId || "unknown"}/${contactId || "general"}/${timestamp}_${safeName}.${ext}`;
@@ -43,7 +46,7 @@ Deno.serve(async (req) => {
     const { data, error } = await supabase.storage
       .from("chat-media")
       .upload(storagePath, bytes, {
-        contentType: mimetype,
+        contentType: cleanMime,
         upsert: false,
       });
 
