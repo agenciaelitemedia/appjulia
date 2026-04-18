@@ -25,6 +25,13 @@ interface QueueWizardDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+type WabaPhoneNumber = {
+  id: string;
+  display_phone_number: string;
+  verified_name: string;
+  quality_rating: string;
+};
+
 export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps) {
   const { user } = useAuth();
   const [step, setStep] = useState(1);
@@ -33,8 +40,14 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
   const [queueName, setQueueName] = useState('');
   // WABA-specific
   const [wabaNumberId, setWabaNumberId] = useState('');
+  const [wabaNumbers, setWabaNumbers] = useState<WabaPhoneNumber[]>([]);
+  const [loadingNumbers, setLoadingNumbers] = useState(false);
+  const [numbersError, setNumbersError] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testOk, setTestOk] = useState<boolean | null>(null);
 
   const { data: allProviders = [] } = useQueueProviders();
+  const { createProvider } = useQueueProviderMutations();
   const { createQueue } = useQueueMutations();
 
   // Auto-generate UaZapi instance name
@@ -58,6 +71,9 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
       setSelectedProviderId('');
       setQueueName('');
       setWabaNumberId('');
+      setWabaNumbers([]);
+      setNumbersError(null);
+      setTestOk(null);
     }
   }, [open]);
 
@@ -68,7 +84,80 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
     } else {
       setSelectedProviderId('');
     }
+    setWabaNumberId('');
+    setWabaNumbers([]);
+    setTestOk(null);
   }, [selectedType, filteredProviders.length]);
+
+  // Load WABA phone numbers when provider selected
+  useEffect(() => {
+    if (selectedType !== 'waba' || !selectedProvider?.waba_business_id || !selectedProvider?.waba_token) {
+      setWabaNumbers([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingNumbers(true);
+    setNumbersError(null);
+    supabase.functions
+      .invoke('waba-admin', {
+        body: {
+          action: 'list_phone_numbers',
+          wabaBusinessId: selectedProvider.waba_business_id,
+          accessToken: selectedProvider.waba_token,
+        },
+      })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error || !data?.success) {
+          setNumbersError(data?.error || error?.message || 'Falha ao listar números');
+          setWabaNumbers([]);
+        } else {
+          setWabaNumbers(data.numbers || []);
+          if (data.numbers?.length === 1) setWabaNumberId(data.numbers[0].id);
+        }
+      })
+      .finally(() => { if (!cancelled) setLoadingNumbers(false); });
+    return () => { cancelled = true; };
+  }, [selectedType, selectedProvider?.waba_business_id, selectedProvider?.waba_token]);
+
+  const handleTestConnection = async () => {
+    if (!selectedProvider?.waba_token || !wabaNumberId) return;
+    setTesting(true);
+    setTestOk(null);
+    const { data, error } = await supabase.functions.invoke('waba-admin', {
+      body: {
+        action: 'test_credentials',
+        accessToken: selectedProvider.waba_token,
+        phoneNumberId: wabaNumberId,
+      },
+    });
+    setTesting(false);
+    if (error || !data?.success) {
+      setTestOk(false);
+      toast.error(`Falha: ${data?.error || error?.message || 'erro desconhecido'}`);
+    } else {
+      setTestOk(true);
+      toast.success(`Conexão OK — ${data.phone} (${data.verified_name || 'sem nome'})`);
+    }
+  };
+
+  const handleQuickCreateWabaProvider = (result: { accessToken: string; wabaBusinessId: string }) => {
+    createProvider.mutate(
+      {
+        provider_type: 'waba',
+        name: `WABA ${result.wabaBusinessId.slice(-6)}`,
+        is_active: true,
+        waba_business_id: result.wabaBusinessId,
+        waba_token: result.accessToken,
+      } as Parameters<typeof createProvider.mutate>[0],
+      {
+        onSuccess: () => toast.success('Provedor WABA criado — selecione na lista'),
+      }
+    );
+  };
+
+  const qualityColor = (rating: string) =>
+    rating === 'GREEN' ? 'bg-emerald-500' : rating === 'YELLOW' ? 'bg-yellow-500' : rating === 'RED' ? 'bg-red-500' : 'bg-muted-foreground';
 
   const canGoStep2 = !!selectedType;
   const canGoStep3 = selectedType === 'webchat'
