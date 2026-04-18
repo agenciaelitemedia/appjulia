@@ -64,7 +64,7 @@ export function ChatList() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-background overflow-hidden">
+    <div className="h-full w-full min-w-0 flex flex-col bg-background overflow-hidden">
       {/* Header - Helena style */}
       <div className="border-b">
         {/* Status pills row */}
