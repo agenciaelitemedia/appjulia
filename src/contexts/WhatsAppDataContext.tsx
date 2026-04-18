@@ -65,7 +65,11 @@ interface ExtendedContextValue extends ChatContextValue {
     contactId: string,
     text: string,
     senderName: string,
-    options?: { team?: Array<{ id: number | string; name: string }>; byId?: string }
+    options?: {
+      team?: Array<{ id: number | string; name: string }>;
+      byId?: string;
+      noteType?: 'info' | 'question' | 'urgent';
+    }
   ) => Promise<void>;
 
   // Contact detail panel
