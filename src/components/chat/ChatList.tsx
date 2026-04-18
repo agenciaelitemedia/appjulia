@@ -348,7 +348,9 @@ export function ChatList() {
                 .filter(c => c.contact_id === contact.id)
                 .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
               const conv = contactConvs[0];
-              const convQueue = conv?.queue_id ? activeQueues.find(q => q.id === conv.queue_id) : undefined;
+              // Fallback: if current conversation has no queue, look for the most recent prior conversation that has one
+              const queueIdToShow = conv?.queue_id || contactConvs.find(c => c.queue_id)?.queue_id;
+              const convQueue = queueIdToShow ? activeQueues.find(q => q.id === queueIdToShow) : undefined;
               return (
                 <ChatContactItem
                   key={contact.id}
