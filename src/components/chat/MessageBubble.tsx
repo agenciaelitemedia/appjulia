@@ -427,21 +427,48 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
     // Internal note styling
     if (isInternalNote) {
       const senderName = (message.metadata as any)?.sender_name;
+      const noteType = ((message.metadata as any)?.note_type || 'info') as 'info' | 'question' | 'urgent';
+      const noteStyles = {
+        info: {
+          container: 'bg-blue-50 dark:bg-blue-900/20 border-blue-300/50 dark:border-blue-700/40',
+          icon: 'text-blue-600 dark:text-blue-400',
+          label: 'text-blue-700 dark:text-blue-300',
+          body: 'text-blue-900 dark:text-blue-100',
+          time: 'text-blue-500/70',
+          title: 'Nota Informativa',
+        },
+        question: {
+          container: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-400/60 dark:border-yellow-600/40',
+          icon: 'text-yellow-700 dark:text-yellow-400',
+          label: 'text-yellow-800 dark:text-yellow-300',
+          body: 'text-yellow-900 dark:text-yellow-100',
+          time: 'text-yellow-600/70',
+          title: 'Nota de Dúvida',
+        },
+        urgent: {
+          container: 'bg-red-50 dark:bg-red-900/20 border-red-400/60 dark:border-red-600/40',
+          icon: 'text-red-600 dark:text-red-400',
+          label: 'text-red-700 dark:text-red-300',
+          body: 'text-red-900 dark:text-red-100',
+          time: 'text-red-500/70',
+          title: 'Nota de Urgência',
+        },
+      }[noteType];
       return (
         <div ref={ref} className="flex justify-center px-4">
-          <div className="max-w-[85%] w-full rounded-lg px-3 py-2 shadow-sm bg-blue-50 dark:bg-blue-900/20 border border-blue-300/50 dark:border-blue-700/40">
+          <div className={cn('max-w-[85%] w-full rounded-lg px-3 py-2 shadow-sm border', noteStyles.container)}>
             <div className="flex items-center gap-1.5 mb-1">
-              <StickyNoteIcon className="h-3 w-3 text-blue-600 dark:text-blue-400" />
-              <span className="text-[10px] font-semibold text-blue-700 dark:text-blue-300">
-                Nota Interna {senderName ? `— ${senderName}` : ''}
+              <StickyNoteIcon className={cn('h-3 w-3', noteStyles.icon)} />
+              <span className={cn('text-[10px] font-semibold', noteStyles.label)}>
+                {noteStyles.title} {senderName ? `— ${senderName}` : ''}
               </span>
             </div>
             {message.text && (
-              <p className="text-sm whitespace-pre-wrap break-words text-blue-900 dark:text-blue-100">
+              <p className={cn('text-sm whitespace-pre-wrap break-words', noteStyles.body)}>
                 {formatWhatsAppText(message.text)}
               </p>
             )}
-            <div className="flex items-center justify-end gap-1 mt-1 text-blue-500/70">
+            <div className={cn('flex items-center justify-end gap-1 mt-1', noteStyles.time)}>
               <span className="text-[10px]">
                 {format(new Date(message.timestamp), 'HH:mm')}
               </span>

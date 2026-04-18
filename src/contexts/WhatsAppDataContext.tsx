@@ -65,7 +65,11 @@ interface ExtendedContextValue extends ChatContextValue {
     contactId: string,
     text: string,
     senderName: string,
-    options?: { team?: Array<{ id: number | string; name: string }>; byId?: string }
+    options?: {
+      team?: Array<{ id: number | string; name: string }>;
+      byId?: string;
+      noteType?: 'info' | 'question' | 'urgent';
+    }
   ) => Promise<void>;
 
   // Contact detail panel
@@ -510,8 +514,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     contactId: string,
     text: string,
     senderName: string,
-    options?: { team?: Array<{ id: number | string; name: string }>; byId?: string }
+    options?: {
+      team?: Array<{ id: number | string; name: string }>;
+      byId?: string;
+      noteType?: 'info' | 'question' | 'urgent';
+    }
   ) => {
+    const noteType = options?.noteType || 'info';
     if (!clientId) return;
 
     const noteId = crypto.randomUUID();
@@ -540,9 +549,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       from_me: true,
       status: 'sent',
       internal_note: true,
+      note_type: noteType,
       sender_name: senderName,
       timestamp: noteMessage.timestamp,
-    });
+    } as any);
 
     // Persist @mentions if team list provided and we have a conversation
     if (conv && options?.team && options.team.length > 0) {
@@ -563,7 +573,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
     const noteWithMeta = {
       ...noteMessage,
-      metadata: { ...noteMessage.metadata, internal_note: true, sender_name: senderName },
+      metadata: { ...noteMessage.metadata, internal_note: true, sender_name: senderName, note_type: noteType },
     };
 
     knownMessageIds.current.add(noteId);
@@ -601,6 +611,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           metadata: {
             ...(m.metadata || {}),
             internal_note: m.internal_note,
+            note_type: (m as any).note_type,
             sender_name: m.sender_name || m.metadata?.sender_name,
           },
         })) as ChatMessage[];
@@ -1235,6 +1246,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             metadata: {
               ...(newMessage.metadata || {}),
               internal_note: newMessage.internal_note,
+              note_type: (newMessage as any).note_type,
               sender_name: newMessage.sender_name || newMessage.metadata?.sender_name,
             },
           };

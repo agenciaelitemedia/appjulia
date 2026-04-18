@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap, Calendar, Type } from 'lucide-react';
+import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap, Calendar, Type, Info, HelpCircle, AlertTriangle } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -37,6 +37,7 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
   const [isClaiming, setIsClaiming] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [noteMode, setNoteMode] = useState(false);
+  const [noteType, setNoteType] = useState<'info' | 'question' | 'urgent'>('info');
   const [showQuickMessages, setShowQuickMessages] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [showScheduledList, setShowScheduledList] = useState(false);
@@ -114,8 +115,11 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
           contactId,
           messageText,
           user?.name || 'Atendente',
-          { team, byId: user?.id ? String(user.id) : undefined }
+          { team, byId: user?.id ? String(user.id) : undefined, noteType }
         );
+        // Sair do modo nota após envio bem-sucedido
+        setNoteMode(false);
+        setNoteType('info');
       } else {
         await sendMessage(contactId, messageText, replyToId);
         onCancelReply?.();
@@ -234,8 +238,8 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
     );
   }
 
-  // Block entire input bar until conversation is claimed (notes still allowed)
-  const inputBlocked = showClaimBanner;
+  // (Lock total removido — apenas o botão de Nota Interna permanece ativo
+  // quando a conversa não está assumida; cada controle individual usa `disabled={!canSend}`.)
 
   return (
     <div className="border-t bg-background">
@@ -256,17 +260,25 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
         </div>
       )}
       {/* Note mode indicator */}
-      {noteMode && (
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border-b border-blue-500/20">
-          <StickyNote className="h-3.5 w-3.5 text-blue-600" />
-          <span className="text-xs font-medium text-blue-700 dark:text-blue-400 flex-1">
-            Nota Interna — não será enviada ao contato
-          </span>
-          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setNoteMode(false)}>
-            <X className="h-3 w-3" />
-          </Button>
-        </div>
-      )}
+      {noteMode && (() => {
+        const noteStyles = {
+          info: { bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: 'text-blue-600', text: 'text-blue-700 dark:text-blue-400', title: 'Nota Informativa' },
+          question: { bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', icon: 'text-yellow-700', text: 'text-yellow-800 dark:text-yellow-400', title: 'Nota de Dúvida' },
+          urgent: { bg: 'bg-red-500/10', border: 'border-red-500/30', icon: 'text-red-600', text: 'text-red-700 dark:text-red-400', title: 'Nota de Urgência' },
+        }[noteType];
+        const NoteIcon = noteType === 'question' ? HelpCircle : noteType === 'urgent' ? AlertTriangle : StickyNote;
+        return (
+          <div className={cn('flex items-center gap-2 px-3 py-1.5 border-b', noteStyles.bg, noteStyles.border)}>
+            <NoteIcon className={cn('h-3.5 w-3.5', noteStyles.icon)} />
+            <span className={cn('text-xs font-medium flex-1', noteStyles.text)}>
+              {noteStyles.title} — não será enviada ao contato
+            </span>
+            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => { setNoteMode(false); setNoteType('info'); }}>
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        );
+      })()}
 
       {/* Reply indicator */}
       {replyToId && (
@@ -295,7 +307,7 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
         <MessagePreview text={text} />
       )}
 
-      <div className={cn('p-3', inputBlocked && 'opacity-50 pointer-events-none select-none')} aria-disabled={inputBlocked}>
+      <div className="p-3">
         <div className="flex items-end gap-2">
           {/* Emoji picker */}
           <Popover>
@@ -401,19 +413,38 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
             </Button>
           )}
 
-          {/* Note toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(
-              'h-9 w-9 flex-shrink-0',
-              noteMode && 'bg-blue-500 text-white hover:bg-blue-600 hover:text-white'
-            )}
-            onClick={() => setNoteMode(!noteMode)}
-            title="Nota interna"
-          >
-            <StickyNote className="h-5 w-5" />
-          </Button>
+          {/* Note type menu — always available, even when conversation is not claimed */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  'h-9 w-9 flex-shrink-0',
+                  noteMode && noteType === 'info' && 'bg-blue-500 text-white hover:bg-blue-600 hover:text-white',
+                  noteMode && noteType === 'question' && 'bg-yellow-500 text-white hover:bg-yellow-600 hover:text-white',
+                  noteMode && noteType === 'urgent' && 'bg-red-500 text-white hover:bg-red-600 hover:text-white',
+                )}
+                title="Nota interna"
+              >
+                <StickyNote className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="start">
+              <DropdownMenuItem onClick={() => { setNoteMode(true); setNoteType('info'); setTimeout(() => textareaRef.current?.focus(), 0); }}>
+                <Info className="h-4 w-4 mr-2 text-blue-600" />
+                Informativa
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setNoteMode(true); setNoteType('question'); setTimeout(() => textareaRef.current?.focus(), 0); }}>
+                <HelpCircle className="h-4 w-4 mr-2 text-yellow-600" />
+                Dúvida
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setNoteMode(true); setNoteType('urgent'); setTimeout(() => textareaRef.current?.focus(), 0); }}>
+                <AlertTriangle className="h-4 w-4 mr-2 text-red-600" />
+                Urgência
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Hidden file input */}
           <input
