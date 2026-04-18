@@ -14,6 +14,26 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 const VERIFY_TOKEN = Deno.env.get('META_WEBHOOK_VERIFY_TOKEN') || 'julia_meta_verify_token_test_123';
 const N8N_BASE_URL = 'https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start';
 
+// ─── Resolve queue (preferred) by waba phone_number_id ───────────
+async function resolveQueueForWaba(phoneNumberId: string): Promise<{ id: string; client_id: string } | null> {
+  try {
+    const { data, error } = await supabase
+      .from('queues')
+      .select('id, client_id')
+      .eq('channel_type', 'waba')
+      .eq('waba_number_id', phoneNumberId)
+      .eq('is_active', true)
+      .eq('is_deleted', false)
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return null;
+    return { id: data.id, client_id: String(data.client_id) };
+  } catch (err) {
+    console.error('[resolveQueueForWaba] Exception:', err);
+    return null;
+  }
+}
+
 // ─── Resolve cod_agent + client_id from phone_number_id ──────────
 async function resolveAgent(phoneNumberId: string): Promise<{ cod_agent: string; client_id: string } | null> {
   try {
@@ -56,19 +76,24 @@ async function persistToChat(
   message: any,
   msgType: string,
   phoneNumberId: string,
+  queueInfo: { id: string; client_id: string } | null,
 ) {
   try {
+    // Prefer queue's client_id + queue.id as channel_source (UUID).
+    const effectiveClientId = queueInfo?.client_id || agentInfo.client_id;
+    const effectiveChannelSource = queueInfo?.id || phoneNumberId;
+
     // 1. Upsert chat_contacts
     const { data: contactData, error: contactError } = await supabase
       .from('chat_contacts')
       .upsert(
         {
           phone: from,
-          client_id: agentInfo.client_id,
+          client_id: effectiveClientId,
           cod_agent: agentInfo.cod_agent,
           name: contactName || from,
           channel_type: 'whatsapp_waba',
-          channel_source: phoneNumberId,
+          channel_source: effectiveChannelSource,
           last_message_at: new Date().toISOString(),
           last_message_text: message.text?.body || message.type || '',
           unread_count: 1,
@@ -78,14 +103,15 @@ async function persistToChat(
       .select('id')
       .single();
 
+    let contactId: string | null = null;
+
     if (contactError) {
       console.error('[persistToChat] contact upsert error:', contactError.message);
-      // Try to fetch existing contact
       const { data: existing } = await supabase
         .from('chat_contacts')
         .select('id')
         .eq('phone', from)
-        .eq('client_id', agentInfo.client_id)
+        .eq('client_id', effectiveClientId)
         .limit(1)
         .single();
 
@@ -94,25 +120,58 @@ async function persistToChat(
         return null;
       }
 
-      // Update last message info
       await supabase
         .from('chat_contacts')
         .update({
           last_message_at: new Date().toISOString(),
           last_message_text: message.text?.body || message.type || '',
           cod_agent: agentInfo.cod_agent,
+          channel_source: effectiveChannelSource,
+          channel_type: 'whatsapp_waba',
         })
         .eq('id', existing.id);
 
-      return await persistMessage(existing.id, agentInfo, message, msgType);
+      contactId = existing.id;
+    } else if (contactData?.id) {
+      contactId = contactData.id;
     }
 
-    if (!contactData?.id) {
-      console.error('[persistToChat] No contact id returned');
+    if (!contactId) {
+      console.error('[persistToChat] No contact id resolved');
       return null;
     }
 
-    return await persistMessage(contactData.id, agentInfo, message, msgType);
+    // 2. Ensure an open/pending conversation exists with the right queue_id
+    if (queueInfo) {
+      const { data: openConv } = await supabase
+        .from('chat_conversations')
+        .select('id, queue_id')
+        .eq('contact_id', contactId)
+        .eq('client_id', effectiveClientId)
+        .in('status', ['pending', 'open'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!openConv) {
+        await supabase.from('chat_conversations').insert({
+          contact_id: contactId,
+          client_id: effectiveClientId,
+          queue_id: queueInfo.id,
+          channel: 'whatsapp_waba',
+          status: 'pending',
+          priority: 'normal',
+          protocol: '',
+        });
+      } else if (!openConv.queue_id) {
+        await supabase
+          .from('chat_conversations')
+          .update({ queue_id: queueInfo.id })
+          .eq('id', openConv.id);
+      }
+    }
+
+    return await persistMessage(contactId, { ...agentInfo, client_id: effectiveClientId }, message, msgType);
   } catch (err) {
     console.error('[persistToChat] Exception:', err);
     return null;
@@ -324,11 +383,13 @@ serve(async (req) => {
         }
       }
 
-      // Resolve agents for all phone_number_ids
+      // Resolve agents and queues for all phone_number_ids
       const agentMap = new Map<string, { cod_agent: string; client_id: string }>();
+      const queueMap = new Map<string, { id: string; client_id: string }>();
       for (const pnId of phoneNumberIds) {
-        const info = await resolveAgent(pnId);
+        const [info, queue] = await Promise.all([resolveAgent(pnId), resolveQueueForWaba(pnId)]);
         if (info) agentMap.set(pnId, info);
+        if (queue) queueMap.set(pnId, queue);
       }
 
       for (const entry of body.entry || []) {
@@ -338,7 +399,12 @@ serve(async (req) => {
           if (change.field !== 'messages') continue;
           const value = change.value;
           const phoneNumberId = value?.metadata?.phone_number_id;
-          const agentInfo = phoneNumberId ? agentMap.get(phoneNumberId) : null;
+          const queueInfo = phoneNumberId ? queueMap.get(phoneNumberId) || null : null;
+          const baseAgent = phoneNumberId ? agentMap.get(phoneNumberId) || null : null;
+          // Prefer queue's client_id when queue exists; fallback to agent lookup
+          const agentInfo = queueInfo
+            ? { cod_agent: baseAgent?.cod_agent || '', client_id: queueInfo.client_id }
+            : baseAgent;
 
           // Process messages
           for (const message of value?.messages || []) {
@@ -378,7 +444,7 @@ serve(async (req) => {
 
             // ── Persist to chat tables ──
             if (agentInfo) {
-              persistToChat(agentInfo, from, contactName, message, msgType, phoneNumberId)
+              persistToChat(agentInfo, from, contactName, message, msgType, phoneNumberId, queueInfo)
                 .catch(err => console.error('[persistToChat] background error:', err));
             }
           }
