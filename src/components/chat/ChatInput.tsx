@@ -260,17 +260,25 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
         </div>
       )}
       {/* Note mode indicator */}
-      {noteMode && (
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border-b border-blue-500/20">
-          <StickyNote className="h-3.5 w-3.5 text-blue-600" />
-          <span className="text-xs font-medium text-blue-700 dark:text-blue-400 flex-1">
-            Nota Interna — não será enviada ao contato
-          </span>
-          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setNoteMode(false)}>
-            <X className="h-3 w-3" />
-          </Button>
-        </div>
-      )}
+      {noteMode && (() => {
+        const noteStyles = {
+          info: { bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: 'text-blue-600', text: 'text-blue-700 dark:text-blue-400', title: 'Nota Informativa' },
+          question: { bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', icon: 'text-yellow-700', text: 'text-yellow-800 dark:text-yellow-400', title: 'Nota de Dúvida' },
+          urgent: { bg: 'bg-red-500/10', border: 'border-red-500/30', icon: 'text-red-600', text: 'text-red-700 dark:text-red-400', title: 'Nota de Urgência' },
+        }[noteType];
+        const NoteIcon = noteType === 'question' ? HelpCircle : noteType === 'urgent' ? AlertTriangle : StickyNote;
+        return (
+          <div className={cn('flex items-center gap-2 px-3 py-1.5 border-b', noteStyles.bg, noteStyles.border)}>
+            <NoteIcon className={cn('h-3.5 w-3.5', noteStyles.icon)} />
+            <span className={cn('text-xs font-medium flex-1', noteStyles.text)}>
+              {noteStyles.title} — não será enviada ao contato
+            </span>
+            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => { setNoteMode(false); setNoteType('info'); }}>
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        );
+      })()}
 
       {/* Reply indicator */}
       {replyToId && (
