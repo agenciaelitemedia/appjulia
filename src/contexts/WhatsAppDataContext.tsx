@@ -115,17 +115,15 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // Load all active queues for this client (used to resolve effective queue per-contact)
   const { data: allQueues = [] } = useQueues(false);
 
-  // Resolve effective queue for a given contact:
-  // 1) if a queue is selected globally, use it
-  // 2) else, look up by contact.channel_source (= queue id)
-  // 3) else, look up by active conversation.queue_id
-  const getEffectiveQueue = useCallback((contactId: string): SelectedQueue | null => {
-    if (selectedQueue) return selectedQueue;
-    const contact = contacts.find(c => c.id === contactId);
-    const conv = conversations.find(c => c.contact_id === contactId && ['pending', 'open'].includes(c.status));
-    const queueId = contact?.channel_source || conv?.queue_id;
-    if (!queueId) return null;
-    const q = allQueues.find((x: Queue) => x.id === queueId);
+  // Resolve effective queue for a given contact — source of truth = the conversation itself.
+  // The top-bar selectedQueue filter is for LISTING only; operations always use the contact's real queue.
+  // Priority:
+  // 1) Active conversation (in-memory) for this contact → queue_id
+  // 2) Most recent conversation in DB with queue_id (any status)
+  // 3) contact.channel_source
+  // 4) Any active queue matching contact.channel_type
+  // 5) Last resort: selectedQueue (only when contact is brand-new with no conversation)
+  const buildSelectedQueue = useCallback((q: Queue | undefined | null): SelectedQueue | null => {
     if (!q) return null;
     return {
       id: q.id,
@@ -136,7 +134,54 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       evo_apikey: q.evo_apikey,
       evo_instance: q.evo_instance,
     };
-  }, [selectedQueue, contacts, conversations, allQueues]);
+  }, []);
+
+  const getEffectiveQueue = useCallback(async (contactId: string): Promise<SelectedQueue | null> => {
+    // 1) in-memory active conversation
+    const activeConv = conversations.find(
+      c => c.contact_id === contactId && ['pending', 'open'].includes(c.status) && c.queue_id
+    );
+    if (activeConv?.queue_id) {
+      const q = allQueues.find((x: Queue) => x.id === activeConv.queue_id);
+      if (q) return buildSelectedQueue(q);
+    }
+
+    // 2) most recent conversation in DB with queue_id
+    if (clientId) {
+      try {
+        const { data: priorConv } = await supabase
+          .from('chat_conversations')
+          .select('queue_id')
+          .eq('contact_id', contactId)
+          .eq('client_id', clientId)
+          .not('queue_id', 'is', null)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (priorConv?.queue_id) {
+          const q = allQueues.find((x: Queue) => x.id === priorConv.queue_id);
+          if (q) return buildSelectedQueue(q);
+        }
+      } catch { /* fall through */ }
+    }
+
+    // 3) contact.channel_source
+    const contact = contacts.find(c => c.id === contactId);
+    if (contact?.channel_source) {
+      const q = allQueues.find((x: Queue) => x.id === contact.channel_source);
+      if (q) return buildSelectedQueue(q);
+    }
+
+    // 4) any active queue matching contact's channel_type
+    if (contact?.channel_type) {
+      const wantedChannel = contact.channel_type === 'whatsapp_waba' ? 'waba' : 'uazapi';
+      const q = allQueues.find((x: Queue) => x.channel_type === wantedChannel);
+      if (q) return buildSelectedQueue(q);
+    }
+
+    // 5) last resort
+    return selectedQueue;
+  }, [conversations, allQueues, contacts, clientId, selectedQueue, buildSelectedQueue]);
 
   // ============================================
   // Load Contacts from Supabase (filtered by queue via channel_source)
@@ -219,53 +264,62 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       }
 
       // ── Resolve queue_id (every conversation MUST have a queue) ──
-      // Priority: 1) selected queue, 2) contact.channel_source, 3) contact's prior conversation, 4) any active queue matching channel
-      let resolvedQueueId: string | null = currentQueueId || null;
-      let resolvedChannelType: string | undefined = selectedQueue?.channel_type;
+      // Priority: 1) prior conversation with queue_id, 2) contact.channel_source,
+      // 3) any active queue matching channel_type, 4) selectedQueue (last resort)
+      let resolvedQueueId: string | null = null;
+      let resolvedChannelType: string | undefined;
 
+      // 1) prior conversation with queue_id (any status)
+      const { data: priorConv } = await supabase
+        .from('chat_conversations')
+        .select('queue_id, channel')
+        .eq('contact_id', contactId)
+        .eq('client_id', clientId)
+        .not('queue_id', 'is', null)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (priorConv?.queue_id) {
+        resolvedQueueId = priorConv.queue_id;
+      }
+
+      // 2) contact.channel_source
+      let contactRow: { channel_source: string | null; channel_type: string | null } | null = null;
       if (!resolvedQueueId) {
-        const { data: contactRow } = await supabase
+        const { data } = await supabase
           .from('chat_contacts')
           .select('channel_source, channel_type')
           .eq('id', contactId)
           .maybeSingle();
-
+        contactRow = data as any;
         if (contactRow?.channel_source) {
-          // channel_source stores the originating queue_id
           resolvedQueueId = contactRow.channel_source;
         }
+      }
 
-        if (!resolvedQueueId) {
-          const { data: priorConv } = await supabase
-            .from('chat_conversations')
-            .select('queue_id, channel')
-            .eq('contact_id', contactId)
-            .eq('client_id', clientId)
-            .not('queue_id', 'is', null)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          if (priorConv?.queue_id) resolvedQueueId = priorConv.queue_id;
+      // 3) any active queue matching the contact's channel_type
+      if (!resolvedQueueId && contactRow?.channel_type) {
+        const wantedChannel = contactRow.channel_type === 'whatsapp_waba' ? 'waba' : 'uazapi';
+        const { data: anyQueue } = await supabase
+          .from('queues')
+          .select('id, channel_type')
+          .eq('client_id', clientId)
+          .eq('channel_type', wantedChannel)
+          .eq('is_active', true)
+          .eq('is_deleted', false)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        if (anyQueue?.id) {
+          resolvedQueueId = anyQueue.id;
+          resolvedChannelType = anyQueue.channel_type;
         }
+      }
 
-        // Last resort: pick any active queue matching the contact's channel_type
-        if (!resolvedQueueId && contactRow?.channel_type) {
-          const wantedChannel = contactRow.channel_type === 'whatsapp_waba' ? 'waba' : 'uazapi';
-          const { data: anyQueue } = await supabase
-            .from('queues')
-            .select('id, channel_type')
-            .eq('client_id', clientId)
-            .eq('channel_type', wantedChannel)
-            .eq('is_active', true)
-            .eq('is_deleted', false)
-            .order('created_at', { ascending: true })
-            .limit(1)
-            .maybeSingle();
-          if (anyQueue?.id) {
-            resolvedQueueId = anyQueue.id;
-            resolvedChannelType = anyQueue.channel_type;
-          }
-        }
+      // 4) last resort: globally selected queue (only for brand-new contacts)
+      if (!resolvedQueueId && currentQueueId) {
+        resolvedQueueId = currentQueueId;
+        resolvedChannelType = selectedQueue?.channel_type;
       }
 
       if (!resolvedQueueId) {
@@ -581,7 +635,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   ) => {
     const contact = contacts.find(c => c.id === contactId);
     if (!contact) return;
-    const queue = getEffectiveQueue(contactId);
+    const queue = await getEffectiveQueue(contactId);
     if (!queue) {
       toast.error('Sem fila ativa para este contato');
       return;
@@ -729,7 +783,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   ) => {
     const contact = contacts.find(c => c.id === contactId);
     if (!contact) return;
-    const queue = getEffectiveQueue(contactId);
+    const queue = await getEffectiveQueue(contactId);
     if (!queue) {
       toast.error('Sem fila ativa para este contato');
       return;
@@ -888,7 +942,22 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const downloadMedia = useCallback(async (messageId: string): Promise<string | undefined> => {
     if (!messageId) return undefined;
     try {
-      const queueId = selectedQueue?.id;
+      // Resolve the queue from the message's conversation (source of truth),
+      // not from the UI's selected queue filter.
+      let queueId: string | undefined;
+      try {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(messageId);
+        const q = supabase
+          .from('chat_messages')
+          .select('conversation_id, chat_conversations:conversation_id(queue_id)')
+          .limit(1);
+        const { data: msgRow } = await (isUuid
+          ? q.eq('id', messageId).maybeSingle()
+          : q.eq('message_id', messageId).maybeSingle());
+        const convQueueId = (msgRow as any)?.chat_conversations?.queue_id;
+        if (convQueueId) queueId = convQueueId;
+      } catch { /* fall through */ }
+      if (!queueId) queueId = selectedQueue?.id;
       const { data, error } = await supabase.functions.invoke('chat-media-download', {
         body: { messageId, queueId },
       });
@@ -919,15 +988,16 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     if (!contact || contact.unread_count === 0) return;
 
     try {
-      // Mark read on UaZapi server if queue is uazapi
-      if (selectedQueue?.channel_type === 'uazapi' && selectedQueue.evo_apikey) {
+      const queue = await getEffectiveQueue(contactId);
+      // Mark read on UaZapi server when applicable
+      if (queue?.channel_type === 'uazapi' && queue.evo_apikey && queue.evo_url) {
         try {
           await supabase.functions.invoke('uazapi-proxy', {
             body: {
               method: 'POST',
               endpoint: '/chat/markRead',
-              token: selectedQueue.evo_apikey,
-              baseUrl: selectedQueue.evo_url,
+              token: queue.evo_apikey,
+              baseUrl: queue.evo_url,
               body: { number: contact.phone, read: true },
             },
           });
@@ -945,7 +1015,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     } catch (error) {
       console.error('Error marking as read:', error);
     }
-  }, [contacts, selectedQueue]);
+  }, [contacts, getEffectiveQueue]);
 
   // ============================================
   // Select Contact (no auto-assign — user must click "Assumir")
