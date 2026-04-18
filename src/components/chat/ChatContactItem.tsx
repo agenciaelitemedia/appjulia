@@ -138,7 +138,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
     <button
       onClick={onClick}
       className={cn(
-        'w-full flex items-start gap-3 px-4 py-3 text-left transition-colors border-l-3',
+        'w-full max-w-full flex items-start gap-3 px-3 py-3 text-left transition-colors border-l-[3px] min-w-0 overflow-hidden',
         isSelected
           ? 'bg-accent/40 border-l-primary'
           : 'border-l-transparent hover:bg-accent/20'
@@ -146,7 +146,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
     >
       {/* Avatar with channel overlay */}
       <div className="relative flex-shrink-0 mt-0.5">
-        <Avatar className="h-10 w-10">
+        <Avatar className="h-12 w-12">
           <AvatarImage src={contact.avatar} alt={contact.name} />
           <AvatarFallback className="bg-muted text-muted-foreground text-sm font-semibold">
             {contact.is_group ? <Users className="h-4 w-4" /> : initials}
@@ -156,19 +156,19 @@ export const ChatContactItem = React.memo(function ChatContactItem({
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-w-0 space-y-1">
+      <div className="flex-1 min-w-0 overflow-hidden space-y-1">
         {/* Row 1: Name (left) + time (right) */}
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 min-w-0">
           <span className={cn(
-            'font-semibold text-sm truncate',
+            'font-semibold text-sm truncate min-w-0 flex-1',
             contact.unread_count > 0 ? 'text-foreground' : 'text-foreground/80'
           )}>
             {contact.name}
           </span>
           {formattedTime && (
             <span className={cn(
-              'text-[10px] whitespace-nowrap flex-shrink-0',
-              contact.unread_count > 0 ? 'text-primary font-semibold' : 'text-muted-foreground'
+              'text-[11px] whitespace-nowrap flex-shrink-0',
+              contact.unread_count > 0 ? 'text-emerald-600 font-semibold' : 'text-muted-foreground'
             )}>
               {formattedTime}
             </span>
@@ -176,7 +176,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
         </div>
 
         {/* Row 2: Last message preview (left) + unread badge (right) */}
-        <div className="flex items-center justify-between gap-2 pr-1">
+        <div className="flex items-center justify-between gap-2 min-w-0">
           <div className={cn(
             'text-xs flex-1 min-w-0 truncate',
             contact.unread_count > 0 ? 'text-foreground/80' : 'text-muted-foreground'
@@ -184,7 +184,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             <MessagePreview text={contact.last_message_text || undefined} />
           </div>
           {contact.unread_count > 0 ? (
-            <span className="flex-shrink-0 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+            <span className="flex-shrink-0 bg-emerald-500 text-white text-[11px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 shadow-sm">
               {contact.unread_count > 99 ? '99+' : contact.unread_count}
             </span>
           ) : (
@@ -193,17 +193,23 @@ export const ChatContactItem = React.memo(function ChatContactItem({
         </div>
 
         {/* Row 3: Tags — fila → SLA → atribuído → extras */}
-        <div className="flex items-center gap-1 flex-wrap">
+        <div className="flex items-center gap-1 flex-nowrap min-w-0 overflow-hidden">
           {queueName && (
-            <Pill label={queueName.toUpperCase()} className="bg-blue-600 text-white" />
+            <span className="flex-shrink min-w-0 max-w-[110px] truncate">
+              <Pill label={queueName.toUpperCase()} className="bg-blue-600 text-white" />
+            </span>
           )}
-          {slaEvaluation && <SlaBadge evaluation={slaEvaluation} compact />}
-          <Pill
-            label={assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO'}
-            className={assignedAgentName ? 'bg-muted text-foreground' : 'bg-muted/60 text-muted-foreground'}
-          />
-          {extraBadges.map((b, i) => (
-            <Pill key={i} label={b.label} className={b.className} />
+          {slaEvaluation && <span className="flex-shrink-0"><SlaBadge evaluation={slaEvaluation} compact /></span>}
+          <span className="flex-shrink min-w-0 max-w-[110px] truncate">
+            <Pill
+              label={assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO'}
+              className={assignedAgentName ? 'bg-muted text-foreground' : 'bg-muted/60 text-muted-foreground'}
+            />
+          </span>
+          {extraBadges.slice(0, 1).map((b, i) => (
+            <span key={i} className="flex-shrink min-w-0 max-w-[100px] truncate">
+              <Pill label={b.label} className={b.className} />
+            </span>
           ))}
         </div>
       </div>

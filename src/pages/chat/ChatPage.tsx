@@ -24,7 +24,7 @@ function ChatPageContent() {
   }, []);
 
   return (
-    <div className="h-[calc(100vh-4rem)] w-full overflow-hidden -mx-4 sm:-mx-6 -mb-4 sm:-mb-6">
+    <div className="h-[calc(100dvh-4rem)] w-full overflow-hidden -m-4 lg:-m-6">
       <ChatContainer className="h-full w-full" />
       <ChatCommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>
