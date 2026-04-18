@@ -491,7 +491,7 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
                 'rounded-lg px-3 py-2',
                 message.from_me
                   ? 'bg-primary text-primary-foreground rounded-br-none'
-                  : 'bg-muted rounded-bl-none'
+                  : 'bg-card text-card-foreground border border-border/50 rounded-bl-none'
               )}
             >
               {/* Sender name (groups) */}
