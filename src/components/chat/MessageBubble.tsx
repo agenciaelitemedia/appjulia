@@ -490,7 +490,7 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
               className={cn(
                 'rounded-lg px-3 py-2',
                 message.from_me
-                  ? 'bg-primary text-primary-foreground rounded-br-none'
+                  ? 'bg-[#DCF8C6] text-foreground rounded-br-none'
                   : 'bg-card text-card-foreground border border-border/50 rounded-bl-none'
               )}
             >
@@ -524,7 +524,7 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
               {/* Timestamp and status */}
               <div className={cn(
                 'flex items-center justify-end gap-1 mt-1',
-                message.from_me ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                message.from_me ? 'text-foreground/60' : 'text-muted-foreground'
               )}>
                 <span className="text-[10px]">
                   {format(new Date(message.timestamp), 'HH:mm')}
