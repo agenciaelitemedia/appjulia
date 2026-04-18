@@ -1,17 +1,20 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, ArrowUpDown, Plus } from 'lucide-react';
+import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, ArrowUpDown, Plus, Timer, AlertTriangle, Flame } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { ChatContactItem } from './ChatContactItem';
 import { Badge } from '@/components/ui/badge';
 import { useQueues } from '@/pages/agente/filas/hooks/useQueues';
+import { useChatSlaConfigs, evaluateSla, type SlaStatus } from '@/hooks/useChatSlaConfigs';
 import type { ConversationFilterStatus } from '@/types/conversation';
 import { cn } from '@/lib/utils';
+
+type SlaFilter = 'all' | 'breached' | 'at_risk';
 
 export function ChatList() {
   const {
