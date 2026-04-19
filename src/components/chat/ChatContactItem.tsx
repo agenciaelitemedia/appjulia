@@ -57,13 +57,34 @@ function formatRelativeTime(dateStr: string): string {
 }
 
 /** Message preview with media type icon */
+function inferTypeFromJson(text: string): string | undefined {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return undefined;
+  try {
+    const parsed = JSON.parse(trimmed);
+    const obj = Array.isArray(parsed) ? parsed[0] : parsed;
+    if (!obj || typeof obj !== 'object') return 'document';
+    const url: string = (obj.URL || obj.url || obj.directPath || obj.fileURL || '').toString().toLowerCase();
+    const mime: string = (obj.mimetype || obj.mime || obj.contentType || '').toString().toLowerCase();
+    if (mime.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif)(\?|$)/.test(url)) return 'image';
+    if (mime.startsWith('video/') || /\.(mp4|mov|webm|3gp)(\?|$)/.test(url)) return 'video';
+    if (mime.startsWith('audio/') || obj.ptt || /\.(ogg|opus|mp3|m4a|wav)(\?|$)/.test(url)) return obj.ptt ? 'ptt' : 'audio';
+    if (/sticker/.test(mime) || /sticker/i.test(url)) return 'sticker';
+    if (/mmg\.whatsapp\.net|enc/.test(url)) return 'image';
+    return 'document';
+  } catch {
+    return undefined;
+  }
+}
+
 function MessagePreview({ text, type }: { text?: string; type?: string }) {
   if (!text && !type) return null;
 
   const KNOWN_MEDIA_TYPES = new Set(['image', 'video', 'audio', 'ptt', 'document', 'sticker']);
   const mediaType = type
     || (text?.match(/^\[(\w+)\]$/)?.[1])
-    || (text && KNOWN_MEDIA_TYPES.has(text.toLowerCase()) ? text.toLowerCase() : undefined);
+    || (text && KNOWN_MEDIA_TYPES.has(text.toLowerCase()) ? text.toLowerCase() : undefined)
+    || (text ? inferTypeFromJson(text) : undefined);
 
   const mediaIcons: Record<string, React.ReactNode> = {
     image: <><Camera className="h-3 w-3 text-muted-foreground inline mr-1" /> Imagem</>,
