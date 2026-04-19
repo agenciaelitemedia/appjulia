@@ -161,13 +161,15 @@ export const ChatContactItem = React.memo(function ChatContactItem({
       {/* Content */}
       <div className="flex-1 min-w-0 overflow-hidden space-y-1">
         {/* Row 1: Name (left) + time (right) */}
-        <div className="flex items-center justify-between gap-2 min-w-0">
-          <span className={cn(
-            'font-semibold text-sm truncate min-w-0 flex-1 block overflow-hidden whitespace-nowrap',
-            contact.unread_count > 0 ? 'text-foreground' : 'text-foreground/80'
-          )}>
-            {contact.name}
-          </span>
+        <div className="flex items-center justify-between gap-2 min-w-0 w-full">
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <span className={cn(
+              'block truncate font-semibold text-sm',
+              contact.unread_count > 0 ? 'text-foreground' : 'text-foreground/80'
+            )}>
+              {contact.name}
+            </span>
+          </div>
           {formattedTime && (
             <span className={cn(
               'text-[11px] whitespace-nowrap flex-shrink-0',
@@ -179,14 +181,16 @@ export const ChatContactItem = React.memo(function ChatContactItem({
         </div>
 
         {/* Row 2: Last message preview (left) + unread badge (right) */}
-        <div className="flex items-center justify-between gap-2 min-w-0 text-xs">
+        <div className="flex items-center justify-between gap-2 min-w-0 w-full text-xs">
           <div
             className={cn(
-              'flex-1 min-w-0 truncate whitespace-nowrap overflow-hidden text-[10px]',
+              'flex-1 min-w-0 overflow-hidden text-[10px]',
               contact.unread_count > 0 ? 'text-foreground/80' : 'text-muted-foreground'
             )}
           >
-            <MessagePreview text={contact.last_message_text || undefined} />
+            <span className="block truncate whitespace-nowrap">
+              <MessagePreview text={contact.last_message_text || undefined} />
+            </span>
           </div>
           {contact.unread_count > 0 ? (
             <span className="flex-shrink-0 bg-emerald-500 text-white text-[11px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 shadow-sm">
