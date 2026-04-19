@@ -3,7 +3,7 @@ import { Headset } from 'lucide-react';
 import { useInactiveLeads } from './hooks/useInactiveLeads';
 import { InactiveLeadsList } from './components/InactiveLeadsList';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
-import { AgentMultiSelectPopover } from '@/components/agents/AgentMultiSelectPopover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useJuliaAgents } from '@/pages/estrategico/hooks/useJuliaData';
 import { useCRMStages, useTeamForAgent } from '@/pages/crm/hooks/useCRMData';
 import { saveAgentCodes } from '@/hooks/usePersistedPeriod';
@@ -16,10 +16,10 @@ export default function HumanSupportPage() {
   const [selectedLead, setSelectedLead] = useState<InactiveSession | null>(null);
   const { data: teamMembers = [] } = useTeamForAgent(selectedAgents[0] ?? null);
 
-  // Pre-select all agents on load
+  // Pre-select first agent on load
   useEffect(() => {
     if (agents.length > 0 && selectedAgents.length === 0) {
-      setSelectedAgents(agents.map((a) => a.cod_agent));
+      setSelectedAgents([agents[0].cod_agent]);
     }
   }, [agents, selectedAgents.length]);
 
@@ -42,7 +42,8 @@ export default function HumanSupportPage() {
     refetch,
   } = useInactiveLeads(selectedAgents);
 
-  const handleAgentsChange = useCallback((codes: string[]) => {
+  const handleAgentChange = useCallback((code: string) => {
+    const codes = code ? [code] : [];
     setSelectedAgents(codes);
     saveAgentCodes(codes);
     setSelectedLead(null);
@@ -100,13 +101,22 @@ export default function HumanSupportPage() {
           juliaFilter={juliaFilter}
           onJuliaFilterChange={setJuliaFilter}
           agentSelect={
-            <AgentMultiSelectPopover
-              agents={agents}
-              value={selectedAgents}
-              onChange={handleAgentsChange}
-              disabled={isLoadingAgents}
-              className="w-full"
-            />
+            <Select
+              value={selectedAgents[0] ?? ''}
+              onValueChange={handleAgentChange}
+              disabled={isLoadingAgents || agents.length === 0}
+            >
+              <SelectTrigger className="w-full h-9">
+                <SelectValue placeholder="Selecione um agente" />
+              </SelectTrigger>
+              <SelectContent>
+                {agents.map((a) => (
+                  <SelectItem key={a.cod_agent} value={a.cod_agent}>
+                    [{a.cod_agent}] {a.alias || a.owner_business_name || a.owner_name || a.cod_agent}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           }
         />
       </div>
