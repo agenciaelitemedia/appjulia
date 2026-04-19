@@ -157,64 +157,66 @@ export const ChatContactItem = React.memo(function ChatContactItem({
         <ChannelOverlay channel={conversation?.channel} />
       </div>
 
-      {/* Content */}
-      <div className="flex-1 min-w-0 overflow-hidden space-y-1">
-        {/* Row 1: Name (left) + time (right) */}
-        <div className="flex items-center justify-between gap-2 min-w-0">
-          <span className={cn(
-            'font-semibold text-sm truncate min-w-0 flex-1 block overflow-hidden whitespace-nowrap',
-            contact.unread_count > 0 ? 'text-foreground' : 'text-foreground/80'
-          )}>
-            {contact.name}
-          </span>
-          {formattedTime && (
+      {/* Content: left (truncates) + right (fixed, always visible) */}
+      <div className="flex-1 min-w-0 flex gap-2 overflow-hidden">
+        {/* LEFT column: name, preview, pills */}
+        <div className="flex-1 min-w-0 overflow-hidden space-y-1">
+          <div className="min-w-0">
             <span className={cn(
-              'text-[11px] whitespace-nowrap flex-shrink-0',
-              contact.unread_count > 0 ? 'text-emerald-600 font-semibold' : 'text-muted-foreground'
+              'font-semibold text-sm truncate block overflow-hidden whitespace-nowrap',
+              contact.unread_count > 0 ? 'text-foreground' : 'text-foreground/80'
             )}>
-              {formattedTime}
+              {contact.name}
             </span>
-          )}
-        </div>
+          </div>
 
-        {/* Row 2: Last message preview (left) + unread badge (right) */}
-        <div className="flex items-center justify-between gap-2 min-w-0 text-xs">
           <div
             className={cn(
-              'flex-1 min-w-0 truncate whitespace-nowrap overflow-hidden text-[10px]',
+              'min-w-0 truncate whitespace-nowrap overflow-hidden text-[10px]',
               contact.unread_count > 0 ? 'text-foreground/80' : 'text-muted-foreground'
             )}
           >
             <MessagePreview text={contact.last_message_text || undefined} />
           </div>
+
+          <div className="flex items-center gap-1 flex-nowrap min-w-0 max-w-full overflow-hidden">
+            {queueName && (
+              <span className="flex-shrink min-w-0 max-w-[110px] truncate">
+                <Pill label={queueName.toUpperCase()} className="bg-blue-600 text-white" />
+              </span>
+            )}
+            {slaEvaluation && <span className="flex-shrink-0"><SlaBadge evaluation={slaEvaluation} compact /></span>}
+            <span className="flex-shrink min-w-0 max-w-[110px] truncate">
+              <Pill
+                label={assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO'}
+                className={assignedAgentName ? 'bg-muted text-foreground' : 'bg-muted/60 text-muted-foreground'}
+              />
+            </span>
+            {extraBadges.slice(0, 1).map((b, i) => (
+              <span key={i} className="flex-shrink min-w-0 max-w-[100px] truncate">
+                <Pill label={b.label} className={b.className} />
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* RIGHT column: time + unread badge — always fully visible */}
+        <div className="flex-shrink-0 flex flex-col items-end justify-start gap-1 pt-0.5">
+          {formattedTime && (
+            <span className={cn(
+              'text-[11px] whitespace-nowrap',
+              contact.unread_count > 0 ? 'text-emerald-600 font-semibold' : 'text-muted-foreground'
+            )}>
+              {formattedTime}
+            </span>
+          )}
           {contact.unread_count > 0 ? (
-            <span className="flex-shrink-0 bg-emerald-500 text-white text-[11px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 shadow-sm">
+            <span className="bg-emerald-500 text-white text-[11px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 shadow-sm">
               {contact.unread_count > 99 ? '99+' : contact.unread_count}
             </span>
           ) : (
-            <span className="flex-shrink-0 w-5" aria-hidden />
+            <span className="h-5" aria-hidden />
           )}
-        </div>
-
-        {/* Row 3: Tags — fila → SLA → atribuído → extras */}
-        <div className="flex items-center gap-1 flex-nowrap min-w-0 max-w-full overflow-hidden">
-          {queueName && (
-            <span className="flex-shrink min-w-0 max-w-[110px] truncate">
-              <Pill label={queueName.toUpperCase()} className="bg-blue-600 text-white" />
-            </span>
-          )}
-          {slaEvaluation && <span className="flex-shrink-0"><SlaBadge evaluation={slaEvaluation} compact /></span>}
-          <span className="flex-shrink min-w-0 max-w-[110px] truncate">
-            <Pill
-              label={assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO'}
-              className={assignedAgentName ? 'bg-muted text-foreground' : 'bg-muted/60 text-muted-foreground'}
-            />
-          </span>
-          {extraBadges.slice(0, 1).map((b, i) => (
-            <span key={i} className="flex-shrink min-w-0 max-w-[100px] truncate">
-              <Pill label={b.label} className={b.className} />
-            </span>
-          ))}
         </div>
       </div>
     </button>
