@@ -998,8 +998,8 @@ export function WhatsAppMessagesDialog({
             to: cleanNumber,
             media_type: 'audio',
             base64,
-            mime_type: mimeType,
-            file_name: `audio.${ext}`,
+            mimetype: mimeType,
+            filename: `audio.${ext}`,
           },
         });
         if (error) throw error;
