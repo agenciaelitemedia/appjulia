@@ -944,6 +944,20 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         sender_name: user?.name,
       });
 
+      await supabase
+        .from('chat_contacts')
+        .update({
+          last_message_at: tempMessage.timestamp,
+          last_message_text: caption || `[${type}]`,
+        })
+        .eq('id', contactId);
+
+      setContacts(prev => prev.map(c =>
+        c.id === contactId
+          ? { ...c, last_message_text: caption || `[${type}]`, last_message_at: tempMessage.timestamp }
+          : c
+      ));
+
       toast.success('Mídia enviada');
     } catch (error) {
       console.error('Error sending media:', error);
@@ -1312,7 +1326,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
                 ? {
                     ...c,
                     unread_count: (c.unread_count || 0) + 1,
-                    last_message_text: newMessage.text || c.last_message_text,
+                    last_message_text: newMessage.text || (newMessage.type && newMessage.type !== 'text' ? `[${newMessage.type}]` : c.last_message_text),
                     last_message_at: newMessage.timestamp || newMessage.created_at || c.last_message_at,
                   }
                 : c
@@ -1335,7 +1349,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
                   .from('chat_contacts')
                   .update({
                     unread_count: next,
-                    last_message_text: newMessage.text || null,
+                    last_message_text: newMessage.text || (newMessage.type && newMessage.type !== 'text' ? `[${newMessage.type}]` : null),
                     last_message_at: newMessage.timestamp || newMessage.created_at || new Date().toISOString(),
                   })
                   .eq('id', newMessage.contact_id);

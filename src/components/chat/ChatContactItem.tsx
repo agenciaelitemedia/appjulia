@@ -63,7 +63,7 @@ function MessagePreview({ text, type }: { text?: string; type?: string }) {
   const mediaType = type || (text?.match(/^\[(\w+)\]$/)?.[1]);
 
   const mediaIcons: Record<string, React.ReactNode> = {
-    image: <><Camera className="h-3 w-3 text-muted-foreground inline mr-1" /> Foto</>,
+    image: <><Camera className="h-3 w-3 text-muted-foreground inline mr-1" /> Imagem</>,
     video: <><Video className="h-3 w-3 text-muted-foreground inline mr-1" /> Vídeo</>,
     audio: <><Mic className="h-3 w-3 text-muted-foreground inline mr-1" /> Áudio</>,
     ptt: <><Mic className="h-3 w-3 text-muted-foreground inline mr-1" /> Áudio</>,
