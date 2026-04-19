@@ -24,7 +24,7 @@ const TYPE_LABELS: Record<string, string> = {
   revoked: '🚫 Mensagem apagada',
 };
 
-const MAX_CHARS = 80;
+const MAX_CHARS = 35;
 
 /** Detect strings that look like a raw media JSON payload (e.g. {"URL":"..."}). */
 function looksLikeRawMediaJson(s: string): boolean {
