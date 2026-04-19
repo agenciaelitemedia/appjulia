@@ -13,7 +13,6 @@ import { WabaEmbeddedSignupButton } from '@/components/waba/WabaEmbeddedSignupBu
 
 const providerTypeOptions = [
   { value: 'uazapi', label: 'UaZapi (WhatsApp)' },
-  { value: 'waba', label: 'API Oficial Meta (WABA)' },
   { value: 'webchat', label: 'WebChat' },
   { value: 'instagram', label: 'Instagram' },
 ];
