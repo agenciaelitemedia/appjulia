@@ -12,6 +12,19 @@ function formatTZ(date: Date, opts: Intl.DateTimeFormatOptions): string {
   return new Intl.DateTimeFormat('pt-BR', { timeZone: TZ, ...opts }).format(date);
 }
 
+/**
+ * Parses a timestamp from the external DB.
+ * The DB returns timestamps WITHOUT timezone in São Paulo local time.
+ * If the string has no TZ indicator (Z or ±HH:MM), we treat it as -03:00.
+ */
+function parseDbDate(dateStr: string): Date {
+  const hasTz = /[zZ]|[+-]\d{2}:?\d{2}$/.test(dateStr.trim());
+  if (hasTz) return new Date(dateStr);
+  // Normalize "YYYY-MM-DD HH:mm:ss(.sss)" -> ISO with -03:00
+  const normalized = dateStr.replace(' ', 'T').replace(/(\.\d+)?$/, (m) => m || '');
+  return new Date(`${normalized}-03:00`);
+}
+
 interface InactiveLeadItemProps {
   lead: InactiveSession;
   isSelected: boolean;
