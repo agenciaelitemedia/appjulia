@@ -80,6 +80,9 @@ interface ExtendedContextValue extends ChatContextValue {
   // Conversation history
   conversationHistory: ConversationHistoryEntry[];
   loadConversationHistory: (conversationId: string) => Promise<void>;
+
+  // Media
+  downloadMedia: (messageId: string) => Promise<string | undefined>;
 }
 
 const WhatsAppDataContext = createContext<ExtendedContextValue | undefined>(undefined);
@@ -609,15 +612,20 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       if (error) throw error;
 
       if (cachedMessages && cachedMessages.length > 0) {
-        const chatMessages = cachedMessages.map((m) => ({
-          ...m,
-          metadata: {
-            ...(m.metadata || {}),
-            internal_note: m.internal_note,
-            note_type: m.note_type,
-            sender_name: m.sender_name || (m.metadata as MessageMetadata)?.sender_name,
-          },
-        })) as ChatMessage[];
+        const chatMessages = cachedMessages.map((m) => {
+          const baseMeta = (m.metadata && typeof m.metadata === 'object' && !Array.isArray(m.metadata))
+            ? (m.metadata as MessageMetadata)
+            : ({} as MessageMetadata);
+          return {
+            ...m,
+            metadata: {
+              ...baseMeta,
+              internal_note: m.internal_note,
+              note_type: m.note_type,
+              sender_name: m.sender_name || baseMeta?.sender_name,
+            },
+          };
+        }) as ChatMessage[];
 
         chatMessages.forEach(m => knownMessageIds.current.add(m.id));
 
