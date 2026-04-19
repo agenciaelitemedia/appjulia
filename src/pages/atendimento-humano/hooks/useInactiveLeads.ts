@@ -4,11 +4,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useMemo, useState, useCallback } from 'react';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
 
-export type LeadPeriod = 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'last3Months';
+export type LeadPeriod = 'all' | 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'last3Months';
 
 const PAGE_SIZE = 50;
 
-function getDateRange(period: LeadPeriod): { from: Date; to: Date } {
+function getDateRange(period: LeadPeriod): { from: Date; to: Date } | null {
+  if (period === 'all') return null;
   const now = new Date();
   const todayStart = startOfDay(now);
   switch (period) {
@@ -27,12 +28,13 @@ function getDateRange(period: LeadPeriod): { from: Date; to: Date } {
   }
 }
 
-export function useInactiveLeads(selectedAgentCode?: string) {
+export function useInactiveLeads(selectedAgentCodes?: string[]) {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPeriod, setSelectedPeriod] = useState<LeadPeriod>('last7days');
+  const [selectedPeriod, setSelectedPeriod] = useState<LeadPeriod>('all');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
+  const [stageIds, setStageIds] = useState<number[]>([]);
 
   const { data: userAgents = [] } = useQuery({
     queryKey: ['user-agents-for-support', user?.id],
@@ -42,9 +44,9 @@ export function useInactiveLeads(selectedAgentCode?: string) {
   });
 
   const agentCodes = useMemo(() => {
-    if (selectedAgentCode) return [selectedAgentCode];
+    if (selectedAgentCodes && selectedAgentCodes.length > 0) return selectedAgentCodes;
     return userAgents.map((a: any) => String(a.cod_agent));
-  }, [userAgents, selectedAgentCode]);
+  }, [userAgents, selectedAgentCodes]);
 
   const { data: leads = [], isLoading, refetch } = useQuery({
     queryKey: ['inactive-sessions', agentCodes],
@@ -56,26 +58,34 @@ export function useInactiveLeads(selectedAgentCode?: string) {
 
   const filteredLeads = useMemo(() => {
     const range = getDateRange(selectedPeriod);
-    let result = leads.filter((lead: InactiveSession) => {
-      const updatedAt = lead.updated_at ? new Date(lead.updated_at) : null;
-      if (!updatedAt) return false;
-      return updatedAt >= range.from && updatedAt <= range.to;
-    });
+    let result = leads as InactiveSession[];
 
-    // Owner filter
+    if (range) {
+      result = result.filter((lead) => {
+        const updatedAt = lead.updated_at ? new Date(lead.updated_at) : null;
+        if (!updatedAt) return false;
+        return updatedAt >= range.from && updatedAt <= range.to;
+      });
+    }
+
+    if (stageIds.length > 0) {
+      const set = new Set(stageIds);
+      result = result.filter((lead) => lead.stage_id != null && set.has(Number(lead.stage_id)));
+    }
+
     if (ownerFilter !== 'all') {
       if (ownerFilter === 'mine') {
-        result = result.filter((lead: InactiveSession) => lead.owner_name === user?.name);
+        result = result.filter((lead) => lead.owner_name === user?.name);
       } else if (ownerFilter === 'unassigned') {
-        result = result.filter((lead: InactiveSession) => !lead.owner_name);
+        result = result.filter((lead) => !lead.owner_name);
       } else {
-        result = result.filter((lead: InactiveSession) => lead.owner_name === ownerFilter);
+        result = result.filter((lead) => lead.owner_name === ownerFilter);
       }
     }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      result = result.filter((lead: InactiveSession) =>
+      result = result.filter((lead) =>
         (lead.contact_name && lead.contact_name.toLowerCase().includes(q)) ||
         lead.whatsapp_number.includes(q) ||
         (lead.stage_name && lead.stage_name.toLowerCase().includes(q))
@@ -83,9 +93,8 @@ export function useInactiveLeads(selectedAgentCode?: string) {
     }
 
     return result;
-  }, [leads, searchQuery, selectedPeriod, ownerFilter, user?.name]);
+  }, [leads, searchQuery, selectedPeriod, ownerFilter, stageIds, user?.name]);
 
-  // Reset visible count when filters change
   const setSearchQueryWithReset = useCallback((q: string) => {
     setSearchQuery(q);
     setVisibleCount(PAGE_SIZE);
@@ -102,6 +111,11 @@ export function useInactiveLeads(selectedAgentCode?: string) {
     setVisibleCount(PAGE_SIZE);
   }, []);
 
+  const setStageIdsWithReset = useCallback((ids: number[]) => {
+    setStageIds(ids);
+    setVisibleCount(PAGE_SIZE);
+  }, []);
+
   const paginatedLeads = useMemo(
     () => filteredLeads.slice(0, visibleCount),
     [filteredLeads, visibleCount]
@@ -110,7 +124,7 @@ export function useInactiveLeads(selectedAgentCode?: string) {
   const hasMore = visibleCount < filteredLeads.length;
 
   const loadMore = useCallback(() => {
-    setVisibleCount(prev => prev + PAGE_SIZE);
+    setVisibleCount((prev) => prev + PAGE_SIZE);
   }, []);
 
   return {
@@ -124,6 +138,8 @@ export function useInactiveLeads(selectedAgentCode?: string) {
     setSelectedPeriod: setSelectedPeriodWithReset,
     ownerFilter,
     setOwnerFilter: setOwnerFilterWithReset,
+    stageIds,
+    setStageIds: setStageIdsWithReset,
     refetch,
     agentCodes,
     hasMore,

@@ -1,7 +1,10 @@
-import { ReactNode, useRef, useEffect, useCallback } from 'react';
-import { Search, Loader2, Headset, UserCircle } from 'lucide-react';
+import { ReactNode, useMemo, useRef, useEffect, useState } from 'react';
+import { Search, Loader2, Headset, UserCircle, Layers, ChevronsUpDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { InactiveLeadItem } from './InactiveLeadItem';
 import { StartConversationFooter } from './StartConversationFooter';
@@ -10,6 +13,7 @@ import type { InactiveSession } from '@/lib/externalDb';
 import type { LeadPeriod } from '../hooks/useInactiveLeads';
 
 const PERIOD_OPTIONS: { value: LeadPeriod; label: string }[] = [
+  { value: 'all', label: 'Todos' },
   { value: 'today', label: 'Hoje' },
   { value: 'yesterday', label: 'Ontem' },
   { value: 'last7days', label: '7 dias' },
@@ -20,6 +24,12 @@ const PERIOD_OPTIONS: { value: LeadPeriod; label: string }[] = [
 interface TeamMember {
   id: number;
   name: string;
+}
+
+interface StageOption {
+  id: number;
+  name: string;
+  color?: string;
 }
 
 interface InactiveLeadsListProps {
@@ -40,6 +50,9 @@ interface InactiveLeadsListProps {
   teamMembers: TeamMember[];
   codAgent: string | null;
   onStartConversation: (whatsappNumber: string) => void;
+  stages: StageOption[];
+  stageIds: number[];
+  onStageIdsChange: (ids: number[]) => void;
 }
 
 export function InactiveLeadsList({
