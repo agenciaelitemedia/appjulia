@@ -47,7 +47,7 @@ function formatPhone(phone: string): string {
 
 function formatWhatsAppTime(dateStr: string | null): string {
   if (!dateStr) return '';
-  const date = new Date(dateStr);
+  const date = parseDbDate(dateStr);
   if (isToday(date)) return formatTZ(date, { hour: '2-digit', minute: '2-digit', hour12: false });
   if (isYesterday(date)) return 'Ontem';
   const days = differenceInDays(new Date(), date);
@@ -57,7 +57,7 @@ function formatWhatsAppTime(dateStr: string | null): string {
 
 function getUrgencyColor(updatedAt: string | null): string {
   if (!updatedAt) return 'text-muted-foreground';
-  const mins = differenceInMinutes(new Date(), new Date(updatedAt));
+  const mins = differenceInMinutes(new Date(), parseDbDate(updatedAt));
   if (mins >= 30) return 'text-red-500 font-semibold';
   if (mins >= 10) return 'text-amber-500 font-medium';
   return 'text-muted-foreground';
