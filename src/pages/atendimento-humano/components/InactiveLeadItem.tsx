@@ -37,9 +37,10 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
 
   const badgeColor = lead.stage_color || 'hsl(var(--muted-foreground))';
   const agentInfo = lead.cod_agent ? agents.find((a) => a.cod_agent === lead.cod_agent) : null;
-  const agentName = lead.cod_agent
+  const rawAgentName = lead.cod_agent
     ? getAlias(lead.cod_agent, agentInfo?.owner_business_name || agentInfo?.owner_name)
     : '';
+  const agentName = rawAgentName.length > 35 ? `${rawAgentName.slice(0, 35)}…` : rawAgentName;
 
   return (
     <button
