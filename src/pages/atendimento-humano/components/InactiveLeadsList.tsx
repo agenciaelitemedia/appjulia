@@ -176,6 +176,58 @@ export function InactiveLeadsList({
             </SelectContent>
           </Select>
         </div>
+        <div className="flex items-center gap-2">
+          <Layers className="h-4 w-4 text-muted-foreground shrink-0" />
+          <Popover open={stagePopoverOpen} onOpenChange={setStagePopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                className="h-8 w-full justify-between text-xs font-normal"
+              >
+                <span className="truncate">{stageLabel}</span>
+                <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[280px] p-0" align="start">
+              <div className="px-2 py-1.5 border-b">
+                <button
+                  onClick={toggleAllStages}
+                  className="flex items-center gap-2 w-full text-xs hover:bg-accent rounded px-2 py-1.5"
+                >
+                  <Checkbox checked={allStagesSelected} className="pointer-events-none" />
+                  <span className="font-medium">{allStagesSelected ? 'Desmarcar todas' : 'Selecionar todas'}</span>
+                </button>
+              </div>
+              <ScrollArea className="max-h-[260px]">
+                <div className="p-1">
+                  {stages.length === 0 ? (
+                    <div className="text-xs text-muted-foreground px-3 py-4 text-center">
+                      Nenhuma etapa disponível
+                    </div>
+                  ) : (
+                    stages.map((stage) => (
+                      <button
+                        key={stage.id}
+                        onClick={() => toggleStage(stage.id)}
+                        className="flex items-center gap-2 w-full text-xs hover:bg-accent rounded px-2 py-1.5 text-left"
+                      >
+                        <Checkbox checked={stageSet.has(stage.id)} className="pointer-events-none" />
+                        {stage.color && (
+                          <span
+                            className="h-2.5 w-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: stage.color }}
+                          />
+                        )}
+                        <span className="truncate">{stage.name}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
 
       {/* List */}
