@@ -1,8 +1,7 @@
 // ============================================
 // Chat Media Download
-// Decrypts UaZapi media via POST /message/download,
-// uploads to chat-media bucket, persists media_url.
-// Idempotent: returns existing URL if already persisted.
+// Supports both UaZapi (decrypts via /message/download) and WABA (Graph API).
+// Uploads to chat-media bucket and persists media_url. Idempotent.
 // ============================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
@@ -22,11 +21,9 @@ function respond(body: Record<string, unknown>, status = 200) {
 
 function isPersistedUrl(url: string | null | undefined): boolean {
   if (!url) return false;
-  // Already in our bucket?
   if (url.includes("/storage/v1/object/public/chat-media/")) return true;
-  // Looks like an encrypted WhatsApp media URL?
+  if (url.startsWith("waba_media:")) return false;
   if (url.includes(".enc")) return false;
-  // Other http(s) URLs we trust as already-decrypted (rare)
   return /^https?:\/\//.test(url) && !url.includes("mmg.whatsapp.net");
 }
 
@@ -53,6 +50,25 @@ function extFromMime(mime?: string, fallback = "bin"): string {
   return map[clean] || map[mime.toLowerCase()] || fallback;
 }
 
+function isWabaMessage(msg: any): boolean {
+  if (!msg) return false;
+  if (msg.channel_type === "whatsapp_waba" || msg.channel_type === "waba") return true;
+  if (typeof msg.media_url === "string" && msg.media_url.startsWith("waba_media:")) return true;
+  return false;
+}
+
+function extractWabaMediaId(msg: any): string | null {
+  if (typeof msg?.media_url === "string" && msg.media_url.startsWith("waba_media:")) {
+    return msg.media_url.replace("waba_media:", "").trim() || null;
+  }
+  const raw = msg?.raw_payload || {};
+  for (const k of ["image", "audio", "video", "document", "sticker", "voice"]) {
+    if (raw?.[k]?.id) return String(raw[k].id);
+  }
+  if (raw?.media?.id) return String(raw.media.id);
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -68,11 +84,10 @@ Deno.serve(async (req) => {
     const { messageId, queueId } = body || {};
     if (!messageId) return respond({ error: "messageId required" }, 400);
 
-    // Load message — detect UUID vs external message_id to avoid cast errors
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(messageId));
     const query = supabase
       .from("chat_messages")
-      .select("id, message_id, contact_id, client_id, media_url, type, raw_payload, file_name, metadata")
+      .select("id, message_id, contact_id, conversation_id, client_id, media_url, type, channel_type, raw_payload, file_name, metadata")
       .limit(1);
     const { data: msg, error: msgErr } = await (isUuid
       ? query.eq("id", messageId).maybeSingle()
@@ -82,23 +97,117 @@ Deno.serve(async (req) => {
       return respond({ error: "Message not found", details: msgErr?.message }, 404);
     }
 
-    // Idempotent shortcut
     if (isPersistedUrl(msg.media_url)) {
       return respond({ url: msg.media_url, cached: true });
     }
 
-    // Resolve queue credentials
+    // ─── Resolve queue ───────────────────────────────────────────
     let queue: any = null;
     if (queueId) {
       const { data } = await supabase
         .from("queues")
-        .select("id, evo_url, evo_apikey")
+        .select("id, channel_type, evo_url, evo_apikey, waba_token, waba_number_id, client_id")
         .eq("id", queueId)
         .maybeSingle();
       queue = data;
     }
+
+    // Try resolving from conversation
+    if (!queue && msg.conversation_id) {
+      const { data: conv } = await supabase
+        .from("chat_conversations")
+        .select("queue_id")
+        .eq("id", msg.conversation_id)
+        .maybeSingle();
+      if (conv?.queue_id) {
+        const { data } = await supabase
+          .from("queues")
+          .select("id, channel_type, evo_url, evo_apikey, waba_token, waba_number_id, client_id")
+          .eq("id", conv.queue_id)
+          .maybeSingle();
+        queue = data;
+      }
+    }
+
+    const wabaMode = isWabaMessage(msg) || queue?.channel_type === "whatsapp_waba" || queue?.channel_type === "waba";
+
+    // ============================================
+    // WABA branch
+    // ============================================
+    if (wabaMode) {
+      // Fallback: any WABA queue with credentials for this client
+      if (!queue?.waba_token || !queue?.waba_number_id) {
+        const { data } = await supabase
+          .from("queues")
+          .select("id, channel_type, waba_token, waba_number_id, client_id")
+          .eq("client_id", msg.client_id)
+          .in("channel_type", ["whatsapp_waba", "waba"])
+          .not("waba_token", "is", null)
+          .not("waba_number_id", "is", null)
+          .limit(1)
+          .maybeSingle();
+        if (data) queue = data;
+      }
+
+      if (!queue?.waba_token || !queue?.waba_number_id) {
+        return respond({ error: "WABA queue credentials not found" }, 400);
+      }
+
+      const mediaId = extractWabaMediaId(msg);
+      if (!mediaId) {
+        return respond({ error: "WABA media_id not found in message" }, 400);
+      }
+
+      // Call waba-send action download_media (returns base64 + mimetype)
+      const { data: dlData, error: dlErr } = await supabase.functions.invoke("waba-send", {
+        body: {
+          action: "download_media",
+          queue_id: queue.id,
+          media_id: mediaId,
+        },
+      });
+
+      if (dlErr || !dlData?.base64) {
+        console.error("[chat-media-download] WABA download error:", dlErr, dlData);
+        return respond({ error: "WABA download failed", details: dlErr?.message || dlData?.error }, 502);
+      }
+
+      const mimetype: string = dlData.mimetype || msg.metadata?.mimetype || "application/octet-stream";
+      const bin = atob(dlData.base64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+
+      const ext = extFromMime(mimetype, msg.file_name?.split(".").pop() || "bin");
+      const safeName = (msg.file_name || `${msg.id}`).replace(/[^a-zA-Z0-9._-]/g, "_");
+      const path = `${msg.client_id}/${msg.contact_id}/${msg.id}_${safeName}.${ext}`;
+
+      const { error: upErr } = await supabase.storage
+        .from("chat-media")
+        .upload(path, bytes, { contentType: mimetype, upsert: true });
+
+      if (upErr) {
+        console.error("[chat-media-download] WABA upload error:", upErr);
+        return respond({ error: `Storage upload failed: ${upErr.message}` }, 500);
+      }
+
+      const { data: pub } = supabase.storage.from("chat-media").getPublicUrl(path);
+      const publicUrl = pub.publicUrl;
+
+      await supabase
+        .from("chat_messages")
+        .update({
+          media_url: publicUrl,
+          metadata: { ...(msg.metadata || {}), mimetype, storage_path: path, waba_media_id: mediaId },
+        })
+        .eq("id", msg.id);
+
+      return respond({ url: publicUrl, cached: false, channel: "waba" });
+    }
+
+    // ============================================
+    // UaZapi branch (existing behavior)
+    // ============================================
     if (!queue?.evo_url || !queue?.evo_apikey) {
-      // Fallback: any UaZapi queue for this client with credentials
       const { data } = await supabase
         .from("queues")
         .select("id, evo_url, evo_apikey, is_active")
@@ -119,7 +228,6 @@ Deno.serve(async (req) => {
     const baseUrl = String(queue.evo_url).replace(/\/+$/, "");
     const externalId = msg.message_id || messageId;
 
-    // Call UaZapi /message/download with return_link
     const dlRes = await fetch(`${baseUrl}/message/download`, {
       method: "POST",
       headers: {
@@ -182,7 +290,7 @@ Deno.serve(async (req) => {
       })
       .eq("id", msg.id);
 
-    return respond({ url: publicUrl, cached: false });
+    return respond({ url: publicUrl, cached: false, channel: "uazapi" });
   } catch (err) {
     console.error("[chat-media-download] Error:", err);
     return respond({ error: (err as Error).message }, 500);
