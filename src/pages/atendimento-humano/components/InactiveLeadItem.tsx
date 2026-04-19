@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { differenceInMinutes, format, isToday, isYesterday, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { InactiveSession } from '@/lib/externalDb';
+import { JuliaStatusBadge } from '@/components/chat/JuliaStatusBadge';
 
 interface InactiveLeadItemProps {
   lead: InactiveSession;
@@ -72,9 +73,12 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
       <div className="flex-1 min-w-0 space-y-0.5">
         {/* Row 1: Name + Time (fixed right) */}
         <div className="flex items-baseline justify-between gap-2">
-          <span className="text-sm font-medium truncate text-foreground">
-            {displayName}
-          </span>
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <JuliaStatusBadge whatsappNumber={lead.whatsapp_number} codAgent={lead.cod_agent} />
+            <span className="text-sm font-medium truncate text-foreground">
+              {displayName}
+            </span>
+          </div>
           {timeLabel && (
             <span className={cn('text-[11px] whitespace-nowrap shrink-0', urgencyClass)}>
               {timeLabel}
