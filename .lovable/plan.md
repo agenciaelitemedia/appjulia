@@ -2,38 +2,65 @@
 
 ## Diagnóstico
 
-Validei no banco: chegou mensagem WABA para o número `667282786474815` (fila "Oficial" — `queue_id=0f4abeb4...`, `client_id=30`), mas a tag exibida é "Agente Principal" (fila UaZapi `client_id=30`). Causas combinadas:
+Validei o fluxo end-to-end das duas filas (UaZapi e WABA). Envios de **texto** já funcionam para ambas. Envios de **mídia** funcionam para UaZapi e — após os últimos ajustes — também para WABA, mas com gaps:
 
-1. **`meta-webhook/persistToChat` grava `client_id` errado**: usa `agents.user_id` (=145, dono Meta) em vez do `client_id=30` da fila WABA. O contato fica num tenant onde a fila WABA nem existe.
-2. **`meta-webhook` não cria `chat_conversations`** nem associa `queue_id`. Quem cria é o front (`getOrCreateConversation` em `WhatsAppDataContext`).
-3. **Fallback de fila no front confunde `channel_source` com `queue_id`** (linha 300 de `WhatsAppDataContext.tsx`): para UaZapi `channel_source` é UUID de fila, mas para WABA é o `phone_number_id` da Meta. O cast falha silenciosamente e o fluxo cai no fallback final → usa a fila selecionada no topo ("Agente Principal").
-4. **`channel_source` deveria ser o `queue_id` da fila WABA correta**, não o `phone_number_id` cru.
+### Problemas confirmados
+
+1. **Inbound WABA media não abre no chat**  
+   `meta-webhook` salva `media_url = "waba_media:{media_id}"` (placeholder). Quando o usuário clica para baixar, o front chama `chat-media-download` → função tenta buscar credenciais UaZapi (`evo_url`/`evo_apikey`) na fila WABA, não encontra e retorna `Queue credentials not found`. Imagens/áudios/vídeos/docs recebidos via API Oficial ficam ilegíveis.
+
+2. **PTT (áudio de voz) WABA quebrado**  
+   Front envia `type: 'ptt'` para `waba-send`. O switch na função só mapeia `audio|video|document|sticker` → cai no default `image` e o upload falha (mimetype `audio/ogg` vs tipo `image`). Resultado: gravações de voz não saem pela fila Oficial.
+
+3. **MIME com codec quebra upload no Meta**  
+   Mesmo bug que tivemos no `chat-media-upload`: o Graph API `/media` também rejeita `audio/ogg;codecs=opus` no campo `type` do form-data. Precisa do mesmo `cleanMime = mimetype.split(";")[0].trim()` antes de subir.
+
+4. **`markAsRead` não roda para WABA**  
+   Hoje só executa em UaZapi. Para paridade (e para tirar o badge "lido duplo" no WhatsApp do cliente), enviar `POST /{phone_number_id}/messages {messaging_product:'whatsapp', status:'read', message_id}`.
+
+### Fluxos que JÁ estão corretos (não tocar)
+- Resolução de fila por `phone_number_id` no `meta-webhook` (corrigido em iteração anterior).
+- `sendMessage` de texto em ambos os canais.
+- Persistência de `chat_messages` / `chat_conversations` com `queue_id` correto.
+- `chat-media-upload` com `cleanMime` (já corrigido).
 
 ## Correções
 
-### 1. `supabase/functions/meta-webhook/index.ts`
-- Antes de chamar `persistToChat`, resolver a fila WABA pelo `phone_number_id` usando `resolveQueueByWabaNumberId(supabase, phoneNumberId)` (já importado mas não usado).
-- Se encontrar fila, usar `queue.client_id` como `client_id` do contato (ignorando `agents.user_id`) e gravar `channel_source = queue.id` (UUID), não o `phone_number_id`.
-- Se não houver fila WABA configurada para aquele número, manter comportamento atual como fallback (logando warning), para não quebrar tenants antigos.
-- Adicionar `queue_id` no upsert de `chat_contacts` (coluna existe? vou checar; se não, fica só em `channel_source`).
-- Criar `chat_conversations` (status `pending`, `queue_id` = id da fila WABA, `channel='whatsapp_waba'`) na primeira mensagem se não houver conversa aberta para o contato. Idempotente: SELECT antes de INSERT.
+### 1. `supabase/functions/chat-media-download/index.ts` — suporte a WABA
+- Detectar canal pelo `chat_messages.channel_type` ou pelo prefixo `waba_media:` em `media_url`.
+- Se WABA:
+  - Resolver fila por `queue_id` (ou pela conversa) e ler `waba_token`, `waba_number_id`.
+  - Extrair `media_id` de `waba_media:{id}` ou de `raw_payload.{image|audio|video|document|sticker}.id`.
+  - Chamar `waba-send` action `download_media` (já existe) para obter `base64` + `mimetype`.
+  - Subir em `chat-media` bucket (mesmo padrão UaZapi) e gravar `media_url` público.
+- Se UaZapi: comportamento atual intacto.
+- Idempotente (já é): se `media_url` já é público (`/storage/v1/object/public/chat-media/`), retorna direto.
 
-### 2. `src/contexts/WhatsAppDataContext.tsx` — `getOrCreateConversation`
-- Validar `channel_source` como UUID antes de usar como `queue_id`. Regex simples: `/^[0-9a-f-]{36}$/i`. Se não bater, ignora e segue para o passo 3 (busca por `channel_type`).
-- No passo 3, quando o contato é `whatsapp_waba`, **filtrar também por `waba_number_id` da fila** matching o `channel_source` do contato (que pode ser phone_number_id legado), garantindo que só a fila correta seja escolhida.
+### 2. `supabase/functions/waba-send/index.ts` — robustez no `send_media`
+- Sanitizar `mimetype` antes de enviar ao Meta: `cleanMime = mimetype.split(";")[0].trim()`.
+- Mapear `media_type` corretamente, incluindo `ptt → audio`. Para `ptt`, o Meta só precisa do `type:'audio'` — o app reconhece como voice note pelo container ogg/opus.
+- Validar `cleanMime` antes do `formData.append("type", cleanMime)`.
 
-### 3. Backfill (opcional, em SQL via migração)
-- Atualizar contatos WABA existentes para `channel_source = queue.id` quando `channel_source` bate com algum `queues.waba_number_id`.
-- Atualizar `chat_conversations` órfãs (queue_id de fila UaZapi mas contato é WABA) para a fila WABA correta.
+### 3. `supabase/functions/waba-send/index.ts` — nova action `mark_read`
+- Aceita `queue_id` + `message_id` (external WABA id do `wamid`).
+- POST `/{phone_number_id}/messages` com `{messaging_product:'whatsapp', status:'read', message_id}`.
+- Retorna 200 mesmo em falha (best-effort, não bloqueante).
+
+### 4. `src/contexts/WhatsAppDataContext.tsx`
+- **`markAsRead`**: quando `queue.channel_type === 'waba'`, buscar último `message_id` (externo) inbound do contato e chamar `waba-send` `mark_read`.
+- **`sendMedia`**: já passa `type` (incluindo `ptt`) para `waba-send` — sem mudança após o fix #2.
+- Sem outras alterações no front; downloads de mídia WABA passarão a funcionar automaticamente via `downloadMedia` (que chama `chat-media-download` corrigido).
 
 ## Arquivos
-- `supabase/functions/meta-webhook/index.ts` — resolver fila WABA, corrigir client_id, gravar channel_source = queue.id, criar conversa.
-- `src/contexts/WhatsAppDataContext.tsx` — validação UUID em channel_source + match por waba_number_id no fallback.
-- Migração SQL de backfill (one-shot) para corrigir contatos/conversas WABA já existentes.
+- `supabase/functions/chat-media-download/index.ts` — branch WABA + chamada para `waba-send`/`download_media` + persistência no bucket.
+- `supabase/functions/waba-send/index.ts` — `cleanMime`, mapeamento `ptt→audio`, action `mark_read`.
+- `src/contexts/WhatsAppDataContext.tsx` — `markAsRead` para WABA.
 
 ## Validação
-1. Enviar nova mensagem para o número WABA (`667282786474815`) → contato deve aparecer no client_id correto, com `channel_source = 0f4abeb4...` (UUID da fila Oficial).
-2. Conversa criada deve ter `queue_id = 0f4abeb4...` e badge "Oficial" (não "Agente Principal").
-3. Contato/conversa antigos devem aparecer corrigidos após backfill.
-4. Mensagens UaZapi continuam roteando normalmente para "Agente Principal".
+1. Receber imagem na fila Oficial → clicar no preview → mídia aparece (download via Graph API + bucket).
+2. Receber áudio/vídeo/PDF na Oficial → idem.
+3. Gravar áudio (PTT) e enviar pela Oficial → recipiente recebe como voice note.
+4. Enviar imagem com caption pela Oficial → entregue com legenda.
+5. Abrir conversa Oficial com mensagens não lidas → checks azuis aparecem no WhatsApp do cliente.
+6. Mesmos cenários na fila UaZapi → continuam idênticos (sem regressão).
 
