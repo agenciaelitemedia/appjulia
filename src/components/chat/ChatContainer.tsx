@@ -55,7 +55,7 @@ export function ChatContainer({ className }: ChatContainerProps) {
       {/* Contact detail panel - overlay sheet */}
       {selectedContact && (
         <Sheet open={showDetailPanel} onOpenChange={setShowDetailPanel}>
-          <SheetContent side="right" className="w-[380px] sm:w-[420px] sm:max-w-[420px] p-0 overflow-y-auto">
+          <SheetContent side="right" className="w-[456px] sm:w-[504px] sm:max-w-[504px] p-0 overflow-y-auto">
             <ContactDetailPanel
               contact={selectedContact}
               onClose={() => setShowDetailPanel(false)}
