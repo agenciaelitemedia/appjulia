@@ -197,11 +197,11 @@ export default function CRMPage() {
             </ToggleGroupItem>
             <ToggleGroupItem value="active" className="text-xs px-3 data-[state=on]:bg-green-100 data-[state=on]:text-green-700 dark:data-[state=on]:bg-green-900/30 dark:data-[state=on]:text-green-400">
               <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-green-500" />
-              Ativa
+              Julia
             </ToggleGroupItem>
             <ToggleGroupItem value="inactive" className="text-xs px-3 data-[state=on]:bg-red-100 data-[state=on]:text-red-700 dark:data-[state=on]:bg-red-900/30 dark:data-[state=on]:text-red-400">
               <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-red-500" />
-              Inativa
+              Atendimento Humano
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
