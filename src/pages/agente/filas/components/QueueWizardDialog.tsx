@@ -41,7 +41,9 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
   const [selectedType, setSelectedType] = useState('');
   const [selectedProviderId, setSelectedProviderId] = useState('');
   const [queueName, setQueueName] = useState('');
-  // WABA-specific
+  // WABA-specific (self-contained: stored in wizard state, not in queue_providers)
+  const [wabaAccessToken, setWabaAccessToken] = useState('');
+  const [wabaBusinessId, setWabaBusinessId] = useState('');
   const [wabaNumberId, setWabaNumberId] = useState('');
   const [wabaNumbers, setWabaNumbers] = useState<WabaPhoneNumber[]>([]);
   const [loadingNumbers, setLoadingNumbers] = useState(false);
@@ -50,10 +52,8 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
   const [testOk, setTestOk] = useState<boolean | null>(null);
 
   const { data: allProviders = [] } = useQueueProviders();
-  const { createProvider } = useQueueProviderMutations();
   const { createQueue } = useQueueMutations();
 
-  // Auto-generate UaZapi instance name
   const evoInstance = useMemo(() => {
     if (selectedType !== 'uazapi') return '';
     const uid = user?.id || '0';
@@ -73,6 +73,8 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
       setSelectedType('');
       setSelectedProviderId('');
       setQueueName('');
+      setWabaAccessToken('');
+      setWabaBusinessId('');
       setWabaNumberId('');
       setWabaNumbers([]);
       setNumbersError(null);
@@ -80,9 +82,10 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
     }
   }, [open]);
 
-  // Auto-select provider if only one exists
   useEffect(() => {
-    if (filteredProviders.length === 1) {
+    if (selectedType === 'waba') {
+      setSelectedProviderId('');
+    } else if (filteredProviders.length === 1) {
       setSelectedProviderId(filteredProviders[0].id);
     } else {
       setSelectedProviderId('');
@@ -92,9 +95,8 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
     setTestOk(null);
   }, [selectedType, filteredProviders.length]);
 
-  // Load WABA phone numbers when provider selected
   useEffect(() => {
-    if (selectedType !== 'waba' || !selectedProvider?.waba_business_id || !selectedProvider?.waba_token) {
+    if (selectedType !== 'waba' || !wabaBusinessId || !wabaAccessToken) {
       setWabaNumbers([]);
       return;
     }
@@ -105,8 +107,8 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
       .invoke('waba-admin', {
         body: {
           action: 'list_phone_numbers',
-          wabaBusinessId: selectedProvider.waba_business_id,
-          accessToken: selectedProvider.waba_token,
+          wabaBusinessId,
+          accessToken: wabaAccessToken,
         },
       })
       .then(({ data, error }) => {
@@ -121,16 +123,16 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
       })
       .finally(() => { if (!cancelled) setLoadingNumbers(false); });
     return () => { cancelled = true; };
-  }, [selectedType, selectedProvider?.waba_business_id, selectedProvider?.waba_token]);
+  }, [selectedType, wabaBusinessId, wabaAccessToken]);
 
   const handleTestConnection = async () => {
-    if (!selectedProvider?.waba_token || !wabaNumberId) return;
+    if (!wabaAccessToken || !wabaNumberId) return;
     setTesting(true);
     setTestOk(null);
     const { data, error } = await supabase.functions.invoke('waba-admin', {
       body: {
         action: 'test_credentials',
-        accessToken: selectedProvider.waba_token,
+        accessToken: wabaAccessToken,
         phoneNumberId: wabaNumberId,
       },
     });
@@ -144,33 +146,31 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
     }
   };
 
-  const handleQuickCreateWabaProvider = (result: { accessToken: string; wabaBusinessId: string }) => {
-    createProvider.mutate(
-      {
-        provider_type: 'waba',
-        name: `WABA ${result.wabaBusinessId.slice(-6)}`,
-        is_active: true,
-        waba_business_id: result.wabaBusinessId,
-        waba_token: result.accessToken,
-      } as Parameters<typeof createProvider.mutate>[0],
-      {
-        onSuccess: () => toast.success('Provedor WABA criado — selecione na lista'),
-      }
-    );
+  const handleWabaSignupSuccess = (result: { accessToken: string; wabaBusinessId: string; phoneNumberId: string }) => {
+    setWabaAccessToken(result.accessToken);
+    setWabaBusinessId(result.wabaBusinessId);
+    if (result.phoneNumberId) setWabaNumberId(result.phoneNumberId);
+    setTestOk(null);
+    toast.success('Conta Meta conectada — selecione o número');
+  };
+
+  const handleWabaReconnect = () => {
+    setWabaAccessToken('');
+    setWabaBusinessId('');
+    setWabaNumberId('');
+    setWabaNumbers([]);
+    setNumbersError(null);
+    setTestOk(null);
   };
 
   const qualityColor = (rating: string) =>
     rating === 'GREEN' ? 'bg-emerald-500' : rating === 'YELLOW' ? 'bg-yellow-500' : rating === 'RED' ? 'bg-red-500' : 'bg-muted-foreground';
 
   const canGoStep2 = !!selectedType;
-  const canGoStep3 = selectedType === 'webchat'
-    ? true
-    : selectedType === 'uazapi'
-    ? !!selectedProviderId
-    : !!selectedProviderId && (
-      selectedType === 'waba' ? !!wabaNumberId.trim() :
-      true
-    );
+  const canGoStep3 =
+    selectedType === 'webchat' ? true :
+    selectedType === 'waba' ? (!!wabaAccessToken && !!wabaBusinessId && !!wabaNumberId.trim()) :
+    !!selectedProviderId;
   const canSubmit = !!queueName.trim();
 
   const handleSubmit = () => {
@@ -180,15 +180,15 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
       hub: selectedType,
     };
 
-    if (selectedProvider) {
+    if (selectedType === 'waba') {
+      formData.waba_id = wabaBusinessId || undefined;
+      formData.waba_token = wabaAccessToken || undefined;
+      formData.waba_number_id = wabaNumberId || undefined;
+    } else if (selectedProvider) {
       if (selectedType === 'uazapi') {
         formData.evo_url = selectedProvider.evo_url || undefined;
         formData.evo_apikey = selectedProvider.evo_apikey || undefined;
         formData.evo_instance = evoInstance || undefined;
-      } else if (selectedType === 'waba') {
-        formData.waba_id = selectedProvider.waba_business_id || undefined;
-        formData.waba_token = selectedProvider.waba_token || undefined;
-        formData.waba_number_id = wabaNumberId || undefined;
       }
     }
 
