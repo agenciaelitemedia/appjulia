@@ -845,6 +845,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       // UaZapi, on the other hand, handles the native WebM/Opus recording more reliably.
       if (queue.channel_type === 'waba' && isAudioMessage && (file.type || '').toLowerCase().includes('webm')) {
         const convertedBlob = await webmBlobToOggOpus(file);
+        // Verify the remux produced a real OGG container (magic bytes "OggS").
+        const head = new Uint8Array(await convertedBlob.slice(0, 4).arrayBuffer());
+        const isOgg = head[0] === 0x4f && head[1] === 0x67 && head[2] === 0x67 && head[3] === 0x53;
+        if (!isOgg) {
+          throw new Error('Falha ao converter áudio para OGG/Opus para a API Oficial. Tente gravar novamente.');
+        }
         outboundFile = new File(
           [convertedBlob],
           file.name.replace(/\.[^.]+$/u, '') + '.ogg',
