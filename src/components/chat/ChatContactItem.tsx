@@ -9,6 +9,7 @@ import type { ChatConversation } from '@/types/conversation';
 import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
 import { SlaBadge } from '@/components/chat/SlaBadge';
 import { JuliaStatusBadge } from '@/components/chat/JuliaStatusBadge';
+import { PriorityBadge } from '@/components/chat/PriorityBadge';
 import { getMessagePreview } from '@/lib/chat/messagePreview';
 
 interface ChatContactItemProps {
@@ -114,9 +115,6 @@ export const ChatContactItem = React.memo(function ChatContactItem({
     : null;
 
   const extraBadges: { label: string; className: string }[] = [];
-  if (conversation?.priority === 'high' || conversation?.priority === 'urgent') {
-    extraBadges.push({ label: 'PRIORIDADE', className: 'bg-red-500 text-white' });
-  }
   if (conversation?.tags && conversation.tags.length > 0) {
     conversation.tags.slice(0, 2).forEach(tag => {
       extraBadges.push({ label: tag.toUpperCase(), className: 'bg-emerald-600 text-white' });
@@ -194,25 +192,36 @@ export const ChatContactItem = React.memo(function ChatContactItem({
           )}
         </div>
 
-        {/* Row 3: Tags — fila → SLA → atribuído → extras */}
-        <div className="flex items-center gap-1 flex-nowrap min-w-0 overflow-hidden">
-          {queueName && (
+        {/* Row 3: Tags — fila → SLA → atribuído → extras → prioridade (direita) */}
+        <div className="flex items-center gap-1 flex-nowrap min-w-0 overflow-hidden w-full">
+          <div className="flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
+            {queueName && (
+              <span className="flex-shrink min-w-0 max-w-[110px] truncate">
+                <Pill label={queueName.toUpperCase()} className="bg-blue-600 text-white" />
+              </span>
+            )}
+            {slaEvaluation && <span className="flex-shrink-0"><SlaBadge evaluation={slaEvaluation} compact /></span>}
             <span className="flex-shrink min-w-0 max-w-[110px] truncate">
-              <Pill label={queueName.toUpperCase()} className="bg-blue-600 text-white" />
+              <Pill
+                label={assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO'}
+                className={assignedAgentName ? 'bg-muted text-foreground' : 'bg-muted/60 text-muted-foreground'}
+              />
             </span>
+            {extraBadges.slice(0, 1).map((b, i) => (
+              <span key={i} className="flex-shrink min-w-0 max-w-[100px] truncate">
+                <Pill label={b.label} className={b.className} />
+              </span>
+            ))}
+          </div>
+          {conversation && (
+            <div className="ml-auto flex-shrink-0">
+              <PriorityBadge
+                conversationId={conversation.id}
+                currentPriority={conversation.priority}
+                compact
+              />
+            </div>
           )}
-          {slaEvaluation && <span className="flex-shrink-0"><SlaBadge evaluation={slaEvaluation} compact /></span>}
-          <span className="flex-shrink min-w-0 max-w-[110px] truncate">
-            <Pill
-              label={assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO'}
-              className={assignedAgentName ? 'bg-muted text-foreground' : 'bg-muted/60 text-muted-foreground'}
-            />
-          </span>
-          {extraBadges.slice(0, 1).map((b, i) => (
-            <span key={i} className="flex-shrink min-w-0 max-w-[100px] truncate">
-              <Pill label={b.label} className={b.className} />
-            </span>
-          ))}
         </div>
       </div>
     </button>
