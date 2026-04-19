@@ -1,5 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
+
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -129,6 +135,15 @@ Agentes do usuário: ${agentCodes.join(', ')}
 
 Responda em português brasileiro, seja conciso e objetivo.`;
 
+    // Resolve AI model for this user
+    const { data: modelCfg } = await supabase
+      .from("client_ai_model_config")
+      .select("model")
+      .eq("client_id", String(userId))
+      .eq("feature", "copilot_chat")
+      .maybeSingle();
+    const chatModel = (modelCfg as any)?.model ?? "google/gemini-2.5-flash";
+
     // Stream AI response
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -137,7 +152,7 @@ Responda em português brasileiro, seja conciso e objetivo.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: chatModel,
         messages: [
           { role: "system", content: systemPrompt },
           ...safeHistory.map((m: any) => ({ role: m.role, content: m.content })),

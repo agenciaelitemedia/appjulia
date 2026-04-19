@@ -214,7 +214,16 @@ serve(async (req) => {
 
         console.log(`Agent ${agent.cod_agent}: calling AI with ${cardsSummary.length} cards`);
 
-        // 8. Call Lovable AI
+        // 8. Resolve AI model for this agent's user
+        const { data: modelCfg } = await supabase
+          .from("client_ai_model_config")
+          .select("model")
+          .eq("client_id", String(agent.user_id))
+          .eq("feature", "copilot_crm")
+          .maybeSingle();
+        const agentModel = (modelCfg as any)?.model ?? "google/gemini-2.5-flash";
+
+        // 9. Call Lovable AI
         const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -222,7 +231,7 @@ serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
+            model: agentModel,
             messages: [
               {
                 role: "system",

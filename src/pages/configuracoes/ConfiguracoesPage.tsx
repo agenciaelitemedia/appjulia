@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Plus, Loader2, Network } from 'lucide-react';
+import { Plus, Loader2, Network, Bot } from 'lucide-react';
+import { AIModelsConfig } from './components/AIModelsConfig';
 import { useQueueProviders, useQueueProviderMutations, type QueueProvider } from './hooks/useQueueProviders';
 import { ProviderCard } from './components/ProviderCard';
 import { ProviderFormDialog } from './components/ProviderFormDialog';
@@ -68,6 +69,10 @@ export default function ConfiguracoesPage() {
             <Network className="w-4 h-4" />
             Provedores de Fila
           </TabsTrigger>
+          <TabsTrigger value="ai" className="gap-2">
+            <Bot className="w-4 h-4" />
+            IA's
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="providers" className="mt-6 space-y-4">
@@ -100,6 +105,16 @@ export default function ConfiguracoesPage() {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="ai" className="mt-6 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Modelos de IA</h2>
+            <p className="text-sm text-muted-foreground">
+              Configure qual modelo de IA será utilizado em cada funcionalidade
+            </p>
+          </div>
+          <AIModelsConfig />
         </TabsContent>
       </Tabs>
 
