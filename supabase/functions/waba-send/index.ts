@@ -120,7 +120,12 @@ Deno.serve(async (req) => {
       }
 
       case "send_media": {
-        const { to, media_type, base64, mimetype, filename, caption } = params;
+        const to = params.to;
+        const media_type = params.media_type ?? params.type;
+        const base64 = params.base64 ?? params.mediaBase64;
+        const mimetype = params.mimetype;
+        const filename = params.filename ?? params.fileName;
+        const caption = params.caption;
         if (!to || !base64 || !mimetype || !media_type) {
           return new Response(
             JSON.stringify({ error: "to, media_type, base64, and mimetype are required" }),
