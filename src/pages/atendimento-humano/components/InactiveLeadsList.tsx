@@ -73,7 +73,29 @@ export function InactiveLeadsList({
   teamMembers,
   codAgent,
   onStartConversation,
+  stages,
+  stageIds,
+  onStageIdsChange,
 }: InactiveLeadsListProps) {
+  const [stagePopoverOpen, setStagePopoverOpen] = useState(false);
+  const stageSet = useMemo(() => new Set(stageIds), [stageIds]);
+  const allStagesSelected = stages.length > 0 && stageIds.length === stages.length;
+  const stageLabel = useMemo(() => {
+    if (stageIds.length === 0 || allStagesSelected) return 'Todas as etapas';
+    if (stageIds.length === 1) {
+      const s = stages.find((x) => x.id === stageIds[0]);
+      return s?.name ?? '1 etapa';
+    }
+    return `${stageIds.length} etapas`;
+  }, [stageIds, stages, allStagesSelected]);
+
+  const toggleStage = (id: number) => {
+    if (stageSet.has(id)) onStageIdsChange(stageIds.filter((x) => x !== id));
+    else onStageIdsChange([...stageIds, id]);
+  };
+  const toggleAllStages = () => {
+    onStageIdsChange(allStagesSelected ? [] : stages.map((s) => s.id));
+  };
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
