@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Mic, Square, Trash2, Send, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { webmBlobToOggOpus } from '@/lib/audio/webmToOgg';
 
 interface AudioRecorderProps {
   onSend: (audioBlob: Blob) => Promise<void>;
@@ -48,11 +49,24 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
 
-      mediaRecorder.onstop = () => {
-        // Always label as audio/ogg;codecs=opus for WhatsApp playback compatibility
-        const blob = new Blob(chunksRef.current, { type: 'audio/ogg;codecs=opus' });
-        setAudioBlob(blob);
+      mediaRecorder.onstop = async () => {
+        const recordedMime = (mediaRecorder.mimeType || chosenMime || '').toLowerCase();
+        const rawBlob = new Blob(chunksRef.current, { type: recordedMime || 'audio/webm' });
         stream.getTracks().forEach(t => t.stop());
+
+        // If MediaRecorder produced WebM (Chrome/Edge default), remux container to true OGG/Opus
+        // so Meta WABA accepts it (Meta inspects magic bytes — renaming MIME alone fails).
+        // Safari's audio/mp4 path is left untouched (Meta natively accepts audio/mp4).
+        if (recordedMime.includes('webm')) {
+          try {
+            const ogg = await webmBlobToOggOpus(rawBlob);
+            setAudioBlob(ogg);
+            return;
+          } catch (err) {
+            console.error('[AudioRecorder] WebM→OGG remux failed, sending raw blob:', err);
+          }
+        }
+        setAudioBlob(rawBlob);
       };
 
       mediaRecorder.start(250);
