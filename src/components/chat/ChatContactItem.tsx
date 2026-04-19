@@ -17,6 +17,7 @@ interface ChatContactItemProps {
   conversation?: ChatConversation;
   queueName?: string;
   assignedAgentName?: string;
+  index?: number;
 }
 
 function ChannelOverlay({ channel }: { channel?: string }) {
@@ -122,6 +123,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   conversation,
   queueName,
   assignedAgentName,
+  index = 0,
 }: ChatContactItemProps) {
   const { configs } = useChatSlaConfigs();
 
@@ -169,7 +171,10 @@ export const ChatContactItem = React.memo(function ChatContactItem({
         'w-full max-w-full flex items-start gap-3 px-3 py-3 text-left transition-colors border-l-[3px] min-w-0 overflow-hidden',
         isSelected
           ? 'bg-accent/40 border-l-primary'
-          : 'border-l-transparent hover:bg-accent/20'
+          : cn(
+              'border-l-transparent hover:bg-accent/20',
+              index % 2 === 0 ? 'bg-background' : 'bg-muted/30'
+            )
       )}
     >
       {/* Avatar with channel overlay */}

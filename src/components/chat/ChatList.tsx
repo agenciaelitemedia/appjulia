@@ -404,7 +404,7 @@ export function ChatList() {
               </p>
             </div>
           ) : (
-            visibleContacts.map((contact) => {
+            visibleContacts.map((contact, idx) => {
               // Pick most recent conversation (any status) so queue/team stay visible
               const contactConvs = conversations
                 .filter(c => c.contact_id === contact.id)
@@ -422,6 +422,7 @@ export function ChatList() {
                   conversation={conv}
                   queueName={convQueue?.name}
                   assignedAgentName={conv?.assigned_to || undefined}
+                  index={idx}
                 />
               );
             })

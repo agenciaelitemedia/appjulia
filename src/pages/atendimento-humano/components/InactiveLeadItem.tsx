@@ -12,6 +12,7 @@ interface InactiveLeadItemProps {
   lead: InactiveSession;
   isSelected: boolean;
   onSelect: (lead: InactiveSession) => void;
+  index?: number;
 }
 
 function getInitials(name: string | null, phone: string): string {
@@ -28,7 +29,7 @@ function formatPhone(phone: string): string {
   return phone;
 }
 
-export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadItemProps) {
+export function InactiveLeadItem({ lead, isSelected, onSelect, index = 0 }: InactiveLeadItemProps) {
   const { getAlias } = useAgentAliases();
   const { data: agents = [] } = useJuliaAgents();
   const displayName = lead.contact_name || formatPhone(lead.whatsapp_number);
@@ -50,7 +51,10 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
         'w-full max-w-full overflow-hidden flex items-start gap-3 px-3 py-3 text-left transition-colors border-l-2',
         isSelected
           ? 'bg-accent/40 border-l-primary'
-          : 'border-l-transparent hover:bg-accent/20'
+          : cn(
+              'border-l-transparent hover:bg-accent/20',
+              index % 2 === 0 ? 'bg-background' : 'bg-muted/30'
+            )
       )}
     >
       {/* Avatar */}
