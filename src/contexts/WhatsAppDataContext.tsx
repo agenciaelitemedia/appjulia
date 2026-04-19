@@ -862,12 +862,20 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         reader.readAsDataURL(outboundFile);
       });
 
-      // Upload media for persistence / preview
+      // Upload media for persistence / preview.
+      // Storage rejects audio/webm — relabel as audio/ogg for storage only.
+      // The actual bytes sent to UaZapi/WABA come from `outboundFile`, not from here.
+      const storageMimetype = isAudioMessage && (outboundFile.type || '').toLowerCase().includes('webm')
+        ? 'audio/ogg'
+        : outboundFile.type;
+      const storageFileName = isAudioMessage && (outboundFile.type || '').toLowerCase().includes('webm')
+        ? outboundFile.name.replace(/\.[^.]+$/u, '') + '.ogg'
+        : outboundFile.name;
       const { data: uploadData, error: uploadError } = await supabase.functions.invoke('chat-media-upload', {
         body: {
           base64,
-          mimetype: outboundFile.type,
-          fileName: outboundFile.name,
+          mimetype: storageMimetype,
+          fileName: storageFileName,
           contactId,
           clientId,
           source: 'outgoing',
