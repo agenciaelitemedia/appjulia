@@ -2,12 +2,15 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { differenceInMinutes, isToday, isYesterday, differenceInDays } from 'date-fns';
-import { formatInTimeZone } from 'date-fns-tz';
 import { ptBR } from 'date-fns/locale';
-
-const TZ = 'America/Sao_Paulo';
 import type { InactiveSession } from '@/lib/externalDb';
 import { JuliaStatusBadge } from '@/components/chat/JuliaStatusBadge';
+
+const TZ = 'America/Sao_Paulo';
+
+function formatTZ(date: Date, opts: Intl.DateTimeFormatOptions): string {
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: TZ, ...opts }).format(date);
+}
 
 interface InactiveLeadItemProps {
   lead: InactiveSession;
@@ -32,11 +35,11 @@ function formatPhone(phone: string): string {
 function formatWhatsAppTime(dateStr: string | null): string {
   if (!dateStr) return '';
   const date = new Date(dateStr);
-  if (isToday(date)) return formatInTimeZone(date, TZ, 'HH:mm');
+  if (isToday(date)) return formatTZ(date, { hour: '2-digit', minute: '2-digit', hour12: false });
   if (isYesterday(date)) return 'Ontem';
   const days = differenceInDays(new Date(), date);
-  if (days < 7) return formatInTimeZone(date, TZ, 'EEEEEE', { locale: ptBR });
-  return formatInTimeZone(date, TZ, 'dd/MM/yyyy');
+  if (days < 7) return formatTZ(date, { weekday: 'short' }).replace('.', '');
+  return formatTZ(date, { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function getUrgencyColor(updatedAt: string | null): string {
