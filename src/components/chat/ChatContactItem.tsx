@@ -8,6 +8,7 @@ import type { ChatContact } from '@/types/chat';
 import type { ChatConversation } from '@/types/conversation';
 import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
 import { SlaBadge } from '@/components/chat/SlaBadge';
+import { JuliaStatusBadge } from '@/components/chat/JuliaStatusBadge';
 
 interface ChatContactItemProps {
   contact: ChatContact;
@@ -186,7 +187,11 @@ export const ChatContactItem = React.memo(function ChatContactItem({
       <div className="flex-1 min-w-0 overflow-hidden space-y-1">
         {/* Row 1: Name (left) + time (right) */}
         <div className="flex items-center justify-between gap-2 min-w-0 w-full">
-          <div className="flex-1 min-w-0 overflow-hidden">
+          <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-hidden">
+            <JuliaStatusBadge
+              whatsappNumber={contact.phone}
+              codAgent={conversation?.cod_agent || contact.cod_agent}
+            />
             <span className={cn(
               'block truncate font-semibold text-sm',
               contact.unread_count > 0 ? 'text-foreground' : 'text-foreground/80'
