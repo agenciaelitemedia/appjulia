@@ -301,10 +301,6 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                 Atalhos de teclado
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onShowDetails}>
-                <Info className="h-4 w-4 mr-2" />
-                Ver detalhes
-              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setShowCrmLead(true)}>
                 <Sparkles className="h-4 w-4 mr-2" />
                 Criar lead no CRM
