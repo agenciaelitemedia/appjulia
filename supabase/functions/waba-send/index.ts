@@ -175,6 +175,7 @@ Deno.serve(async (req) => {
         const uploadData = await uploadResp.json();
 
         if (!uploadResp.ok || !uploadData.id) {
+          console.error(`[waba-send] Upload failed: status=${uploadResp.status}, mime=${uploadMime}, response=${JSON.stringify(uploadData)}`);
           return new Response(
             JSON.stringify({ error: "Failed to upload media", details: uploadData }),
             { status: uploadResp.status || 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
