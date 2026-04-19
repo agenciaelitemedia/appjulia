@@ -5,6 +5,7 @@ import type { InactiveSession } from '@/lib/externalDb';
 import { JuliaStatusBadge } from '@/components/chat/JuliaStatusBadge';
 import { formatInactiveLeadDate, getInactiveLeadUrgencyClass } from '../utils/inactiveLeadDate';
 import { useAgentAliases } from '@/hooks/useAgentAliases';
+import { useJuliaAgents } from '@/pages/estrategico/hooks/useJuliaData';
 import { Hash } from 'lucide-react';
 
 interface InactiveLeadItemProps {
@@ -29,12 +30,16 @@ function formatPhone(phone: string): string {
 
 export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadItemProps) {
   const { getAlias } = useAgentAliases();
+  const { data: agents = [] } = useJuliaAgents();
   const displayName = lead.contact_name || formatPhone(lead.whatsapp_number);
   const timeLabel = formatInactiveLeadDate(lead.updated_at);
   const urgencyClass = getInactiveLeadUrgencyClass(lead.updated_at);
 
   const badgeColor = lead.stage_color || 'hsl(var(--muted-foreground))';
-  const agentAlias = lead.cod_agent ? getAlias(lead.cod_agent, lead.business_name) : '';
+  const agentInfo = lead.cod_agent ? agents.find((a) => a.cod_agent === lead.cod_agent) : null;
+  const agentName = lead.cod_agent
+    ? getAlias(lead.cod_agent, agentInfo?.owner_business_name || agentInfo?.owner_name)
+    : '';
 
   return (
     <button
@@ -82,7 +87,7 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
             <Hash className="h-3 w-3 shrink-0" />
             <span className="truncate">
               <span className="font-semibold text-foreground/80">[{lead.cod_agent}]</span>
-              {agentAlias && <span> - {agentAlias}</span>}
+              {agentName && <span> - {agentName}</span>}
             </span>
           </div>
         )}
