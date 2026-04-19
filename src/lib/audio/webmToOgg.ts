@@ -405,7 +405,7 @@ function packetsToOgg(packets: Uint8Array[], opusHead: Uint8Array): Blob {
     }));
   }
 
-  return new Blob(chunks, { type: 'audio/ogg; codecs=opus' });
+  return new Blob(chunks as BlobPart[], { type: 'audio/ogg; codecs=opus' });
 }
 
 // ---------- Public API ----------
