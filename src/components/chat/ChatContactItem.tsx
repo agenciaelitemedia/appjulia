@@ -75,10 +75,8 @@ function MessagePreview({ text, type }: { text?: string; type?: string }) {
     return <span className="inline-flex items-center text-muted-foreground truncate whitespace-nowrap">{mediaIcons[mediaType]}</span>;
   }
 
-  const MAX_CHARS = 45;
   const singleLine = (text || '').replace(/\s+/g, ' ').trim();
-  const clipped = singleLine.length > MAX_CHARS ? singleLine.slice(0, MAX_CHARS).trimEnd() + '…' : singleLine;
-  return <span className="block truncate whitespace-nowrap">{clipped}</span>;
+  return <span className="block truncate whitespace-nowrap">{singleLine}</span>;
 }
 
 /** Single pill */
@@ -167,7 +165,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             'font-semibold text-sm truncate min-w-0 flex-1 block overflow-hidden whitespace-nowrap',
             contact.unread_count > 0 ? 'text-foreground' : 'text-foreground/80'
           )}>
-            {contact.name.length > 35 ? contact.name.slice(0, 35).trimEnd() + '…' : contact.name}
+            {contact.name}
           </span>
           {formattedTime && (
             <span className={cn(
@@ -199,7 +197,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
         </div>
 
         {/* Row 3: Tags — fila → SLA → atribuído → extras */}
-        <div className="flex items-center gap-1 flex-nowrap min-w-0 overflow-hidden">
+        <div className="flex items-center gap-1 flex-nowrap min-w-0 max-w-full overflow-hidden">
           {queueName && (
             <span className="flex-shrink min-w-0 max-w-[110px] truncate">
               <Pill label={queueName.toUpperCase()} className="bg-blue-600 text-white" />
