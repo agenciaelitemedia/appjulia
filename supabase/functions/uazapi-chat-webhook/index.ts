@@ -42,6 +42,34 @@ function extractMessageText(msg: any): string | undefined {
   return undefined;
 }
 
+/** Build a safe, human-friendly preview for `last_message_text`.
+ *  Never persist raw JSON payloads or `[object Object]`. */
+function buildLastMessagePreview(text: string | undefined, type: string, fileName?: string): string {
+  const TYPE_LABELS: Record<string, string> = {
+    image: '📷 Imagem',
+    video: '🎥 Vídeo',
+    audio: '🎵 Áudio',
+    ptt: '🎵 Áudio',
+    sticker: '🏷️ Sticker',
+    location: '📍 Localização',
+    contact: '👤 Contato',
+    reaction: '💬 Reação',
+    revoked: '🚫 Mensagem apagada',
+  };
+  const t = (text || '').trim();
+  const looksLikeJson = t.startsWith('{') || t.startsWith('[');
+  const isObjectStr = t === '[object Object]';
+  const safeText = looksLikeJson || isObjectStr ? '' : t;
+
+  if (type === 'document') return `📎 ${fileName || 'Documento'}`;
+  if (TYPE_LABELS[type]) {
+    return safeText ? `${TYPE_LABELS[type]}: ${safeText.slice(0, 80)}` : TYPE_LABELS[type];
+  }
+  if (safeText) return safeText.slice(0, 120);
+  // Fallback when text was unusable and type is unknown.
+  return '📎 Mídia';
+}
+
 function extractMessageType(msg: any): string {
   const mt = (msg.messageType || msg.type || '').toLowerCase();
   if (mt.includes('image') || msg.message?.imageMessage || msg.isMedia && mt.includes('image')) return 'image';
@@ -331,7 +359,7 @@ Deno.serve(async (req) => {
             is_group: isGroup,
             avatar: fromMe ? ((preExisting as any)?.avatar ?? null) : (msg.profilePictureUrl || msg.groupPictureUrl || null),
             last_message_at: isoTimestamp,
-            last_message_text: (isGroup && pushName ? `${pushName}: ` : '') + (text || `[${type}]`),
+            last_message_text: (isGroup && pushName ? `${pushName}: ` : '') + buildLastMessagePreview(text, type, msg.message?.documentMessage?.fileName || msg.fileName),
             unread_count: nextUnreadCount,
           }, {
             onConflict: 'phone,client_id',
