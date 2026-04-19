@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo, useEf
 import { supabase } from '@/integrations/supabase/client';
 import { externalDb } from '@/lib/externalDb';
 import { webmBlobToOggOpusStrict } from '@/lib/audio/webmToOgg';
+import { getMessagePreview } from '@/lib/chat/messagePreview';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 import type {
@@ -765,7 +766,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         .from('chat_contacts')
         .update({
           last_message_at: new Date().toISOString(),
-          last_message_text: text,
+          last_message_text: getMessagePreview({ type: 'text', text }),
         })
         .eq('id', contactId);
 
@@ -987,17 +988,18 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         sender_name: user?.name,
       });
 
+      const mediaPreview = getMessagePreview({ type, caption, file_name: file.name });
       await supabase
         .from('chat_contacts')
         .update({
           last_message_at: tempMessage.timestamp,
-          last_message_text: caption || `[${type}]`,
+          last_message_text: mediaPreview,
         })
         .eq('id', contactId);
 
       setContacts(prev => prev.map(c =>
         c.id === contactId
-          ? { ...c, last_message_text: caption || `[${type}]`, last_message_at: tempMessage.timestamp }
+          ? { ...c, last_message_text: mediaPreview, last_message_at: tempMessage.timestamp }
           : c
       ));
 
