@@ -3,7 +3,7 @@ import { Headset } from 'lucide-react';
 import { useInactiveLeads } from './hooks/useInactiveLeads';
 import { InactiveLeadsList } from './components/InactiveLeadsList';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AgentSingleSelectPopover } from '@/components/agents/AgentSingleSelectPopover';
 import { useJuliaAgents } from '@/pages/estrategico/hooks/useJuliaData';
 import { useCRMStages, useTeamForAgent } from '@/pages/crm/hooks/useCRMData';
 import { saveAgentCodes } from '@/hooks/usePersistedPeriod';
@@ -101,22 +101,13 @@ export default function HumanSupportPage() {
           juliaFilter={juliaFilter}
           onJuliaFilterChange={setJuliaFilter}
           agentSelect={
-            <Select
-              value={selectedAgents[0] ?? ''}
-              onValueChange={handleAgentChange}
+            <AgentSingleSelectPopover
+              agents={agents}
+              value={selectedAgents[0] ?? null}
+              onChange={handleAgentChange}
               disabled={isLoadingAgents || agents.length === 0}
-            >
-              <SelectTrigger className="w-full h-9">
-                <SelectValue placeholder="Selecione um agente" />
-              </SelectTrigger>
-              <SelectContent>
-                {agents.map((a) => (
-                  <SelectItem key={a.cod_agent} value={a.cod_agent}>
-                    [{a.cod_agent}] {a.alias || a.owner_business_name || a.owner_name || a.cod_agent}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              className="w-full"
+            />
           }
         />
       </div>
