@@ -185,7 +185,11 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
   const handleForward = useCallback((msg: ChatMessage) => setForwardMessage(msg), []);
 
   const formatDateHeader = (dateKey: string) => {
-    const date = new Date(dateKey);
+    // Parse as local date — new Date("yyyy-MM-dd") is treated as UTC midnight,
+    // which shifts to the previous day in UTC-3 (Brazil). Using the constructor
+    // with numeric parts creates the date in local time instead.
+    const [year, month, day] = dateKey.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
