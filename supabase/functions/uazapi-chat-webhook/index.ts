@@ -29,22 +29,43 @@ function normalizePhone(raw: string): string {
   return raw.replace(/@.*/, '').replace(/[^\d]/g, '');
 }
 
+/** Coerce any value to a safe plain string (never returns object/JSON/[object Object]). */
+function toSafeString(v: unknown): string {
+  if (v == null) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  // object/array: try common text fields, otherwise drop it (do NOT JSON.stringify into the preview)
+  if (typeof v === 'object') {
+    const o = v as any;
+    const candidate = o.body ?? o.text ?? o.caption ?? o.message ?? o.conversation;
+    if (typeof candidate === 'string') return candidate;
+  }
+  return '';
+}
+
 function extractMessageText(msg: any): string | undefined {
-  // msg.text can be string or {body: "..."} depending on UaZapi version
-  if (typeof msg.text === 'string' && msg.text) return msg.text;
-  if (msg.text?.body) return msg.text.body;
-  if (msg.body) return msg.body;
-  if (msg.content) return msg.content;
-  if (msg.message?.conversation) return msg.message.conversation;
-  if (msg.message?.extendedTextMessage?.text) return msg.message.extendedTextMessage.text;
-  if (msg.message?.imageMessage?.caption) return msg.message.imageMessage.caption;
-  if (msg.message?.videoMessage?.caption) return msg.message.videoMessage.caption;
+  // msg.text/content can be string OR object ({body|text|caption: "..."}) depending on UaZapi version/media
+  const candidates = [
+    msg.text,
+    msg.body,
+    msg.content,
+    msg.caption,
+    msg.message?.conversation,
+    msg.message?.extendedTextMessage?.text,
+    msg.message?.imageMessage?.caption,
+    msg.message?.videoMessage?.caption,
+    msg.message?.documentMessage?.caption,
+  ];
+  for (const c of candidates) {
+    const s = toSafeString(c).trim();
+    if (s) return s;
+  }
   return undefined;
 }
 
 /** Build a safe, human-friendly preview for `last_message_text`.
  *  Never persist raw JSON payloads or `[object Object]`. */
-function buildLastMessagePreview(text: string | undefined, type: string, fileName?: string): string {
+function buildLastMessagePreview(text: unknown, type: string, fileName?: string): string {
   const TYPE_LABELS: Record<string, string> = {
     image: '📷 Imagem',
     video: '🎥 Vídeo',
@@ -56,7 +77,7 @@ function buildLastMessagePreview(text: string | undefined, type: string, fileNam
     reaction: '💬 Reação',
     revoked: '🚫 Mensagem apagada',
   };
-  const t = (text || '').trim();
+  const t = toSafeString(text).trim();
   const looksLikeJson = t.startsWith('{') || t.startsWith('[');
   const isObjectStr = t === '[object Object]';
   const safeText = looksLikeJson || isObjectStr ? '' : t;
