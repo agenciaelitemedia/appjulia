@@ -1166,6 +1166,51 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_conversation_summaries: {
+        Row: {
+          atendimento: string | null
+          client_id: string
+          contact_id: string
+          conversation_id: string
+          created_at: string | null
+          first_message_ts: string | null
+          id: string
+          last_message_ts: string | null
+          message_count: number | null
+          sentiment: string | null
+          summary: string
+          triggered_by: string | null
+        }
+        Insert: {
+          atendimento?: string | null
+          client_id: string
+          contact_id: string
+          conversation_id: string
+          created_at?: string | null
+          first_message_ts?: string | null
+          id?: string
+          last_message_ts?: string | null
+          message_count?: number | null
+          sentiment?: string | null
+          summary: string
+          triggered_by?: string | null
+        }
+        Update: {
+          atendimento?: string | null
+          client_id?: string
+          contact_id?: string
+          conversation_id?: string
+          created_at?: string | null
+          first_message_ts?: string | null
+          id?: string
+          last_message_ts?: string | null
+          message_count?: number | null
+          sentiment?: string | null
+          summary?: string
+          triggered_by?: string | null
+        }
+        Relationships: []
+      }
       chat_conversation_tags: {
         Row: {
           conversation_id: string
@@ -2158,6 +2203,30 @@ export type Database = {
           secret?: string | null
           updated_at?: string
           url?: string
+        }
+        Relationships: []
+      }
+      client_ai_model_config: {
+        Row: {
+          client_id: string
+          feature: string
+          id: string
+          model: string
+          updated_at: string | null
+        }
+        Insert: {
+          client_id: string
+          feature: string
+          id?: string
+          model?: string
+          updated_at?: string | null
+        }
+        Update: {
+          client_id?: string
+          feature?: string
+          id?: string
+          model?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
