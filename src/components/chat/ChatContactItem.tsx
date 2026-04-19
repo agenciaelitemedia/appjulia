@@ -1,7 +1,7 @@
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Users, MessageCircle, Globe, Instagram, Camera, Video, Mic, FileText } from 'lucide-react';
+import { Users, MessageCircle, Globe, Instagram } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { differenceInMinutes, differenceInHours } from 'date-fns';
 import type { ChatContact } from '@/types/chat';
@@ -9,6 +9,7 @@ import type { ChatConversation } from '@/types/conversation';
 import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
 import { SlaBadge } from '@/components/chat/SlaBadge';
 import { JuliaStatusBadge } from '@/components/chat/JuliaStatusBadge';
+import { getMessagePreview } from '@/lib/chat/messagePreview';
 
 interface ChatContactItemProps {
   contact: ChatContact;
@@ -58,53 +59,11 @@ function formatRelativeTime(dateStr: string): string {
   return `há ${days} dia${days > 1 ? 's' : ''}`;
 }
 
-/** Message preview with media type icon */
-function inferTypeFromJson(text: string): string | undefined {
-  const trimmed = text.trim();
-  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return undefined;
-  try {
-    const parsed = JSON.parse(trimmed);
-    const obj = Array.isArray(parsed) ? parsed[0] : parsed;
-    if (!obj || typeof obj !== 'object') return 'document';
-    const url: string = (obj.URL || obj.url || obj.directPath || obj.fileURL || '').toString().toLowerCase();
-    const mime: string = (obj.mimetype || obj.mime || obj.contentType || '').toString().toLowerCase();
-    if (mime.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif)(\?|$)/.test(url)) return 'image';
-    if (mime.startsWith('video/') || /\.(mp4|mov|webm|3gp)(\?|$)/.test(url)) return 'video';
-    if (mime.startsWith('audio/') || obj.ptt || /\.(ogg|opus|mp3|m4a|wav)(\?|$)/.test(url)) return obj.ptt ? 'ptt' : 'audio';
-    if (/sticker/.test(mime) || /sticker/i.test(url)) return 'sticker';
-    if (/mmg\.whatsapp\.net|enc/.test(url)) return 'image';
-    return 'document';
-  } catch {
-    return undefined;
-  }
-}
-
-function MessagePreview({ text, type }: { text?: string; type?: string }) {
-  if (!text && !type) return null;
-
-  const KNOWN_MEDIA_TYPES = new Set(['image', 'video', 'audio', 'ptt', 'document', 'sticker']);
-  const mediaType = type
-    || (text?.match(/^\[(\w+)\]$/)?.[1])
-    || (text && KNOWN_MEDIA_TYPES.has(text.toLowerCase()) ? text.toLowerCase() : undefined)
-    || (text ? inferTypeFromJson(text) : undefined);
-
-  const mediaIcons: Record<string, React.ReactNode> = {
-    image: <><Camera className="h-3 w-3 text-muted-foreground inline mr-1" /> Imagem</>,
-    video: <><Video className="h-3 w-3 text-muted-foreground inline mr-1" /> Vídeo</>,
-    audio: <><Mic className="h-3 w-3 text-muted-foreground inline mr-1" /> Áudio</>,
-    ptt: <><Mic className="h-3 w-3 text-muted-foreground inline mr-1" /> Áudio</>,
-    document: <><FileText className="h-3 w-3 text-muted-foreground inline mr-1" /> Documento</>,
-    sticker: <>🏷️ Sticker</>,
-  };
-
-  if (mediaType && mediaIcons[mediaType]) {
-    return <span className="inline-flex items-center text-muted-foreground truncate whitespace-nowrap">{mediaIcons[mediaType]}</span>;
-  }
-
-  const MAX_CHARS = 45;
-  const singleLine = (text || '').replace(/\s+/g, ' ').trim();
-  const clipped = singleLine.length > MAX_CHARS ? singleLine.slice(0, MAX_CHARS).trimEnd() + '…' : singleLine;
-  return <span className="block truncate whitespace-nowrap">{clipped}</span>;
+/** Safe single-line preview for the contact list. */
+function MessagePreview({ text }: { text?: string }) {
+  const preview = getMessagePreview({ text: text ?? '' });
+  if (!preview) return null;
+  return <span className="block truncate whitespace-nowrap">{preview}</span>;
 }
 
 /** Single pill */

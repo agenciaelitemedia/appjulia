@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo, useEf
 import { supabase } from '@/integrations/supabase/client';
 import { externalDb } from '@/lib/externalDb';
 import { webmBlobToOggOpusStrict } from '@/lib/audio/webmToOgg';
+import { getMessagePreview } from '@/lib/chat/messagePreview';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 import type {
@@ -765,7 +766,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         .from('chat_contacts')
         .update({
           last_message_at: new Date().toISOString(),
-          last_message_text: text,
+          last_message_text: getMessagePreview({ type: 'text', text }),
         })
         .eq('id', contactId);
 
@@ -987,17 +988,18 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         sender_name: user?.name,
       });
 
+      const mediaPreview = getMessagePreview({ type, caption, file_name: file.name });
       await supabase
         .from('chat_contacts')
         .update({
           last_message_at: tempMessage.timestamp,
-          last_message_text: caption || `[${type}]`,
+          last_message_text: mediaPreview,
         })
         .eq('id', contactId);
 
       setContacts(prev => prev.map(c =>
         c.id === contactId
-          ? { ...c, last_message_text: caption || `[${type}]`, last_message_at: tempMessage.timestamp }
+          ? { ...c, last_message_text: mediaPreview, last_message_at: tempMessage.timestamp }
           : c
       ));
 
@@ -1362,11 +1364,17 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           // For outbound from_me messages received via realtime (sent from another device):
           // update last_message_text in-memory so the preview reflects the sent media.
           if (!wasDuplicate && newMessage.from_me && !newMessage.internal_note) {
+            const previewOut = getMessagePreview({
+              type: newMessage.type,
+              text: newMessage.text,
+              caption: newMessage.caption,
+              file_name: newMessage.file_name,
+            });
             setContacts(prev => prev.map(c =>
               c.id === newMessage.contact_id
                 ? {
                     ...c,
-                    last_message_text: newMessage.text || (newMessage.type && newMessage.type !== 'text' ? `[${newMessage.type}]` : c.last_message_text),
+                    last_message_text: previewOut || c.last_message_text,
                     last_message_at: newMessage.timestamp || newMessage.created_at || c.last_message_at,
                   }
                 : c
@@ -1382,12 +1390,18 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           // the conversation is open — the badge must remain visible until the agent
           // explicitly assumes the conversation (which calls markAsRead).
           if (!wasDuplicate && !newMessage.from_me && !newMessage.internal_note) {
+            const previewIn = getMessagePreview({
+              type: newMessage.type,
+              text: newMessage.text,
+              caption: newMessage.caption,
+              file_name: newMessage.file_name,
+            });
             setContacts(prev => prev.map(c =>
               c.id === newMessage.contact_id
                 ? {
                     ...c,
                     unread_count: (c.unread_count || 0) + 1,
-                    last_message_text: newMessage.text || (newMessage.type && newMessage.type !== 'text' ? `[${newMessage.type}]` : c.last_message_text),
+                    last_message_text: previewIn || c.last_message_text,
                     last_message_at: newMessage.timestamp || newMessage.created_at || c.last_message_at,
                   }
                 : c
@@ -1410,7 +1424,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
                   .from('chat_contacts')
                   .update({
                     unread_count: next,
-                    last_message_text: newMessage.text || (newMessage.type && newMessage.type !== 'text' ? `[${newMessage.type}]` : null),
+                    last_message_text: previewIn || null,
                     last_message_at: newMessage.timestamp || newMessage.created_at || new Date().toISOString(),
                   })
                   .eq('id', newMessage.contact_id);
