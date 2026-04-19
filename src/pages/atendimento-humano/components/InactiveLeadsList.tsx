@@ -276,12 +276,13 @@ export function InactiveLeadsList({
           </div>
         ) : (
           <div>
-            {leads.map((lead) => (
+            {leads.map((lead, idx) => (
               <InactiveLeadItem
                 key={`${lead.id}-${lead.whatsapp_number}`}
                 lead={lead}
                 isSelected={selectedLeadId === lead.id}
                 onSelect={onSelectLead}
+                index={idx}
               />
             ))}
             {hasMore && (
