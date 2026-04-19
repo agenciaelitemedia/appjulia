@@ -1,33 +1,27 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Headset } from 'lucide-react';
 import { useInactiveLeads } from './hooks/useInactiveLeads';
 import { InactiveLeadsList } from './components/InactiveLeadsList';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
-import { AgentSearchSelect } from '@/components/AgentSearchSelect';
+import { AgentMultiSelectPopover } from '@/components/agents/AgentMultiSelectPopover';
 import { useJuliaAgents } from '@/pages/estrategico/hooks/useJuliaData';
-import { useTeamForAgent } from '@/pages/crm/hooks/useCRMData';
-import { getSavedAgentCodes, saveAgentCodes } from '@/hooks/usePersistedPeriod';
+import { useCRMStages, useTeamForAgent } from '@/pages/crm/hooks/useCRMData';
+import { saveAgentCodes } from '@/hooks/usePersistedPeriod';
 import type { InactiveSession } from '@/lib/externalDb';
-import { useEffect } from 'react';
 
 export default function HumanSupportPage() {
   const { data: agents = [], isLoading: isLoadingAgents } = useJuliaAgents();
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const { data: stages = [] } = useCRMStages();
+  const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
   const [selectedLead, setSelectedLead] = useState<InactiveSession | null>(null);
-  const { data: teamMembers = [] } = useTeamForAgent(selectedAgent);
+  const { data: teamMembers = [] } = useTeamForAgent(selectedAgents[0] ?? null);
 
-  // Restore saved agent on load
+  // Pre-select all agents on load
   useEffect(() => {
-    if (agents.length > 0 && !selectedAgent) {
-      const saved = getSavedAgentCodes();
-      const first = saved?.[0];
-      if (first && agents.some(a => a.cod_agent === first)) {
-        setSelectedAgent(first);
-      } else {
-        setSelectedAgent(agents[0].cod_agent);
-      }
+    if (agents.length > 0 && selectedAgents.length === 0) {
+      setSelectedAgents(agents.map((a) => a.cod_agent));
     }
-  }, [agents, selectedAgent]);
+  }, [agents, selectedAgents.length]);
 
   const {
     leads,
@@ -39,25 +33,28 @@ export default function HumanSupportPage() {
     setSelectedPeriod,
     ownerFilter,
     setOwnerFilter,
+    stageIds,
+    setStageIds,
     hasMore,
     loadMore,
     refetch,
-  } = useInactiveLeads(selectedAgent || undefined);
+  } = useInactiveLeads(selectedAgents);
 
-  const handleAgentChange = useCallback((code: string) => {
-    setSelectedAgent(code);
-    saveAgentCodes([code]);
+  const handleAgentsChange = useCallback((codes: string[]) => {
+    setSelectedAgents(codes);
+    saveAgentCodes(codes);
     setSelectedLead(null);
   }, []);
 
   const handleStartConversation = useCallback((whatsappNumber: string) => {
+    const codAgent = selectedAgents[0] || '';
     const syntheticLead: InactiveSession = {
       id: Date.now(),
       whatsapp_number: whatsappNumber,
       active: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      cod_agent: selectedAgent || '',
+      cod_agent: codAgent,
       contact_name: null,
       business_name: null,
       card_id: null,
@@ -67,9 +64,8 @@ export default function HumanSupportPage() {
       owner_name: null,
     };
     setSelectedLead(syntheticLead);
-    // Refetch after a short delay to allow the session to be created
     setTimeout(() => refetch(), 1000);
-  }, [selectedAgent, refetch]);
+  }, [selectedAgents, refetch]);
 
   const handleSelectLead = useCallback((lead: InactiveSession) => {
     setSelectedLead(lead);
@@ -94,15 +90,17 @@ export default function HumanSupportPage() {
           ownerFilter={ownerFilter}
           onOwnerFilterChange={setOwnerFilter}
           teamMembers={teamMembers}
-          codAgent={selectedAgent}
+          codAgent={selectedAgents[0] ?? null}
           onStartConversation={handleStartConversation}
+          stages={stages}
+          stageIds={stageIds}
+          onStageIdsChange={setStageIds}
           agentSelect={
-            <AgentSearchSelect
+            <AgentMultiSelectPopover
               agents={agents}
-              value={selectedAgent}
-              onValueChange={handleAgentChange}
+              value={selectedAgents}
+              onChange={handleAgentsChange}
               disabled={isLoadingAgents}
-              placeholder="Selecione um agente"
               className="w-full"
             />
           }
@@ -132,7 +130,7 @@ export default function HumanSupportPage() {
                 Selecione um lead para atender
               </h3>
               <p className="text-sm text-muted-foreground max-w-sm">
-                Leads com a Júlia IA inativa aparecem na lista à esquerda. 
+                Leads com a Júlia IA inativa aparecem na lista à esquerda.
                 Clique em um lead para iniciar o atendimento humano.
               </p>
             </div>
