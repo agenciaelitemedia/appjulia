@@ -230,8 +230,9 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
           <div className="grid gap-3 sm:grid-cols-2">
             {channelTypes.map((ch) => {
               const Icon = ch.icon;
-              const hasProvider = allProviders.some((p) => p.provider_type === ch.value && p.is_active);
+              const isWaba = ch.value === 'waba';
               const isWebchat = ch.value === 'webchat';
+              const hasProvider = allProviders.some((p) => p.provider_type === ch.value && p.is_active);
 
               return (
                 <Card
@@ -249,8 +250,8 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
                       <div>
                         <p className="font-medium text-foreground">{ch.label}</p>
                         {!isWebchat && (
-                          <Badge variant={hasProvider ? 'default' : 'outline'} className="text-xs mt-0.5">
-                            {hasProvider ? 'Provedor configurado' : 'Sem provedor'}
+                          <Badge variant={isWaba || hasProvider ? 'default' : 'outline'} className="text-xs mt-0.5">
+                            {isWaba ? 'Conecte ao criar' : hasProvider ? 'Provedor configurado' : 'Sem provedor'}
                           </Badge>
                         )}
                       </div>
