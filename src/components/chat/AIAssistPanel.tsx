@@ -18,6 +18,10 @@ export function AIAssistPanel({ conversationId, onInsertReply }: Props) {
   const [result, setResult] = useState<{ mode: Mode; text: string } | null>(null);
 
   const run = async (mode: Mode) => {
+    if (!conversationId) {
+      toast.error('Selecione uma conversa primeiro');
+      return;
+    }
     setLoading(mode);
     setResult(null);
     const { data, error } = await supabase.functions.invoke('chat-ai-assist', {

@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
     const { conversation_id, mode, after_ts, client_id } = body;
     const validModes = ["summary", "suggest", "sentiment", "full_summary"];
     if (!conversation_id || !validModes.includes(mode)) {
-      return json({ error: "conversation_id and valid mode required" }, 400);
+      return json({ error: "conversation_id and valid mode required", received: { conversation_id, mode } }, 200);
     }
     const apiKey = Deno.env.get("LOVABLE_API_KEY");
     if (!apiKey) return json({ error: "LOVABLE_API_KEY not configured" }, 500);
