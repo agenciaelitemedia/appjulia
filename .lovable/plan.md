@@ -1,44 +1,48 @@
 
 ## Problema
-O áudio da API oficial continua corrompido mesmo depois do ajuste de MIME.
+No preview da última mensagem (lista de conversas e/ou último-texto), mídias enviadas via UaZapi aparecem como `[object Object]` em vez de "📎 Documento", "🎵 Áudio", etc.
 
-## O que a análise mostra
-- O envio para `waba-send` já está chegando com `audio/ogg; codecs=opus` e começando com `OggS`, então o problema não é mais só “label errado”.
-- Pelos logs, o arquivo convertido que vai para a oficial está muito pequeno para um áudio de vários segundos (ex.: ~4.6 KB), o que indica que a corrupção acontece **na conversão client-side**, antes do upload.
-- A UaZapi continua melhor porque usa o blob nativo do navegador e praticamente não depende dessa conversão.
+## Investigação necessária
+Preciso confirmar onde o `last_message_text` está sendo gerado/escrito como objeto. Pelos network logs vejo que mensagens recebidas (documentos com payload JSON em `text`) chegam no banco com `text` contendo um JSON stringificado — então o `last_message_text` provavelmente está sendo populado com esse JSON ou com o objeto cru `[object Object]` em algum ponto.
 
-## Causa raiz provável
-O remuxer customizado em `src/lib/audio/webmToOgg.ts` está gerando um OGG formalmente válido, mas **incompleto/truncado** para os blobs do `MediaRecorder` do navegador. Ou seja: o cabeçalho OGG existe, porém os pacotes/duração não estão sendo preservados corretamente.
+Vou investigar:
+1. Onde `last_message_text` é atualizado (insert/update de `chat_contacts`).
+2. Ingestão de mensagens UaZapi (webhook) — como o `text` é normalizado para mídia.
+3. Componente da lista de chat que renderiza o preview — se há fallback para objeto.
+4. Função de envio de mídia (`sendMedia`) — se atualiza `last_message_text` com o `File` ou objeto.
 
 ## Plano de correção
-1. **Corrigir/substituir a conversão WebM -> OGG**
-   - Revisar `src/lib/audio/webmToOgg.ts` para tratar corretamente os blocos/pacotes do WebM gravado pelo navegador.
-   - Se a implementação atual continuar frágil, trocar por uma abordagem mais confiável para gerar OGG/Opus no frontend.
 
-2. **Fortalecer a validação antes de enviar para a oficial**
-   - Em `src/contexts/WhatsAppDataContext.tsx`, não validar só `OggS`.
-   - Validar também se o blob convertido tem tamanho/duração coerentes antes de usá-lo no `waba-send`.
-   - Se a conversão falhar, bloquear o envio com erro explícito, em vez de enviar um OGG quebrado.
+1. **Helper único de preview** (`src/lib/chat/messagePreview.ts`)
+   - Função `getMessagePreview(message)` que retorna string segura por tipo:
+     - `image` → "📷 Imagem" (+ caption se houver)
+     - `video` → "🎥 Vídeo"
+     - `audio`/`ptt` → "🎵 Áudio"
+     - `document` → "📎 " + (file_name || "Documento")
+     - `sticker` → "Sticker"
+     - `location` → "📍 Localização"
+     - `contact` → "👤 Contato"
+     - `text` → texto truncado, **nunca** stringify de objeto
+   - Detecta e ignora valores como `[object Object]`, JSON crus de mídia (string começando com `{"URL"`), retornando o label do tipo.
 
-3. **Manter a separação por provedor**
-   - **API oficial**: usar apenas OGG/Opus realmente íntegro.
-   - **UaZapi**: continuar usando o blob nativo do navegador (WebM/Opus ou MP4), preservando o funcionamento atual.
+2. **Atualizar pontos de escrita do `last_message_text`**
+   - `WhatsAppDataContext.tsx` (envio): usar `getMessagePreview` ao gravar `chat_contacts.last_message_text` e `last_message_at` após `sendMedia`/`sendMessage`, em vez de passar `file`/objeto.
+   - Webhook de ingestão UaZapi (edge function): aplicar o mesmo helper antes de salvar `last_message_text` para mídias recebidas (substituir o JSON cru por "📎 Documento", etc.).
 
-4. **Preservar o fluxo de storage sem quebrar os provedores**
-   - Garantir que o arquivo persistido em `chat-media-upload` corresponda ao arquivo realmente enviado para cada provedor.
-   - Evitar qualquer relabel que masque bytes inválidos.
+3. **Atualizar a renderização da lista**
+   - Componente da lista de conversas (chat sidebar, estilo Helena) e atendimento humano: usar `getMessagePreview({ type, text: last_message_text, file_name })` para exibir o preview, garantindo fallback mesmo para registros antigos com `[object Object]` ou JSON cru.
 
-5. **Validar os cenários críticos**
-   - Gravação de áudio no Chrome -> API oficial
-   - Gravação de áudio no Chrome -> UaZapi
-   - Safari/iPhone com `audio/mp4` -> API oficial
-   - Upload de áudio já pronto (sem gravação) -> ambos os provedores
+4. **Backfill leve (opcional, no client)**
+   - Não rodar migration; o helper de exibição já cobre registros antigos automaticamente.
 
-## Arquivos principais
-- `src/lib/audio/webmToOgg.ts`
-- `src/contexts/WhatsAppDataContext.tsx`
+## Arquivos a alterar
+- `src/lib/chat/messagePreview.ts` (novo)
+- `src/contexts/WhatsAppDataContext.tsx` (escrita correta no `last_message_text`)
+- `supabase/functions/<webhook ingestão UaZapi>/index.ts` (escrita correta na ingestão)
+- Componente da lista de conversas em `/chat` e `/atendimento-humano` (exibição segura)
 
 ## Resultado esperado
-- API oficial recebe um OGG/Opus íntegro, com duração correta.
-- UaZapi continua enviando o áudio normalmente.
-- O sistema deixa de aceitar/salvar conversões corrompidas silenciosamente.
+- Nenhum preview mostra `[object Object]` ou JSON cru de mídia.
+- Mídias enviadas e recebidas exibem rótulo amigável com ícone.
+- Texto puro continua aparecendo normalmente.
+- UaZapi e WABA tratados de forma idêntica.
