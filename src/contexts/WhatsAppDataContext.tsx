@@ -1364,11 +1364,17 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           // For outbound from_me messages received via realtime (sent from another device):
           // update last_message_text in-memory so the preview reflects the sent media.
           if (!wasDuplicate && newMessage.from_me && !newMessage.internal_note) {
+            const previewOut = getMessagePreview({
+              type: newMessage.type,
+              text: newMessage.text,
+              caption: newMessage.caption,
+              file_name: newMessage.file_name,
+            }) || c_lastFallback(newMessage);
             setContacts(prev => prev.map(c =>
               c.id === newMessage.contact_id
                 ? {
                     ...c,
-                    last_message_text: newMessage.text || (newMessage.type && newMessage.type !== 'text' ? `[${newMessage.type}]` : c.last_message_text),
+                    last_message_text: previewOut || c.last_message_text,
                     last_message_at: newMessage.timestamp || newMessage.created_at || c.last_message_at,
                   }
                 : c
