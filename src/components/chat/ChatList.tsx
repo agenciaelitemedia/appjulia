@@ -186,9 +186,6 @@ export function ChatList() {
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/sla')} title="Configurar SLA">
               <Timer className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => syncContacts()} disabled={isSyncing || !selectedQueue} title="Sincronizar">
-              <RefreshCw className={cn('h-4 w-4', isSyncing && 'animate-spin')} />
-            </Button>
           </div>
         </div>
 
