@@ -11,8 +11,6 @@ const TZ = 'America/Sao_Paulo';
 function formatTZ(date: Date, opts: Intl.DateTimeFormatOptions): string {
   return new Intl.DateTimeFormat('pt-BR', { timeZone: TZ, ...opts }).format(date);
 }
-import type { InactiveSession } from '@/lib/externalDb';
-import { JuliaStatusBadge } from '@/components/chat/JuliaStatusBadge';
 
 interface InactiveLeadItemProps {
   lead: InactiveSession;
