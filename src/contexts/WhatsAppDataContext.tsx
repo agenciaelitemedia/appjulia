@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { externalDb } from '@/lib/externalDb';
-import { webmBlobToOggOpus } from '@/lib/audio/webmToOgg';
+import { webmBlobToOggOpusStrict } from '@/lib/audio/webmToOgg';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 import type {
