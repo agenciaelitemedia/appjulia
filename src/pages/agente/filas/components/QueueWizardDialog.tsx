@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Phone, MessageSquare, Globe, Instagram, Loader2, ArrowLeft, ArrowRight, Check, AlertCircle, RefreshCw, CheckCircle2 } from 'lucide-react';
-import { useQueueProviders, useQueueProviderMutations, type QueueProvider } from '@/pages/configuracoes/hooks/useQueueProviders';
+import { useQueueProviders } from '@/pages/configuracoes/hooks/useQueueProviders';
 import { useQueueMutations, type QueueFormData } from '../hooks/useQueues';
 import { WabaEmbeddedSignupButton } from '@/components/waba/WabaEmbeddedSignupButton';
 import { supabase } from '@/integrations/supabase/client';
