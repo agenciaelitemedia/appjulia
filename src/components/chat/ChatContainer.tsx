@@ -4,6 +4,7 @@ import { ChatHeader } from './ChatHeader';
 import { ChatMessages } from './ChatMessages';
 import { ChatInput } from './ChatInput';
 import { ContactDetailPanel } from './ContactDetailPanel';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -51,14 +52,16 @@ export function ChatContainer({ className }: ChatContainerProps) {
         )}
       </div>
 
-      {/* Contact detail panel - right side */}
-      {selectedContact && showDetailPanel && (
-        <div className="hidden lg:flex w-80 flex-shrink-0 border-l">
-          <ContactDetailPanel 
-            contact={selectedContact}
-            onClose={() => setShowDetailPanel(false)}
-          />
-        </div>
+      {/* Contact detail panel - overlay sheet */}
+      {selectedContact && (
+        <Sheet open={showDetailPanel} onOpenChange={setShowDetailPanel}>
+          <SheetContent side="right" className="w-[380px] sm:w-[420px] sm:max-w-[420px] p-0 overflow-y-auto">
+            <ContactDetailPanel
+              contact={selectedContact}
+              onClose={() => setShowDetailPanel(false)}
+            />
+          </SheetContent>
+        </Sheet>
       )}
     </div>
   );
