@@ -1126,16 +1126,32 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const selectContact = useCallback((contactId: string | null) => {
     setSelectedContactId(contactId);
     if (!contactId) return;
-    // Ensure conversation exists so header actions render.
-    // Do NOT mark as read here — unread badge must persist until user claims ("Assumir") the conversation.
     (async () => {
       try {
         await getOrCreateConversation(contactId);
+
+        const contact = contacts.find(c => c.id === contactId);
+        if (!contact || contact.unread_count === 0) return;
+
+        // Groups: mark as read on click
+        if (contact.is_group) {
+          await markAsRead(contactId);
+          return;
+        }
+
+        // Individual: mark as read only if conversation is already assigned to the current agent
+        const currentUserName = user?.name || (user?.id ? String(user.id) : '');
+        const conv = conversations.find(
+          c => c.contact_id === contactId && ['pending', 'open'].includes(c.status)
+        );
+        if (conv && currentUserName && conv.assigned_to === currentUserName) {
+          await markAsRead(contactId);
+        }
       } catch (e) {
         console.warn('[selectContact] error', e);
       }
     })();
-  }, [getOrCreateConversation]);
+  }, [getOrCreateConversation, contacts, conversations, markAsRead, user?.name, user?.id]);
 
   // ============================================
   // Sync Contacts (pull from UaZapi API via proxy)
