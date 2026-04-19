@@ -1,64 +1,66 @@
 
-## Objetivo
-Replicar fielmente o layout do WhatsApp Web na lista de conversas: **timestamp + badge de não lidos sempre visíveis à direita**, com nome e preview truncando dinamicamente conforme o espaço disponível. Eliminar a 3ª linha de pills que hoje atrapalha o layout (mover para overlay/hover) e adotar a estrutura visual de 2 linhas do WhatsApp.
 
-## Análise do HTML do WhatsApp Web
-Estrutura essencial extraída do snippet:
-```
-[Avatar 49x49] [ Conteúdo flex-1 min-w-0 ]
-                ├─ Linha 1: [nome truncate flex-1] [hora flex-shrink-0]
-                └─ Linha 2: [preview truncate flex-1] [badge flex-shrink-0]
-```
-Pontos-chave do WhatsApp Web:
-1. **Apenas 2 linhas de conteúdo** — não há "linha 3" com tags de fila/SLA empurrando layout.
-2. Hora e badge são `flex-shrink-0` em colunas alinhadas à direita de cada linha (hora alinhada com nome, badge alinhada com preview).
-3. Nome e preview usam `truncate` puro (CSS overflow + ellipsis), sem corte por contagem.
-4. Badge verde só aparece quando `unread > 0`; quando 0, espaço é reservado vazio para não "subir" a hora.
-5. Altura fixa do item (~72-95px) — previsível e estável.
+## Diagnóstico
 
-## Diagnóstico do estado atual
-O `ChatContactItem.tsx` atual já tem a base correta (2 colunas: esquerda flex-1 + direita flex-shrink-0), mas:
-- **3ª linha de pills (fila/SLA/agente)** ocupa espaço vertical e ainda pode comprimir as duas primeiras linhas em larguras menores via `min-w-0` mal propagado.
-- **Hora alinhada com badge** (lado direito empilhado) não espelha WhatsApp, onde **hora fica na mesma linha do nome** e **badge na mesma linha do preview**.
-- Resultado: visualmente diferente do WhatsApp e propenso a quebras quando pills crescem.
+Validei o fluxo end-to-end das duas filas (UaZapi e WABA). Envios de **texto** já funcionam para ambas. Envios de **mídia** funcionam para UaZapi e — após os últimos ajustes — também para WABA, mas com gaps:
 
-## Refatoração (apenas `src/components/chat/ChatContactItem.tsx`)
+### Problemas confirmados
 
-### 1. Reestruturar para layout WhatsApp (2 linhas pareadas)
-```
-[Avatar] [ Conteúdo min-w-0 flex-1 ]
-          ├─ Row 1: [name truncate flex-1 min-w-0] [time flex-shrink-0 ml-2]
-          └─ Row 2: [preview truncate flex-1 min-w-0] [badge flex-shrink-0 ml-2]
-```
-- Cada row é `flex items-center gap-2 min-w-0`.
-- Hora migra para a row 1 (lado do nome), não mais empilhada com o badge.
-- Badge fica na row 2 (lado do preview); quando `unread === 0`, renderizar `<span className="w-5 h-5" />` placeholder para manter altura.
+1. **Inbound WABA media não abre no chat**  
+   `meta-webhook` salva `media_url = "waba_media:{media_id}"` (placeholder). Quando o usuário clica para baixar, o front chama `chat-media-download` → função tenta buscar credenciais UaZapi (`evo_url`/`evo_apikey`) na fila WABA, não encontra e retorna `Queue credentials not found`. Imagens/áudios/vídeos/docs recebidos via API Oficial ficam ilegíveis.
 
-### 2. Realocar pills (fila/SLA/agente atribuído)
-- **Remover a 3ª linha de pills do item da lista.** WhatsApp não tem isso — força layout previsível.
-- Manter SLA badge **inline na row 1**, à esquerda da hora (compacto, ícone+tempo restante), só quando relevante. Demais pills (fila, agente) ficam disponíveis no painel de detalhes/header da conversa (já existem lá).
-- Alternativa minimalista se o usuário preferir manter algum sinal visual: pequeno dot colorido ao lado do nome para indicar fila (ex: azul = fila X), sem texto.
+2. **PTT (áudio de voz) WABA quebrado**  
+   Front envia `type: 'ptt'` para `waba-send`. O switch na função só mapeia `audio|video|document|sticker` → cai no default `image` e o upload falha (mimetype `audio/ogg` vs tipo `image`). Resultado: gravações de voz não saem pela fila Oficial.
 
-### 3. Hierarquia visual fiel ao WhatsApp
-- Nome: `font-medium text-[15px]` quando há não-lidos → `font-semibold`.
-- Hora: `text-[12px]`; verde (`text-emerald-600 font-medium`) quando há não-lidos, cinza caso contrário.
-- Preview: `text-[13px] text-muted-foreground`; mais escuro quando há não-lidos.
-- Badge: círculo verde `bg-emerald-500 text-white`, `min-w-[20px] h-5 rounded-full`.
+3. **MIME com codec quebra upload no Meta**  
+   Mesmo bug que tivemos no `chat-media-upload`: o Graph API `/media` também rejeita `audio/ogg;codecs=opus` no campo `type` do form-data. Precisa do mesmo `cleanMime = mimetype.split(";")[0].trim()` antes de subir.
 
-### 4. Garantias técnicas de truncamento
-- Container raiz `<button>`: `w-full min-w-0 overflow-hidden`.
-- Wrapper de conteúdo: `flex-1 min-w-0`.
-- Cada row: `flex items-center gap-2 min-w-0`.
-- Texto truncável: `flex-1 min-w-0 truncate` (a tríade obrigatória).
-- Elementos fixos (hora, badge, ícones de mídia inline): `flex-shrink-0`.
+4. **`markAsRead` não roda para WABA**  
+   Hoje só executa em UaZapi. Para paridade (e para tirar o badge "lido duplo" no WhatsApp do cliente), enviar `POST /{phone_number_id}/messages {messaging_product:'whatsapp', status:'read', message_id}`.
 
-## Arquivo
-- `src/components/chat/ChatContactItem.tsx` — refatoração estrutural (remover 3ª linha de pills, mover hora para row 1, badge para row 2, manter SLA opcional inline).
+### Fluxos que JÁ estão corretos (não tocar)
+- Resolução de fila por `phone_number_id` no `meta-webhook` (corrigido em iteração anterior).
+- `sendMessage` de texto em ambos os canais.
+- Persistência de `chat_messages` / `chat_conversations` com `queue_id` correto.
+- `chat-media-upload` com `cleanMime` (já corrigido).
+
+## Correções
+
+### 1. `supabase/functions/chat-media-download/index.ts` — suporte a WABA
+- Detectar canal pelo `chat_messages.channel_type` ou pelo prefixo `waba_media:` em `media_url`.
+- Se WABA:
+  - Resolver fila por `queue_id` (ou pela conversa) e ler `waba_token`, `waba_number_id`.
+  - Extrair `media_id` de `waba_media:{id}` ou de `raw_payload.{image|audio|video|document|sticker}.id`.
+  - Chamar `waba-send` action `download_media` (já existe) para obter `base64` + `mimetype`.
+  - Subir em `chat-media` bucket (mesmo padrão UaZapi) e gravar `media_url` público.
+- Se UaZapi: comportamento atual intacto.
+- Idempotente (já é): se `media_url` já é público (`/storage/v1/object/public/chat-media/`), retorna direto.
+
+### 2. `supabase/functions/waba-send/index.ts` — robustez no `send_media`
+- Sanitizar `mimetype` antes de enviar ao Meta: `cleanMime = mimetype.split(";")[0].trim()`.
+- Mapear `media_type` corretamente, incluindo `ptt → audio`. Para `ptt`, o Meta só precisa do `type:'audio'` — o app reconhece como voice note pelo container ogg/opus.
+- Validar `cleanMime` antes do `formData.append("type", cleanMime)`.
+
+### 3. `supabase/functions/waba-send/index.ts` — nova action `mark_read`
+- Aceita `queue_id` + `message_id` (external WABA id do `wamid`).
+- POST `/{phone_number_id}/messages` com `{messaging_product:'whatsapp', status:'read', message_id}`.
+- Retorna 200 mesmo em falha (best-effort, não bloqueante).
+
+### 4. `src/contexts/WhatsAppDataContext.tsx`
+- **`markAsRead`**: quando `queue.channel_type === 'waba'`, buscar último `message_id` (externo) inbound do contato e chamar `waba-send` `mark_read`.
+- **`sendMedia`**: já passa `type` (incluindo `ptt`) para `waba-send` — sem mudança após o fix #2.
+- Sem outras alterações no front; downloads de mídia WABA passarão a funcionar automaticamente via `downloadMedia` (que chama `chat-media-download` corrigido).
+
+## Arquivos
+- `supabase/functions/chat-media-download/index.ts` — branch WABA + chamada para `waba-send`/`download_media` + persistência no bucket.
+- `supabase/functions/waba-send/index.ts` — `cleanMime`, mapeamento `ptt→audio`, action `mark_read`.
+- `src/contexts/WhatsAppDataContext.tsx` — `markAsRead` para WABA.
 
 ## Validação
-1. Sidebar 400px: nome longo trunca com `…`; hora "09:03" sempre visível à direita.
-2. Conversa com não-lidos: badge verde aparece à direita do preview; hora em verde.
-3. Conversa sem não-lidos: espaço do badge reservado, hora cinza, layout estável.
-4. Mensagens de mídia (foto/vídeo/áudio): ícone inline + label, ainda truncam.
-5. Redimensionar viewport de 1852px até 320px: lado direito (hora+badge) nunca some, texto à esquerda responde fluidamente.
-6. SLA crítico: badge compacto aparece inline na row 1 antes da hora, sem quebrar layout.
+1. Receber imagem na fila Oficial → clicar no preview → mídia aparece (download via Graph API + bucket).
+2. Receber áudio/vídeo/PDF na Oficial → idem.
+3. Gravar áudio (PTT) e enviar pela Oficial → recipiente recebe como voice note.
+4. Enviar imagem com caption pela Oficial → entregue com legenda.
+5. Abrir conversa Oficial com mensagens não lidas → checks azuis aparecem no WhatsApp do cliente.
+6. Mesmos cenários na fila UaZapi → continuam idênticos (sem regressão).
+

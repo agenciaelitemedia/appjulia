@@ -75,8 +75,10 @@ function MessagePreview({ text, type }: { text?: string; type?: string }) {
     return <span className="inline-flex items-center text-muted-foreground truncate whitespace-nowrap">{mediaIcons[mediaType]}</span>;
   }
 
+  const MAX_CHARS = 45;
   const singleLine = (text || '').replace(/\s+/g, ' ').trim();
-  return <span className="block truncate whitespace-nowrap">{singleLine}</span>;
+  const clipped = singleLine.length > MAX_CHARS ? singleLine.slice(0, MAX_CHARS).trimEnd() + '…' : singleLine;
+  return <span className="block truncate whitespace-nowrap">{clipped}</span>;
 }
 
 /** Single pill */
@@ -125,22 +127,29 @@ export const ChatContactItem = React.memo(function ChatContactItem({
     ? formatRelativeTime(contact.last_message_at)
     : null;
 
-  const hasUnread = contact.unread_count > 0;
+  const extraBadges: { label: string; className: string }[] = [];
+  if (conversation?.priority === 'high' || conversation?.priority === 'urgent') {
+    extraBadges.push({ label: 'PRIORIDADE', className: 'bg-red-500 text-white' });
+  }
+  if (conversation?.tags && conversation.tags.length > 0) {
+    conversation.tags.slice(0, 2).forEach(tag => {
+      extraBadges.push({ label: tag.toUpperCase(), className: 'bg-emerald-600 text-white' });
+    });
+  }
 
   return (
     <button
       onClick={onClick}
       style={{ maxWidth: '100%' }}
       className={cn(
-        'w-full flex items-center gap-3 px-3 py-3 text-left transition-colors border-l-[3px] min-w-0 overflow-hidden',
+        'w-full flex items-start gap-3 px-3 py-3 text-left transition-colors border-l-[3px] min-w-0 overflow-hidden',
         isSelected
           ? 'bg-accent/40 border-l-primary'
           : 'border-l-transparent hover:bg-accent/20'
       )}
-      title={queueName || assignedAgentName ? `${queueName ?? ''}${queueName && assignedAgentName ? ' • ' : ''}${assignedAgentName ?? ''}` : undefined}
     >
       {/* Avatar with channel overlay */}
-      <div className="relative flex-shrink-0">
+      <div className="relative flex-shrink-0 mt-0.5">
         <Avatar className="h-12 w-12">
           <AvatarImage src={contact.avatar} alt={contact.name} />
           <AvatarFallback className="bg-muted text-muted-foreground text-sm font-semibold">
@@ -150,46 +159,64 @@ export const ChatContactItem = React.memo(function ChatContactItem({
         <ChannelOverlay channel={conversation?.channel} />
       </div>
 
-      {/* Content: 2 paired rows (WhatsApp Web style) */}
-      <div className="flex-1 min-w-0 overflow-hidden">
-        {/* Row 1: name (truncate) + SLA (optional) + time */}
-        <div className="flex items-center gap-2 min-w-0">
+      {/* Content */}
+      <div className="flex-1 min-w-0 overflow-hidden space-y-1">
+        {/* Row 1: Name (left) + time (right) */}
+        <div className="flex items-center justify-between gap-2 min-w-0">
           <span className={cn(
-            'flex-1 min-w-0 truncate text-[15px]',
-            hasUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground/90'
+            'font-semibold text-sm truncate min-w-0 flex-1 block overflow-hidden whitespace-nowrap',
+            contact.unread_count > 0 ? 'text-foreground' : 'text-foreground/80'
           )}>
-            {contact.name}
+            {contact.name.length > 35 ? contact.name.slice(0, 35).trimEnd() + '…' : contact.name}
           </span>
-          {slaEvaluation && (
-            <span className="flex-shrink-0">
-              <SlaBadge evaluation={slaEvaluation} compact />
-            </span>
-          )}
           {formattedTime && (
             <span className={cn(
-              'flex-shrink-0 text-[12px] whitespace-nowrap',
-              hasUnread ? 'text-emerald-600 font-medium' : 'text-muted-foreground'
+              'text-[11px] whitespace-nowrap flex-shrink-0',
+              contact.unread_count > 0 ? 'text-emerald-600 font-semibold' : 'text-muted-foreground'
             )}>
               {formattedTime}
             </span>
           )}
         </div>
 
-        {/* Row 2: preview (truncate) + unread badge */}
-        <div className="flex items-center gap-2 min-w-0 mt-0.5">
-          <div className={cn(
-            'flex-1 min-w-0 truncate text-[13px]',
-            hasUnread ? 'text-foreground/80' : 'text-muted-foreground'
-          )}>
+        {/* Row 2: Last message preview (left) + unread badge (right) */}
+        <div className="flex items-center justify-between gap-2 min-w-0 text-xs">
+          <div
+            className={cn(
+              'flex-1 min-w-0 truncate whitespace-nowrap overflow-hidden text-[10px]',
+              contact.unread_count > 0 ? 'text-foreground/80' : 'text-muted-foreground'
+            )}
+          >
             <MessagePreview text={contact.last_message_text || undefined} />
           </div>
-          {hasUnread ? (
+          {contact.unread_count > 0 ? (
             <span className="flex-shrink-0 bg-emerald-500 text-white text-[11px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 shadow-sm">
               {contact.unread_count > 99 ? '99+' : contact.unread_count}
             </span>
           ) : (
-            <span className="flex-shrink-0 w-5 h-5" aria-hidden />
+            <span className="flex-shrink-0 w-5" aria-hidden />
           )}
+        </div>
+
+        {/* Row 3: Tags — fila → SLA → atribuído → extras */}
+        <div className="flex items-center gap-1 flex-nowrap min-w-0 overflow-hidden">
+          {queueName && (
+            <span className="flex-shrink min-w-0 max-w-[110px] truncate">
+              <Pill label={queueName.toUpperCase()} className="bg-blue-600 text-white" />
+            </span>
+          )}
+          {slaEvaluation && <span className="flex-shrink-0"><SlaBadge evaluation={slaEvaluation} compact /></span>}
+          <span className="flex-shrink min-w-0 max-w-[110px] truncate">
+            <Pill
+              label={assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO'}
+              className={assignedAgentName ? 'bg-muted text-foreground' : 'bg-muted/60 text-muted-foreground'}
+            />
+          </span>
+          {extraBadges.slice(0, 1).map((b, i) => (
+            <span key={i} className="flex-shrink min-w-0 max-w-[100px] truncate">
+              <Pill label={b.label} className={b.className} />
+            </span>
+          ))}
         </div>
       </div>
     </button>
