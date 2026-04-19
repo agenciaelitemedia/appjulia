@@ -55,11 +55,14 @@ export function TransferDialog({ open, onOpenChange, onTransfer }: TransferDialo
                 <SelectValue placeholder="Selecione um agente..." />
               </SelectTrigger>
               <SelectContent>
-                {allAgents.map(agent => (
-                  <SelectItem key={agent.cod_agent} value={agent.cod_agent}>
-                    {agent.business_name || agent.client_name || agent.cod_agent}
-                  </SelectItem>
-                ))}
+                {allAgents.map(agent => {
+                  const displayName = agent.client_name || agent.business_name || agent.cod_agent;
+                  return (
+                    <SelectItem key={agent.cod_agent} value={displayName}>
+                      {displayName}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>

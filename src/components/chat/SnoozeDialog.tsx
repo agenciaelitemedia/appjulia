@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Clock, Loader2 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -26,7 +26,6 @@ const PRESETS: Array<{ label: string; minutes: number }> = [
 
 export function SnoozeDialog({ open, onOpenChange, conversationId, onSnoozed }: SnoozeDialogProps) {
   const { user } = useAuth();
-  const { toast } = useToast();
   const [reason, setReason] = useState('');
   const [customDateTime, setCustomDateTime] = useState('');
   const [loading, setLoading] = useState(false);
@@ -44,7 +43,7 @@ export function SnoozeDialog({ open, onOpenChange, conversationId, onSnoozed }: 
   const handleSnooze = async (until: Date) => {
     if (!conversationId || loading) return;
     if (until.getTime() <= Date.now()) {
-      toast({ title: 'Data inválida', description: 'Escolha um horário no futuro.', variant: 'destructive' });
+      toast.error('Data inválida', { description: 'Escolha um horário no futuro.' });
       return;
     }
     setLoading(true);
@@ -58,16 +57,13 @@ export function SnoozeDialog({ open, onOpenChange, conversationId, onSnoozed }: 
         })
         .eq('id', conversationId);
       if (error) throw error;
-      toast({
-        title: 'Conversa adiada',
-        description: `Voltará em ${until.toLocaleString('pt-BR')}`,
-      });
+      toast.success('Conversa adiada', { description: `Voltará em ${until.toLocaleString('pt-BR')}` });
       onSnoozed?.();
       onOpenChange(false);
       setReason('');
       setCustomDateTime('');
     } catch (e) {
-      toast({ title: 'Erro ao adiar', description: e instanceof Error ? e.message : String(e), variant: 'destructive' });
+      toast.error('Erro ao adiar', { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setLoading(false);
     }

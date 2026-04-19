@@ -11,7 +11,7 @@ import { useMessageReactions, sendReaction } from '@/hooks/useMessageReactions';
 import { format, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import type { ChatMessage } from '@/types/chat';
+import type { ChatMessage, ChatContact } from '@/types/chat';
 import type { ConversationHistoryEntry } from '@/types/conversation';
 
 interface ChatMessagesProps {
@@ -19,14 +19,11 @@ interface ChatMessagesProps {
 }
 
 type TimelineItem =
-  | { kind: 'message'; data: any; ts: number }
+  | { kind: 'message'; data: ChatMessage; ts: number }
   | { kind: 'event'; data: ConversationHistoryEntry; ts: number };
 
 export function ChatMessages({ contactId }: ChatMessagesProps) {
-  const ctx: any = useWhatsAppData();
-  const { messages, loadMessages, conversationHistory, loadConversationHistory, selectedConversation, downloadMedia } = ctx;
-  const selectedQueue = ctx.selectedQueue;
-  const contacts = ctx.contacts;
+  const { messages, loadMessages, conversationHistory, loadConversationHistory, selectedConversation, downloadMedia, selectedQueue, contacts } = useWhatsAppData();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -47,7 +44,7 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
   // (without a conversation_id) remain visible to avoid hiding old data.
   const contactMessages = useMemo(() => {
     const currentConvId = selectedConversation?.id ?? null;
-    return allContactMessages.filter((m: any) => {
+    return allContactMessages.filter((m: ChatMessage) => {
       const isNote = !!(m?.metadata?.internal_note ?? m?.internal_note);
       if (!isNote) return true;
       const noteConvId = m?.conversation_id ?? m?.metadata?.conversation_id ?? null;
@@ -164,11 +161,11 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
 
   // Reactions
   const visibleMessageIds = useMemo(
-    () => contactMessages.map((m: any) => m.id).filter(Boolean),
+    () => contactMessages.map((m: ChatMessage) => m.id).filter(Boolean),
     [contactMessages]
   );
   const { reactionsByMsg } = useMessageReactions(visibleMessageIds);
-  const contact = contacts.find((c: any) => c.id === contactId);
+  const contact = contacts.find((c: ChatContact) => c.id === contactId);
 
   const handleReact = useCallback(async (msg: ChatMessage, emoji: string) => {
     if (!selectedQueue || !contact) { toast.error('Selecione uma fila para reagir'); return; }

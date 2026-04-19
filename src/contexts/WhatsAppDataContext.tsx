@@ -9,6 +9,7 @@ import type {
   ChatContextValue,
   ChatTab,
   MessageType,
+  MessageMetadata,
 } from '@/types/chat';
 import type {
   ChatConversation,
@@ -597,8 +598,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     limit = 50,
     offset = 0
   ): Promise<{ messages: ChatMessage[]; hasMore: boolean }> => {
-    console.log('[loadMessages] start', { contactId, limit, offset, clientId });
-
     try {
       const { data: cachedMessages, error } = await supabase
         .from('chat_messages')
@@ -607,18 +606,16 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         .order('timestamp', { ascending: false })
         .range(offset, offset + limit - 1);
 
-      console.log('[loadMessages] result', { contactId, count: cachedMessages?.length, error });
-
       if (error) throw error;
 
       if (cachedMessages && cachedMessages.length > 0) {
-        const chatMessages = cachedMessages.map((m: any) => ({
+        const chatMessages = cachedMessages.map((m) => ({
           ...m,
           metadata: {
             ...(m.metadata || {}),
             internal_note: m.internal_note,
-            note_type: (m as any).note_type,
-            sender_name: m.sender_name || m.metadata?.sender_name,
+            note_type: m.note_type,
+            sender_name: m.sender_name || (m.metadata as MessageMetadata)?.sender_name,
           },
         })) as ChatMessage[];
 

@@ -28,3 +28,6 @@ export { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 export { FormatToolbar } from './FormatToolbar';
 export { MessagePreview } from './MessagePreview';
 export { CreateCrmLeadDialog } from './CreateCrmLeadDialog';
+export { AIAssistPanel } from './AIAssistPanel';
+export { ChatCommandPalette } from './ChatCommandPalette';
+export { ExpandableMessageText } from './ExpandableMessageText';

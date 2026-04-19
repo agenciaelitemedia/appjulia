@@ -87,7 +87,7 @@ function StatusIcon({ status }: { status: MessageStatus }) {
   }
 }
 
-function MediaContent({ message, onDownload }: { message: ChatMessage; onDownload?: () => void }) {
+function MediaContent({ message, onDownload }: { message: ChatMessage; onDownload?: () => Promise<string | undefined> }) {
   const [isLoading, setIsLoading] = useState(false);
   const [mediaUrl, setMediaUrl] = useState<string | undefined>(message.media_url);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -103,7 +103,9 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
     if (message.media_url && message.media_url !== mediaUrl) {
       setMediaUrl(message.media_url);
     }
-  }, [message.media_url]); // eslint-disable-line react-hooks/exhaustive-deps
+  // mediaUrl is intentionally excluded — including it would create an infinite update loop
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [message.media_url]);
 
   const isEncrypted = (u?: string) => !u || u.includes('.enc') || u.includes('mmg.whatsapp.net');
 
@@ -112,7 +114,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
     if (mediaUrl && !isEncrypted(mediaUrl)) return;
     setIsLoading(true);
     try {
-      const url = await (onDownload as any)();
+      const url = await onDownload();
       if (url) setMediaUrl(url);
     } finally {
       setIsLoading(false);
@@ -126,6 +128,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
     if (!autoTypes.includes(message.type)) return;
     if (mediaUrl && !isEncrypted(mediaUrl)) return;
     handleDownload();
+    // runs only when message.id changes — handleDownload is intentionally excluded to avoid re-fetching on every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [message.id]);
 
@@ -407,7 +410,7 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
   function MessageBubble({ message, reactions, onDownloadMedia, onReact, onForward }, ref) {
     const isMedia = ['image', 'video', 'audio', 'ptt', 'document', 'sticker', 'location', 'contact'].includes(message.type);
     const hasQuote = message.metadata?.quoted_message;
-    const isInternalNote = !!(message.metadata as any)?.internal_note;
+    const isInternalNote = !!message.metadata?.internal_note;
 
     if (message.type === 'revoked') {
       return (
@@ -427,8 +430,8 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
 
     // Internal note styling
     if (isInternalNote) {
-      const senderName = (message.metadata as any)?.sender_name;
-      const noteType = ((message.metadata as any)?.note_type || 'info') as 'info' | 'question' | 'urgent';
+      const senderName = message.metadata?.sender_name;
+      const noteType = (message.metadata?.note_type || 'info') as 'info' | 'question' | 'urgent';
       const noteStyles = {
         info: {
           container: 'bg-blue-50 dark:bg-blue-900/20 border-blue-300/50 dark:border-blue-700/40',
@@ -520,8 +523,8 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
               className={cn(
                 'rounded-lg px-3 py-2',
                 message.from_me
-                  ? 'bg-[#DCF8C6] text-foreground rounded-br-none'
-                  : 'bg-[#F0F2F5] text-foreground border border-border/50 rounded-bl-none'
+                  ? 'bg-green-100 dark:bg-green-900/30 text-foreground rounded-br-none'
+                  : 'bg-muted text-foreground border border-border/50 rounded-bl-none'
               )}
             >
               {/* Sender name (groups) */}

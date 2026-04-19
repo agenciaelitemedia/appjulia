@@ -102,7 +102,9 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
       if (timerRef.current) clearInterval(timerRef.current);
       streamRef.current?.getTracks().forEach(t => t.stop());
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // intentionally runs once on mount — no dependencies needed
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex items-center gap-2 px-3 py-2 bg-destructive/5 border-t animate-in slide-in-from-bottom-2">

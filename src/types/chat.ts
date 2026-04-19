@@ -52,6 +52,8 @@ export interface ChatMessage {
   caption?: string;
   reply_to?: string;
   metadata?: MessageMetadata;
+  internal_note?: boolean;
+  conversation_id?: string;
   timestamp: string;
   created_at: string;
 }
@@ -94,7 +96,12 @@ export interface MessageMetadata {
   sender_id?: string;
   sender_name?: string;
   sender_phone?: string;
-  
+
+  // Internal notes
+  internal_note?: boolean;
+  note_type?: 'info' | 'question' | 'urgent';
+  conversation_id?: string;
+
   // Any extra fields
   [key: string]: unknown;
 }
