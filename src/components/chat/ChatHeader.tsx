@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram, Search, Calendar, BellOff, Keyboard, Sparkles, UserCheck } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConversationPresence } from '@/hooks/useConversationPresence';
 import { useChatKeyboardShortcuts } from '@/hooks/useChatKeyboardShortcuts';
@@ -71,6 +73,40 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const [showSnooze, setShowSnooze] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showCrmLead, setShowCrmLead] = useState(false);
+
+  // Inline name editing
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editingName, setEditingName] = useState('');
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  const handleNameDoubleClick = useCallback(() => {
+    setEditingName(contact.name);
+    setIsEditingName(true);
+    setTimeout(() => {
+      nameInputRef.current?.select();
+    }, 0);
+  }, [contact.name]);
+
+  const handleNameSave = useCallback(async () => {
+    const trimmed = editingName.trim();
+    setIsEditingName(false);
+    if (!trimmed || trimmed === contact.name) return;
+    try {
+      const { error } = await supabase
+        .from('chat_contacts')
+        .update({ name: trimmed })
+        .eq('id', contact.id);
+      if (error) throw error;
+      toast.success('Nome atualizado');
+    } catch (e) {
+      toast.error('Erro ao atualizar nome');
+    }
+  }, [editingName, contact.name, contact.id]);
+
+  const handleNameKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') handleNameSave();
+    if (e.key === 'Escape') setIsEditingName(false);
+  }, [handleNameSave]);
 
   // Navigation between conversations (j/k)
   const navigateBy = (delta: number) => {
@@ -166,7 +202,24 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-medium truncate">{contact.name}</h3>
+            {isEditingName ? (
+              <input
+                ref={nameInputRef}
+                value={editingName}
+                onChange={(e) => setEditingName(e.target.value)}
+                onBlur={handleNameSave}
+                onKeyDown={handleNameKeyDown}
+                className="font-medium bg-transparent border-b border-primary outline-none truncate max-w-[200px]"
+              />
+            ) : (
+              <h3
+                className="font-medium truncate cursor-text select-none"
+                onDoubleClick={handleNameDoubleClick}
+                title="Clique duplo para editar o nome"
+              >
+                {contact.name}
+              </h3>
+            )}
             {selectedConversation && (
               <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0 h-5 gap-1 border', statusInfo.color)}>
                 {statusInfo.icon}
