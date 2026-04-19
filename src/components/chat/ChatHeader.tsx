@@ -215,6 +215,16 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                 <Button
                   variant="ghost"
                   size="icon"
+                  className="h-8 w-8"
+                  onClick={onShowDetails}
+                  title="Ver detalhes"
+                >
+                  <Info className="h-4 w-4" />
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50 disabled:opacity-40"
                   onClick={() => setShowSnooze(true)}
                   disabled={!isActive}
