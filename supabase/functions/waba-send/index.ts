@@ -18,44 +18,66 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { action, cod_agent, ...params } = await req.json();
+    const { action, cod_agent, queue_id, ...params } = await req.json();
 
-    if (!action || !cod_agent) {
+    if (!action || (!cod_agent && !queue_id)) {
       return new Response(
-        JSON.stringify({ error: "action and cod_agent are required" }),
+        JSON.stringify({ error: "action and (queue_id or cod_agent) are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Fetch WABA credentials via db-query edge function (avoids TLS/socket issues)
-    const { data: dbResult, error: dbError } = await supabase.functions.invoke("db-query", {
-      body: {
-        action: "raw",
-        data: {
-          query: "SELECT waba_token, waba_number_id, waba_id FROM agents WHERE cod_agent = $1 AND hub = 'waba' LIMIT 1",
-          params: [cod_agent],
+    // Resolve WABA credentials: prefer queue_id (queues table in Lovable Cloud),
+    // fallback to cod_agent (legacy: agents table in external DB via db-query)
+    let waba_token: string | undefined;
+    let phone_number_id: string | undefined;
+    let waba_id: string | undefined;
+
+    if (queue_id) {
+      const { data: queue, error: qErr } = await supabase
+        .from("queues")
+        .select("waba_token, waba_number_id, waba_id, channel_type")
+        .eq("id", queue_id)
+        .maybeSingle();
+
+      if (qErr || !queue) {
+        return new Response(
+          JSON.stringify({ error: "Queue not found", details: qErr?.message }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      waba_token = queue.waba_token ?? undefined;
+      phone_number_id = queue.waba_number_id ?? undefined;
+      waba_id = queue.waba_id ?? undefined;
+    } else {
+      const { data: dbResult, error: dbError } = await supabase.functions.invoke("db-query", {
+        body: {
+          action: "raw",
+          data: {
+            query: "SELECT waba_token, waba_number_id, waba_id FROM agents WHERE cod_agent = $1 AND hub = 'waba' LIMIT 1",
+            params: [cod_agent],
+          },
         },
-      },
-    });
+      });
 
-    if (dbError) {
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch agent credentials", details: String(dbError) }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (dbError) {
+        return new Response(
+          JSON.stringify({ error: "Failed to fetch agent credentials", details: String(dbError) }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const agent = dbResult?.data?.[0];
+      if (!agent) {
+        return new Response(
+          JSON.stringify({ error: "Agent not found or not WABA" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      waba_token = agent.waba_token;
+      phone_number_id = agent.waba_number_id;
+      waba_id = agent.waba_id;
     }
-
-    const agent = dbResult?.data?.[0];
-    if (!agent) {
-      return new Response(
-        JSON.stringify({ error: "Agent not found or not WABA" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const waba_token = agent.waba_token;
-    const phone_number_id = agent.waba_number_id;
-    const waba_id = agent.waba_id;
 
     if (!waba_token || !phone_number_id) {
       return new Response(
