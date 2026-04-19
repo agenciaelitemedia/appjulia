@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { externalDb } from '@/lib/externalDb';
+import { webmBlobToOggOpus } from '@/lib/audio/webmToOgg';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 import type {
@@ -837,6 +838,20 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     }));
 
     try {
+      const isAudioMessage = type === 'audio' || type === 'ptt';
+      let outboundFile = file;
+
+      // Meta requires a true OGG/Opus container for browser-recorded WebM audio.
+      // UaZapi, on the other hand, handles the native WebM/Opus recording more reliably.
+      if (queue.channel_type === 'waba' && isAudioMessage && (file.type || '').toLowerCase().includes('webm')) {
+        const convertedBlob = await webmBlobToOggOpus(file);
+        outboundFile = new File(
+          [convertedBlob],
+          file.name.replace(/\.[^.]+$/u, '') + '.ogg',
+          { type: 'audio/ogg; codecs=opus' }
+        );
+      }
+
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
@@ -844,15 +859,15 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           resolve(result.split(',')[1]);
         };
         reader.onerror = reject;
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(outboundFile);
       });
 
-      // Upload to Storage FIRST — UaZapi needs a public URL
+      // Upload media for persistence / preview
       const { data: uploadData, error: uploadError } = await supabase.functions.invoke('chat-media-upload', {
         body: {
           base64,
-          mimetype: file.type,
-          fileName: file.name,
+          mimetype: outboundFile.type,
+          fileName: outboundFile.name,
           contactId,
           clientId,
           source: 'outgoing',
@@ -871,28 +886,21 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             queue_id: queue.id,
             to: contact.phone,
             mediaBase64: base64,
-            mimetype: file.type,
+            mimetype: outboundFile.type,
             type,
             caption,
-            fileName: file.name,
+            fileName: outboundFile.name,
           },
         });
         if (error) throw error;
         if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : 'WABA media send failed');
         externalMessageId = data?.messageId || data?.messages?.[0]?.id;
       } else {
-        // UaZapi: single endpoint /send/media with mediaType
+        // UaZapi: keep the browser-native audio format instead of forcing OGG.
         const mediaType = type === 'ptt' ? 'audio' : type;
-        const isAudio = type === 'audio' || type === 'ptt';
-        // For audio/ptt: force ogg/opus mimetype for WhatsApp compatibility
-        const sendMimetype = isAudio
-          ? 'audio/ogg; codecs=opus'
-          : (file.type || undefined);
-        // For audio/ptt UaZapi works most reliably with a base64 Data URI in `file`
-        // (URLs sometimes get re-encoded/corrupted on their side). For other media
-        // we keep the public URL which is faster and avoids large payloads.
-        const fileField = isAudio
-          ? `data:${sendMimetype};base64,${base64}`
+        const sendMimetype = outboundFile.type || undefined;
+        const fileField = isAudioMessage
+          ? `data:${sendMimetype || 'audio/webm;codecs=opus'};base64,${base64}`
           : persistedUrl;
         const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
           body: {
@@ -902,16 +910,14 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             baseUrl: queue.evo_url,
             body: {
               number: contact.phone,
-              // UaZapi expects `file` (public URL or base64 data URI).
               file: fileField,
-              // Keep mediaUrl as a fallback alias for compatibility with older UaZapi builds
               mediaUrl: persistedUrl,
               type: mediaType,
               mediaType,
               mimetype: sendMimetype,
               caption,
-              fileName: file.name,
-              docName: type === 'document' ? file.name : undefined,
+              fileName: outboundFile.name,
+              docName: type === 'document' ? outboundFile.name : undefined,
               ptt: type === 'ptt' ? true : undefined,
             },
           },
