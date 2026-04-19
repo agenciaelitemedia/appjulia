@@ -223,7 +223,10 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
   };
 
   const handleAudioSend = useCallback(async (audioBlob: Blob) => {
-    const file = new File([audioBlob], `audio_${Date.now()}.ogg`, { type: 'audio/ogg;codecs=opus' });
+    const blobType = (audioBlob.type || '').toLowerCase();
+    const extension = blobType.includes('ogg') ? 'ogg' : blobType.includes('mp4') ? 'm4a' : 'webm';
+    const mimeType = blobType || (extension === 'ogg' ? 'audio/ogg;codecs=opus' : extension === 'm4a' ? 'audio/mp4' : 'audio/webm;codecs=opus');
+    const file = new File([audioBlob], `audio_${Date.now()}.${extension}`, { type: mimeType });
     await sendMedia(contactId, file, 'ptt');
     setIsRecording(false);
   }, [contactId, sendMedia]);

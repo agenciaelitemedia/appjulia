@@ -1,8 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Mic, Square, Trash2, Send, Loader2 } from 'lucide-react';
+import { Square, Trash2, Send, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { webmBlobToOggOpus } from '@/lib/audio/webmToOgg';
 
 interface AudioRecorderProps {
   onSend: (audioBlob: Blob) => Promise<void>;
@@ -31,12 +30,15 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // Prefer ogg/opus (WhatsApp-compatible). Fall back to webm/opus.
+      // Keep the browser-native recording container here.
+      // Provider-specific conversion (e.g. WebM -> OGG for the official API)
+      // is handled later during send so UaZapi can still receive raw WebM/Opus.
       const preferred = [
-        'audio/ogg;codecs=opus',
-        'audio/ogg',
         'audio/webm;codecs=opus',
         'audio/webm',
+        'audio/ogg;codecs=opus',
+        'audio/ogg',
+        'audio/mp4',
       ];
       const chosenMime = preferred.find((m) => MediaRecorder.isTypeSupported(m)) || '';
       const mediaRecorder = chosenMime
@@ -53,19 +55,6 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
         const recordedMime = (mediaRecorder.mimeType || chosenMime || '').toLowerCase();
         const rawBlob = new Blob(chunksRef.current, { type: recordedMime || 'audio/webm' });
         stream.getTracks().forEach(t => t.stop());
-
-        // If MediaRecorder produced WebM (Chrome/Edge default), remux container to true OGG/Opus
-        // so Meta WABA accepts it (Meta inspects magic bytes — renaming MIME alone fails).
-        // Safari's audio/mp4 path is left untouched (Meta natively accepts audio/mp4).
-        if (recordedMime.includes('webm')) {
-          try {
-            const ogg = await webmBlobToOggOpus(rawBlob);
-            setAudioBlob(ogg);
-            return;
-          } catch (err) {
-            console.error('[AudioRecorder] WebM→OGG remux failed, sending raw blob:', err);
-          }
-        }
         setAudioBlob(rawBlob);
       };
 
