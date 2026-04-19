@@ -36,7 +36,7 @@ export function useInactiveLeads(selectedAgentCodes?: string[]) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [stageIds, setStageIds] = useState<number[]>([]);
-  const [juliaFilter, setJuliaFilter] = useState<JuliaFilter>('all');
+  const [juliaFilter, setJuliaFilter] = useState<JuliaFilter>('inactive');
 
   const { data: userAgents = [] } = useQuery({
     queryKey: ['user-agents-for-support', user?.id],

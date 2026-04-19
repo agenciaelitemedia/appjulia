@@ -2647,8 +2647,7 @@ serve(async (req) => {
             ON c.whatsapp_number::text = s.whatsapp_number::text 
             AND c.cod_agent::text = a.cod_agent::text
           LEFT JOIN crm_atendimento_stages st ON st.id = c.stage_id
-          WHERE s.active = false 
-            AND a.cod_agent::text = ANY($1)
+          WHERE a.cod_agent::text = ANY($1)
           ORDER BY s.updated_at DESC`,
           [agentCodes]
         );
