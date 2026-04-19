@@ -19,7 +19,7 @@ export function ChatContainer({ className }: ChatContainerProps) {
     <div className={cn('flex h-full w-full bg-background min-w-0 overflow-hidden', className)}>
       {/* Contact list sidebar */}
       <div className={cn(
-        'w-full lg:w-[440px] xl:w-[500px] 2xl:w-[560px] lg:flex-shrink-0 flex-shrink-0 border-r min-w-0 overflow-hidden',
+        'w-full lg:w-[352px] xl:w-[400px] 2xl:w-[448px] lg:flex-shrink-0 flex-shrink-0 border-r min-w-0 overflow-hidden',
         selectedContact && 'hidden lg:flex lg:flex-col'
       )}>
         <ChatList />
