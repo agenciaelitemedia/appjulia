@@ -883,10 +883,17 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       } else {
         // UaZapi: single endpoint /send/media with mediaType
         const mediaType = type === 'ptt' ? 'audio' : type;
+        const isAudio = type === 'audio' || type === 'ptt';
         // For audio/ptt: force ogg/opus mimetype for WhatsApp compatibility
-        const sendMimetype = (type === 'audio' || type === 'ptt')
+        const sendMimetype = isAudio
           ? 'audio/ogg; codecs=opus'
           : (file.type || undefined);
+        // For audio/ptt UaZapi works most reliably with a base64 Data URI in `file`
+        // (URLs sometimes get re-encoded/corrupted on their side). For other media
+        // we keep the public URL which is faster and avoids large payloads.
+        const fileField = isAudio
+          ? `data:${sendMimetype};base64,${base64}`
+          : persistedUrl;
         const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
           body: {
             method: 'POST',
@@ -895,8 +902,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             baseUrl: queue.evo_url,
             body: {
               number: contact.phone,
-              // UaZapi expects `file` (public URL or base64 data URI). Send the public URL.
-              file: persistedUrl,
+              // UaZapi expects `file` (public URL or base64 data URI).
+              file: fileField,
               // Keep mediaUrl as a fallback alias for compatibility with older UaZapi builds
               mediaUrl: persistedUrl,
               type: mediaType,
