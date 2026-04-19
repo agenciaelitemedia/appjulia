@@ -164,7 +164,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
         {/* Row 1: Name (left) + time (right) */}
         <div className="flex items-center justify-between gap-2 min-w-0">
           <span className={cn(
-            'font-semibold text-sm truncate min-w-0 flex-1',
+            'font-semibold text-sm truncate min-w-0 flex-1 block overflow-hidden whitespace-nowrap',
             contact.unread_count > 0 ? 'text-foreground' : 'text-foreground/80'
           )}>
             {contact.name}
