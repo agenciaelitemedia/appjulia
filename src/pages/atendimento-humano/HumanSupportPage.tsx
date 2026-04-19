@@ -3,7 +3,7 @@ import { Headset } from 'lucide-react';
 import { useInactiveLeads } from './hooks/useInactiveLeads';
 import { InactiveLeadsList } from './components/InactiveLeadsList';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
-import { AgentSingleSelectPopover } from '@/components/agents/AgentSingleSelectPopover';
+import { AgentSearchSelect } from '@/components/AgentSearchSelect';
 import { useJuliaAgents } from '@/pages/estrategico/hooks/useJuliaData';
 import { useCRMStages, useTeamForAgent } from '@/pages/crm/hooks/useCRMData';
 import { saveAgentCodes } from '@/hooks/usePersistedPeriod';
@@ -101,12 +101,12 @@ export default function HumanSupportPage() {
           juliaFilter={juliaFilter}
           onJuliaFilterChange={setJuliaFilter}
           agentSelect={
-            <AgentSingleSelectPopover
+            <AgentSearchSelect
               agents={agents}
               value={selectedAgents[0] ?? null}
-              onChange={handleAgentChange}
+              onValueChange={handleAgentChange}
               disabled={isLoadingAgents || agents.length === 0}
-              className="w-full"
+              placeholder="Selecione um agente"
             />
           }
         />
