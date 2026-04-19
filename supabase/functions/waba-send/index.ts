@@ -136,8 +136,16 @@ Deno.serve(async (req) => {
         // Map ptt → audio (WhatsApp recognizes voice notes by ogg/opus container)
         const media_type = rawMediaType === "ptt" ? "audio" : rawMediaType;
 
-        // Sanitize MIME — Graph API rejects "audio/ogg;codecs=opus" in form-data type field
-        const cleanMime = String(mimetype).split(";")[0].trim();
+        // For audio voice notes, Meta REQUIRES "audio/ogg; codecs=opus" (with codecs).
+        // For other media types, Meta rejects parameters in MIME — use base type only.
+        const rawMime = String(mimetype).trim();
+        const baseMime = rawMime.split(";")[0].trim();
+        const isAudio = media_type === "audio";
+        // Meta Graph API supports: audio/aac, audio/mp4, audio/mpeg, audio/amr, audio/ogg (codecs=opus only)
+        const uploadMime = isAudio
+          ? (baseMime === "audio/ogg" ? "audio/ogg; codecs=opus" : baseMime)
+          : baseMime;
+        const fallbackName = filename || (isAudio ? `voice_${Date.now()}.ogg` : "file");
 
         const cleanNumber = to.replace(/\D/g, "");
 
@@ -149,10 +157,12 @@ Deno.serve(async (req) => {
         }
 
         const formData = new FormData();
-        const blob = new Blob([bytes], { type: cleanMime });
-        formData.append("file", blob, filename || "file");
+        const blob = new Blob([bytes], { type: uploadMime });
+        formData.append("file", blob, fallbackName);
         formData.append("messaging_product", "whatsapp");
-        formData.append("type", cleanMime);
+        formData.append("type", uploadMime);
+
+        console.log(`[waba-send] Uploading media: type=${media_type}, mime=${uploadMime}, size=${bytes.length}, filename=${fallbackName}`);
 
         const uploadResp = await fetch(`${GRAPH_API}/${phone_number_id}/media`, {
           method: "POST",
