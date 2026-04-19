@@ -1,66 +1,33 @@
 
+## Objetivo
+Replicar o comportamento do WhatsApp Web na lista de conversas: hora e badge de não-lidas (lado direito) sempre 100% visíveis; nome do lead e preview da mensagem truncam dinamicamente conforme o espaço disponível no sidebar — sem corte por contagem fixa de caracteres.
 
-## Diagnóstico
+## Diagnóstico do estado atual (`ChatContactItem.tsx`)
+1. **Truncamento por caractere fixo (35)**: `contact.name.slice(0, 35)` ignora a largura real → em sidebars estreitos ainda estoura; em largos, corta cedo demais.
+2. **`MessagePreview` com `MAX_CHARS = 45`**: mesmo problema — corte arbitrário.
+3. **Linha 3 (pills fila/SLA/atribuído) com `flex-nowrap`**: força largura da linha 1/2 e empurra hora/badge para fora em alguns casos (visível na imagem 2 — "há 7 ho..." truncado).
+4. Falta garantir `min-width: 0` em ancestrais para o `truncate` do CSS funcionar de fato.
 
-Validei o fluxo end-to-end das duas filas (UaZapi e WABA). Envios de **texto** já funcionam para ambas. Envios de **mídia** funcionam para UaZapi e — após os últimos ajustes — também para WABA, mas com gaps:
+## Correções (apenas `src/components/chat/ChatContactItem.tsx`)
 
-### Problemas confirmados
+### 1. Remover cortes por caractere
+- Nome: renderizar `{contact.name}` direto, deixar o CSS truncar.
+- `MessagePreview`: remover `MAX_CHARS`, renderizar texto completo com `truncate`.
 
-1. **Inbound WABA media não abre no chat**  
-   `meta-webhook` salva `media_url = "waba_media:{media_id}"` (placeholder). Quando o usuário clica para baixar, o front chama `chat-media-download` → função tenta buscar credenciais UaZapi (`evo_url`/`evo_apikey`) na fila WABA, não encontra e retorna `Queue credentials not found`. Imagens/áudios/vídeos/docs recebidos via API Oficial ficam ilegíveis.
+### 2. Garantir prioridade visual lado direito
+- Linha 1: `<span hora>` com `flex-shrink-0` (já tem) + nome com `flex-1 min-w-0 truncate`.
+- Linha 2: badge não-lidas com `flex-shrink-0` + preview com `flex-1 min-w-0 truncate`.
+- Linha 3 (pills): trocar `flex-nowrap` por `flex-wrap` OU manter nowrap mas com `overflow-hidden` + `min-w-0` no contêiner pai — assim pills excedentes somem em vez de empurrar layout.
 
-2. **PTT (áudio de voz) WABA quebrado**  
-   Front envia `type: 'ptt'` para `waba-send`. O switch na função só mapeia `audio|video|document|sticker` → cai no default `image` e o upload falha (mimetype `audio/ogg` vs tipo `image`). Resultado: gravações de voz não saem pela fila Oficial.
+### 3. Reforçar contexto flex
+- Já existe `min-w-0 overflow-hidden` no wrapper de conteúdo — manter.
+- Confirmar que o `<button>` raiz tem `min-w-0` (tem).
 
-3. **MIME com codec quebra upload no Meta**  
-   Mesmo bug que tivemos no `chat-media-upload`: o Graph API `/media` também rejeita `audio/ogg;codecs=opus` no campo `type` do form-data. Precisa do mesmo `cleanMime = mimetype.split(";")[0].trim()` antes de subir.
-
-4. **`markAsRead` não roda para WABA**  
-   Hoje só executa em UaZapi. Para paridade (e para tirar o badge "lido duplo" no WhatsApp do cliente), enviar `POST /{phone_number_id}/messages {messaging_product:'whatsapp', status:'read', message_id}`.
-
-### Fluxos que JÁ estão corretos (não tocar)
-- Resolução de fila por `phone_number_id` no `meta-webhook` (corrigido em iteração anterior).
-- `sendMessage` de texto em ambos os canais.
-- Persistência de `chat_messages` / `chat_conversations` com `queue_id` correto.
-- `chat-media-upload` com `cleanMime` (já corrigido).
-
-## Correções
-
-### 1. `supabase/functions/chat-media-download/index.ts` — suporte a WABA
-- Detectar canal pelo `chat_messages.channel_type` ou pelo prefixo `waba_media:` em `media_url`.
-- Se WABA:
-  - Resolver fila por `queue_id` (ou pela conversa) e ler `waba_token`, `waba_number_id`.
-  - Extrair `media_id` de `waba_media:{id}` ou de `raw_payload.{image|audio|video|document|sticker}.id`.
-  - Chamar `waba-send` action `download_media` (já existe) para obter `base64` + `mimetype`.
-  - Subir em `chat-media` bucket (mesmo padrão UaZapi) e gravar `media_url` público.
-- Se UaZapi: comportamento atual intacto.
-- Idempotente (já é): se `media_url` já é público (`/storage/v1/object/public/chat-media/`), retorna direto.
-
-### 2. `supabase/functions/waba-send/index.ts` — robustez no `send_media`
-- Sanitizar `mimetype` antes de enviar ao Meta: `cleanMime = mimetype.split(";")[0].trim()`.
-- Mapear `media_type` corretamente, incluindo `ptt → audio`. Para `ptt`, o Meta só precisa do `type:'audio'` — o app reconhece como voice note pelo container ogg/opus.
-- Validar `cleanMime` antes do `formData.append("type", cleanMime)`.
-
-### 3. `supabase/functions/waba-send/index.ts` — nova action `mark_read`
-- Aceita `queue_id` + `message_id` (external WABA id do `wamid`).
-- POST `/{phone_number_id}/messages` com `{messaging_product:'whatsapp', status:'read', message_id}`.
-- Retorna 200 mesmo em falha (best-effort, não bloqueante).
-
-### 4. `src/contexts/WhatsAppDataContext.tsx`
-- **`markAsRead`**: quando `queue.channel_type === 'waba'`, buscar último `message_id` (externo) inbound do contato e chamar `waba-send` `mark_read`.
-- **`sendMedia`**: já passa `type` (incluindo `ptt`) para `waba-send` — sem mudança após o fix #2.
-- Sem outras alterações no front; downloads de mídia WABA passarão a funcionar automaticamente via `downloadMedia` (que chama `chat-media-download` corrigido).
-
-## Arquivos
-- `supabase/functions/chat-media-download/index.ts` — branch WABA + chamada para `waba-send`/`download_media` + persistência no bucket.
-- `supabase/functions/waba-send/index.ts` — `cleanMime`, mapeamento `ptt→audio`, action `mark_read`.
-- `src/contexts/WhatsAppDataContext.tsx` — `markAsRead` para WABA.
+## Arquivo
+- `src/components/chat/ChatContactItem.tsx` — apenas ajustes de classes Tailwind e remoção das duas truncagens por contagem.
 
 ## Validação
-1. Receber imagem na fila Oficial → clicar no preview → mídia aparece (download via Graph API + bucket).
-2. Receber áudio/vídeo/PDF na Oficial → idem.
-3. Gravar áudio (PTT) e enviar pela Oficial → recipiente recebe como voice note.
-4. Enviar imagem com caption pela Oficial → entregue com legenda.
-5. Abrir conversa Oficial com mensagens não lidas → checks azuis aparecem no WhatsApp do cliente.
-6. Mesmos cenários na fila UaZapi → continuam idênticos (sem regressão).
-
+1. Sidebar atual (~400px): nomes longos como "AutoNext - Gestores de Automaç..." truncam com `…` mas hora "08:29" e badge ficam visíveis.
+2. "Garagem - Open Source" mostra "há 7 horas" completo (não "há 7 ho...").
+3. Redimensionar viewport: truncamento responde dinamicamente, lado direito nunca some.
+4. Mensagens de mídia (foto/vídeo/áudio) continuam com ícone + label.
