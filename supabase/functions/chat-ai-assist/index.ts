@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
 
       const { data: msgs } = await query;
       const filtered = (msgs || []).filter((m) => m.text);
-      if (filtered.length === 0) return json({ error: "Sem mensagens para resumir" }, 400);
+      if (filtered.length === 0) return json({ error: "Sem mensagens novas para resumir" }, 200);
 
       const transcript = filtered
         .map((m) => `${m.from_me ? "Atendente" : "Cliente"} (${m.sender_name || ""}): ${m.text}`)
