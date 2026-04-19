@@ -3,6 +3,7 @@ import { externalDb, InactiveSession } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMemo, useState, useCallback } from 'react';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
+import { parseInactiveLeadDate } from '../utils/inactiveLeadDate';
 
 export type LeadPeriod = 'all' | 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'last3Months';
 export type JuliaFilter = 'all' | 'active' | 'inactive';
@@ -64,8 +65,8 @@ export function useInactiveLeads(selectedAgentCodes?: string[]) {
 
     if (range) {
       result = result.filter((lead) => {
-        const updatedAt = lead.updated_at ? new Date(lead.updated_at) : null;
-        if (!updatedAt) return false;
+        const updatedAt = lead.updated_at ? parseInactiveLeadDate(lead.updated_at) : null;
+        if (!updatedAt || Number.isNaN(updatedAt.getTime())) return false;
         return updatedAt >= range.from && updatedAt <= range.to;
       });
     }

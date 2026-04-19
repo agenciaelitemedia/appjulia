@@ -1,29 +1,9 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { differenceInMinutes, isToday, isYesterday, differenceInDays } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import type { InactiveSession } from '@/lib/externalDb';
 import { JuliaStatusBadge } from '@/components/chat/JuliaStatusBadge';
-
-const TZ = 'America/Sao_Paulo';
-
-function formatTZ(date: Date, opts: Intl.DateTimeFormatOptions): string {
-  return new Intl.DateTimeFormat('pt-BR', { timeZone: TZ, ...opts }).format(date);
-}
-
-/**
- * Parses a timestamp from the external DB.
- * The DB returns timestamps WITHOUT timezone in São Paulo local time.
- * If the string has no TZ indicator (Z or ±HH:MM), we treat it as -03:00.
- */
-function parseDbDate(dateStr: string): Date {
-  const hasTz = /[zZ]|[+-]\d{2}:?\d{2}$/.test(dateStr.trim());
-  if (hasTz) return new Date(dateStr);
-  // Normalize "YYYY-MM-DD HH:mm:ss(.sss)" -> ISO with -03:00
-  const normalized = dateStr.replace(' ', 'T').replace(/(\.\d+)?$/, (m) => m || '');
-  return new Date(`${normalized}-03:00`);
-}
+import { formatInactiveLeadDate, getInactiveLeadUrgencyClass } from '../utils/inactiveLeadDate';
 
 interface InactiveLeadItemProps {
   lead: InactiveSession;
@@ -45,28 +25,10 @@ function formatPhone(phone: string): string {
   return phone;
 }
 
-function formatWhatsAppTime(dateStr: string | null): string {
-  if (!dateStr) return '';
-  const date = parseDbDate(dateStr);
-  if (isToday(date)) return formatTZ(date, { hour: '2-digit', minute: '2-digit', hour12: false });
-  if (isYesterday(date)) return 'Ontem';
-  const days = differenceInDays(new Date(), date);
-  if (days < 7) return formatTZ(date, { weekday: 'short' }).replace('.', '');
-  return formatTZ(date, { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
-
-function getUrgencyColor(updatedAt: string | null): string {
-  if (!updatedAt) return 'text-muted-foreground';
-  const mins = differenceInMinutes(new Date(), parseDbDate(updatedAt));
-  if (mins >= 30) return 'text-red-500 font-semibold';
-  if (mins >= 10) return 'text-amber-500 font-medium';
-  return 'text-muted-foreground';
-}
-
 export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadItemProps) {
   const displayName = lead.contact_name || formatPhone(lead.whatsapp_number);
-  const timeLabel = formatWhatsAppTime(lead.updated_at);
-  const urgencyClass = getUrgencyColor(lead.updated_at);
+  const timeLabel = formatInactiveLeadDate(lead.updated_at);
+  const urgencyClass = getInactiveLeadUrgencyClass(lead.updated_at);
 
   const badgeColor = lead.stage_color || 'hsl(var(--muted-foreground))';
 
