@@ -5,6 +5,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
 
 export type LeadPeriod = 'all' | 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'last3Months';
+export type JuliaFilter = 'all' | 'active' | 'inactive';
 
 const PAGE_SIZE = 50;
 
@@ -35,6 +36,7 @@ export function useInactiveLeads(selectedAgentCodes?: string[]) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [stageIds, setStageIds] = useState<number[]>([]);
+  const [juliaFilter, setJuliaFilter] = useState<JuliaFilter>('all');
 
   const { data: userAgents = [] } = useQuery({
     queryKey: ['user-agents-for-support', user?.id],
@@ -73,6 +75,10 @@ export function useInactiveLeads(selectedAgentCodes?: string[]) {
       result = result.filter((lead) => lead.stage_id != null && set.has(Number(lead.stage_id)));
     }
 
+    if (juliaFilter !== 'all') {
+      result = result.filter((lead) => juliaFilter === 'active' ? lead.active === true : lead.active === false);
+    }
+
     if (ownerFilter !== 'all') {
       if (ownerFilter === 'mine') {
         result = result.filter((lead) => lead.owner_name === user?.name);
@@ -93,7 +99,7 @@ export function useInactiveLeads(selectedAgentCodes?: string[]) {
     }
 
     return result;
-  }, [leads, searchQuery, selectedPeriod, ownerFilter, stageIds, user?.name]);
+  }, [leads, searchQuery, selectedPeriod, ownerFilter, stageIds, juliaFilter, user?.name]);
 
   const setSearchQueryWithReset = useCallback((q: string) => {
     setSearchQuery(q);
@@ -113,6 +119,11 @@ export function useInactiveLeads(selectedAgentCodes?: string[]) {
 
   const setStageIdsWithReset = useCallback((ids: number[]) => {
     setStageIds(ids);
+    setVisibleCount(PAGE_SIZE);
+  }, []);
+
+  const setJuliaFilterWithReset = useCallback((f: JuliaFilter) => {
+    setJuliaFilter(f);
     setVisibleCount(PAGE_SIZE);
   }, []);
 
@@ -140,6 +151,8 @@ export function useInactiveLeads(selectedAgentCodes?: string[]) {
     setOwnerFilter: setOwnerFilterWithReset,
     stageIds,
     setStageIds: setStageIdsWithReset,
+    juliaFilter,
+    setJuliaFilter: setJuliaFilterWithReset,
     refetch,
     agentCodes,
     hasMore,
