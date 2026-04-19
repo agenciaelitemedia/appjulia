@@ -1,0 +1,1 @@
+UPDATE storage.buckets SET allowed_mime_types = NULL, file_size_limit = NULL WHERE id = 'chat-media';
