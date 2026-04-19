@@ -197,7 +197,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
         </div>
 
         {/* Row 3: Tags — fila → SLA → atribuído → extras */}
-        <div className="flex items-center gap-1 flex-nowrap min-w-0 overflow-hidden">
+        <div className="flex items-center gap-1 flex-nowrap min-w-0 max-w-full overflow-hidden">
           {queueName && (
             <span className="flex-shrink min-w-0 max-w-[110px] truncate">
               <Pill label={queueName.toUpperCase()} className="bg-blue-600 text-white" />
