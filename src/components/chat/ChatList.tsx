@@ -1,20 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, ArrowUpDown, Plus, Timer, AlertTriangle, Flame } from 'lucide-react';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, ArrowUpDown, Plus, Timer, AlertTriangle, Flame, Bot } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { ChatContactItem } from './ChatContactItem';
 import { Badge } from '@/components/ui/badge';
 import { useQueues } from '@/pages/agente/filas/hooks/useQueues';
 import { useChatSlaConfigs, evaluateSla, type SlaStatus } from '@/hooks/useChatSlaConfigs';
 import type { ConversationFilterStatus } from '@/types/conversation';
+import type { SessionStatus } from '@/lib/externalDb';
 import { cn } from '@/lib/utils';
 
 type SlaFilter = 'all' | 'breached' | 'at_risk';
+type JuliaFilter = 'all' | 'active' | 'inactive';
 
 export function ChatList() {
   const {
@@ -39,9 +43,11 @@ export function ChatList() {
   } = useWhatsAppData();
 
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: queues = [] } = useQueues();
   const { configs: slaConfigs } = useChatSlaConfigs();
   const [slaFilter, setSlaFilter] = useState<SlaFilter>('all');
+  const [juliaFilter, setJuliaFilter] = useState<JuliaFilter>('all');
 
   const activeQueues = queues.filter(q => q.is_active && !q.is_deleted);
 
@@ -81,10 +87,36 @@ export function ChatList() {
     [slaStatusByContact]
   );
 
+  // Map contact_id -> cod_agent (from most recent conversation)
+  const codAgentByContact = React.useMemo(() => {
+    const map = new Map<string, string>();
+    conversations.forEach((conv) => {
+      if (conv.cod_agent && !map.has(conv.contact_id)) {
+        map.set(conv.contact_id, conv.cod_agent);
+      }
+    });
+    return map;
+  }, [conversations]);
+
   const visibleContacts = React.useMemo(() => {
-    if (slaFilter === 'all') return filteredContacts;
-    return filteredContacts.filter((c) => slaStatusByContact.get(c.id) === slaFilter);
-  }, [filteredContacts, slaFilter, slaStatusByContact]);
+    let result = filteredContacts;
+    if (slaFilter !== 'all') {
+      result = result.filter((c) => slaStatusByContact.get(c.id) === slaFilter);
+    }
+    if (juliaFilter !== 'all') {
+      result = result.filter((c) => {
+        const codAgent = codAgentByContact.get(c.id) || c.cod_agent;
+        if (!codAgent || !c.phone) return false;
+        const cached = queryClient.getQueryData<SessionStatus | null>(
+          ['agent-session-status', codAgent, c.phone]
+        );
+        if (cached === undefined) return true; // not yet loaded — keep visible
+        const isActive = cached?.active ?? false;
+        return juliaFilter === 'active' ? isActive : !isActive;
+      });
+    }
+    return result;
+  }, [filteredContacts, slaFilter, slaStatusByContact, juliaFilter, codAgentByContact, queryClient, conversations]);
 
   // Count conversations by status
   const pendingCount = conversations.filter(c => c.status === 'pending').length;
@@ -184,7 +216,37 @@ export function ChatList() {
           </div>
         </div>
 
-        {/* SLA quick filters */}
+        {/* Julia / Atendimento Humano filter */}
+        <div className="px-4 pb-2">
+          <div className="flex items-center gap-2">
+            <Bot className="h-4 w-4 text-muted-foreground shrink-0" />
+            <ToggleGroup
+              type="single"
+              value={juliaFilter}
+              onValueChange={(val) => { if (val) setJuliaFilter(val as JuliaFilter); }}
+              size="sm"
+              className="justify-start"
+            >
+              <ToggleGroupItem value="all" className="text-[11px] px-2.5 h-7">
+                Todas
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="active"
+                className="text-[11px] px-2.5 h-7 data-[state=on]:bg-green-100 data-[state=on]:text-green-700 dark:data-[state=on]:bg-green-900/30 dark:data-[state=on]:text-green-400"
+              >
+                <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
+                Julia
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="inactive"
+                className="text-[11px] px-2.5 h-7 data-[state=on]:bg-red-100 data-[state=on]:text-red-700 dark:data-[state=on]:bg-red-900/30 dark:data-[state=on]:text-red-400"
+              >
+                <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-red-500" />
+                Atendimento Humano
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+        </div>
         {(breachedCount > 0 || atRiskCount > 0 || slaFilter !== 'all') && (
           <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
             <button
