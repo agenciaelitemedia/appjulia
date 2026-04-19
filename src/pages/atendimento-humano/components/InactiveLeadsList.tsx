@@ -1,16 +1,17 @@
 import { ReactNode, useMemo, useRef, useEffect, useState } from 'react';
-import { Search, Loader2, Headset, UserCircle, Layers, ChevronsUpDown } from 'lucide-react';
+import { Search, Loader2, Headset, UserCircle, Layers, ChevronsUpDown, Bot } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { InactiveLeadItem } from './InactiveLeadItem';
 import { StartConversationFooter } from './StartConversationFooter';
 import { cn } from '@/lib/utils';
 import type { InactiveSession } from '@/lib/externalDb';
-import type { LeadPeriod } from '../hooks/useInactiveLeads';
+import type { LeadPeriod, JuliaFilter } from '../hooks/useInactiveLeads';
 
 const PERIOD_OPTIONS: { value: LeadPeriod; label: string }[] = [
   { value: 'all', label: 'Todos' },
@@ -53,6 +54,8 @@ interface InactiveLeadsListProps {
   stages: StageOption[];
   stageIds: number[];
   onStageIdsChange: (ids: number[]) => void;
+  juliaFilter: JuliaFilter;
+  onJuliaFilterChange: (f: JuliaFilter) => void;
 }
 
 export function InactiveLeadsList({
@@ -76,6 +79,8 @@ export function InactiveLeadsList({
   stages,
   stageIds,
   onStageIdsChange,
+  juliaFilter,
+  onJuliaFilterChange,
 }: InactiveLeadsListProps) {
   const [stagePopoverOpen, setStagePopoverOpen] = useState(false);
   const stageSet = useMemo(() => new Set(stageIds), [stageIds]);
