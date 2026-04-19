@@ -260,12 +260,47 @@ Deno.serve(async (req) => {
         );
       }
 
+      case "mark_read": {
+        const { message_id } = params;
+        if (!message_id) {
+          return new Response(
+            JSON.stringify({ ok: false, error: "message_id is required" }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        try {
+          const resp = await fetch(`${GRAPH_API}/${phone_number_id}/messages`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${waba_token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              messaging_product: "whatsapp",
+              status: "read",
+              message_id,
+            }),
+          });
+          const data = await resp.json().catch(() => ({}));
+          return new Response(JSON.stringify({ ok: resp.ok, data }), {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        } catch (e) {
+          // best-effort, never block
+          return new Response(JSON.stringify({ ok: false, error: (e as Error).message }), {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
-    }
+      }
   } catch (error) {
     console.error("waba-send error:", error);
     return new Response(
