@@ -1316,6 +1316,24 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             };
           });
 
+          // For outbound from_me messages received via realtime (sent from another device):
+          // update last_message_text in-memory so the preview reflects the sent media.
+          if (!wasDuplicate && newMessage.from_me && !newMessage.internal_note) {
+            setContacts(prev => prev.map(c =>
+              c.id === newMessage.contact_id
+                ? {
+                    ...c,
+                    last_message_text: newMessage.text || (newMessage.type && newMessage.type !== 'text' ? `[${newMessage.type}]` : c.last_message_text),
+                    last_message_at: newMessage.timestamp || newMessage.created_at || c.last_message_at,
+                  }
+                : c
+            ).sort((a, b) => {
+              const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+              const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+              return bTime - aTime;
+            }));
+          }
+
           // For inbound (not from me, not internal note): bump unread_count locally
           // and persist to DB so the badge appears immediately. We do NOT skip when
           // the conversation is open — the badge must remain visible until the agent

@@ -60,7 +60,10 @@ function formatRelativeTime(dateStr: string): string {
 function MessagePreview({ text, type }: { text?: string; type?: string }) {
   if (!text && !type) return null;
 
-  const mediaType = type || (text?.match(/^\[(\w+)\]$/)?.[1]);
+  const KNOWN_MEDIA_TYPES = new Set(['image', 'video', 'audio', 'ptt', 'document', 'sticker']);
+  const mediaType = type
+    || (text?.match(/^\[(\w+)\]$/)?.[1])
+    || (text && KNOWN_MEDIA_TYPES.has(text.toLowerCase()) ? text.toLowerCase() : undefined);
 
   const mediaIcons: Record<string, React.ReactNode> = {
     image: <><Camera className="h-3 w-3 text-muted-foreground inline mr-1" /> Imagem</>,
