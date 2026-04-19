@@ -844,12 +844,25 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       // Meta requires a true OGG/Opus container for browser-recorded WebM audio.
       // UaZapi, on the other hand, handles the native WebM/Opus recording more reliably.
       if (queue.channel_type === 'waba' && isAudioMessage && (file.type || '').toLowerCase().includes('webm')) {
-        const convertedBlob = await webmBlobToOggOpus(file);
-        // Verify the remux produced a real OGG container (magic bytes "OggS").
+        let remux;
+        try {
+          remux = await webmBlobToOggOpusStrict(file);
+        } catch (err) {
+          console.error('[audio] WebM→OGG remux error:', err);
+          throw new Error('Falha ao converter áudio para OGG/Opus para a API Oficial. Tente gravar novamente.');
+        }
+        const { blob: convertedBlob, packets, approxDurationMs } = remux;
+        // Sanity-check the conversion: must be OGG, must have packets, must have plausible duration.
         const head = new Uint8Array(await convertedBlob.slice(0, 4).arrayBuffer());
         const isOgg = head[0] === 0x4f && head[1] === 0x67 && head[2] === 0x67 && head[3] === 0x53;
         if (!isOgg) {
           throw new Error('Falha ao converter áudio para OGG/Opus para a API Oficial. Tente gravar novamente.');
+        }
+        // Reject obviously broken conversions: empty packets, sub-second audio, or
+        // suspiciously small files (<2KB) which usually mean truncated streams.
+        if (packets === 0 || (approxDurationMs >= 0 && approxDurationMs < 500) || convertedBlob.size < 2048) {
+          console.error('[audio] remux produced suspicious output', { packets, approxDurationMs, size: convertedBlob.size });
+          throw new Error('Áudio convertido ficou corrompido. Grave novamente — a API Oficial exige OGG/Opus íntegro.');
         }
         outboundFile = new File(
           [convertedBlob],
