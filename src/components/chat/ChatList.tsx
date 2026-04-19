@@ -87,10 +87,36 @@ export function ChatList() {
     [slaStatusByContact]
   );
 
+  // Map contact_id -> cod_agent (from most recent conversation)
+  const codAgentByContact = React.useMemo(() => {
+    const map = new Map<string, string>();
+    conversations.forEach((conv) => {
+      if (conv.cod_agent && !map.has(conv.contact_id)) {
+        map.set(conv.contact_id, conv.cod_agent);
+      }
+    });
+    return map;
+  }, [conversations]);
+
   const visibleContacts = React.useMemo(() => {
-    if (slaFilter === 'all') return filteredContacts;
-    return filteredContacts.filter((c) => slaStatusByContact.get(c.id) === slaFilter);
-  }, [filteredContacts, slaFilter, slaStatusByContact]);
+    let result = filteredContacts;
+    if (slaFilter !== 'all') {
+      result = result.filter((c) => slaStatusByContact.get(c.id) === slaFilter);
+    }
+    if (juliaFilter !== 'all') {
+      result = result.filter((c) => {
+        const codAgent = codAgentByContact.get(c.id) || c.cod_agent;
+        if (!codAgent || !c.phone) return false;
+        const cached = queryClient.getQueryData<SessionStatus | null>(
+          ['agent-session-status', codAgent, c.phone]
+        );
+        if (cached === undefined) return true; // not yet loaded — keep visible
+        const isActive = cached?.active ?? false;
+        return juliaFilter === 'active' ? isActive : !isActive;
+      });
+    }
+    return result;
+  }, [filteredContacts, slaFilter, slaStatusByContact, juliaFilter, codAgentByContact, queryClient, conversations]);
 
   // Count conversations by status
   const pendingCount = conversations.filter(c => c.status === 'pending').length;
