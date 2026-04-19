@@ -1019,6 +1019,28 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             },
           });
         } catch { /* ignore read errors */ }
+      } else if (queue?.channel_type === 'whatsapp_waba' || queue?.channel_type === 'waba') {
+        // Mark read on Meta Graph API using latest inbound wamid
+        try {
+          const { data: lastMsg } = await supabase
+            .from('chat_messages')
+            .select('message_id')
+            .eq('contact_id', contactId)
+            .eq('from_me', false)
+            .not('message_id', 'is', null)
+            .order('timestamp', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (lastMsg?.message_id) {
+            await supabase.functions.invoke('waba-send', {
+              body: {
+                action: 'mark_read',
+                queue_id: queue.id,
+                message_id: lastMsg.message_id,
+              },
+            });
+          }
+        } catch { /* best-effort */ }
       }
 
       await supabase

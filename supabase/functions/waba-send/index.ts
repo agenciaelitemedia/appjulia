@@ -121,17 +121,23 @@ Deno.serve(async (req) => {
 
       case "send_media": {
         const to = params.to;
-        const media_type = params.media_type ?? params.type;
+        const rawMediaType = params.media_type ?? params.type;
         const base64 = params.base64 ?? params.mediaBase64;
         const mimetype = params.mimetype;
         const filename = params.filename ?? params.fileName;
         const caption = params.caption;
-        if (!to || !base64 || !mimetype || !media_type) {
+        if (!to || !base64 || !mimetype || !rawMediaType) {
           return new Response(
             JSON.stringify({ error: "to, media_type, base64, and mimetype are required" }),
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
+
+        // Map ptt → audio (WhatsApp recognizes voice notes by ogg/opus container)
+        const media_type = rawMediaType === "ptt" ? "audio" : rawMediaType;
+
+        // Sanitize MIME — Graph API rejects "audio/ogg;codecs=opus" in form-data type field
+        const cleanMime = String(mimetype).split(";")[0].trim();
 
         const cleanNumber = to.replace(/\D/g, "");
 
@@ -143,10 +149,10 @@ Deno.serve(async (req) => {
         }
 
         const formData = new FormData();
-        const blob = new Blob([bytes], { type: mimetype });
+        const blob = new Blob([bytes], { type: cleanMime });
         formData.append("file", blob, filename || "file");
         formData.append("messaging_product", "whatsapp");
-        formData.append("type", mimetype);
+        formData.append("type", cleanMime);
 
         const uploadResp = await fetch(`${GRAPH_API}/${phone_number_id}/media`, {
           method: "POST",
@@ -254,12 +260,47 @@ Deno.serve(async (req) => {
         );
       }
 
+      case "mark_read": {
+        const { message_id } = params;
+        if (!message_id) {
+          return new Response(
+            JSON.stringify({ ok: false, error: "message_id is required" }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        try {
+          const resp = await fetch(`${GRAPH_API}/${phone_number_id}/messages`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${waba_token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              messaging_product: "whatsapp",
+              status: "read",
+              message_id,
+            }),
+          });
+          const data = await resp.json().catch(() => ({}));
+          return new Response(JSON.stringify({ ok: resp.ok, data }), {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        } catch (e) {
+          // best-effort, never block
+          return new Response(JSON.stringify({ ok: false, error: (e as Error).message }), {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
-    }
+      }
   } catch (error) {
     console.error("waba-send error:", error);
     return new Response(
