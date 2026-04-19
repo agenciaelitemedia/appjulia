@@ -112,7 +112,7 @@ export default function HumanSupportPage() {
               <SelectContent>
                 {agents.map((a) => (
                   <SelectItem key={a.cod_agent} value={a.cod_agent}>
-                    [{a.cod_agent}] {a.business_name || a.cod_agent}
+                    [{a.cod_agent}] {a.alias || a.owner_business_name || a.owner_name || a.cod_agent}
                   </SelectItem>
                 ))}
               </SelectContent>
