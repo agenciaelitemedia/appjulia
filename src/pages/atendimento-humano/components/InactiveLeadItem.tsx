@@ -4,6 +4,8 @@ import { cn } from '@/lib/utils';
 import type { InactiveSession } from '@/lib/externalDb';
 import { JuliaStatusBadge } from '@/components/chat/JuliaStatusBadge';
 import { formatInactiveLeadDate, getInactiveLeadUrgencyClass } from '../utils/inactiveLeadDate';
+import { useAgentAliases } from '@/hooks/useAgentAliases';
+import { Hash } from 'lucide-react';
 
 interface InactiveLeadItemProps {
   lead: InactiveSession;
@@ -26,11 +28,13 @@ function formatPhone(phone: string): string {
 }
 
 export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadItemProps) {
+  const { getAlias } = useAgentAliases();
   const displayName = lead.contact_name || formatPhone(lead.whatsapp_number);
   const timeLabel = formatInactiveLeadDate(lead.updated_at);
   const urgencyClass = getInactiveLeadUrgencyClass(lead.updated_at);
 
   const badgeColor = lead.stage_color || 'hsl(var(--muted-foreground))';
+  const agentAlias = lead.cod_agent ? getAlias(lead.cod_agent, lead.business_name) : '';
 
   return (
     <button
@@ -71,6 +75,17 @@ export function InactiveLeadItem({ lead, isSelected, onSelect }: InactiveLeadIte
         <p className="text-xs text-muted-foreground truncate">
           {formatPhone(lead.whatsapp_number)}
         </p>
+
+        {/* Row 2.5: Cod agent + alias */}
+        {lead.cod_agent && (
+          <div className="flex items-center gap-1 text-[11px] text-muted-foreground truncate">
+            <Hash className="h-3 w-3 shrink-0" />
+            <span className="truncate">
+              <span className="font-semibold text-foreground/80">[{lead.cod_agent}]</span>
+              {agentAlias && <span> - {agentAlias}</span>}
+            </span>
+          </div>
+        )}
 
         {/* Row 3: Stage badge + owner */}
         <div className="flex items-center justify-between gap-1.5 mt-0.5">
