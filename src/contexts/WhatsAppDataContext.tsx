@@ -1369,7 +1369,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               text: newMessage.text,
               caption: newMessage.caption,
               file_name: newMessage.file_name,
-            }) || c_lastFallback(newMessage);
+            });
             setContacts(prev => prev.map(c =>
               c.id === newMessage.contact_id
                 ? {
@@ -1390,12 +1390,18 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           // the conversation is open — the badge must remain visible until the agent
           // explicitly assumes the conversation (which calls markAsRead).
           if (!wasDuplicate && !newMessage.from_me && !newMessage.internal_note) {
+            const previewIn = getMessagePreview({
+              type: newMessage.type,
+              text: newMessage.text,
+              caption: newMessage.caption,
+              file_name: newMessage.file_name,
+            });
             setContacts(prev => prev.map(c =>
               c.id === newMessage.contact_id
                 ? {
                     ...c,
                     unread_count: (c.unread_count || 0) + 1,
-                    last_message_text: newMessage.text || (newMessage.type && newMessage.type !== 'text' ? `[${newMessage.type}]` : c.last_message_text),
+                    last_message_text: previewIn || c.last_message_text,
                     last_message_at: newMessage.timestamp || newMessage.created_at || c.last_message_at,
                   }
                 : c
@@ -1418,7 +1424,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
                   .from('chat_contacts')
                   .update({
                     unread_count: next,
-                    last_message_text: newMessage.text || (newMessage.type && newMessage.type !== 'text' ? `[${newMessage.type}]` : null),
+                    last_message_text: previewIn || null,
                     last_message_at: newMessage.timestamp || newMessage.created_at || new Date().toISOString(),
                   })
                   .eq('id', newMessage.contact_id);
