@@ -895,6 +895,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             baseUrl: queue.evo_url,
             body: {
               number: contact.phone,
+              // UaZapi expects `file` (public URL or base64 data URI). Send the public URL.
+              file: persistedUrl,
+              // Keep mediaUrl as a fallback alias for compatibility with older UaZapi builds
               mediaUrl: persistedUrl,
               type: mediaType,
               mediaType,
