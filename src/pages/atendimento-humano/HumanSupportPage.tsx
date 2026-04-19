@@ -35,6 +35,8 @@ export default function HumanSupportPage() {
     setOwnerFilter,
     stageIds,
     setStageIds,
+    juliaFilter,
+    setJuliaFilter,
     hasMore,
     loadMore,
     refetch,
@@ -95,6 +97,8 @@ export default function HumanSupportPage() {
           stages={stages}
           stageIds={stageIds}
           onStageIdsChange={setStageIds}
+          juliaFilter={juliaFilter}
+          onJuliaFilterChange={setJuliaFilter}
           agentSelect={
             <AgentMultiSelectPopover
               agents={agents}

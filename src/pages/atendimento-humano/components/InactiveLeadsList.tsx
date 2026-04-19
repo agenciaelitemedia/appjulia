@@ -233,6 +233,32 @@ export function InactiveLeadsList({
             </PopoverContent>
           </Popover>
         </div>
+        <div className="flex items-center gap-2">
+          <Bot className="h-4 w-4 text-muted-foreground shrink-0" />
+          <ToggleGroup
+            type="single"
+            value={juliaFilter}
+            onValueChange={(val) => { if (val) onJuliaFilterChange(val as JuliaFilter); }}
+            size="sm"
+            className="justify-start"
+          >
+            <ToggleGroupItem value="all" className="text-[11px] px-2.5 h-7">Todas</ToggleGroupItem>
+            <ToggleGroupItem
+              value="active"
+              className="text-[11px] px-2.5 h-7 data-[state=on]:bg-green-100 data-[state=on]:text-green-700 dark:data-[state=on]:bg-green-900/30 dark:data-[state=on]:text-green-400"
+            >
+              <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
+              Julia
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="inactive"
+              className="text-[11px] px-2.5 h-7 data-[state=on]:bg-red-100 data-[state=on]:text-red-700 dark:data-[state=on]:bg-red-900/30 dark:data-[state=on]:text-red-400"
+            >
+              <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-red-500" />
+              Atendimento Humano
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
       </div>
 
       {/* List */}
