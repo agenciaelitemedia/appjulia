@@ -155,9 +155,13 @@ Deno.serve(async (req) => {
     }
 
     const payload = await req.json();
-    const event = payload.event || 'messages';
+    const rawEvent = payload.event || 'messages';
+    // Normalize: treat messages, messages.upsert, message as the same logical MESSAGE_UPSERT event
+    const MESSAGE_UPSERT_ALIASES = new Set(['messages', 'messages.upsert', 'message']);
+    const isMessageUpsert = MESSAGE_UPSERT_ALIASES.has(rawEvent);
+    const event = rawEvent;
 
-    console.log(`[uazapi-chat-webhook] Event: ${event}, queue: ${queue.name}`);
+    console.log(`[uazapi-chat-webhook] Event: ${event} (isMessageUpsert=${isMessageUpsert}), queue: ${queue.name}`);
 
     // ─── CONNECTION UPDATE ───
     if (event === 'connection.update') {
