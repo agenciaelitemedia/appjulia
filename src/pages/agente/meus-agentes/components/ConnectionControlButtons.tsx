@@ -10,7 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Loader2, QrCode, Settings, Unplug, Trash2, Shield } from 'lucide-react';
+import { Loader2, QrCode, Settings, Unplug, Trash2, Shield, Network } from 'lucide-react';
 import { UserAgent, ConnectionStatus } from '../types';
 import { useConnectionActions } from '../hooks/useConnectionActions';
 import { QRCodeDialog } from './QRCodeDialog';
@@ -39,6 +39,7 @@ export function ConnectionControlButtons({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [providerDialogOpen, setProviderDialogOpen] = useState(false);
   const [wabaDisconnecting, setWabaDisconnecting] = useState(false);
+  const [unlinkingQueue, setUnlinkingQueue] = useState(false);
   const { disconnect, isDisconnecting, connect, isConnecting } = useConnectionActions(agent);
   const queryClient = useQueryClient();
 
@@ -84,6 +85,35 @@ export function ConnectionControlButtons({
     }
   };
 
+  const handleUnlinkQueue = async () => {
+    setUnlinkingQueue(true);
+    try {
+      // Buscar todos os links do agente e remover via queue-management
+      const { supabase: sb } = await import('@/integrations/supabase/client');
+      const { data: links } = await sb
+        .from('queue_agent_links')
+        .select('queue_id')
+        .eq('cod_agent', agent.cod_agent);
+
+      if (links && links.length > 0) {
+        for (const link of links) {
+          await sb.functions.invoke('queue-management', {
+            body: { action: 'unlink_agent', data: { queue_id: link.queue_id, cod_agent: agent.cod_agent } },
+          });
+        }
+      }
+      toast.success('Fila desvinculada com sucesso');
+      queryClient.invalidateQueries({ queryKey: ['user-agents'] });
+      queryClient.invalidateQueries({ queryKey: ['connection-status'] });
+      queryClient.invalidateQueries({ queryKey: ['agent-queues', agent.cod_agent] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao desvincular fila');
+    } finally {
+      setUnlinkingQueue(false);
+      setDisconnectDialogOpen(false);
+    }
+  };
+
   if (isLoading || status === 'checking') {
     return (
       <Button variant="outline" size="sm" disabled className="w-full">
@@ -94,6 +124,49 @@ export function ConnectionControlButtons({
   }
 
   switch (status) {
+    case 'queue_connected':
+      return (
+        <>
+          <Button
+            size="sm"
+            onClick={() => setDisconnectDialogOpen(true)}
+            disabled={unlinkingQueue}
+            className="w-full bg-violet-600 hover:bg-violet-700 text-white"
+          >
+            {unlinkingQueue ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Network className="w-4 h-4 mr-2" />
+            )}
+            Desvincular Fila
+          </Button>
+
+          <AlertDialog open={disconnectDialogOpen} onOpenChange={setDisconnectDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Desvincular fila</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Tem certeza que deseja desvincular as filas de{' '}
+                  <strong>{agent.business_name || agent.client_name || 'este agente'}</strong>?
+                  <br /><br />
+                  As mensagens deixarão de ser encaminhadas para o webhook deste agente.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleUnlinkQueue}
+                  className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                >
+                  Sim, Desvincular
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      );
+
+
     case 'no_config':
       return (
         <>

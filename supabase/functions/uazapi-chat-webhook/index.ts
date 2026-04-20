@@ -525,21 +525,22 @@ Deno.serve(async (req) => {
         .select('cod_agent, is_primary')
         .eq('queue_id', queueId);
 
-      const primaryAgent = agentLinks?.find((l: any) => l.is_primary) ?? agentLinks?.[0];
-
-      if (primaryAgent?.cod_agent) {
+      if (agentLinks && agentLinks.length > 0) {
         const N8N_BASE_URL = 'https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start';
-        const n8nUrl = `${N8N_BASE_URL}?app=uazapi&c=${primaryAgent.cod_agent}`;
-        fetch(n8nUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            app: 'uazapi',
-            cod_agent: primaryAgent.cod_agent,
-            queue_id: queueId,
-            raw_payload: payload,
-          }),
-        }).catch((err: Error) => console.warn('[uazapi-chat-webhook] n8n forward error:', err.message));
+        for (const link of agentLinks as Array<{ cod_agent: string }>) {
+          if (!link.cod_agent) continue;
+          const n8nUrl = `${N8N_BASE_URL}?app=uazapi&c=${link.cod_agent}`;
+          fetch(n8nUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              app: 'uazapi',
+              cod_agent: link.cod_agent,
+              queue_id: queueId,
+              raw_payload: payload,
+            }),
+          }).catch((err: Error) => console.warn('[uazapi-chat-webhook] n8n forward error:', err.message));
+        }
       }
     }
 

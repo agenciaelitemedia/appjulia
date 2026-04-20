@@ -255,12 +255,12 @@ async function processQueue() {
     for (const item of items) {
       try {
         const wabaId = item.waba_id || 'unknown';
-        const url = `${N8N_BASE_URL}?app=waba&waba_id=${wabaId}`;
+        const phoneNumberId = item.phone_number_id || null;
 
         const n8nPayload = {
           from: item.from_number,
           message_type: item.message_type,
-          phone_number_id: item.phone_number_id,
+          phone_number_id: phoneNumberId,
           waba_id: wabaId,
           contacts: item.contacts,
           raw_payload: item.payload,
@@ -268,19 +268,46 @@ async function processQueue() {
           timestamp: item.created_at,
         };
 
-        const resp = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(n8nPayload),
-        });
+        // Build target URL list:
+        //  - If the phone_number_id maps to a queue with linked agents,
+        //    send one POST per linked cod_agent with ?app=waba&waba_id=...&c=<cod>
+        //  - Otherwise fall back to the legacy single forward (?app=waba&waba_id=...)
+        const targets: string[] = [];
+        if (phoneNumberId) {
+          const queue = await resolveQueueForWaba(phoneNumberId);
+          if (queue) {
+            const { data: links } = await supabase
+              .from('queue_agent_links')
+              .select('cod_agent')
+              .eq('queue_id', queue.id);
+            if (links && links.length > 0) {
+              for (const l of links) {
+                targets.push(`${N8N_BASE_URL}?app=waba&waba_id=${wabaId}&c=${l.cod_agent}`);
+              }
+            }
+          }
+        }
+        if (targets.length === 0) {
+          targets.push(`${N8N_BASE_URL}?app=waba&waba_id=${wabaId}`);
+        }
 
-        const status = resp.status;
-        await resp.text();
+        let lastStatus = 0;
+        let allOk = true;
+        for (const url of targets) {
+          const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(n8nPayload),
+          });
+          lastStatus = resp.status;
+          await resp.text();
+          if (!(resp.status >= 200 && resp.status < 300)) allOk = false;
+        }
 
-        if (status >= 200 && status < 300) {
+        if (allOk) {
           await supabase
             .from('webhook_queue')
-            .update({ status: 'sent', sent_at: new Date().toISOString(), n8n_response_status: status })
+            .update({ status: 'sent', sent_at: new Date().toISOString(), n8n_response_status: lastStatus })
             .eq('id', item.id);
 
           if (item.message_id) {
@@ -295,8 +322,8 @@ async function processQueue() {
             .update({
               status: item.retries >= 2 ? 'failed' : 'pending',
               retries: item.retries + 1,
-              error_message: `N8N responded ${status}`,
-              n8n_response_status: status,
+              error_message: `N8N responded ${lastStatus}`,
+              n8n_response_status: lastStatus,
             })
             .eq('id', item.id);
         }

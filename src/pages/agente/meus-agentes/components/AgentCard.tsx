@@ -27,14 +27,16 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
   const [isEditingAlias, setIsEditingAlias] = useState(false);
   const [editValue, setEditValue] = useState('');
 
-  const { data: connectionStatus = 'no_config', isLoading } = useConnectionStatus(
+  const { data: connectionResult, isLoading } = useConnectionStatus(
     agent.hub,
     agent.evo_url,
     agent.evo_apikey,
     agent.evo_instancia,
     agent.waba_configured,
-    agent.agent_id_from_agents
+    agent.agent_id_from_agents,
+    agent.cod_agent,
   );
+  const connectionStatus = connectionResult?.status ?? 'no_config';
   const { data: phoneInfo } = useConnectedPhoneInfo(
     agent.hub,
     agent.evo_url,

@@ -24,7 +24,20 @@ export interface UserAgent {
   can_edit_config: boolean;
 }
 
-export type ConnectionStatus = 'no_config' | 'connected' | 'disconnected' | 'checking' | 'waba_connected';
+export type ConnectionStatus =
+  | 'no_config'
+  | 'connected'
+  | 'disconnected'
+  | 'checking'
+  | 'waba_connected'
+  | 'queue_connected';
+
+export interface LinkedQueueInfo {
+  queue_id: string;
+  queue_name: string;
+  channel_type: string; // 'uazapi' | 'waba' | 'whatsapp_uazapi' | 'whatsapp_waba' | etc
+  is_primary: boolean;
+}
 
 export interface CreateInstanceResponse {
   success: boolean;
