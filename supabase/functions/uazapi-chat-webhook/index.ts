@@ -179,7 +179,7 @@ Deno.serve(async (req) => {
       console.log(`[fan-out] event=${event} queue=${queueId} targets=${targets.length}`);
 
       if (targets.length > 0) {
-        const N8N_BASE_URL = Deno.env.get('N8N_HUB_SEND_URL') || 'https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start';
+        const N8N_BASE_URL = Deno.env.get('N8N_HUB_WEBHOOK_URL') || 'https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start';
         const rawBody = JSON.stringify(payload);
         const promises = targets.map((link) => {
           const n8nUrl = `${N8N_BASE_URL}?app=uazapi&c=${link.cod_agent}`;
