@@ -153,6 +153,8 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             <JuliaStatusBadge
               whatsappNumber={contact.phone}
               codAgent={conversation?.cod_agent || contact.cod_agent}
+              queueId={conversation?.queue_id || null}
+              assignedTo={conversation?.assigned_to || null}
             />
             <span className={cn(
               'block truncate font-semibold text-sm',

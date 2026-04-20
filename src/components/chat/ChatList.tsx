@@ -7,18 +7,19 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, ArrowUpDown, Plus, Timer, AlertTriangle, Flame, Bot } from 'lucide-react';
+import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, ArrowUpDown, Plus, Timer, AlertTriangle, Flame, Bot, User } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { ChatContactItem } from './ChatContactItem';
 import { Badge } from '@/components/ui/badge';
 import { useQueues } from '@/pages/agente/filas/hooks/useQueues';
 import { useChatSlaConfigs, evaluateSla, type SlaStatus } from '@/hooks/useChatSlaConfigs';
+import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
 import type { ConversationFilterStatus } from '@/types/conversation';
 import type { SessionStatus } from '@/lib/externalDb';
 import { cn } from '@/lib/utils';
 
 type SlaFilter = 'all' | 'breached' | 'at_risk';
-type JuliaFilter = 'all' | 'active' | 'inactive';
+type ConversationModeFilter = 'all' | 'active' | 'pending';
 
 export function ChatList() {
   const {
@@ -47,7 +48,7 @@ export function ChatList() {
   const { data: queues = [] } = useQueues();
   const { configs: slaConfigs } = useChatSlaConfigs();
   const [slaFilter, setSlaFilter] = useState<SlaFilter>('all');
-  const [juliaFilter, setJuliaFilter] = useState<JuliaFilter>('all');
+  const [modeFilter, setModeFilter] = useState<ConversationModeFilter>('all');
 
   const activeQueues = queues.filter(q => q.is_active && !q.is_deleted);
 
@@ -87,36 +88,61 @@ export function ChatList() {
     [slaStatusByContact]
   );
 
-  // Map contact_id -> cod_agent (from most recent conversation)
-  const codAgentByContact = React.useMemo(() => {
-    const map = new Map<string, string>();
-    conversations.forEach((conv) => {
-      if (conv.cod_agent && !map.has(conv.contact_id)) {
-        map.set(conv.contact_id, conv.cod_agent);
+  // Map contact_id -> { codAgent, queueId } from most recent conversation
+  const convMetaByContact = React.useMemo(() => {
+    const map = new Map<string, { codAgent?: string; queueId?: string; assignedTo?: string | null }>();
+    const sorted = [...conversations].sort(
+      (a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime()
+    );
+    sorted.forEach((conv) => {
+      if (!map.has(conv.contact_id)) {
+        map.set(conv.contact_id, {
+          codAgent: conv.cod_agent || undefined,
+          queueId: conv.queue_id || undefined,
+          assignedTo: conv.assigned_to || null,
+        });
       }
     });
     return map;
   }, [conversations]);
+
+  // Batch-load queue → agent links for all visible queues
+  const queueIds = React.useMemo(() => {
+    const set = new Set<string>();
+    convMetaByContact.forEach((m) => { if (m.queueId) set.add(m.queueId); });
+    return Array.from(set);
+  }, [convMetaByContact]);
+  const { data: queueAgentMap } = useQueueAgentLinks(queueIds);
 
   const visibleContacts = React.useMemo(() => {
     let result = filteredContacts;
     if (slaFilter !== 'all') {
       result = result.filter((c) => slaStatusByContact.get(c.id) === slaFilter);
     }
-    if (juliaFilter !== 'all') {
+    if (modeFilter !== 'all') {
       result = result.filter((c) => {
-        const codAgent = codAgentByContact.get(c.id) || c.cod_agent;
-        if (!codAgent || !c.phone) return false;
-        const cached = queryClient.getQueryData<SessionStatus | null>(
-          ['agent-session-status', codAgent, c.phone]
-        );
-        if (cached === undefined) return true; // not yet loaded — keep visible
-        const isActive = cached?.active ?? false;
-        return juliaFilter === 'active' ? isActive : !isActive;
+        const meta = convMetaByContact.get(c.id);
+        const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
+        const hasAgent = !!queueLink?.hasAgent;
+        let isGreen: boolean | null;
+        if (hasAgent) {
+          // Bot mode: green if Julia active
+          const codAgent = queueLink?.codAgent || meta?.codAgent || c.cod_agent;
+          if (!codAgent || !c.phone) return false;
+          const cached = queryClient.getQueryData<SessionStatus | null>(
+            ['agent-session-status', codAgent, c.phone]
+          );
+          if (cached === undefined) return true; // not yet loaded — keep visible
+          isGreen = cached?.active ?? false;
+        } else {
+          // Human-only queue: green if assignedTo is filled
+          isGreen = !!(meta?.assignedTo && meta.assignedTo.trim());
+        }
+        return modeFilter === 'active' ? isGreen === true : isGreen === false;
       });
     }
     return result;
-  }, [filteredContacts, slaFilter, slaStatusByContact, juliaFilter, codAgentByContact, queryClient, conversations]);
+  }, [filteredContacts, slaFilter, slaStatusByContact, modeFilter, convMetaByContact, queueAgentMap, queryClient, conversations]);
 
   // Count conversations by status
   const pendingCount = conversations.filter(c => c.status === 'pending').length;
@@ -213,14 +239,14 @@ export function ChatList() {
           </div>
         </div>
 
-        {/* Julia / Atendimento Humano filter */}
+        {/* Modo da conversa: Bot ativo / Pendente (sem bot ativo OU sem atendente) */}
         <div className="px-4 pb-2">
           <div className="flex items-center gap-2">
-            <Bot className="h-4 w-4 text-muted-foreground shrink-0" />
+            <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
             <ToggleGroup
               type="single"
-              value={juliaFilter}
-              onValueChange={(val) => { if (val) setJuliaFilter(val as JuliaFilter); }}
+              value={modeFilter}
+              onValueChange={(val) => { if (val) setModeFilter(val as ConversationModeFilter); }}
               size="sm"
               className="justify-start"
             >
@@ -229,17 +255,19 @@ export function ChatList() {
               </ToggleGroupItem>
               <ToggleGroupItem
                 value="active"
-                className="text-[11px] px-2.5 h-7 data-[state=on]:bg-green-100 data-[state=on]:text-green-700 dark:data-[state=on]:bg-green-900/30 dark:data-[state=on]:text-green-400"
+                className="text-[11px] px-2.5 h-7 gap-1 data-[state=on]:bg-green-100 data-[state=on]:text-green-700 dark:data-[state=on]:bg-green-900/30 dark:data-[state=on]:text-green-400"
+                title="Bot ativo OU atendente atribuído"
               >
-                <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
-                Julia
+                <Bot className="h-3 w-3 text-green-600" />
+                Ativos
               </ToggleGroupItem>
               <ToggleGroupItem
-                value="inactive"
-                className="text-[11px] px-2.5 h-7 data-[state=on]:bg-red-100 data-[state=on]:text-red-700 dark:data-[state=on]:bg-red-900/30 dark:data-[state=on]:text-red-400"
+                value="pending"
+                className="text-[11px] px-2.5 h-7 gap-1 data-[state=on]:bg-red-100 data-[state=on]:text-red-700 dark:data-[state=on]:bg-red-900/30 dark:data-[state=on]:text-red-400"
+                title="Bot inativo OU sem atendente"
               >
-                <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-red-500" />
-                Atendimento Humano
+                <User className="h-3 w-3 text-red-600" />
+                Pendentes
               </ToggleGroupItem>
             </ToggleGroup>
           </div>
