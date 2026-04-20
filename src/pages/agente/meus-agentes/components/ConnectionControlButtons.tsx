@@ -124,6 +124,49 @@ export function ConnectionControlButtons({
   }
 
   switch (status) {
+    case 'queue_connected':
+      return (
+        <>
+          <Button
+            size="sm"
+            onClick={() => setDisconnectDialogOpen(true)}
+            disabled={unlinkingQueue}
+            className="w-full bg-violet-600 hover:bg-violet-700 text-white"
+          >
+            {unlinkingQueue ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Network className="w-4 h-4 mr-2" />
+            )}
+            Desvincular Fila
+          </Button>
+
+          <AlertDialog open={disconnectDialogOpen} onOpenChange={setDisconnectDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Desvincular fila</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Tem certeza que deseja desvincular as filas de{' '}
+                  <strong>{agent.business_name || agent.client_name || 'este agente'}</strong>?
+                  <br /><br />
+                  As mensagens deixarão de ser encaminhadas para o webhook deste agente.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleUnlinkQueue}
+                  className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                >
+                  Sim, Desvincular
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      );
+
+
     case 'no_config':
       return (
         <>
