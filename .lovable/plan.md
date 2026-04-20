@@ -1,63 +1,36 @@
 
 
+## Objetivo
+Garantir que o badge "J" (Julia ativa) / "H" (Humano) apareça em cada conversa do `/chat` (lista e header), refletindo o estado atual da sessão de IA do contato — igual ao que já é exibido em `/atendimento-humano`.
+
 ## Diagnóstico
-Agente 202601003 vinculado à fila UaZapi mas não está respondendo. Preciso investigar:
+- Componente `JuliaStatusBadge` já existe (`src/components/chat/JuliaStatusBadge.tsx`) e usa `useAgentSessionStatus(whatsappNumber, codAgent)`.
+- Já é usado em `/atendimento-humano`, mas **não está plugado** em `/chat` (nem no `ChatContactItem` da lista, nem no `ChatHeader`).
+- Cada conversa do chat tem `chat_contacts.phone` (whatsapp) e `chat_conversations.cod_agent` — dados suficientes para o hook resolver o status.
 
-1. Se o link existe em `queue_agent_links`
-2. Se o webhook UaZapi está chegando em `uazapi-chat-webhook`
-3. Se o fan-out para o n8n do agente está sendo executado
+## Mudanças
 
-Pelos logs vistos:
-- `uazapi-chat-webhook` recebeu evento na fila "Agente Principal" e processou (`processed=1`)
-- Porém **não há log de forward para n8n** com `?app=uazapi&c=202601003`
+### 1. `ChatContactItem` (lista de conversas)
+- Importar `JuliaStatusBadge`.
+- Renderizar o badge ao lado do nome do contato, passando `whatsappNumber={contact.phone}` e `codAgent={conversation.cod_agent}`.
+- Tamanho compacto (já é h-4 w-4) — não quebra layout estilo Helena (w-96).
 
-Preciso verificar o código do `uazapi-chat-webhook` para confirmar:
-- Se a lógica de fan-out (que adicionei) está ativa
-- Se está buscando `webhook_n8n` no agente corretamente
-- Se está logando os forwards
+### 2. `ChatHeader` (cabeçalho da conversa aberta)
+- Importar `JuliaStatusBadge`.
+- Renderizar ao lado do nome do contato no topo, mesmo padrão.
 
-## Hipóteses prováveis
-1. **Fan-out só dispara em `messages.upsert` mas o evento veio como `messages`** — filtro de evento errado.
-2. **Coluna do webhook n8n no `agents`** pode ter nome diferente (ex: `webhook_n8n` vs `n8n_webhook` vs `webhook`).
-3. **Agente 202601003 não tem `webhook_n8n` preenchido** no banco externo.
-4. **Fan-out só executa quando NÃO há `cod_agent` primário direto** — pode estar pulando porque a fila já tem agente "antigo" associado.
+### 3. (Opcional, se houver dados disponíveis) Realtime
+- O hook `useAgentSessionStatus` já lida com polling/realtime (manter comportamento atual). Sem alteração.
 
-## Plano de investigação e correção
-
-### Etapa 1 — Inspeção (read-only, agora)
-- Ler `supabase/functions/uazapi-chat-webhook/index.ts` para ver a lógica atual de fan-out.
-- Consultar via `db-query`/external DB:
-  - `agents.webhook_n8n` (ou nome equivalente) para `cod_agent=202601003`.
-- Consultar Supabase: `queue_agent_links` para `cod_agent=202601003` (qual queue, primary?).
-- Buscar logs recentes do `uazapi-chat-webhook` filtrando por "202601003" / "forward" / "n8n".
-
-### Etapa 2 — Correções esperadas
-Com base no diagnóstico:
-
-**A) Garantir fan-out independente do tipo de evento**
-- O forward para n8n deve ocorrer para todo evento `messages` (não só upsert), espelhando o `meta-webhook`.
-- Iterar `queue_agent_links` da fila resolvida e fazer POST para cada `agents.webhook_n8n` com querystring `?app=uazapi&c=<cod_agent>`.
-
-**B) Padronizar nome da coluna**
-- Confirmar nome real (`webhook_n8n`) e ajustar leitura caso necessário.
-
-**C) Adicionar logs de observabilidade**
-- Log: `[fan-out] queue=<id> targets=<n>`
-- Log por target: `[fan-out] POST <url-mascarada> agent=<cod>`
-- Log de erro de forward (sem quebrar o processamento principal).
-
-**D) Não duplicar com fluxo legado**
-- Se o agente da fila já é o mesmo `cod_agent` resolvido pelo caminho legado, evitar enviar 2x.
-
-### Etapa 3 — Validação
-- Enviar mensagem de teste no WhatsApp da fila UaZapi vinculada ao 202601003.
-- Conferir nos logs do `uazapi-chat-webhook` os logs `[fan-out]`.
-- Confirmar recebimento no n8n do agente 202601003.
+## Comportamento legado preservado
+- Conversas sem `cod_agent` ou sem `phone` válido: hook retorna `null` → badge não aparece (comportamento atual do componente).
+- Nenhuma mudança em `/atendimento-humano`.
 
 ## Arquivos previstos
-- `supabase/functions/uazapi-chat-webhook/index.ts` — ajustar/garantir fan-out + logs.
-- (Eventual) `supabase/functions/_shared/forward-to-agent-n8n.ts` — extrair helper se ainda não existir.
+- `src/components/chat/ChatContactItem.tsx` — adicionar badge.
+- `src/components/chat/ChatHeader.tsx` — adicionar badge.
 
-## Saída final
-- Mensagem de teste responde via Julia (n8n) para o agente 202601003 conectado via fila UaZapi.
+## Validação
+- Abrir `/chat` → conversas com Julia ativa mostram "J" verde; conversas com humano em atendimento mostram "H" vermelho.
+- Ao desativar a Julia (humano envia mensagem) → badge atualiza para "H".
 
