@@ -2,45 +2,57 @@
 
 ## Objetivo
 
-Garantir que toda mensagem nova recebida pela UaZapi (`messages.upsert`) seja repassada ao n8n com `?app=uazapi&c=<cod_agent>`, independentemente da nomenclatura do evento que a UaZapi enviar.
+Criar o secret `N8N_HUB_WEBHOOK_URL` = `https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start` e apontar os webhooks de chat (UaZapi + WABA) para ele, **enviando apenas em eventos de mensagem nova recebida** (não status, não delete, não update).
 
-## Diagnóstico
+## Regra de fan-out por canal
 
-O webhook `uazapi-chat-webhook` hoje só dispara fan-out para n8n quando `event === 'messages'` (default). A UaZapi atual envia `event: 'messages.upsert'`, que cai num branch que **não é tratado como mensagem nova** — o código só trata explicitamente `messages.update`, `messages.delete`, `chats.update`, `contacts.update`, `connection.update`. Tudo que não bate nesses ifs cai no bloco genérico “messages”, MAS apenas se `event` não for um desses específicos. Resultado: `messages.upsert` é processado como mensagem (o parser aceita), porém em algumas variações o payload chega vazio e `processed=0`, e ainda assim o fan-out roda. O problema relatado é que **nada chega no n8n para `app=uazapi`** — então a causa real é uma das duas:
+| Canal | Quando dispara (APENAS) | Quando NÃO dispara | URL alvo |
+|---|---|---|---|
+| UaZapi | `messages.upsert` (alias: `messages`, `message`) | `messages.update`, `messages.delete`, `chats.update`, `contacts.update`, `connection.update`, qualquer outro | `${N8N_HUB_WEBHOOK_URL}?app=uazapi&c=<cod_agent>` |
+| WABA | `change.field === 'messages'` E item dentro de `value.messages[]` (mensagem nova recebida) | `value.statuses[]` (sent/delivered/read/failed), demais `field` (`account_update`, `message_template_status_update` etc.) | `${N8N_HUB_WEBHOOK_URL}?app=waba&waba_id=<entry.id>&c=<cod_agent>` |
 
-1. O evento não está casando com o caminho de fan-out (filtro extra).
-2. Não há checagem explícita de vínculo + tipo de evento conforme regra de negócio nova.
-
-A correção alinha o código exatamente à regra que você definiu agora.
+Em ambos: um POST por `cod_agent` vinculado à fila, body = payload bruto recebido do provedor, `Content-Type: application/json`.
 
 ## Mudanças
 
-### 1. `supabase/functions/uazapi-chat-webhook/index.ts`
+### 1. Novo secret
+- Criar `N8N_HUB_WEBHOOK_URL` = `https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start`.
+- `N8N_HUB_SEND_URL` permanece (fluxo legado `/advbox-send` em `processQueue`), mas os blocos novos de fan-out de chat deixam de lê-lo.
 
-- Normalizar o evento recebido: tratar `messages`, `messages.upsert` e `message` como o **mesmo** tipo lógico `MESSAGE_UPSERT`.
-- Antes de qualquer processamento pesado, resolver `queue_id` → buscar `queue_agent_links` da fila.
-- Se não houver agente vinculado: logar `[fan-out] no agents linked, skipping` e retornar 200 sem fan-out (mas ainda persistir a mensagem normalmente para histórico).
-- Se houver vínculo **e** o evento for `MESSAGE_UPSERT`: para cada `cod_agent` vinculado, fazer `POST` para  
-  `${N8N_HUB_SEND_URL}?app=uazapi&c=<cod_agent>`  
-  com o **payload bruto original** recebido da UaZapi (sem transformações), `Content-Type: application/json`.
-- Eventos diferentes de `MESSAGE_UPSERT` (status, delete, contacts, chats, connection) **não** disparam n8n — apenas atualizam o banco como hoje.
-- Logs claros: `[fan-out] event=<x> queue=<id> targets=<n> agent=<cod> status=<http>`.
-- Persistência de mensagens, contatos e conversas continua exatamente como está hoje (não mexe na lógica de upsert nem no backfill).
+### 2. `supabase/functions/uazapi-chat-webhook/index.ts`
+- Substituir, no bloco de fan-out já existente, `Deno.env.get('N8N_HUB_SEND_URL')` por `Deno.env.get('N8N_HUB_WEBHOOK_URL')`.
+- Manter o gate `if (isMessageUpsert)` — fan-out só roda para mensagem nova; demais eventos retornam sem disparar.
+- Mantém `?app=uazapi&c=<cod_agent>`, body cru, e logs `[fan-out] POST n8n agent=... url=...` / `[fan-out] response agent=... status=...`.
 
-### 2. Sem mudanças em frontend, sem novas tabelas, sem migrations
+### 3. `supabase/functions/meta-webhook/index.ts` (WABA)
+- Adicionar fan-out novo, **independente** do `processQueue` legado.
+- Iterar `body.entry[].changes[]`:
+  - Ignorar quando `change.field !== 'messages'`.
+  - Ignorar `value.statuses[]` (não dispara nada para n8n).
+  - Para cada item em `value.messages[]` (mensagem recebida): resolver `phone_number_id` → `queue` → `queue_agent_links`. Para cada `cod_agent`:
+    - `POST ${N8N_HUB_WEBHOOK_URL}?app=waba&waba_id=<entry.id>&c=<cod_agent>`
+    - body: o **payload original completo** recebido da Meta (`req.json()` cru), `Content-Type: application/json`.
+- Coletar todas as promises e aguardar com `Promise.allSettled` **antes** do `return` (Supabase mata o isolate ao responder).
+- Logs: `[fan-out waba] event=messages waba_id=<id> queue=<id> targets=<n>` / `[fan-out waba] response agent=<cod> status=<http>`.
+- Não tocar em `webhook_queue` / `processQueue` (continua como está, fluxo legado).
 
-A regra é 100% backend; o webhook na UaZapi já está correto.
+### 4. Build error pré-existente
+O erro de build em `_shared/resolve-queue.ts` (cert CA store) não é causado por este plano. Deploy será feito por função (`uazapi-chat-webhook`, `meta-webhook`) via CLI, contornando o build agregado, como já foi feito antes.
+
+### 5. Deploy
+Deploy automático de `uazapi-chat-webhook` e `meta-webhook`.
 
 ## Validação
 
-1. Enviar uma mensagem real para a fila UaZapi.
-2. Conferir nos logs do `uazapi-chat-webhook`:
-   - `event=messages.upsert queue=9f10a27b... targets=1`
-   - `[fan-out] POST n8n agent=202601003 status=200`
-3. Conferir no n8n a execução com query `app=uazapi&c=202601003` e o payload bruto da UaZapi no body.
-4. Confirmar que eventos `messages.update` (status delivered/read) **não** geram execução nova no n8n.
+1. UaZapi `messages.upsert` → log `POST .../julia_MQv8.2_start?app=uazapi&c=<cod>` + `status=200`.
+2. UaZapi `messages.update` (status delivered/read) → **nenhum** POST para `julia_MQv8.2_start`.
+3. WABA `value.messages[]` → log `POST .../julia_MQv8.2_start?app=waba&waba_id=<id>&c=<cod>` + `status=200`.
+4. WABA `value.statuses[]` (delivered/read) → **nenhum** POST para `julia_MQv8.2_start`.
+5. No n8n conferir execuções nos dois `app` com body cru do provedor.
 
 ## Arquivos previstos
 
 - `supabase/functions/uazapi-chat-webhook/index.ts`
+- `supabase/functions/meta-webhook/index.ts`
+- Novo secret `N8N_HUB_WEBHOOK_URL`
 
