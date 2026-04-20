@@ -2,12 +2,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, Webhook, Loader2 } from 'lucide-react';
+import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, Webhook, Loader2, Bot } from 'lucide-react';
 import { Queue } from '../hooks/useQueues';
 import { UazapiInstanceStatus } from './UazapiInstanceStatus';
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
+import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
 
 const channelIcons: Record<string, React.ReactNode> = {
   uazapi: <Phone className="w-4 h-4" />,
