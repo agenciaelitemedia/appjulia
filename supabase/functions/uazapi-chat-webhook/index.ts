@@ -516,20 +516,27 @@ Deno.serve(async (req) => {
 
     console.log(`[uazapi-chat-webhook] Done. processed=${processed} skipped=${JSON.stringify(skipped)} backfills=${backfillTriggered.size}`);
 
-    // ─── N8N FORWARDING ───
-    // Only forward when the queue has linked agents (Filas connection type).
+    // ─── N8N FAN-OUT ───
+    // Forward incoming events (not fromMe echoes) to n8n for every linked agent.
     // Fire-and-forget — does not block the webhook response.
-    if (processed > 0) {
-      const { data: agentLinks } = await supabase
+    try {
+      const { data: agentLinks, error: linksErr } = await supabase
         .from('queue_agent_links')
         .select('cod_agent, is_primary')
         .eq('queue_id', queueId);
 
-      if (agentLinks && agentLinks.length > 0) {
-        const N8N_BASE_URL = 'https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start';
-        for (const link of agentLinks as Array<{ cod_agent: string }>) {
-          if (!link.cod_agent) continue;
+      if (linksErr) {
+        console.error('[fan-out] Error fetching links:', linksErr);
+      }
+
+      const targets = (agentLinks || []).filter((l: any) => l.cod_agent);
+      console.log(`[fan-out] queue=${queueId} event=${event} processed=${processed} targets=${targets.length}`);
+
+      if (targets.length > 0) {
+        const N8N_BASE_URL = Deno.env.get('N8N_HUB_SEND_URL') || 'https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start';
+        for (const link of targets as Array<{ cod_agent: string }>) {
           const n8nUrl = `${N8N_BASE_URL}?app=uazapi&c=${link.cod_agent}`;
+          console.log(`[fan-out] POST n8n agent=${link.cod_agent} queue=${queueId} event=${event}`);
           fetch(n8nUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -537,11 +544,16 @@ Deno.serve(async (req) => {
               app: 'uazapi',
               cod_agent: link.cod_agent,
               queue_id: queueId,
+              event,
               raw_payload: payload,
             }),
-          }).catch((err: Error) => console.warn('[uazapi-chat-webhook] n8n forward error:', err.message));
+          })
+            .then((r) => console.log(`[fan-out] response agent=${link.cod_agent} status=${r.status}`))
+            .catch((err: Error) => console.warn(`[fan-out] error agent=${link.cod_agent}:`, err.message));
         }
       }
+    } catch (fanErr) {
+      console.error('[fan-out] Unexpected error:', fanErr);
     }
 
     return respond({ ok: true, event, processed, skipped, backfills: backfillTriggered.size });
