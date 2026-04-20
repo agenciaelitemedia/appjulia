@@ -34,6 +34,17 @@ interface QueueCardProps {
 
 export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps) {
   const [reconfiguring, setReconfiguring] = useState(false);
+  const { data: agentData } = useMyAgents();
+  const { getAlias } = useAgentAliases();
+
+  const myAgentsMap = new Map((agentData?.myAgents || []).map(a => [a.cod_agent, a]));
+  const linkedMyAgents = (queue.queue_agent_links || [])
+    .map(link => {
+      const agent = myAgentsMap.get(link.cod_agent);
+      if (!agent) return null;
+      return { codAgent: link.cod_agent, agent, isPrimary: link.is_primary };
+    })
+    .filter((x): x is { codAgent: string; agent: typeof agentData.myAgents[number]; isPrimary: boolean } => x !== null);
 
   const handleReconfigureWebhook = async () => {
     setReconfiguring(true);
