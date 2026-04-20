@@ -10,7 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Loader2, QrCode, Settings, Unplug, Trash2, Shield } from 'lucide-react';
+import { Loader2, QrCode, Settings, Unplug, Trash2, Shield, Network } from 'lucide-react';
 import { UserAgent, ConnectionStatus } from '../types';
 import { useConnectionActions } from '../hooks/useConnectionActions';
 import { QRCodeDialog } from './QRCodeDialog';
@@ -39,6 +39,7 @@ export function ConnectionControlButtons({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [providerDialogOpen, setProviderDialogOpen] = useState(false);
   const [wabaDisconnecting, setWabaDisconnecting] = useState(false);
+  const [unlinkingQueue, setUnlinkingQueue] = useState(false);
   const { disconnect, isDisconnecting, connect, isConnecting } = useConnectionActions(agent);
   const queryClient = useQueryClient();
 
