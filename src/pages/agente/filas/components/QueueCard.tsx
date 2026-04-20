@@ -2,14 +2,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, Webhook, Loader2, Bot } from 'lucide-react';
+import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, Webhook, Loader2 } from 'lucide-react';
 import { Queue } from '../hooks/useQueues';
 import { UazapiInstanceStatus } from './UazapiInstanceStatus';
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
-import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
 
 const channelIcons: Record<string, React.ReactNode> = {
   uazapi: <Phone className="w-4 h-4" />,
@@ -34,17 +32,6 @@ interface QueueCardProps {
 
 export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps) {
   const [reconfiguring, setReconfiguring] = useState(false);
-  const { data: agentData } = useMyAgents();
-  const { getAlias } = useAgentAliases();
-
-  const myAgentsMap = new Map((agentData?.myAgents || []).map(a => [a.cod_agent, a]));
-  const linkedMyAgents = (queue.queue_agent_links || [])
-    .map(link => {
-      const agent = myAgentsMap.get(link.cod_agent);
-      if (!agent) return null;
-      return { codAgent: link.cod_agent, agent, isPrimary: link.is_primary };
-    })
-    .filter((x): x is { codAgent: string; agent: typeof agentData.myAgents[number]; isPrimary: boolean } => x !== null);
 
   const handleReconfigureWebhook = async () => {
     setReconfiguring(true);
@@ -124,22 +111,6 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
               API Oficial
             </Badge>
             <p className="text-xs text-muted-foreground truncate">ID: {queue.waba_number_id}</p>
-          </div>
-        )}
-
-        {linkedMyAgents.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 mb-2 mt-1">
-            {linkedMyAgents.map(({ codAgent, agent, isPrimary }) => (
-              <Badge
-                key={codAgent}
-                variant="outline"
-                className="gap-1 text-[10px] px-1.5 py-0.5 border-primary/40 text-primary"
-                title={isPrimary ? 'Meu agente (principal)' : 'Meu agente'}
-              >
-                <Bot className="w-3 h-3" />
-                #{codAgent} {getAlias(codAgent, agent.business_name) || agent.client_name || ''}
-              </Badge>
-            ))}
           </div>
         )}
 
