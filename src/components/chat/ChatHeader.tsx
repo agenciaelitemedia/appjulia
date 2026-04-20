@@ -23,6 +23,7 @@ import { CreateCrmLeadDialog } from './CreateCrmLeadDialog';
 import { AIAssistPanel } from './AIAssistPanel';
 import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
 import { SlaBadge } from './SlaBadge';
+import { JuliaStatusBadge } from './JuliaStatusBadge';
 
 interface ChatHeaderProps {
   contact: ChatContact;
@@ -202,6 +203,10 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
+            <JuliaStatusBadge
+              whatsappNumber={contact.phone}
+              codAgent={selectedConversation?.cod_agent || contact.cod_agent}
+            />
             {isEditingName ? (
               <input
                 ref={nameInputRef}
