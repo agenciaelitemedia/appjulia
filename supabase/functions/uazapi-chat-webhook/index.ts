@@ -524,7 +524,8 @@ Deno.serve(async (req) => {
     // Only forward MESSAGE_UPSERT events. Status updates, deletes, contacts, chats and
     // connection events return earlier and never reach this block.
     // Forwards the RAW UaZapi payload to n8n, one POST per linked agent, with
-    // ?app=uazapi&c=<cod_agent>. Fire-and-forget — does not block the response.
+    // ?app=uazapi&c=<cod_agent>. Awaited via Promise.allSettled to ensure execution
+    // before the response is returned (Supabase edge runtime kills isolate on return).
     if (!isMessageUpsert) {
       console.log(`[fan-out] event=${event} not a message upsert, skipping`);
     } else {
@@ -546,17 +547,18 @@ Deno.serve(async (req) => {
         } else {
           const N8N_BASE_URL = Deno.env.get('N8N_HUB_SEND_URL') || 'https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start';
           const rawBody = JSON.stringify(payload);
-          for (const link of targets as Array<{ cod_agent: string }>) {
+          const fanOutPromises = (targets as Array<{ cod_agent: string }>).map((link) => {
             const n8nUrl = `${N8N_BASE_URL}?app=uazapi&c=${link.cod_agent}`;
             console.log(`[fan-out] POST n8n agent=${link.cod_agent} queue=${queueId} event=${event}`);
-            fetch(n8nUrl, {
+            return fetch(n8nUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: rawBody,
             })
               .then((r) => console.log(`[fan-out] response agent=${link.cod_agent} status=${r.status}`))
               .catch((err: Error) => console.warn(`[fan-out] error agent=${link.cod_agent}:`, err.message));
-          }
+          });
+          await Promise.allSettled(fanOutPromises);
         }
       } catch (fanErr) {
         console.error('[fan-out] Unexpected error:', fanErr);
