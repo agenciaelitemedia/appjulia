@@ -132,6 +132,14 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
           />
         )}
       </CardContent>
+
+      {hasWabaCreds && (
+        <DisconnectWabaDialog
+          queue={queue}
+          open={disconnectOpen}
+          onOpenChange={setDisconnectOpen}
+        />
+      )}
     </Card>
   );
 }
