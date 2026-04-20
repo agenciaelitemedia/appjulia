@@ -364,7 +364,9 @@ serve(async (req) => {
   // ─── POST ──────────────────────────────────────────────────────
   if (req.method === 'POST') {
     try {
-      const body = await req.json();
+      const rawBodyText = await req.text();
+      let body: any;
+      try { body = JSON.parse(rawBodyText); } catch { body = {}; }
 
       // ── Internal action: process_queue (fallback/cron) ──
       if (body.action === 'process_queue') {
