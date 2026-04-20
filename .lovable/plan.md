@@ -1,36 +1,70 @@
 
 
 ## Objetivo
-Garantir que o badge "J" (Julia ativa) / "H" (Humano) apareça em cada conversa do `/chat` (lista e header), refletindo o estado atual da sessão de IA do contato — igual ao que já é exibido em `/atendimento-humano`.
+Substituir o badge **J/H** atual (baseado apenas em status da Julia) por um badge **contextual à fila da conversa**, com semântica diferente para filas com agente IA vinculado vs. filas sem agente. Atualizar o filtro do `/chat` para refletir os mesmos critérios.
 
-## Diagnóstico
-- Componente `JuliaStatusBadge` já existe (`src/components/chat/JuliaStatusBadge.tsx`) e usa `useAgentSessionStatus(whatsappNumber, codAgent)`.
-- Já é usado em `/atendimento-humano`, mas **não está plugado** em `/chat` (nem no `ChatContactItem` da lista, nem no `ChatHeader`).
-- Cada conversa do chat tem `chat_contacts.phone` (whatsapp) e `chat_conversations.cod_agent` — dados suficientes para o hook resolver o status.
+## Regras novas
+
+| Cenário da fila da conversa | Ícone | Verde quando | Vermelho quando |
+|---|---|---|---|
+| Fila vinculada a um agente IA (existe `queue_agent_links`) | 🤖 (Bot) | Sessão da IA está **ativa** (`isActive=true`) | Sessão **inativa** (humano assumiu) |
+| Fila SEM agente IA vinculado | 👤 (User/Humano) | Conversa tem `assigned_to` (atendente atribuído) | `assigned_to` vazio (não atribuído) |
+
+Conversa sem fila resolvida → fallback para o comportamento atual (usa `cod_agent` da conversa) ou esconde se não houver dados.
 
 ## Mudanças
 
-### 1. `ChatContactItem` (lista de conversas)
-- Importar `JuliaStatusBadge`.
-- Renderizar o badge ao lado do nome do contato, passando `whatsappNumber={contact.phone}` e `codAgent={conversation.cod_agent}`.
-- Tamanho compacto (já é h-4 w-4) — não quebra layout estilo Helena (w-96).
+### 1. Novo hook `useQueueAgentLink(queueId)`
+- Arquivo: `src/hooks/useQueueAgentLink.ts`.
+- Consulta `queue_agent_links` filtrando por `queue_id`. Retorna `{ hasAgent, codAgent }` (preferindo `is_primary=true`).
+- Cache via React Query (`staleTime: 5min`, key `['queue-agent-link', queueId]`) — uma única request por fila reaproveitada por todas as conversas.
 
-### 2. `ChatHeader` (cabeçalho da conversa aberta)
-- Importar `JuliaStatusBadge`.
-- Renderizar ao lado do nome do contato no topo, mesmo padrão.
+### 2. Refatorar `JuliaStatusBadge` → `ConversationStatusBadge`
+- Arquivo: `src/components/chat/JuliaStatusBadge.tsx` (mantém o nome do arquivo e re-export `JuliaStatusBadge` como alias para não quebrar `/atendimento-humano`, CRM, Campanhas, Contratos).
+- Nova prop opcional `queueId?: string | null` + `assignedTo?: string | null`.
+- Lógica:
+  - Se `queueId` → busca link com `useQueueAgentLink`.
+    - **Tem agente IA** → ícone `Bot` (verde se IA ativa, vermelho se inativa) — usa `useAgentSessionStatus` com o `codAgent` resolvido pelo link.
+    - **Sem agente IA** → ícone `User` (verde se `assignedTo` preenchido, vermelho se vazio).
+  - Se `queueId` ausente → comportamento legado (usa `whatsappNumber` + `codAgent` props, mostra J/H como hoje) — preserva os outros módulos.
+- Tooltips: "Julia ativa", "Julia inativa", "Atendente atribuído: <nome>", "Sem atendente".
 
-### 3. (Opcional, se houver dados disponíveis) Realtime
-- O hook `useAgentSessionStatus` já lida com polling/realtime (manter comportamento atual). Sem alteração.
+### 3. Plugar nos componentes do `/chat`
+- `ChatContactItem.tsx`: passar `queueId={conversation?.queue_id}` e `assignedTo={conversation?.assigned_to}`.
+- `ChatHeader.tsx`: idem, com `selectedConversation?.queue_id` e `selectedConversation?.assigned_to`.
 
-## Comportamento legado preservado
-- Conversas sem `cod_agent` ou sem `phone` válido: hook retorna `null` → badge não aparece (comportamento atual do componente).
-- Nenhuma mudança em `/atendimento-humano`.
+### 4. Atualizar filtro do `/chat` (`ChatList.tsx`)
+- Renomear `juliaFilter` → `conversationModeFilter` com 3 valores:
+  - `all` — Todas
+  - `bot_active` — Bot ativo (verde) — engloba IA ativa OU fila s/ agente com atendente atribuído
+  - `bot_inactive` — Sem bot/atendente (vermelho) — IA inativa OU fila s/ agente e sem `assigned_to`
+- Pré-cálculo: para cada conversa visível, derivar `mode` ('bot' | 'human') e `state` ('green' | 'red'):
+  - Map `queueId → hasAgent/codAgent` carregado de uma única consulta a `queue_agent_links` filtrando por todos os `queue_id`s presentes nas conversas visíveis (`useQueueAgentLinks(queueIds[])` — versão batch).
+  - Para filas com agente: lê cache `['agent-session-status', codAgent, phone]` (igual ao filtro atual).
+  - Para filas sem agente: usa `conversation.assigned_to`.
+- Rótulos do ToggleGroup: ícone `Bot` verde + "Ativos" / ícone `User` vermelho + "Pendentes" (textos finais a confirmar — manter cores verde/vermelho).
+- Os outros filtros (SLA, fila, status pills) ficam intactos.
+
+### 5. Hook batch `useQueueAgentLinks(queueIds[])`
+- Mesma tabela, filtro `.in('queue_id', queueIds)`. Retorna `Map<queueId, { hasAgent, codAgent }>`.
+- Usado pelo `ChatList` para evitar N requests.
+
+## Compatibilidade / não-quebra
+- `JuliaStatusBadge` exportado como alias do novo componente; chamadas existentes sem `queueId` (em `/atendimento-humano`, CRM, Campanhas, Contratos) caem no caminho legado e continuam mostrando J/H exatamente como hoje.
+- `JuliaStatusFilter` type continua exportado para compat de `CRMPage`.
+- Edge functions, schema do banco e tabela `queue_agent_links` não mudam.
+- Nenhum impacto em SLA, fila selector, pills de status, individual/grupos.
 
 ## Arquivos previstos
-- `src/components/chat/ChatContactItem.tsx` — adicionar badge.
-- `src/components/chat/ChatHeader.tsx` — adicionar badge.
+- `src/hooks/useQueueAgentLink.ts` (novo) — single + batch.
+- `src/components/chat/JuliaStatusBadge.tsx` — refatorado, retro-compatível.
+- `src/components/chat/ChatContactItem.tsx` — passar `queueId`/`assignedTo`.
+- `src/components/chat/ChatHeader.tsx` — passar `queueId`/`assignedTo`.
+- `src/components/chat/ChatList.tsx` — novo filtro com modos Bot/Humano.
 
 ## Validação
-- Abrir `/chat` → conversas com Julia ativa mostram "J" verde; conversas com humano em atendimento mostram "H" vermelho.
-- Ao desativar a Julia (humano envia mensagem) → badge atualiza para "H".
+- Conversa em fila com agente IA ativo → badge Bot verde; ao humano enviar mensagem → vira Bot vermelho.
+- Conversa em fila SEM agente IA, sem `assigned_to` → badge Humano vermelho; ao atribuir atendente → vira Humano verde.
+- Filtro "Ativos" mostra ambos os casos verdes; "Pendentes" mostra ambos os vermelhos.
+- `/atendimento-humano`, CRM, Campanhas e Contratos continuam exibindo J/H idêntico ao hoje.
 
