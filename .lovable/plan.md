@@ -1,61 +1,46 @@
 
 
-## Diagnóstico real: UaZapi não está chegando no n8n
+## Objetivo
 
-Você está dizendo que **só** o `app=waba` (status update) chegou no n8n — a mensagem real que entrou pela UaZapi não disparou nada lá. Isso muda o diagnóstico:
+Garantir que toda mensagem nova recebida pela UaZapi (`messages.upsert`) seja repassada ao n8n com `?app=uazapi&c=<cod_agent>`, independentemente da nomenclatura do evento que a UaZapi enviar.
 
-1. O `uazapi-chat-webhook` pode não estar sendo chamado pela UaZapi (webhook não configurado ou apontando errado).
-2. O webhook está sendo chamado mas a mensagem é descartada antes do fan-out (sem fila, sem agentes vinculados, deduplicação, evento ignorado).
-3. O fan-out até roda mas falha o POST no n8n (timeout, 4xx/5xx).
+## Diagnóstico
 
-## Investigação (read-only)
+O webhook `uazapi-chat-webhook` hoje só dispara fan-out para n8n quando `event === 'messages'` (default). A UaZapi atual envia `event: 'messages.upsert'`, que cai num branch que **não é tratado como mensagem nova** — o código só trata explicitamente `messages.update`, `messages.delete`, `chats.update`, `contacts.update`, `connection.update`. Tudo que não bate nesses ifs cai no bloco genérico “messages”, MAS apenas se `event` não for um desses específicos. Resultado: `messages.upsert` é processado como mensagem (o parser aceita), porém em algumas variações o payload chega vazio e `processed=0`, e ainda assim o fan-out roda. O problema relatado é que **nada chega no n8n para `app=uazapi`** — então a causa real é uma das duas:
 
-### Logs Edge Functions
-- `supabase--edge_function_logs` em `uazapi-chat-webhook` últimos 30 min — verificar:
-  - Se há `event received` (UaZapi está chamando)
-  - Se há `[fan-out] queue=...` ou `targets=0` (descartado por falta de vínculo)
-  - Se há `[fan-out] response status=...` (tentou mandar e o resultado)
+1. O evento não está casando com o caminho de fan-out (filtro extra).
+2. Não há checagem explícita de vínculo + tipo de evento conforme regra de negócio nova.
 
-### SQL
-```sql
--- Fila UaZapi e webhook configurado
-SELECT id, name, channel_type, evo_url, evo_instance, is_active
-FROM queues WHERE channel_type = 'uazapi' AND is_deleted = false;
+A correção alinha o código exatamente à regra que você definiu agora.
 
--- Vínculos da fila com agentes
-SELECT qal.queue_id, qal.cod_agent, qal.is_primary, q.name
-FROM queue_agent_links qal
-JOIN queues q ON q.id = qal.queue_id
-WHERE q.channel_type = 'uazapi';
-```
+## Mudanças
 
-### Verificar webhook na UaZapi (via instance manager)
-- Conferir se `instance_name` está com URL apontando para `…/uazapi-chat-webhook?queue_id=<id>` e `enabled=true`.
+### 1. `supabase/functions/uazapi-chat-webhook/index.ts`
 
-## Possíveis causas e correção
+- Normalizar o evento recebido: tratar `messages`, `messages.upsert` e `message` como o **mesmo** tipo lógico `MESSAGE_UPSERT`.
+- Antes de qualquer processamento pesado, resolver `queue_id` → buscar `queue_agent_links` da fila.
+- Se não houver agente vinculado: logar `[fan-out] no agents linked, skipping` e retornar 200 sem fan-out (mas ainda persistir a mensagem normalmente para histórico).
+- Se houver vínculo **e** o evento for `MESSAGE_UPSERT`: para cada `cod_agent` vinculado, fazer `POST` para  
+  `${N8N_HUB_SEND_URL}?app=uazapi&c=<cod_agent>`  
+  com o **payload bruto original** recebido da UaZapi (sem transformações), `Content-Type: application/json`.
+- Eventos diferentes de `MESSAGE_UPSERT` (status, delete, contacts, chats, connection) **não** disparam n8n — apenas atualizam o banco como hoje.
+- Logs claros: `[fan-out] event=<x> queue=<id> targets=<n> agent=<cod> status=<http>`.
+- Persistência de mensagens, contatos e conversas continua exatamente como está hoje (não mexe na lógica de upsert nem no backfill).
 
-| Causa | Como corrigir |
-|---|---|
-| Webhook UaZapi nunca foi configurado depois do reset das tabelas | Reconfigurar via `uazapi-instance-manager` action `reconfigure_webhook` (já existe) |
-| Fila UaZapi sem `queue_agent_links` → `targets=0` no fan-out | Linkar agente à fila no módulo de Agentes |
-| URL do webhook na UaZapi sem `?queue_id=` | Reconfigurar webhook (resolve) |
-| `N8N_HUB_SEND_URL` retorna não-200 → log mostra `response status=4xx/5xx` | Conferir flow no n8n / URL do secret |
+### 2. Sem mudanças em frontend, sem novas tabelas, sem migrations
 
-## Plano de ação
+A regra é 100% backend; o webhook na UaZapi já está correto.
 
-1. Ler logs do `uazapi-chat-webhook` e logs SQL acima para identificar exatamente em qual ponto a mensagem UaZapi morre.
-2. Com base no resultado:
-   - Se webhook não está configurado → rodar action `reconfigure_webhook` da fila UaZapi.
-   - Se `targets=0` → criar/garantir vínculo `queue_agent_links` para a fila.
-   - Se POST n8n falha → revisar URL/flow.
-3. Reenviar uma mensagem teste e validar nos logs do `uazapi-chat-webhook` o `[fan-out] response status=200` com `?app=uazapi`.
+## Validação
 
-### Arquivos potencialmente editados (depende do diagnóstico)
-- Nenhum, na maioria dos casos. Se o webhook estiver sem `queue_id` por causa de uma fila criada antes do parâmetro existir, edito `supabase/functions/uazapi-instance-manager/index.ts` para forçar `queue_id` válido na reconfiguração — mas só se o log indicar isso.
+1. Enviar uma mensagem real para a fila UaZapi.
+2. Conferir nos logs do `uazapi-chat-webhook`:
+   - `event=messages.upsert queue=9f10a27b... targets=1`
+   - `[fan-out] POST n8n agent=202601003 status=200`
+3. Conferir no n8n a execução com query `app=uazapi&c=202601003` e o payload bruto da UaZapi no body.
+4. Confirmar que eventos `messages.update` (status delivered/read) **não** geram execução nova no n8n.
 
-### O que NÃO vou fazer
-- Não vou tocar no `meta-webhook` agora — deixamos para depois que UaZapi voltar a entregar.
-- Não vou alterar o n8n.
+## Arquivos previstos
 
-Aprova que eu rode a investigação (logs + SQL) e te trago o ponto exato da falha?
+- `supabase/functions/uazapi-chat-webhook/index.ts`
 
