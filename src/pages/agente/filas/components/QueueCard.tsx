@@ -2,9 +2,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, Webhook, Loader2 } from 'lucide-react';
+import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, Webhook, Loader2, Unplug } from 'lucide-react';
 import { Queue } from '../hooks/useQueues';
 import { UazapiInstanceStatus } from './UazapiInstanceStatus';
+import { DisconnectWabaDialog } from './DisconnectWabaDialog';
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -32,6 +33,8 @@ interface QueueCardProps {
 
 export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps) {
   const [reconfiguring, setReconfiguring] = useState(false);
+  const [disconnectOpen, setDisconnectOpen] = useState(false);
+  const hasWabaCreds = queue.channel_type === 'waba' && !!queue.waba_token;
 
   const handleReconfigureWebhook = async () => {
     setReconfiguring(true);
@@ -81,6 +84,14 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
                       Reconfigurar webhook
                     </DropdownMenuItem>
                   )}
+                  {hasWabaCreds && (
+                    <DropdownMenuItem
+                      onClick={() => setDisconnectOpen(true)}
+                      className="text-destructive"
+                    >
+                      <Unplug className="mr-2 h-4 w-4" /> Desconectar
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onClick={() => onDelete(queue)} className="text-destructive">
                     <Trash2 className="mr-2 h-4 w-4" /> Excluir
                   </DropdownMenuItem>
@@ -121,6 +132,14 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
           />
         )}
       </CardContent>
+
+      {hasWabaCreds && (
+        <DisconnectWabaDialog
+          queue={queue}
+          open={disconnectOpen}
+          onOpenChange={setDisconnectOpen}
+        />
+      )}
     </Card>
   );
 }
