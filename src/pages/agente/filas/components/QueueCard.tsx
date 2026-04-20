@@ -84,6 +84,14 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
                       Reconfigurar webhook
                     </DropdownMenuItem>
                   )}
+                  {hasWabaCreds && (
+                    <DropdownMenuItem
+                      onClick={() => setDisconnectOpen(true)}
+                      className="text-destructive"
+                    >
+                      <Unplug className="mr-2 h-4 w-4" /> Desconectar
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onClick={() => onDelete(queue)} className="text-destructive">
                     <Trash2 className="mr-2 h-4 w-4" /> Excluir
                   </DropdownMenuItem>
