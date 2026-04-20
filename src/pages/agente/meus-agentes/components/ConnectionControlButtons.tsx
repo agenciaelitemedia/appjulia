@@ -104,10 +104,18 @@ export function ConnectionControlButtons({
 
       // Limpar configuração de conexão do agente para voltar ao estado "Configurar Conexão"
       if (agent.agent_id_from_agents) {
-        await sb.functions.invoke('agent-update-connection', {
+        await sb.functions.invoke('db-query', {
           body: {
-            agent_id: agent.agent_id_from_agents,
-            clear: true,
+            action: 'update_agent_connection',
+            data: {
+              agentId: agent.agent_id_from_agents,
+              connectionData: {
+                hub: null,
+                evo_url: null,
+                evo_apikey: null,
+                evo_instancia: null,
+              },
+            },
           },
         });
       }
