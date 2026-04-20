@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge';
-import { Wifi, WifiOff, AlertCircle, Loader2, Shield } from 'lucide-react';
+import { Wifi, WifiOff, AlertCircle, Loader2, Shield, Network } from 'lucide-react';
 import { ConnectionStatus } from '../types';
 
 interface ConnectionStatusBadgeProps {
@@ -30,6 +30,13 @@ export function ConnectionStatusBadge({ status, isLoading }: ConnectionStatusBad
         <Badge className="gap-1 bg-blue-600 hover:bg-blue-700 text-white">
           <Shield className="w-3 h-3" />
           API Oficial
+        </Badge>
+      );
+    case 'queue_connected':
+      return (
+        <Badge className="gap-1 bg-violet-600 hover:bg-violet-700 text-white">
+          <Network className="w-3 h-3" />
+          Via Fila
         </Badge>
       );
     case 'disconnected':
