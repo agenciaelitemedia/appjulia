@@ -85,6 +85,35 @@ export function ConnectionControlButtons({
     }
   };
 
+  const handleUnlinkQueue = async () => {
+    setUnlinkingQueue(true);
+    try {
+      // Buscar todos os links do agente e remover via queue-management
+      const { supabase: sb } = await import('@/integrations/supabase/client');
+      const { data: links } = await sb
+        .from('queue_agent_links')
+        .select('queue_id')
+        .eq('cod_agent', agent.cod_agent);
+
+      if (links && links.length > 0) {
+        for (const link of links) {
+          await sb.functions.invoke('queue-management', {
+            body: { action: 'unlink_agent', data: { queue_id: link.queue_id, cod_agent: agent.cod_agent } },
+          });
+        }
+      }
+      toast.success('Fila desvinculada com sucesso');
+      queryClient.invalidateQueries({ queryKey: ['user-agents'] });
+      queryClient.invalidateQueries({ queryKey: ['connection-status'] });
+      queryClient.invalidateQueries({ queryKey: ['agent-queues', agent.cod_agent] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao desvincular fila');
+    } finally {
+      setUnlinkingQueue(false);
+      setDisconnectDialogOpen(false);
+    }
+  };
+
   if (isLoading || status === 'checking') {
     return (
       <Button variant="outline" size="sm" disabled className="w-full">
