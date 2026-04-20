@@ -160,7 +160,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
               'block truncate font-semibold text-sm',
               contact.unread_count > 0 ? 'text-foreground' : 'text-foreground/80'
             )}>
-              {contact.name.length > 35 ? contact.name.slice(0, 35).trimEnd() + '…' : contact.name}
+              {contact.name.length > 30 ? contact.name.slice(0, 30).trimEnd() + '…' : contact.name}
             </span>
           </div>
           {formattedTime && (
