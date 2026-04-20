@@ -33,6 +33,8 @@ interface QueueCardProps {
 
 export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps) {
   const [reconfiguring, setReconfiguring] = useState(false);
+  const [disconnectOpen, setDisconnectOpen] = useState(false);
+  const hasWabaCreds = queue.channel_type === 'waba' && !!queue.waba_token;
 
   const handleReconfigureWebhook = async () => {
     setReconfiguring(true);
