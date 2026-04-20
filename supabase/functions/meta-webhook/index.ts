@@ -543,7 +543,55 @@ serve(async (req) => {
         if (error) console.error('Log insert error:', error.message);
       }
 
-      // ── RESPOND 200 IMMEDIATELY ──
+      // ── N8N FAN-OUT (julia_MQv8.2_start) ──
+      // Only for incoming messages (value.messages[]). Ignore statuses entirely.
+      const N8N_HUB_WEBHOOK_URL = Deno.env.get('N8N_HUB_WEBHOOK_URL') || 'https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start';
+      const fanOutPromises: Promise<void>[] = [];
+      try {
+        for (const entry of body.entry || []) {
+          const wabaId = entry.id || '';
+          for (const change of entry.changes || []) {
+            if (change.field !== 'messages') continue;
+            const value = change.value || {};
+            const messages = Array.isArray(value.messages) ? value.messages : [];
+            if (messages.length === 0) continue; // skip statuses-only changes
+            const phoneNumberId = value?.metadata?.phone_number_id;
+            if (!phoneNumberId) continue;
+            const queue = queueMap.get(phoneNumberId);
+            if (!queue) {
+              console.log(`[fan-out waba] no queue for phone_number_id=${phoneNumberId}, skipping`);
+              continue;
+            }
+            const { data: links } = await supabase
+              .from('queue_agent_links')
+              .select('cod_agent')
+              .eq('queue_id', queue.id);
+            const targets = (links || []).filter((l: any) => l.cod_agent);
+            console.log(`[fan-out waba] event=messages waba_id=${wabaId} queue=${queue.id} targets=${targets.length}`);
+            for (const link of targets) {
+              const url = `${N8N_HUB_WEBHOOK_URL}?app=waba&waba_id=${wabaId}&c=${link.cod_agent}`;
+              console.log(`[fan-out waba] POST n8n agent=${link.cod_agent} url=${url}`);
+              fanOutPromises.push(
+                fetch(url, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: rawBodyText,
+                })
+                  .then((r) => { console.log(`[fan-out waba] response agent=${link.cod_agent} status=${r.status}`); })
+                  .catch((err: Error) => { console.warn(`[fan-out waba] error agent=${link.cod_agent}:`, err.message); })
+              );
+            }
+          }
+        }
+      } catch (fanErr) {
+        console.error('[fan-out waba] Unexpected error:', fanErr);
+      }
+
+      if (fanOutPromises.length > 0) {
+        await Promise.allSettled(fanOutPromises);
+      }
+
+      // ── RESPOND 200 ──
       const response = new Response('EVENT_RECEIVED', {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'text/plain' },
