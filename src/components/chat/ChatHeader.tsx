@@ -206,6 +206,8 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
             <JuliaStatusBadge
               whatsappNumber={contact.phone}
               codAgent={selectedConversation?.cod_agent || contact.cod_agent}
+              queueId={selectedConversation?.queue_id || null}
+              assignedTo={selectedConversation?.assigned_to || null}
             />
             {isEditingName ? (
               <input
