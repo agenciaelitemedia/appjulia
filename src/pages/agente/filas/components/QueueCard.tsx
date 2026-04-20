@@ -127,6 +127,22 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
           </div>
         )}
 
+        {linkedMyAgents.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 mb-2 mt-1">
+            {linkedMyAgents.map(({ codAgent, agent, isPrimary }) => (
+              <Badge
+                key={codAgent}
+                variant="outline"
+                className="gap-1 text-[10px] px-1.5 py-0.5 border-primary/40 text-primary"
+                title={isPrimary ? 'Meu agente (principal)' : 'Meu agente'}
+              >
+                <Bot className="w-3 h-3" />
+                #{codAgent} {getAlias(codAgent, agent.business_name) || agent.client_name || ''}
+              </Badge>
+            ))}
+          </div>
+        )}
+
         {queue.channel_type === 'uazapi' && queue.evo_instance && !queue.is_deleted && (
           <UazapiInstanceStatus
             queueId={queue.id}
