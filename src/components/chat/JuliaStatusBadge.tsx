@@ -79,7 +79,7 @@ function QueueModeBadge({
   if (loadingLink) return null;
 
   if (hasAgent) {
-    if (isActive === null || isActive === undefined) return null;
+    // No session record => treat as inactive (humano), not "missing badge".
     const active = isActive === true;
     return (
       <Pill
