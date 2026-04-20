@@ -88,7 +88,6 @@ export function ConnectionControlButtons({
   const handleUnlinkQueue = async () => {
     setUnlinkingQueue(true);
     try {
-      // Buscar todos os links do agente e remover via queue-management
       const { supabase: sb } = await import('@/integrations/supabase/client');
       const { data: links } = await sb
         .from('queue_agent_links')
@@ -102,6 +101,17 @@ export function ConnectionControlButtons({
           });
         }
       }
+
+      // Limpar configuração de conexão do agente para voltar ao estado "Configurar Conexão"
+      if (agent.agent_id_from_agents) {
+        await sb.functions.invoke('agent-update-connection', {
+          body: {
+            agent_id: agent.agent_id_from_agents,
+            clear: true,
+          },
+        });
+      }
+
       toast.success('Fila desvinculada com sucesso');
       queryClient.invalidateQueries({ queryKey: ['user-agents'] });
       queryClient.invalidateQueries({ queryKey: ['connection-status'] });
