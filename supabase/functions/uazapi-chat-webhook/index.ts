@@ -163,6 +163,39 @@ Deno.serve(async (req) => {
 
     console.log(`[uazapi-chat-webhook] Event: ${event} (isMessageUpsert=${isMessageUpsert}), queue: ${queue.name}`);
 
+    // ─── N8N FAN-OUT (early dispatch) ───
+    // Fire BEFORE the messages loop so the fetch has the full processing time to complete.
+    // Only for MESSAGE_UPSERT events; status/delete/contacts/chats/connection return early below.
+    let n8nFanOutPromise: Promise<void> = Promise.resolve();
+    if (isMessageUpsert) {
+      const { data: agentLinks, error: linksErr } = await supabase
+        .from('queue_agent_links')
+        .select('cod_agent')
+        .eq('queue_id', queueId);
+
+      if (linksErr) console.error('[fan-out] Error fetching links:', linksErr);
+
+      const targets = (agentLinks || []).filter((l: any) => l.cod_agent) as Array<{ cod_agent: string }>;
+      console.log(`[fan-out] event=${event} queue=${queueId} targets=${targets.length}`);
+
+      if (targets.length > 0) {
+        const N8N_BASE_URL = Deno.env.get('N8N_HUB_SEND_URL') || 'https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start';
+        const rawBody = JSON.stringify(payload);
+        const promises = targets.map((link) => {
+          const n8nUrl = `${N8N_BASE_URL}?app=uazapi&c=${link.cod_agent}`;
+          console.log(`[fan-out] POST n8n agent=${link.cod_agent} url=${n8nUrl}`);
+          return fetch(n8nUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: rawBody,
+          })
+            .then((r) => console.log(`[fan-out] response agent=${link.cod_agent} status=${r.status}`))
+            .catch((err: Error) => console.warn(`[fan-out] error agent=${link.cod_agent}:`, err.message));
+        });
+        n8nFanOutPromise = Promise.allSettled(promises).then(() => undefined);
+      }
+    }
+
     // ─── CONNECTION UPDATE ───
     if (event === 'connection.update') {
       const state = payload.state || payload.status;
@@ -520,50 +553,8 @@ Deno.serve(async (req) => {
 
     console.log(`[uazapi-chat-webhook] Done. processed=${processed} skipped=${JSON.stringify(skipped)} backfills=${backfillTriggered.size}`);
 
-    // ─── N8N FAN-OUT ───
-    // Only forward MESSAGE_UPSERT events. Status updates, deletes, contacts, chats and
-    // connection events return earlier and never reach this block.
-    // Forwards the RAW UaZapi payload to n8n, one POST per linked agent, with
-    // ?app=uazapi&c=<cod_agent>. Awaited via Promise.allSettled to ensure execution
-    // before the response is returned (Supabase edge runtime kills isolate on return).
-    if (!isMessageUpsert) {
-      console.log(`[fan-out] event=${event} not a message upsert, skipping`);
-    } else {
-      try {
-        const { data: agentLinks, error: linksErr } = await supabase
-          .from('queue_agent_links')
-          .select('cod_agent')
-          .eq('queue_id', queueId);
-
-        if (linksErr) {
-          console.error('[fan-out] Error fetching links:', linksErr);
-        }
-
-        const targets = (agentLinks || []).filter((l: any) => l.cod_agent);
-        console.log(`[fan-out] event=${event} queue=${queueId} targets=${targets.length}`);
-
-        if (targets.length === 0) {
-          console.log('[fan-out] no agents linked, skipping');
-        } else {
-          const N8N_BASE_URL = Deno.env.get('N8N_HUB_SEND_URL') || 'https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start';
-          const rawBody = JSON.stringify(payload);
-          const fanOutPromises = (targets as Array<{ cod_agent: string }>).map((link) => {
-            const n8nUrl = `${N8N_BASE_URL}?app=uazapi&c=${link.cod_agent}`;
-            console.log(`[fan-out] POST n8n agent=${link.cod_agent} queue=${queueId} event=${event}`);
-            return fetch(n8nUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: rawBody,
-            })
-              .then((r) => console.log(`[fan-out] response agent=${link.cod_agent} status=${r.status}`))
-              .catch((err: Error) => console.warn(`[fan-out] error agent=${link.cod_agent}:`, err.message));
-          });
-          await Promise.allSettled(fanOutPromises);
-        }
-      } catch (fanErr) {
-        console.error('[fan-out] Unexpected error:', fanErr);
-      }
-    }
+    // Await the n8n fan-out promise that was started early (before messages loop).
+    await n8nFanOutPromise;
 
     return respond({ ok: true, event, processed, skipped, backfills: backfillTriggered.size });
   } catch (error) {
