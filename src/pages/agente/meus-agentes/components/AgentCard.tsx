@@ -52,7 +52,13 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
 
   const canEdit = !isMonitored && (agent.can_edit_config || agent.can_edit_prompt);
 
-  const providerLabel = agent.hub === 'waba' ? 'API Oficial' : agent.hub === 'uazapi' ? 'UaZapi' : null;
+  const primaryQueue = agentQueues?.find(q => q.is_primary) ?? agentQueues?.[0];
+  const providerLabel = primaryQueue
+    ? primaryQueue.queue_name
+    : agent.hub === 'waba' ? 'API Oficial'
+    : agent.hub === 'uazapi' ? 'UaZapi'
+    : null;
+  const providerType = primaryQueue?.channel_type ?? null;
 
   const handleStartEdit = () => {
     setEditValue(alias || getDefaultAlias(agent.business_name));
@@ -152,8 +158,14 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
 
         {/* Provider info */}
         {providerLabel && (
-          <p className="text-xs text-muted-foreground mb-1">
-            Provider: {providerLabel}
+          <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5 flex-wrap">
+            <span>{primaryQueue ? 'Fila:' : 'Provider:'}</span>
+            <span className="font-medium text-foreground">{providerLabel}</span>
+            {primaryQueue && providerType && (
+              <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">
+                {providerType === 'waba' || providerType === 'whatsapp_waba' ? 'Oficial' : 'UaZapi'}
+              </span>
+            )}
           </p>
         )}
 

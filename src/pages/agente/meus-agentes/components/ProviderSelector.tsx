@@ -7,10 +7,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { QrCode, Shield } from 'lucide-react';
+import { LayoutList, QrCode } from 'lucide-react';
 import { UserAgent } from '../types';
 import { ConfigureInstanceDialog } from './ConfigureInstanceDialog';
-import { WabaSetupDialog } from './WabaSetupDialog';
+import { QueueConnectionDialog } from './QueueConnectionDialog';
 
 interface ProviderSelectorProps {
   open: boolean;
@@ -21,7 +21,7 @@ interface ProviderSelectorProps {
 
 export function ProviderSelector({ open, onOpenChange, agent, onSuccess }: ProviderSelectorProps) {
   const [showUazapi, setShowUazapi] = useState(false);
-  const [showWaba, setShowWaba] = useState(false);
+  const [showQueue, setShowQueue] = useState(false);
 
   const handleUazapiSuccess = () => {
     setShowUazapi(false);
@@ -29,8 +29,8 @@ export function ProviderSelector({ open, onOpenChange, agent, onSuccess }: Provi
     onSuccess();
   };
 
-  const handleWabaSuccess = () => {
-    setShowWaba(false);
+  const handleQueueSuccess = () => {
+    setShowQueue(false);
     onOpenChange(false);
     onSuccess();
   };
@@ -58,7 +58,7 @@ export function ProviderSelector({ open, onOpenChange, agent, onSuccess }: Provi
             >
               <div className="flex items-center gap-2">
                 <QrCode className="h-5 w-5 text-primary" />
-                <span className="font-semibold">UaZapi (QR Code)</span>
+                <span className="font-semibold">QR Code (UaZapi)</span>
               </div>
               <span className="text-xs text-muted-foreground">
                 Conexão via QR Code. Não oficial, usa WhatsApp Web.
@@ -70,15 +70,15 @@ export function ProviderSelector({ open, onOpenChange, agent, onSuccess }: Provi
               className="h-auto p-4 flex flex-col items-start gap-2 text-left"
               onClick={() => {
                 onOpenChange(false);
-                setShowWaba(true);
+                setShowQueue(true);
               }}
             >
               <div className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-blue-600" />
-                <span className="font-semibold">API Oficial Meta</span>
+                <LayoutList className="h-5 w-5 text-blue-600" />
+                <span className="font-semibold">Filas</span>
               </div>
               <span className="text-xs text-muted-foreground">
-                Conexão oficial via Meta Business. Mais estável e sem risco de banimento.
+                Conecte via uma fila existente (UaZapi ou API Oficial). As mensagens serão encaminhadas automaticamente.
               </span>
             </Button>
           </div>
@@ -92,11 +92,11 @@ export function ProviderSelector({ open, onOpenChange, agent, onSuccess }: Provi
         onSuccess={handleUazapiSuccess}
       />
 
-      <WabaSetupDialog
-        open={showWaba}
-        onOpenChange={setShowWaba}
+      <QueueConnectionDialog
+        open={showQueue}
+        onOpenChange={setShowQueue}
         agent={agent}
-        onSuccess={handleWabaSuccess}
+        onSuccess={handleQueueSuccess}
       />
     </>
   );
