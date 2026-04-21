@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useMyAgents } from './hooks/useMyAgents';
 import { toast } from 'sonner';
 import { insertAgentChangeLog } from '@/pages/agents/hooks/useAgentChangeLog';
+import { ensureChatClientSettings } from '@/lib/ensureChatClientSettings';
 
 interface AgentDetails {
   id: number;
@@ -105,6 +106,13 @@ export default function MyAgentEditPage() {
         codAgent,
         canEditConfig ? formData.config_json : undefined,
         canEditPrompt ? formData.system_prompt : undefined
+      );
+
+      // Ensure chat settings exist for this client
+      await ensureChatClientSettings(
+        user.client_id,
+        agent?.client_name ?? null,
+        agent?.business_name ?? null,
       );
 
       // Log change

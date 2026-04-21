@@ -3,6 +3,7 @@ import { externalDb, AgentUpdateData } from '@/lib/externalDb';
 import { unmask } from '@/lib/inputMasks';
 import bcrypt from 'bcryptjs';
 import { insertAgentChangeLog } from './useAgentChangeLog';
+import { ensureChatClientSettings } from '@/lib/ensureChatClientSettings';
 
 interface ClientUpdateData {
   name: string;
@@ -121,6 +122,13 @@ export function useAgentUpdate() {
         due_date: formData.due_day,
         status: formData.status,
       });
+
+      // Ensure chat settings exist for this client
+      await ensureChatClientSettings(
+        clientId,
+        formData.client_name,
+        formData.client_business_name || null,
+      );
 
       // Log before returning so cache invalidation finds the record
       try {
