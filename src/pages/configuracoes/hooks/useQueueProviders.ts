@@ -28,16 +28,13 @@ export type ProviderFormData = Omit<QueueProvider, 'id' | 'created_at' | 'update
 
 export function useQueueProviders(providerType?: string) {
   const { user } = useAuth();
-  const clientId = user?.client_id ? String(user.client_id) : null;
 
   return useQuery({
-    queryKey: ['queue-providers', clientId, providerType],
+    queryKey: ['queue-providers', providerType],
     queryFn: async () => {
-      if (!clientId) return [];
       let query = supabase
         .from('queue_providers')
         .select('*')
-        .eq('client_id', clientId)
         .order('created_at', { ascending: false });
 
       if (providerType) {
@@ -48,7 +45,7 @@ export function useQueueProviders(providerType?: string) {
       if (error) throw error;
       return data as QueueProvider[];
     },
-    enabled: !!clientId,
+    enabled: !!user,
   });
 }
 

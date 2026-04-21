@@ -94,9 +94,6 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
           {/* Phone Dialer */}
           <HeaderDialer />
 
-          {/* Push Notification Opt-in */}
-          <PushNotificationOptIn />
-
           {/* Notifications */}
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="h-5 w-5" />

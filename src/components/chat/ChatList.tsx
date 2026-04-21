@@ -775,8 +775,8 @@ export function ChatList() {
                   convTags={conv ? (conversationTagsMap?.[conv.id] || []) : undefined}
                   agentCodAgent={agentCodAgent}
                   agentAlias={agentAlias}
-                  stageName={stageInfo?.stageName}
-                  stageColor={stageInfo?.stageColor}
+                  stageName={queueLink?.hasAgent ? stageInfo?.stageName : undefined}
+                  stageColor={queueLink?.hasAgent ? stageInfo?.stageColor : undefined}
                 />
               );
             })

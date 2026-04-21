@@ -1,9 +1,22 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram, Search, Calendar, BellOff, Keyboard, Sparkles, UserCheck } from 'lucide-react';
+import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram, Search, Calendar, AlarmClock, Keyboard, Sparkles, UserCheck, Scale, Eye, Phone, PhoneOff, ExternalLink, Bot, Loader2 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { useNavigate } from 'react-router-dom';
+import { externalDb } from '@/lib/externalDb';
+import type { SessionStatus } from '@/lib/externalDb';
+import { useContractInfo } from '@/pages/crm/hooks/useContractInfo';
+import { useCRMCardByWhatsapp, useCRMStages } from '@/pages/crm/hooks/useCRMData';
+import { useQueueAgentLink } from '@/hooks/useQueueAgentLink';
+import { usePhone } from '@/contexts/PhoneContext';
+import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
+import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialog';
+import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -47,6 +60,169 @@ function ChannelBadge({ channel }: { channel?: string }) {
   );
 }
 
+interface CrmActionBarProps {
+  phone: string;
+  queueId: string | null | undefined;
+  contactName: string;
+}
+
+function CrmActionBar({ phone, queueId, contactName }: CrmActionBarProps) {
+  const navigate = useNavigate();
+  const { data: queueLink } = useQueueAgentLink(queueId);
+  const codAgent = queueLink?.codAgent ?? null;
+
+  const { data: contractInfo } = useContractInfo(phone, codAgent ?? '', !!codAgent);
+  const { data: crmCard } = useCRMCardByWhatsapp(codAgent ? phone : null);
+  const { data: stages = [] } = useCRMStages();
+
+  const [sessionData, setSessionData] = useState<SessionStatus | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const [updatingSession, setUpdatingSession] = useState(false);
+  const [confirmToggle, setConfirmToggle] = useState(false);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!phone || !codAgent) { setSessionData(null); return; }
+    let cancelled = false;
+    setSessionLoading(true);
+    externalDb.getSessionStatus(phone, codAgent)
+      .then(result => { if (!cancelled) setSessionData(result); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setSessionLoading(false); });
+    return () => { cancelled = true; };
+  }, [phone, codAgent]);
+
+  const handleToggleSession = async () => {
+    if (!sessionData) return;
+    setUpdatingSession(true);
+    try {
+      const newStatus = !sessionData.active;
+      await externalDb.updateSessionStatus(sessionData.id, newStatus);
+      setSessionData({ ...sessionData, active: newStatus });
+    } catch {
+      /* noop */
+    } finally {
+      setUpdatingSession(false);
+      setConfirmToggle(false);
+    }
+  };
+
+  if (!queueLink?.hasAgent || !codAgent) return null;
+
+  return (
+    <>
+      <div className="inline-flex items-center gap-1 border rounded px-2 py-1">
+        <span className="text-[10px] text-muted-foreground mr-1 font-medium">CRM Julia</span>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => contractInfo && undefined}
+              disabled={!contractInfo}
+              className={cn('p-1 rounded hover:bg-muted transition-colors', !contractInfo && 'opacity-40 cursor-not-allowed')}
+            >
+              <Scale className={cn('h-4 w-4', contractInfo ? 'text-primary' : 'text-muted-foreground')} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{contractInfo ? 'Ver contrato' : 'Sem contrato'}</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => crmCard && setDetailsOpen(true)}
+              disabled={!crmCard}
+              className={cn('p-1 rounded hover:bg-muted transition-colors', !crmCard && 'opacity-40 cursor-not-allowed')}
+            >
+              <Eye className={cn('h-4 w-4', crmCard ? 'text-foreground' : 'text-muted-foreground')} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Detalhes do card CRM</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => navigate(`/crm/leads?whatsapp=${encodeURIComponent(phone)}`)}
+              className="p-1 rounded hover:bg-muted transition-colors"
+            >
+              <ExternalLink className="h-4 w-4 text-blue-500" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Ver no CRM</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => setStatusDialogOpen(true)}
+              className="p-1 rounded hover:bg-muted transition-colors"
+            >
+              <Bot className={cn(
+                'h-4 w-4',
+                sessionLoading ? 'text-muted-foreground animate-pulse' :
+                sessionData?.active === true ? 'text-green-500' :
+                sessionData?.active === false ? 'text-red-500' :
+                'text-muted-foreground'
+              )} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Status do agente Julia</TooltipContent>
+        </Tooltip>
+
+        <Switch
+          checked={sessionData?.active ?? false}
+          onCheckedChange={() => setConfirmToggle(true)}
+          disabled={!sessionData || updatingSession || sessionLoading}
+          className="scale-75"
+        />
+      </div>
+
+      <AlertDialog open={confirmToggle} onOpenChange={setConfirmToggle}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {sessionData?.active ? 'Desativar atendimento?' : 'Ativar atendimento?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {sessionData?.active
+                ? 'Ao desativar, o agente não responderá mais este contato até ser ativado novamente.'
+                : 'Ao ativar, o agente voltará a responder este contato.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={updatingSession}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleToggleSession} disabled={updatingSession}>
+              {updatingSession && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              {sessionData?.active ? 'Desativar' : 'Ativar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <SessionStatusDialog
+        open={statusDialogOpen}
+        onOpenChange={setStatusDialogOpen}
+        whatsappNumber={phone}
+        codAgent={codAgent!}
+      />
+
+      <CRMLeadDetailsDialog
+        card={crmCard ?? null}
+        stages={stages}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+      />
+
+    </>
+  );
+}
+
 export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps) {
   const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact, markAsRead, conversationTagsMap } = useWhatsAppData();
   const { user } = useAuth();
@@ -74,6 +250,11 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const [showSnooze, setShowSnooze] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showCrmLead, setShowCrmLead] = useState(false);
+  const [showPhoneCall, setShowPhoneCall] = useState(false);
+
+  const { data: queueLink } = useQueueAgentLink(selectedConversation?.queue_id);
+  const { sip } = usePhone();
+  const callActive = sip.status === 'in-call';
 
   // Inline name editing
   const [isEditingName, setIsEditingName] = useState(false);
@@ -193,7 +374,8 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
 
   return (
     <>
-      <div className="flex items-center gap-3 p-3 border-b bg-background">
+      <div className="border-b bg-background">
+      <div className="flex items-center gap-3 p-3">
         <Avatar className="h-10 w-10">
           <AvatarImage src={contact.avatar} alt={contact.name} />
           <AvatarFallback className="bg-primary/10 text-primary font-medium">
@@ -267,7 +449,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
             <Button
               variant="default"
               size="sm"
-              className="h-8 gap-1.5"
+              className="gap-1.5"
               onClick={handleTakeOver}
               title={selectedConversation?.assigned_to ? `Assumir de ${selectedConversation.assigned_to}` : 'Assumir conversa'}
             >
@@ -283,100 +465,119 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                 <AIAssistPanel conversationId={selectedConversation.id} />
 
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={onShowDetails}
-                  title="Ver detalhes"
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    'gap-1.5',
+                    callActive
+                      ? 'text-green-600 border-green-500 hover:bg-green-50'
+                      : 'text-muted-foreground border-border hover:bg-muted'
+                  )}
+                  onClick={() => setShowPhoneCall(true)}
+                  title="Ligar"
                 >
-                  <Info className="h-4 w-4" />
+                  {callActive ? <Phone className="h-4 w-4" /> : <PhoneOff className="h-4 w-4" />}
+                  Ligar
                 </Button>
 
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50 disabled:opacity-40"
-                  onClick={() => setShowSnooze(true)}
-                  disabled={!isActive}
-                  title="Adiar conversa (z)"
-                >
-                  <BellOff className="h-4 w-4" />
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-purple-600 hover:text-purple-700 hover:bg-purple-50 disabled:opacity-40"
-                  onClick={() => setShowTransferDialog(true)}
-                  disabled={!isActive}
-                  title="Transferir conversa (#)"
-                >
-                  <ArrowRightLeft className="h-4 w-4" />
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
-                  onClick={handleResolve}
-                  disabled={!isActive}
-                  title="Marcar como resolvida (e)"
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 disabled:opacity-40"
-                  onClick={() => setShowCloseDialog(true)}
-                  disabled={!isActive}
-                  title="Encerrar conversa"
-                >
-                  <XCircle className="h-4 w-4" />
-                </Button>
-
-                {!isActive && (
+                <div className="inline-flex items-center gap-0.5 border rounded px-1 py-0.5">
                   <Button
                     variant="ghost"
-                    size="sm"
-                    className="h-8 text-xs"
-                    onClick={handleReopen}
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={onShowDetails}
+                    title="Ver detalhes"
                   >
-                    <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
-                    Reabrir
+                    <Info className="h-4 w-4" />
                   </Button>
-                )}
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50 disabled:opacity-40"
+                    onClick={() => setShowSnooze(true)}
+                    disabled={!isActive}
+                    title="Adiar conversa (z)"
+                  >
+                    <AlarmClock className="h-4 w-4" />
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-purple-600 hover:text-purple-700 hover:bg-purple-50 disabled:opacity-40"
+                    onClick={() => setShowTransferDialog(true)}
+                    disabled={!isActive}
+                    title="Transferir conversa (#)"
+                  >
+                    <ArrowRightLeft className="h-4 w-4" />
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
+                    onClick={handleResolve}
+                    disabled={!isActive}
+                    title="Marcar como resolvida (e)"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10 disabled:opacity-40"
+                    onClick={() => setShowCloseDialog(true)}
+                    disabled={!isActive}
+                    title="Encerrar conversa"
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+
+                  {!isActive && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={handleReopen}
+                    >
+                      <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
+                      Reabrir
+                    </Button>
+                  )}
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-7 w-7">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setShowSearch(true)}>
+                        <Search className="h-4 w-4 mr-2" />
+                        Buscar nesta conversa
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setShowScheduledList(true)}>
+                        <Calendar className="h-4 w-4 mr-2" />
+                        Mensagens agendadas
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setShowHelp(true)}>
+                        <Keyboard className="h-4 w-4 mr-2" />
+                        Atalhos de teclado
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => setShowCrmLead(true)}>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Criar lead no CRM
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
               </>
             );
           })()}
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setShowSearch(true)}>
-                <Search className="h-4 w-4 mr-2" />
-                Buscar nesta conversa
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setShowScheduledList(true)}>
-                <Calendar className="h-4 w-4 mr-2" />
-                Mensagens agendadas
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setShowHelp(true)}>
-                <Keyboard className="h-4 w-4 mr-2" />
-                Atalhos de teclado
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setShowCrmLead(true)}>
-                <Sparkles className="h-4 w-4 mr-2" />
-                Criar lead no CRM
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
 
           <CreateCrmLeadDialog
             open={showCrmLead}
@@ -385,16 +586,25 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
             codAgent={selectedConversation?.cod_agent || (contact as any).cod_agent || null}
             conversationId={selectedConversation?.id || null}
           />
-          
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-8 w-8 lg:hidden" 
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 lg:hidden"
             onClick={onClose}
           >
             <X className="h-4 w-4" />
           </Button>
         </div>
+      </div>
+
+      <div className="px-3 pb-2 flex justify-end">
+        <CrmActionBar
+          phone={contact.phone}
+          queueId={selectedConversation?.queue_id}
+          contactName={contact.name}
+        />
+      </div>
       </div>
 
       {/* Close conversation dialog with CSAT survey */}
@@ -441,6 +651,15 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
 
       {/* Keyboard shortcuts help */}
       <KeyboardShortcutsHelp open={showHelp} onOpenChange={setShowHelp} />
+
+      {/* Phone call */}
+      <PhoneCallDialog
+        open={showPhoneCall}
+        onOpenChange={setShowPhoneCall}
+        whatsappNumber={contact.phone}
+        contactName={contact.name}
+        codAgent={queueLink?.codAgent ?? ''}
+      />
     </>
   );
 }

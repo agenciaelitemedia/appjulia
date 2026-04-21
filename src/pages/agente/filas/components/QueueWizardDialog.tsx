@@ -394,6 +394,9 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
                   <p className="text-xs text-muted-foreground">
                     Vá em Configurações → Provedores de Fila para adicionar um provedor do tipo {channelTypes.find((c) => c.value === selectedType)?.label}.
                   </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    As filas utilizam o provedor configurado. Um provedor pode ser compartilhado por qualquer cliente.
+                  </p>
                 </div>
               </div>
             ) : (
