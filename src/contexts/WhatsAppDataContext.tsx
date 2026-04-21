@@ -59,8 +59,8 @@ interface ExtendedContextValue extends ChatContextValue {
   // Tags
   tags: ChatTag[];
   loadTags: () => Promise<void>;
-  addTagToConversation: (conversationId: string, tagId: string) => Promise<void>;
-  removeTagFromConversation: (conversationId: string, tagId: string) => Promise<void>;
+  addTagToConversation: (conversationId: string, tagId: string, tagName?: string) => Promise<void>;
+  removeTagFromConversation: (conversationId: string, tagId: string, tagName?: string) => Promise<void>;
   createTag: (name: string, color: string) => Promise<ChatTag | null>;
 
   // Internal notes
@@ -499,13 +499,27 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     return tag;
   }, [clientId]);
 
-  const addTagToConversation = useCallback(async (conversationId: string, tagId: string) => {
+  const addTagToConversation = useCallback(async (conversationId: string, tagId: string, tagName?: string) => {
     await supabase.from('chat_conversation_tags').insert({ conversation_id: conversationId, tag_id: tagId });
-  }, []);
+    const name = tagName || tags.find(t => t.id === tagId)?.name || tagId;
+    supabase.from('chat_conversation_history').insert({
+      conversation_id: conversationId,
+      action: 'tag_added',
+      actor_name: user?.name || user?.email || 'Sistema',
+      to_value: name,
+    }).then();
+  }, [tags, user]);
 
-  const removeTagFromConversation = useCallback(async (conversationId: string, tagId: string) => {
+  const removeTagFromConversation = useCallback(async (conversationId: string, tagId: string, tagName?: string) => {
     await supabase.from('chat_conversation_tags').delete().eq('conversation_id', conversationId).eq('tag_id', tagId);
-  }, []);
+    const name = tagName || tags.find(t => t.id === tagId)?.name || tagId;
+    supabase.from('chat_conversation_history').insert({
+      conversation_id: conversationId,
+      action: 'tag_removed',
+      actor_name: user?.name || user?.email || 'Sistema',
+      to_value: name,
+    }).then();
+  }, [tags, user]);
 
   // ============================================
   // Conversation History
@@ -593,7 +607,16 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       ...prev,
       [contactId]: [...(prev[contactId] || []), noteWithMeta],
     }));
-  }, [clientId, conversations]);
+
+    if (conv?.id) {
+      supabase.from('chat_conversation_history').insert({
+        conversation_id: conv.id,
+        action: 'note_added',
+        actor_name: senderName || user?.name || user?.email || 'Sistema',
+        notes: text,
+      }).then();
+    }
+  }, [clientId, conversations, user]);
 
   // ============================================
   // Load Messages from Supabase

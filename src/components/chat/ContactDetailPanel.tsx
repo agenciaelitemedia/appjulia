@@ -30,13 +30,14 @@ const actionLabels: Record<string, (e: ConversationHistoryEntry) => string> = {
   reopened:         () => 'reabriu a conversa',
   assigned:         (e) => `atribuiu para ${e.to_value}`,
   unassigned:       () => 'removeu a atribuição',
-  priority_changed: (e) => `alterou prioridade para ${e.to_value}`,
+  priority_changed: (e) => `alterou prioridade${e.from_value ? ` de ${e.from_value}` : ''} para ${e.to_value}`,
   queue_changed:    (e) => `transferiu para fila ${e.to_value}`,
   transferred:      (e) => `transferiu para ${e.to_value}`,
   status_changed:   (e) => `alterou status para ${e.to_value}`,
   snoozed:          (e) => `adiou a conversa até ${e.to_value}`,
-  tag_added:        (e) => `adicionou tag ${e.to_value}`,
-  tag_removed:      (e) => `removeu tag ${e.to_value}`,
+  tag_added:        (e) => `adicionou tag "${e.to_value}"`,
+  tag_removed:      (e) => `removeu tag "${e.to_value}"`,
+  note_added:       () => 'registrou uma nota interna',
 };
 
 export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps) {
@@ -117,7 +118,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
     if (!newTagName.trim() || !selectedConversation) return;
     const tag = await createTag(newTagName.trim(), '#3b82f6');
     if (tag) {
-      await addTagToConversation(selectedConversation.id, tag.id);
+      await addTagToConversation(selectedConversation.id, tag.id, tag.name);
       setConversationTags(prev => [...prev, tag.id]);
     }
     setNewTagName('');
@@ -126,11 +127,12 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
 
   const handleToggleTag = async (tagId: string) => {
     if (!selectedConversation) return;
+    const tagName = tags.find(t => t.id === tagId)?.name;
     if (conversationTags.includes(tagId)) {
-      await removeTagFromConversation(selectedConversation.id, tagId);
+      await removeTagFromConversation(selectedConversation.id, tagId, tagName);
       setConversationTags(prev => prev.filter(id => id !== tagId));
     } else {
-      await addTagToConversation(selectedConversation.id, tagId);
+      await addTagToConversation(selectedConversation.id, tagId, tagName);
       setConversationTags(prev => [...prev, tagId]);
     }
   };
@@ -321,35 +323,6 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                 </>
               )}
 
-              {/* Past Conversations */}
-              <div className="space-y-3">
-                <h5 className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1">
-                  <History className="h-3 w-3" /> Histórico de Conversas
-                </h5>
-                {pastConversations.length === 0 ? (
-                  <span className="text-xs text-muted-foreground">Nenhuma conversa anterior</span>
-                ) : (
-                  <div className="space-y-2">
-                    {pastConversations.map(conv => {
-                      const st = statusLabels[conv.status] || statusLabels.pending;
-                      return (
-                        <div key={conv.id} className="flex items-center gap-2 text-xs p-2 rounded-md bg-muted/50">
-                          <div className={cn('h-2 w-2 rounded-full flex-shrink-0', st.color)} />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <span className="font-mono">{conv.protocol}</span>
-                              <span className="text-muted-foreground">
-                                {format(new Date(conv.opened_at), 'dd/MM/yy', { locale: ptBR })}
-                              </span>
-                            </div>
-                            <span className="text-muted-foreground">{st.label}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
             </div>
           </ScrollArea>
         </TabsContent>
@@ -375,28 +348,70 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
         {/* Histórico */}
         <TabsContent value="historico" className="flex-1 mt-0 min-h-0">
           <ScrollArea className="h-full">
-            <div className="p-4 space-y-2">
-              {conversationHistory.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-8">
-                  Nenhum evento registrado nesta conversa
-                </p>
-              ) : (
-                conversationHistory.map(entry => (
-                  <div key={entry.id} className="flex gap-3 text-xs">
-                    <div className="flex-shrink-0 w-[72px] text-muted-foreground text-right">
-                      {format(new Date(entry.created_at), 'dd/MM HH:mm', { locale: ptBR })}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="font-medium text-foreground">{entry.actor_name}</span>
-                      {' '}
-                      <span className="text-muted-foreground">{getActionLabel(entry)}</span>
-                      {entry.notes && (
-                        <p className="mt-0.5 italic text-muted-foreground">{entry.notes}</p>
-                      )}
-                    </div>
+            <div className="p-4 space-y-4">
+              {/* Conversas anteriores do contato */}
+              <div className="space-y-2">
+                <h5 className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1">
+                  <MessageSquare className="h-3 w-3" /> Conversas
+                </h5>
+                {pastConversations.length === 0 ? (
+                  <span className="text-xs text-muted-foreground">Nenhuma conversa registrada</span>
+                ) : (
+                  <div className="space-y-1.5">
+                    {pastConversations.map(conv => {
+                      const st = statusLabels[conv.status] || statusLabels.pending;
+                      const isSelected = selectedConversation?.id === conv.id;
+                      return (
+                        <div key={conv.id} className={cn('flex items-start gap-2 text-xs p-2 rounded-md', isSelected ? 'bg-primary/10 border border-primary/20' : 'bg-muted/50')}>
+                          <div className={cn('h-2 w-2 rounded-full flex-shrink-0 mt-1', st.color)} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-mono font-medium">{conv.protocol}</span>
+                              <span className="text-muted-foreground whitespace-nowrap">
+                                {format(new Date(conv.opened_at), 'dd/MM/yy HH:mm', { locale: ptBR })}
+                              </span>
+                            </div>
+                            <span className="text-muted-foreground">{st.label}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))
-              )}
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Linha do tempo de eventos da conversa atual */}
+              <div className="space-y-2">
+                <h5 className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1">
+                  <History className="h-3 w-3" /> Eventos da conversa
+                </h5>
+                {conversationHistory.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-4">
+                    Nenhum evento registrado nesta conversa
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {conversationHistory.map(entry => (
+                      <div key={entry.id} className="flex gap-3 text-xs">
+                        <div className="flex-shrink-0 w-[76px] text-muted-foreground text-right leading-tight">
+                          <div>{format(new Date(entry.created_at), 'dd/MM/yy', { locale: ptBR })}</div>
+                          <div>{format(new Date(entry.created_at), 'HH:mm', { locale: ptBR })}</div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="font-medium text-foreground">{entry.actor_name}</span>
+                          {' '}
+                          <span className="text-muted-foreground">{getActionLabel(entry)}</span>
+                          {entry.notes && (
+                            <p className="mt-0.5 italic text-muted-foreground">{entry.notes}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </ScrollArea>
         </TabsContent>

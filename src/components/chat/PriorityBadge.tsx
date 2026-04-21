@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 type Priority = 'low' | 'normal' | 'high' | 'urgent';
 
@@ -25,6 +26,7 @@ export function PriorityBadge({ conversationId, currentPriority, compact }: Prio
   const [open, setOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const current = (currentPriority as Priority) || 'normal';
   const currentOpt = PRIORITY_OPTIONS.find(o => o.value === current) || PRIORITY_OPTIONS[1];
 
@@ -41,7 +43,16 @@ export function PriorityBadge({ conversationId, currentPriority, compact }: Prio
         .update({ priority })
         .eq('id', conversationId);
       if (error) throw error;
-      toast.success(`Prioridade alterada para ${PRIORITY_OPTIONS.find(o => o.value === priority)?.label}`);
+      const newLabel = PRIORITY_OPTIONS.find(o => o.value === priority)?.label ?? priority;
+      const oldLabel = PRIORITY_OPTIONS.find(o => o.value === current)?.label ?? current;
+      toast.success(`Prioridade alterada para ${newLabel}`);
+      supabase.from('chat_conversation_history').insert({
+        conversation_id: conversationId,
+        action: 'priority_changed',
+        actor_name: user?.name || user?.email || 'Sistema',
+        from_value: oldLabel,
+        to_value: newLabel,
+      }).then();
       queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
       queryClient.invalidateQueries({ queryKey: ['chat-contacts'] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });

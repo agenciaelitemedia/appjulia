@@ -57,7 +57,15 @@ export function SnoozeDialog({ open, onOpenChange, conversationId, onSnoozed }: 
         })
         .eq('id', conversationId);
       if (error) throw error;
-      toast.success('Conversa adiada', { description: `Voltará em ${until.toLocaleString('pt-BR')}` });
+      const untilStr = until.toLocaleString('pt-BR');
+      toast.success('Conversa adiada', { description: `Voltará em ${untilStr}` });
+      supabase.from('chat_conversation_history').insert({
+        conversation_id: conversationId,
+        action: 'snoozed',
+        actor_name: user?.name || user?.email || 'Sistema',
+        to_value: untilStr,
+        notes: reason || null,
+      }).then();
       onSnoozed?.();
       onOpenChange(false);
       setReason('');
