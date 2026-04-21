@@ -94,12 +94,16 @@ function QueueModeBadge({
   // Queue without AI agent → human icon
   const hasAssignee = !!(assignedTo && assignedTo.trim());
   return (
-    <Pill
-      active={hasAssignee}
-      Icon={User}
+    <span
       title={hasAssignee ? `Atendente: ${assignedTo}` : 'Sem atendente atribuído'}
-      className={className}
-    />
+      className={cn(
+        'inline-flex items-center justify-center rounded h-4 w-4 shrink-0 border',
+        'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30',
+        className,
+      )}
+    >
+      <User className="h-2.5 w-2.5" />
+    </span>
   );
 }
 
