@@ -1,61 +1,67 @@
 
 
-## Reorganização dos filtros da lista do chat
+## Adicionar filtros de Tempo, Responsáveis e Etapas no Chat
 
-Reestruturar o cabeçalho do `ChatList` movendo o filtro de status atual e criando dois novos filtros em estilo SLA logo abaixo da linha de filtros SLA.
+Replicar os 3 filtros do `/atendimento-humano` dentro do painel de filtros já existente do `ChatList`, mantendo o mesmo visual e comportamento.
 
-### Mudanças visuais
+### Filtros a adicionar (dentro do painel `filtersOpen`)
 
-**Linha do topo (atual com "Todas / Novos / Meus / Outros" + ícones à direita):**
-- Remover por completo os botões de texto "Todas / Novos / Meus / Outros".
-- Manter apenas os ícones (Métricas, Automações, Canais, SLA) **alinhados à direita**.
+**1. Filtro de Tempo (pills no estilo SLA)**
+- Opções: `Todos` / `Hoje` / `Ontem` / `7 dias` / `Mês atual` / `3 meses`
+- Aplica sobre `contact.last_message_at` (fallback `updated_at`).
+- Visual: mesmas pills `rounded-md text-[10px]`. Estado ativo neutro (`bg-foreground/10`).
 
-**Nova seção de filtros (abaixo da linha SLA, acima do seletor de Fila):**
+**2. Filtro de Responsáveis (Select estilo atendimento-humano)**
+- Substitui as 3 pills atuais (`Todos / Meus / Sem responsáveis`) por um **Select** completo igual ao do `InactiveLeadsList`:
+  - `Todos`
+  - `MEUS CARDS` (em destaque)
+  - `Sem Responsável` (itálico)
+  - Lista de membros da equipe (`teamMembers`)
+- Aplica em `convMetaByContact.get(contact.id)?.assignedTo` comparando com `member.name` ou `String(user.id)`.
+- Origem dos membros: `useTeamForAgent(codAgent)`. Como o chat opera com múltiplas filas, derivar `codAgent` da seguinte ordem:
+  1. `selectedQueue` → primeiro agente vinculado via `queueAgentMap`
+  2. Se "Todas as filas", usar o `cod_agent` do primeiro agente que o usuário possui (via `useUserAgents` ou contexto já existente).
 
-Linha 1 — **Responsável** (novo filtro):
-- `Todos` / `Meus` / `Sem responsáveis`
-- Mesmo visual dos pills SLA: `rounded-md`, `text-[10px] font-medium px-2 py-1 h-auto`, borda `border-border`, fundo translúcido quando ativo.
-- Cores ativas:
-  - Todos → neutro (`bg-foreground/10 text-foreground border-foreground/20`)
-  - Meus → azul (`bg-blue-500/15 text-blue-600 border-blue-500/30`)
-  - Sem responsáveis → âmbar (`bg-amber-500/20 text-amber-600 border-amber-500/30`)
+**3. Filtro de Etapas (Popover multi-select estilo atendimento-humano)**
+- Componente idêntico ao `InactiveLeadsList`: botão `Todas as etapas` → `Popover` com checkboxes + opção "Selecionar todas" + bolinha colorida da etapa.
+- Origem das etapas: `useCRMStages()`.
+- Aplicação no chat: cruzar telefone do contato (`contact.phone`) com `crm_atendimento_cards` para obter `stage_id`. Como o chat ainda não carrega esses cards, criar um novo hook leve `useCRMStageByPhone(phones[])` que retorna `Map<phone, stage_id>` consultando `crm_atendimento_cards` filtrando por `whatsapp_number IN (...)` e (opcional) `cod_agent`. Memoizar e revalidar a cada 60s.
+- Filtragem: `result.filter(c => stageIds.length === 0 || stageIds.includes(stageByPhone.get(c.phone)))`.
 
-Linha 2 — **Status da conversa** (substitui o filtro de status atual, agora em pills):
-- `Abertos` / `Concluídos` / `Encerrados`
-- Mesmo visual dos pills SLA.
-- Mapeamento para `conversationStatusFilter` existente:
-  - Abertos → `'open'` (inclui pending+open via lógica atual já consolidada como "ativos")
-  - Concluídos → `'resolved'`
-  - Encerrados → novo valor `'closed'` (já suportado pelo tipo `ConversationFilterStatus`? — se não, adicionar; caso já seja `'all'`, ajustar para usar status `closed` da tabela `conversations`)
-- Manter os contadores numéricos em badge colorida ao lado do label (vermelho/azul/cinza), no mesmo padrão visual dos pills SLA.
-
-### Ordem final do cabeçalho do ChatList
+### Ordem dos filtros dentro do painel
 
 ```text
-[ ícones à direita: Métricas | Automações | Canais | SLA ]
-[ busca + filtros (Filter, Sort, Plus) ]
-[ filtros IA: Todas | IA ativa | IA inativa | Atendente ]
-[ filtros SLA: Todos SLAs | Estourado | Em risco ]   ← já existente
-[ filtros Responsável: Todos | Meus | Sem responsáveis ]   ← NOVO
-[ filtros Status: Abertos | Concluídos | Encerrados ]      ← NOVO (substitui topo)
-[ seletor de Fila ]
-[ toggle Individual / Grupos ]
+[ icone Filter ] (já abre/fecha)
+└── Painel:
+    [ Modo (IA ativa / inativa / Atendente) ]   ← já existe
+    [ SLA (Estourado / Em risco) ]              ← já existe
+    [ Responsáveis (Select) ]                   ← SUBSTITUI as 3 pills atuais
+    [ Status (Abertos/Concluídos/Encerrados) ]  ← já existe
+    [ Tempo (pills)  ]                           ← NOVO
+    [ Etapas (Popover multi-select) ]           ← NOVO
 ```
 
 ### Detalhes técnicos
 
-- Arquivo único: `src/components/chat/ChatList.tsx`.
-- Remover o bloco `statusPills.map(...)` e os botões "Todas/Novos/Meus/Outros" do topo.
-- Adicionar novo estado local `assigneeFilter: 'all' | 'mine' | 'unassigned'`.
-- Aplicar `assigneeFilter` em `visibleContacts` cruzando com `convMetaByContact.get(contact.id)?.assignedTo`:
-  - `mine` → `assignedTo === user?.id` (ou `user?.name`, conforme padrão atual de `assigned_to`)
-  - `unassigned` → `!assignedTo`
-- Mapear o filtro de Status para `conversationStatusFilter` existente do `WhatsAppDataContext`. Verificar se `'closed'` já existe no tipo `ConversationFilterStatus`; se não, estender o tipo e ajustar o filtro de `conversations` no contexto para reconhecer `closed`.
-- Contadores: derivar de `conversations.filter(c => c.status === 'open' | 'resolved' | 'closed').length`, mantendo `pendingCount` agregado dentro de "Abertos".
-- Sem mudanças de schema.
+- **Arquivo principal**: `src/components/chat/ChatList.tsx`
+  - Novos estados: `periodFilter: LeadPeriod`, `ownerFilter: string`, `stageIds: number[]`.
+  - Importar `useCRMStages`, `useTeamForAgent` de `@/pages/crm/hooks/useCRMData`.
+  - Importar `getDateRange` (extraído ou copiado do `useInactiveLeads`).
+  - Atualizar `activeFilterCount` para considerar os 3 novos filtros.
+  - Estender `visibleContacts` com as 3 novas filtragens.
 
-### Arquivos alterados
+- **Novo hook**: `src/hooks/useCRMStageByPhone.ts`
+  - Recebe array de telefones, retorna `Map<phone, { stageId, stageName, stageColor }>`.
+  - Query no Supabase sobre `crm_atendimento_cards` (via edge function ou client direto, conforme padrão atual de `useCRMCards`).
 
-- `src/components/chat/ChatList.tsx` — remoção dos pills do topo, novos pills de Responsável e Status.
-- (Se necessário) `src/contexts/WhatsAppDataContext.tsx` + `src/types/conversation.ts` — adicionar suporte ao status `'closed'` no `conversationStatusFilter`.
+- **Derivação de `codAgent`** para alimentar `useTeamForAgent`:
+  - Hook auxiliar local `useChatPrimaryCodAgent()` que retorna o `cod_agent` da fila selecionada (ou primeiro agente do usuário).
+
+- Sem mudanças de schema. Sem mudanças em `WhatsAppDataContext`.
+
+### Arquivos alterados/criados
+
+- **Modificado**: `src/components/chat/ChatList.tsx` — adicionar 3 filtros, substituir pills de Responsáveis pelo Select.
+- **Criado**: `src/hooks/useCRMStageByPhone.ts` — mapear telefones do chat para etapas do CRM.
+- **Reuso**: `useCRMStages`, `useTeamForAgent` do CRM; `LeadPeriod` + helper de período do `useInactiveLeads`.
 
