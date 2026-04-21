@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, ArrowUpDown, Plus, Timer, AlertTriangle, Flame, Bot, User, UserCheck, UserX, ListFilter, FolderOpen, CheckCheck, Archive } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, ArrowUpDown, Plus, Timer, AlertTriangle, Flame, Bot, User, UserCheck, UserX, ListFilter, FolderOpen, CheckCheck, Archive, UserCircle, ChevronsUpDown, CalendarDays } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { ChatContactItem } from './ChatContactItem';
@@ -15,6 +17,10 @@ import { Badge } from '@/components/ui/badge';
 import { useQueues } from '@/pages/agente/filas/hooks/useQueues';
 import { useChatSlaConfigs, evaluateSla, type SlaStatus } from '@/hooks/useChatSlaConfigs';
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
+import { useCRMStages, useTeamForAgent } from '@/pages/crm/hooks/useCRMData';
+import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
+import { externalDb } from '@/lib/externalDb';
+import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
 import type { ConversationFilterStatus } from '@/types/conversation';
 import type { SessionStatus } from '@/lib/externalDb';
 import { cn } from '@/lib/utils';
@@ -22,6 +28,32 @@ import { cn } from '@/lib/utils';
 type SlaFilter = 'all' | 'breached' | 'at_risk';
 type ConversationModeFilter = 'all' | 'ia_active' | 'ia_inactive' | 'human';
 type AssigneeFilter = 'all' | 'mine' | 'unassigned';
+type PeriodFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'last3Months';
+
+const PERIOD_OPTIONS: { value: PeriodFilter; label: string }[] = [
+  { value: 'all', label: 'Todos' },
+  { value: 'today', label: 'Hoje' },
+  { value: 'yesterday', label: 'Ontem' },
+  { value: 'last7days', label: '7 dias' },
+  { value: 'thisMonth', label: 'Mês atual' },
+  { value: 'last3Months', label: '3 meses' },
+];
+
+function getDateRange(p: PeriodFilter): { from: Date; to: Date } | null {
+  if (p === 'all') return null;
+  const now = new Date();
+  const todayStart = startOfDay(now);
+  switch (p) {
+    case 'today': return { from: todayStart, to: now };
+    case 'yesterday': {
+      const yStart = subDays(todayStart, 1);
+      return { from: yStart, to: todayStart };
+    }
+    case 'last7days': return { from: subDays(todayStart, 7), to: now };
+    case 'thisMonth': return { from: startOfMonth(now), to: now };
+    case 'last3Months': return { from: subMonths(todayStart, 3), to: now };
+  }
+}
 
 export function ChatList() {
   const {
@@ -53,12 +85,18 @@ export function ChatList() {
   const [slaFilter, setSlaFilter] = useState<SlaFilter>('all');
   const [modeFilter, setModeFilter] = useState<ConversationModeFilter>('all');
   const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('all');
+  const [ownerFilter, setOwnerFilter] = useState<string>('all');
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
+  const [stageIds, setStageIds] = useState<number[]>([]);
+  const [stagePopoverOpen, setStagePopoverOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const activeFilterCount =
     (modeFilter !== 'all' ? 1 : 0) +
     (slaFilter !== 'all' ? 1 : 0) +
-    (assigneeFilter !== 'all' ? 1 : 0) +
-    (conversationStatusFilter !== 'all' ? 1 : 0);
+    (ownerFilter !== 'all' ? 1 : 0) +
+    (conversationStatusFilter !== 'all' ? 1 : 0) +
+    (periodFilter !== 'all' ? 1 : 0) +
+    (stageIds.length > 0 ? 1 : 0);
 
   const activeQueues = queues.filter(q => q.is_active && !q.is_deleted);
 
@@ -124,17 +162,81 @@ export function ChatList() {
   }, [convMetaByContact]);
   const { data: queueAgentMap } = useQueueAgentLinks(queueIds);
 
+  // Derive primary cod_agent for team-members fetch
+  const { data: userAgents = [] } = useQuery({
+    queryKey: ['chat-user-agents', user?.id],
+    queryFn: () => externalDb.getUserAgents<{ cod_agent: string }>(user!.id as number),
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const primaryCodAgent = React.useMemo(() => {
+    if (selectedQueue?.id) {
+      const link = queueAgentMap?.get(selectedQueue.id);
+      if (link?.codAgent) return link.codAgent;
+    }
+    return userAgents[0]?.cod_agent ? String(userAgents[0].cod_agent) : null;
+  }, [selectedQueue?.id, queueAgentMap, userAgents]);
+
+  const { data: teamMembers = [] } = useTeamForAgent(primaryCodAgent);
+  const { data: stages = [] } = useCRMStages();
+
+  // Phone → stage map
+  const allPhones = React.useMemo(
+    () => filteredContacts.map((c) => c.phone).filter(Boolean) as string[],
+    [filteredContacts]
+  );
+  const { data: stageByPhone } = useCRMStageByPhone(allPhones);
+
+  const stageSet = React.useMemo(() => new Set(stageIds), [stageIds]);
+  const allStagesSelected = stages.length > 0 && stageIds.length === stages.length;
+  const stageLabel = React.useMemo(() => {
+    if (stageIds.length === 0 || allStagesSelected) return 'Todas as etapas';
+    if (stageIds.length === 1) {
+      const s = stages.find((x) => x.id === stageIds[0]);
+      return s?.name ?? '1 etapa';
+    }
+    return `${stageIds.length} etapas`;
+  }, [stageIds, stages, allStagesSelected]);
+
+  const toggleStage = (id: number) => {
+    if (stageSet.has(id)) setStageIds(stageIds.filter((x) => x !== id));
+    else setStageIds([...stageIds, id]);
+  };
+  const toggleAllStages = () => {
+    setStageIds(allStagesSelected ? [] : stages.map((s) => s.id));
+  };
+
   const visibleContacts = React.useMemo(() => {
     let result = filteredContacts;
-    if (assigneeFilter !== 'all') {
+    if (ownerFilter !== 'all') {
       result = result.filter((c) => {
         const assigned = convMetaByContact.get(c.id)?.assignedTo;
-        if (assigneeFilter === 'unassigned') return !assigned;
-        if (assigneeFilter === 'mine') {
+        if (ownerFilter === 'unassigned') return !assigned;
+        if (ownerFilter === 'mine') {
           if (!assigned) return false;
           return assigned === String(user?.id) || assigned === user?.name;
         }
-        return true;
+        return assigned === ownerFilter;
+      });
+    }
+    if (periodFilter !== 'all') {
+      const range = getDateRange(periodFilter);
+      if (range) {
+        result = result.filter((c) => {
+          const ts = c.last_message_at || (c as any).updated_at;
+          if (!ts) return false;
+          const d = new Date(ts);
+          if (Number.isNaN(d.getTime())) return false;
+          return d >= range.from && d <= range.to;
+        });
+      }
+    }
+    if (stageIds.length > 0 && stageByPhone) {
+      result = result.filter((c) => {
+        const norm = (c.phone || '').replace(/\D/g, '');
+        const info = stageByPhone.get(norm);
+        return info ? stageIds.includes(info.stageId) : false;
       });
     }
     if (slaFilter !== 'all') {
@@ -162,7 +264,7 @@ export function ChatList() {
       });
     }
     return result;
-  }, [filteredContacts, slaFilter, slaStatusByContact, modeFilter, convMetaByContact, queueAgentMap, queryClient, conversations, assigneeFilter, user?.id, user?.name]);
+  }, [filteredContacts, slaFilter, slaStatusByContact, modeFilter, convMetaByContact, queueAgentMap, queryClient, conversations, ownerFilter, periodFilter, stageIds, stageByPhone, user?.id, user?.name]);
 
   // Count conversations by status
   const openCount = conversations.filter(c => c.status === 'open' || c.status === 'pending').length;
@@ -337,44 +439,28 @@ export function ChatList() {
           </div>
         )}
 
-        {/* Responsável filter pills */}
-        <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
-          <button
-            onClick={() => setAssigneeFilter('all')}
-            className={cn(
-              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
-              assigneeFilter === 'all'
-                ? 'bg-foreground/10 text-foreground border-foreground/20'
-                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
-            )}
-          >
-            <ListFilter className="h-3 w-3" />
-            Todos
-          </button>
-          <button
-            onClick={() => setAssigneeFilter('mine')}
-            className={cn(
-              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
-              assigneeFilter === 'mine'
-                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
-                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
-            )}
-          >
-            <UserCheck className="h-3 w-3" />
-            Meus
-          </button>
-          <button
-            onClick={() => setAssigneeFilter('unassigned')}
-            className={cn(
-              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
-              assigneeFilter === 'unassigned'
-                ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30'
-                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
-            )}
-          >
-            <UserX className="h-3 w-3" />
-            Sem responsáveis
-          </button>
+        {/* Responsável (Select) */}
+        <div className="px-4 pb-2 flex items-center gap-2">
+          <UserCircle className="h-4 w-4 text-muted-foreground shrink-0" />
+          <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+            <SelectTrigger className="h-8 w-full text-xs">
+              <SelectValue placeholder="Responsável" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" className="text-xs">Todos</SelectItem>
+              <SelectItem value="mine" className="text-xs font-bold uppercase tracking-wide text-primary">
+                MEUS CARDS
+              </SelectItem>
+              <SelectItem value="unassigned" className="text-xs text-muted-foreground italic">
+                Sem Responsável
+              </SelectItem>
+              {teamMembers.map((member) => (
+                <SelectItem key={member.id} value={member.name} className="text-xs">
+                  {member.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Status pills */}
@@ -442,6 +528,79 @@ export function ChatList() {
               </span>
             )}
           </button>
+        </div>
+
+        {/* Período (pills) */}
+        <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
+          <CalendarDays className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          {PERIOD_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setPeriodFilter(opt.value)}
+              className={cn(
+                'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+                periodFilter === opt.value
+                  ? 'bg-foreground/10 text-foreground border-foreground/20'
+                  : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Etapas (multi-select) */}
+        <div className="px-4 pb-2 flex items-center gap-2">
+          <Layers className="h-4 w-4 text-muted-foreground shrink-0" />
+          <Popover open={stagePopoverOpen} onOpenChange={setStagePopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                className="h-8 w-full justify-between text-xs font-normal"
+              >
+                <span className="truncate">{stageLabel}</span>
+                <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[280px] p-0" align="start">
+              <div className="px-2 py-1.5 border-b">
+                <button
+                  onClick={toggleAllStages}
+                  className="flex items-center gap-2 w-full text-xs hover:bg-accent rounded px-2 py-1.5"
+                >
+                  <Checkbox checked={allStagesSelected} className="pointer-events-none" />
+                  <span className="font-medium">{allStagesSelected ? 'Desmarcar todas' : 'Selecionar todas'}</span>
+                </button>
+              </div>
+              <ScrollArea className="max-h-[260px]">
+                <div className="p-1">
+                  {stages.length === 0 ? (
+                    <div className="text-xs text-muted-foreground px-3 py-4 text-center">
+                      Nenhuma etapa disponível
+                    </div>
+                  ) : (
+                    stages.map((stage) => (
+                      <button
+                        key={stage.id}
+                        onClick={() => toggleStage(stage.id)}
+                        className="flex items-center gap-2 w-full text-xs hover:bg-accent rounded px-2 py-1.5 text-left"
+                      >
+                        <Checkbox checked={stageSet.has(stage.id)} className="pointer-events-none" />
+                        {stage.color && (
+                          <span
+                            className="h-2.5 w-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: stage.color }}
+                          />
+                        )}
+                        <span className="truncate">{stage.name}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
         </div>
         </>
         )}
