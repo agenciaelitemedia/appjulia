@@ -474,9 +474,8 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                   <div className="space-y-2">
                     {conversationHistory.map(entry => (
                       <div key={entry.id} className="flex gap-3 text-xs">
-                        <div className="flex-shrink-0 w-[76px] text-muted-foreground text-right leading-tight">
-                          <div>{format(new Date(entry.created_at), 'dd/MM/yy', { locale: ptBR })}</div>
-                          <div>{format(new Date(entry.created_at), 'HH:mm', { locale: ptBR })}</div>
+                        <div className="flex-shrink-0 w-[96px] text-muted-foreground text-right leading-tight whitespace-nowrap">
+                          {format(new Date(entry.created_at), 'dd/MM/yy HH:mm', { locale: ptBR })}
                         </div>
                         <div className="flex-1 min-w-0">
                           <span className="font-medium text-foreground">{entry.actor_name}</span>
