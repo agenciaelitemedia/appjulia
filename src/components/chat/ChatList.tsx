@@ -240,8 +240,10 @@ export function ChatList() {
           </div>
         </div>
 
+        {filtersOpen && (
+        <>
         {/* Modo da conversa: Bot ativo / Pendente (sem bot ativo OU sem atendente) */}
-        <div className="px-4 pb-2">
+        <div className="px-4 pb-2 pt-1">
           <div className="flex items-center gap-2">
             <ToggleGroup
               type="single"
