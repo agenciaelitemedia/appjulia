@@ -740,7 +740,7 @@ export function ChatList() {
                   queueName={convQueue?.name}
                   assignedAgentName={conv?.assigned_to || undefined}
                   index={idx}
-                  convTags={conv ? conversationTagsMap[conv.id] : undefined}
+                  convTags={conv ? (conversationTagsMap?.[conv.id] || []) : undefined}
                 />
               );
             })

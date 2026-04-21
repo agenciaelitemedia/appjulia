@@ -524,7 +524,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     setConversationTagsMap(prev => {
       const next = { ...prev };
       Object.keys(next).forEach(convId => {
-        next[convId] = next[convId].filter(t => t.id !== tagId);
+        next[convId] = (next[convId] || []).filter(t => t.id !== tagId);
       });
       return next;
     });
@@ -1695,9 +1695,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     // Tags
     tags,
     loadTags,
+    updateTag,
+    deleteTag,
     addTagToConversation,
     removeTagFromConversation,
     createTag,
+    conversationTagsMap,
+    refreshConversationTags,
 
     // Internal notes
     sendInternalNote,
