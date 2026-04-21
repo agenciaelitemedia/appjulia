@@ -124,21 +124,20 @@ export function ChatList() {
         const meta = convMetaByContact.get(c.id);
         const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
         const hasAgent = !!queueLink?.hasAgent;
-        let isGreen: boolean | null;
         if (hasAgent) {
-          // Bot mode: green if Julia active
           const codAgent = queueLink?.codAgent || meta?.codAgent || c.cod_agent;
+          if (modeFilter === 'human') return false;
           if (!codAgent || !c.phone) return false;
           const cached = queryClient.getQueryData<SessionStatus | null>(
             ['agent-session-status', codAgent, c.phone]
           );
-          if (cached === undefined) return true; // not yet loaded — keep visible
-          isGreen = cached?.active ?? false;
+          if (cached === undefined) return true; // not loaded — keep visible
+          const active = cached?.active ?? false;
+          return modeFilter === 'ia_active' ? active : !active;
         } else {
-          // Human-only queue: green if assignedTo is filled
-          isGreen = !!(meta?.assignedTo && meta.assignedTo.trim());
+          // Human-only queue
+          return modeFilter === 'human';
         }
-        return modeFilter === 'active' ? isGreen === true : isGreen === false;
       });
     }
     return result;
