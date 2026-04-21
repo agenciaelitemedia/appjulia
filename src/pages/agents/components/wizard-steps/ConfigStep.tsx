@@ -174,6 +174,50 @@ export function ConfigStep() {
         </CardContent>
       </Card>
 
+      {/* Filas Section */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Network className="h-4 w-4" />
+            Filas de Atendimento
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-0.5 flex-1">
+              <FormLabel>Total de filas permitidas</FormLabel>
+              <FormDescription>Quantas filas este agente pode criar</FormDescription>
+            </div>
+            <Input
+              type="number"
+              min={1}
+              max={50}
+              value={config.QUEUE_LIMIT}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10);
+                updateField('QUEUE_LIMIT', Number.isFinite(v) && v > 0 ? v : 1);
+              }}
+              className="w-24 text-center"
+            />
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <FormLabel>Permitir grupos</FormLabel>
+              <FormDescription>
+                Habilita o atendimento de grupos do WhatsApp (@g.us) nas filas deste agente
+              </FormDescription>
+            </div>
+            <Switch
+              checked={config.ALLOW_GROUPS}
+              onCheckedChange={(checked) => updateField('ALLOW_GROUPS', checked)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Chat & Resume Section */}
       <Card>
         <CardHeader className="pb-3">
