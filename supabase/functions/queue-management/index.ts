@@ -39,22 +39,18 @@ async function triggerSync(queueId: string) {
 }
 
 async function getAgentQueueSettings(clientId: string): Promise<{ queue_limit: number; allow_groups: boolean }> {
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   try {
-    const res = await fetch(`${supabaseUrl}/functions/v1/db-query`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseKey}`,
-      },
-      body: JSON.stringify({ action: 'get_agent_queue_settings', data: { client_id: clientId } }),
-    });
-    const json = await res.json();
-    const row = Array.isArray(json?.data) ? json.data[0] : null;
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('chat_client_settings')
+      .select('settings')
+      .eq('client_id', clientId)
+      .maybeSingle();
+    if (error || !data) return { queue_limit: 1, allow_groups: false };
+    const s = (data.settings ?? {}) as Record<string, unknown>;
     return {
-      queue_limit: typeof row?.queue_limit === 'number' && row.queue_limit > 0 ? row.queue_limit : 1,
-      allow_groups: !!row?.allow_groups,
+      queue_limit: typeof s?.QUEUE_LIMIT === 'number' && (s.QUEUE_LIMIT as number) > 0 ? (s.QUEUE_LIMIT as number) : 1,
+      allow_groups: !!s?.ALLOW_GROUPS,
     };
   } catch (err) {
     console.error('[queue-management] settings lookup failed:', err);
