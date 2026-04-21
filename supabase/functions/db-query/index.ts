@@ -2685,6 +2685,9 @@ serve(async (req) => {
       default:
         throw new Error(`Unknown action: ${action}`);
     }
+    // unreachable
+    if (false) {
+    }
 
     await sql.end();
 
