@@ -16,13 +16,14 @@ import type { ConversationHistoryEntry } from '@/types/conversation';
 
 interface ChatMessagesProps {
   contactId: string;
+  onReply?: (message: ChatMessage) => void;
 }
 
 type TimelineItem =
   | { kind: 'message'; data: ChatMessage; ts: number }
   | { kind: 'event'; data: ConversationHistoryEntry; ts: number };
 
-export function ChatMessages({ contactId }: ChatMessagesProps) {
+export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
   const { messages, loadMessages, conversationHistory, loadConversationHistory, selectedConversation, downloadMedia, selectedQueue, contacts } = useWhatsAppData();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
@@ -251,6 +252,7 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
                       reactions={reactionsByMsg[item.data.id]}
                       onReact={handleReact}
                       onForward={handleForward}
+                      onReply={onReply}
                       onDownloadMedia={downloadMedia}
                     />
                   );

@@ -748,7 +748,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const sendMessage = useCallback(async (
     contactId: string,
     text: string,
-    replyToId?: string
+    replyToMessage?: ChatMessage
   ) => {
     const contact = contacts.find(c => c.id === contactId);
     if (!contact) return;
@@ -760,6 +760,16 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
     const conversation = await getOrCreateConversation(contactId);
 
+    const quotedMeta = replyToMessage ? {
+      quoted_message: {
+        id: replyToMessage.id,
+        text: replyToMessage.text,
+        from_me: replyToMessage.from_me,
+        sender_name: replyToMessage.metadata?.sender_name ?? (replyToMessage.from_me ? (user?.name || 'Você') : undefined),
+        type: replyToMessage.type,
+      },
+    } : undefined;
+
     const tempMessage: ChatMessage = {
       id: crypto.randomUUID(),
       contact_id: contactId,
@@ -770,6 +780,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       status: 'sending',
       timestamp: new Date().toISOString(),
       created_at: new Date().toISOString(),
+      ...(quotedMeta ? { metadata: quotedMeta } : {}),
     };
 
     knownMessageIds.current.add(tempMessage.id);
@@ -806,7 +817,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             body: {
               number: contact.phone,
               text,
-              quotedMessageId: replyToId,
+              quotedMessageId: replyToMessage?.message_id || replyToMessage?.external_id,
             },
           },
         });
@@ -839,6 +850,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         status: 'sent',
         message_id: externalMessageId,
         external_id: externalMessageId,
+        reply_to: replyToMessage?.message_id || replyToMessage?.id || null,
+        metadata: quotedMeta ?? null,
         timestamp: tempMessage.timestamp,
         created_at: tempMessage.created_at,
         conversation_id: conversation?.id,

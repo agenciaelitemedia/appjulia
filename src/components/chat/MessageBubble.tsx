@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { Check, CheckCheck, Clock, AlertCircle, Download, Play, Pause, Loader2, FileText, MapPin, User, StickyNote as StickyNoteIcon, Forward } from 'lucide-react';
+import { Check, CheckCheck, Clock, AlertCircle, Download, Play, Pause, Loader2, FileText, MapPin, User, StickyNote as StickyNoteIcon, Forward, Reply } from 'lucide-react';
 import { MediaLightbox } from './MediaLightbox';
 import { Button } from '@/components/ui/button';
 import { QuotedMessage } from './QuotedMessage';
@@ -16,6 +16,7 @@ interface MessageBubbleProps {
   onDownloadMedia?: (messageId: string) => Promise<string | undefined>;
   onReact?: (message: ChatMessage, emoji: string) => void;
   onForward?: (message: ChatMessage) => void;
+  onReply?: (message: ChatMessage) => void;
 }
 
 // WhatsApp text formatting - fixed regex bug (no global flag in test)
@@ -407,7 +408,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
 
 
 export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
-  function MessageBubble({ message, reactions, onDownloadMedia, onReact, onForward }, ref) {
+  function MessageBubble({ message, reactions, onDownloadMedia, onReact, onForward, onReply }, ref) {
     const isMedia = ['image', 'video', 'audio', 'ptt', 'document', 'sticker', 'location', 'contact'].includes(message.type);
     const hasQuote = message.metadata?.quoted_message;
     const isInternalNote = !!message.metadata?.internal_note;
@@ -504,6 +505,17 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
           {message.from_me && (
             <div className="flex flex-col gap-0.5 items-center">
               {onReact && <ReactionPicker onSelect={(emoji) => onReact(message, emoji)} side="top" align="end" />}
+              {onReply && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => onReply(message)}
+                  aria-label="Responder"
+                >
+                  <Reply className="h-3.5 w-3.5" />
+                </Button>
+              )}
               {onForward && (
                 <Button
                   variant="ghost"
@@ -589,6 +601,17 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
           {!message.from_me && (
             <div className="flex flex-col gap-0.5 items-center">
               {onReact && <ReactionPicker onSelect={(emoji) => onReact(message, emoji)} side="top" align="start" />}
+              {onReply && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => onReply(message)}
+                  aria-label="Responder"
+                >
+                  <Reply className="h-3.5 w-3.5" />
+                </Button>
+              )}
               {onForward && (
                 <Button
                   variant="ghost"

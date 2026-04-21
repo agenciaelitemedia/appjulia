@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ChatList } from './ChatList';
 import { ChatHeader } from './ChatHeader';
 import { ChatMessages } from './ChatMessages';
@@ -8,6 +8,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { ChatMessage } from '@/types/chat';
 
 interface ChatContainerProps {
   className?: string;
@@ -15,6 +16,7 @@ interface ChatContainerProps {
 
 export function ChatContainer({ className }: ChatContainerProps) {
   const { selectedContact, selectContact, selectedContactId, showDetailPanel, setShowDetailPanel } = useWhatsAppData();
+  const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
 
   return (
     <div className={cn('flex h-full w-full bg-background min-w-0 overflow-hidden', className)}>
@@ -38,8 +40,12 @@ export function ChatContainer({ className }: ChatContainerProps) {
               onClose={() => selectContact(null)}
               onShowDetails={() => setShowDetailPanel(!showDetailPanel)}
             />
-            <ChatMessages contactId={selectedContactId!} />
-            <ChatInput contactId={selectedContactId!} />
+            <ChatMessages contactId={selectedContactId!} onReply={setReplyToMessage} />
+            <ChatInput
+              contactId={selectedContactId!}
+              replyToMessage={replyToMessage}
+              onCancelReply={() => setReplyToMessage(null)}
+            />
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">

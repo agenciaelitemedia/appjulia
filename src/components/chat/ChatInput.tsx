@@ -7,7 +7,7 @@ import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, Stick
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import type { MessageType } from '@/types/chat';
+import type { MessageType, ChatMessage } from '@/types/chat';
 import { QuickMessagePicker } from './QuickMessagePicker';
 import { AudioRecorder } from './AudioRecorder';
 import { MentionAutocomplete } from './MentionAutocomplete';
@@ -21,7 +21,7 @@ import { interpolateVariables } from '@/lib/messageVariables';
 
 interface ChatInputProps {
   contactId: string;
-  replyToId?: string;
+  replyToMessage?: ChatMessage | null;
   onCancelReply?: () => void;
 }
 
@@ -29,7 +29,7 @@ interface TeamMember { id: number | string; name: string }
 
 const QUICK_EMOJIS = ['😀', '😂', '❤️', '👍', '🙏', '🎉', '🔥', '💯', '😊', '😍', '🤔', '👏'];
 
-export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProps) {
+export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInputProps) {
   const { sendMessage, sendMedia, sendInternalNote, selectedConversation, selectedContact, assignConversation, updateConversationStatus, markAsRead } = useWhatsAppData();
   const { user } = useAuth();
   const [text, setText] = useState('');
@@ -121,7 +121,7 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
         setNoteMode(false);
         setNoteType('info');
       } else {
-        await sendMessage(contactId, messageText, replyToId);
+        await sendMessage(contactId, messageText, replyToMessage ?? undefined);
         onCancelReply?.();
       }
     } catch (error) {
@@ -284,12 +284,17 @@ export function ChatInput({ contactId, replyToId, onCancelReply }: ChatInputProp
       })()}
 
       {/* Reply indicator */}
-      {replyToId && (
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-muted border-b">
-          <div className="flex-1 text-sm text-muted-foreground truncate">
-            Respondendo mensagem...
+      {replyToMessage && (
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-muted border-b border-l-2 border-l-primary">
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-semibold text-primary">
+              {replyToMessage.from_me ? 'Você' : (replyToMessage.metadata?.sender_name || 'Contato')}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">
+              {replyToMessage.text || (replyToMessage.type !== 'text' ? `[${replyToMessage.type}]` : '...')}
+            </p>
           </div>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onCancelReply}>
+          <Button variant="ghost" size="icon" className="h-6 w-6 flex-shrink-0" onClick={onCancelReply}>
             <X className="h-4 w-4" />
           </Button>
         </div>
