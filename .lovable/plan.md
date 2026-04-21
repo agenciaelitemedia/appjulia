@@ -1,67 +1,38 @@
 
 
-## Adicionar filtros de Tempo, Responsáveis e Etapas no Chat
+## Corrigir alerta de filas desconectadas no login
 
-Replicar os 3 filtros do `/atendimento-humano` dentro do painel de filtros já existente do `ChatList`, mantendo o mesmo visual e comportamento.
+### Problema identificado
 
-### Filtros a adicionar (dentro do painel `filtersOpen`)
+O alerta de "Filas desconectadas" não aparece porque há uma **race condition** com o flag `julia_just_logged_in` em `sessionStorage`:
 
-**1. Filtro de Tempo (pills no estilo SLA)**
-- Opções: `Todos` / `Hoje` / `Ontem` / `7 dias` / `Mês atual` / `3 meses`
-- Aplica sobre `contact.last_message_at` (fallback `updated_at`).
-- Visual: mesmas pills `rounded-md text-[10px]`. Estado ativo neutro (`bg-foreground/10`).
+- `DisconnectedAgentsAlert` e `DisconnectedQueuesAlert` rodam em paralelo após o login.
+- O check de agentes geralmente termina antes (chama `/instance/status` via `UaZapiClient` direto), enquanto o de filas chama uma Edge Function (`uazapi-instance-manager`), que tem latência maior.
+- Quando o effect de `DisconnectedAgentsAlert` roda primeiro, ele **remove** o flag (`sessionStorage.removeItem(LOGIN_FLAG)` na linha 88).
+- Quando o effect de `DisconnectedQueuesAlert` finalmente roda, o flag já não existe → o alerta é silenciosamente ignorado.
 
-**2. Filtro de Responsáveis (Select estilo atendimento-humano)**
-- Substitui as 3 pills atuais (`Todos / Meus / Sem responsáveis`) por um **Select** completo igual ao do `InactiveLeadsList`:
-  - `Todos`
-  - `MEUS CARDS` (em destaque)
-  - `Sem Responsável` (itálico)
-  - Lista de membros da equipe (`teamMembers`)
-- Aplica em `convMetaByContact.get(contact.id)?.assignedTo` comparando com `member.name` ou `String(user.id)`.
-- Origem dos membros: `useTeamForAgent(codAgent)`. Como o chat opera com múltiplas filas, derivar `codAgent` da seguinte ordem:
-  1. `selectedQueue` → primeiro agente vinculado via `queueAgentMap`
-  2. Se "Todas as filas", usar o `cod_agent` do primeiro agente que o usuário possui (via `useUserAgents` ou contexto já existente).
+Também há um problema secundário: a verificação só é gatilhada uma vez por sessão (após o login). Se o usuário ficar logado e a fila cair depois, ele nunca verá o alerta — comportamento esperado, mas vale registrar.
 
-**3. Filtro de Etapas (Popover multi-select estilo atendimento-humano)**
-- Componente idêntico ao `InactiveLeadsList`: botão `Todas as etapas` → `Popover` com checkboxes + opção "Selecionar todas" + bolinha colorida da etapa.
-- Origem das etapas: `useCRMStages()`.
-- Aplicação no chat: cruzar telefone do contato (`contact.phone`) com `crm_atendimento_cards` para obter `stage_id`. Como o chat ainda não carrega esses cards, criar um novo hook leve `useCRMStageByPhone(phones[])` que retorna `Map<phone, stage_id>` consultando `crm_atendimento_cards` filtrando por `whatsapp_number IN (...)` e (opcional) `cod_agent`. Memoizar e revalidar a cada 60s.
-- Filtragem: `result.filter(c => stageIds.length === 0 || stageIds.includes(stageByPhone.get(c.phone)))`.
+### Correção
 
-### Ordem dos filtros dentro do painel
+**Arquivo: `src/components/layout/DisconnectedQueuesAlert.tsx`**
 
-```text
-[ icone Filter ] (já abre/fecha)
-└── Painel:
-    [ Modo (IA ativa / inativa / Atendente) ]   ← já existe
-    [ SLA (Estourado / Em risco) ]              ← já existe
-    [ Responsáveis (Select) ]                   ← SUBSTITUI as 3 pills atuais
-    [ Status (Abertos/Concluídos/Encerrados) ]  ← já existe
-    [ Tempo (pills)  ]                           ← NOVO
-    [ Etapas (Popover multi-select) ]           ← NOVO
-```
+1. **Não depender mais do flag de login** que é "consumido" por outro componente. Em vez disso, usar uma chave própria em `sessionStorage` (`julia_queues_alert_shown`) que marca se o alerta de filas já foi exibido nesta sessão.
+2. Lógica:
+   - Se `julia_queues_alert_shown === '1'` → não mostrar (já foi exibido nesta sessão).
+   - Quando todas as queries terminam e há filas desconectadas → marcar `julia_queues_alert_shown = '1'` e abrir o dialog.
+   - O flag é resetado naturalmente ao fechar o navegador (sessionStorage) ou pode ser resetado em `markJustLoggedIn()` do agentes-alert para garantir reset a cada login.
 
-### Detalhes técnicos
+3. **Atualizar `markJustLoggedIn()`** em `DisconnectedAgentsAlert.tsx` para também limpar `julia_queues_alert_shown`, garantindo que cada novo login dispare ambos os alertas.
 
-- **Arquivo principal**: `src/components/chat/ChatList.tsx`
-  - Novos estados: `periodFilter: LeadPeriod`, `ownerFilter: string`, `stageIds: number[]`.
-  - Importar `useCRMStages`, `useTeamForAgent` de `@/pages/crm/hooks/useCRMData`.
-  - Importar `getDateRange` (extraído ou copiado do `useInactiveLeads`).
-  - Atualizar `activeFilterCount` para considerar os 3 novos filtros.
-  - Estender `visibleContacts` com as 3 novas filtragens.
+4. Garantir que o alerta seja exibido mesmo se o usuário já estava logado e o componente acabou de montar com filas desconectadas — atualmente só dispara após login. Manter esse comportamento (apenas no login) para não ser invasivo, mas com o flag próprio funcionando corretamente.
 
-- **Novo hook**: `src/hooks/useCRMStageByPhone.ts`
-  - Recebe array de telefones, retorna `Map<phone, { stageId, stageName, stageColor }>`.
-  - Query no Supabase sobre `crm_atendimento_cards` (via edge function ou client direto, conforme padrão atual de `useCRMCards`).
+### Resultado esperado
 
-- **Derivação de `codAgent`** para alimentar `useTeamForAgent`:
-  - Hook auxiliar local `useChatPrimaryCodAgent()` que retorna o `cod_agent` da fila selecionada (ou primeiro agente do usuário).
+Após login, ambos os alertas (agentes e filas) serão exibidos independentemente, sem que um cancele o outro. A fila UaZapi desconectada que o usuário tem agora será detectada e mostrada no dialog.
 
-- Sem mudanças de schema. Sem mudanças em `WhatsAppDataContext`.
+### Arquivos alterados
 
-### Arquivos alterados/criados
-
-- **Modificado**: `src/components/chat/ChatList.tsx` — adicionar 3 filtros, substituir pills de Responsáveis pelo Select.
-- **Criado**: `src/hooks/useCRMStageByPhone.ts` — mapear telefones do chat para etapas do CRM.
-- **Reuso**: `useCRMStages`, `useTeamForAgent` do CRM; `LeadPeriod` + helper de período do `useInactiveLeads`.
+- `src/components/layout/DisconnectedQueuesAlert.tsx` — usar flag próprio `julia_queues_alert_shown` em vez de depender do `julia_just_logged_in` compartilhado.
+- `src/components/layout/DisconnectedAgentsAlert.tsx` — `markJustLoggedIn()` também limpa `julia_queues_alert_shown` para resetar a cada login.
 
