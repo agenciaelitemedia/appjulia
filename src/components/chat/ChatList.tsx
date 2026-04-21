@@ -79,6 +79,14 @@ export function ChatList() {
     conversations,
     conversationTagsMap,
   } = useWhatsAppData();
+  const { data: queueLimits } = useAgentQueueLimits();
+  const showGroupsTab = !!(queueLimits?.allowGroups && queueLimits?.showGroupsTab);
+
+  useEffect(() => {
+    if (!showGroupsTab && activeTab === 'groups') {
+      setActiveTab('individual');
+    }
+  }, [showGroupsTab, activeTab, setActiveTab]);
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
