@@ -123,6 +123,13 @@ export function useAgentUpdate() {
         status: formData.status,
       });
 
+      // Ensure chat settings exist for this client
+      await ensureChatClientSettings(
+        clientId,
+        formData.client_name,
+        formData.client_business_name || null,
+      );
+
       // Log before returning so cache invalidation finds the record
       try {
         await insertAgentChangeLog({
