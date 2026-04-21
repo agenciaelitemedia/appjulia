@@ -87,6 +87,7 @@ import FilasPage from "./pages/agente/filas/FilasPage";
 import ConfiguracoesPage from "./pages/configuracoes/ConfiguracoesPage";
 import HumanSupportPage from "./pages/atendimento-humano/HumanSupportPage";
 import PushNotificationsPage from "./pages/admin/push-notifications/PushNotificationsPage";
+import ContatosPage from "./pages/contatos/ContatosPage";
 
 const queryClient = new QueryClient();
 
@@ -159,6 +160,7 @@ const App = () => (
                   <Route path="/suporte-assistente" element={<ProtectedRoute module="support_assistant"><SupportAssistantPage /></ProtectedRoute>} />
                   <Route path="/mensagens-rapidas" element={<ProtectedRoute module="quick_messages"><QuickMessagesPage /></ProtectedRoute>} />
                   <Route path="/atendimento-humano" element={<ProtectedRoute module="human_support"><HumanSupportPage /></ProtectedRoute>} />
+                  <Route path="/contatos" element={<ProtectedRoute module="contacts"><ContatosPage /></ProtectedRoute>} />
                   
                   {/* Admin routes - protected by module permission */}
                   <Route path="/admin/agentes" element={<ProtectedRoute module="admin_agents"><AgentsList /></ProtectedRoute>} />

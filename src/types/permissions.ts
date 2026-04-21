@@ -38,7 +38,8 @@ export type ModuleCode =
   | 'filas'
   | 'configuracoes'
   | 'human_support'
-  | 'push_notifications';
+  | 'push_notifications'
+  | 'contacts';
 
 export interface Module {
   id: number;
