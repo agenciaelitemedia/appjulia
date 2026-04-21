@@ -439,44 +439,28 @@ export function ChatList() {
           </div>
         )}
 
-        {/* Responsável filter pills */}
-        <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
-          <button
-            onClick={() => setAssigneeFilter('all')}
-            className={cn(
-              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
-              assigneeFilter === 'all'
-                ? 'bg-foreground/10 text-foreground border-foreground/20'
-                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
-            )}
-          >
-            <ListFilter className="h-3 w-3" />
-            Todos
-          </button>
-          <button
-            onClick={() => setAssigneeFilter('mine')}
-            className={cn(
-              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
-              assigneeFilter === 'mine'
-                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
-                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
-            )}
-          >
-            <UserCheck className="h-3 w-3" />
-            Meus
-          </button>
-          <button
-            onClick={() => setAssigneeFilter('unassigned')}
-            className={cn(
-              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
-              assigneeFilter === 'unassigned'
-                ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30'
-                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
-            )}
-          >
-            <UserX className="h-3 w-3" />
-            Sem responsáveis
-          </button>
+        {/* Responsável (Select) */}
+        <div className="px-4 pb-2 flex items-center gap-2">
+          <UserCircle className="h-4 w-4 text-muted-foreground shrink-0" />
+          <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+            <SelectTrigger className="h-8 w-full text-xs">
+              <SelectValue placeholder="Responsável" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" className="text-xs">Todos</SelectItem>
+              <SelectItem value="mine" className="text-xs font-bold uppercase tracking-wide text-primary">
+                MEUS CARDS
+              </SelectItem>
+              <SelectItem value="unassigned" className="text-xs text-muted-foreground italic">
+                Sem Responsável
+              </SelectItem>
+              {teamMembers.map((member) => (
+                <SelectItem key={member.id} value={member.name} className="text-xs">
+                  {member.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Status pills */}
