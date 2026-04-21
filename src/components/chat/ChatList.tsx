@@ -586,6 +586,25 @@ export function ChatList() {
         </>
         )}
 
+        {/* Período (pills) - sempre visível, fora do painel de filtros */}
+        <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
+          <CalendarDays className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          {PERIOD_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setPeriodFilter(opt.value)}
+              className={cn(
+                'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+                periodFilter === opt.value
+                  ? 'bg-foreground/10 text-foreground border-foreground/20'
+                  : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
         {/* Queue selector - includes "Todas as filas" option */}
         {activeQueues.length > 0 && (
           <div className="px-4 pb-2">
