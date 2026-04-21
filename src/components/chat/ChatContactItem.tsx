@@ -204,14 +204,14 @@ export const ChatContactItem = React.memo(function ChatContactItem({
           <div className="flex items-center justify-between gap-1 min-w-0 w-full">
             <div className="flex items-center gap-1 min-w-0 overflow-hidden">
               {agentCodAgent && (
-                <span className="text-[9px] text-muted-foreground font-mono truncate">
+                <span className="text-[10px] text-muted-foreground font-mono truncate">
                   #{agentCodAgent}{agentAlias ? ` · ${agentAlias}` : ''}
                 </span>
               )}
             </div>
             {stageName && (
               <span
-                className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded text-white whitespace-nowrap"
+                className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded text-white whitespace-nowrap"
                 style={{ backgroundColor: stageColor || '#64748b' }}
               >
                 {stageName.toUpperCase()}
