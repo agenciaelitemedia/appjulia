@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { externalDb } from '@/lib/externalDb';
 
 export interface Queue {
   id: string;
@@ -45,13 +46,26 @@ async function invokeQueueManagement(action: string, data: Record<string, unknow
   return result;
 }
 
+// Resolve client_id from the user, falling back to the linked agents (user_agents → agents.client_id).
+async function resolveClientId(user: { client_id?: number | string | null; id?: number | string } | null | undefined): Promise<string | null> {
+  if (user?.client_id) return String(user.client_id);
+  if (!user?.id) return null;
+  try {
+    const userAgents = await externalDb.getUserAgents<{ client_id?: string | number | null }>(Number(user.id));
+    const found = userAgents?.find((a) => a?.client_id != null);
+    return found?.client_id ? String(found.client_id) : null;
+  } catch (e) {
+    console.warn('[useQueues] Failed to resolve client_id from user_agents', e);
+    return null;
+  }
+}
+
 export function useQueues(includeDeleted = false) {
   const { user } = useAuth();
-  const clientId = user?.client_id ? String(user.client_id) : null;
-
   return useQuery({
-    queryKey: ['queues', clientId, includeDeleted],
+    queryKey: ['queues', user?.id, user?.client_id, includeDeleted],
     queryFn: async () => {
+      const clientId = await resolveClientId(user);
       if (!clientId) return [];
       const result = await invokeQueueManagement('list', {
         client_id: clientId,
@@ -59,14 +73,13 @@ export function useQueues(includeDeleted = false) {
       });
       return (result.queues || []) as Queue[];
     },
-    enabled: !!clientId,
+    enabled: !!user?.id,
   });
 }
 
 export function useQueueMutations() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const clientId = user?.client_id ? String(user.client_id) : '';
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['queues'] });
@@ -74,8 +87,9 @@ export function useQueueMutations() {
   };
 
   const createQueue = useMutation({
-    mutationFn: (formData: QueueFormData) => {
-      if (!clientId) throw new Error('Usuário sem client_id vinculado. Faça login novamente.');
+    mutationFn: async (formData: QueueFormData) => {
+      const clientId = await resolveClientId(user);
+      if (!clientId) throw new Error('Não foi possível identificar o cliente. Verifique se há um agente vinculado ao seu usuário.');
       if (!formData.name?.trim()) throw new Error('Nome da fila é obrigatório');
       if (!formData.channel_type) throw new Error('Canal é obrigatório');
       return invokeQueueManagement('create', { ...formData, client_id: clientId });
