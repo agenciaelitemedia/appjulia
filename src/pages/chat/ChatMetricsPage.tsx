@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, AreaChart, Area, LineChart, Line,
 } from 'recharts';
 import {
@@ -662,7 +662,7 @@ export default function ChatMetricsPage() {
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
+                <RechartsTooltip contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
                 <Legend />
                 <Area type="monotone" dataKey="opened" name="Abertas" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.15} />
                 <Area type="monotone" dataKey="resolved" name="Resolvidas" stroke="#22c55e" fill="#22c55e" fillOpacity={0.15} />
@@ -680,7 +680,7 @@ export default function ChatMetricsPage() {
                   label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}>
                   {channelData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                 </Pie>
-                <Tooltip />
+                <RechartsTooltip />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
@@ -694,7 +694,7 @@ export default function ChatMetricsPage() {
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis type="number" tick={{ fontSize: 11 }} />
                 <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 12 }} />
-                <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
+                <RechartsTooltip contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
                 <Bar dataKey="value" name="Conversas" radius={[0, 4, 4, 0]}>
                   {statusData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                 </Bar>
@@ -711,7 +711,7 @@ export default function ChatMetricsPage() {
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis dataKey="hour" tick={{ fontSize: 10 }} interval={1} />
                 <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
+                <RechartsTooltip contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
                 <Bar dataKey="count" name="Conversas" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -757,7 +757,7 @@ export default function ChatMetricsPage() {
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis dataKey="week" tick={{ fontSize: 11 }} />
                     <YAxis domain={[1, 5]} tick={{ fontSize: 11 }} />
-                    <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 8 }}
+                    <RechartsTooltip contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 8 }}
                       formatter={(v: number) => [`${v} ★`, 'CSAT médio']} />
                     <Line type="monotone" dataKey="avg" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} />
                   </LineChart>
