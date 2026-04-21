@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, ArrowUpDown, Plus, Timer, AlertTriangle, Flame, Bot, User } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { ChatContactItem } from './ChatContactItem';
 import { Badge } from '@/components/ui/badge';
 import { useQueues } from '@/pages/agente/filas/hooks/useQueues';
@@ -20,6 +21,7 @@ import { cn } from '@/lib/utils';
 
 type SlaFilter = 'all' | 'breached' | 'at_risk';
 type ConversationModeFilter = 'all' | 'ia_active' | 'ia_inactive' | 'human';
+type AssigneeFilter = 'all' | 'mine' | 'unassigned';
 
 export function ChatList() {
   const {
