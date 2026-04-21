@@ -206,17 +206,6 @@ export const ChatContactItem = React.memo(function ChatContactItem({
                 className={assignedAgentName ? 'bg-muted text-foreground' : 'bg-muted/60 text-muted-foreground'}
               />
             </span>
-            {visibleTags.map(tag => (
-              <span key={tag.id} className="flex-shrink-0 max-w-[90px] truncate">
-                <span
-                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold text-white truncate max-w-full"
-                  style={{ backgroundColor: tag.color }}
-                  title={tag.name}
-                >
-                  {tag.name.toUpperCase()}
-                </span>
-              </span>
-            ))}
           </div>
           {conversation && (
             <div className="ml-auto flex-shrink-0">
@@ -228,6 +217,23 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             </div>
           )}
         </div>
+
+        {/* Row 4: Tags (abaixo da linha da fila) */}
+        {visibleTags.length > 0 && (
+          <div className="flex items-center gap-1 flex-wrap min-w-0 overflow-hidden w-full">
+            {visibleTags.map(tag => (
+              <span key={tag.id} className="flex-shrink-0 max-w-[120px] truncate">
+                <span
+                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold text-white truncate max-w-full"
+                  style={{ backgroundColor: tag.color }}
+                  title={tag.name}
+                >
+                  {tag.name.toUpperCase()}
+                </span>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </button>
   );
