@@ -1340,7 +1340,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
   const selectedConversation = useMemo(() => {
     if (!selectedContactId) return null;
-    return conversations.find(c => c.contact_id === selectedContactId && ['pending', 'open'].includes(c.status)) || null;
+    // Priority: active first, then resolved/closed for read-only view
+    return conversations.find(c => c.contact_id === selectedContactId && ['pending', 'open'].includes(c.status))
+      || conversations.find(c => c.contact_id === selectedContactId && ['resolved', 'closed'].includes(c.status))
+      || null;
   }, [conversations, selectedContactId]);
 
   const filteredContacts = useMemo(() => {
