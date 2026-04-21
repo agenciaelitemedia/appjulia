@@ -142,10 +142,12 @@ Deno.serve(async (req) => {
     while (allChats.length < MAX_CHATS) {
       let pageData: any;
       try {
-        pageData = await uazapiPost(evo_url, evo_apikey, `/chat/find/${evo_instance}`, {
+        pageData = await uazapiPost(evo_url, evo_apikey, `/chat/find`, {
+          operator: 'AND',
+          sort: '-wa_lastMsgTimestamp',
+          limit: PAGE_SIZE,
+          offset: (page - 1) * PAGE_SIZE,
           wa_isGroup: false,
-          page,
-          count: PAGE_SIZE,
         });
       } catch (e) {
         console.warn(`[uazapi-history-sync] /chat/find page ${page} failed:`, e);
@@ -324,9 +326,9 @@ Deno.serve(async (req) => {
         // 4e. Mark conversation as read
         if (lastMsgId) {
           try {
-            await uazapiPost(evo_url, evo_apikey, `/chat/read/${evo_instance}`, {
-              chatid: chatId,
-              lastMessage: { id: lastMsgId },
+            await uazapiPost(evo_url, evo_apikey, `/chat/read`, {
+              number: chatId,
+              read: true,
             });
           } catch (e) {
             console.warn(`[uazapi-history-sync] /chat/read failed for ${chatId}:`, e);
