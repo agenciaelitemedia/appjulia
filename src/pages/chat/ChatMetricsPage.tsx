@@ -16,6 +16,7 @@ import {
   TrendingUp, TrendingDown, Minus, RefreshCw, XCircle, ChevronUp, ChevronDown,
   PhoneOff, FileDown, Layers,
 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useNavigate } from 'react-router-dom';
 import { format, subDays, startOfDay, endOfDay, differenceInMinutes, parseISO, startOfWeek, addWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -490,51 +491,102 @@ export default function ChatMetricsPage() {
             <p className="text-muted-foreground text-sm">Dashboard de performance do chat omnichannel</p>
           </div>
         </div>
+        <TooltipProvider delayDuration={400}>
         <div className="flex items-center gap-2 flex-wrap">
-          <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
-            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7d">Últimos 7 dias</SelectItem>
-              <SelectItem value="14d">Últimos 14 dias</SelectItem>
-              <SelectItem value="30d">Últimos 30 dias</SelectItem>
-              <SelectItem value="90d">Últimos 90 dias</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={queueFilter} onValueChange={setQueueFilter}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="Fila" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as filas</SelectItem>
-              {queues.map(q => <SelectItem key={q.id} value={q.id}>{q.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={channelFilter} onValueChange={setChannelFilter}>
-            <SelectTrigger className="w-36"><SelectValue placeholder="Canal" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos canais</SelectItem>
-              {channelOptions.map(ch => <SelectItem key={ch} value={ch}>{CHANNEL_LABELS[ch] || ch}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={agentFilter} onValueChange={setAgentFilter}>
-            <SelectTrigger className="w-44"><SelectValue placeholder="Atendente" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos atendentes</SelectItem>
-              <SelectItem value="__unassigned">Sem atendente</SelectItem>
-              {agentOptions.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos status</SelectItem>
-              <SelectItem value="pending">Pendente</SelectItem>
-              <SelectItem value="open">Em atendimento</SelectItem>
-              <SelectItem value="resolved">Resolvido</SelectItem>
-              <SelectItem value="closed">Encerrado</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant="outline" size="sm" onClick={exportCsv} disabled={filtered.length === 0}><Download className="h-4 w-4 mr-1" /> CSV</Button>
-          <Button variant="outline" size="sm" onClick={exportPdf} disabled={filtered.length === 0}><FileDown className="h-4 w-4 mr-1" /> PDF</Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
+                <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7d">Últimos 7 dias</SelectItem>
+                  <SelectItem value="14d">Últimos 14 dias</SelectItem>
+                  <SelectItem value="30d">Últimos 30 dias</SelectItem>
+                  <SelectItem value="90d">Últimos 90 dias</SelectItem>
+                </SelectContent>
+              </Select>
+            </TooltipTrigger>
+            <TooltipContent>Período de análise — todos os KPIs e gráficos refletem o intervalo selecionado</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Select value={queueFilter} onValueChange={setQueueFilter}>
+                <SelectTrigger className="w-40"><SelectValue placeholder="Fila" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as filas</SelectItem>
+                  {queues.map(q => <SelectItem key={q.id} value={q.id}>{q.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </TooltipTrigger>
+            <TooltipContent>Filtra por fila de atendimento — cada fila representa um canal ou departamento específico</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Select value={channelFilter} onValueChange={setChannelFilter}>
+                <SelectTrigger className="w-36"><SelectValue placeholder="Canal" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos canais</SelectItem>
+                  {channelOptions.map(ch => <SelectItem key={ch} value={ch}>{CHANNEL_LABELS[ch] || ch}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </TooltipTrigger>
+            <TooltipContent>Filtra por canal de origem da conversa (WhatsApp, WebChat, Instagram…)</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Select value={agentFilter} onValueChange={setAgentFilter}>
+                <SelectTrigger className="w-44"><SelectValue placeholder="Atendente" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos atendentes</SelectItem>
+                  <SelectItem value="__unassigned">Sem atendente</SelectItem>
+                  {agentOptions.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </TooltipTrigger>
+            <TooltipContent>Filtra por atendente responsável — "Sem atendente" mostra conversas não atribuídas</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-44"><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="pending">Pendentes</SelectItem>
+                  <SelectItem value="open">Em atendimento</SelectItem>
+                  <SelectItem value="resolved">Resolvidas</SelectItem>
+                  <SelectItem value="closed">Encerradas</SelectItem>
+                </SelectContent>
+              </Select>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              <p className="font-semibold mb-1">Filtro por status:</p>
+              <ul className="space-y-0.5 text-xs">
+                <li><span className="font-medium">Pendentes</span> — aguardando 1º atendimento</li>
+                <li><span className="font-medium">Em atendimento</span> — agente em conversa ativa</li>
+                <li><span className="font-medium">Resolvidas</span> — finalizadas com resolução confirmada</li>
+                <li><span className="font-medium">Encerradas</span> — fechadas sem resolução (abandono ou timeout)</li>
+              </ul>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" onClick={exportCsv} disabled={filtered.length === 0}><Download className="h-4 w-4 mr-1" /> CSV</Button>
+            </TooltipTrigger>
+            <TooltipContent>Exporta todas as conversas filtradas com tempos de resposta e resolução</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" onClick={exportPdf} disabled={filtered.length === 0}><FileDown className="h-4 w-4 mr-1" /> PDF</Button>
+            </TooltipTrigger>
+            <TooltipContent>Gera relatório em PDF com KPIs, gráficos e ranking de atendentes</TooltipContent>
+          </Tooltip>
         </div>
+        </TooltipProvider>
       </div>
 
       {/* ── Banner de limite ─────────────────────────────────────────── */}
