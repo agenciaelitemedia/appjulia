@@ -491,6 +491,7 @@ serve(async (req) => {
             a.waba_id,
             a.waba_number_id,
             CASE WHEN a.waba_id IS NOT NULL AND a.waba_token IS NOT NULL AND a.waba_number_id IS NOT NULL THEN true ELSE false END as waba_configured,
+            a.client_id::text as client_id,
             c.name as client_name,
             c.business_name,
             ap.name as plan_name,
