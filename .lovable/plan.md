@@ -1,64 +1,48 @@
 
 
-## Corrigir crash no /chat — `Cannot read properties of undefined`
+## Corrigir reações nas conversas — envio e recebimento
 
-### Causa raiz
+### Problema
 
-No último diff aplicado em `src/contexts/WhatsAppDataContext.tsx` (`refreshConversationTags`), quando a função é chamada **sem `conversationId`** (refresh global), o estado `conversationTagsMap` é **substituído** por um novo objeto `map` que contém **apenas `conversation_id`s que possuem tags**. Conversas sem tags deixam de existir como chave no mapa.
+**1. Envio (handleReact)**: Em `src/components/chat/ChatMessages.tsx:171`, o handler exige `selectedQueue` (seletor global de fila). No módulo `/chat` omnichannel, não existe fila global selecionada — cada conversa já carrega sua própria `queue_id`. Resultado: ao clicar num emoji, aparece o toast "Selecione uma fila para reagir" e a reação não é enviada.
 
-Além disso, em `deleteTag` (linha 524-530), o código faz:
-```ts
-next[convId] = next[convId].filter(...)
-```
-Sem proteção contra `undefined` — se `next[convId]` existisse antes mas fosse limpo, o `.filter` quebra. Mais importante: o erro reportado é:
-
-> `Cannot read properties of undefined (reading '30cf33b2-f841-407d-ac11-a517212998b7')`
-
-Isso indica que **algum código está acessando `algumObjeto[conversationId]` onde `algumObjeto` é `undefined`**. O ID `30cf33b2-...` é uma `conversation.id`. O ponto exato (em `ChatList.tsx:743`) é:
-```tsx
-convTags={conv ? conversationTagsMap[conv.id] : undefined}
-```
-
-Isso por si só não quebraria, **a menos que `conversationTagsMap` esteja `undefined`** no value do contexto. Olhando o build error reportado também:
-
-> Type ... is missing the following properties from type 'ExtendedContextValue': updateTag, deleteTag, **conversationTagsMap**, refreshConversationTags
-
-Confirma: o `value={...}` do `WhatsAppDataContext.Provider` **não está expondo `conversationTagsMap`**, então o consumidor recebe `undefined` e quebra ao indexar.
+**2. Recebimento**: Em `supabase/functions/uazapi-chat-webhook/index.ts`, quando chega um `reactionMessage` da UaZapi, ele é apenas classificado como `type='reaction'` e salvo como uma mensagem normal (gera o `💬 Reação` no last_message), mas **nunca é persistido em `chat_message_reactions`** ligado à mensagem alvo. Por isso a reação não aparece visualmente no balão da mensagem original.
 
 ### Correção
 
-**Arquivo: `src/contexts/WhatsAppDataContext.tsx`**
+**Arquivo: `src/components/chat/ChatMessages.tsx`**
 
-1. No objeto `value` do `<WhatsAppDataContext.Provider>` (próximo da linha 1644), incluir as 4 propriedades faltantes:
-   - `conversationTagsMap`
-   - `refreshConversationTags`
-   - `updateTag`
-   - `deleteTag`
+Resolver `queue_id` a partir da conversa selecionada (e fallbacks), sem depender de `selectedQueue`:
 
-2. Em `deleteTag`, blindar o filter contra `undefined`:
-   ```ts
-   next[convId] = (next[convId] || []).filter(t => t.id !== tagId);
-   ```
+1. Prioridade de resolução em `handleReact`:
+   - `selectedConversation?.queue_id` (caso principal — conversa atual já tem fila)
+   - `contact.channel_source` se for UUID válido
+   - Fallback final: `selectedQueue?.id`
+2. Se ainda assim não encontrar fila (caso raríssimo), exibir toast claro. Caso contrário, prosseguir com o envio normalmente.
+3. Manter `contact_phone = contact.phone` e `reactor = user.id`.
 
-3. Em `ChatList.tsx:743` e `ChatHeader.tsx:250`, adicionar fallback defensivo:
-   ```tsx
-   convTags={conv ? (conversationTagsMap?.[conv.id] || []) : undefined}
-   ```
-   ```tsx
-   {selectedConversation && (conversationTagsMap?.[selectedConversation.id] || []).slice(0, 3).map(...)}
-   ```
+**Arquivo: `supabase/functions/uazapi-chat-webhook/index.ts`**
 
-### Observação sobre o build error de `bcryptjs` em `db-query/index.ts`
+Quando uma mensagem de tipo `reaction` for recebida:
 
-É um erro pré-existente da edge function `db-query` (não relacionado a este bug do chat). Não será tocado nesta correção — é independente e não afeta o crash do `/chat`.
-
-### Arquivos alterados
-
-- `src/contexts/WhatsAppDataContext.tsx` — expor `conversationTagsMap`, `refreshConversationTags`, `updateTag`, `deleteTag` no `value` do Provider; blindar `deleteTag`.
-- `src/components/chat/ChatList.tsx` — fallback `?.[]` ao indexar `conversationTagsMap`.
-- `src/components/chat/ChatHeader.tsx` — fallback `?.[]` ao indexar `conversationTagsMap`.
+1. Extrair do payload UaZapi:
+   - `target_external_id` = `msg.message.reactionMessage.key.id` (ou variações `reactionMessage.id`, dependendo do shape)
+   - `emoji` = `msg.message.reactionMessage.text` (string vazia = remoção)
+   - `reactor` = `participant`/`sender` ou `from_me` se aplicável
+2. Localizar a `chat_messages.id` interna pelo `message_id = target_external_id` no mesmo `client_id`/`contact_id`.
+3. Se encontrada:
+   - Se `emoji` for vazio → `DELETE FROM chat_message_reactions WHERE message_id = ... AND reactor = ...`
+   - Senão → upsert (delete + insert) na tabela `chat_message_reactions` com `{ message_id, external_message_id, reactor, emoji, from_me }`.
+4. **Não** inserir a reação como uma `chat_messages` separada — para evitar poluir a timeline com cards "💬 Reação" vazios. Em vez disso, atualizar somente `chat_contacts.last_message_text` opcionalmente (manter como está hoje só para preview do contato é aceitável, mas a entrada em `chat_messages` deve ser ignorada para reactions).
+5. Se a mensagem alvo ainda não existir localmente (chegou antes do backfill), gravar uma fila órfã em memória ou simplesmente ignorar — o realtime do `useMessageReactions` reconciliará no próximo carregamento.
 
 ### Resultado esperado
 
-A página `/chat` deixa de crashar. As tags continuam sendo exibidas e atualizadas normalmente em conversas, e o refresh global não apaga mais conversas do mapa.
+- Clicar em um emoji no balão envia a reação imediatamente (sem pedir fila), aparece em tempo real no próprio balão.
+- Reações recebidas do WhatsApp aparecem ancoradas no balão da mensagem original (via `chat_message_reactions`) e não mais como cards isolados na timeline.
+
+### Arquivos alterados
+
+- `src/components/chat/ChatMessages.tsx` — resolver `queue_id` da conversa selecionada com fallbacks; remover dependência rígida de `selectedQueue`.
+- `supabase/functions/uazapi-chat-webhook/index.ts` — tratar `reactionMessage` persistindo em `chat_message_reactions` ligado à mensagem alvo, em vez de criar uma `chat_messages` do tipo `reaction`.
 
