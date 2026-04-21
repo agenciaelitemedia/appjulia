@@ -1005,6 +1005,36 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_client_settings: {
+        Row: {
+          client_business_name: string | null
+          client_id: string
+          client_name: string | null
+          created_at: string
+          id: string
+          settings: Json
+          updated_at: string
+        }
+        Insert: {
+          client_business_name?: string | null
+          client_id: string
+          client_name?: string | null
+          created_at?: string
+          id?: string
+          settings?: Json
+          updated_at?: string
+        }
+        Update: {
+          client_business_name?: string | null
+          client_id?: string
+          client_name?: string | null
+          created_at?: string
+          id?: string
+          settings?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chat_contacts: {
         Row: {
           avatar: string | null
