@@ -211,10 +211,10 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             </div>
             {stageName && (
               <span
-                className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded text-white whitespace-nowrap"
+                className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-white whitespace-nowrap"
                 style={{ backgroundColor: stageColor || '#64748b' }}
               >
-                {stageName.toUpperCase()}
+                {stageName}
               </span>
             )}
           </div>
