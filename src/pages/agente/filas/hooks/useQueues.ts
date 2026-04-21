@@ -74,8 +74,12 @@ export function useQueueMutations() {
   };
 
   const createQueue = useMutation({
-    mutationFn: (formData: QueueFormData) =>
-      invokeQueueManagement('create', { ...formData, client_id: clientId }),
+    mutationFn: (formData: QueueFormData) => {
+      if (!clientId) throw new Error('Usuário sem client_id vinculado. Faça login novamente.');
+      if (!formData.name?.trim()) throw new Error('Nome da fila é obrigatório');
+      if (!formData.channel_type) throw new Error('Canal é obrigatório');
+      return invokeQueueManagement('create', { ...formData, client_id: clientId });
+    },
     onSuccess: () => { toast.success('Fila criada com sucesso'); invalidate(); },
     onError: (e) => toast.error(e.message),
   });
