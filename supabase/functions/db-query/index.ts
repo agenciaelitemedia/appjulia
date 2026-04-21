@@ -346,11 +346,18 @@ serve(async (req) => {
         const { email, password } = data;
         
         // Fetch user by email only (including client_id and photo from clients table)
+        // If user is linked (user_id set) and has no own client_id, inherit from parent user
         const users = await sql.unsafe(
-          `SELECT u.id, u.name, u.email, u.role, u.cod_agent, u.client_id, u.evo_url, u.evo_instance, u.evo_apikey, u.data_mask, u.hub, u.created_at, u.password, u.is_active, c.photo as avatar
+          `SELECT u.id, u.name, u.email, u.role, u.cod_agent,
+                  COALESCE(u.client_id, parent.client_id) as client_id,
+                  u.user_id,
+                  u.evo_url, u.evo_instance, u.evo_apikey, u.data_mask, u.hub, u.created_at, u.password, u.is_active,
+                  COALESCE(c.photo, pc.photo) as avatar
            FROM users u
+           LEFT JOIN users parent ON parent.id = u.user_id
            LEFT JOIN clients c ON c.id = u.client_id
-           WHERE u.email = $1 
+           LEFT JOIN clients pc ON pc.id = parent.client_id
+           WHERE u.email = $1
            LIMIT 1`,
           [email]
         );
