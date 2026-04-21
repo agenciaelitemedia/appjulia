@@ -11,7 +11,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Phone, MessageSquare, Globe, Instagram, Loader2, ArrowLeft, ArrowRight, Check, AlertCircle, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { useQueueProviders } from '@/pages/configuracoes/hooks/useQueueProviders';
-import { useQueueMutations, type QueueFormData } from '../hooks/useQueues';
+import { useQueueMutations, useQueues, type QueueFormData } from '../hooks/useQueues';
+import { useAgentQueueLimits } from '../hooks/useAgentQueueLimits';
 import { WabaEmbeddedSignupButton } from '@/components/waba/WabaEmbeddedSignupButton';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -53,6 +54,11 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
 
   const { data: allProviders = [] } = useQueueProviders();
   const { createQueue } = useQueueMutations();
+  const { data: existingQueues = [] } = useQueues(false);
+  const { data: limits } = useAgentQueueLimits();
+  const queueLimit = limits?.queueLimit ?? 1;
+  const activeCount = existingQueues.filter((q) => !q.is_deleted).length;
+  const limitReached = activeCount >= queueLimit;
 
   const evoInstance = useMemo(() => {
     if (selectedType !== 'uazapi') return '';
