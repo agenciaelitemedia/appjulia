@@ -79,7 +79,7 @@ export function ChatList() {
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { data: queues = [] } = useQueues();
   const { configs: slaConfigs } = useChatSlaConfigs();
   const [slaFilter, setSlaFilter] = useState<SlaFilter>('all');
@@ -292,12 +292,16 @@ export function ChatList() {
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/metricas')} title="Métricas">
               <BarChart3 className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/automacoes')} title="Automações">
-              <Settings2 className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/canais')} title="Canais">
-              <Settings2 className="h-4 w-4" />
-            </Button>
+            {isAdmin && (
+              <>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/automacoes')} title="Automações">
+                  <Settings2 className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/canais')} title="Canais">
+                  <Settings2 className="h-4 w-4" />
+                </Button>
+              </>
+            )}
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/sla')} title="Configurar SLA">
               <Timer className="h-4 w-4" />
             </Button>
