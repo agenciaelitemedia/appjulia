@@ -3,6 +3,7 @@ import { externalDb, AgentUpdateData } from '@/lib/externalDb';
 import { unmask } from '@/lib/inputMasks';
 import bcrypt from 'bcryptjs';
 import { insertAgentChangeLog } from './useAgentChangeLog';
+import { ensureChatClientSettings } from '@/lib/ensureChatClientSettings';
 
 interface ClientUpdateData {
   name: string;
