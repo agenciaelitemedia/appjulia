@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MessageSquare, Bell, Phone, Play, FileText, Video, Clock, Sparkles } from 'lucide-react';
+import { MessageSquare, Bell, Phone, Play, FileText, Video, Clock, Sparkles, Network } from 'lucide-react';
 import { MultiPhraseInput } from './MultiPhraseInput';
 import { BusinessHoursEditor, type BusinessHoursSchedule } from './BusinessHoursEditor';
 import type { AgentFormData } from '../CreateAgentWizard';
@@ -33,6 +33,8 @@ interface ConfigFields {
   BUSINESS_HOURS_TIMEZONE: string;
   BUSINESS_HOURS_SCHEDULE: BusinessHoursSchedule;
   BUSINESS_HOURS_OFF_MESSAGE: string;
+  QUEUE_LIMIT: number;
+  ALLOW_GROUPS: boolean;
 }
 
 const TIMEZONES = [
@@ -77,6 +79,8 @@ const DEFAULT_CONFIG: ConfigFields = {
   BUSINESS_HOURS_TIMEZONE: 'America/Sao_Paulo',
   BUSINESS_HOURS_SCHEDULE: DEFAULT_BUSINESS_HOURS_SCHEDULE,
   BUSINESS_HOURS_OFF_MESSAGE: 'Olá! No momento estamos fora do horário de atendimento. Nosso horário de funcionamento é de segunda a sexta, das 08:00 às 18:00. Retornaremos assim que possível!',
+  QUEUE_LIMIT: 1,
+  ALLOW_GROUPS: false,
 };
 
 export function ConfigStep() {
