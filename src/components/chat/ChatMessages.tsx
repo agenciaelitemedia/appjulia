@@ -168,19 +168,27 @@ export function ChatMessages({ contactId }: ChatMessagesProps) {
   const contact = contacts.find((c: ChatContact) => c.id === contactId);
 
   const handleReact = useCallback(async (msg: ChatMessage, emoji: string) => {
-    if (!selectedQueue || !contact) { toast.error('Selecione uma fila para reagir'); return; }
+    if (!contact) { toast.error('Contato não encontrado'); return; }
+    // Resolve queue from current conversation first; fall back to contact channel_source or global selectedQueue
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const channelSource = (contact as any)?.channel_source as string | undefined;
+    const queueId =
+      selectedConversation?.queue_id ||
+      (channelSource && uuidRe.test(channelSource) ? channelSource : undefined) ||
+      selectedQueue?.id;
+    if (!queueId) { toast.error('Conversa sem fila vinculada'); return; }
     try {
       await sendReaction({
         message_id: msg.id,
         external_message_id: msg.message_id,
         emoji,
-        queue_id: selectedQueue.id,
+        queue_id: queueId,
         contact_phone: contact.phone,
         reactor: String(user?.id || 'me'),
         from_me: true,
       });
     } catch (e) { console.error(e); toast.error('Erro ao reagir'); }
-  }, [selectedQueue, contact, user?.id]);
+  }, [selectedQueue, selectedConversation?.queue_id, contact, user?.id]);
 
   const handleForward = useCallback((msg: ChatMessage) => setForwardMessage(msg), []);
 

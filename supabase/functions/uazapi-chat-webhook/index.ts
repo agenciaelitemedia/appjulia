@@ -518,6 +518,55 @@ Deno.serve(async (req) => {
         }
 
         // ── Insert message (deduplicate by message_id) ──
+        // ── Reactions: persist into chat_message_reactions instead of chat_messages ──
+        if (type === 'reaction') {
+          try {
+            const rm = msg.message?.reactionMessage || msg.reactionMessage || {};
+            const targetExternalId =
+              rm.key?.id || rm.id || msg.reaction?.key?.id || msg.reaction?.id || null;
+            const emoji = toSafeString(rm.text ?? msg.reaction?.text ?? '').trim();
+            const reactor = fromMe
+              ? 'me'
+              : (msg.participant || msg.sender || msg.sender_pn || senderPhone);
+
+            if (targetExternalId) {
+              const { data: targetMsg } = await supabase
+                .from('chat_messages')
+                .select('id')
+                .eq('client_id', queue.client_id)
+                .eq('contact_id', contact.id)
+                .eq('message_id', targetExternalId)
+                .limit(1)
+                .maybeSingle();
+
+              if (targetMsg) {
+                // Always remove previous reaction by this reactor on this message
+                await supabase
+                  .from('chat_message_reactions')
+                  .delete()
+                  .eq('message_id', targetMsg.id)
+                  .eq('reactor', reactor);
+
+                if (emoji) {
+                  await supabase.from('chat_message_reactions').insert({
+                    message_id: targetMsg.id,
+                    external_message_id: targetExternalId,
+                    reactor,
+                    emoji,
+                    from_me: !!fromMe,
+                  });
+                }
+              } else {
+                console.log('[uazapi-chat-webhook] reaction target not found locally, skipping. external_id=', targetExternalId);
+              }
+            }
+          } catch (rErr) {
+            console.error('[uazapi-chat-webhook] reaction processing error:', rErr);
+          }
+          processed++;
+          continue; // do NOT insert reaction as a chat_messages row
+        }
+
         const { data: existingMessage } = await supabase
           .from('chat_messages')
           .select('id')
