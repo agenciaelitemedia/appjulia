@@ -43,6 +43,7 @@ export interface ChatMessage {
   contact_id: string;
   client_id: string;
   message_id?: string;
+  external_id?: string;
   text?: string;
   type: MessageType;
   from_me: boolean;
