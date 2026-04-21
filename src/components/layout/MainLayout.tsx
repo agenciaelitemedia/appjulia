@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { AgentBlockedScreen } from './AgentBlockedScreen';
 import { DisconnectedAgentsAlert } from './DisconnectedAgentsAlert';
+import { DisconnectedQueuesAlert } from './DisconnectedQueuesAlert';
 
 function GlobalSoftphone() {
   const { sip, showSoftphone, setShowSoftphone, softphoneCentered, setSoftphoneCentered, dialContactName, isDialing, dialError, clearDialError, retryDial, cancelDial } = usePhone();
@@ -103,6 +104,7 @@ export function MainLayout() {
           <GlobalSoftphone />
           <CopilotWidget />
           <DisconnectedAgentsAlert />
+          <DisconnectedQueuesAlert />
         </div>
       </SidebarProvider>
     </PhoneProvider>
