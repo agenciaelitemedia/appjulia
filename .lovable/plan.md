@@ -1,38 +1,64 @@
 
 
-## Corrigir alerta de filas desconectadas no login
+## Corrigir crash no /chat — `Cannot read properties of undefined`
 
-### Problema identificado
+### Causa raiz
 
-O alerta de "Filas desconectadas" não aparece porque há uma **race condition** com o flag `julia_just_logged_in` em `sessionStorage`:
+No último diff aplicado em `src/contexts/WhatsAppDataContext.tsx` (`refreshConversationTags`), quando a função é chamada **sem `conversationId`** (refresh global), o estado `conversationTagsMap` é **substituído** por um novo objeto `map` que contém **apenas `conversation_id`s que possuem tags**. Conversas sem tags deixam de existir como chave no mapa.
 
-- `DisconnectedAgentsAlert` e `DisconnectedQueuesAlert` rodam em paralelo após o login.
-- O check de agentes geralmente termina antes (chama `/instance/status` via `UaZapiClient` direto), enquanto o de filas chama uma Edge Function (`uazapi-instance-manager`), que tem latência maior.
-- Quando o effect de `DisconnectedAgentsAlert` roda primeiro, ele **remove** o flag (`sessionStorage.removeItem(LOGIN_FLAG)` na linha 88).
-- Quando o effect de `DisconnectedQueuesAlert` finalmente roda, o flag já não existe → o alerta é silenciosamente ignorado.
+Além disso, em `deleteTag` (linha 524-530), o código faz:
+```ts
+next[convId] = next[convId].filter(...)
+```
+Sem proteção contra `undefined` — se `next[convId]` existisse antes mas fosse limpo, o `.filter` quebra. Mais importante: o erro reportado é:
 
-Também há um problema secundário: a verificação só é gatilhada uma vez por sessão (após o login). Se o usuário ficar logado e a fila cair depois, ele nunca verá o alerta — comportamento esperado, mas vale registrar.
+> `Cannot read properties of undefined (reading '30cf33b2-f841-407d-ac11-a517212998b7')`
+
+Isso indica que **algum código está acessando `algumObjeto[conversationId]` onde `algumObjeto` é `undefined`**. O ID `30cf33b2-...` é uma `conversation.id`. O ponto exato (em `ChatList.tsx:743`) é:
+```tsx
+convTags={conv ? conversationTagsMap[conv.id] : undefined}
+```
+
+Isso por si só não quebraria, **a menos que `conversationTagsMap` esteja `undefined`** no value do contexto. Olhando o build error reportado também:
+
+> Type ... is missing the following properties from type 'ExtendedContextValue': updateTag, deleteTag, **conversationTagsMap**, refreshConversationTags
+
+Confirma: o `value={...}` do `WhatsAppDataContext.Provider` **não está expondo `conversationTagsMap`**, então o consumidor recebe `undefined` e quebra ao indexar.
 
 ### Correção
 
-**Arquivo: `src/components/layout/DisconnectedQueuesAlert.tsx`**
+**Arquivo: `src/contexts/WhatsAppDataContext.tsx`**
 
-1. **Não depender mais do flag de login** que é "consumido" por outro componente. Em vez disso, usar uma chave própria em `sessionStorage` (`julia_queues_alert_shown`) que marca se o alerta de filas já foi exibido nesta sessão.
-2. Lógica:
-   - Se `julia_queues_alert_shown === '1'` → não mostrar (já foi exibido nesta sessão).
-   - Quando todas as queries terminam e há filas desconectadas → marcar `julia_queues_alert_shown = '1'` e abrir o dialog.
-   - O flag é resetado naturalmente ao fechar o navegador (sessionStorage) ou pode ser resetado em `markJustLoggedIn()` do agentes-alert para garantir reset a cada login.
+1. No objeto `value` do `<WhatsAppDataContext.Provider>` (próximo da linha 1644), incluir as 4 propriedades faltantes:
+   - `conversationTagsMap`
+   - `refreshConversationTags`
+   - `updateTag`
+   - `deleteTag`
 
-3. **Atualizar `markJustLoggedIn()`** em `DisconnectedAgentsAlert.tsx` para também limpar `julia_queues_alert_shown`, garantindo que cada novo login dispare ambos os alertas.
+2. Em `deleteTag`, blindar o filter contra `undefined`:
+   ```ts
+   next[convId] = (next[convId] || []).filter(t => t.id !== tagId);
+   ```
 
-4. Garantir que o alerta seja exibido mesmo se o usuário já estava logado e o componente acabou de montar com filas desconectadas — atualmente só dispara após login. Manter esse comportamento (apenas no login) para não ser invasivo, mas com o flag próprio funcionando corretamente.
+3. Em `ChatList.tsx:743` e `ChatHeader.tsx:250`, adicionar fallback defensivo:
+   ```tsx
+   convTags={conv ? (conversationTagsMap?.[conv.id] || []) : undefined}
+   ```
+   ```tsx
+   {selectedConversation && (conversationTagsMap?.[selectedConversation.id] || []).slice(0, 3).map(...)}
+   ```
 
-### Resultado esperado
+### Observação sobre o build error de `bcryptjs` em `db-query/index.ts`
 
-Após login, ambos os alertas (agentes e filas) serão exibidos independentemente, sem que um cancele o outro. A fila UaZapi desconectada que o usuário tem agora será detectada e mostrada no dialog.
+É um erro pré-existente da edge function `db-query` (não relacionado a este bug do chat). Não será tocado nesta correção — é independente e não afeta o crash do `/chat`.
 
 ### Arquivos alterados
 
-- `src/components/layout/DisconnectedQueuesAlert.tsx` — usar flag próprio `julia_queues_alert_shown` em vez de depender do `julia_just_logged_in` compartilhado.
-- `src/components/layout/DisconnectedAgentsAlert.tsx` — `markJustLoggedIn()` também limpa `julia_queues_alert_shown` para resetar a cada login.
+- `src/contexts/WhatsAppDataContext.tsx` — expor `conversationTagsMap`, `refreshConversationTags`, `updateTag`, `deleteTag` no `value` do Provider; blindar `deleteTag`.
+- `src/components/chat/ChatList.tsx` — fallback `?.[]` ao indexar `conversationTagsMap`.
+- `src/components/chat/ChatHeader.tsx` — fallback `?.[]` ao indexar `conversationTagsMap`.
+
+### Resultado esperado
+
+A página `/chat` deixa de crashar. As tags continuam sendo exibidas e atualizadas normalmente em conversas, e o refresh global não apaga mais conversas do mapa.
 
