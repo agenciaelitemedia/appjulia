@@ -1,58 +1,68 @@
+## Módulo Contatos (SISTEMA)
 
+Criar novo módulo `contacts` na categoria SISTEMA com gerenciamento de contatos sincronizados pelo chat (`chat_contacts`).
 
-## Objetivo
+### Estrutura
 
-Criar o secret `N8N_HUB_WEBHOOK_URL` = `https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start` e apontar os webhooks de chat (UaZapi + WABA) para ele, **enviando apenas em eventos de mensagem nova recebida** (não status, não delete, não update).
+**Rota:** `/contatos`  
+**Código de permissão:** `contacts`  
+**Grupo de menu:** SISTEMA  
+**Ícone:** `Users` (Lucide)  
+**Display order:** 75 (logo após Mensagens Rápidas)
 
-## Regra de fan-out por canal
+### UI / Layout
 
-| Canal | Quando dispara (APENAS) | Quando NÃO dispara | URL alvo |
-|---|---|---|---|
-| UaZapi | `messages.upsert` (alias: `messages`, `message`) | `messages.update`, `messages.delete`, `chats.update`, `contacts.update`, `connection.update`, qualquer outro | `${N8N_HUB_WEBHOOK_URL}?app=uazapi&c=<cod_agent>` |
-| WABA | `change.field === 'messages'` E item dentro de `value.messages[]` (mensagem nova recebida) | `value.statuses[]` (sent/delivered/read/failed), demais `field` (`account_update`, `message_template_status_update` etc.) | `${N8N_HUB_WEBHOOK_URL}?app=waba&waba_id=<entry.id>&c=<cod_agent>` |
+```text
+┌─────────────────────────────────────────────────────────┐
+│ Contatos                      [🔍 Buscar nome/telefone] │
+├─────────────────────────────────────────────────────────┤
+│ [ Contatos (1.234) ] [ Grupos (56) ]                    │
+├─────────────────────────────────────────────────────────┤
+│ Avatar │ Nome           │ Telefone     │ Última msg │ ⚙ │
+│  🟢    │ João Silva     │ 5511999...   │ 2h atrás   │...│
+│  🟢    │ Maria          │ 5511988...   │ ontem      │...│
+└─────────────────────────────────────────────────────────┘
+```
 
-Em ambos: um POST por `cod_agent` vinculado à fila, body = payload bruto recebido do provedor, `Content-Type: application/json`.
+**Tabela**:  
 
-## Mudanças
+- Colunas: Avatar, Nome, Telefone, Fila (channel_source), Última mensagem (last_message_at), Ações.  
+- Paginação de 50 itens (igual padrão chat).  
+- Busca por nome ou telefone (filtro client-side com debounce).
 
-### 1. Novo secret
-- Criar `N8N_HUB_WEBHOOK_URL` = `https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start`.
-- `N8N_HUB_SEND_URL` permanece (fluxo legado `/advbox-send` em `processQueue`), mas os blocos novos de fan-out de chat deixam de lê-lo.
+**Abas (Tabs)**:
 
-### 2. `supabase/functions/uazapi-chat-webhook/index.ts`
-- Substituir, no bloco de fan-out já existente, `Deno.env.get('N8N_HUB_SEND_URL')` por `Deno.env.get('N8N_HUB_WEBHOOK_URL')`.
-- Manter o gate `if (isMessageUpsert)` — fan-out só roda para mensagem nova; demais eventos retornam sem disparar.
-- Mantém `?app=uazapi&c=<cod_agent>`, body cru, e logs `[fan-out] POST n8n agent=... url=...` / `[fan-out] response agent=... status=...`.
+- **Contatos** → `is_group = false`
+- **Grupos** → `is_group = true`  
+Contadores por aba ao lado do título.
 
-### 3. `supabase/functions/meta-webhook/index.ts` (WABA)
-- Adicionar fan-out novo, **independente** do `processQueue` legado.
-- Iterar `body.entry[].changes[]`:
-  - Ignorar quando `change.field !== 'messages'`.
-  - Ignorar `value.statuses[]` (não dispara nada para n8n).
-  - Para cada item em `value.messages[]` (mensagem recebida): resolver `phone_number_id` → `queue` → `queue_agent_links`. Para cada `cod_agent`:
-    - `POST ${N8N_HUB_WEBHOOK_URL}?app=waba&waba_id=<entry.id>&c=<cod_agent>`
-    - body: o **payload original completo** recebido da Meta (`req.json()` cru), `Content-Type: application/json`.
-- Coletar todas as promises e aguardar com `Promise.allSettled` **antes** do `return` (Supabase mata o isolate ao responder).
-- Logs: `[fan-out waba] event=messages waba_id=<id> queue=<id> targets=<n>` / `[fan-out waba] response agent=<cod> status=<http>`.
-- Não tocar em `webhook_queue` / `processQueue` (continua como está, fluxo legado).
+### Ações por linha (menu `⋯` + tooltips)
 
-### 4. Build error pré-existente
-O erro de build em `_shared/resolve-queue.ts` (cert CA store) não é causado por este plano. Deploy será feito por função (`uazapi-chat-webhook`, `meta-webhook`) via CLI, contornando o build agregado, como já foi feito antes.
+1. **Abrir Chat** (ícone `MessageCircle` verde) → `navigate('/chat')` + persiste o `contactId` em `sessionStorage` (`chat_pending_contact_id`); o `ChatPage` lê e dispara `selectContact(id)` automaticamente ao montar.
+2. **Editar** (ícone `Pencil` azul) → abre `Dialog` com formulário (nome, telefone, avatar URL). Salva via `supabase.from('chat_contacts').update(...)`.
+3. **Excluir** (ícone `Trash2` vermelho) → padrão de **dupla confirmação** (mem: `secure-deletion-workflow`):
+  - `AlertDialog` exigindo digitar o telefone exato do contato.
+  - Após confirmação: deleta `chat_messages`, `chat_conversations` vinculadas, depois o registro em `chat_contacts`.
+  - Toast de sucesso + invalidate query.
 
-### 5. Deploy
-Deploy automático de `uazapi-chat-webhook` e `meta-webhook`.
+### Arquivos a criar
 
-## Validação
+- `src/pages/contatos/ContatosPage.tsx` — página com Tabs e tabela.
+- `src/pages/contatos/components/ContactsTable.tsx` — tabela + ações.
+- `src/pages/contatos/components/EditContactDialog.tsx` — modal edição.
+- `src/pages/contatos/components/DeleteContactDialog.tsx` — dupla confirmação.
+- `src/pages/contatos/hooks/useContactsList.ts` — React Query (filtra `is_group`, busca, paginação).
+- `src/hooks/useEnsureContactsModule.ts` — auto-cria/atualiza módulo no menu (igual aos outros `useEnsure*`).
 
-1. UaZapi `messages.upsert` → log `POST .../julia_MQv8.2_start?app=uazapi&c=<cod>` + `status=200`.
-2. UaZapi `messages.update` (status delivered/read) → **nenhum** POST para `julia_MQv8.2_start`.
-3. WABA `value.messages[]` → log `POST .../julia_MQv8.2_start?app=waba&waba_id=<id>&c=<cod>` + `status=200`.
-4. WABA `value.statuses[]` (delivered/read) → **nenhum** POST para `julia_MQv8.2_start`.
-5. No n8n conferir execuções nos dois `app` com body cru do provedor.
+### Arquivos a editar
 
-## Arquivos previstos
+- `src/types/permissions.ts` — adicionar `'contacts'` ao `ModuleCode`.
+- `src/App.tsx` — importar `ContatosPage` e adicionar rota `/contatos` com `ProtectedRoute module="contacts"`.
+- `src/components/layout/Sidebar.tsx` — chamar `useEnsureContactsModule()`.
+- `src/pages/chat/ChatPage.tsx` — no `useEffect`, ler `sessionStorage.getItem('chat_pending_contact_id')`, chamar `selectContact(id)` após `loadContacts`, depois remover a chave.
 
-- `supabase/functions/uazapi-chat-webhook/index.ts`
-- `supabase/functions/meta-webhook/index.ts`
-- Novo secret `N8N_HUB_WEBHOOK_URL`
+### Detalhes técnicos
 
+- Query: `supabase.from('chat_contacts').select('*').eq('client_id', clientId).eq('is_group', tab === 'groups').order('last_message_at', { ascending: false })`.
+- Permissões padrão: admin tem acesso total; demais usuários precisam de `contacts.view/edit/delete` configurado em `/admin/permissoes`.
+- Sem alterações de schema — a tabela `chat_contacts` já existe com todos os campos necessários.
