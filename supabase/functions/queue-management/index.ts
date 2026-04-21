@@ -38,6 +38,30 @@ async function triggerSync(queueId: string) {
   }
 }
 
+async function getAgentQueueSettings(clientId: string): Promise<{ queue_limit: number; allow_groups: boolean }> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  try {
+    const res = await fetch(`${supabaseUrl}/functions/v1/db-query`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseKey}`,
+      },
+      body: JSON.stringify({ action: 'get_agent_queue_settings', data: { client_id: clientId } }),
+    });
+    const json = await res.json();
+    const row = Array.isArray(json?.data) ? json.data[0] : null;
+    return {
+      queue_limit: typeof row?.queue_limit === 'number' && row.queue_limit > 0 ? row.queue_limit : 1,
+      allow_groups: !!row?.allow_groups,
+    };
+  } catch (err) {
+    console.error('[queue-management] settings lookup failed:', err);
+    return { queue_limit: 1, allow_groups: false };
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -94,6 +118,23 @@ serve(async (req) => {
       case 'create': {
         const { client_id, name, channel_type, hub, evo_url, evo_apikey, evo_instance, waba_id, waba_token, waba_number_id, link_agents } = data;
         if (!client_id || !name || !channel_type) throw new Error('client_id, name, channel_type are required');
+
+        // Enforce queue limit from agent settings
+        const { queue_limit } = await getAgentQueueSettings(String(client_id));
+        const { count: activeCount, error: countErr } = await supabase
+          .from('queues')
+          .select('id', { count: 'exact', head: true })
+          .eq('client_id', client_id)
+          .eq('is_deleted', false);
+        if (countErr) throw countErr;
+        if ((activeCount ?? 0) >= queue_limit) {
+          return respond({
+            error: `Limite de ${queue_limit} fila(s) atingido para este agente. Contate seu administrador para aumentar.`,
+            code: 'queue_limit_reached',
+            limit: queue_limit,
+            current: activeCount ?? 0,
+          }, 409);
+        }
 
         const { data: queue, error } = await supabase
           .from('queues')

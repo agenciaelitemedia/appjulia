@@ -9,12 +9,16 @@ import { QueueFormDialog } from './components/QueueFormDialog';
 import { QueueWizardDialog } from './components/QueueWizardDialog';
 import { DeleteQueueDialog } from './components/DeleteQueueDialog';
 import { useEnsureFilasModule } from '@/hooks/useEnsureFilasModule';
+import { useAgentQueueLimits } from './hooks/useAgentQueueLimits';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export default function FilasPage() {
   useEnsureFilasModule();
   const [showDeleted, setShowDeleted] = useState(false);
   const { data: queues = [], isLoading } = useQueues(showDeleted);
   const { restoreQueue } = useQueueMutations();
+  const { data: limits } = useAgentQueueLimits();
+  const queueLimit = limits?.queueLimit ?? 1;
 
   const [wizardOpen, setWizardOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
@@ -31,6 +35,7 @@ export default function FilasPage() {
   };
 
   const activeQueues = queues.filter((q) => !q.is_deleted);
+  const limitReached = activeQueues.length >= queueLimit;
 
   if (isLoading) {
     return (
@@ -46,12 +51,25 @@ export default function FilasPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Filas de Atendimento</h1>
           <p className="text-muted-foreground">
-            Gerencie as conexões de canais de comunicação
+            Gerencie as conexões de canais de comunicação · {activeQueues.length} / {queueLimit} filas usadas
           </p>
         </div>
-        <Button onClick={handleNew}>
-          <Plus className="w-4 h-4 mr-2" /> Nova Fila
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <Button onClick={handleNew} disabled={limitReached}>
+                  <Plus className="w-4 h-4 mr-2" /> Nova Fila
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {limitReached && (
+              <TooltipContent>
+                Limite de {queueLimit} {queueLimit === 1 ? 'fila atingido' : 'filas atingido'}. Contate seu administrador para aumentar.
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       <div className="flex items-center gap-2">
