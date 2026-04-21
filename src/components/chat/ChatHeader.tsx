@@ -48,7 +48,7 @@ function ChannelBadge({ channel }: { channel?: string }) {
 }
 
 export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps) {
-  const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact, markAsRead } = useWhatsAppData();
+  const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact, markAsRead, conversationTagsMap } = useWhatsAppData();
   const { user } = useAuth();
   const { configs: slaConfigs } = useChatSlaConfigs();
 
@@ -247,6 +247,16 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
             {selectedConversation && (
               <ChannelBadge channel={selectedConversation.channel} />
             )}
+            {selectedConversation && (conversationTagsMap[selectedConversation.id] || []).slice(0, 3).map(tag => (
+              <span
+                key={tag.id}
+                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold text-white"
+                style={{ backgroundColor: tag.color }}
+                title={tag.name}
+              >
+                {tag.name}
+              </span>
+            ))}
             <PresenceIndicator users={presenceUsers} meId={user?.id ? String(user.id) : null} />
           </div>
         </div>

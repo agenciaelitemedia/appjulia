@@ -59,9 +59,13 @@ interface ExtendedContextValue extends ChatContextValue {
   // Tags
   tags: ChatTag[];
   loadTags: () => Promise<void>;
+  updateTag: (tagId: string, updates: { name?: string; color?: string }) => Promise<void>;
+  deleteTag: (tagId: string) => Promise<void>;
   addTagToConversation: (conversationId: string, tagId: string, tagName?: string) => Promise<void>;
   removeTagFromConversation: (conversationId: string, tagId: string, tagName?: string) => Promise<void>;
   createTag: (name: string, color: string) => Promise<ChatTag | null>;
+  conversationTagsMap: Record<string, ChatTag[]>;
+  refreshConversationTags: (conversationId?: string) => Promise<void>;
 
   // Internal notes
   sendInternalNote: (
@@ -115,6 +119,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const [conversationStatusFilter, setConversationStatusFilter] = useState<ConversationFilterStatus>('all');
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [tags, setTags] = useState<ChatTag[]>([]);
+  const [conversationTagsMap, setConversationTagsMap] = useState<Record<string, ChatTag[]>>({});
   const [conversationHistory, setConversationHistory] = useState<ConversationHistoryEntry[]>([]);
 
   const knownMessageIds = useRef<Set<string>>(new Set());
@@ -499,9 +504,66 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     return tag;
   }, [clientId]);
 
+  const updateTag = useCallback(async (tagId: string, updates: { name?: string; color?: string }) => {
+    const { error } = await supabase.from('chat_tags').update(updates).eq('id', tagId);
+    if (error) { toast.error('Erro ao atualizar tag'); return; }
+    setTags(prev => prev.map(t => t.id === tagId ? { ...t, ...updates } : t));
+    setConversationTagsMap(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(convId => {
+        next[convId] = next[convId].map(t => t.id === tagId ? { ...t, ...updates } : t);
+      });
+      return next;
+    });
+  }, []);
+
+  const deleteTag = useCallback(async (tagId: string) => {
+    const { error } = await supabase.from('chat_tags').delete().eq('id', tagId);
+    if (error) { toast.error('Erro ao excluir tag'); return; }
+    setTags(prev => prev.filter(t => t.id !== tagId));
+    setConversationTagsMap(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(convId => {
+        next[convId] = next[convId].filter(t => t.id !== tagId);
+      });
+      return next;
+    });
+  }, []);
+
+  const refreshConversationTags = useCallback(async (conversationId?: string) => {
+    if (!clientId) return;
+    let query = supabase
+      .from('chat_conversation_tags')
+      .select('conversation_id, chat_tags:tag_id(id, name, color, client_id, created_at)')
+      .eq('chat_tags.client_id', clientId);
+    if (conversationId) query = query.eq('conversation_id', conversationId);
+    const { data } = await query;
+    const map: Record<string, ChatTag[]> = conversationId
+      ? { ...conversationTagsMap, [conversationId]: [] }
+      : {};
+    for (const row of data || []) {
+      const tag = row.chat_tags as unknown as ChatTag;
+      if (!tag?.id) continue;
+      if (!map[row.conversation_id]) map[row.conversation_id] = [];
+      map[row.conversation_id].push(tag);
+    }
+    if (conversationId) {
+      setConversationTagsMap(prev => ({ ...prev, [conversationId]: map[conversationId] || [] }));
+    } else {
+      setConversationTagsMap(map);
+    }
+  }, [clientId, conversationTagsMap]);
+
   const addTagToConversation = useCallback(async (conversationId: string, tagId: string, tagName?: string) => {
     await supabase.from('chat_conversation_tags').insert({ conversation_id: conversationId, tag_id: tagId });
-    const name = tagName || tags.find(t => t.id === tagId)?.name || tagId;
+    const tag = tags.find(t => t.id === tagId);
+    const name = tagName || tag?.name || tagId;
+    if (tag) {
+      setConversationTagsMap(prev => ({
+        ...prev,
+        [conversationId]: [...(prev[conversationId] || []).filter(t => t.id !== tagId), tag],
+      }));
+    }
     supabase.from('chat_conversation_history').insert({
       conversation_id: conversationId,
       action: 'tag_added',
@@ -513,6 +575,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const removeTagFromConversation = useCallback(async (conversationId: string, tagId: string, tagName?: string) => {
     await supabase.from('chat_conversation_tags').delete().eq('conversation_id', conversationId).eq('tag_id', tagId);
     const name = tagName || tags.find(t => t.id === tagId)?.name || tagId;
+    setConversationTagsMap(prev => ({
+      ...prev,
+      [conversationId]: (prev[conversationId] || []).filter(t => t.id !== tagId),
+    }));
     supabase.from('chat_conversation_history').insert({
       conversation_id: conversationId,
       action: 'tag_removed',
@@ -1561,11 +1627,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       loadContacts();
       loadConversations();
       loadTags();
+      refreshConversationTags();
       setSelectedContactId(null);
       setMessages({});
       knownMessageIds.current.clear();
     }
-  }, [currentQueueId, clientId, loadContacts, loadConversations, loadTags]);
+  }, [currentQueueId, clientId, loadContacts, loadConversations, loadTags, refreshConversationTags]);
 
   // ============================================
   // Context Value
@@ -1644,7 +1711,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     selectedContact, filteredContacts, totalUnreadCount, individualUnreadCount, groupUnreadCount,
     selectedQueue, conversations, selectedConversation, conversationStatusFilter,
     loadConversations, getOrCreateConversation, updateConversationStatus, assignConversation,
-    tags, loadTags, addTagToConversation, removeTagFromConversation, createTag,
+    tags, loadTags, updateTag, deleteTag, addTagToConversation, removeTagFromConversation, createTag,
+    conversationTagsMap, refreshConversationTags,
     sendInternalNote, showDetailPanel, conversationHistory, loadConversationHistory,
   ]);
 

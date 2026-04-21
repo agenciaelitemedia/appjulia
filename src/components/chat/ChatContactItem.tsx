@@ -5,7 +5,7 @@ import { Users, MessageCircle, Globe, Instagram } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { differenceInMinutes, differenceInHours } from 'date-fns';
 import type { ChatContact } from '@/types/chat';
-import type { ChatConversation } from '@/types/conversation';
+import type { ChatConversation, ChatTag } from '@/types/conversation';
 import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
 import { SlaBadge } from '@/components/chat/SlaBadge';
 import { JuliaStatusBadge } from '@/components/chat/JuliaStatusBadge';
@@ -20,6 +20,7 @@ interface ChatContactItemProps {
   queueName?: string;
   assignedAgentName?: string;
   index?: number;
+  convTags?: ChatTag[];
 }
 
 function ChannelOverlay({ channel }: { channel?: string }) {
@@ -84,6 +85,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   queueName,
   assignedAgentName,
   index = 0,
+  convTags,
 }: ChatContactItemProps) {
   const { configs } = useChatSlaConfigs();
 
@@ -114,12 +116,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
     ? formatRelativeTime(contact.last_message_at)
     : null;
 
-  const extraBadges: { label: string; className: string }[] = [];
-  if (conversation?.tags && conversation.tags.length > 0) {
-    conversation.tags.slice(0, 2).forEach(tag => {
-      extraBadges.push({ label: tag.toUpperCase(), className: 'bg-emerald-600 text-white' });
-    });
-  }
+  const visibleTags = (convTags || []).slice(0, 2);
 
   return (
     <button
@@ -209,9 +206,15 @@ export const ChatContactItem = React.memo(function ChatContactItem({
                 className={assignedAgentName ? 'bg-muted text-foreground' : 'bg-muted/60 text-muted-foreground'}
               />
             </span>
-            {extraBadges.slice(0, 1).map((b, i) => (
-              <span key={i} className="flex-shrink min-w-0 max-w-[100px] truncate">
-                <Pill label={b.label} className={b.className} />
+            {visibleTags.map(tag => (
+              <span key={tag.id} className="flex-shrink-0 max-w-[90px] truncate">
+                <span
+                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold text-white truncate max-w-full"
+                  style={{ backgroundColor: tag.color }}
+                  title={tag.name}
+                >
+                  {tag.name.toUpperCase()}
+                </span>
               </span>
             ))}
           </div>

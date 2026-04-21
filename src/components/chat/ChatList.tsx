@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, ArrowUpDown, Plus, Timer, AlertTriangle, Flame, Bot, User, UserCheck, UserX, ListFilter, FolderOpen, CheckCheck, Archive, UserCircle, ChevronsUpDown, CalendarDays } from 'lucide-react';
+import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, ArrowUpDown, Plus, Timer, AlertTriangle, Flame, Bot, User, UserCheck, UserX, ListFilter, FolderOpen, CheckCheck, Archive, UserCircle, ChevronsUpDown, CalendarDays, Tag } from 'lucide-react';
+import { TagsManagerDialog } from './TagsManagerDialog';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { ChatContactItem } from './ChatContactItem';
@@ -75,6 +76,7 @@ export function ChatList() {
     conversationStatusFilter,
     setConversationStatusFilter,
     conversations,
+    conversationTagsMap,
   } = useWhatsAppData();
 
   const navigate = useNavigate();
@@ -90,6 +92,7 @@ export function ChatList() {
   const [stageIds, setStageIds] = useState<number[]>([]);
   const [stagePopoverOpen, setStagePopoverOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [showTagsManager, setShowTagsManager] = useState(false);
   const activeFilterCount =
     (modeFilter !== 'all' ? 1 : 0) +
     (slaFilter !== 'all' ? 1 : 0) +
@@ -305,8 +308,12 @@ export function ChatList() {
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/sla')} title="Configurar SLA">
               <Timer className="h-4 w-4" />
             </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowTagsManager(true)} title="Gerenciar Tags">
+              <Tag className="h-4 w-4" />
+            </Button>
           </div>
         </div>
+        <TagsManagerDialog open={showTagsManager} onOpenChange={setShowTagsManager} />
 
         {/* Search bar with filter icons */}
         <div className="px-4 pb-2">
@@ -733,6 +740,7 @@ export function ChatList() {
                   queueName={convQueue?.name}
                   assignedAgentName={conv?.assigned_to || undefined}
                   index={idx}
+                  convTags={conv ? conversationTagsMap[conv.id] : undefined}
                 />
               );
             })

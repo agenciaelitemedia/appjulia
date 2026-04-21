@@ -6,7 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { X, Phone, MessageSquare, Clock, Tag, History, Plus, Hash, Check, Pencil, Info, FileText } from 'lucide-react';
+import { X, Phone, MessageSquare, Clock, Tag, History, Plus, Hash, Check, Pencil, Info, FileText, Search } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -16,7 +16,118 @@ import { toast } from 'sonner';
 import { ConversationParticipants } from './ConversationParticipants';
 import { ConversationSummaries } from './ConversationSummaries';
 import type { ChatContact } from '@/types/chat';
-import type { ChatConversation, ConversationHistoryEntry } from '@/types/conversation';
+import type { ChatConversation, ConversationHistoryEntry, ChatTag } from '@/types/conversation';
+
+// ─── TagSelector ─────────────────────────────────────────────────────────────
+interface TagSelectorProps {
+  allTags: ChatTag[];
+  activeTags: string[];
+  onToggle: (tagId: string) => void;
+  onCreateAndAdd: () => void;
+  newTagName: string;
+  onNewTagNameChange: (v: string) => void;
+  showAddTag: boolean;
+  onToggleAddTag: () => void;
+}
+
+function TagSelector({ allTags, activeTags, onToggle, onCreateAndAdd, newTagName, onNewTagNameChange, showAddTag, onToggleAddTag }: TagSelectorProps) {
+  const [search, setSearch] = useState('');
+
+  const filtered = allTags.filter(t => t.name.toLowerCase().includes(search.toLowerCase()));
+  const activeTagObjs = allTags.filter(t => activeTags.includes(t.id));
+  const showCreate = search.trim() && !allTags.some(t => t.name.toLowerCase() === search.toLowerCase());
+
+  const handleCreateInline = () => {
+    onNewTagNameChange(search.trim());
+    // Trigger create via parent after setting name — use a tiny delay
+    setTimeout(() => {
+      onCreateAndAdd();
+      setSearch('');
+    }, 0);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h5 className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1">
+          <Tag className="h-3 w-3" /> Tags
+        </h5>
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onToggleAddTag} title="Adicionar tag">
+          <Plus className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      {/* Active tags */}
+      {activeTagObjs.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {activeTagObjs.map(tag => (
+            <button
+              key={tag.id}
+              onClick={() => onToggle(tag.id)}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold text-white hover:opacity-80 transition-opacity"
+              style={{ backgroundColor: tag.color }}
+              title="Clique para remover"
+            >
+              {tag.name}
+              <X className="h-2.5 w-2.5" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Search & select panel */}
+      {showAddTag && (
+        <div className="border rounded-md overflow-hidden bg-background">
+          <div className="flex items-center gap-1.5 px-2 py-1.5 border-b">
+            <Search className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+            <input
+              className="flex-1 text-xs bg-transparent outline-none placeholder:text-muted-foreground"
+              placeholder="Buscar ou criar tag..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              autoFocus
+              onKeyDown={e => { if (e.key === 'Escape') onToggleAddTag(); }}
+            />
+          </div>
+          <div className="max-h-[150px] overflow-y-auto py-1">
+            {filtered.map(tag => {
+              const active = activeTags.includes(tag.id);
+              return (
+                <button
+                  key={tag.id}
+                  onClick={() => onToggle(tag.id)}
+                  className={cn(
+                    'w-full flex items-center gap-2 px-2 py-1 text-xs hover:bg-muted/50 text-left',
+                    active && 'bg-muted/30'
+                  )}
+                >
+                  <span className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
+                  <span className="flex-1 truncate">{tag.name}</span>
+                  {active && <Check className="h-3 w-3 text-primary flex-shrink-0" />}
+                </button>
+              );
+            })}
+            {showCreate && (
+              <button
+                onClick={handleCreateInline}
+                className="w-full flex items-center gap-2 px-2 py-1 text-xs hover:bg-muted/50 text-left text-primary"
+              >
+                <Plus className="h-3 w-3 flex-shrink-0" />
+                Criar tag "{search.trim()}"
+              </button>
+            )}
+            {filtered.length === 0 && !showCreate && (
+              <p className="text-xs text-muted-foreground text-center py-2">Nenhuma tag encontrada</p>
+            )}
+          </div>
+        </div>
+      )}
+      {allTags.length === 0 && !showAddTag && (
+        <span className="text-xs text-muted-foreground">Nenhuma tag criada</span>
+      )}
+    </div>
+  );
+}
 
 interface ContactDetailPanelProps {
   contact: ChatContact;
@@ -275,48 +386,16 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
               {/* Tags */}
               {selectedConversation && (
                 <>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h5 className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1">
-                        <Tag className="h-3 w-3" /> Tags
-                      </h5>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowAddTag(!showAddTag)}>
-                        <Plus className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-
-                    {showAddTag && (
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Nova tag..."
-                          value={newTagName}
-                          onChange={(e) => setNewTagName(e.target.value)}
-                          className="h-7 text-xs"
-                          onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
-                        />
-                        <Button size="sm" className="h-7 text-xs" onClick={handleAddTag}>
-                          Criar
-                        </Button>
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap gap-1.5">
-                      {tags.map(tag => (
-                        <Badge
-                          key={tag.id}
-                          variant={conversationTags.includes(tag.id) ? 'default' : 'outline'}
-                          className="cursor-pointer text-[10px] px-2 py-0.5"
-                          style={conversationTags.includes(tag.id) ? { backgroundColor: tag.color } : {}}
-                          onClick={() => handleToggleTag(tag.id)}
-                        >
-                          {tag.name}
-                        </Badge>
-                      ))}
-                      {tags.length === 0 && !showAddTag && (
-                        <span className="text-xs text-muted-foreground">Nenhuma tag criada</span>
-                      )}
-                    </div>
-                  </div>
+                  <TagSelector
+                    allTags={tags}
+                    activeTags={conversationTags}
+                    onToggle={handleToggleTag}
+                    onCreateAndAdd={handleAddTag}
+                    newTagName={newTagName}
+                    onNewTagNameChange={setNewTagName}
+                    showAddTag={showAddTag}
+                    onToggleAddTag={() => setShowAddTag(v => !v)}
+                  />
                   <Separator />
                   <ConversationParticipants conversationId={selectedConversation.id} />
                   <Separator />
