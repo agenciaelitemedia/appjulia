@@ -264,9 +264,9 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
     <div className="border-t bg-background">
       {/* Reopen banner — conversation is resolved or closed */}
       {showReopenBanner && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-muted/60 border-b">
-          <span className="text-xs font-medium text-muted-foreground flex-1">
-            {selectedConversation?.status === 'closed' ? 'Conversa encerrada.' : 'Conversa concluída.'} Reabra para continuar o atendimento.
+        <div className="flex items-center justify-between px-3 py-2 bg-muted/60 border-b">
+          <span className="text-xs text-muted-foreground">
+            {selectedConversation?.status === 'closed' ? 'Conversa encerrada' : 'Conversa concluída'}
           </span>
           <Button
             size="sm"

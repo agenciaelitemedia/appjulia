@@ -1234,6 +1234,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     if (!contactId) return;
     (async () => {
       try {
+        // If a resolved/closed conversation already exists in memory, don't create a new one
+        const existingConv = conversations.find(c => c.contact_id === contactId);
+        if (existingConv && ['resolved', 'closed'].includes(existingConv.status)) {
+          // Just load messages — do not reopen
+          return;
+        }
+
         await getOrCreateConversation(contactId);
 
         const contact = contacts.find(c => c.id === contactId);
