@@ -290,7 +290,8 @@ export function ChatList() {
   }, [filteredContacts, slaFilter, slaStatusByContact, modeFilter, convMetaByContact, queueAgentMap, queryClient, conversations, ownerFilter, periodFilter, stageIds, stageByPhone, user?.id, user?.name]);
 
   // Count conversations by status
-  const openCount = conversations.filter(c => c.status === 'open' || c.status === 'pending').length;
+  const pendingCount = conversations.filter(c => c.status === 'pending').length;
+  const openCount = conversations.filter(c => c.status === 'open').length;
   const resolvedCount = conversations.filter(c => c.status === 'resolved').length;
   const closedCount = conversations.filter(c => c.status === 'closed').length;
 
@@ -500,19 +501,24 @@ export function ChatList() {
         {/* Status pills */}
         <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
           <button
-            onClick={() => setConversationStatusFilter('all')}
+            onClick={() => setConversationStatusFilter('pending')}
             className={cn(
               'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
-              conversationStatusFilter === 'all'
-                ? 'bg-foreground/10 text-foreground border-foreground/20'
+              conversationStatusFilter === 'pending'
+                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
                 : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
             )}
           >
-            <ListFilter className="h-3 w-3" />
-            Todos
+            <Clock className="h-3 w-3" />
+            Pendentes
+            {pendingCount > 0 && (
+              <span className="ml-0.5 bg-amber-500 text-white rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
+                {pendingCount}
+              </span>
+            )}
           </button>
           <button
-            onClick={() => setConversationStatusFilter(conversationStatusFilter === 'open' ? 'all' : 'open')}
+            onClick={() => setConversationStatusFilter('open')}
             className={cn(
               'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
               conversationStatusFilter === 'open'
@@ -521,7 +527,7 @@ export function ChatList() {
             )}
           >
             <FolderOpen className="h-3 w-3" />
-            Abertos
+            Em atendimento
             {openCount > 0 && (
               <span className="ml-0.5 bg-blue-500 text-white rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
                 {openCount}
@@ -529,7 +535,7 @@ export function ChatList() {
             )}
           </button>
           <button
-            onClick={() => setConversationStatusFilter(conversationStatusFilter === 'resolved' ? 'all' : 'resolved')}
+            onClick={() => setConversationStatusFilter('resolved')}
             className={cn(
               'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
               conversationStatusFilter === 'resolved'
@@ -538,7 +544,7 @@ export function ChatList() {
             )}
           >
             <CheckCheck className="h-3 w-3" />
-            Concluídos
+            Resolvidas
             {resolvedCount > 0 && (
               <span className="ml-0.5 bg-emerald-500 text-white rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
                 {resolvedCount}
@@ -546,7 +552,7 @@ export function ChatList() {
             )}
           </button>
           <button
-            onClick={() => setConversationStatusFilter(conversationStatusFilter === 'closed' ? 'all' : 'closed')}
+            onClick={() => setConversationStatusFilter('closed')}
             className={cn(
               'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
               conversationStatusFilter === 'closed'
@@ -555,7 +561,7 @@ export function ChatList() {
             )}
           >
             <Archive className="h-3 w-3" />
-            Encerrados
+            Encerradas
             {closedCount > 0 && (
               <span className="ml-0.5 bg-muted-foreground text-background rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
                 {closedCount}

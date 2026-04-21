@@ -116,7 +116,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
   // Conversation state
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
-  const [conversationStatusFilter, setConversationStatusFilter] = useState<ConversationFilterStatus>('all');
+  const [conversationStatusFilter, setConversationStatusFilter] = useState<ConversationFilterStatus>('pending');
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [tags, setTags] = useState<ChatTag[]>([]);
   const [conversationTagsMap, setConversationTagsMap] = useState<Record<string, ChatTag[]>>({});
