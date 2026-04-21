@@ -162,17 +162,81 @@ export function ChatList() {
   }, [convMetaByContact]);
   const { data: queueAgentMap } = useQueueAgentLinks(queueIds);
 
+  // Derive primary cod_agent for team-members fetch
+  const { data: userAgents = [] } = useQuery({
+    queryKey: ['chat-user-agents', user?.id],
+    queryFn: () => externalDb.getUserAgents<{ cod_agent: string }>(user!.id as number),
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const primaryCodAgent = React.useMemo(() => {
+    if (selectedQueue?.id) {
+      const link = queueAgentMap?.get(selectedQueue.id);
+      if (link?.codAgent) return link.codAgent;
+    }
+    return userAgents[0]?.cod_agent ? String(userAgents[0].cod_agent) : null;
+  }, [selectedQueue?.id, queueAgentMap, userAgents]);
+
+  const { data: teamMembers = [] } = useTeamForAgent(primaryCodAgent);
+  const { data: stages = [] } = useCRMStages();
+
+  // Phone → stage map
+  const allPhones = React.useMemo(
+    () => filteredContacts.map((c) => c.phone).filter(Boolean) as string[],
+    [filteredContacts]
+  );
+  const { data: stageByPhone } = useCRMStageByPhone(allPhones);
+
+  const stageSet = React.useMemo(() => new Set(stageIds), [stageIds]);
+  const allStagesSelected = stages.length > 0 && stageIds.length === stages.length;
+  const stageLabel = React.useMemo(() => {
+    if (stageIds.length === 0 || allStagesSelected) return 'Todas as etapas';
+    if (stageIds.length === 1) {
+      const s = stages.find((x) => x.id === stageIds[0]);
+      return s?.name ?? '1 etapa';
+    }
+    return `${stageIds.length} etapas`;
+  }, [stageIds, stages, allStagesSelected]);
+
+  const toggleStage = (id: number) => {
+    if (stageSet.has(id)) setStageIds(stageIds.filter((x) => x !== id));
+    else setStageIds([...stageIds, id]);
+  };
+  const toggleAllStages = () => {
+    setStageIds(allStagesSelected ? [] : stages.map((s) => s.id));
+  };
+
   const visibleContacts = React.useMemo(() => {
     let result = filteredContacts;
-    if (assigneeFilter !== 'all') {
+    if (ownerFilter !== 'all') {
       result = result.filter((c) => {
         const assigned = convMetaByContact.get(c.id)?.assignedTo;
-        if (assigneeFilter === 'unassigned') return !assigned;
-        if (assigneeFilter === 'mine') {
+        if (ownerFilter === 'unassigned') return !assigned;
+        if (ownerFilter === 'mine') {
           if (!assigned) return false;
           return assigned === String(user?.id) || assigned === user?.name;
         }
-        return true;
+        return assigned === ownerFilter;
+      });
+    }
+    if (periodFilter !== 'all') {
+      const range = getDateRange(periodFilter);
+      if (range) {
+        result = result.filter((c) => {
+          const ts = c.last_message_at || (c as any).updated_at;
+          if (!ts) return false;
+          const d = new Date(ts);
+          if (Number.isNaN(d.getTime())) return false;
+          return d >= range.from && d <= range.to;
+        });
+      }
+    }
+    if (stageIds.length > 0 && stageByPhone) {
+      result = result.filter((c) => {
+        const norm = (c.phone || '').replace(/\D/g, '');
+        const info = stageByPhone.get(norm);
+        return info ? stageIds.includes(info.stageId) : false;
       });
     }
     if (slaFilter !== 'all') {
@@ -200,7 +264,7 @@ export function ChatList() {
       });
     }
     return result;
-  }, [filteredContacts, slaFilter, slaStatusByContact, modeFilter, convMetaByContact, queueAgentMap, queryClient, conversations, assigneeFilter, user?.id, user?.name]);
+  }, [filteredContacts, slaFilter, slaStatusByContact, modeFilter, convMetaByContact, queueAgentMap, queryClient, conversations, ownerFilter, periodFilter, stageIds, stageByPhone, user?.id, user?.name]);
 
   // Count conversations by status
   const openCount = conversations.filter(c => c.status === 'open' || c.status === 'pending').length;
