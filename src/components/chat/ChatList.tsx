@@ -190,7 +190,19 @@ export function ChatList() {
     ...(agentsData?.monitoredAgents || []),
   ];
   const { data: stages = [] } = useCRMStages();
-  const { aliasMap } = useAgentAliases();
+  const { aliasMap, getDefaultAlias } = useAgentAliases();
+
+  // cod_agent → business name (fallback when no alias configured)
+  const agentBusinessNameMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    allAgents.forEach(a => {
+      if (a.cod_agent) {
+        const name = a.client_name || getDefaultAlias(a.business_name) || '';
+        if (name) map.set(String(a.cod_agent), name);
+      }
+    });
+    return map;
+  }, [allAgents, getDefaultAlias]);
 
   // Phone → stage map
   const allPhones = React.useMemo(
@@ -745,7 +757,9 @@ export function ChatList() {
               const convQueue = queueIdToShow ? activeQueues.find(q => q.id === queueIdToShow) : undefined;
               const queueLink = queueIdToShow ? queueAgentMap?.get(queueIdToShow) : undefined;
               const agentCodAgent = queueLink?.hasAgent ? queueLink.codAgent : null;
-              const agentAlias = agentCodAgent ? (aliasMap.get(agentCodAgent) || null) : null;
+              const agentAlias = agentCodAgent
+                ? (aliasMap.get(agentCodAgent) || agentBusinessNameMap.get(agentCodAgent) || null)
+                : null;
               const normPhone = (contact.phone || '').replace(/\D/g, '');
               const stageInfo = normPhone ? stageByPhone?.get(normPhone) : undefined;
               return (
