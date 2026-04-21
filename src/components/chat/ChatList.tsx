@@ -355,6 +355,17 @@ export function ChatList() {
         {/* Status pills */}
         <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
           <button
+            onClick={() => setConversationStatusFilter('all')}
+            className={cn(
+              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+              conversationStatusFilter === 'all'
+                ? 'bg-foreground/10 text-foreground border-foreground/20'
+                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+            )}
+          >
+            Todos
+          </button>
+          <button
             onClick={() => setConversationStatusFilter(conversationStatusFilter === 'open' ? 'all' : 'open')}
             className={cn(
               'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
