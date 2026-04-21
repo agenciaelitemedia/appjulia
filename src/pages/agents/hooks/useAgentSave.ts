@@ -166,6 +166,13 @@ export function useAgentSave() {
       // === CREATE USER-AGENT LINK ===
       await externalDb.insertUserAgent(createdUserId, createdAgentId, data.cod_agent);
 
+      // === ENSURE CHAT SETTINGS FOR CLIENT ===
+      await ensureChatClientSettings(
+        createdClientId,
+        data.new_client ? data.client_name : null,
+        data.new_client ? data.client_business_name : null,
+      );
+
       // === LOG CREATION ===
       await insertAgentChangeLog({
         agent_id: createdAgentId,
