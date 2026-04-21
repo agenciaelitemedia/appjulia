@@ -50,6 +50,14 @@ async function invokeQueueManagement(action: string, data: Record<string, unknow
 async function resolveClientId(user: { client_id?: number | string | null; id?: number | string } | null | undefined): Promise<string | null> {
   if (user?.client_id) return String(user.client_id);
   if (!user?.id) return null;
+  // 1st fallback: inherit from principal user (users.user_id → users.client_id)
+  try {
+    const inherited = await externalDb.getEffectiveClientId(Number(user.id));
+    if (inherited) return inherited;
+  } catch (e) {
+    console.warn('[useQueues] getEffectiveClientId failed', e);
+  }
+  // 2nd fallback (legacy): via user_agents → agents.client_id
   try {
     const userAgents = await externalDb.getUserAgents<{ client_id?: string | number | null }>(Number(user.id));
     const found = userAgents?.find((a) => a?.client_id != null);
