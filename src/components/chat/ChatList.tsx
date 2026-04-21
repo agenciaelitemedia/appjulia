@@ -436,6 +436,8 @@ export function ChatList() {
             )}
           </button>
         </div>
+        </>
+        )}
 
         {/* Queue selector - includes "Todas as filas" option */}
         {activeQueues.length > 0 && (
