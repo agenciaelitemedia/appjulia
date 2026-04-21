@@ -1,47 +1,73 @@
 
 
-## Aba "Grupos" condicional + limpar configurações do Chat
+## Auto-criar configuração de Chat ao criar/editar agente
 
-### 1. Mostrar/ocultar aba "Grupos" na sidebar do Chat
+### Comportamento
 
-**`src/pages/agente/filas/hooks/useAgentQueueLimits.ts`**
-- Adicionar `showGroupsTab: boolean` ao tipo `AgentQueueLimits` (default `false`).
-- Ler `s.SHOW_GROUPS_TAB` do JSON `settings` da tabela `chat_client_settings`.
+Ao salvar (criar OU editar) um agente, garantir que existe um registro em `chat_client_settings` para o `client_id` daquele agente. Se não existir, criar com os defaults (`QUEUE_LIMIT=1`, `ALLOW_GROUPS=false`). Se já existir, não mexer.
 
-**`src/components/chat/ChatList.tsx`**
-- Importar `useAgentQueueLimits()`.
-- A aba "Grupos" (linha 668–693) só aparece quando `allowGroups === true && showGroupsTab === true`.
-- Quando ocultar a aba, renderizar a barra somente com a aba "Individual" (ou esconder todo o bloco toggle, já que sobra apenas uma opção). Vou esconder o bloco inteiro nesse caso para não exibir um toggle inútil.
-- Forçar `setActiveTab('individual')` via `useEffect` quando o flag estiver desabilitado e `activeTab === 'groups'`, para evitar tela vazia se o admin desligar a flag enquanto o usuário estiver na aba "Grupos".
+### Implementação
 
-### 2. Remover toggles do dialog de configurações
+**Novo helper: `src/lib/ensureChatClientSettings.ts`**
 
-**`src/pages/configuracoes/components/ChatSettingsDialog.tsx`**
+```ts
+export async function ensureChatClientSettings(
+  clientId: number | string,
+  clientName?: string | null,
+  clientBusinessName?: string | null,
+): Promise<void> {
+  const cid = String(clientId);
+  // Verifica existência
+  const { data: existing } = await supabase
+    .from('chat_client_settings')
+    .select('id')
+    .eq('client_id', cid)
+    .maybeSingle();
+  if (existing) return;
 
-No array `ADVANCED_TOGGLES`, remover as 6 entradas:
-- `AUTO_ASSIGN_ON_REPLY` — Atribuir ticket ao primeiro a responder
-- `BUSINESS_HOURS_BLOCK` — Bloquear envio fora do horário
-- `QUICK_REPLIES_ENABLED` — Mensagens rápidas (atalho /)
-- `READ_RECEIPTS` — Marcar como lida automaticamente
-- `TYPING_INDICATOR` — Indicador "digitando..."
-- `SHOW_INTERNAL_NOTES` — Exibir notas internas
+  // Cria com defaults
+  await supabase.from('chat_client_settings').insert({
+    client_id: cid,
+    client_name: clientName ?? null,
+    client_business_name: clientBusinessName ?? null,
+    settings: { QUEUE_LIMIT: 1, ALLOW_GROUPS: false },
+  });
+}
+```
 
-Toggles que **permanecem** na seção "Configurações avançadas":
-- `SHOW_GROUPS_TAB` — Mostrar aba "Grupos" no chat
-- `NOTIFICATION_SOUND` — Som de notificação
-- Campos numéricos `AUTO_RESUME_AFTER_HOURS` e `MAX_FILE_SIZE_MB` (mantidos).
+Falha silenciosa (apenas `console.warn`) — não pode quebrar o fluxo de salvar agente.
 
-**`src/pages/configuracoes/hooks/useChatClientSettings.ts`**
-- Manter as chaves removidas no `interface ChatClientSettingsJson` e em `DEFAULT_CHAT_SETTINGS` (compatibilidade com registros já salvos), mas elas deixam de aparecer na UI. Não há remoção de schema necessária (JSONB).
+### Pontos de chamada
 
-### Resultado
+**1. Criar agente — `src/pages/agents/hooks/useAgentSave.ts`**
 
-- Aba "Grupos" da sidebar do Chat só aparece quando o cliente tem `ALLOW_GROUPS` **e** `SHOW_GROUPS_TAB` ativados em `/configuracoes → Chat`. Caso contrário, o toggle some completamente e a lista mostra somente conversas individuais.
-- Dialog de configurações fica enxuto, com apenas: bloco "Filas" (limite + permitir grupos), e em "Configurações avançadas" os toggles `SHOW_GROUPS_TAB` e `NOTIFICATION_SOUND`, mais os campos numéricos de reabertura de ticket e tamanho de upload.
+Após o `insertAgent` ser bem-sucedido (logo antes do `insertAgentChangeLog`), chamar:
+```ts
+await ensureChatClientSettings(
+  createdClientId,
+  data.new_client ? data.client_name : null,
+  data.new_client ? data.client_business_name : null,
+);
+```
+
+> Quando `new_client=false`, name/business_name ficam `null` no insert — o registro fica criado e o admin pode completar depois pela aba Chat (a coluna é nullable).
+
+**2. Editar agente — admin**
+
+Identificar o hook/handler de update do admin (`src/pages/agents/hooks/` — provavelmente `useAgentUpdate.ts` ou equivalente). Após o update do agente, chamar `ensureChatClientSettings(agent.client_id)`.
+
+**3. Editar agente — proprietário (`MyAgentEditPage.tsx`)**
+
+No `handleSave`, após `updateAgentByOwner`, chamar `ensureChatClientSettings(user.client_id)` (passando o `client_id` do usuário logado, que é o mesmo do agente).
 
 ### Arquivos editados
 
-- `src/pages/agente/filas/hooks/useAgentQueueLimits.ts` — incluir `showGroupsTab`.
-- `src/components/chat/ChatList.tsx` — renderização condicional da aba "Grupos" + reset defensivo de `activeTab`.
-- `src/pages/configuracoes/components/ChatSettingsDialog.tsx` — remover os 6 toggles solicitados de `ADVANCED_TOGGLES`.
+- **Novo**: `src/lib/ensureChatClientSettings.ts`
+- **Editado**: `src/pages/agents/hooks/useAgentSave.ts` — chamar helper após criar agente
+- **Editado**: hook/handler de update do agente no admin (a confirmar pelo nome real do arquivo durante a implementação) — chamar helper após update
+- **Editado**: `src/pages/agente/meus-agentes/MyAgentEditPage.tsx` — chamar helper após salvar
+
+### Resultado
+
+Todo agente criado ou editado garante a existência de um registro em `chat_client_settings` para o seu `client_id`, com defaults seguros (1 fila, sem grupos). O admin pode então ajustar pela aba `/configuracoes → Chat` quando quiser. Não há duplicação (verificação prévia por `client_id`, que já é `UNIQUE` na tabela).
 
