@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, ArrowUpDown, Plus, Timer, AlertTriangle, Flame, Bot, User } from 'lucide-react';
+import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, ArrowUpDown, Plus, Timer, AlertTriangle, Flame, Bot, User, UserCheck, UserX, ListFilter, FolderOpen, CheckCheck, Archive } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { ChatContactItem } from './ChatContactItem';
@@ -348,6 +348,7 @@ export function ChatList() {
                 : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
             )}
           >
+            <ListFilter className="h-3 w-3" />
             Todos
           </button>
           <button
@@ -359,6 +360,7 @@ export function ChatList() {
                 : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
             )}
           >
+            <UserCheck className="h-3 w-3" />
             Meus
           </button>
           <button
@@ -370,6 +372,7 @@ export function ChatList() {
                 : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
             )}
           >
+            <UserX className="h-3 w-3" />
             Sem responsáveis
           </button>
         </div>
@@ -385,6 +388,7 @@ export function ChatList() {
                 : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
             )}
           >
+            <ListFilter className="h-3 w-3" />
             Todos
           </button>
           <button
@@ -396,6 +400,7 @@ export function ChatList() {
                 : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
             )}
           >
+            <FolderOpen className="h-3 w-3" />
             Abertos
             {openCount > 0 && (
               <span className="ml-0.5 bg-blue-500 text-white rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
@@ -412,6 +417,7 @@ export function ChatList() {
                 : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
             )}
           >
+            <CheckCheck className="h-3 w-3" />
             Concluídos
             {resolvedCount > 0 && (
               <span className="ml-0.5 bg-emerald-500 text-white rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
@@ -428,6 +434,7 @@ export function ChatList() {
                 : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
             )}
           >
+            <Archive className="h-3 w-3" />
             Encerrados
             {closedCount > 0 && (
               <span className="ml-0.5 bg-muted-foreground text-background rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
