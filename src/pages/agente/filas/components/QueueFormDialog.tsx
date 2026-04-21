@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { Queue, useQueueMutations } from '../hooks/useQueues';
+import { useAgentQueueLimits } from '../hooks/useAgentQueueLimits';
 
 interface QueueFormDialogProps {
   open: boolean;
@@ -16,6 +17,7 @@ interface QueueFormDialogProps {
 
 export function QueueFormDialog({ open, onOpenChange, queue }: QueueFormDialogProps) {
   const { updateQueue } = useQueueMutations();
+  const { data: limits } = useAgentQueueLimits();
   const [name, setName] = useState('');
 
   useEffect(() => {
@@ -49,6 +51,18 @@ export function QueueFormDialog({ open, onOpenChange, queue }: QueueFormDialogPr
           <div>
             <Label>Nome da Fila</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: WhatsApp Principal" />
+          </div>
+
+          <div className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2">
+            <div>
+              <Label className="text-sm">Aceita grupos</Label>
+              <p className="text-xs text-muted-foreground">
+                Definido na configuração do agente
+              </p>
+            </div>
+            <span className={`text-sm font-medium ${limits?.allowGroups ? 'text-green-600' : 'text-muted-foreground'}`}>
+              {limits?.allowGroups ? '✓ Sim' : '✗ Não'}
+            </span>
           </div>
 
           {queue?.channel_type === 'uazapi' && (
