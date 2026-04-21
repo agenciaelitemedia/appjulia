@@ -224,7 +224,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             {visibleTags.map(tag => (
               <span key={tag.id} className="flex-shrink-0 max-w-[120px] truncate">
                 <span
-                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold text-white truncate max-w-full"
+                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold text-white truncate max-w-full border border-white/20 shadow-sm"
                   style={{ backgroundColor: tag.color }}
                   title={tag.name}
                 >
