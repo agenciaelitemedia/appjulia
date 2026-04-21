@@ -21,7 +21,7 @@ import { useChatSlaConfigs, evaluateSla, type SlaStatus } from '@/hooks/useChatS
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
 import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
-import { useAgentAliases } from '@/hooks/useAgentAliases';
+import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
 import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
 import { externalDb } from '@/lib/externalDb';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
@@ -190,7 +190,7 @@ export function ChatList() {
     ...(agentsData?.monitoredAgents || []),
   ];
   const { data: stages = [] } = useCRMStages();
-  const { aliasMap, getDefaultAlias } = useAgentAliases();
+  const { aliasMap } = useAgentAliases();
 
   // cod_agent → business name (fallback when no alias configured)
   const agentBusinessNameMap = React.useMemo(() => {
