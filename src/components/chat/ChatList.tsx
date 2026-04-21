@@ -19,7 +19,7 @@ import type { SessionStatus } from '@/lib/externalDb';
 import { cn } from '@/lib/utils';
 
 type SlaFilter = 'all' | 'breached' | 'at_risk';
-type ConversationModeFilter = 'all' | 'active' | 'pending';
+type ConversationModeFilter = 'all' | 'ia_active' | 'ia_inactive' | 'human';
 
 export function ChatList() {
   const {
@@ -124,21 +124,20 @@ export function ChatList() {
         const meta = convMetaByContact.get(c.id);
         const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
         const hasAgent = !!queueLink?.hasAgent;
-        let isGreen: boolean | null;
         if (hasAgent) {
-          // Bot mode: green if Julia active
           const codAgent = queueLink?.codAgent || meta?.codAgent || c.cod_agent;
+          if (modeFilter === 'human') return false;
           if (!codAgent || !c.phone) return false;
           const cached = queryClient.getQueryData<SessionStatus | null>(
             ['agent-session-status', codAgent, c.phone]
           );
-          if (cached === undefined) return true; // not yet loaded — keep visible
-          isGreen = cached?.active ?? false;
+          if (cached === undefined) return true; // not loaded — keep visible
+          const active = cached?.active ?? false;
+          return modeFilter === 'ia_active' ? active : !active;
         } else {
-          // Human-only queue: green if assignedTo is filled
-          isGreen = !!(meta?.assignedTo && meta.assignedTo.trim());
+          // Human-only queue
+          return modeFilter === 'human';
         }
-        return modeFilter === 'active' ? isGreen === true : isGreen === false;
       });
     }
     return result;
@@ -242,7 +241,6 @@ export function ChatList() {
         {/* Modo da conversa: Bot ativo / Pendente (sem bot ativo OU sem atendente) */}
         <div className="px-4 pb-2">
           <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
             <ToggleGroup
               type="single"
               value={modeFilter}
@@ -254,20 +252,28 @@ export function ChatList() {
                 Todas
               </ToggleGroupItem>
               <ToggleGroupItem
-                value="active"
+                value="ia_active"
                 className="text-[11px] px-2.5 h-7 gap-1 data-[state=on]:bg-green-100 data-[state=on]:text-green-700 dark:data-[state=on]:bg-green-900/30 dark:data-[state=on]:text-green-400"
-                title="Bot ativo OU atendente atribuído"
+                title="IA ativa"
               >
                 <Bot className="h-3 w-3 text-green-600" />
-                Ativos
+                IA ativa
               </ToggleGroupItem>
               <ToggleGroupItem
-                value="pending"
+                value="ia_inactive"
                 className="text-[11px] px-2.5 h-7 gap-1 data-[state=on]:bg-red-100 data-[state=on]:text-red-700 dark:data-[state=on]:bg-red-900/30 dark:data-[state=on]:text-red-400"
-                title="Bot inativo OU sem atendente"
+                title="IA inativa"
               >
-                <User className="h-3 w-3 text-red-600" />
-                Pendentes
+                <Bot className="h-3 w-3 text-red-600" />
+                IA inativa
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="human"
+                className="text-[11px] px-2.5 h-7 gap-1 data-[state=on]:bg-amber-100 data-[state=on]:text-amber-700 dark:data-[state=on]:bg-amber-900/30 dark:data-[state=on]:text-amber-400"
+                title="Atendente humano"
+              >
+                <User className="h-3 w-3 text-amber-600" />
+                Atendente
               </ToggleGroupItem>
             </ToggleGroup>
           </div>
