@@ -19,7 +19,10 @@ import type { UserAgent } from '@/pages/agente/meus-agentes/types';
 
 const LOGIN_FLAG = 'julia_just_logged_in';
 export function markJustLoggedIn() {
-  try { sessionStorage.setItem(LOGIN_FLAG, '1'); } catch {}
+  try {
+    sessionStorage.setItem(LOGIN_FLAG, '1');
+    sessionStorage.removeItem('julia_queues_alert_shown');
+  } catch {}
 }
 
 async function checkAgentConnected(agent: UserAgent): Promise<boolean | null> {
