@@ -2,6 +2,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { PrincipalUserAgent } from "../types";
 import { Bot, Eye } from "lucide-react";
+import { useAgentAliases } from "@/hooks/useAgentAliases";
 
 // Selected agent with cod_agent as key (agent_id can be null for monitored)
 export interface SelectedAgent {
@@ -22,6 +23,7 @@ export function AgentCheckboxList({
   onChange,
   isLoading,
 }: AgentCheckboxListProps) {
+  const { getAlias } = useAgentAliases();
   // Use cod_agent as key since agent_id can be null
   const selectedCodAgents = selectedAgents.map((a) => a.codAgent);
 
@@ -83,7 +85,7 @@ export function AgentCheckboxList({
         htmlFor={`agent-${agent.cod_agent}`}
         className="flex-1 cursor-pointer"
       >
-        <span className="font-medium">{agent.business_name}</span>
+        <span className="font-medium">{getAlias(agent.cod_agent, agent.business_name)}</span>
         <span className="text-muted-foreground text-xs ml-2">
           #{agent.cod_agent}
         </span>
