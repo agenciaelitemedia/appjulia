@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, ArrowUpDown, Plus, Timer, AlertTriangle, Flame, Bot, User, UserCheck, UserX, ListFilter, FolderOpen, CheckCheck, Archive } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, ArrowUpDown, Plus, Timer, AlertTriangle, Flame, Bot, User, UserCheck, UserX, ListFilter, FolderOpen, CheckCheck, Archive, UserCircle, ChevronsUpDown, CalendarDays } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { ChatContactItem } from './ChatContactItem';
@@ -15,6 +17,10 @@ import { Badge } from '@/components/ui/badge';
 import { useQueues } from '@/pages/agente/filas/hooks/useQueues';
 import { useChatSlaConfigs, evaluateSla, type SlaStatus } from '@/hooks/useChatSlaConfigs';
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
+import { useCRMStages, useTeamForAgent } from '@/pages/crm/hooks/useCRMData';
+import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
+import { externalDb } from '@/lib/externalDb';
+import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
 import type { ConversationFilterStatus } from '@/types/conversation';
 import type { SessionStatus } from '@/lib/externalDb';
 import { cn } from '@/lib/utils';
@@ -22,6 +28,32 @@ import { cn } from '@/lib/utils';
 type SlaFilter = 'all' | 'breached' | 'at_risk';
 type ConversationModeFilter = 'all' | 'ia_active' | 'ia_inactive' | 'human';
 type AssigneeFilter = 'all' | 'mine' | 'unassigned';
+type PeriodFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'last3Months';
+
+const PERIOD_OPTIONS: { value: PeriodFilter; label: string }[] = [
+  { value: 'all', label: 'Todos' },
+  { value: 'today', label: 'Hoje' },
+  { value: 'yesterday', label: 'Ontem' },
+  { value: 'last7days', label: '7 dias' },
+  { value: 'thisMonth', label: 'Mês atual' },
+  { value: 'last3Months', label: '3 meses' },
+];
+
+function getDateRange(p: PeriodFilter): { from: Date; to: Date } | null {
+  if (p === 'all') return null;
+  const now = new Date();
+  const todayStart = startOfDay(now);
+  switch (p) {
+    case 'today': return { from: todayStart, to: now };
+    case 'yesterday': {
+      const yStart = subDays(todayStart, 1);
+      return { from: yStart, to: todayStart };
+    }
+    case 'last7days': return { from: subDays(todayStart, 7), to: now };
+    case 'thisMonth': return { from: startOfMonth(now), to: now };
+    case 'last3Months': return { from: subMonths(todayStart, 3), to: now };
+  }
+}
 
 export function ChatList() {
   const {
