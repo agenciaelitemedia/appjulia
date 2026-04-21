@@ -51,11 +51,13 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
   // Internal notes remain enabled for any observer.
   const currentUserName = user?.name || (user?.id ? String(user.id) : '');
   const isActiveStatus = !!selectedConversation && ['pending', 'open'].includes(selectedConversation.status);
+  const isClosedStatus = !!selectedConversation && ['resolved', 'closed'].includes(selectedConversation.status);
   const isAssignedToMe = !!selectedConversation?.assigned_to
     && !!currentUserName
     && selectedConversation.assigned_to === currentUserName;
   const canSend = noteMode || (isAssignedToMe && isActiveStatus);
   const showClaimBanner = !!selectedConversation && isActiveStatus && !isAssignedToMe && !noteMode;
+  const showReopenBanner = isClosedStatus && !noteMode;
 
   const handleClaim = async () => {
     if (!selectedConversation || !currentUserName || isClaiming) return;
@@ -66,6 +68,20 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
         await updateConversationStatus(selectedConversation.id, 'open');
       }
       try { await markAsRead(contactId); } catch { /* noop */ }
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    } finally {
+      setIsClaiming(false);
+    }
+  };
+
+  const handleReopen = async () => {
+    if (!selectedConversation || isClaiming) return;
+    setIsClaiming(true);
+    try {
+      await updateConversationStatus(selectedConversation.id, 'open');
+      if (currentUserName) {
+        await assignConversation(selectedConversation.id, currentUserName);
+      }
       setTimeout(() => textareaRef.current?.focus(), 0);
     } finally {
       setIsClaiming(false);
@@ -246,6 +262,24 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
 
   return (
     <div className="border-t bg-background">
+      {/* Reopen banner — conversation is resolved or closed */}
+      {showReopenBanner && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-muted/60 border-b">
+          <span className="text-xs font-medium text-muted-foreground flex-1">
+            {selectedConversation?.status === 'closed' ? 'Conversa encerrada.' : 'Conversa concluída.'} Reabra para continuar o atendimento.
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs"
+            onClick={handleReopen}
+            disabled={isClaiming}
+          >
+            {isClaiming ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Reabrir'}
+          </Button>
+        </div>
+      )}
+
       {/* Claim banner — visible when conversation is active but not assigned to current user */}
       {showClaimBanner && (
         <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border-b border-amber-500/20">
