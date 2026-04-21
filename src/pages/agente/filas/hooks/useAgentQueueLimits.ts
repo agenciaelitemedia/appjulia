@@ -5,9 +5,10 @@ import { useAuth } from '@/contexts/AuthContext';
 export interface AgentQueueLimits {
   queueLimit: number;
   allowGroups: boolean;
+  showGroupsTab: boolean;
 }
 
-const DEFAULTS: AgentQueueLimits = { queueLimit: 1, allowGroups: false };
+const DEFAULTS: AgentQueueLimits = { queueLimit: 1, allowGroups: false, showGroupsTab: false };
 
 /**
  * Returns the chat-related limits for the currently logged-in user's client.
@@ -33,6 +34,7 @@ export function useAgentQueueLimits() {
         return {
           queueLimit: typeof s?.QUEUE_LIMIT === 'number' && s.QUEUE_LIMIT > 0 ? s.QUEUE_LIMIT : 1,
           allowGroups: !!s?.ALLOW_GROUPS,
+          showGroupsTab: !!s?.SHOW_GROUPS_TAB,
         };
       } catch {
         return DEFAULTS;

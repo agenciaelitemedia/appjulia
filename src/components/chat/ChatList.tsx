@@ -16,6 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ChatContactItem } from './ChatContactItem';
 import { Badge } from '@/components/ui/badge';
 import { useQueues } from '@/pages/agente/filas/hooks/useQueues';
+import { useAgentQueueLimits } from '@/pages/agente/filas/hooks/useAgentQueueLimits';
 import { useChatSlaConfigs, evaluateSla, type SlaStatus } from '@/hooks/useChatSlaConfigs';
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
 import { useCRMStages, useTeamForAgent } from '@/pages/crm/hooks/useCRMData';
@@ -78,6 +79,14 @@ export function ChatList() {
     conversations,
     conversationTagsMap,
   } = useWhatsAppData();
+  const { data: queueLimits } = useAgentQueueLimits();
+  const showGroupsTab = !!(queueLimits?.allowGroups && queueLimits?.showGroupsTab);
+
+  useEffect(() => {
+    if (!showGroupsTab && activeTab === 'groups') {
+      setActiveTab('individual');
+    }
+  }, [showGroupsTab, activeTab, setActiveTab]);
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -665,7 +674,8 @@ export function ChatList() {
           </div>
         )}
 
-        {/* Individual / Groups toggle */}
+        {/* Individual / Groups toggle (Groups only when enabled) */}
+        {showGroupsTab && (
         <div className="flex border-t">
           {[
             { value: 'individual' as const, label: 'Individual', icon: <MessageCircle className="h-3 w-3" />, count: individualUnreadCount },
@@ -691,6 +701,7 @@ export function ChatList() {
             </button>
           ))}
         </div>
+        )}
       </div>
 
       {/* Contact List */}

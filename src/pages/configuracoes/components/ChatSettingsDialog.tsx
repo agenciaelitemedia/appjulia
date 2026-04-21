@@ -35,13 +35,7 @@ const ADVANCED_TOGGLES: Array<{
   description: string;
 }> = [
   { key: 'SHOW_GROUPS_TAB', label: 'Mostrar aba "Grupos" no chat', description: 'Exibe a aba de grupos na sidebar (depende de "Permitir grupos")' },
-  { key: 'AUTO_ASSIGN_ON_REPLY', label: 'Atribuir ticket ao primeiro a responder', description: 'O operador que responder primeiro fica responsável pelo ticket' },
-  { key: 'BUSINESS_HOURS_BLOCK', label: 'Bloquear envio fora do horário', description: 'Impede o envio de mensagens fora do horário do agente' },
-  { key: 'QUICK_REPLIES_ENABLED', label: 'Mensagens rápidas (atalho /)', description: 'Habilita o atalho "/" para inserir mensagens rápidas' },
-  { key: 'READ_RECEIPTS', label: 'Marcar como lida automaticamente', description: 'Marca a conversa como lida ao abrir' },
-  { key: 'TYPING_INDICATOR', label: 'Indicador "digitando..."', description: 'Envia o status de digitação durante a composição' },
   { key: 'NOTIFICATION_SOUND', label: 'Som de notificação', description: 'Toca um som ao receber novas mensagens' },
-  { key: 'SHOW_INTERNAL_NOTES', label: 'Exibir notas internas', description: 'Mostra notas internas intercaladas no chat' },
 ];
 
 export function ChatSettingsDialog({ open, onOpenChange, editing }: Props) {
