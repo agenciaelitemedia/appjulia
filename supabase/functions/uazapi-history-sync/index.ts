@@ -157,17 +157,26 @@ Deno.serve(async (req) => {
       const chats: any[] = Array.isArray(pageData) ? pageData
         : Array.isArray(pageData?.chats) ? pageData.chats
         : Array.isArray(pageData?.data) ? pageData.data
+        : Array.isArray(pageData?.results) ? pageData.results
+        : Array.isArray(pageData?.items) ? pageData.items
         : [];
+
+      if (page === 1) {
+        const sample = chats[0] ? Object.keys(chats[0]).slice(0, 25) : [];
+        console.log(`[uazapi-history-sync] /chat/find page1 raw keys=${JSON.stringify(Object.keys(pageData || {}))} count=${chats.length} sampleChatKeys=${JSON.stringify(sample)}`);
+      }
 
       if (chats.length === 0) break;
 
       // Filter to chats with messages within the sync window
       const relevant = chats.filter((c) => {
-        const ts = c.timestamp ?? c.messageTimestamp ?? c.lastMessageTimestamp ?? 0;
+        const ts = c.wa_lastMsgTimestamp ?? c.lastMessageTimestamp ?? c.messageTimestamp ?? c.timestamp ?? c.wa_lastMessageTimestamp ?? 0;
+        if (!ts) return true; // keep if no ts info — let message fetch decide
         const tsMs = ts > 1e12 ? ts : ts * 1000;
         return tsMs >= cutoffMs;
       });
 
+      console.log(`[uazapi-history-sync] page ${page}: total=${chats.length} relevant=${relevant.length}`);
       allChats.push(...relevant);
       if (chats.length < PAGE_SIZE) break;
       page++;
