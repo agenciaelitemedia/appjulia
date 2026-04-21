@@ -315,6 +315,95 @@ export function ChatList() {
           </div>
         )}
 
+        {/* Responsável filter pills */}
+        <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
+          <button
+            onClick={() => setAssigneeFilter('all')}
+            className={cn(
+              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+              assigneeFilter === 'all'
+                ? 'bg-foreground/10 text-foreground border-foreground/20'
+                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+            )}
+          >
+            Todos
+          </button>
+          <button
+            onClick={() => setAssigneeFilter('mine')}
+            className={cn(
+              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+              assigneeFilter === 'mine'
+                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+            )}
+          >
+            Meus
+          </button>
+          <button
+            onClick={() => setAssigneeFilter('unassigned')}
+            className={cn(
+              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+              assigneeFilter === 'unassigned'
+                ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+            )}
+          >
+            Sem responsáveis
+          </button>
+        </div>
+
+        {/* Status pills */}
+        <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
+          <button
+            onClick={() => setConversationStatusFilter(conversationStatusFilter === 'open' ? 'all' : 'open')}
+            className={cn(
+              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+              conversationStatusFilter === 'open'
+                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+            )}
+          >
+            Abertos
+            {openCount > 0 && (
+              <span className="ml-0.5 bg-blue-500 text-white rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
+                {openCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setConversationStatusFilter(conversationStatusFilter === 'resolved' ? 'all' : 'resolved')}
+            className={cn(
+              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+              conversationStatusFilter === 'resolved'
+                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+            )}
+          >
+            Concluídos
+            {resolvedCount > 0 && (
+              <span className="ml-0.5 bg-emerald-500 text-white rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
+                {resolvedCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setConversationStatusFilter(conversationStatusFilter === 'closed' ? 'all' : 'closed')}
+            className={cn(
+              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+              conversationStatusFilter === 'closed'
+                ? 'bg-foreground/10 text-foreground border-foreground/20'
+                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+            )}
+          >
+            Encerrados
+            {closedCount > 0 && (
+              <span className="ml-0.5 bg-muted-foreground text-background rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
+                {closedCount}
+              </span>
+            )}
+          </button>
+        </div>
+
         {/* Queue selector - includes "Todas as filas" option */}
         {activeQueues.length > 0 && (
           <div className="px-4 pb-2">
