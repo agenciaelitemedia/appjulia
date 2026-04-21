@@ -15,7 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useQueues, type Queue } from '@/pages/agente/filas/hooks/useQueues';
 import { supabase } from '@/integrations/supabase/client';
 
-const LOGIN_FLAG = 'julia_just_logged_in';
+const ALERT_SHOWN_FLAG = 'julia_queues_alert_shown';
 
 async function checkQueueConnected(queue: Queue): Promise<boolean | null> {
   try {
@@ -68,7 +68,7 @@ export function DisconnectedQueuesAlert() {
 
   useEffect(() => {
     if (!isAuthenticated || !user?.id || !allDone || handledRef.current) return;
-    if (sessionStorage.getItem(LOGIN_FLAG) !== '1') return;
+    if (sessionStorage.getItem(ALERT_SHOWN_FLAG) === '1') return;
 
     const off = queries
       .map(q => q.data)
@@ -76,7 +76,7 @@ export function DisconnectedQueuesAlert() {
       .map(d => d.queue);
 
     handledRef.current = true;
-    // Não removemos LOGIN_FLAG aqui — DisconnectedAgentsAlert é responsável por isso
+    sessionStorage.setItem(ALERT_SHOWN_FLAG, '1');
 
     if (off.length > 0) {
       setDisconnected(off);
