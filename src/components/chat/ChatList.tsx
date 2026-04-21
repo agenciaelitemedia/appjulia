@@ -126,7 +126,7 @@ export function ChatList() {
         if (assigneeFilter === 'unassigned') return !assigned;
         if (assigneeFilter === 'mine') {
           if (!assigned) return false;
-          return assigned === user?.id || assigned === user?.name;
+          return assigned === String(user?.id) || assigned === user?.name;
         }
         return true;
       });
@@ -179,33 +179,6 @@ export function ChatList() {
       <div className="border-b">
         {/* Status pills row */}
         <div className="flex items-center gap-2 px-4 pt-3 pb-2">
-          <button
-            onClick={() => setConversationStatusFilter('all')}
-            className={cn(
-              'text-sm font-medium transition-colors',
-              conversationStatusFilter === 'all' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            Todas
-          </button>
-          {statusPills.map(pill => (
-            <button
-              key={pill.value}
-              onClick={() => setConversationStatusFilter(pill.value)}
-              className={cn(
-                'flex items-center gap-1.5 text-sm font-medium transition-colors',
-                conversationStatusFilter === pill.value ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {pill.label}
-              {pill.count !== undefined && pill.count > 0 && (
-                <span className={cn('text-[10px] text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 font-bold', pill.color)}>
-                  {pill.count}
-                </span>
-              )}
-            </button>
-          ))}
-
           {/* Right side actions */}
           <div className="ml-auto flex items-center gap-1">
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/metricas')} title="Métricas">
