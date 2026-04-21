@@ -1,0 +1,167 @@
+import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { MessageCircle, Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { EditContactDialog } from './EditContactDialog';
+import { DeleteContactDialog } from './DeleteContactDialog';
+import type { ContactRow } from '../hooks/useContactsList';
+
+interface Props {
+  contacts: ContactRow[];
+  isLoading: boolean;
+  isGroup: boolean;
+}
+
+const PAGE_SIZE = 50;
+
+export function ContactsTable({ contacts, isLoading, isGroup }: Props) {
+  const navigate = useNavigate();
+  const [page, setPage] = useState(0);
+  const [editing, setEditing] = useState<ContactRow | null>(null);
+  const [deleting, setDeleting] = useState<ContactRow | null>(null);
+
+  const totalPages = Math.max(1, Math.ceil(contacts.length / PAGE_SIZE));
+  const paginated = useMemo(
+    () => contacts.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE),
+    [contacts, page],
+  );
+
+  const handleOpenChat = (id: string) => {
+    sessionStorage.setItem('chat_pending_contact_id', id);
+    navigate('/chat');
+  };
+
+  const truncate = (s: string, n = 30) =>
+    s.length > n ? s.slice(0, n).trimEnd() + '…' : s;
+
+  const formatDate = (date: string | null) => {
+    if (!date) return '—';
+    try {
+      return formatDistanceToNow(new Date(date), { addSuffix: true, locale: ptBR });
+    } catch {
+      return '—';
+    }
+  };
+
+  return (
+    <TooltipProvider>
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-12"></TableHead>
+              <TableHead>Nome</TableHead>
+              <TableHead>Telefone</TableHead>
+              <TableHead>Fila</TableHead>
+              <TableHead>Última mensagem</TableHead>
+              <TableHead className="text-right w-32">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  Carregando...
+                </TableCell>
+              </TableRow>
+            ) : paginated.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  Nenhum {isGroup ? 'grupo' : 'contato'} encontrado
+                </TableCell>
+              </TableRow>
+            ) : (
+              paginated.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell>
+                    <Avatar className="h-9 w-9">
+                      <AvatarImage src={c.avatar ?? undefined} />
+                      <AvatarFallback className="text-xs">
+                        {(c.name || c.phone).slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </TableCell>
+                  <TableCell className="font-medium">{truncate(c.name || '—')}</TableCell>
+                  <TableCell className="font-mono text-sm">{c.phone}</TableCell>
+                  <TableCell>
+                    {c.channel_source ? (
+                      <Badge variant="secondary" className="text-xs">{c.channel_source}</Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{formatDate(c.last_message_at)}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-1">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-500/10" onClick={() => handleOpenChat(c.id)}>
+                            <MessageCircle className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Abrir Chat</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-500/10" onClick={() => setEditing(c)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Editar</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => setDeleting(c)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Excluir</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {contacts.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-sm text-muted-foreground">
+            Página {page + 1} de {totalPages} • {contacts.length} {isGroup ? 'grupos' : 'contatos'}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>
+              <ChevronLeft className="h-4 w-4" /> Anterior
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}>
+              Próxima <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <EditContactDialog contact={editing} open={!!editing} onOpenChange={(o) => !o && setEditing(null)} />
+      <DeleteContactDialog contact={deleting} open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)} />
+    </TooltipProvider>
+  );
+}

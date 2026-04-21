@@ -4,12 +4,19 @@ import { ChatContainer } from '@/components/chat';
 import { ChatCommandPalette } from '@/components/chat/ChatCommandPalette';
 
 function ChatPageContent() {
-  const { loadContacts } = useWhatsAppData();
+  const { loadContacts, selectContact } = useWhatsAppData();
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   useEffect(() => {
-    loadContacts();
-  }, [loadContacts]);
+    (async () => {
+      await loadContacts();
+      const pending = sessionStorage.getItem('chat_pending_contact_id');
+      if (pending) {
+        sessionStorage.removeItem('chat_pending_contact_id');
+        selectContact(pending);
+      }
+    })();
+  }, [loadContacts, selectContact]);
 
   // Cmd+K / Ctrl+K para abrir Command Palette
   useEffect(() => {
