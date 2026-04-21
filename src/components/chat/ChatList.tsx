@@ -47,10 +47,12 @@ export function ChatList() {
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const { data: queues = [] } = useQueues();
   const { configs: slaConfigs } = useChatSlaConfigs();
   const [slaFilter, setSlaFilter] = useState<SlaFilter>('all');
   const [modeFilter, setModeFilter] = useState<ConversationModeFilter>('all');
+  const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('all');
 
   const activeQueues = queues.filter(q => q.is_active && !q.is_deleted);
 
