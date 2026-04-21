@@ -2,7 +2,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, Unplug } from 'lucide-react';
+import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, WifiOff } from 'lucide-react';
 import { Queue } from '../hooks/useQueues';
 import { UazapiInstanceStatus } from './UazapiInstanceStatus';
 import { DisconnectWabaDialog } from './DisconnectWabaDialog';
@@ -55,14 +55,6 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
                   <DropdownMenuItem onClick={() => onEdit(queue)}>
                     <Pencil className="mr-2 h-4 w-4" /> Editar
                   </DropdownMenuItem>
-                  {hasWabaCreds && (
-                    <DropdownMenuItem
-                      onClick={() => setDisconnectOpen(true)}
-                      className="text-destructive"
-                    >
-                      <Unplug className="mr-2 h-4 w-4" /> Desconectar
-                    </DropdownMenuItem>
-                  )}
                   <DropdownMenuItem onClick={() => onDelete(queue)} className="text-destructive">
                     <Trash2 className="mr-2 h-4 w-4" /> Excluir
                   </DropdownMenuItem>
@@ -101,6 +93,20 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
             queueId={queue.id}
             queueName={queue.name}
           />
+        )}
+
+        {hasWabaCreds && !queue.is_deleted && (
+          <div className="mt-3 pt-3 border-t border-border/50">
+            <Button
+              size="sm"
+              variant="destructive"
+              className="h-7 text-xs"
+              onClick={() => setDisconnectOpen(true)}
+            >
+              <WifiOff className="w-3 h-3 mr-1" />
+              Desconectar
+            </Button>
+          </div>
         )}
       </CardContent>
 
