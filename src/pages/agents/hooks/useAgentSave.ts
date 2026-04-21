@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import type { AgentFormData } from '../components/CreateAgentWizard';
 import { generateSecurePassword } from '@/lib/crypto';
 import { insertAgentChangeLog } from './useAgentChangeLog';
+import { ensureChatClientSettings } from '@/lib/ensureChatClientSettings';
 
 interface SaveResult {
   success: boolean;
