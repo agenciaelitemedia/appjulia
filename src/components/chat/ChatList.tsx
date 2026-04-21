@@ -53,6 +53,12 @@ export function ChatList() {
   const [slaFilter, setSlaFilter] = useState<SlaFilter>('all');
   const [modeFilter, setModeFilter] = useState<ConversationModeFilter>('all');
   const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('all');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilterCount =
+    (modeFilter !== 'all' ? 1 : 0) +
+    (slaFilter !== 'all' ? 1 : 0) +
+    (assigneeFilter !== 'all' ? 1 : 0) +
+    (conversationStatusFilter !== 'all' ? 1 : 0);
 
   const activeQueues = queues.filter(q => q.is_active && !q.is_deleted);
 
@@ -208,8 +214,22 @@ export function ChatList() {
                 className="pl-9 h-9 bg-muted/40 border-0"
               />
             </div>
-            <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                'h-9 w-9 flex-shrink-0 relative',
+                filtersOpen && 'bg-muted text-foreground'
+              )}
+              onClick={() => setFiltersOpen((v) => !v)}
+              title="Filtros"
+            >
               <Filter className="h-4 w-4" />
+              {activeFilterCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-primary text-primary-foreground rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
+                  {activeFilterCount}
+                </span>
+              )}
             </Button>
             <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0">
               <ArrowUpDown className="h-4 w-4" />
