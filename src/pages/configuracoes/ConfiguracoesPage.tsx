@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Plus, Loader2, Network, Bot } from 'lucide-react';
+import { Plus, Loader2, Network, Bot, MessageSquare } from 'lucide-react';
 import { AIModelsConfig } from './components/AIModelsConfig';
+import { ChatSettingsTab } from './components/ChatSettingsTab';
 import { useQueueProviders, useQueueProviderMutations, type QueueProvider } from './hooks/useQueueProviders';
 import { ProviderCard } from './components/ProviderCard';
 import { ProviderFormDialog } from './components/ProviderFormDialog';
@@ -69,6 +70,10 @@ export default function ConfiguracoesPage() {
             <Network className="w-4 h-4" />
             Provedores de Fila
           </TabsTrigger>
+          <TabsTrigger value="chat" className="gap-2">
+            <MessageSquare className="w-4 h-4" />
+            Chat
+          </TabsTrigger>
           <TabsTrigger value="ai" className="gap-2">
             <Bot className="w-4 h-4" />
             IA's
@@ -105,6 +110,10 @@ export default function ConfiguracoesPage() {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="chat" className="mt-6">
+          <ChatSettingsTab />
         </TabsContent>
 
         <TabsContent value="ai" className="mt-6 space-y-4">
