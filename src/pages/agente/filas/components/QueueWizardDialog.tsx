@@ -479,9 +479,9 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
                 Próximo <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             ) : (
-              <Button onClick={handleSubmit} disabled={!canSubmit || createQueue.isPending}>
+              <Button onClick={handleSubmit} disabled={!canSubmit || createQueue.isPending || limitReached}>
                 {createQueue.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Criar Fila
+                {limitReached ? `Limite atingido (${queueLimit})` : 'Criar Fila'}
               </Button>
             )}
           </div>
