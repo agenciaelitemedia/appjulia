@@ -19,7 +19,7 @@ import type { SessionStatus } from '@/lib/externalDb';
 import { cn } from '@/lib/utils';
 
 type SlaFilter = 'all' | 'breached' | 'at_risk';
-type ConversationModeFilter = 'all' | 'active' | 'pending';
+type ConversationModeFilter = 'all' | 'ia_active' | 'ia_inactive' | 'human';
 
 export function ChatList() {
   const {
