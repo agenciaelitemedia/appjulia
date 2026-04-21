@@ -22,7 +22,7 @@ export function useAgentQueueLimits() {
     queryFn: async (): Promise<AgentQueueLimits> => {
       if (!clientId) return DEFAULTS;
       try {
-        const rows = await externalDb.raw<{ settings: unknown }[]>({
+        const rows = await externalDb.raw<{ settings: unknown }>({
           query: `SELECT settings FROM agents WHERE client_id = $1 ORDER BY id ASC LIMIT 1`,
           params: [clientId],
         });
