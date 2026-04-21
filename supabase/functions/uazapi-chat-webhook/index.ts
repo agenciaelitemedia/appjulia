@@ -332,6 +332,15 @@ Deno.serve(async (req) => {
           || !!msg.groupName
           || !!msg.wa_groupName;
 
+        // Honor agent's ALLOW_GROUPS flag — silently skip group messages when disabled.
+        if (isGroup) {
+          const allowGroups = await getAllowGroupsForClient(String(queue.client_id));
+          if (!allowGroups) {
+            skipped.group++;
+            continue;
+          }
+        }
+
         const messageId = msg.id || msg.messageId || msg.message_id || msg.key?.id || msg.wa_messageid;
         if (!messageId) { skipped.no_id++; console.log('[uazapi-chat-webhook] no messageId, sample:', JSON.stringify(msg).slice(0, 400)); continue; }
 
