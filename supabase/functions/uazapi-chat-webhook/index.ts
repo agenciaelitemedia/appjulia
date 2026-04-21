@@ -25,19 +25,21 @@ async function getAllowGroupsForClient(clientId: string): Promise<boolean> {
   const cached = agentSettingsCache.get(clientId);
   if (cached && cached.expires > now) return cached.value.allow_groups;
   try {
-    const res = await fetch(`${Deno.env.get('SUPABASE_URL')!}/functions/v1/db-query`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`,
-      },
-      body: JSON.stringify({ action: 'get_agent_queue_settings', data: { client_id: clientId } }),
-    });
-    const json = await res.json();
-    const row = Array.isArray(json?.data) ? json.data[0] : null;
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('chat_client_settings')
+      .select('settings')
+      .eq('client_id', clientId)
+      .maybeSingle();
+    if (error || !data) {
+      const value = { allow_groups: false, queue_limit: 1 };
+      agentSettingsCache.set(clientId, { value, expires: now + 60_000 });
+      return false;
+    }
+    const s = (data.settings ?? {}) as Record<string, unknown>;
     const value = {
-      allow_groups: !!row?.allow_groups,
-      queue_limit: typeof row?.queue_limit === 'number' && row.queue_limit > 0 ? row.queue_limit : 1,
+      allow_groups: !!s?.ALLOW_GROUPS,
+      queue_limit: typeof s?.QUEUE_LIMIT === 'number' && (s.QUEUE_LIMIT as number) > 0 ? (s.QUEUE_LIMIT as number) : 1,
     };
     agentSettingsCache.set(clientId, { value, expires: now + 60_000 });
     return value.allow_groups;

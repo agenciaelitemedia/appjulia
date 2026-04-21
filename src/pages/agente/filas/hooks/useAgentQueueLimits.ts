@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { externalDb } from '@/lib/externalDb';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
 export interface AgentQueueLimits {
@@ -10,8 +10,9 @@ export interface AgentQueueLimits {
 const DEFAULTS: AgentQueueLimits = { queueLimit: 1, allowGroups: false };
 
 /**
- * Returns the queue-related settings of the currently logged-in user's agent.
- * Falls back to defaults (1 queue, no groups) when no agent is associated.
+ * Returns the chat-related limits for the currently logged-in user's client.
+ * Reads from `chat_client_settings` (Supabase). Falls back to defaults
+ * (1 queue, no groups) when no configuration exists for the client.
  */
 export function useAgentQueueLimits() {
   const { user } = useAuth();
@@ -22,15 +23,13 @@ export function useAgentQueueLimits() {
     queryFn: async (): Promise<AgentQueueLimits> => {
       if (!clientId) return DEFAULTS;
       try {
-        const rows = await externalDb.raw<{ settings: unknown }>({
-          query: `SELECT settings FROM agents WHERE client_id = $1 ORDER BY id ASC LIMIT 1`,
-          params: [clientId],
-        });
-        if (!rows.length) return DEFAULTS;
-        let s: any = rows[0].settings;
-        if (typeof s === 'string') {
-          try { s = JSON.parse(s); } catch { s = {}; }
-        }
+        const { data, error } = await supabase
+          .from('chat_client_settings')
+          .select('settings')
+          .eq('client_id', clientId)
+          .maybeSingle();
+        if (error || !data) return DEFAULTS;
+        const s = (data.settings ?? {}) as any;
         return {
           queueLimit: typeof s?.QUEUE_LIMIT === 'number' && s.QUEUE_LIMIT > 0 ? s.QUEUE_LIMIT : 1,
           allowGroups: !!s?.ALLOW_GROUPS,
