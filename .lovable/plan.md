@@ -1,68 +1,135 @@
 
 
-## Bloco "Filas" no Criar/Editar Agente
+## Migrar configurações de Filas/Chat do Agente para `/configuracoes` → aba **Chat**
 
-### Escopo desta etapa
+### O que muda
 
-Adicionar um novo bloco **"Filas"** no ConfigStep do agente com 2 configurações iniciais (mais virão depois):
+1. **Remover** o bloco "Filas de Atendimento" (`QUEUE_LIMIT` + `ALLOW_GROUPS`) do ConfigStep do agente. Essas configurações deixam de viver no JSON `settings` do agente.
+2. **Criar** uma nova aba **"Chat"** em `/configuracoes` com gestão de configurações **por cliente** (vínculo `client_id`), usando um único campo `JSONB settings` para suportar expansão futura sem novas migrações.
+3. **Ajustar enforcement** (limite de filas + filtro de grupos) para ler do novo storage no Supabase em vez do agente externo.
 
-1. **Total de filas permitidas** (`QUEUE_LIMIT`) — número inteiro, padrão `1`.
-2. **Permitir grupos** (`ALLOW_GROUPS`) — switch, padrão `false` (desabilitado).
+### Storage (Supabase) — nova tabela `chat_client_settings`
 
-Esses valores são persistidos no JSON `settings` do agente (tabela externa `agents`) — o ConfigStep já serializa tudo automaticamente, então **não exige migração de schema**.
-
-### Onde aparece (UI)
-
-Novo `Card` no `src/pages/agents/components/wizard-steps/ConfigStep.tsx`, posicionado logo abaixo do bloco "Copiloto Julia IA" (alta visibilidade):
-
-```
-┌─ Filas de Atendimento ──────────────────┐
-│ [icon Network]                          │
-│                                         │
-│ Total de filas permitidas    [  1  ]    │
-│ Quantas filas este agente pode criar    │
-│                                         │
-│ ─────────────────────────────────────   │
-│                                         │
-│ Permitir grupos              [○──]      │
-│ Habilita o atendimento de grupos do     │
-│ WhatsApp (@g.us) nas filas deste agente │
-└─────────────────────────────────────────┘
+```sql
+create table public.chat_client_settings (
+  id uuid primary key default gen_random_uuid(),
+  client_id text not null unique,         -- vínculo com agents.client_id (externo)
+  client_name text,                        -- snapshot p/ exibir na lista
+  client_business_name text,
+  settings jsonb not null default '{}'::jsonb,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+-- RLS: leitura/escrita autenticada (mesmo padrão das outras tabelas de chat).
+-- Índice em client_id (único já cria).
 ```
 
-Como o ConfigStep é compartilhado entre `CreateAgentWizard`, `EditAgentPage` e `MyAgentEditPage`, o bloco aparece automaticamente nas 3 telas. No `MyAgentEditPage` (proprietário), respeita o `can_edit_config` já existente.
+Trigger `updated_at` reusando `update_chat_contacts_updated_at()`.
 
-Adicionar `QUEUE_LIMIT: 1` e `ALLOW_GROUPS: false` ao `DEFAULT_CONFIG` e à `interface ConfigFields`.
+### Schema do JSON `settings` (versionável)
 
-### Como reflete na criação/edição de filas (enforcement)
+**Bloco solicitado pelo usuário (obrigatório):**
+- `QUEUE_LIMIT` (number, default `1`) — total de filas que o cliente pode criar.
+- `ALLOW_GROUPS` (bool, default `false`) — habilita aba/ingestão de grupos `@g.us` no Chat.
+
+**Sugestões adicionais (opt-in via checkboxes "configurações avançadas" — usuário escolhe quais ativar agora; o que não ativar fica com default seguro):**
+
+| Chave | Tipo / Default | O que faz |
+|---|---|---|
+| `SHOW_GROUPS_TAB` | bool / `false` | Mostra a aba "Grupos" na sidebar do `/chat` (depende de ALLOW_GROUPS) |
+| `AUTO_ASSIGN_ON_REPLY` | bool / `true` | Atribui ticket ao operador que responder primeiro |
+| `BUSINESS_HOURS_BLOCK` | bool / `false` | Bloqueia envio fora do horário de atendimento do agente |
+| `QUICK_REPLIES_ENABLED` | bool / `true` | Habilita atalho `/` para mensagens rápidas |
+| `READ_RECEIPTS` | bool / `true` | Marca conversa como lida automaticamente ao abrir |
+| `TYPING_INDICATOR` | bool / `true` | Envia indicador "digitando..." durante composição |
+| `AUTO_RESUME_AFTER_HOURS` | number / `24` | Reabrir ticket fechado se cliente responder dentro de N horas |
+| `MAX_FILE_SIZE_MB` | number / `16` | Limite de upload de mídia no chat |
+| `NOTIFICATION_SOUND` | bool / `true` | Som de notificação para novas mensagens |
+| `SHOW_INTERNAL_NOTES` | bool / `true` | Exibe notas internas (azul) intercaladas no chat |
+
+> Nesta entrega só **persistimos** todos os campos no JSON. **Aplicamos comportamento** apenas para `QUEUE_LIMIT`, `ALLOW_GROUPS` e `SHOW_GROUPS_TAB` (já tem efeito direto no UI/webhook). Os demais ficam disponíveis para wiring incremental nas próximas etapas.
+
+### Fluxo da nova aba "Chat" (UX igual ao print enviado)
+
+```
+/configuracoes → Tab "Chat"
+┌────────────────────────────────────────────────┐
+│ [Lista de configurações por cliente]           │
+│  Cliente A  │ 3 filas │ Grupos: ✓ │ Editar 🗑  │
+│  Cliente B  │ 1 fila  │ Grupos: ✗ │ Editar 🗑  │
+│                                                │
+│              [+ Nova Configuração]             │
+└────────────────────────────────────────────────┘
+
+Clica "Nova Configuração" → Dialog Step 1 (idêntico ao print/ClientStep):
+┌────────────────────────────────────────────────┐
+│ Selecionar Cliente                             │
+│ [🔍 Buscar cliente por nome, escritório...]   │
+│ (lista de resultados via useClientSearch)      │
+└────────────────────────────────────────────────┘
+
+Selecionou cliente → Step 2: Formulário de configurações:
+┌────────────────────────────────────────────────┐
+│ Cliente: Acme Ltda  [Trocar]                   │
+│                                                │
+│ ─── Filas ───                                  │
+│ Total de filas permitidas      [  1  ]         │
+│ Permitir grupos                [○──]           │
+│                                                │
+│ ─── Configurações avançadas ───                │
+│ ☐ Mostrar aba "Grupos" no chat                 │
+│ ☑ Atribuir ticket ao primeiro a responder      │
+│ ☐ Bloquear envio fora do horário               │
+│ ☑ Mensagens rápidas (atalho /)                 │
+│ ☑ Marcar como lida automaticamente             │
+│ ... (toggles para cada chave sugerida)         │
+│                                                │
+│         [Cancelar]   [Salvar]                  │
+└────────────────────────────────────────────────┘
+```
+
+Edição reaproveita a Step 2 (cliente já selecionado, sem busca).
+
+### Enforcement — onde os valores são lidos
 
 **A. Limite de filas (`QUEUE_LIMIT`)**
+- `supabase/functions/queue-management/index.ts` (action `create`): substituir `getAgentQueueSettings()` (que chamava `db-query`/agente externo) por `supabase.from('chat_client_settings').select('settings').eq('client_id', client_id).maybeSingle()` e ler `settings.QUEUE_LIMIT` (fallback 1). Mantém o gate atual com erro `queue_limit_reached`.
+- Frontend `src/pages/agente/filas/hooks/useAgentQueueLimits.ts`: substituir consulta no `externalDb.agents` por `supabase.from('chat_client_settings').select('settings').eq('client_id', user.client_id).maybeSingle()`.
 
-1. Frontend (`src/pages/agente/filas/FilasPage.tsx`): novo hook `useAgentQueueLimits()` que carrega via `externalDb` o agente do usuário logado (vinculação por `cod_agent`/`client_id`) e retorna `{ queueLimit, allowGroups }`. O botão "Nova Fila" fica desabilitado com tooltip quando `activeQueues.length >= queueLimit` ("Limite de X filas atingido. Contate seu administrador para aumentar.").
-2. Backend (`supabase/functions/queue-management/index.ts`, action `create`): antes do insert, contar filas ativas do `client_id` (`COUNT * FROM queues WHERE client_id = ? AND is_deleted = false`) e buscar `QUEUE_LIMIT` do agente associado via chamada interna a `db-query` (settings JSON do agente do client). Se `count >= limit` → retornar erro `"queue_limit_reached"`. Garante que mesmo bypass de UI seja barrado.
+**B. Permissão de grupos (`ALLOW_GROUPS`)**
+- `supabase/functions/uazapi-chat-webhook/index.ts`: substituir `getAllowGroupsForClient()` para consultar a nova tabela em vez de chamar `db-query`. Cache em memória 60s preservado.
+- Sidebar do Chat: novo hook `useChatClientSettings()` usado por `src/pages/chat/...` para mostrar/ocultar a aba "Grupos" quando `SHOW_GROUPS_TAB && ALLOW_GROUPS`.
 
-**B. Permitir grupos (`ALLOW_GROUPS`)**
+**C. Limpeza no agente**
+- `src/pages/agents/components/wizard-steps/ConfigStep.tsx`: remover Card "Filas de Atendimento", remover `QUEUE_LIMIT` e `ALLOW_GROUPS` de `ConfigFields` e `DEFAULT_CONFIG`.
+- `src/pages/agente/filas/components/QueueFormDialog.tsx`: remover/ajustar o campo informativo "Aceita grupos" para ler da nova fonte (ou esconder se não aplicável).
+- Action `get_agent_queue_settings` em `supabase/functions/db-query/index.ts`: marcar como deprecated (manter por compatibilidade, retornar default — sem quebrar webhooks ainda em cache).
 
-1. Frontend (`QueueFormDialog`/`QueueWizardDialog`): novo campo informativo somente-leitura "Aceita grupos" mostrando ✓/✗ baseado no `ALLOW_GROUPS` do agente (não editável aqui — config vive no agente, não na fila).
-2. Backend (`supabase/functions/uazapi-chat-webhook/index.ts`): após detectar `isGroup` (linha 299) e antes de processar, resolver o agente da fila (via `queue_id` → `queue_agent_links.cod_agent` → `agents.settings.ALLOW_GROUPS` via `db-query`). Se `isGroup === true && ALLOW_GROUPS !== true` → `skipped.group++; continue;` (já existe o contador). Cache de 60s em memória da edge para evitar lookup por mensagem.
+### Migração de dados (one-shot opcional)
 
-### Edge function helper
-
-Adicionar uma action utilitária em `db-query` (ou criar `get-agent-settings` curta) que recebe `client_id` e/ou `cod_agent` e retorna `{ queue_limit, allow_groups }` parseados do JSON `settings`. Usada por `queue-management` (limite) e `uazapi-chat-webhook` (grupos).
+SQL na migration: para cada `client_id` distinto encontrado em `agents` (via consulta externa não é possível direto), o admin **não precisa migrar** — basta criar a configuração na nova aba quando quiser ajustar. Default global continua `1 fila / sem grupos`, então o comportamento atual (sem registro) é equivalente ao default antigo.
 
 ### Arquivos alterados
 
-- `src/pages/agents/components/wizard-steps/ConfigStep.tsx` — adicionar bloco "Filas" (Card com Input numérico e Switch); incluir `QUEUE_LIMIT` (1) e `ALLOW_GROUPS` (false) em `ConfigFields` e `DEFAULT_CONFIG`.
-- `src/pages/agente/filas/hooks/useAgentQueueLimits.ts` *(novo)* — busca limites do agente do usuário logado.
-- `src/pages/agente/filas/FilasPage.tsx` — desabilitar botão "Nova Fila" quando limite atingido + tooltip; mostrar "X / Y filas usadas" no header.
-- `src/pages/agente/filas/components/QueueFormDialog.tsx` — campo informativo "Aceita grupos" (read-only) baseado no agente.
-- `supabase/functions/queue-management/index.ts` — gate na action `create`: contar filas + ler `QUEUE_LIMIT` via `db-query`; bloquear com erro claro se exceder.
-- `supabase/functions/uazapi-chat-webhook/index.ts` — após `isGroup`, resolver `ALLOW_GROUPS` do agente da fila (com cache); pular ingestão se desabilitado.
-- `supabase/functions/db-query/index.ts` — nova action `get_agent_queue_settings` que retorna `{ queue_limit, allow_groups }` do JSON `settings`.
+**Novos**
+- `supabase/migrations/<ts>_chat_client_settings.sql` — tabela + RLS + trigger updated_at.
+- `src/pages/configuracoes/components/ChatSettingsTab.tsx` — lista de configs + botão "Nova Configuração".
+- `src/pages/configuracoes/components/ChatSettingsDialog.tsx` — wizard 2 steps (cliente → formulário).
+- `src/pages/configuracoes/components/ChatSettingsClientPicker.tsx` — picker reutilizando `useClientSearch` (estilo do print).
+- `src/pages/configuracoes/hooks/useChatClientSettings.ts` — CRUD via supabase + tipos do JSON.
+
+**Editados**
+- `src/pages/configuracoes/ConfiguracoesPage.tsx` — adicionar `<TabsTrigger value="chat">` + `<TabsContent>`.
+- `src/pages/agents/components/wizard-steps/ConfigStep.tsx` — remover bloco "Filas de Atendimento" e chaves do JSON.
+- `src/pages/agente/filas/hooks/useAgentQueueLimits.ts` — trocar fonte para `chat_client_settings`.
+- `src/pages/agente/filas/components/QueueFormDialog.tsx` — atualizar/remover campo "Aceita grupos".
+- `supabase/functions/queue-management/index.ts` — `getAgentQueueSettings()` agora lê de `chat_client_settings`.
+- `supabase/functions/uazapi-chat-webhook/index.ts` — `getAllowGroupsForClient()` agora lê de `chat_client_settings`.
 
 ### Resultado esperado
 
-- Admin (criar/editar agente) e proprietário (Meus Agentes → Editar) configuram limite e permissão de grupos no novo bloco "Filas" do ConfigStep.
-- Tela de Filas respeita o limite (UI + backend) — não dá pra criar a 2ª fila se o limite for 1.
-- Mensagens de grupo do WhatsApp são silenciosamente ignoradas pelo webhook quando `ALLOW_GROUPS = false` (padrão), eliminando ruído de grupos não desejados.
+- Bloco "Filas" some do criar/editar agente.
+- Em `/configuracoes` → aba **Chat**, admin cria 1 configuração por cliente: busca o cliente (UX idêntica ao print), define `QUEUE_LIMIT`, `ALLOW_GROUPS` e seleciona quais configurações avançadas ativar.
+- Limite de filas (UI + backend) e filtro de grupos do webhook passam a respeitar a nova fonte.
+- Esquema JSON pronto para receber novas chaves sem migração — basta adicionar o toggle no Dialog e o consumidor onde precisar do efeito.
 
