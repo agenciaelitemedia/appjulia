@@ -674,7 +674,8 @@ export function ChatList() {
           </div>
         )}
 
-        {/* Individual / Groups toggle */}
+        {/* Individual / Groups toggle (Groups only when enabled) */}
+        {showGroupsTab && (
         <div className="flex border-t">
           {[
             { value: 'individual' as const, label: 'Individual', icon: <MessageCircle className="h-3 w-3" />, count: individualUnreadCount },
@@ -700,6 +701,7 @@ export function ChatList() {
             </button>
           ))}
         </div>
+        )}
       </div>
 
       {/* Contact List */}
