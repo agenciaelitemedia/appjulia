@@ -85,12 +85,18 @@ export function ChatList() {
   const [slaFilter, setSlaFilter] = useState<SlaFilter>('all');
   const [modeFilter, setModeFilter] = useState<ConversationModeFilter>('all');
   const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('all');
+  const [ownerFilter, setOwnerFilter] = useState<string>('all');
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
+  const [stageIds, setStageIds] = useState<number[]>([]);
+  const [stagePopoverOpen, setStagePopoverOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const activeFilterCount =
     (modeFilter !== 'all' ? 1 : 0) +
     (slaFilter !== 'all' ? 1 : 0) +
-    (assigneeFilter !== 'all' ? 1 : 0) +
-    (conversationStatusFilter !== 'all' ? 1 : 0);
+    (ownerFilter !== 'all' ? 1 : 0) +
+    (conversationStatusFilter !== 'all' ? 1 : 0) +
+    (periodFilter !== 'all' ? 1 : 0) +
+    (stageIds.length > 0 ? 1 : 0);
 
   const activeQueues = queues.filter(q => q.is_active && !q.is_deleted);
 
