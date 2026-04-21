@@ -250,13 +250,13 @@ export function ChatList() {
             >
               <ToggleGroupItem
                 value="all"
-                className="text-[11px] px-2.5 h-7 rounded-full border border-border/60 data-[state=on]:border-foreground/40 data-[state=on]:bg-foreground/10 data-[state=on]:shadow-sm data-[state=on]:font-semibold"
+                className="text-[10px] font-medium px-2 py-1 h-auto rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-foreground/10 data-[state=on]:text-foreground data-[state=on]:border-foreground/20"
               >
                 Todas
               </ToggleGroupItem>
               <ToggleGroupItem
                 value="ia_active"
-                className="text-[11px] px-2.5 h-7 gap-1 rounded-full border border-green-500/30 data-[state=on]:border-green-500/70 data-[state=on]:bg-green-100 data-[state=on]:text-green-700 data-[state=on]:shadow-sm data-[state=on]:font-semibold dark:data-[state=on]:bg-green-900/30 dark:data-[state=on]:text-green-400"
+                className="text-[10px] font-medium px-2 py-1 h-auto gap-1 rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-green-500/15 data-[state=on]:text-green-600 dark:data-[state=on]:text-green-400 data-[state=on]:border-green-500/30"
                 title="IA ativa"
               >
                 <Bot className="h-3 w-3 text-green-600" />
@@ -264,7 +264,7 @@ export function ChatList() {
               </ToggleGroupItem>
               <ToggleGroupItem
                 value="ia_inactive"
-                className="text-[11px] px-2.5 h-7 gap-1 rounded-full border border-red-500/30 data-[state=on]:border-red-500/70 data-[state=on]:bg-red-100 data-[state=on]:text-red-700 data-[state=on]:shadow-sm data-[state=on]:font-semibold dark:data-[state=on]:bg-red-900/30 dark:data-[state=on]:text-red-400"
+                className="text-[10px] font-medium px-2 py-1 h-auto gap-1 rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-destructive/15 data-[state=on]:text-destructive data-[state=on]:border-destructive/30"
                 title="IA inativa"
               >
                 <Bot className="h-3 w-3 text-red-600" />
@@ -272,7 +272,7 @@ export function ChatList() {
               </ToggleGroupItem>
               <ToggleGroupItem
                 value="human"
-                className="text-[11px] px-2.5 h-7 gap-1 rounded-full border border-amber-500/30 data-[state=on]:border-amber-500/70 data-[state=on]:bg-amber-100 data-[state=on]:text-amber-700 data-[state=on]:shadow-sm data-[state=on]:font-semibold dark:data-[state=on]:bg-amber-900/30 dark:data-[state=on]:text-amber-400"
+                className="text-[10px] font-medium px-2 py-1 h-auto gap-1 rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-amber-500/20 data-[state=on]:text-amber-600 dark:data-[state=on]:text-amber-400 data-[state=on]:border-amber-500/30"
                 title="Atendente humano"
               >
                 <User className="h-3 w-3 text-amber-600" />
