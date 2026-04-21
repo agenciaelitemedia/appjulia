@@ -11,6 +11,7 @@ interface User {
   role: AppRole;
   cod_agent?: number;
   client_id?: number;
+  user_id?: number;
   evo_url?: string;
   evo_instance?: string;
   evo_apikey?: string;
@@ -71,9 +72,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (storedUser) {
         try {
           const parsedUser = JSON.parse(storedUser);
-          setUser(parsedUser);
+          // Hydrate inherited client_id for sub-users (no own client_id but linked via user_id)
+          let effectiveUser = parsedUser;
+          if (!parsedUser.client_id && parsedUser.id) {
+            try {
+              const inherited = await externalDb.getEffectiveClientId(Number(parsedUser.id));
+              if (inherited) {
+                effectiveUser = { ...parsedUser, client_id: Number(inherited) };
+                localStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(effectiveUser));
+              }
+            } catch (e) {
+              console.warn('[AuthContext] Failed to hydrate effective client_id', e);
+            }
+          }
+          setUser(effectiveUser);
           // Await permissions so components never render with stale permission state
-          await loadPermissions(parsedUser.id);
+          await loadPermissions(effectiveUser.id);
         } catch {
           localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
           localStorage.removeItem(STORAGE_KEYS.AUTH_PERMISSIONS);

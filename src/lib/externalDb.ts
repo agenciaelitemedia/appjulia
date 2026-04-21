@@ -316,10 +316,10 @@ class ExternalDatabase {
 
   async getEffectiveClientId(userId: number): Promise<string | null> {
     try {
-      const result = await this.invoke<{ client_id: string | null }[]>({
+      const result = await this.invoke({
         action: 'get_effective_client_id',
         data: { userId },
-      });
+      }) as Array<{ client_id: string | null }> | null;
       return result?.[0]?.client_id ? String(result[0].client_id) : null;
     } catch (e) {
       console.warn('[externalDb] getEffectiveClientId failed', e);
