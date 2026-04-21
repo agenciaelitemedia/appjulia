@@ -7,6 +7,7 @@ import juliaLogo from '@/assets/julia-logo.png';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { AgentBlockedScreen } from './AgentBlockedScreen';
 import { DisconnectedAgentsAlert } from './DisconnectedAgentsAlert';
+import { DisconnectedQueuesAlert } from './DisconnectedQueuesAlert';
 
 export function AdvLayout() {
   const { user, isAuthenticated, isLoading, isAdmin, logout } = useAuth();
@@ -59,6 +60,7 @@ export function AdvLayout() {
           <Outlet />
         </main>
         <DisconnectedAgentsAlert />
+        <DisconnectedQueuesAlert />
       </div>
     </PhoneProvider>
   );
