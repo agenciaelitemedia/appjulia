@@ -2682,11 +2682,34 @@ serve(async (req) => {
         break;
       }
 
+      case 'get_agent_queue_settings': {
+        // Returns { queue_limit, allow_groups } parsed from agents.settings JSON.
+        // Lookup priority: client_id (first agent) → cod_agent.
+        const { client_id, cod_agent } = data || {};
+        let rows: any[] = [];
+        if (client_id) {
+          rows = await sql.unsafe(
+            `SELECT settings FROM agents WHERE client_id = $1 ORDER BY id ASC LIMIT 1`,
+            [client_id]
+          );
+        } else if (cod_agent) {
+          rows = await sql.unsafe(
+            `SELECT settings FROM agents WHERE cod_agent::text = $1 ORDER BY id ASC LIMIT 1`,
+            [String(cod_agent)]
+          );
+        }
+        let s: any = rows[0]?.settings ?? {};
+        if (typeof s === 'string') {
+          try { s = JSON.parse(s); } catch { s = {}; }
+        }
+        const queueLimit = typeof s?.QUEUE_LIMIT === 'number' && s.QUEUE_LIMIT > 0 ? s.QUEUE_LIMIT : 1;
+        const allowGroups = !!s?.ALLOW_GROUPS;
+        result = [{ queue_limit: queueLimit, allow_groups: allowGroups }];
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
-    }
-    // unreachable
-    if (false) {
     }
 
     await sql.end();
