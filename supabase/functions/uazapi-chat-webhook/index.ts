@@ -18,6 +18,35 @@ function getSupabase() {
   );
 }
 
+// In-memory cache (60s) for agent queue settings keyed by client_id.
+const agentSettingsCache = new Map<string, { value: { allow_groups: boolean; queue_limit: number }; expires: number }>();
+async function getAllowGroupsForClient(clientId: string): Promise<boolean> {
+  const now = Date.now();
+  const cached = agentSettingsCache.get(clientId);
+  if (cached && cached.expires > now) return cached.value.allow_groups;
+  try {
+    const res = await fetch(`${Deno.env.get('SUPABASE_URL')!}/functions/v1/db-query`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`,
+      },
+      body: JSON.stringify({ action: 'get_agent_queue_settings', data: { client_id: clientId } }),
+    });
+    const json = await res.json();
+    const row = Array.isArray(json?.data) ? json.data[0] : null;
+    const value = {
+      allow_groups: !!row?.allow_groups,
+      queue_limit: typeof row?.queue_limit === 'number' && row.queue_limit > 0 ? row.queue_limit : 1,
+    };
+    agentSettingsCache.set(clientId, { value, expires: now + 60_000 });
+    return value.allow_groups;
+  } catch (err) {
+    console.warn('[uazapi-chat-webhook] allow_groups lookup failed, defaulting to false:', err);
+    return false;
+  }
+}
+
 function respond(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
