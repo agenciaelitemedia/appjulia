@@ -190,13 +190,13 @@ Deno.serve(async (req) => {
 
     // 4. Process each chat
     for (const chat of allChats) {
-      const chatId: string = chat.id || chat.remoteJid || chat.jid || '';
+      const chatId: string = chat.wa_chatid || chat.chatid || chat.id || chat.remoteJid || chat.jid || '';
       if (!chatId || chatId.includes('@g.us')) continue; // skip groups just in case
 
       const phone = normalizePhone(chatId);
       if (!phone) continue;
 
-      const displayName: string = chat.name || chat.pushName || chat.wa_contactName || phone;
+      const displayName: string = chat.wa_contactName || chat.lead_name || chat.name || chat.pushName || phone;
 
       try {
         // 4a. Upsert contact (dedup by phone+client_id)
