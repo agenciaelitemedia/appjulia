@@ -190,7 +190,7 @@ export function ChatList() {
     ...(agentsData?.monitoredAgents || []),
   ];
   const { data: stages = [] } = useCRMStages();
-  const { aliasMap, getDefaultAlias } = useAgentAliases();
+  const { aliasMap } = useAgentAliases();
 
   // cod_agent → business name (fallback when no alias configured)
   const agentBusinessNameMap = React.useMemo(() => {
