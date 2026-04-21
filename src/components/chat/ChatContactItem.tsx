@@ -21,6 +21,10 @@ interface ChatContactItemProps {
   assignedAgentName?: string;
   index?: number;
   convTags?: ChatTag[];
+  agentCodAgent?: string | null;
+  agentAlias?: string | null;
+  stageName?: string | null;
+  stageColor?: string | null;
 }
 
 function ChannelOverlay({ channel }: { channel?: string }) {
@@ -86,6 +90,10 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   assignedAgentName,
   index = 0,
   convTags,
+  agentCodAgent,
+  agentAlias,
+  stageName,
+  stageColor,
 }: ChatContactItemProps) {
   const { configs } = useChatSlaConfigs();
 
@@ -190,6 +198,27 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             <span className="flex-shrink-0 w-5" aria-hidden />
           )}
         </div>
+
+        {/* Row 2.5: Agent IA (esquerda) + Etapa CRM (direita) — só quando há vínculo com agente IA */}
+        {(agentCodAgent || stageName) && (
+          <div className="flex items-center justify-between gap-1 min-w-0 w-full">
+            <div className="flex items-center gap-1 min-w-0 overflow-hidden">
+              {agentCodAgent && (
+                <span className="text-[9px] text-muted-foreground font-mono truncate">
+                  #{agentCodAgent}{agentAlias ? ` · ${agentAlias}` : ''}
+                </span>
+              )}
+            </div>
+            {stageName && (
+              <span
+                className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded text-white whitespace-nowrap"
+                style={{ backgroundColor: stageColor || '#64748b' }}
+              >
+                {stageName.toUpperCase()}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Row 3: Tags — fila → SLA → atribuído → extras → prioridade (direita) */}
         <div className="flex items-center gap-1 flex-nowrap min-w-0 overflow-hidden w-full">

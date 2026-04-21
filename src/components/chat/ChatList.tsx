@@ -21,6 +21,7 @@ import { useChatSlaConfigs, evaluateSla, type SlaStatus } from '@/hooks/useChatS
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
 import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
+import { useAgentAliases } from '@/hooks/useAgentAliases';
 import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
 import { externalDb } from '@/lib/externalDb';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
@@ -189,6 +190,7 @@ export function ChatList() {
     ...(agentsData?.monitoredAgents || []),
   ];
   const { data: stages = [] } = useCRMStages();
+  const { aliasMap } = useAgentAliases();
 
   // Phone → stage map
   const allPhones = React.useMemo(
@@ -741,6 +743,11 @@ export function ChatList() {
               // Fallback: if current conversation has no queue, look for the most recent prior conversation that has one
               const queueIdToShow = conv?.queue_id || contactConvs.find(c => c.queue_id)?.queue_id;
               const convQueue = queueIdToShow ? activeQueues.find(q => q.id === queueIdToShow) : undefined;
+              const queueLink = queueIdToShow ? queueAgentMap?.get(queueIdToShow) : undefined;
+              const agentCodAgent = queueLink?.hasAgent ? queueLink.codAgent : null;
+              const agentAlias = agentCodAgent ? (aliasMap.get(agentCodAgent) || null) : null;
+              const normPhone = (contact.phone || '').replace(/\D/g, '');
+              const stageInfo = normPhone ? stageByPhone?.get(normPhone) : undefined;
               return (
                 <ChatContactItem
                   key={contact.id}
@@ -752,6 +759,10 @@ export function ChatList() {
                   assignedAgentName={conv?.assigned_to || undefined}
                   index={idx}
                   convTags={conv ? (conversationTagsMap?.[conv.id] || []) : undefined}
+                  agentCodAgent={agentCodAgent}
+                  agentAlias={agentAlias}
+                  stageName={stageInfo?.stageName}
+                  stageColor={stageInfo?.stageColor}
                 />
               );
             })
