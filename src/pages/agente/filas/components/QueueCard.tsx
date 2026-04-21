@@ -2,13 +2,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, Webhook, Loader2, Unplug } from 'lucide-react';
+import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, Unplug } from 'lucide-react';
 import { Queue } from '../hooks/useQueues';
 import { UazapiInstanceStatus } from './UazapiInstanceStatus';
 import { DisconnectWabaDialog } from './DisconnectWabaDialog';
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
 
 const channelIcons: Record<string, React.ReactNode> = {
   uazapi: <Phone className="w-4 h-4" />,
@@ -32,25 +30,8 @@ interface QueueCardProps {
 }
 
 export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps) {
-  const [reconfiguring, setReconfiguring] = useState(false);
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const hasWabaCreds = queue.channel_type === 'waba' && !!queue.waba_token;
-
-  const handleReconfigureWebhook = async () => {
-    setReconfiguring(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('uazapi-instance-manager', {
-        body: { action: 'reconfigure_webhook', queue_id: queue.id },
-      });
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'Falha ao reconfigurar');
-      toast.success('Webhook reconfigurado com todos os eventos');
-    } catch (e: any) {
-      toast.error(`Erro: ${e?.message || e}`);
-    } finally {
-      setReconfiguring(false);
-    }
-  };
 
   return (
     <Card className={`hover:shadow-md transition-shadow ${queue.is_deleted ? 'opacity-60 border-dashed' : ''}`}>
@@ -74,16 +55,6 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
                   <DropdownMenuItem onClick={() => onEdit(queue)}>
                     <Pencil className="mr-2 h-4 w-4" /> Editar
                   </DropdownMenuItem>
-                  {queue.channel_type === 'uazapi' && queue.evo_instance && (
-                    <DropdownMenuItem onClick={handleReconfigureWebhook} disabled={reconfiguring}>
-                      {reconfiguring ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Webhook className="mr-2 h-4 w-4" />
-                      )}
-                      Reconfigurar webhook
-                    </DropdownMenuItem>
-                  )}
                   {hasWabaCreds && (
                     <DropdownMenuItem
                       onClick={() => setDisconnectOpen(true)}
