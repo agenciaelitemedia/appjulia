@@ -11,7 +11,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Phone, MessageSquare, Globe, Instagram, Loader2, ArrowLeft, ArrowRight, Check, AlertCircle, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { useQueueProviders } from '@/pages/configuracoes/hooks/useQueueProviders';
-import { useQueueMutations, type QueueFormData } from '../hooks/useQueues';
+import { useQueueMutations, useQueues, type QueueFormData } from '../hooks/useQueues';
+import { useAgentQueueLimits } from '../hooks/useAgentQueueLimits';
 import { WabaEmbeddedSignupButton } from '@/components/waba/WabaEmbeddedSignupButton';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -53,6 +54,11 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
 
   const { data: allProviders = [] } = useQueueProviders();
   const { createQueue } = useQueueMutations();
+  const { data: existingQueues = [] } = useQueues(false);
+  const { data: limits } = useAgentQueueLimits();
+  const queueLimit = limits?.queueLimit ?? 1;
+  const activeCount = existingQueues.filter((q) => !q.is_deleted).length;
+  const limitReached = activeCount >= queueLimit;
 
   const evoInstance = useMemo(() => {
     if (selectedType !== 'uazapi') return '';
@@ -174,6 +180,10 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
   const canSubmit = !!queueName.trim();
 
   const handleSubmit = () => {
+    if (limitReached) {
+      toast.error(`Limite de ${queueLimit} ${queueLimit === 1 ? 'fila atingido' : 'filas atingido'}. Contate seu administrador para aumentar.`);
+      return;
+    }
     const formData: QueueFormData = {
       name: queueName.trim(),
       channel_type: selectedType,
@@ -469,9 +479,9 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
                 Próximo <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             ) : (
-              <Button onClick={handleSubmit} disabled={!canSubmit || createQueue.isPending}>
+              <Button onClick={handleSubmit} disabled={!canSubmit || createQueue.isPending || limitReached}>
                 {createQueue.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Criar Fila
+                {limitReached ? `Limite atingido (${queueLimit})` : 'Criar Fila'}
               </Button>
             )}
           </div>
