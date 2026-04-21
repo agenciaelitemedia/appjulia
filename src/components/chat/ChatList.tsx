@@ -120,6 +120,17 @@ export function ChatList() {
 
   const visibleContacts = React.useMemo(() => {
     let result = filteredContacts;
+    if (assigneeFilter !== 'all') {
+      result = result.filter((c) => {
+        const assigned = convMetaByContact.get(c.id)?.assignedTo;
+        if (assigneeFilter === 'unassigned') return !assigned;
+        if (assigneeFilter === 'mine') {
+          if (!assigned) return false;
+          return assigned === user?.id || assigned === user?.name;
+        }
+        return true;
+      });
+    }
     if (slaFilter !== 'all') {
       result = result.filter((c) => slaStatusByContact.get(c.id) === slaFilter);
     }
@@ -145,18 +156,12 @@ export function ChatList() {
       });
     }
     return result;
-  }, [filteredContacts, slaFilter, slaStatusByContact, modeFilter, convMetaByContact, queueAgentMap, queryClient, conversations]);
+  }, [filteredContacts, slaFilter, slaStatusByContact, modeFilter, convMetaByContact, queueAgentMap, queryClient, conversations, assigneeFilter, user?.id, user?.name]);
 
   // Count conversations by status
-  const pendingCount = conversations.filter(c => c.status === 'pending').length;
-  const openCount = conversations.filter(c => c.status === 'open').length;
+  const openCount = conversations.filter(c => c.status === 'open' || c.status === 'pending').length;
   const resolvedCount = conversations.filter(c => c.status === 'resolved').length;
-
-  const statusPills: { value: ConversationFilterStatus; label: string; count?: number; color: string }[] = [
-    { value: 'pending', label: 'Novos', count: pendingCount, color: 'bg-red-500' },
-    { value: 'open', label: 'Meus', count: openCount, color: 'bg-blue-500' },
-    { value: 'resolved', label: 'Outros', count: resolvedCount, color: 'bg-muted-foreground' },
-  ];
+  const closedCount = conversations.filter(c => c.status === 'closed').length;
 
   const channelBadge = (type: string) => {
     switch (type) {
