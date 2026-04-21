@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { Building2, X, Loader2, Network, Settings2 } from 'lucide-react';
+import { Building2, X, Loader2, Network, Settings2, History, AlertTriangle } from 'lucide-react';
 import { ChatSettingsClientPicker } from './ChatSettingsClientPicker';
 import {
   DEFAULT_CHAT_SETTINGS,
@@ -202,6 +202,35 @@ export function ChatSettingsDialog({ open, onOpenChange, editing }: Props) {
                     className="w-24 text-center"
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Histórico WhatsApp */}
+            <div className="space-y-4 border rounded-lg p-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <History className="h-4 w-4" /> Histórico de Conversas (UaZAPI)
+              </div>
+              <div className="flex items-center gap-2 p-2 rounded-md bg-yellow-500/10 border border-yellow-500/30">
+                <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0" />
+                <p className="text-xs text-muted-foreground">
+                  O UaZAPI armazena no máximo <strong>7 dias</strong> de mensagens. Valores maiores não trarão histórico adicional.
+                </p>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5 flex-1">
+                  <Label className="text-sm">Janela de sincronização (dias)</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Período usado ao clicar em "Sincronizar Histórico" em uma fila UaZAPI
+                  </p>
+                </div>
+                <Input
+                  type="number"
+                  min={1}
+                  max={7}
+                  value={settings.history_sync_days ?? 7}
+                  onChange={(e) => updateField('history_sync_days', Math.min(7, parseInt(e.target.value, 10) || 7))}
+                  className="w-24 text-center"
+                />
               </div>
             </div>
           </div>

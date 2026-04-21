@@ -15,6 +15,7 @@ export interface ChatClientSettingsJson {
   MAX_FILE_SIZE_MB?: number;
   NOTIFICATION_SOUND?: boolean;
   SHOW_INTERNAL_NOTES?: boolean;
+  history_sync_days?: number;
 }
 
 export const DEFAULT_CHAT_SETTINGS: ChatClientSettingsJson = {
@@ -30,6 +31,7 @@ export const DEFAULT_CHAT_SETTINGS: ChatClientSettingsJson = {
   MAX_FILE_SIZE_MB: 16,
   NOTIFICATION_SOUND: true,
   SHOW_INTERNAL_NOTES: true,
+  history_sync_days: 7,
 };
 
 export interface ChatClientSettingRow {

@@ -4,13 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft, Timer, Info, History, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Timer, Info } from 'lucide-react';
 import {
   useChatSlaConfigs,
   DEFAULT_SLA_BY_PRIORITY,
   type ChatSlaConfig,
 } from '@/hooks/useChatSlaConfigs';
-import { useChatHistoryConfig } from '@/hooks/useChatHistoryConfig';
 import { useState, useEffect } from 'react';
 
 const PRIORITIES: { value: 'urgent' | 'high' | 'normal' | 'low'; label: string; color: string }[] = [
@@ -29,9 +28,7 @@ interface RowState {
 export default function ChatSlaConfigPage() {
   const navigate = useNavigate();
   const { configs, isLoading, upsert } = useChatSlaConfigs();
-  const { config: historyConfig, isLoading: historyLoading, save: historySave } = useChatHistoryConfig();
   const [state, setState] = useState<Record<string, RowState>>({});
-  const [historyDays, setHistoryDays] = useState<number>(7);
 
   useEffect(() => {
     const next: Record<string, RowState> = {};
@@ -45,10 +42,6 @@ export default function ChatSlaConfigPage() {
     });
     setState(next);
   }, [configs]);
-
-  useEffect(() => {
-    setHistoryDays(historyConfig.history_sync_days);
-  }, [historyConfig.history_sync_days]);
 
   const update = (priority: string, patch: Partial<RowState>) => {
     setState((s) => ({ ...s, [priority]: { ...s[priority], ...patch } }));
@@ -144,49 +137,6 @@ export default function ChatSlaConfigPage() {
             );
           })
         )}
-      </div>
-
-      {/* History sync config */}
-      <div>
-        <h3 className="text-lg font-semibold flex items-center gap-2 mb-3">
-          <History className="h-4 w-4 text-primary" /> Histórico de Conversas
-        </h3>
-        <Card>
-          <CardContent className="p-4 space-y-4">
-            <Card className="border-yellow-500/30 bg-yellow-500/5">
-              <CardContent className="p-3 flex gap-2 items-start">
-                <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0 mt-0.5" />
-                <p className="text-xs text-muted-foreground">
-                  O UaZAPI armazena no máximo <strong>7 dias</strong> de mensagens em seu banco interno
-                  (limpeza automática diária). Valores maiores que 7 dias não trarão histórico adicional.
-                </p>
-              </CardContent>
-            </Card>
-            <div className="flex items-end gap-4">
-              <div className="flex-1 max-w-xs">
-                <Label className="text-xs">Janela de sincronização (dias)</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={7}
-                  value={historyDays}
-                  disabled={historyLoading}
-                  onChange={(e) => setHistoryDays(Number(e.target.value))}
-                />
-              </div>
-              <Button
-                onClick={() => historySave.mutate(historyDays)}
-                disabled={historySave.isPending || historyLoading}
-              >
-                Salvar
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Define a janela de tempo usada ao clicar em <strong>Sincronizar Histórico</strong> em uma fila UaZAPI.
-              Conversas individuais dentro desse período serão importadas e marcadas como lidas.
-            </p>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
