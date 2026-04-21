@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, ArrowUpDown, Plus, Timer, AlertTriangle, Flame, Bot, User } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { ChatContactItem } from './ChatContactItem';
 import { Badge } from '@/components/ui/badge';
 import { useQueues } from '@/pages/agente/filas/hooks/useQueues';
@@ -20,6 +21,7 @@ import { cn } from '@/lib/utils';
 
 type SlaFilter = 'all' | 'breached' | 'at_risk';
 type ConversationModeFilter = 'all' | 'ia_active' | 'ia_inactive' | 'human';
+type AssigneeFilter = 'all' | 'mine' | 'unassigned';
 
 export function ChatList() {
   const {
@@ -45,10 +47,12 @@ export function ChatList() {
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const { data: queues = [] } = useQueues();
   const { configs: slaConfigs } = useChatSlaConfigs();
   const [slaFilter, setSlaFilter] = useState<SlaFilter>('all');
   const [modeFilter, setModeFilter] = useState<ConversationModeFilter>('all');
+  const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('all');
 
   const activeQueues = queues.filter(q => q.is_active && !q.is_deleted);
 
@@ -116,6 +120,17 @@ export function ChatList() {
 
   const visibleContacts = React.useMemo(() => {
     let result = filteredContacts;
+    if (assigneeFilter !== 'all') {
+      result = result.filter((c) => {
+        const assigned = convMetaByContact.get(c.id)?.assignedTo;
+        if (assigneeFilter === 'unassigned') return !assigned;
+        if (assigneeFilter === 'mine') {
+          if (!assigned) return false;
+          return assigned === String(user?.id) || assigned === user?.name;
+        }
+        return true;
+      });
+    }
     if (slaFilter !== 'all') {
       result = result.filter((c) => slaStatusByContact.get(c.id) === slaFilter);
     }
@@ -141,18 +156,12 @@ export function ChatList() {
       });
     }
     return result;
-  }, [filteredContacts, slaFilter, slaStatusByContact, modeFilter, convMetaByContact, queueAgentMap, queryClient, conversations]);
+  }, [filteredContacts, slaFilter, slaStatusByContact, modeFilter, convMetaByContact, queueAgentMap, queryClient, conversations, assigneeFilter, user?.id, user?.name]);
 
   // Count conversations by status
-  const pendingCount = conversations.filter(c => c.status === 'pending').length;
-  const openCount = conversations.filter(c => c.status === 'open').length;
+  const openCount = conversations.filter(c => c.status === 'open' || c.status === 'pending').length;
   const resolvedCount = conversations.filter(c => c.status === 'resolved').length;
-
-  const statusPills: { value: ConversationFilterStatus; label: string; count?: number; color: string }[] = [
-    { value: 'pending', label: 'Novos', count: pendingCount, color: 'bg-red-500' },
-    { value: 'open', label: 'Meus', count: openCount, color: 'bg-blue-500' },
-    { value: 'resolved', label: 'Outros', count: resolvedCount, color: 'bg-muted-foreground' },
-  ];
+  const closedCount = conversations.filter(c => c.status === 'closed').length;
 
   const channelBadge = (type: string) => {
     switch (type) {
@@ -170,33 +179,6 @@ export function ChatList() {
       <div className="border-b">
         {/* Status pills row */}
         <div className="flex items-center gap-2 px-4 pt-3 pb-2">
-          <button
-            onClick={() => setConversationStatusFilter('all')}
-            className={cn(
-              'text-sm font-medium transition-colors',
-              conversationStatusFilter === 'all' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            Todas
-          </button>
-          {statusPills.map(pill => (
-            <button
-              key={pill.value}
-              onClick={() => setConversationStatusFilter(pill.value)}
-              className={cn(
-                'flex items-center gap-1.5 text-sm font-medium transition-colors',
-                conversationStatusFilter === pill.value ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {pill.label}
-              {pill.count !== undefined && pill.count > 0 && (
-                <span className={cn('text-[10px] text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 font-bold', pill.color)}>
-                  {pill.count}
-                </span>
-              )}
-            </button>
-          ))}
-
           {/* Right side actions */}
           <div className="ml-auto flex items-center gap-1">
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/metricas')} title="Métricas">
@@ -332,6 +314,95 @@ export function ChatList() {
             </button>
           </div>
         )}
+
+        {/* Responsável filter pills */}
+        <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
+          <button
+            onClick={() => setAssigneeFilter('all')}
+            className={cn(
+              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+              assigneeFilter === 'all'
+                ? 'bg-foreground/10 text-foreground border-foreground/20'
+                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+            )}
+          >
+            Todos
+          </button>
+          <button
+            onClick={() => setAssigneeFilter('mine')}
+            className={cn(
+              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+              assigneeFilter === 'mine'
+                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+            )}
+          >
+            Meus
+          </button>
+          <button
+            onClick={() => setAssigneeFilter('unassigned')}
+            className={cn(
+              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+              assigneeFilter === 'unassigned'
+                ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+            )}
+          >
+            Sem responsáveis
+          </button>
+        </div>
+
+        {/* Status pills */}
+        <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
+          <button
+            onClick={() => setConversationStatusFilter(conversationStatusFilter === 'open' ? 'all' : 'open')}
+            className={cn(
+              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+              conversationStatusFilter === 'open'
+                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+            )}
+          >
+            Abertos
+            {openCount > 0 && (
+              <span className="ml-0.5 bg-blue-500 text-white rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
+                {openCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setConversationStatusFilter(conversationStatusFilter === 'resolved' ? 'all' : 'resolved')}
+            className={cn(
+              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+              conversationStatusFilter === 'resolved'
+                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+            )}
+          >
+            Concluídos
+            {resolvedCount > 0 && (
+              <span className="ml-0.5 bg-emerald-500 text-white rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
+                {resolvedCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setConversationStatusFilter(conversationStatusFilter === 'closed' ? 'all' : 'closed')}
+            className={cn(
+              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+              conversationStatusFilter === 'closed'
+                ? 'bg-foreground/10 text-foreground border-foreground/20'
+                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+            )}
+          >
+            Encerrados
+            {closedCount > 0 && (
+              <span className="ml-0.5 bg-muted-foreground text-background rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
+                {closedCount}
+              </span>
+            )}
+          </button>
+        </div>
 
         {/* Queue selector - includes "Todas as filas" option */}
         {activeQueues.length > 0 && (
