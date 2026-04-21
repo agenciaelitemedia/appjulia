@@ -262,37 +262,34 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
 
   return (
     <div className="border-t bg-background">
-      {/* Reopen banner — conversation is resolved or closed */}
-      {showReopenBanner && (
-        <div className="flex items-center justify-between px-3 py-2 bg-muted/60 border-b">
-          <span className="text-xs text-muted-foreground">
-            {selectedConversation?.status === 'closed' ? 'Conversa encerrada' : 'Conversa concluída'}
+      {/* Claim/Reopen banner — same position, same layout */}
+      {(showReopenBanner || showClaimBanner) && (
+        <div className={cn(
+          'flex items-center gap-2 px-3 py-2 border-b',
+          showReopenBanner
+            ? 'bg-muted/60 border-muted'
+            : 'bg-amber-500/10 border-amber-500/20'
+        )}>
+          <span className={cn(
+            'text-xs font-medium flex-1',
+            showReopenBanner
+              ? 'text-muted-foreground'
+              : 'text-amber-700 dark:text-amber-400'
+          )}>
+            {showReopenBanner
+              ? (selectedConversation?.status === 'closed' ? 'Conversa encerrada' : 'Conversa concluída')
+              : 'Assuma esta conversa para responder. Notas internas continuam disponíveis.'}
           </span>
           <Button
             size="sm"
-            variant="outline"
+            variant={showReopenBanner ? 'outline' : 'default'}
             className="h-7 text-xs"
-            onClick={handleReopen}
+            onClick={showReopenBanner ? handleReopen : handleClaim}
             disabled={isClaiming}
           >
-            {isClaiming ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Reabrir'}
-          </Button>
-        </div>
-      )}
-
-      {/* Claim banner — visible when conversation is active but not assigned to current user */}
-      {showClaimBanner && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border-b border-amber-500/20">
-          <span className="text-xs font-medium text-amber-700 dark:text-amber-400 flex-1">
-            Assuma esta conversa para responder. Notas internas continuam disponíveis.
-          </span>
-          <Button
-            size="sm"
-            className="h-7 text-xs"
-            onClick={handleClaim}
-            disabled={isClaiming}
-          >
-            {isClaiming ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Assumir'}
+            {isClaiming
+              ? <Loader2 className="h-3 w-3 animate-spin" />
+              : showReopenBanner ? 'Reabrir' : 'Assumir'}
           </Button>
         </div>
       )}
