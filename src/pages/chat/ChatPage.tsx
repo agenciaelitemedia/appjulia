@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { WhatsAppDataProvider, useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { ChatContainer } from '@/components/chat';
 import { ChatCommandPalette } from '@/components/chat/ChatCommandPalette';
@@ -7,16 +7,21 @@ function ChatPageContent() {
   const { loadContacts, selectContact } = useWhatsAppData();
   const [paletteOpen, setPaletteOpen] = useState(false);
 
+  const loadContactsRef = useRef(loadContacts);
+  const selectContactRef = useRef(selectContact);
+  useEffect(() => { loadContactsRef.current = loadContacts; }, [loadContacts]);
+  useEffect(() => { selectContactRef.current = selectContact; }, [selectContact]);
+
   useEffect(() => {
     (async () => {
-      await loadContacts();
+      await loadContactsRef.current();
       const pending = sessionStorage.getItem('chat_pending_contact_id');
       if (pending) {
         sessionStorage.removeItem('chat_pending_contact_id');
-        selectContact(pending);
+        selectContactRef.current(pending);
       }
     })();
-  }, [loadContacts, selectContact]);
+  }, []);
 
   // Cmd+K / Ctrl+K para abrir Command Palette
   useEffect(() => {
