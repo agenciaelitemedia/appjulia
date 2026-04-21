@@ -1,48 +1,68 @@
 
 
-## Corrigir reações nas conversas — envio e recebimento
+## Bloco "Filas" no Criar/Editar Agente
 
-### Problema
+### Escopo desta etapa
 
-**1. Envio (handleReact)**: Em `src/components/chat/ChatMessages.tsx:171`, o handler exige `selectedQueue` (seletor global de fila). No módulo `/chat` omnichannel, não existe fila global selecionada — cada conversa já carrega sua própria `queue_id`. Resultado: ao clicar num emoji, aparece o toast "Selecione uma fila para reagir" e a reação não é enviada.
+Adicionar um novo bloco **"Filas"** no ConfigStep do agente com 2 configurações iniciais (mais virão depois):
 
-**2. Recebimento**: Em `supabase/functions/uazapi-chat-webhook/index.ts`, quando chega um `reactionMessage` da UaZapi, ele é apenas classificado como `type='reaction'` e salvo como uma mensagem normal (gera o `💬 Reação` no last_message), mas **nunca é persistido em `chat_message_reactions`** ligado à mensagem alvo. Por isso a reação não aparece visualmente no balão da mensagem original.
+1. **Total de filas permitidas** (`QUEUE_LIMIT`) — número inteiro, padrão `1`.
+2. **Permitir grupos** (`ALLOW_GROUPS`) — switch, padrão `false` (desabilitado).
 
-### Correção
+Esses valores são persistidos no JSON `settings` do agente (tabela externa `agents`) — o ConfigStep já serializa tudo automaticamente, então **não exige migração de schema**.
 
-**Arquivo: `src/components/chat/ChatMessages.tsx`**
+### Onde aparece (UI)
 
-Resolver `queue_id` a partir da conversa selecionada (e fallbacks), sem depender de `selectedQueue`:
+Novo `Card` no `src/pages/agents/components/wizard-steps/ConfigStep.tsx`, posicionado logo abaixo do bloco "Copiloto Julia IA" (alta visibilidade):
 
-1. Prioridade de resolução em `handleReact`:
-   - `selectedConversation?.queue_id` (caso principal — conversa atual já tem fila)
-   - `contact.channel_source` se for UUID válido
-   - Fallback final: `selectedQueue?.id`
-2. Se ainda assim não encontrar fila (caso raríssimo), exibir toast claro. Caso contrário, prosseguir com o envio normalmente.
-3. Manter `contact_phone = contact.phone` e `reactor = user.id`.
+```
+┌─ Filas de Atendimento ──────────────────┐
+│ [icon Network]                          │
+│                                         │
+│ Total de filas permitidas    [  1  ]    │
+│ Quantas filas este agente pode criar    │
+│                                         │
+│ ─────────────────────────────────────   │
+│                                         │
+│ Permitir grupos              [○──]      │
+│ Habilita o atendimento de grupos do     │
+│ WhatsApp (@g.us) nas filas deste agente │
+└─────────────────────────────────────────┘
+```
 
-**Arquivo: `supabase/functions/uazapi-chat-webhook/index.ts`**
+Como o ConfigStep é compartilhado entre `CreateAgentWizard`, `EditAgentPage` e `MyAgentEditPage`, o bloco aparece automaticamente nas 3 telas. No `MyAgentEditPage` (proprietário), respeita o `can_edit_config` já existente.
 
-Quando uma mensagem de tipo `reaction` for recebida:
+Adicionar `QUEUE_LIMIT: 1` e `ALLOW_GROUPS: false` ao `DEFAULT_CONFIG` e à `interface ConfigFields`.
 
-1. Extrair do payload UaZapi:
-   - `target_external_id` = `msg.message.reactionMessage.key.id` (ou variações `reactionMessage.id`, dependendo do shape)
-   - `emoji` = `msg.message.reactionMessage.text` (string vazia = remoção)
-   - `reactor` = `participant`/`sender` ou `from_me` se aplicável
-2. Localizar a `chat_messages.id` interna pelo `message_id = target_external_id` no mesmo `client_id`/`contact_id`.
-3. Se encontrada:
-   - Se `emoji` for vazio → `DELETE FROM chat_message_reactions WHERE message_id = ... AND reactor = ...`
-   - Senão → upsert (delete + insert) na tabela `chat_message_reactions` com `{ message_id, external_message_id, reactor, emoji, from_me }`.
-4. **Não** inserir a reação como uma `chat_messages` separada — para evitar poluir a timeline com cards "💬 Reação" vazios. Em vez disso, atualizar somente `chat_contacts.last_message_text` opcionalmente (manter como está hoje só para preview do contato é aceitável, mas a entrada em `chat_messages` deve ser ignorada para reactions).
-5. Se a mensagem alvo ainda não existir localmente (chegou antes do backfill), gravar uma fila órfã em memória ou simplesmente ignorar — o realtime do `useMessageReactions` reconciliará no próximo carregamento.
+### Como reflete na criação/edição de filas (enforcement)
 
-### Resultado esperado
+**A. Limite de filas (`QUEUE_LIMIT`)**
 
-- Clicar em um emoji no balão envia a reação imediatamente (sem pedir fila), aparece em tempo real no próprio balão.
-- Reações recebidas do WhatsApp aparecem ancoradas no balão da mensagem original (via `chat_message_reactions`) e não mais como cards isolados na timeline.
+1. Frontend (`src/pages/agente/filas/FilasPage.tsx`): novo hook `useAgentQueueLimits()` que carrega via `externalDb` o agente do usuário logado (vinculação por `cod_agent`/`client_id`) e retorna `{ queueLimit, allowGroups }`. O botão "Nova Fila" fica desabilitado com tooltip quando `activeQueues.length >= queueLimit` ("Limite de X filas atingido. Contate seu administrador para aumentar.").
+2. Backend (`supabase/functions/queue-management/index.ts`, action `create`): antes do insert, contar filas ativas do `client_id` (`COUNT * FROM queues WHERE client_id = ? AND is_deleted = false`) e buscar `QUEUE_LIMIT` do agente associado via chamada interna a `db-query` (settings JSON do agente do client). Se `count >= limit` → retornar erro `"queue_limit_reached"`. Garante que mesmo bypass de UI seja barrado.
+
+**B. Permitir grupos (`ALLOW_GROUPS`)**
+
+1. Frontend (`QueueFormDialog`/`QueueWizardDialog`): novo campo informativo somente-leitura "Aceita grupos" mostrando ✓/✗ baseado no `ALLOW_GROUPS` do agente (não editável aqui — config vive no agente, não na fila).
+2. Backend (`supabase/functions/uazapi-chat-webhook/index.ts`): após detectar `isGroup` (linha 299) e antes de processar, resolver o agente da fila (via `queue_id` → `queue_agent_links.cod_agent` → `agents.settings.ALLOW_GROUPS` via `db-query`). Se `isGroup === true && ALLOW_GROUPS !== true` → `skipped.group++; continue;` (já existe o contador). Cache de 60s em memória da edge para evitar lookup por mensagem.
+
+### Edge function helper
+
+Adicionar uma action utilitária em `db-query` (ou criar `get-agent-settings` curta) que recebe `client_id` e/ou `cod_agent` e retorna `{ queue_limit, allow_groups }` parseados do JSON `settings`. Usada por `queue-management` (limite) e `uazapi-chat-webhook` (grupos).
 
 ### Arquivos alterados
 
-- `src/components/chat/ChatMessages.tsx` — resolver `queue_id` da conversa selecionada com fallbacks; remover dependência rígida de `selectedQueue`.
-- `supabase/functions/uazapi-chat-webhook/index.ts` — tratar `reactionMessage` persistindo em `chat_message_reactions` ligado à mensagem alvo, em vez de criar uma `chat_messages` do tipo `reaction`.
+- `src/pages/agents/components/wizard-steps/ConfigStep.tsx` — adicionar bloco "Filas" (Card com Input numérico e Switch); incluir `QUEUE_LIMIT` (1) e `ALLOW_GROUPS` (false) em `ConfigFields` e `DEFAULT_CONFIG`.
+- `src/pages/agente/filas/hooks/useAgentQueueLimits.ts` *(novo)* — busca limites do agente do usuário logado.
+- `src/pages/agente/filas/FilasPage.tsx` — desabilitar botão "Nova Fila" quando limite atingido + tooltip; mostrar "X / Y filas usadas" no header.
+- `src/pages/agente/filas/components/QueueFormDialog.tsx` — campo informativo "Aceita grupos" (read-only) baseado no agente.
+- `supabase/functions/queue-management/index.ts` — gate na action `create`: contar filas + ler `QUEUE_LIMIT` via `db-query`; bloquear com erro claro se exceder.
+- `supabase/functions/uazapi-chat-webhook/index.ts` — após `isGroup`, resolver `ALLOW_GROUPS` do agente da fila (com cache); pular ingestão se desabilitado.
+- `supabase/functions/db-query/index.ts` — nova action `get_agent_queue_settings` que retorna `{ queue_limit, allow_groups }` do JSON `settings`.
+
+### Resultado esperado
+
+- Admin (criar/editar agente) e proprietário (Meus Agentes → Editar) configuram limite e permissão de grupos no novo bloco "Filas" do ConfigStep.
+- Tela de Filas respeita o limite (UI + backend) — não dá pra criar a 2ª fila se o limite for 1.
+- Mensagens de grupo do WhatsApp são silenciosamente ignoradas pelo webhook quando `ALLOW_GROUPS = false` (padrão), eliminando ruído de grupos não desejados.
 
