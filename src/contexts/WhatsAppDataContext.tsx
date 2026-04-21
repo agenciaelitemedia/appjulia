@@ -1695,9 +1695,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     // Tags
     tags,
     loadTags,
+    updateTag,
+    deleteTag,
     addTagToConversation,
     removeTagFromConversation,
     createTag,
+    conversationTagsMap,
+    refreshConversationTags,
 
     // Internal notes
     sendInternalNote,

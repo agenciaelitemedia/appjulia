@@ -247,7 +247,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
             {selectedConversation && (
               <ChannelBadge channel={selectedConversation.channel} />
             )}
-            {selectedConversation && (conversationTagsMap[selectedConversation.id] || []).slice(0, 3).map(tag => (
+            {selectedConversation && (conversationTagsMap?.[selectedConversation.id] || []).slice(0, 3).map(tag => (
               <span
                 key={tag.id}
                 className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold text-white"
