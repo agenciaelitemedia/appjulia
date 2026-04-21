@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
-import bcrypt from "npm:bcryptjs@2.4.3";
+import bcrypt from "https://esm.sh/bcryptjs@2.4.3";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -518,6 +518,19 @@ serve(async (req) => {
           LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
           WHERE ua.user_id = $1
           ORDER BY c.business_name`,
+          [userId]
+        );
+        break;
+      }
+
+      case 'get_effective_client_id': {
+        const { userId } = data;
+        result = await sql.unsafe(
+          `SELECT COALESCE(u.client_id, parent.client_id)::text AS client_id
+             FROM users u
+             LEFT JOIN users parent ON parent.id = u.user_id
+            WHERE u.id = $1
+            LIMIT 1`,
           [userId]
         );
         break;
