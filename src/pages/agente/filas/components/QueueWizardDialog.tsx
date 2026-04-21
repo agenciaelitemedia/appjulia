@@ -180,6 +180,10 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
   const canSubmit = !!queueName.trim();
 
   const handleSubmit = () => {
+    if (limitReached) {
+      toast.error(`Limite de ${queueLimit} ${queueLimit === 1 ? 'fila atingido' : 'filas atingido'}. Contate seu administrador para aumentar.`);
+      return;
+    }
     const formData: QueueFormData = {
       name: queueName.trim(),
       channel_type: selectedType,
