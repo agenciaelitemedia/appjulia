@@ -538,21 +538,25 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       .eq('chat_tags.client_id', clientId);
     if (conversationId) query = query.eq('conversation_id', conversationId);
     const { data } = await query;
-    const map: Record<string, ChatTag[]> = conversationId
-      ? { ...conversationTagsMap, [conversationId]: [] }
-      : {};
-    for (const row of data || []) {
-      const tag = row.chat_tags as unknown as ChatTag;
-      if (!tag?.id) continue;
-      if (!map[row.conversation_id]) map[row.conversation_id] = [];
-      map[row.conversation_id].push(tag);
-    }
     if (conversationId) {
-      setConversationTagsMap(prev => ({ ...prev, [conversationId]: map[conversationId] || [] }));
+      const newTags: ChatTag[] = [];
+      for (const row of data || []) {
+        const tag = row.chat_tags as unknown as ChatTag;
+        if (!tag?.id) continue;
+        newTags.push(tag);
+      }
+      setConversationTagsMap(prev => ({ ...prev, [conversationId]: newTags }));
     } else {
+      const map: Record<string, ChatTag[]> = {};
+      for (const row of data || []) {
+        const tag = row.chat_tags as unknown as ChatTag;
+        if (!tag?.id) continue;
+        if (!map[row.conversation_id]) map[row.conversation_id] = [];
+        map[row.conversation_id].push(tag);
+      }
       setConversationTagsMap(map);
     }
-  }, [clientId, conversationTagsMap]);
+  }, [clientId]);
 
   const addTagToConversation = useCallback(async (conversationId: string, tagId: string, tagName?: string) => {
     await supabase.from('chat_conversation_tags').insert({ conversation_id: conversationId, tag_id: tagId });
