@@ -19,7 +19,8 @@ import { useQueues } from '@/pages/agente/filas/hooks/useQueues';
 import { useAgentQueueLimits } from '@/pages/agente/filas/hooks/useAgentQueueLimits';
 import { useChatSlaConfigs, evaluateSla, type SlaStatus } from '@/hooks/useChatSlaConfigs';
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
-import { useCRMStages, useTeamForAgent } from '@/pages/crm/hooks/useCRMData';
+import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
+import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
 import { externalDb } from '@/lib/externalDb';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
@@ -182,15 +183,11 @@ export function ChatList() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const primaryCodAgent = React.useMemo(() => {
-    if (selectedQueue?.id) {
-      const link = queueAgentMap?.get(selectedQueue.id);
-      if (link?.codAgent) return link.codAgent;
-    }
-    return userAgents[0]?.cod_agent ? String(userAgents[0].cod_agent) : null;
-  }, [selectedQueue?.id, queueAgentMap, userAgents]);
-
-  const { data: teamMembers = [] } = useTeamForAgent(primaryCodAgent);
+  const { data: agentsData } = useMyAgents();
+  const allAgents = [
+    ...(agentsData?.myAgents || []),
+    ...(agentsData?.monitoredAgents || []),
+  ];
   const { data: stages = [] } = useCRMStages();
 
   // Phone → stage map
@@ -474,11 +471,14 @@ export function ChatList() {
               <SelectItem value="unassigned" className="text-xs text-muted-foreground italic">
                 Sem Responsável
               </SelectItem>
-              {teamMembers.map((member) => (
-                <SelectItem key={member.id} value={member.name} className="text-xs">
-                  {member.name}
-                </SelectItem>
-              ))}
+              {allAgents.map((agent) => {
+                const displayName = agent.client_name || agent.business_name || String(agent.cod_agent);
+                return (
+                  <SelectItem key={agent.cod_agent} value={displayName} className="text-xs">
+                    {displayName}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         </div>
