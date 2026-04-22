@@ -327,6 +327,18 @@ class ExternalDatabase {
     }
   }
 
+  async createVwEquipe(): Promise<{ success: boolean; message: string }> {
+    const result = await this.invoke({ action: 'create_vw_equipe', data: {} });
+    return result[0];
+  }
+
+  async getTeamByClient<T = any>(userId: number, role: string): Promise<T[]> {
+    return this.invoke({
+      action: 'get_team_by_client',
+      data: { userId, role },
+    });
+  }
+
   // === Team Members Methods ===
 
   async getTeamMembers<T = any>(userId: number, isAdmin: boolean): Promise<T[]> {
