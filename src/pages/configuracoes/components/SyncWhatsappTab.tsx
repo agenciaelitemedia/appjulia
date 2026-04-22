@@ -242,10 +242,19 @@ function StepQueue({
     queryKey: ['sync-uazapi-queues', selectedClient?.id],
     enabled: !!selectedClient,
     queryFn: async () => {
-      const { data } = await supabase.from('queue_providers').select('*')
+      // Read from the real "queues" table — its evo_apikey is the per-instance token
+      // populated by queue-management on instance creation. queue_providers only has
+      // the global admin token, which UaZapi rejects on /message/* endpoints.
+      const { data } = await supabase
+        .from('queues')
+        .select('id, name, evo_url, evo_apikey, evo_instance, channel_type, is_active, is_deleted, client_id')
         .eq('client_id', String(selectedClient!.id))
-        .eq('provider_type', 'uazapi').eq('is_active', true).order('name');
-      return (data ?? []) as QueueProvider[];
+        .in('channel_type', ['uazapi', 'whatsapp_uazapi'])
+        .eq('is_active', true)
+        .eq('is_deleted', false)
+        .not('evo_apikey', 'is', null)
+        .order('name');
+      return (data ?? []) as unknown as QueueProvider[];
     },
   });
 
