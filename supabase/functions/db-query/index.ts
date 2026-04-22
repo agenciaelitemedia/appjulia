@@ -536,6 +536,53 @@ serve(async (req) => {
         break;
       }
 
+      case 'create_vw_equipe': {
+        await sql.unsafe(`
+          CREATE OR REPLACE VIEW vw_equipe AS
+          SELECT
+            u.id,
+            u.name,
+            u.email,
+            u.role,
+            u.user_id          AS parent_user_id,
+            COALESCE(u.client_id, p.client_id) AS client_id,
+            c.photo,
+            c.business_name    AS client_business_name
+          FROM users u
+          LEFT JOIN users   p ON p.id = u.user_id
+          LEFT JOIN clients c ON c.id = COALESCE(u.client_id, p.client_id)
+          WHERE u.role IN ('admin','user','colaborador','time','advogado','comercial')
+        `);
+        result = [{ success: true, message: 'vw_equipe created/updated' }];
+        break;
+      }
+
+      case 'get_team_by_client': {
+        const { userId, role } = data;
+        const me = await sql.unsafe(
+          `SELECT COALESCE(u.client_id, p.client_id) AS client_id
+             FROM users u LEFT JOIN users p ON p.id = u.user_id
+            WHERE u.id = $1 LIMIT 1`,
+          [userId]
+        );
+        const clientId = (me[0] as any)?.client_id ?? null;
+        if (role === 'admin' && !clientId) {
+          result = await sql.unsafe(
+            `SELECT id, name, email, role, client_id::text AS client_id, photo
+               FROM vw_equipe ORDER BY name`
+          );
+        } else if (clientId) {
+          result = await sql.unsafe(
+            `SELECT id, name, email, role, client_id::text AS client_id, photo
+               FROM vw_equipe WHERE client_id = $1 ORDER BY name`,
+            [clientId]
+          );
+        } else {
+          result = [];
+        }
+        break;
+      }
+
       case 'get_agents_list': {
         // Optimized query with pre-aggregated leads count and settings for business hours
         // Supports showLegacy parameter to filter legacy agents (without user_agents link)

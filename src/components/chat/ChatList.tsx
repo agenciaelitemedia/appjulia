@@ -23,6 +23,7 @@ import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
 import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
+import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { externalDb } from '@/lib/externalDb';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
 import type { ConversationFilterStatus } from '@/types/conversation';
@@ -189,6 +190,7 @@ export function ChatList() {
     ...(agentsData?.myAgents || []),
     ...(agentsData?.monitoredAgents || []),
   ];
+  const { data: teamMembers = [] } = useTeamByClient();
   const { data: stages = [] } = useCRMStages();
   const { aliasMap } = useAgentAliases();
 
@@ -233,6 +235,7 @@ export function ChatList() {
   const visibleContacts = React.useMemo(() => {
     let result = filteredContacts;
     if (ownerFilter !== 'all') {
+      const selectedMember = teamMembers.find((m) => String(m.id) === ownerFilter);
       result = result.filter((c) => {
         const assigned = convMetaByContact.get(c.id)?.assignedTo;
         if (ownerFilter === 'unassigned') return !assigned;
@@ -240,7 +243,8 @@ export function ChatList() {
           if (!assigned) return false;
           return assigned === String(user?.id) || assigned === user?.name;
         }
-        return assigned === ownerFilter;
+        if (!assigned) return false;
+        return assigned === ownerFilter || (selectedMember && assigned === selectedMember.name);
       });
     }
     if (periodFilter !== 'all') {
@@ -287,7 +291,7 @@ export function ChatList() {
       });
     }
     return result;
-  }, [filteredContacts, slaFilter, slaStatusByContact, modeFilter, convMetaByContact, queueAgentMap, queryClient, conversations, ownerFilter, periodFilter, stageIds, stageByPhone, user?.id, user?.name]);
+  }, [filteredContacts, slaFilter, slaStatusByContact, modeFilter, convMetaByContact, queueAgentMap, queryClient, conversations, ownerFilter, periodFilter, stageIds, stageByPhone, user?.id, user?.name, teamMembers]);
 
   // Count conversations by status
   const pendingCount = conversations.filter(c => c.status === 'pending').length;
@@ -486,14 +490,11 @@ export function ChatList() {
               <SelectItem value="unassigned" className="text-xs text-muted-foreground italic">
                 Sem Responsável
               </SelectItem>
-              {allAgents.map((agent) => {
-                const displayName = agent.client_name || agent.business_name || String(agent.cod_agent);
-                return (
-                  <SelectItem key={agent.cod_agent} value={displayName} className="text-xs">
-                    {displayName}
-                  </SelectItem>
-                );
-              })}
+              {teamMembers.map((m) => (
+                <SelectItem key={m.id} value={String(m.id)} className="text-xs">
+                  {m.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
