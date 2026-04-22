@@ -465,9 +465,6 @@ function StepSummary({
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground mb-0.5">Fila UaZAPI</p>
               <p className="font-medium text-sm truncate">{queue.name}</p>
-              {queue.evo_instance && (
-                <p className="text-xs text-muted-foreground">Instância: {queue.evo_instance}</p>
-              )}
               {queue.evo_url && (
                 <p className="text-xs text-muted-foreground truncate">URL: {queue.evo_url}</p>
               )}
