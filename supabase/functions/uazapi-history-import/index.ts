@@ -366,6 +366,8 @@ async function runJob(jobId: string) {
   let totalInsertedMessages = 0;
   let totalInsertedContacts = 0;
   let totalErrors = 0;
+  let totalContactsEnriched = 0;
+  let totalMediaQueued = 0;
   const BATCH = 3;
 
   for (let i = 0; i < uniquePhones.length; i += BATCH) {
@@ -394,6 +396,8 @@ async function runJob(jobId: string) {
       if (r.error) totalErrors++;
       totalInsertedMessages += r.messages_inserted;
       if (r.contact_created) totalInsertedContacts++;
+      if (r.contact_enriched) totalContactsEnriched++;
+      totalMediaQueued += r.media_downloads_queued || 0;
 
       await supabase
         .from('whatsapp_sync_job_logs')
@@ -434,7 +438,7 @@ async function runJob(jobId: string) {
     })
     .eq('id', jobId);
 
-  console.log(`[uazapi-history-import] Job ${jobId} ${finalStatus}: messages=${totalInsertedMessages} contacts=${totalInsertedContacts} errors=${totalErrors}`);
+  console.log(`[uazapi-history-import] Job ${jobId} ${finalStatus}: messages=${totalInsertedMessages} contacts=${totalInsertedContacts} enriched=${totalContactsEnriched} media_queued=${totalMediaQueued} errors=${totalErrors}`);
 }
 
 Deno.serve(async (req) => {
