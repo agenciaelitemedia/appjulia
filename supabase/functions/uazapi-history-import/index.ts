@@ -130,7 +130,7 @@ async function processNumber(
         phone,
         remote_jid: chatId,
         channel_type: 'whatsapp',
-        channel_source: 'uazapi',
+        channel_source: job.queue_id || 'uazapi',
         history_backfilled: true,
         unread_count: 0,
       })
