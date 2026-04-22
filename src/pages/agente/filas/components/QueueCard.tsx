@@ -32,7 +32,6 @@ interface QueueCardProps {
 export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps) {
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const hasWabaCreds = queue.channel_type === 'waba' && !!queue.waba_token;
-  const isUazapi = queue.channel_type === 'uazapi';
 
   return (
     <Card className={`hover:shadow-md transition-shadow ${queue.is_deleted ? 'opacity-60 border-dashed' : ''}`}>
