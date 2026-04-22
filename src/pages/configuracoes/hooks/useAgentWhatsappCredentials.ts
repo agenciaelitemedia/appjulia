@@ -5,7 +5,7 @@ export interface AgentWhatsappCredentials {
   hub: string | null;
   evo_url: string | null;
   evo_apikey: string | null;
-  evo_instancia: string | null;
+  evo_instance: string | null;
 }
 
 /**
@@ -22,7 +22,7 @@ export function useAgentWhatsappCredentials(codAgent: string | null | undefined)
     queryFn: async () => {
       const rows = await externalDb.raw<AgentWhatsappCredentials>({
         query:
-          'SELECT hub, evo_url, evo_apikey, evo_instancia FROM agents WHERE cod_agent = $1 LIMIT 1',
+          'SELECT hub, evo_url, evo_apikey, evo_instance FROM agents WHERE cod_agent = $1 LIMIT 1',
         params: [codAgent!],
       });
       return rows?.[0] ?? null;
