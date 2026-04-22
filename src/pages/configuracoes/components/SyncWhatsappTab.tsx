@@ -353,11 +353,13 @@ function StepQueue({
 
 // ─── Step 4: Summary ──────────────────────────────────────────────────────────
 function StepSummary({
-  agent, numbers, client, queue, dateFrom, dateTo, onChangeNumbers,
+  agent, numbers, client, queue, agentCreds, loadingAgentCreds, dateFrom, dateTo, onChangeNumbers,
 }: {
   agent: AgentListItem; numbers: string[]; client: SearchedClient; queue: QueueProvider;
+  agentCreds: AgentWhatsappCredentials | null; loadingAgentCreds: boolean;
   dateFrom: string; dateTo: string; onChangeNumbers: (nums: string[]) => void;
 }) {
+  const agentHasUazapi = !!(agentCreds && agentCreds.hub === 'uazapi' && agentCreds.evo_url && agentCreds.evo_apikey);
   return (
     <div className="space-y-4">
       <div>
@@ -384,9 +386,12 @@ function StepSummary({
         <Card><CardContent className="p-4 flex items-start gap-3">
           <Network className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
           <div className="min-w-0">
-            <p className="text-xs text-muted-foreground mb-0.5">Fila UaZAPI</p>
-            <p className="font-medium text-sm truncate">{queue.name}</p>
-            {queue.evo_url && <p className="text-xs text-muted-foreground truncate">URL: {queue.evo_url}</p>}
+            <p className="text-xs text-muted-foreground mb-0.5">WhatsApp do Agente (UaZapi)</p>
+            <p className="font-medium text-sm truncate">
+              {loadingAgentCreds ? 'Carregando...' : (agentCreds?.evo_instancia || agentCreds?.evo_url || 'Não configurado')}
+            </p>
+            {agentCreds?.evo_url && <p className="text-xs text-muted-foreground truncate">URL: {agentCreds.evo_url}</p>}
+            <p className="text-xs text-muted-foreground truncate">Fila vinculada: {queue.name}</p>
           </div>
         </CardContent></Card>
         <Card><CardContent className="p-4 flex items-start gap-3">
@@ -409,10 +414,20 @@ function StepSummary({
           value={numbers.join('\n')}
           onChange={(e) => onChangeNumbers(e.target.value.split('\n').map((l) => l.trim()).filter(Boolean))} />
       </div>
+      {!loadingAgentCreds && !agentHasUazapi && (
+        <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20">
+          <X className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+          <p className="text-xs text-muted-foreground">
+            O agente <strong>{agent.cod_agent}</strong> não possui credenciais UaZapi configuradas
+            (hub atual: <code>{agentCreds?.hub || 'nenhum'}</code>). O aquecimento e a importação utilizam o WhatsApp do agente.
+            Configure a conexão UaZapi do agente antes de continuar.
+          </p>
+        </div>
+      )}
       <div className="flex items-center gap-2 p-3 rounded-md bg-yellow-500/10 border border-yellow-500/20">
         <Info className="h-4 w-4 text-yellow-600 shrink-0" />
         <p className="text-xs text-muted-foreground">
-          Próximo passo: <strong>aquecimento</strong> — solicitar à UaZapi que baixe o histórico de cada número (rápido, ~5 paralelos).
+          Próximo passo: <strong>aquecimento</strong> — solicitar à UaZapi do agente que baixe o histórico de cada número (rápido, ~5 paralelos).
         </p>
       </div>
     </div>
