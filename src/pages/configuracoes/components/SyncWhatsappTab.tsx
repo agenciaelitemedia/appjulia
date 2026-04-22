@@ -643,13 +643,16 @@ export function SyncWhatsappTab() {
   const [selectedClient, setSelectedClient] = useState<SearchedClient | null>(null);
   const [selectedQueue, setSelectedQueue] = useState<QueueProvider | null>(null);
 
+  const { data: agentCreds, isLoading: loadingAgentCreds } = useAgentWhatsappCredentials(selectedAgent?.cod_agent);
+  const agentHasUazapi = !!(agentCreds && agentCreds.hub === 'uazapi' && agentCreds.evo_url && agentCreds.evo_apikey);
+
   const dateRangeValid = parseISO(dateFrom + 'T00:00:00') <= parseISO(dateTo + 'T00:00:00');
 
   const canAdvance = () => {
     if (step === 1) return !!selectedAgent;
     if (step === 2) return numbers.length > 0 && dateRangeValid;
     if (step === 3) return !!selectedClient && !!selectedQueue;
-    if (step === 4) return true;
+    if (step === 4) return agentHasUazapi;
     return false;
   };
 
@@ -718,13 +721,15 @@ export function SyncWhatsappTab() {
         )}
         {step === 4 && selectedAgent && selectedClient && selectedQueue && (
           <StepSummary agent={selectedAgent} numbers={numbers} client={selectedClient} queue={selectedQueue}
+            agentCreds={agentCreds ?? null} loadingAgentCreds={loadingAgentCreds}
             dateFrom={dateFrom} dateTo={dateTo} onChangeNumbers={setNumbers} />
         )}
-        {step === 5 && selectedQueue && (
-          <StepWarmup numbers={numbers} queue={selectedQueue} onComplete={() => setStep(6)} />
+        {step === 5 && agentHasUazapi && (
+          <StepWarmup numbers={numbers} agentCreds={agentCreds!} onComplete={() => setStep(6)} />
         )}
-        {step === 6 && selectedAgent && selectedClient && selectedQueue && (
+        {step === 6 && selectedAgent && selectedClient && selectedQueue && agentHasUazapi && (
           <StepImport agent={selectedAgent} numbers={numbers} client={selectedClient} queue={selectedQueue}
+            agentCreds={agentCreds!}
             dateFrom={dateFrom} dateTo={dateTo} onReset={handleReset} />
         )}
       </div>
