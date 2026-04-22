@@ -132,6 +132,7 @@ async function processNumber(
         channel_type: 'whatsapp',
         channel_source: 'uazapi',
         history_backfilled: true,
+        unread_count: 0,
       })
       .select('id')
       .single();
@@ -181,10 +182,11 @@ async function processNumber(
     }
   }
 
-  // Mark contact as backfilled
-  if (!contactCreated) {
-    await supabase.from('chat_contacts').update({ history_backfilled: true }).eq('id', contactId);
-  }
+  // Force unread_count = 0 and mark as backfilled (covers concurrent webhooks)
+  await supabase
+    .from('chat_contacts')
+    .update({ history_backfilled: true, unread_count: 0 })
+    .eq('id', contactId);
 
   return { messages_found: messages.length, messages_inserted: inserted, contact_created: contactCreated };
 }

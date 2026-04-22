@@ -91,3 +91,53 @@ export function useCancelSyncJob() {
     onError: (e: Error) => toast.error('Falha ao cancelar: ' + e.message),
   });
 }
+
+export function useRestartSyncJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (jobId: string) => {
+      // Load original job
+      const { data: original, error: loadErr } = await supabase
+        .from('whatsapp_sync_jobs')
+        .select('*')
+        .eq('id', jobId)
+        .single();
+      if (loadErr || !original) throw new Error(loadErr?.message || 'Job original não encontrado');
+
+      // Create new job reusing parameters
+      const { data: created, error: insErr } = await supabase
+        .from('whatsapp_sync_jobs')
+        .insert({
+          client_id: original.client_id,
+          client_name: original.client_name,
+          queue_id: original.queue_id,
+          queue_name: original.queue_name,
+          cod_agent: original.cod_agent,
+          agent_name: original.agent_name,
+          phase: 'message_find',
+          status: 'running',
+          date_from: original.date_from,
+          date_to: original.date_to,
+          evo_url: original.evo_url,
+          evo_token: original.evo_token,
+          numbers: original.numbers,
+          created_by: original.created_by,
+        } as never)
+        .select('id')
+        .single();
+      if (insErr || !created) throw new Error(insErr?.message || 'Falha ao criar novo job');
+
+      const { error: invokeErr } = await supabase.functions.invoke('uazapi-history-import', {
+        body: { job_id: (created as { id: string }).id },
+      });
+      if (invokeErr) throw invokeErr;
+
+      return (created as { id: string }).id;
+    },
+    onSuccess: () => {
+      toast.success('Sincronização reiniciada');
+      qc.invalidateQueries({ queryKey: ['whatsapp-sync-jobs'] });
+    },
+    onError: (e: Error) => toast.error('Falha ao reiniciar: ' + e.message),
+  });
+}

@@ -2,8 +2,18 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, History, Eye, X, CheckCircle2, AlertCircle, Clock, Ban } from 'lucide-react';
-import { useWhatsappSyncJobs, useCancelSyncJob, type WhatsappSyncJob } from '../hooks/useWhatsappSyncJobs';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Loader2, History, Eye, X, CheckCircle2, AlertCircle, Clock, Ban, RotateCw } from 'lucide-react';
+import { useWhatsappSyncJobs, useCancelSyncJob, useRestartSyncJob, type WhatsappSyncJob } from '../hooks/useWhatsappSyncJobs';
 import { SyncHistoryLogsDrawer } from './SyncHistoryLogsDrawer';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -43,8 +53,10 @@ function JobStatusBadge({ status }: { status: WhatsappSyncJob['status'] }) {
 export function SyncHistoryTab() {
   const { data: jobs = [], isLoading } = useWhatsappSyncJobs();
   const cancelJob = useCancelSyncJob();
+  const restartJob = useRestartSyncJob();
   const [selectedJob, setSelectedJob] = useState<WhatsappSyncJob | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [restartTarget, setRestartTarget] = useState<WhatsappSyncJob | null>(null);
 
   const openLogs = (job: WhatsappSyncJob) => {
     setSelectedJob(job);
