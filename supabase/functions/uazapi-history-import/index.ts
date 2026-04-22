@@ -157,13 +157,36 @@ async function processNumber(
       const isoTs = tsToIso(msg.messageTimestamp || msg.timestamp);
       const pushName = msg.pushName || msg.senderName || msg.wa_contactName || '';
 
-      const { error, count } = await supabase
+      // 1) Lookup: exists by message_id OR by (contact_id, external_id) composite
+      const backfillExtId = `backfill:${messageId}`;
+      const { data: existing } = await supabase
         .from('chat_messages')
-        .upsert({
+        .select('id, contact_id')
+        .or(`message_id.eq.${messageId},and(contact_id.eq.${contactId},external_id.eq.${backfillExtId})`)
+        .maybeSingle();
+
+      if (existing) {
+        // Re-link to the backfill contact if it lives under another contact_id
+        if (existing.contact_id !== contactId) {
+          const { error: updErr } = await supabase
+            .from('chat_messages')
+            .update({ contact_id: contactId })
+            .eq('id', existing.id);
+          if (updErr) {
+            console.warn(`[uazapi-history-import] relink failed phone=${phone} msg=${messageId} err=${updErr.message}`);
+          }
+        }
+        continue;
+      }
+
+      // 2) Real insert (no upsert, so we surface real errors)
+      const { error: insErr } = await supabase
+        .from('chat_messages')
+        .insert({
           contact_id: contactId,
           client_id: job.client_id,
           message_id: messageId,
-          external_id: messageId,
+          external_id: backfillExtId,
           text,
           type,
           from_me: fromMe,
@@ -174,9 +197,13 @@ async function processNumber(
           sender_name: fromMe ? null : pushName || null,
           raw_payload: msg,
           metadata: { backfilled: true, sync_job_id: job.id },
-        }, { onConflict: 'message_id', ignoreDuplicates: true, count: 'exact' });
+        });
 
-      if (!error && (count ?? 0) > 0) inserted++;
+      if (insErr) {
+        console.warn(`[uazapi-history-import] insert failed phone=${phone} msg=${messageId} err=${insErr.message}`);
+        continue;
+      }
+      inserted++;
     } catch (e) {
       console.warn('[uazapi-history-import] msg insert error:', e);
     }
