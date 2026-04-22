@@ -93,6 +93,10 @@ async function uazapiPost(baseUrl: string, apikey: string, path: string, body: u
 
 async function runSync(queue_id: string) {
   const supabase = getSupabase();
+  const t0 = Date.now();
+  const elapsed = () => `${((Date.now() - t0) / 1000).toFixed(1)}s`;
+  const log = (msg: string) => console.log(`[history-sync ${queue_id.slice(0, 8)} +${elapsed()}] ${msg}`);
+  log('▶ START');
   try {
     // 1. Resolve queue credentials
     const { data: queue, error: qErr } = await supabase
@@ -102,11 +106,12 @@ async function runSync(queue_id: string) {
       .single();
 
     if (qErr || !queue || !queue.evo_url || !queue.evo_apikey || !queue.evo_instance) {
-      console.error('[uazapi-history-sync] Queue or credentials not found', qErr);
+      console.error(`[history-sync ${queue_id.slice(0, 8)}] ✖ Queue or credentials not found`, qErr);
       return;
     }
 
     const { evo_url, evo_apikey, evo_instance, client_id } = queue;
+    log(`✓ Queue resolved: instance="${evo_instance}" client=${client_id}`);
 
     // 2. Read configured history window
     const { data: settingsRow } = await supabase
@@ -122,16 +127,17 @@ async function runSync(queue_id: string) {
     // Cap at 7 — UaZAPI only stores 7 days
     const syncDays = Math.min(rawDays, 7);
     const cutoffMs = Date.now() - syncDays * 86_400_000;
-
-    console.log(`[uazapi-history-sync] queue=${queue_id} client=${client_id} syncDays=${syncDays}`);
+    log(`✓ Settings loaded: syncDays=${syncDays} cutoff=${new Date(cutoffMs).toISOString()}`);
 
     // 3. Enumerate individual chats via /chat/find (paginated)
     const allChats: any[] = [];
     let page = 1;
     const PAGE_SIZE = 100;
     const MAX_CHATS = 200;
+    log(`▶ STEP 1/2: Listing chats (PAGE_SIZE=${PAGE_SIZE} MAX=${MAX_CHATS})`);
 
     while (allChats.length < MAX_CHATS) {
+      const pageT = Date.now();
       let pageData: any;
       try {
         pageData = await uazapiPost(evo_url, evo_apikey, `/chat/find`, {
@@ -142,7 +148,7 @@ async function runSync(queue_id: string) {
           wa_isGroup: false,
         });
       } catch (e) {
-        console.warn(`[uazapi-history-sync] /chat/find page ${page} failed:`, e);
+        log(`  ✖ /chat/find page ${page} failed: ${(e as Error).message}`);
         break;
       }
 
@@ -155,7 +161,7 @@ async function runSync(queue_id: string) {
 
       if (page === 1) {
         const sample = chats[0] ? Object.keys(chats[0]).slice(0, 25) : [];
-        console.log(`[uazapi-history-sync] /chat/find page1 raw keys=${JSON.stringify(Object.keys(pageData || {}))} count=${chats.length} sampleChatKeys=${JSON.stringify(sample)}`);
+        log(`  · page1 rawKeys=${JSON.stringify(Object.keys(pageData || {}))} sampleChatKeys=${JSON.stringify(sample)}`);
       }
 
       if (chats.length === 0) break;
@@ -168,20 +174,25 @@ async function runSync(queue_id: string) {
         return tsMs >= cutoffMs;
       });
 
-      console.log(`[uazapi-history-sync] page ${page}: total=${chats.length} relevant=${relevant.length}`);
+      log(`  · page ${page}: fetched=${chats.length} relevant=${relevant.length} (${Date.now() - pageT}ms) — accumulated=${allChats.length + relevant.length}`);
       allChats.push(...relevant);
       if (chats.length < PAGE_SIZE) break;
       page++;
     }
 
-    console.log(`[uazapi-history-sync] Found ${allChats.length} relevant chats`);
+    log(`✓ STEP 1 done: ${allChats.length} chats to process`);
 
     let syncedChats = 0;
     let syncedMessages = 0;
     let skippedDuplicates = 0;
+    const totalChats = allChats.length;
+    const PROGRESS_EVERY = 5;
+    log(`▶ STEP 2/2: Processing chats (progress every ${PROGRESS_EVERY})`);
 
     // 4. Process each chat
-    for (const chat of allChats) {
+    for (let i = 0; i < allChats.length; i++) {
+      const chat = allChats[i];
+      const chatT = Date.now();
       const chatId: string = chat.wa_chatid || chat.chatid || chat.id || chat.remoteJid || chat.jid || '';
       if (!chatId || chatId.includes('@g.us')) continue; // skip groups just in case
 
@@ -189,6 +200,9 @@ async function runSync(queue_id: string) {
       if (!phone) continue;
 
       const displayName: string = chat.wa_contactName || chat.lead_name || chat.name || chat.pushName || phone;
+      let chatMsgCount = 0;
+      let chatNewCount = 0;
+      let chatDupCount = 0;
 
       try {
         // 4a. Upsert contact (dedup by phone+client_id)
@@ -242,7 +256,7 @@ async function runSync(queue_id: string) {
               offset: msgOffset,
             });
           } catch (e) {
-            console.warn(`[uazapi-history-sync] /message/find failed for ${chatId}:`, e);
+            log(`  ✖ /message/find failed for ${phone}: ${(e as Error).message}`);
             break;
           }
 
@@ -267,6 +281,7 @@ async function runSync(queue_id: string) {
           if (reachedCutoff) break;
           msgOffset += msgs.length;
         }
+        chatMsgCount = chatMessages.length;
 
         // 4c. Resolve or create conversation
         let conversationId: string | null = null;
@@ -319,8 +334,10 @@ async function runSync(queue_id: string) {
 
           if (msgErr) {
             skippedDuplicates++;
+            chatDupCount++;
           } else {
             syncedMessages++;
+            chatNewCount++;
           }
         }
 
@@ -332,7 +349,7 @@ async function runSync(queue_id: string) {
               read: true,
             });
           } catch (e) {
-            console.warn(`[uazapi-history-sync] /chat/read failed for ${chatId}:`, e);
+            log(`  · /chat/read failed for ${phone}: ${(e as Error).message}`);
           }
         }
 
@@ -343,14 +360,18 @@ async function runSync(queue_id: string) {
           .eq('id', contactId);
 
         syncedChats++;
+        const idx = i + 1;
+        if (idx % PROGRESS_EVERY === 0 || idx === totalChats || chatNewCount > 0) {
+          log(`  · [${idx}/${totalChats}] ${phone} (${displayName.slice(0, 30)}) msgs=${chatMsgCount} new=${chatNewCount} dup=${chatDupCount} (${Date.now() - chatT}ms) | TOTAL new=${syncedMessages} dup=${skippedDuplicates}`);
+        }
       } catch (chatErr) {
-        console.warn(`[uazapi-history-sync] Error processing chat ${chatId}:`, chatErr);
+        log(`  ✖ [${i + 1}/${totalChats}] Error on ${phone}: ${(chatErr as Error).message}`);
       }
     }
 
-    console.log(`[uazapi-history-sync] Done: chats=${syncedChats} msgs=${syncedMessages} dupes=${skippedDuplicates}`);
+    log(`✓ DONE: chats=${syncedChats}/${totalChats} msgs=${syncedMessages} dupes=${skippedDuplicates} totalTime=${elapsed()}`);
   } catch (err) {
-    console.error('[uazapi-history-sync] Fatal error:', err);
+    console.error(`[history-sync ${queue_id.slice(0, 8)}] ✖ FATAL after ${elapsed()}:`, err);
   }
 }
 
