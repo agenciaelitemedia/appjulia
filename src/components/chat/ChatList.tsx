@@ -23,6 +23,7 @@ import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
 import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
+import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { externalDb } from '@/lib/externalDb';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
 import type { ConversationFilterStatus } from '@/types/conversation';
