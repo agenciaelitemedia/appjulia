@@ -388,7 +388,7 @@ function StepSummary({
           <div className="min-w-0">
             <p className="text-xs text-muted-foreground mb-0.5">WhatsApp do Agente (UaZapi)</p>
             <p className="font-medium text-sm truncate">
-              {loadingAgentCreds ? 'Carregando...' : (agentCreds?.evo_instance || agentCreds?.evo_url || 'Não configurado')}
+              {loadingAgentCreds ? 'Carregando...' : (agentCreds?.evo_url || 'Não configurado')}
             </p>
             {agentCreds?.evo_url && <p className="text-xs text-muted-foreground truncate">URL: {agentCreds.evo_url}</p>}
             <p className="text-xs text-muted-foreground truncate">Fila vinculada: {queue.name}</p>
