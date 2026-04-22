@@ -45,6 +45,12 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
       });
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
+
+      if (data?.started) {
+        toast.success(data?.message || 'Sincronização iniciada em background. Acompanhe pelos logs.');
+        return;
+      }
+
       toast.success(
         `Sincronizado: ${data?.synced_chats ?? 0} conversas, ${data?.synced_messages ?? 0} mensagens importadas`
       );
