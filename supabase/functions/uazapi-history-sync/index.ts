@@ -91,18 +91,9 @@ async function uazapiPost(baseUrl: string, apikey: string, path: string, body: u
   return resp.json();
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
-
+async function runSync(queue_id: string) {
+  const supabase = getSupabase();
   try {
-    const body = await req.json();
-    const { queue_id } = body || {};
-    if (!queue_id) return respond({ error: 'queue_id is required' }, 400);
-
-    const supabase = getSupabase();
-
     // 1. Resolve queue credentials
     const { data: queue, error: qErr } = await supabase
       .from('queues')
@@ -111,7 +102,8 @@ Deno.serve(async (req) => {
       .single();
 
     if (qErr || !queue || !queue.evo_url || !queue.evo_apikey || !queue.evo_instance) {
-      return respond({ error: 'Queue or credentials not found' }, 404);
+      console.error('[uazapi-history-sync] Queue or credentials not found', qErr);
+      return;
     }
 
     const { evo_url, evo_apikey, evo_instance, client_id } = queue;
@@ -357,16 +349,32 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[uazapi-history-sync] Done: chats=${syncedChats} msgs=${syncedMessages} dupes=${skippedDuplicates}`);
+  } catch (err) {
+    console.error('[uazapi-history-sync] Fatal error:', err);
+  }
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  try {
+    const body = await req.json();
+    const { queue_id } = body || {};
+    if (!queue_id) return respond({ error: 'queue_id is required' }, 400);
+
+    // Run sync in background to avoid 150s gateway timeout.
+    // @ts-ignore EdgeRuntime is available at runtime
+    EdgeRuntime.waitUntil(runSync(queue_id));
 
     return respond({
       ok: true,
-      synced_chats: syncedChats,
-      synced_messages: syncedMessages,
-      skipped_duplicates: skippedDuplicates,
-      sync_days: syncDays,
+      started: true,
+      message: 'Sync iniciado em background. Acompanhe pelos logs e atualize a tela em alguns minutos.',
     });
   } catch (err) {
-    console.error('[uazapi-history-sync] Fatal error:', err);
+    console.error('[uazapi-history-sync] Request error:', err);
     return respond({ error: (err as Error).message }, 500);
   }
 });
