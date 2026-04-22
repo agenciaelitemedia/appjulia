@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -154,25 +154,37 @@ function StepNumbers({
   });
 
   const extracted = useMemo(() => {
-    const set = new Set<string>();
+    const seen = new Set<string>();
+    const result: string[] = [];
     cards.forEach((c) => {
       const n = (c.whatsapp_number || '').replace(/\D/g, '');
-      if (n.length >= 8) set.add(n);
+      if (n.length >= 8 && !seen.has(n)) {
+        seen.add(n);
+        result.push(n);
+      }
     });
-    return [...set];
+    return result;
   }, [cards]);
 
-  // Initialize numbers from extraction when cards load
-  const initialized = numbers.length > 0;
-  if (!isLoading && !initialized && extracted.length > 0) {
-    onChangeNumbers(extracted);
-  }
+  useEffect(() => {
+    if (!isLoading && extracted.length > 0) {
+      onChangeNumbers(extracted);
+    }
+  }, [extracted, isLoading]);
 
   const textareaValue = numbers.join('\n');
 
   const handleTextareaChange = (value: string) => {
-    const lines = value.split('\n').map((l) => l.trim()).filter(Boolean);
-    onChangeNumbers(lines);
+    const seen = new Set<string>();
+    const deduped = value
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => {
+        if (!l || seen.has(l)) return false;
+        seen.add(l);
+        return true;
+      });
+    onChangeNumbers(deduped);
   };
 
   return (
