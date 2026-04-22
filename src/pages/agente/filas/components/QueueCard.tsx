@@ -2,13 +2,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, WifiOff, History, Loader2 } from 'lucide-react';
+import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, WifiOff } from 'lucide-react';
 import { Queue } from '../hooks/useQueues';
 import { UazapiInstanceStatus } from './UazapiInstanceStatus';
 import { DisconnectWabaDialog } from './DisconnectWabaDialog';
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
 
 const channelIcons: Record<string, React.ReactNode> = {
   uazapi: <Phone className="w-4 h-4" />,
@@ -33,33 +31,8 @@ interface QueueCardProps {
 
 export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps) {
   const [disconnectOpen, setDisconnectOpen] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const hasWabaCreds = queue.channel_type === 'waba' && !!queue.waba_token;
   const isUazapi = queue.channel_type === 'uazapi';
-
-  const handleHistorySync = async () => {
-    setSyncing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('uazapi-history-sync', {
-        body: { queue_id: queue.id },
-      });
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.error);
-
-      if (data?.started) {
-        toast.success(data?.message || 'Sincronização iniciada em background. Acompanhe pelos logs.');
-        return;
-      }
-
-      toast.success(
-        `Sincronizado: ${data?.synced_chats ?? 0} conversas, ${data?.synced_messages ?? 0} mensagens importadas`
-      );
-    } catch (e: any) {
-      toast.error(`Erro na sincronização: ${e.message}`);
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   return (
     <Card className={`hover:shadow-md transition-shadow ${queue.is_deleted ? 'opacity-60 border-dashed' : ''}`}>
@@ -121,25 +94,6 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
             queueId={queue.id}
             queueName={queue.name}
           />
-        )}
-
-        {isUazapi && !queue.is_deleted && (
-          <div className="mt-3 pt-3 border-t border-border/50">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs w-full"
-              onClick={handleHistorySync}
-              disabled={syncing}
-            >
-              {syncing ? (
-                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-              ) : (
-                <History className="w-3 h-3 mr-1" />
-              )}
-              {syncing ? 'Sincronizando...' : 'Sincronizar Histórico'}
-            </Button>
-          </div>
         )}
 
         {hasWabaCreds && !queue.is_deleted && (
