@@ -230,6 +230,7 @@ async function processNumber(
 
   // Insert messages with idempotency on message_id
   let inserted = 0;
+  let mediaQueued = 0;
   for (const msg of messages) {
     try {
       const messageId = msg.id || msg.messageId || msg.key?.id;
@@ -279,7 +280,7 @@ async function processNumber(
       }
 
       // 2) Real insert (no upsert, so we surface real errors)
-      const { error: insErr } = await supabase
+      const { data: insertedRow, error: insErr } = await supabase
         .from('chat_messages')
         .insert({
           contact_id: contactId,
@@ -297,13 +298,25 @@ async function processNumber(
           sender_name: fromMe ? null : pushName || null,
           raw_payload: msg,
           metadata: { backfilled: true, sync_job_id: job.id, original_message_id: messageId },
-        });
+        })
+        .select('id')
+        .single();
 
       if (insErr) {
         console.warn(`[uazapi-history-import] insert failed phone=${phone} msg=${messageId} err=${insErr.message}`);
         continue;
       }
       inserted++;
+
+      // Queue media download in background (fire-and-forget)
+      if (mediaUrl && MEDIA_TYPES.has(type) && insertedRow?.id) {
+        mediaQueued++;
+        supabase.functions.invoke('chat-media-download', {
+          body: { messageId: insertedRow.id, queueId: job.queue_id },
+        }).catch((e: any) =>
+          console.warn(`[uazapi-history-import] media download enqueue failed msg=${messageId} err=${e?.message || e}`)
+        );
+      }
     } catch (e) {
       console.warn('[uazapi-history-import] msg insert error:', e);
     }
@@ -315,7 +328,7 @@ async function processNumber(
     .update({ history_backfilled: true, unread_count: 0 })
     .eq('id', contactId);
 
-  return { messages_found: messages.length, messages_inserted: inserted, contact_created: contactCreated };
+  return { messages_found: messages.length, messages_inserted: inserted, contact_created: contactCreated, contact_enriched: contactEnriched, media_downloads_queued: mediaQueued };
 }
 
 async function runJob(jobId: string) {
