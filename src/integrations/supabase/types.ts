@@ -4954,6 +4954,137 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_sync_job_logs: {
+        Row: {
+          contact_created: boolean
+          created_at: string
+          error: string | null
+          id: string
+          job_id: string
+          messages_found: number
+          messages_inserted: number
+          phone: string
+          processed_at: string | null
+          status: string
+        }
+        Insert: {
+          contact_created?: boolean
+          created_at?: string
+          error?: string | null
+          id?: string
+          job_id: string
+          messages_found?: number
+          messages_inserted?: number
+          phone: string
+          processed_at?: string | null
+          status?: string
+        }
+        Update: {
+          contact_created?: boolean
+          created_at?: string
+          error?: string | null
+          id?: string
+          job_id?: string
+          messages_found?: number
+          messages_inserted?: number
+          phone?: string
+          processed_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_sync_job_logs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_sync_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_sync_jobs: {
+        Row: {
+          agent_name: string | null
+          cancel_requested: boolean
+          client_id: string
+          client_name: string | null
+          cod_agent: string | null
+          created_at: string
+          created_by: string | null
+          date_from: string | null
+          date_to: string | null
+          error: string | null
+          evo_token: string | null
+          evo_url: string | null
+          finished_at: string | null
+          id: string
+          inserted_contacts: number
+          inserted_messages: number
+          numbers: Json
+          phase: string
+          processed_numbers: number
+          queue_id: string | null
+          queue_name: string | null
+          started_at: string | null
+          status: string
+          total_numbers: number
+          updated_at: string
+        }
+        Insert: {
+          agent_name?: string | null
+          cancel_requested?: boolean
+          client_id: string
+          client_name?: string | null
+          cod_agent?: string | null
+          created_at?: string
+          created_by?: string | null
+          date_from?: string | null
+          date_to?: string | null
+          error?: string | null
+          evo_token?: string | null
+          evo_url?: string | null
+          finished_at?: string | null
+          id?: string
+          inserted_contacts?: number
+          inserted_messages?: number
+          numbers?: Json
+          phase?: string
+          processed_numbers?: number
+          queue_id?: string | null
+          queue_name?: string | null
+          started_at?: string | null
+          status?: string
+          total_numbers?: number
+          updated_at?: string
+        }
+        Update: {
+          agent_name?: string | null
+          cancel_requested?: boolean
+          client_id?: string
+          client_name?: string | null
+          cod_agent?: string | null
+          created_at?: string
+          created_by?: string | null
+          date_from?: string | null
+          date_to?: string | null
+          error?: string | null
+          evo_token?: string | null
+          evo_url?: string | null
+          finished_at?: string | null
+          id?: string
+          inserted_contacts?: number
+          inserted_messages?: number
+          numbers?: Json
+          phase?: string
+          processed_numbers?: number
+          queue_id?: string | null
+          queue_name?: string | null
+          started_at?: string | null
+          status?: string
+          total_numbers?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
