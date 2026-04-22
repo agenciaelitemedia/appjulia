@@ -65,8 +65,15 @@ export function PhoneCallDialog({ open, onOpenChange, whatsappNumber, contactNam
           {!isAvailable ? (
             <div className="text-center py-4 space-y-2">
               <PhoneOff className="h-10 w-10 mx-auto text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Você não possui ramal ativo.</p>
-              <p className="text-xs text-muted-foreground">Solicite ao administrador.</p>
+              <p className="text-sm font-medium text-destructive">Você não possui ramal ativo.</p>
+              <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 text-yellow-700 dark:text-yellow-400">
+                <p className="text-base font-bold leading-snug">
+                  Para ter acesso às ligações você precisa fazer a contratação de um plano de telefonia.
+                </p>
+                <p className="text-base font-bold leading-snug mt-1">
+                  Entre em contato com o administrador do sistema para mais informações.
+                </p>
+              </div>
             </div>
           ) : myExtension && (
             <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
