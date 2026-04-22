@@ -157,25 +157,39 @@ async function processNumber(
       const isoTs = tsToIso(msg.messageTimestamp || msg.timestamp);
       const pushName = msg.pushName || msg.senderName || msg.wa_contactName || '';
 
-      // 1) Lookup: exists by message_id OR by (contact_id, external_id) composite
+      // Scope backfill dedup to the current contact to avoid global message_id collisions
       const backfillExtId = `backfill:${messageId}`;
-      const { data: existing } = await supabase
+      const backfillMessageId = `backfill:${contactId}:${messageId}`;
+
+      const { data: existingByMessage, error: existingByMessageErr } = await supabase
         .from('chat_messages')
-        .select('id, contact_id')
-        .or(`message_id.eq.${messageId},and(contact_id.eq.${contactId},external_id.eq.${backfillExtId})`)
+        .select('id')
+        .eq('contact_id', contactId)
+        .in('message_id', [messageId, backfillMessageId])
+        .limit(1)
         .maybeSingle();
 
-      if (existing) {
-        // Re-link to the backfill contact if it lives under another contact_id
-        if (existing.contact_id !== contactId) {
-          const { error: updErr } = await supabase
-            .from('chat_messages')
-            .update({ contact_id: contactId })
-            .eq('id', existing.id);
-          if (updErr) {
-            console.warn(`[uazapi-history-import] relink failed phone=${phone} msg=${messageId} err=${updErr.message}`);
-          }
-        }
+      if (existingByMessageErr) {
+        console.warn(`[uazapi-history-import] existing message lookup failed phone=${phone} msg=${messageId} err=${existingByMessageErr.message}`);
+      }
+
+      if (existingByMessage) {
+        continue;
+      }
+
+      const { data: existingByExternal, error: existingByExternalErr } = await supabase
+        .from('chat_messages')
+        .select('id')
+        .eq('contact_id', contactId)
+        .in('external_id', [messageId, backfillExtId])
+        .limit(1)
+        .maybeSingle();
+
+      if (existingByExternalErr) {
+        console.warn(`[uazapi-history-import] existing external lookup failed phone=${phone} msg=${messageId} err=${existingByExternalErr.message}`);
+      }
+
+      if (existingByExternal) {
         continue;
       }
 
@@ -185,7 +199,7 @@ async function processNumber(
         .insert({
           contact_id: contactId,
           client_id: job.client_id,
-          message_id: messageId,
+          message_id: backfillMessageId,
           external_id: backfillExtId,
           text,
           type,
@@ -196,7 +210,7 @@ async function processNumber(
           channel_type: 'whatsapp_uazapi',
           sender_name: fromMe ? null : pushName || null,
           raw_payload: msg,
-          metadata: { backfilled: true, sync_job_id: job.id },
+          metadata: { backfilled: true, sync_job_id: job.id, original_message_id: messageId },
         });
 
       if (insErr) {
