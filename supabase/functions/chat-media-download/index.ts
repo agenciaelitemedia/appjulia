@@ -226,7 +226,14 @@ Deno.serve(async (req) => {
     }
 
     const baseUrl = String(queue.evo_url).replace(/\/+$/, "");
-    const externalId = msg.message_id || messageId;
+    // For backfilled messages we stored a synthetic message_id (`backfill:<contact>:<id>`)
+    // and preserved the real WhatsApp id under metadata.original_message_id.
+    const storedMessageId: string | undefined = msg.message_id || undefined;
+    const originalMessageId: string | undefined = (msg.metadata as any)?.original_message_id;
+    const isBackfill = typeof storedMessageId === "string" && storedMessageId.startsWith("backfill:");
+    const externalId = isBackfill && originalMessageId
+      ? originalMessageId
+      : (storedMessageId || originalMessageId || messageId);
 
     const dlRes = await fetch(`${baseUrl}/message/download`, {
       method: "POST",
