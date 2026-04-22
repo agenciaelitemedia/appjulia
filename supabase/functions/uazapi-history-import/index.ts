@@ -73,11 +73,50 @@ function tsToIso(timestamp: any): string {
   return d.toISOString();
 }
 
+const MEDIA_TYPES = new Set(['image', 'video', 'audio', 'ptt', 'document', 'sticker']);
+
+async function fetchChatDetails(job: any, phone: string): Promise<any | null> {
+  try {
+    const url = `${job.evo_url.replace(/\/$/, '')}/chat/details`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'token': job.evo_token },
+      body: JSON.stringify({ number: phone, preview: true }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    // UaZapi may return either an object or { chat: {...} }
+    return data?.chat || data?.data || data || null;
+  } catch (e) {
+    console.warn(`[uazapi-history-import] /chat/details failed phone=${phone} err=${(e as Error).message}`);
+    return null;
+  }
+}
+
+function resolveContactName(details: any | null, firstMsg: any, phone: string): string {
+  const candidates = [
+    details?.lead_fullName,
+    details?.lead_name,
+    details?.name,
+    details?.wa_name,
+    details?.wa_contactName,
+    firstMsg?.pushName,
+    firstMsg?.senderName,
+    firstMsg?.wa_contactName,
+  ];
+  for (const c of candidates) {
+    const v = typeof c === 'string' ? c.trim() : '';
+    if (v && v !== phone && !/^\d+$/.test(v)) return v;
+  }
+  return phone;
+}
+
 async function processNumber(
   supabase: any,
   job: any,
   phone: string,
-): Promise<{ messages_found: number; messages_inserted: number; contact_created: boolean; error?: string }> {
+): Promise<{ messages_found: number; messages_inserted: number; contact_created: boolean; contact_enriched: boolean; media_downloads_queued: number; error?: string }> {
   const chatId = `${phone}@s.whatsapp.net`;
   const url = `${job.evo_url.replace(/\/$/, '')}/message/find`;
 
@@ -99,15 +138,16 @@ async function processNumber(
       : Array.isArray(data?.data) ? data.data
       : [];
   } catch (e) {
-    return { messages_found: 0, messages_inserted: 0, contact_created: false, error: (e as Error).message };
+    return { messages_found: 0, messages_inserted: 0, contact_created: false, contact_enriched: false, media_downloads_queued: 0, error: (e as Error).message };
   }
 
   if (messages.length === 0) {
-    return { messages_found: 0, messages_inserted: 0, contact_created: false };
+    return { messages_found: 0, messages_inserted: 0, contact_created: false, contact_enriched: false, media_downloads_queued: 0 };
   }
 
   // Upsert contact (only insert if new)
   let contactCreated = false;
+  let contactEnriched = false;
   let contactId: string | null = null;
   const { data: existing } = await supabase
     .from('chat_contacts')
@@ -119,8 +159,15 @@ async function processNumber(
   if (existing) {
     contactId = existing.id;
   } else {
-    // Use first message to extract a name
-    const firstName = messages[0]?.pushName || messages[0]?.senderName || messages[0]?.wa_contactName || phone;
+    // Fetch real lead details from UaZapi /chat/details
+    const details = await fetchChatDetails(job, phone);
+    const firstName = resolveContactName(details, messages[0], phone);
+    if (details && firstName !== phone) contactEnriched = true;
+
+    const avatar = details?.image || details?.profilePictureUrl || details?.imagePreview || null;
+    const isGroup = Boolean(details?.wa_isGroup);
+    const remoteJid = details?.wa_chatid || chatId;
+
     const { data: created, error: cErr } = await supabase
       .from('chat_contacts')
       .insert({
@@ -128,7 +175,9 @@ async function processNumber(
         cod_agent: job.cod_agent,
         name: firstName,
         phone,
-        remote_jid: chatId,
+        avatar,
+        is_group: isGroup,
+        remote_jid: remoteJid,
         channel_type: 'whatsapp',
         channel_source: job.queue_id || 'uazapi',
         history_backfilled: true,
@@ -137,7 +186,7 @@ async function processNumber(
       .select('id')
       .single();
     if (cErr || !created) {
-      return { messages_found: messages.length, messages_inserted: 0, contact_created: false, error: `contact insert: ${cErr?.message}` };
+      return { messages_found: messages.length, messages_inserted: 0, contact_created: false, contact_enriched: false, media_downloads_queued: 0, error: `contact insert: ${cErr?.message}` };
     }
     contactId = created.id;
     contactCreated = true;
