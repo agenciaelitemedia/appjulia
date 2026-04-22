@@ -143,6 +143,42 @@ async function processNumber(
     contactCreated = true;
   }
 
+  // Ensure a conversation exists for this contact so it shows up in /chat (Pendentes)
+  let conversationId: string | null = null;
+  const { data: existingConv } = await supabase
+    .from('chat_conversations')
+    .select('id')
+    .eq('contact_id', contactId)
+    .eq('client_id', job.client_id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingConv) {
+    conversationId = existingConv.id;
+  } else {
+    const { data: newConv, error: convErr } = await supabase
+      .from('chat_conversations')
+      .insert({
+        client_id: job.client_id,
+        cod_agent: job.cod_agent,
+        contact_id: contactId,
+        channel: 'whatsapp',
+        status: 'pending',
+        priority: 'normal',
+        protocol: '',
+        queue_id: job.queue_id || null,
+        metadata: { backfilled: true, sync_job_id: job.id },
+      })
+      .select('id')
+      .single();
+    if (convErr) {
+      console.warn(`[uazapi-history-import] conversation insert failed phone=${phone} err=${convErr.message}`);
+    } else {
+      conversationId = newConv?.id || null;
+    }
+  }
+
   // Insert messages with idempotency on message_id
   let inserted = 0;
   for (const msg of messages) {
