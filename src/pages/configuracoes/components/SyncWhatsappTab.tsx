@@ -26,6 +26,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { toast } from 'sonner';
 import type { QueueProvider } from '../hooks/useQueueProviders';
+import { useAgentWhatsappCredentials, type AgentWhatsappCredentials } from '../hooks/useAgentWhatsappCredentials';
 
 const DEFAULT_DATE_FROM = '2026-01-01';
 
