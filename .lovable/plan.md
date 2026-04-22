@@ -1,91 +1,97 @@
 
 
-# Por que a sincronização trouxe mensagens, mas o /chat não foi atualizado
+# Melhorar a sincronização de histórico: nome real do lead + mídia baixada para o storage
 
-## O que descobri
+## Contexto
 
-Olhei o último job (`877f9b93`, cliente 300, 15 números) e os logs por número:
+Hoje o `uazapi-history-import` cria contatos usando `pushName` da primeira mensagem (que muitas vezes é vazio, número cru, ou nome de quem enviou em grupo) e salva mensagens de mídia com a `media_url` original do WhatsApp (`.enc` criptografada, que não funciona ao ser exibida no chat).
 
-| phone | messages_found | messages_inserted | contact_created |
-|---|---|---|---|
-| 5522998770726 | 3 | **0** | sim |
-| 554896361439 | 30 | **0** | sim |
-| 558491298778 | 4 | **0** | sim |
-| ... (todos os 15) | >0 | **0** | sim |
+A UaZapi já oferece dois endpoints corretos para resolver isso, ambos já mapeados no projeto:
 
-Resultado real: 15 contatos criados, **0 mensagens inseridas em todos os contatos**. Confirmei na tabela `chat_contacts`: os 3 contatos criados existem, têm `unread_count=0`, `history_backfilled=true`, e cada um com `msg_count=0`. Por isso o /chat não mostra nada — os contatos aparecem vazios.
+- `POST /chat/details` → retorna `name`, `lead_name`, `lead_fullName`, `wa_name`, `wa_contactName`, `image` (avatar), etc.
+- `POST /message/download` → decripta a mídia e devolve `fileURL`/`base64` + `mimetype` (já encapsulado pela edge function `chat-media-download`).
 
-## A causa raiz
+## Mudanças (todas em `supabase/functions/uazapi-history-import/index.ts`)
 
-O upsert em `chat_messages` está usando `onConflict: 'message_id'`, mas existem **dois** índices únicos na tabela:
+### 1. Buscar nome real via `/chat/details` ao criar contato
 
-1. `idx_chat_messages_message_id_unique` em `(message_id)` ← o que esperamos
-2. `idx_chat_messages_contact_external` em `(contact_id, external_id)` ← este também é único
-
-Como o código também passa `external_id: messageId`, e webhooks anteriores podem ter gravado a mesma mensagem com **outro `contact_id`** (vinculado a outro agente/cliente), o segundo índice dispara conflito. Combinado com `ignoreDuplicates: true`, o PostgREST silenciosamente devolve `count: 0` e o loop pula para a próxima — **sem erro, sem log**, mas sem inserir nada.
-
-Outra hipótese (precisa verificar com try/catch real): mensagens com `timestamp` inválido ou `text` nulo combinado com algum NOT NULL constraint estão sendo rejeitadas em massa, mas o `error` está vindo `null` porque o `ignoreDuplicates: true` engole erros de conflito. Os 708 registros já existentes em `chat_messages` com `channel_type='whatsapp_uazapi'` reforçam que a tabela está sendo populada por outra rota (webhook em tempo real) — então o backfill colide com tudo.
-
-## Como corrigir
-
-Mudança cirúrgica em `supabase/functions/uazapi-history-import/index.ts` (sem migrations, sem mexer no /chat):
-
-### 1. Trocar a estratégia de upsert para detectar e logar de verdade
-
-Em vez de `upsert + ignoreDuplicates`, fazer:
+Antes de inserir o contato (apenas quando ele ainda não existe), chamar `/chat/details` na instância UaZapi do job:
 
 ```ts
-// 1) Verifica se a mensagem já existe (por message_id OU por contact_id+external_id)
-const { data: existing } = await supabase
-  .from('chat_messages')
-  .select('id, contact_id')
-  .or(`message_id.eq.${messageId},and(contact_id.eq.${contactId},external_id.eq.${messageId})`)
-  .maybeSingle();
-
-if (existing) {
-  // Já existe — se for em outro contact_id, re-vincular ao contato correto do backfill
-  if (existing.contact_id !== contactId) {
-    await supabase.from('chat_messages')
-      .update({ contact_id: contactId })
-      .eq('id', existing.id);
-  }
-  continue; // não conta como inserted
+async function fetchChatDetails(job, phone) {
+  const url = `${job.evo_url.replace(/\/$/, '')}/chat/details`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', token: job.evo_token },
+    body: JSON.stringify({ number: phone, preview: true }),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!resp.ok) return null;
+  return await resp.json();
 }
-
-// 2) Insert real
-const { error: insErr } = await supabase
-  .from('chat_messages')
-  .insert({ /* mesmos campos de hoje */ });
-
-if (insErr) {
-  console.warn(`[insert msg failed] phone=${phone} msg=${messageId} err=${insErr.message}`);
-  continue;
-}
-inserted++;
 ```
 
-Isso:
-- **Insere** as mensagens novas (problema atual resolvido).
-- **Re-vincula** mensagens já existentes em outro contato para o contato do backfill (caso webhook anterior tenha criado em contato órfão).
-- **Loga erros reais** no console da edge function (hoje estão sendo silenciados pelo `ignoreDuplicates`).
+Resolver o nome com a hierarquia:
+`lead_fullName → lead_name → name → wa_name → wa_contactName → pushName da msg → phone`
 
-### 2. Ajustar `external_id` para evitar futuros conflitos cruzados
+E também aproveitar para popular:
+- `avatar` ← `image` / `profilePictureUrl`
+- `is_group` ← `wa_isGroup`
+- `remote_jid` ← `wa_chatid` (se vier; senão mantém `${phone}@s.whatsapp.net`)
+- `metadata.lead_*` (notas/tags do lead) preservados em `chat_contacts.metadata`
 
-Em vez de `external_id: messageId` (que colide com webhooks vindos de outras instâncias usando o mesmo ID), usar:
+Em caso de falha (timeout/404), faz fallback silencioso para o comportamento atual (`pushName`/phone) — não quebra o backfill.
+
+### 2. Baixar mídia para o storage durante a importação
+
+Após inserir cada mensagem com `type ∈ {image, video, audio, ptt, document, sticker}` que tenha `media_url`, chamar a edge function existente `chat-media-download` por `messageId`:
 
 ```ts
-external_id: `backfill:${messageId}`
+if (mediaTypes.has(type) && mediaUrl) {
+  // disparado em background, não bloqueia o loop principal
+  supabase.functions.invoke('chat-media-download', {
+    body: { messageId: insertedRow.id, queueId: job.queue_id },
+  }).catch((e) => console.warn('[backfill] media download failed', messageId, e));
+}
 ```
 
-Mantém idempotência por `message_id` (campo global) sem brigar com o índice composto `(contact_id, external_id)` populado pelos webhooks.
+A função `chat-media-download` já:
+- chama `POST /message/download` na UaZapi com o `external_id` real,
+- decripta o `.enc`,
+- faz upload no bucket `chat-media`,
+- atualiza `chat_messages.media_url` com a URL pública persistente,
+- é idempotente (`isPersistedUrl` evita refazer).
 
-### 3. Reprocessar o job que falhou
+**Importante:** o `external_id` que `chat-media-download` usa para chamar o endpoint UaZapi é `msg.message_id || messageId`. Como hoje gravamos o `message_id` com prefixo `backfill:contactId:...`, ele falharia. Solução: passar o ID real do WhatsApp via campo separado.
 
-Depois do fix deployado, o usuário clica em **Reiniciar** no histórico do job `877f9b93` — a mesma lógica de reaproveitamento que já existe vai re-rodar com o código corrigido. Os 15 contatos vazios serão preenchidos com as mensagens.
+A função `chat-media-download` faz lookup por `id` UUID **ou** por `message_id` (string). Vou alterar levemente o select dela para também considerar `metadata->>original_message_id` quando o `message_id` armazenado começa com `backfill:`. Isso preserva idempotência sem mexer no schema.
 
-## Resumo de Arquivos
+### 3. Concorrência e throttle
 
-- **Editar:** `supabase/functions/uazapi-history-import/index.ts` (substituir upsert por insert+lookup + prefixo `backfill:` em `external_id`)
+- `/chat/details`: 1 chamada por contato novo (cap baixíssimo).
+- `/message/download`: invocado em background (fire-and-forget) com `Promise.all` limitado pelo `BATCH=3` já existente para não sobrecarregar a instância UaZapi.
 
-Sem migrations, sem mudanças no /chat, sem impacto em webhooks em tempo real.
+### 4. Logs
+
+Adicionar contadores no log do job:
+- `contacts_enriched` (quantos receberam nome via `/chat/details`)
+- `media_downloads_queued` (quantas mídias foram enfileiradas para download)
+
+Esses contadores ficam em `whatsapp_sync_jobs.metadata` (jsonb) sem precisar de migration.
+
+## Arquivos a editar
+
+| Arquivo | Mudança |
+|---|---|
+| `supabase/functions/uazapi-history-import/index.ts` | Adicionar `fetchChatDetails`, usar resultado ao montar `chat_contacts.insert`, disparar `chat-media-download` para mensagens de mídia inseridas |
+| `supabase/functions/chat-media-download/index.ts` | Ajustar a resolução do `external_id` para usar `metadata.original_message_id` quando `message_id` começa com `backfill:` |
+
+Sem migrations. Sem mudanças no `/chat`. Sem impacto em webhooks de tempo real.
+
+## Como validar depois do deploy
+
+1. Limpar contatos do cliente (já feito).
+2. Disparar uma nova sincronização em `/configuracoes`.
+3. Verificar nos logs do job: `contacts_enriched > 0` e `media_downloads_queued > 0`.
+4. Abrir `/chat` → contatos devem ter o **nome real do lead** (não mais "5511999..."), e mensagens de imagem/áudio devem carregar visualmente (URL `chat-media` no storage).
 
