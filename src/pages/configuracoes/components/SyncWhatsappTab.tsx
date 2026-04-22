@@ -392,9 +392,9 @@ function StepQueue({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{q.name}</p>
-                      {q.evo_instance && (
+                      {q.evo_url && (
                         <p className="text-xs text-muted-foreground truncate">
-                          Instância: {q.evo_instance}
+                          URL: {q.evo_url}
                         </p>
                       )}
                     </div>
