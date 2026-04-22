@@ -141,6 +141,16 @@ export function SyncHistoryTab() {
                       {job.cancel_requested && job.status === 'running' && (
                         <Clock className="h-4 w-4 text-muted-foreground animate-pulse" />
                       )}
+                      {(['done', 'partial', 'error', 'cancelled'] as const).includes(job.status as never) && (
+                        <Button
+                          size="icon" variant="ghost"
+                          onClick={() => setRestartTarget(job)}
+                          disabled={restartJob.isPending}
+                          title="Reiniciar sincronização"
+                        >
+                          <RotateCw className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -151,6 +161,31 @@ export function SyncHistoryTab() {
       )}
 
       <SyncHistoryLogsDrawer job={selectedJob} open={drawerOpen} onOpenChange={setDrawerOpen} />
+
+      <AlertDialog open={!!restartTarget} onOpenChange={(o) => !o && setRestartTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reiniciar sincronização?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Reiniciar buscará novamente todos os {restartTarget?.total_numbers ?? 0} números desta sincronização.
+              Mensagens e contatos já existentes não serão duplicados — apenas o que faltar será preenchido. Continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (restartTarget) {
+                  restartJob.mutate(restartTarget.id);
+                  setRestartTarget(null);
+                }
+              }}
+            >
+              Reiniciar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
