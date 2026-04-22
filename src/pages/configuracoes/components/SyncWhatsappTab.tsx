@@ -548,7 +548,7 @@ function StepImport({
           numbers: numbers,
           evo_url: queue.evo_url,
           evo_token: queue.evo_apikey,
-          created_by: user?.id ?? null,
+          created_by: user?.id != null ? String(user.id) : null,
         } as never)
         .select('id')
         .single();

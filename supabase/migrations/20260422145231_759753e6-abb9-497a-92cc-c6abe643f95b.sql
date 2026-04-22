@@ -1,0 +1,1 @@
+ALTER TABLE public.whatsapp_sync_jobs ALTER COLUMN created_by TYPE TEXT USING created_by::text;
