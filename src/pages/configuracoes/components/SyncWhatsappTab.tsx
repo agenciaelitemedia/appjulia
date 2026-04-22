@@ -26,6 +26,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';
 import { toast } from 'sonner';
 import type { QueueProvider } from '../hooks/useQueueProviders';
+import { useAgentWhatsappCredentials, type AgentWhatsappCredentials } from '../hooks/useAgentWhatsappCredentials';
 
 const DEFAULT_DATE_FROM = '2026-01-01';
 
@@ -352,11 +353,13 @@ function StepQueue({
 
 // ─── Step 4: Summary ──────────────────────────────────────────────────────────
 function StepSummary({
-  agent, numbers, client, queue, dateFrom, dateTo, onChangeNumbers,
+  agent, numbers, client, queue, agentCreds, loadingAgentCreds, dateFrom, dateTo, onChangeNumbers,
 }: {
   agent: AgentListItem; numbers: string[]; client: SearchedClient; queue: QueueProvider;
+  agentCreds: AgentWhatsappCredentials | null; loadingAgentCreds: boolean;
   dateFrom: string; dateTo: string; onChangeNumbers: (nums: string[]) => void;
 }) {
+  const agentHasUazapi = !!(agentCreds && agentCreds.hub === 'uazapi' && agentCreds.evo_url && agentCreds.evo_apikey);
   return (
     <div className="space-y-4">
       <div>
@@ -383,9 +386,12 @@ function StepSummary({
         <Card><CardContent className="p-4 flex items-start gap-3">
           <Network className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
           <div className="min-w-0">
-            <p className="text-xs text-muted-foreground mb-0.5">Fila UaZAPI</p>
-            <p className="font-medium text-sm truncate">{queue.name}</p>
-            {queue.evo_url && <p className="text-xs text-muted-foreground truncate">URL: {queue.evo_url}</p>}
+            <p className="text-xs text-muted-foreground mb-0.5">WhatsApp do Agente (UaZapi)</p>
+            <p className="font-medium text-sm truncate">
+              {loadingAgentCreds ? 'Carregando...' : (agentCreds?.evo_instancia || agentCreds?.evo_url || 'Não configurado')}
+            </p>
+            {agentCreds?.evo_url && <p className="text-xs text-muted-foreground truncate">URL: {agentCreds.evo_url}</p>}
+            <p className="text-xs text-muted-foreground truncate">Fila vinculada: {queue.name}</p>
           </div>
         </CardContent></Card>
         <Card><CardContent className="p-4 flex items-start gap-3">
@@ -408,10 +414,20 @@ function StepSummary({
           value={numbers.join('\n')}
           onChange={(e) => onChangeNumbers(e.target.value.split('\n').map((l) => l.trim()).filter(Boolean))} />
       </div>
+      {!loadingAgentCreds && !agentHasUazapi && (
+        <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20">
+          <X className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+          <p className="text-xs text-muted-foreground">
+            O agente <strong>{agent.cod_agent}</strong> não possui credenciais UaZapi configuradas
+            (hub atual: <code>{agentCreds?.hub || 'nenhum'}</code>). O aquecimento e a importação utilizam o WhatsApp do agente.
+            Configure a conexão UaZapi do agente antes de continuar.
+          </p>
+        </div>
+      )}
       <div className="flex items-center gap-2 p-3 rounded-md bg-yellow-500/10 border border-yellow-500/20">
         <Info className="h-4 w-4 text-yellow-600 shrink-0" />
         <p className="text-xs text-muted-foreground">
-          Próximo passo: <strong>aquecimento</strong> — solicitar à UaZapi que baixe o histórico de cada número (rápido, ~5 paralelos).
+          Próximo passo: <strong>aquecimento</strong> — solicitar à UaZapi do agente que baixe o histórico de cada número (rápido, ~5 paralelos).
         </p>
       </div>
     </div>
@@ -420,8 +436,8 @@ function StepSummary({
 
 // ─── Step 5: Warmup ──────────────────────────────────────────────────────────
 function StepWarmup({
-  numbers, queue, onComplete,
-}: { numbers: string[]; queue: QueueProvider; onComplete: () => void }) {
+  numbers, agentCreds, onComplete,
+}: { numbers: string[]; agentCreds: AgentWhatsappCredentials; onComplete: () => void }) {
   const [progress, setProgress] = useState({ done: 0, total: numbers.length, success: 0, failed: 0 });
   const [results, setResults] = useState<Array<{ phone: string; ok: boolean; error?: string }>>([]);
   const [status, setStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
@@ -439,7 +455,7 @@ function StepWarmup({
       for (let i = 0; i < numbers.length; i += BATCH) {
         const slice = numbers.slice(i, i + BATCH);
         const { data, error } = await supabase.functions.invoke('uazapi-history-warmup', {
-          body: { evo_url: queue.evo_url, evo_token: queue.evo_apikey, numbers: slice, count: 100, batch_size: BATCH },
+          body: { evo_url: agentCreds.evo_url, evo_token: agentCreds.evo_apikey, numbers: slice, count: 100, batch_size: BATCH },
         });
         if (error) {
           slice.forEach((p) => { aggregated.push({ phone: p, ok: false, error: error.message }); failed++; });
@@ -519,10 +535,10 @@ function StepWarmup({
 
 // ─── Step 6: Import dispatch ──────────────────────────────────────────────────
 function StepImport({
-  agent, numbers, client, queue, dateFrom, dateTo, onReset,
+  agent, numbers, client, queue, agentCreds, dateFrom, dateTo, onReset,
 }: {
   agent: AgentListItem; numbers: string[]; client: SearchedClient; queue: QueueProvider;
-  dateFrom: string; dateTo: string; onReset: () => void;
+  agentCreds: AgentWhatsappCredentials; dateFrom: string; dateTo: string; onReset: () => void;
 }) {
   const { user } = useAuth();
   const [jobId, setJobId] = useState<string | null>(null);
@@ -546,8 +562,8 @@ function StepImport({
           date_to: dateTo,
           total_numbers: numbers.length,
           numbers: numbers,
-          evo_url: queue.evo_url,
-          evo_token: queue.evo_apikey,
+          evo_url: agentCreds.evo_url,
+          evo_token: agentCreds.evo_apikey,
           created_by: user?.id != null ? String(user.id) : null,
         } as never)
         .select('id')
@@ -642,13 +658,16 @@ export function SyncWhatsappTab() {
   const [selectedClient, setSelectedClient] = useState<SearchedClient | null>(null);
   const [selectedQueue, setSelectedQueue] = useState<QueueProvider | null>(null);
 
+  const { data: agentCreds, isLoading: loadingAgentCreds } = useAgentWhatsappCredentials(selectedAgent?.cod_agent);
+  const agentHasUazapi = !!(agentCreds && agentCreds.hub === 'uazapi' && agentCreds.evo_url && agentCreds.evo_apikey);
+
   const dateRangeValid = parseISO(dateFrom + 'T00:00:00') <= parseISO(dateTo + 'T00:00:00');
 
   const canAdvance = () => {
     if (step === 1) return !!selectedAgent;
     if (step === 2) return numbers.length > 0 && dateRangeValid;
     if (step === 3) return !!selectedClient && !!selectedQueue;
-    if (step === 4) return true;
+    if (step === 4) return agentHasUazapi;
     return false;
   };
 
@@ -717,13 +736,15 @@ export function SyncWhatsappTab() {
         )}
         {step === 4 && selectedAgent && selectedClient && selectedQueue && (
           <StepSummary agent={selectedAgent} numbers={numbers} client={selectedClient} queue={selectedQueue}
+            agentCreds={agentCreds ?? null} loadingAgentCreds={loadingAgentCreds}
             dateFrom={dateFrom} dateTo={dateTo} onChangeNumbers={setNumbers} />
         )}
-        {step === 5 && selectedQueue && (
-          <StepWarmup numbers={numbers} queue={selectedQueue} onComplete={() => setStep(6)} />
+        {step === 5 && agentHasUazapi && (
+          <StepWarmup numbers={numbers} agentCreds={agentCreds!} onComplete={() => setStep(6)} />
         )}
-        {step === 6 && selectedAgent && selectedClient && selectedQueue && (
+        {step === 6 && selectedAgent && selectedClient && selectedQueue && agentHasUazapi && (
           <StepImport agent={selectedAgent} numbers={numbers} client={selectedClient} queue={selectedQueue}
+            agentCreds={agentCreds!}
             dateFrom={dateFrom} dateTo={dateTo} onReset={handleReset} />
         )}
       </div>
