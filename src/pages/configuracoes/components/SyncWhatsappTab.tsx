@@ -520,10 +520,10 @@ function StepWarmup({
 
 // ─── Step 6: Import dispatch ──────────────────────────────────────────────────
 function StepImport({
-  agent, numbers, client, queue, dateFrom, dateTo, onReset,
+  agent, numbers, client, queue, agentCreds, dateFrom, dateTo, onReset,
 }: {
   agent: AgentListItem; numbers: string[]; client: SearchedClient; queue: QueueProvider;
-  dateFrom: string; dateTo: string; onReset: () => void;
+  agentCreds: AgentWhatsappCredentials; dateFrom: string; dateTo: string; onReset: () => void;
 }) {
   const { user } = useAuth();
   const [jobId, setJobId] = useState<string | null>(null);
@@ -547,8 +547,8 @@ function StepImport({
           date_to: dateTo,
           total_numbers: numbers.length,
           numbers: numbers,
-          evo_url: queue.evo_url,
-          evo_token: queue.evo_apikey,
+          evo_url: agentCreds.evo_url,
+          evo_token: agentCreds.evo_apikey,
           created_by: user?.id != null ? String(user.id) : null,
         } as never)
         .select('id')
