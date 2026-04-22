@@ -19,7 +19,7 @@ import { useQueryClient } from '@tanstack/react-query';
 export default function ConfiguracoesPage() {
   const { data: providers = [], isLoading } = useQueueProviders();
   const { deleteProvider } = useQueueProviderMutations();
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const seeded = useRef(false);
 
@@ -79,12 +79,10 @@ export default function ConfiguracoesPage() {
             <Bot className="w-4 h-4" />
             IA's
           </TabsTrigger>
-          {isAdmin && (
-            <TabsTrigger value="sync-whatsapp" className="gap-2">
-              <RefreshCw className="w-4 h-4" />
-              Sincronizar WhatsApp
-            </TabsTrigger>
-          )}
+          <TabsTrigger value="sync-whatsapp" className="gap-2">
+            <RefreshCw className="w-4 h-4" />
+            Sincronizar WhatsApp
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="providers" className="mt-6 space-y-4">
@@ -133,11 +131,9 @@ export default function ConfiguracoesPage() {
           <AIModelsConfig />
         </TabsContent>
 
-        {isAdmin && (
-          <TabsContent value="sync-whatsapp" className="mt-6">
-            <SyncWhatsappTab />
-          </TabsContent>
-        )}
+        <TabsContent value="sync-whatsapp" className="mt-6">
+          <SyncWhatsappTab />
+        </TabsContent>
       </Tabs>
 
       <ProviderFormDialog open={formOpen} onOpenChange={setFormOpen} provider={editingProvider} />
