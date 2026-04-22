@@ -2,8 +2,18 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, History, Eye, X, CheckCircle2, AlertCircle, Clock, Ban } from 'lucide-react';
-import { useWhatsappSyncJobs, useCancelSyncJob, type WhatsappSyncJob } from '../hooks/useWhatsappSyncJobs';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Loader2, History, Eye, X, CheckCircle2, AlertCircle, Clock, Ban, RotateCw } from 'lucide-react';
+import { useWhatsappSyncJobs, useCancelSyncJob, useRestartSyncJob, type WhatsappSyncJob } from '../hooks/useWhatsappSyncJobs';
 import { SyncHistoryLogsDrawer } from './SyncHistoryLogsDrawer';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -43,8 +53,10 @@ function JobStatusBadge({ status }: { status: WhatsappSyncJob['status'] }) {
 export function SyncHistoryTab() {
   const { data: jobs = [], isLoading } = useWhatsappSyncJobs();
   const cancelJob = useCancelSyncJob();
+  const restartJob = useRestartSyncJob();
   const [selectedJob, setSelectedJob] = useState<WhatsappSyncJob | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [restartTarget, setRestartTarget] = useState<WhatsappSyncJob | null>(null);
 
   const openLogs = (job: WhatsappSyncJob) => {
     setSelectedJob(job);
@@ -129,6 +141,16 @@ export function SyncHistoryTab() {
                       {job.cancel_requested && job.status === 'running' && (
                         <Clock className="h-4 w-4 text-muted-foreground animate-pulse" />
                       )}
+                      {(['done', 'partial', 'error', 'cancelled'] as const).includes(job.status as never) && (
+                        <Button
+                          size="icon" variant="ghost"
+                          onClick={() => setRestartTarget(job)}
+                          disabled={restartJob.isPending}
+                          title="Reiniciar sincronização"
+                        >
+                          <RotateCw className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -139,6 +161,31 @@ export function SyncHistoryTab() {
       )}
 
       <SyncHistoryLogsDrawer job={selectedJob} open={drawerOpen} onOpenChange={setDrawerOpen} />
+
+      <AlertDialog open={!!restartTarget} onOpenChange={(o) => !o && setRestartTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reiniciar sincronização?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Reiniciar buscará novamente todos os {restartTarget?.total_numbers ?? 0} números desta sincronização.
+              Mensagens e contatos já existentes não serão duplicados — apenas o que faltar será preenchido. Continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (restartTarget) {
+                  restartJob.mutate(restartTarget.id);
+                  setRestartTarget(null);
+                }
+              }}
+            >
+              Reiniciar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
