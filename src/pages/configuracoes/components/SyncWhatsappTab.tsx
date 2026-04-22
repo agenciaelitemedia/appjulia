@@ -536,11 +536,11 @@ function StepImport({
           date_from: dateFrom,
           date_to: dateTo,
           total_numbers: numbers.length,
-          numbers: numbers as any,
+          numbers: numbers,
           evo_url: queue.evo_url,
           evo_token: queue.evo_apikey,
           created_by: user?.id ?? null,
-        })
+        } as never)
         .select('id')
         .single();
       if (jErr || !job) throw new Error(jErr?.message || 'Falha ao criar job');
