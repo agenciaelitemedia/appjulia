@@ -421,8 +421,8 @@ function StepSummary({
 
 // ─── Step 5: Warmup ──────────────────────────────────────────────────────────
 function StepWarmup({
-  numbers, queue, onComplete,
-}: { numbers: string[]; queue: QueueProvider; onComplete: () => void }) {
+  numbers, agentCreds, onComplete,
+}: { numbers: string[]; agentCreds: AgentWhatsappCredentials; onComplete: () => void }) {
   const [progress, setProgress] = useState({ done: 0, total: numbers.length, success: 0, failed: 0 });
   const [results, setResults] = useState<Array<{ phone: string; ok: boolean; error?: string }>>([]);
   const [status, setStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
@@ -440,7 +440,7 @@ function StepWarmup({
       for (let i = 0; i < numbers.length; i += BATCH) {
         const slice = numbers.slice(i, i + BATCH);
         const { data, error } = await supabase.functions.invoke('uazapi-history-warmup', {
-          body: { evo_url: queue.evo_url, evo_token: queue.evo_apikey, numbers: slice, count: 100, batch_size: BATCH },
+          body: { evo_url: agentCreds.evo_url, evo_token: agentCreds.evo_apikey, numbers: slice, count: 100, batch_size: BATCH },
         });
         if (error) {
           slice.forEach((p) => { aggregated.push({ phone: p, ok: false, error: error.message }); failed++; });
