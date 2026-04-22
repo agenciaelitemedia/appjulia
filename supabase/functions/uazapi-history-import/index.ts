@@ -234,6 +234,7 @@ async function processNumber(
         .from('chat_messages')
         .insert({
           contact_id: contactId,
+          conversation_id: conversationId,
           client_id: job.client_id,
           message_id: backfillMessageId,
           external_id: backfillExtId,
