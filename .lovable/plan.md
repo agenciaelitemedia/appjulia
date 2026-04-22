@@ -1,97 +1,129 @@
 
 
-# Melhorar a sincronização de histórico: nome real do lead + mídia baixada para o storage
+# View `vw_equipe` + filtro de responsáveis no /chat
 
-## Contexto
+## Objetivo
 
-Hoje o `uazapi-history-import` cria contatos usando `pushName` da primeira mensagem (que muitas vezes é vazio, número cru, ou nome de quem enviou em grupo) e salva mensagens de mídia com a `media_url` original do WhatsApp (`.enc` criptografada, que não funciona ao ser exibida no chat).
+Trazer no filtro "Responsável" do `/chat` **todos os membros da equipe pertencentes ao mesmo client_id** do usuário logado, resolvendo `client_id` automaticamente conforme o role.
 
-A UaZapi já oferece dois endpoints corretos para resolver isso, ambos já mapeados no projeto:
+## Regra de resolução do `client_id`
 
-- `POST /chat/details` → retorna `name`, `lead_name`, `lead_fullName`, `wa_name`, `wa_contactName`, `image` (avatar), etc.
-- `POST /message/download` → decripta a mídia e devolve `fileURL`/`base64` + `mimetype` (já encapsulado pela edge function `chat-media-download`).
+| Role do usuário logado | Origem do `client_id` |
+|---|---|
+| `admin` (super), `colaborador`, `user` | `users.client_id` (direto) |
+| Outros roles (`time`, `advogado`, `comercial`, etc.) | `client_id` do usuário principal referenciado em `users.user_id` |
 
-## Mudanças (todas em `supabase/functions/uazapi-history-import/index.ts`)
+Quando `admin` for super (sem client_id), retorna todos.
 
-### 1. Buscar nome real via `/chat/details` ao criar contato
+## Mudanças
 
-Antes de inserir o contato (apenas quando ele ainda não existe), chamar `/chat/details` na instância UaZapi do job:
+### 1. Banco externo — criar `vw_equipe` (migration externa via Edge Function)
+
+```sql
+CREATE OR REPLACE VIEW vw_equipe AS
+SELECT
+  u.id,
+  u.name,
+  u.email,
+  u.role,
+  u.user_id          AS parent_user_id,
+  COALESCE(u.client_id, p.client_id) AS client_id,
+  c.photo,
+  c.business_name    AS client_business_name
+FROM users u
+LEFT JOIN users   p ON p.id = u.user_id
+LEFT JOIN clients c ON c.id = COALESCE(u.client_id, p.client_id)
+WHERE u.role IN ('admin','user','colaborador','time','advogado','comercial');
+```
+
+Como o banco é externo (não Supabase), a criação será feita via uma Edge Function utilitária one-shot (`run-external-sql`) ou incluída como ação no `db-query`. Optaremos pela **segunda**: adicionar uma ação `create_vw_equipe` em `db-query` que executa o `CREATE OR REPLACE VIEW` (idempotente). Disparamos uma vez após deploy.
+
+### 2. `db-query` — nova ação `get_team_by_client`
 
 ```ts
-async function fetchChatDetails(job, phone) {
-  const url = `${job.evo_url.replace(/\/$/, '')}/chat/details`;
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', token: job.evo_token },
-    body: JSON.stringify({ number: phone, preview: true }),
-    signal: AbortSignal.timeout(15000),
+case 'get_team_by_client': {
+  const { userId, role } = data;
+  // Resolve client_id efetivo
+  const me = await sql.unsafe(
+    `SELECT COALESCE(u.client_id, p.client_id) AS client_id
+     FROM users u LEFT JOIN users p ON p.id = u.user_id
+     WHERE u.id = $1 LIMIT 1`, [userId]
+  );
+  const clientId = me[0]?.client_id;
+  // Super-admin sem client_id => retorna todos
+  if (role === 'admin' && !clientId) {
+    result = await sql.unsafe(
+      `SELECT id, name, email, role, client_id, photo FROM vw_equipe ORDER BY name`
+    );
+  } else if (clientId) {
+    result = await sql.unsafe(
+      `SELECT id, name, email, role, client_id, photo
+       FROM vw_equipe WHERE client_id = $1 ORDER BY name`, [clientId]
+    );
+  } else {
+    result = [];
+  }
+  break;
+}
+```
+
+### 3. `src/lib/externalDb.ts`
+
+Adicionar helper:
+```ts
+async getTeamByClient<T = any>(userId: number, role: string): Promise<T[]> {
+  return this.invoke({ action: 'get_team_by_client', data: { userId, role } });
+}
+```
+
+### 4. Hook novo `src/hooks/useTeamByClient.ts`
+
+```ts
+export function useTeamByClient() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['team-by-client', user?.id],
+    queryFn: () => externalDb.getTeamByClient(user!.id, user!.role),
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
   });
-  if (!resp.ok) return null;
-  return await resp.json();
 }
 ```
 
-Resolver o nome com a hierarquia:
-`lead_fullName → lead_name → name → wa_name → wa_contactName → pushName da msg → phone`
+### 5. `src/components/chat/ChatList.tsx` — popular o select Responsável
 
-E também aproveitar para popular:
-- `avatar` ← `image` / `profilePictureUrl`
-- `is_group` ← `wa_isGroup`
-- `remote_jid` ← `wa_chatid` (se vier; senão mantém `${phone}@s.whatsapp.net`)
-- `metadata.lead_*` (notas/tags do lead) preservados em `chat_contacts.metadata`
+Substituir o map de `allAgents` no `<Select>` por `teamMembers` vindo de `useTeamByClient()`:
 
-Em caso de falha (timeout/404), faz fallback silencioso para o comportamento atual (`pushName`/phone) — não quebra o backfill.
+```tsx
+const { data: teamMembers = [] } = useTeamByClient();
+...
+{teamMembers.map((m) => (
+  <SelectItem key={m.id} value={String(m.id)} className="text-xs">
+    {m.name}
+  </SelectItem>
+))}
+```
 
-### 2. Baixar mídia para o storage durante a importação
-
-Após inserir cada mensagem com `type ∈ {image, video, audio, ptt, document, sticker}` que tenha `media_url`, chamar a edge function existente `chat-media-download` por `messageId`:
+E ajustar o filtro `visibleContacts` para casar `assigned_to` com `String(m.id)` **ou** `m.name` (compatibilidade com leads antigos onde `assigned_to` foi gravado como nome):
 
 ```ts
-if (mediaTypes.has(type) && mediaUrl) {
-  // disparado em background, não bloqueia o loop principal
-  supabase.functions.invoke('chat-media-download', {
-    body: { messageId: insertedRow.id, queueId: job.queue_id },
-  }).catch((e) => console.warn('[backfill] media download failed', messageId, e));
-}
+return assigned === ownerFilter || assigned === selectedMember?.name;
 ```
 
-A função `chat-media-download` já:
-- chama `POST /message/download` na UaZapi com o `external_id` real,
-- decripta o `.enc`,
-- faz upload no bucket `chat-media`,
-- atualiza `chat_messages.media_url` com a URL pública persistente,
-- é idempotente (`isPersistedUrl` evita refazer).
-
-**Importante:** o `external_id` que `chat-media-download` usa para chamar o endpoint UaZapi é `msg.message_id || messageId`. Como hoje gravamos o `message_id` com prefixo `backfill:contactId:...`, ele falharia. Solução: passar o ID real do WhatsApp via campo separado.
-
-A função `chat-media-download` faz lookup por `id` UUID **ou** por `message_id` (string). Vou alterar levemente o select dela para também considerar `metadata->>original_message_id` quando o `message_id` armazenado começa com `backfill:`. Isso preserva idempotência sem mexer no schema.
-
-### 3. Concorrência e throttle
-
-- `/chat/details`: 1 chamada por contato novo (cap baixíssimo).
-- `/message/download`: invocado em background (fire-and-forget) com `Promise.all` limitado pelo `BATCH=3` já existente para não sobrecarregar a instância UaZapi.
-
-### 4. Logs
-
-Adicionar contadores no log do job:
-- `contacts_enriched` (quantos receberam nome via `/chat/details`)
-- `media_downloads_queued` (quantas mídias foram enfileiradas para download)
-
-Esses contadores ficam em `whatsapp_sync_jobs.metadata` (jsonb) sem precisar de migration.
-
-## Arquivos a editar
+## Arquivos
 
 | Arquivo | Mudança |
 |---|---|
-| `supabase/functions/uazapi-history-import/index.ts` | Adicionar `fetchChatDetails`, usar resultado ao montar `chat_contacts.insert`, disparar `chat-media-download` para mensagens de mídia inseridas |
-| `supabase/functions/chat-media-download/index.ts` | Ajustar a resolução do `external_id` para usar `metadata.original_message_id` quando `message_id` começa com `backfill:` |
+| `supabase/functions/db-query/index.ts` | + ações `create_vw_equipe`, `get_team_by_client` |
+| `src/lib/externalDb.ts` | + `getTeamByClient` |
+| `src/hooks/useTeamByClient.ts` | novo hook |
+| `src/components/chat/ChatList.tsx` | filtro de responsáveis usa novo hook |
 
-Sem migrations. Sem mudanças no `/chat`. Sem impacto em webhooks de tempo real.
+Após deploy, disparo único de `create_vw_equipe` para materializar a view no banco externo.
 
-## Como validar depois do deploy
+## Validação
 
-1. Limpar contatos do cliente (já feito).
-2. Disparar uma nova sincronização em `/configuracoes`.
-3. Verificar nos logs do job: `contacts_enriched > 0` e `media_downloads_queued > 0`.
-4. Abrir `/chat` → contatos devem ter o **nome real do lead** (não mais "5511999..."), e mensagens de imagem/áudio devem carregar visualmente (URL `chat-media` no storage).
+1. Logar como `admin` com `client_id` → select mostra apenas membros do mesmo client.
+2. Logar como `advogado` (role secundário) → resolve via `users.user_id` do principal e mostra a equipe deste client.
+3. Logar como super-admin (sem client_id) → mostra todos.
 
