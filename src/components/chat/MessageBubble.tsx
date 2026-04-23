@@ -347,13 +347,10 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
             </>
           ) : (
             <div className="flex items-center gap-2 py-1">
-              {isLoading ? (
+              {isLoading && downloadState === 'idle' ? (
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               ) : (
-                <Button variant="ghost" size="sm" onClick={handleDownload}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Baixar áudio
-                </Button>
+                <FallbackBox label="Baixar áudio" />
               )}
             </div>
           )}
