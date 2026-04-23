@@ -18,7 +18,12 @@ export function useTeamMembers() {
     queryKey: ["team-members", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      return externalDb.getTeamMembers(user.id, user.role === "admin");
+      // Usa a view vw_equipe para retornar somente membros do mesmo client_id
+      // do usuário logado (resolvendo via parent quando necessário).
+      return externalDb.getTeamByClient<TeamMember>(
+        user.id as number,
+        String(user.role || "")
+      );
     },
     enabled: !!user?.id,
   });
