@@ -24,6 +24,38 @@ import { useQueues, type Queue } from '@/pages/agente/filas/hooks/useQueues';
 
 
 // ============================================
+// Media download — retry cache (module scope)
+// ============================================
+export type MediaDownloadStatus = 'idle' | 'loading' | 'success' | 'transient_failed' | 'permanent_failed';
+export interface DownloadMediaResult {
+  url?: string;
+  transient?: boolean;
+  permanent?: boolean;
+}
+const mediaRetryCache = new Map<string, { status: MediaDownloadStatus; lastAttempt: number; retryCount: number }>();
+const TRANSIENT_BACKOFF_MS = 30_000;
+const TRANSIENT_MAX_RETRIES = 3;
+
+export function getMediaDownloadStatus(messageId: string): MediaDownloadStatus {
+  return mediaRetryCache.get(messageId)?.status ?? 'idle';
+}
+
+export function canRetryMediaDownload(messageId: string, force = false): boolean {
+  const entry = mediaRetryCache.get(messageId);
+  if (!entry) return true;
+  if (force) return true;
+  if (entry.status === 'success') return false;
+  if (entry.status === 'permanent_failed') return false;
+  if (entry.status === 'loading') return false;
+  if (entry.status === 'transient_failed') {
+    if (entry.retryCount >= TRANSIENT_MAX_RETRIES) return false;
+    if (Date.now() - entry.lastAttempt < TRANSIENT_BACKOFF_MS) return false;
+  }
+  return true;
+}
+
+
+// ============================================
 // Types
 // ============================================
 
