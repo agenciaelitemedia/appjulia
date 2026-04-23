@@ -229,45 +229,127 @@ Deno.serve(async (req) => {
     // For backfilled messages we stored a synthetic message_id (`backfill:<contact>:<id>`)
     // and preserved the real WhatsApp id under metadata.original_message_id.
     const storedMessageId: string | undefined = msg.message_id || undefined;
-    const originalMessageId: string | undefined = (msg.metadata as any)?.original_message_id;
+    let originalMessageId: string | undefined = (msg.metadata as any)?.original_message_id;
     const isBackfill = typeof storedMessageId === "string" && storedMessageId.startsWith("backfill:");
-    const externalId = isBackfill && originalMessageId
+    let externalId = isBackfill && originalMessageId
       ? originalMessageId
       : (storedMessageId && !storedMessageId.startsWith("backfill:")
           ? storedMessageId
           : originalMessageId);
 
+    // Permanent flag check: once marked unavailable, do not retry automatically
+    if ((msg.metadata as any)?.media_unavailable === true) {
+      return respond({
+        error: "MEDIA_UNAVAILABLE",
+        details: "Media previously marked as permanently unavailable",
+        fallback: true,
+        permanent: true,
+      }, 200);
+    }
+
+    // Helper: try /message/find by chatid + timestamp to recover real id
+    const tryRecoverExternalId = async (): Promise<string | undefined> => {
+      const raw: any = msg.raw_payload || {};
+      const chatid: string | undefined = raw.chatid || raw.chatId || raw.key?.remoteJid || raw.remoteJid;
+      const ts = raw.messageTimestamp ?? raw.timestamp;
+      if (!chatid) return undefined;
+      try {
+        const findRes = await fetch(`${baseUrl}/message/find`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", token: queue.evo_apikey },
+          body: JSON.stringify({ chatid, limit: 50, offset: 0 }),
+          signal: AbortSignal.timeout(20000),
+        });
+        if (!findRes.ok) return undefined;
+        const data = await findRes.json();
+        const list: any[] = Array.isArray(data) ? data
+          : Array.isArray(data?.messages) ? data.messages
+          : Array.isArray(data?.data) ? data.data : [];
+        if (!list.length) return undefined;
+        const tsNum = ts ? (typeof ts === "number" ? ts : Number(ts)) : null;
+        let best: any = null;
+        let bestDelta = Number.POSITIVE_INFINITY;
+        for (const m of list) {
+          const id = m.id || m.messageId || m.key?.id;
+          if (!id) continue;
+          const mts = m.messageTimestamp ?? m.timestamp;
+          if (tsNum && mts) {
+            const mn = typeof mts === "number" ? mts : Number(mts);
+            const delta = Math.abs(mn - tsNum);
+            if (delta < bestDelta) { bestDelta = delta; best = m; }
+          } else if (!best) {
+            best = m;
+          }
+        }
+        const recoveredId = best ? (best.id || best.messageId || best.key?.id) : undefined;
+        if (recoveredId) {
+          await supabase
+            .from("chat_messages")
+            .update({ metadata: { ...(msg.metadata || {}), original_message_id: recoveredId } })
+            .eq("id", msg.id);
+        }
+        return recoveredId;
+      } catch (e) {
+        console.warn("[chat-media-download] /message/find recovery failed:", (e as Error).message);
+        return undefined;
+      }
+    };
+
     if (!externalId) {
+      const recovered = await tryRecoverExternalId();
+      if (recovered) externalId = recovered;
+    }
+
+    if (!externalId) {
+      // Mark as permanent so frontend stops retrying
+      await supabase
+        .from("chat_messages")
+        .update({ metadata: { ...(msg.metadata || {}), media_unavailable: true } })
+        .eq("id", msg.id);
       return respond({
         error: "MEDIA_UNAVAILABLE",
         details: "No external WhatsApp message id available to download media",
         fallback: true,
+        permanent: true,
       }, 200);
     }
 
-    const dlRes = await fetch(`${baseUrl}/message/download`, {
+    const callDownload = async (id: string) => fetch(`${baseUrl}/message/download`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        token: queue.evo_apikey,
-      },
-      body: JSON.stringify({
-        id: externalId,
-        return_link: true,
-      }),
+      headers: { "Content-Type": "application/json", token: queue.evo_apikey },
+      body: JSON.stringify({ id, return_link: true }),
     });
+
+    let dlRes = await callDownload(externalId);
+
+    // 404 → try to recover via /message/find once, then retry
+    if (dlRes.status === 404 && !originalMessageId) {
+      const recovered = await tryRecoverExternalId();
+      if (recovered && recovered !== externalId) {
+        externalId = recovered;
+        dlRes = await callDownload(externalId);
+      }
+    }
 
     if (!dlRes.ok) {
       const txt = await dlRes.text();
       console.error("[chat-media-download] UaZapi error:", dlRes.status, txt);
-      // Return 200 with fallback signal so the client doesn't crash.
-      // 404 = message not found on UaZapi side (commonly for old/backfilled msgs).
-      const isFallbackable = dlRes.status === 404 || dlRes.status >= 500;
+      // Classify: 503 / disconnected / 5xx → transient. 404 → permanent.
+      const isTransient = dlRes.status === 503 || dlRes.status >= 500 || /disconnect/i.test(txt);
+      const isPermanent = dlRes.status === 404 && !isTransient;
+      if (isPermanent) {
+        await supabase
+          .from("chat_messages")
+          .update({ metadata: { ...(msg.metadata || {}), media_unavailable: true } })
+          .eq("id", msg.id);
+      }
       return respond({
         error: dlRes.status === 404 ? "MESSAGE_NOT_FOUND" : `UAZAPI_ERROR_${dlRes.status}`,
         details: txt,
-        fallback: isFallbackable,
-      }, isFallbackable ? 200 : 502);
+        fallback: true,
+        transient: isTransient,
+        permanent: isPermanent,
+      }, 200);
     }
 
     const dlData = await dlRes.json();
