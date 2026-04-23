@@ -1,95 +1,65 @@
 
 
-# Botão "Resetar Chat" em Configurações
+# Download de mídia sob demanda + histórico marcado como lido
 
-## Objetivo
+## Problema
 
-Adicionar na página `/configuracoes` um botão administrativo que permita limpar/resetar todas as tabelas relacionadas a chat e sincronização — escolhendo entre um `client_id` específico (selecionado em popup com a lista de clientes que têm filas) ou **todos** os clientes.
+1. Mídias do histórico (`history` / backfill) ficam com `media_url` apontando para `.enc` e não baixam de forma resiliente.
+2. Mensagens importadas pelo histórico entram com status padrão (`sent`/`delivered`) e inflacionam o `unread_count` do contato/conversa, fazendo aparecer dezenas de "não lidas" sempre que um histórico novo é sincronizado.
 
-## Localização na UI
+## Solução — Parte 1: Mídia sob demanda resiliente
 
-Aba **"Provedores de Fila"** em `ConfiguracoesPage.tsx`, ao lado do botão "Novo Provedor", um botão `destructive` com ícone `Trash2` rotulado **"Resetar Chat"**.
+### Edge Function `chat-media-download`
+- **Fallback `/message/find`**: quando `external_message_id` está ausente ou `/message/download` retorna 404, buscar via `chatid + messageTimestamp` no UaZapi, recuperar o ID real e persistir em `metadata.original_message_id`.
+- **Classificar erros**: `503 disconnected` → `{ fallback: true, transient: true }`; `404 definitivo` → grava `metadata.media_unavailable = true` e retorna `{ fallback: true, permanent: true }`.
 
-## Fluxo de Interação
+### Hook de download (frontend)
+- Cache local `Map<messageId, { status, retryCount, lastAttempt }>`.
+- Não retentar `permanent_failed`. Backoff de 30s + cap de 3 tentativas para `transient_failed`.
+- Atualizar `media_url` no `WhatsAppDataContext` após sucesso (sem refetch).
 
-1. Usuário clica em **"Resetar Chat"** → abre `Dialog`.
-2. Dialog mostra:
-   - `Select` com opção **"Todos os clientes"** + lista dinâmica `client_id — nome` (clientes que têm pelo menos uma fila ativa em `queues`).
-   - `Checkbox` opcional: **"Incluir histórico de sincronização"** (tabelas `chat_sync_*`).
-   - Texto de aviso vermelho explicando irreversibilidade.
-   - Campo de confirmação: usuário deve digitar `RESETAR` (padrão de dupla confirmação do projeto).
-3. Botão **"Confirmar Reset"** habilita só quando texto = `RESETAR`.
-4. Ao confirmar → invoca edge function `chat-reset` → toast com contagem de linhas removidas por tabela.
+### `MessageBubble` / preview de mídia
+- **Loading**: spinner.
+- **Transient**: ícone `WifiOff` + "WhatsApp desconectado — tentaremos novamente" + botão "Tentar agora".
+- **Permanent**: ícone `ImageOff` + "Mídia não disponível neste histórico".
+- Botão "Baixar" manual sempre disponível.
 
-## Componentes a Criar
+### (Opcional) Backfill proativo
+- No `processHistorySet`, enfileirar `chat-media-download` em lotes de 5 via `EdgeRuntime.waitUntil` para mensagens com tipo de mídia.
 
-**`src/pages/configuracoes/components/ResetChatDialog.tsx`** (novo)
-- Dialog com `Select` de clientes (carrega via `supabase.functions.invoke('chat-reset', { body: { action: 'list_clients' } })`).
-- Estado: `selectedClientId` (`'all' | string`), `includeSync` (boolean), `confirmText` (string).
-- Botão de confirmação chama `chat-reset` com `action: 'reset'`.
+## Solução — Parte 2: Histórico marcado como lido
 
-**`src/pages/configuracoes/ConfiguracoesPage.tsx`** (editar)
-- Importa `ResetChatDialog` e adiciona o botão `destructive` no header da aba "Provedores de Fila".
+### Edge Function `uazapi-chat-webhook` (`processHistorySet`)
+Toda mensagem inserida pelo fluxo de histórico passa a entrar **já como lida**:
 
-## Edge Function a Criar
+- **`chat_messages`**: `status = 'read'` em todas as mensagens do histórico (independente de `from_me`).
+- **`chat_conversations`**: ao criar/associar conversa via histórico, **não incrementar `unread_count`**; se a conversa for criada do zero pelo histórico, `unread_count = 0`.
+- **`chat_contacts`**: no upsert do histórico, **não tocar em `unread_count`** (preservar valor existente — só real-time `messages.upsert` incrementa).
+- **`chat_conversation_participants` / presença**: marcar `last_read_at = now()` para a conversa quando criada/atualizada via histórico, garantindo que o badge de não-lidas fique zerado.
 
-**`supabase/functions/chat-reset/index.ts`** (nova)
+### Edge Function `uazapi-history-import` (mesma regra)
+Aplicar exatamente o mesmo comportamento: `status = 'read'`, sem incremento de `unread_count`, `last_read_at = now()`.
 
-Ações suportadas:
+### Backfill on-demand do `/chat` (`history-backfill-on-demand`)
+Mensagens recuperadas pelo backfill 1x via `/message/find` também entram com `status = 'read'` e sem incrementar contadores.
 
-- **`list_clients`** → retorna `[{ client_id, name, queues_count }]` consultando `queues` agrupado por `client_id` (join opcional com `users`/`vw_equipe` para obter nome).
-- **`reset`** → executa `DELETE` parametrizado com `client_id` (ou sem filtro se `'all'`).
+### Distinção real-time × histórico
+- Real-time (`messages.upsert` com `from_me = false`): mantém comportamento atual — incrementa `unread_count` e grava `status = 'delivered'`.
+- Histórico (`history`, `messages.set`, `message.history`, backfill): sempre `status = 'read'`, sem incremento.
 
-Tabelas afetadas (mesmo conjunto já usado nas migrations recentes):
+## Arquivos afetados
 
-```text
-chat_message_reactions
-chat_mentions
-chat_ai_classifications
-chat_ai_autoreply_logs
-chat_automation_logs
-chat_csat_responses
-chat_conversation_history
-chat_conversation_tags
-chat_conversation_participants
-chat_conversation_presence
-chat_conversation_summaries
-chat_messages
-chat_conversations
-chat_contacts
-```
-
-Quando `includeSync = true`, também limpa:
-```text
-chat_sync_jobs
-chat_sync_history
-chat_sync_logs
-```
-(as tabelas exatas serão confirmadas inspecionando o schema antes do delete; se uma tabela não existir, é ignorada com `try/catch`).
-
-**Lógica de filtro por `client_id`:**
-- Tabelas com coluna `client_id`: `DELETE WHERE client_id = $1`.
-- Tabelas filhas sem `client_id` direto (ex: `chat_messages`): `DELETE WHERE conversation_id IN (SELECT id FROM chat_conversations WHERE client_id = $1)`.
-- Quando `'all'`: usa `TRUNCATE ... RESTART IDENTITY CASCADE` (mais rápido).
-
-**Segurança:**
-- `verify_jwt = false` (padrão Lovable), mas valida no código que o usuário tem `role` administrativa via header `Authorization` + lookup em `users`.
-- CORS habilitado.
-- Validação Zod do body.
-
-Retorna JSON: `{ success: true, deleted: { chat_messages: 1234, chat_conversations: 56, ... } }`.
-
-## Detalhes Técnicos
-
-- Conexão DB: usa `postgresjs` com normalização SSL CA, padrão das demais edge functions externas.
-- A função é registrada automaticamente em `supabase/config.toml` (sem alterações manuais necessárias).
-- Após sucesso no frontend: `queryClient.invalidateQueries({ queryKey: ['chat-conversations'] })` e similares para refletir o reset em telas abertas.
+- `supabase/functions/chat-media-download/index.ts` — fallback `/message/find`, transient vs permanent.
+- `supabase/functions/uazapi-chat-webhook/index.ts` — `processHistorySet`: status `read`, sem incremento, `last_read_at`.
+- `supabase/functions/uazapi-history-import/index.ts` — mesma regra do histórico.
+- `src/hooks/useMediaDownload.ts` (ou equivalente no `WhatsAppDataContext`) — cache de retry, classificação de erro.
+- `src/components/chat/MessageBubble.tsx` (e/ou `MediaPreview`) — estados visuais + botão manual.
 
 ## Validação
 
-1. Abrir `/configuracoes` → aba "Provedores de Fila" → clicar "Resetar Chat".
-2. Conferir que o popup lista apenas clientes com filas (consulta `queues` distinct).
-3. Selecionar `client_id = 30` → digitar `RESETAR` → confirmar → verificar via `select count(*) from chat_conversations where client_id = '30'` (deve retornar 0).
-4. Selecionar **"Todos"** + **"Incluir sincronização"** → confirmar → todas as tabelas zeradas.
-5. Outros `client_id` não afetados quando o reset é específico.
+1. Sincronizar histórico de uma instância UaZapi → conferir que **nenhum contato** ganhou badge de não-lidas e que mensagens vêm com `status = 'read'` em `chat_messages`.
+2. Receber nova mensagem em tempo real → badge de não-lidas **incrementa normalmente**.
+3. Abrir conversa com mídias `.enc` do histórico → mídias carregam progressivamente; com UaZapi offline mostra "WhatsApp desconectado" + botão "Tentar agora".
+4. Mídia 404 definitiva → mostra "Mídia não disponível" sem retry em loop.
+5. Reconectar UaZapi → reabrir conversa → mídias `transient_failed` baixam automaticamente.
 
