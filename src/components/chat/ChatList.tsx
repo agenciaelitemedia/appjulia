@@ -323,10 +323,80 @@ export function ChatList() {
     [conversations, matchesActiveTab]
   );
 
-  const pendingCount = scopedConversations.filter(c => c.status === 'pending').length;
-  const openCount = scopedConversations.filter(c => c.status === 'open').length;
   const resolvedCount = scopedConversations.filter(c => c.status === 'resolved').length;
   const closedCount = scopedConversations.filter(c => c.status === 'closed').length;
+
+  // Contact IDs that pass all active local filters — used for tab counts so they
+  // always reflect the current filter state regardless of which tab is selected.
+  const countContactIds = React.useMemo(() => {
+    const inScope = new Set(scopedConversations.map(c => c.contact_id));
+    let result = contacts.filter(c => inScope.has(c.id));
+    if (ownerFilter !== 'all') {
+      const selectedMember = teamMembers.find((m) => String(m.id) === ownerFilter);
+      result = result.filter((c) => {
+        const assigned = convMetaByContact.get(c.id)?.assignedTo;
+        if (ownerFilter === 'unassigned') return !assigned;
+        if (ownerFilter === 'mine') {
+          if (!assigned) return false;
+          return assigned === String(user?.id) || assigned === user?.name;
+        }
+        if (!assigned) return false;
+        return assigned === ownerFilter || (selectedMember && assigned === selectedMember.name);
+      });
+    }
+    if (periodFilter !== 'all') {
+      const range = getDateRange(periodFilter);
+      if (range) {
+        result = result.filter((c) => {
+          const ts = c.last_message_at || (c as any).updated_at;
+          if (!ts) return false;
+          const d = new Date(ts);
+          if (Number.isNaN(d.getTime())) return false;
+          return d >= range.from && d <= range.to;
+        });
+      }
+    }
+    if (stageIds.length > 0 && stageByPhone) {
+      result = result.filter((c) => {
+        const norm = (c.phone || '').replace(/\D/g, '');
+        const info = stageByPhone.get(norm);
+        return info ? stageIds.includes(info.stageId) : false;
+      });
+    }
+    if (slaFilter !== 'all') {
+      result = result.filter((c) => slaStatusByContact.get(c.id) === slaFilter);
+    }
+    if (modeFilter !== 'all') {
+      result = result.filter((c) => {
+        const meta = convMetaByContact.get(c.id);
+        const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
+        const hasAgent = !!queueLink?.hasAgent;
+        if (hasAgent) {
+          const codAgent = queueLink?.codAgent || meta?.codAgent || c.cod_agent;
+          if (modeFilter === 'human') return false;
+          if (!codAgent || !c.phone) return false;
+          const cached = queryClient.getQueryData<SessionStatus | null>(
+            ['agent-session-status', codAgent, c.phone]
+          );
+          if (cached === undefined) return true;
+          const active = cached?.active ?? false;
+          return modeFilter === 'ia_active' ? active : !active;
+        } else {
+          return modeFilter === 'human';
+        }
+      });
+    }
+    return new Set(result.map(c => c.id));
+  }, [scopedConversations, contacts, ownerFilter, periodFilter, stageIds, stageByPhone, slaFilter, slaStatusByContact, modeFilter, convMetaByContact, queueAgentMap, queryClient, teamMembers, user?.id, user?.name]);
+
+  const pendingCount = React.useMemo(
+    () => scopedConversations.filter(c => c.status === 'pending' && countContactIds.has(c.contact_id)).length,
+    [scopedConversations, countContactIds]
+  );
+  const openCount = React.useMemo(
+    () => scopedConversations.filter(c => c.status === 'open' && countContactIds.has(c.contact_id)).length,
+    [scopedConversations, countContactIds]
+  );
 
   const channelBadge = (type: string) => {
     switch (type) {
@@ -692,34 +762,6 @@ export function ChatList() {
         </div>
         )}
       </div>
-
-      {/* Mostrando X de Y — fora do scroll, sticky */}
-      {!isLoading && visibleContacts.length < filteredContacts.length && (
-        <div className="mx-3 mb-1 flex items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground shrink-0">
-          <span>
-            Mostrando <strong className="text-foreground">{visibleContacts.length}</strong> de{' '}
-            <strong className="text-foreground">{filteredContacts.length}</strong> conversas
-            {activeFilterCount > 0 ? ' (filtros ativos)' : ''}
-          </span>
-          {activeFilterCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-[10px]"
-              onClick={() => {
-                setModeFilter('all');
-                setSlaFilter('all');
-                setOwnerFilter('all');
-                setPeriodFilter('all');
-                setStageIds([]);
-                setConversationStatusFilter('pending');
-              }}
-            >
-              Limpar filtros
-            </Button>
-          )}
-        </div>
-      )}
 
       {/* Status tabs — Aguardando Atendimento / Em Atendimento */}
       <div className="flex border-b shrink-0">
