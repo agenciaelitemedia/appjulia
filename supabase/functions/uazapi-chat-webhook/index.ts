@@ -283,6 +283,9 @@ async function processHistorySet(
         if (newConv) conversationId = newConv.id;
       }
 
+      let latestTs: string | null = null;
+      let latestPreview: string | null = null;
+
       for (const msg of msgs) {
         try {
           const messageId: string = msg.key?.id ?? msg.id ?? msg.messageId ?? '';
@@ -337,6 +340,11 @@ async function processHistorySet(
           if (!msgErr) {
             totalMessages++;
             chatInsertedMessages++;
+            // Track latest message for chat list preview
+            if (!latestTs || isoTs > latestTs) {
+              latestTs = isoTs;
+              latestPreview = buildLastMessagePreview(text, type, msg.message?.documentMessage?.fileName || msg.fileName);
+            }
           } else if (msgErr.code === '23505' || msgErr.message?.includes('duplicate')) {
             totalSkipped++;
           } else {
@@ -351,9 +359,13 @@ async function processHistorySet(
         }
       }
 
+      // Update contact with last message preview so it appears sorted in /chat
       await supabase
         .from('chat_contacts')
-        .update({ history_backfilled: true })
+        .update({
+          history_backfilled: true,
+          ...(latestTs ? { last_message_at: latestTs, last_message_text: latestPreview } : {}),
+        })
         .eq('id', contactId);
 
     } catch (chatErr) {
