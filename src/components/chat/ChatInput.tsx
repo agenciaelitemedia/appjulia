@@ -30,7 +30,7 @@ interface TeamMember { id: number | string; name: string }
 const QUICK_EMOJIS = ['😀', '😂', '❤️', '👍', '🙏', '🎉', '🔥', '💯', '😊', '😍', '🤔', '👏'];
 
 export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInputProps) {
-  const { sendMessage, sendMedia, sendInternalNote, selectedConversation, selectedContact, assignConversation, updateConversationStatus, markAsRead } = useWhatsAppData();
+  const { sendMessage, sendMedia, sendInternalNote, selectedConversation, selectedContact, assignConversation, updateConversationStatus, markAsRead, setConversationStatusFilter } = useWhatsAppData();
   const { user } = useAuth();
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -68,6 +68,7 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
         await updateConversationStatus(selectedConversation.id, 'open');
       }
       try { await markAsRead(contactId); } catch { /* noop */ }
+      setConversationStatusFilter('open');
       setTimeout(() => textareaRef.current?.focus(), 0);
     } finally {
       setIsClaiming(false);
