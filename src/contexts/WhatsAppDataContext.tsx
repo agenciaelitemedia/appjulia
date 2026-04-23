@@ -87,6 +87,8 @@ interface ExtendedContextValue extends ChatContextValue {
   getOrCreateConversation: (contactId: string) => Promise<ChatConversation | null>;
   updateConversationStatus: (conversationId: string, status: ConversationStatus, note?: string) => Promise<void>;
   assignConversation: (conversationId: string, assignedTo: string) => Promise<void>;
+  pendingConvCount: number;
+  openConvCount: number;
 
   // Tags
   tags: ChatTag[];
@@ -149,6 +151,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // Conversation state
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [conversationStatusFilter, setConversationStatusFilter] = useState<ConversationFilterStatus>('pending');
+  const [convCounts, setConvCounts] = useState<{ pending: number; open: number }>({ pending: 0, open: 0 });
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [tags, setTags] = useState<ChatTag[]>([]);
   const [conversationTagsMap, setConversationTagsMap] = useState<Record<string, ChatTag[]>>({});
@@ -289,6 +292,25 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       console.error('Error loading conversations:', error);
     }
   }, [clientId, currentQueueId, conversationStatusFilter]);
+
+  const loadConvCounts = useCallback(async () => {
+    if (!clientId) return;
+    try {
+      let q = supabase
+        .from('chat_conversations')
+        .select('status')
+        .eq('client_id', clientId)
+        .in('status', ['pending', 'open']);
+      if (currentQueueId) q = q.eq('queue_id', currentQueueId);
+      const { data } = await q;
+      const counts = { pending: 0, open: 0 };
+      (data || []).forEach((r: { status: string }) => {
+        if (r.status === 'pending') counts.pending++;
+        else if (r.status === 'open') counts.open++;
+      });
+      setConvCounts(counts);
+    } catch {/* noop */}
+  }, [clientId, currentQueueId]);
 
   const getOrCreateConversation = useCallback(async (contactId: string): Promise<ChatConversation | null> => {
     if (!clientId) return null;
@@ -1682,10 +1704,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               if (prev.some(c => c.id === newConv.id)) return prev;
               return [newConv, ...prev];
             });
+            loadConvCounts();
           } else if (payload.eventType === 'UPDATE') {
             setConversations(prev =>
               prev.map(c => (c.id === (payload.new as ChatConversation).id ? payload.new as ChatConversation : c))
             );
+            loadConvCounts();
           }
         }
       )
@@ -1696,20 +1720,21 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       supabase.removeChannel(messagesChannel);
       supabase.removeChannel(conversationsChannel);
     };
-  }, [clientId, currentQueueId]);
+  }, [clientId, currentQueueId, loadConvCounts]);
 
   // Reload when queue changes (or on initial load with "All queues")
   useEffect(() => {
     if (clientId) {
       loadContacts();
       loadConversations();
+      loadConvCounts();
       loadTags();
       refreshConversationTags();
       setSelectedContactId(null);
       setMessages({});
       knownMessageIds.current.clear();
     }
-  }, [currentQueueId, clientId, loadContacts, loadConversations, loadTags, refreshConversationTags]);
+  }, [currentQueueId, clientId, loadContacts, loadConversations, loadConvCounts, loadTags, refreshConversationTags]);
 
   // ============================================
   // Context Value
@@ -1764,6 +1789,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     getOrCreateConversation,
     updateConversationStatus,
     assignConversation,
+    pendingConvCount: convCounts.pending,
+    openConvCount: convCounts.open,
 
     // Tags
     tags,
@@ -1790,7 +1817,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     contacts, messages, selectedContactId, activeTab, searchQuery, isLoading, isSyncing,
     loadContacts, loadMessages, sendMessage, sendMedia, downloadMedia, markAsRead, syncContacts, selectContact,
     selectedContact, filteredContacts, totalUnreadCount, individualUnreadCount, groupUnreadCount,
-    selectedQueue, conversations, selectedConversation, conversationStatusFilter,
+    selectedQueue, conversations, selectedConversation, conversationStatusFilter, convCounts,
     loadConversations, getOrCreateConversation, updateConversationStatus, assignConversation,
     tags, loadTags, updateTag, deleteTag, addTagToConversation, removeTagFromConversation, createTag,
     conversationTagsMap, refreshConversationTags,

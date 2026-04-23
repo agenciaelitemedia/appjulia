@@ -84,6 +84,8 @@ export function ChatList() {
     conversations,
     conversationTagsMap,
     contacts,
+    pendingConvCount,
+    openConvCount,
   } = useWhatsAppData();
   const { data: queueLimits } = useAgentQueueLimits();
   const showGroupsTab = !!(queueLimits?.allowGroups && queueLimits?.showGroupsTab);
@@ -316,86 +318,6 @@ export function ChatList() {
       return true;
     },
     [isGroupByContactId, activeTab, showGroupsTab]
-  );
-
-  const scopedConversations = React.useMemo(
-    () => conversations.filter((c) => matchesActiveTab(c.contact_id)),
-    [conversations, matchesActiveTab]
-  );
-
-  const resolvedCount = scopedConversations.filter(c => c.status === 'resolved').length;
-  const closedCount = scopedConversations.filter(c => c.status === 'closed').length;
-
-  // Contact IDs that pass all active local filters — used for tab counts so they
-  // always reflect the current filter state regardless of which tab is selected.
-  const countContactIds = React.useMemo(() => {
-    const inScope = new Set(scopedConversations.map(c => c.contact_id));
-    let result = contacts.filter(c => inScope.has(c.id));
-    if (ownerFilter !== 'all') {
-      const selectedMember = teamMembers.find((m) => String(m.id) === ownerFilter);
-      result = result.filter((c) => {
-        const assigned = convMetaByContact.get(c.id)?.assignedTo;
-        if (ownerFilter === 'unassigned') return !assigned;
-        if (ownerFilter === 'mine') {
-          if (!assigned) return false;
-          return assigned === String(user?.id) || assigned === user?.name;
-        }
-        if (!assigned) return false;
-        return assigned === ownerFilter || (selectedMember && assigned === selectedMember.name);
-      });
-    }
-    if (periodFilter !== 'all') {
-      const range = getDateRange(periodFilter);
-      if (range) {
-        result = result.filter((c) => {
-          const ts = c.last_message_at || (c as any).updated_at;
-          if (!ts) return false;
-          const d = new Date(ts);
-          if (Number.isNaN(d.getTime())) return false;
-          return d >= range.from && d <= range.to;
-        });
-      }
-    }
-    if (stageIds.length > 0 && stageByPhone) {
-      result = result.filter((c) => {
-        const norm = (c.phone || '').replace(/\D/g, '');
-        const info = stageByPhone.get(norm);
-        return info ? stageIds.includes(info.stageId) : false;
-      });
-    }
-    if (slaFilter !== 'all') {
-      result = result.filter((c) => slaStatusByContact.get(c.id) === slaFilter);
-    }
-    if (modeFilter !== 'all') {
-      result = result.filter((c) => {
-        const meta = convMetaByContact.get(c.id);
-        const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
-        const hasAgent = !!queueLink?.hasAgent;
-        if (hasAgent) {
-          const codAgent = queueLink?.codAgent || meta?.codAgent || c.cod_agent;
-          if (modeFilter === 'human') return false;
-          if (!codAgent || !c.phone) return false;
-          const cached = queryClient.getQueryData<SessionStatus | null>(
-            ['agent-session-status', codAgent, c.phone]
-          );
-          if (cached === undefined) return true;
-          const active = cached?.active ?? false;
-          return modeFilter === 'ia_active' ? active : !active;
-        } else {
-          return modeFilter === 'human';
-        }
-      });
-    }
-    return new Set(result.map(c => c.id));
-  }, [scopedConversations, contacts, ownerFilter, periodFilter, stageIds, stageByPhone, slaFilter, slaStatusByContact, modeFilter, convMetaByContact, queueAgentMap, queryClient, teamMembers, user?.id, user?.name]);
-
-  const pendingCount = React.useMemo(
-    () => scopedConversations.filter(c => c.status === 'pending' && countContactIds.has(c.contact_id)).length,
-    [scopedConversations, countContactIds]
-  );
-  const openCount = React.useMemo(
-    () => scopedConversations.filter(c => c.status === 'open' && countContactIds.has(c.contact_id)).length,
-    [scopedConversations, countContactIds]
   );
 
   const channelBadge = (type: string) => {
@@ -766,8 +688,8 @@ export function ChatList() {
       {/* Status tabs — Aguardando Atendimento / Em Atendimento */}
       <div className="flex border-b shrink-0">
         {([
-          { value: 'pending', label: 'Aguardando Atendimento', count: pendingCount },
-          { value: 'open',    label: 'Em Atendimento',         count: openCount },
+          { value: 'pending', label: 'Aguardando Atendimento', count: pendingConvCount },
+          { value: 'open',    label: 'Em Atendimento',         count: openConvCount },
         ] as const).map(tab => (
           <button
             key={tab.value}
