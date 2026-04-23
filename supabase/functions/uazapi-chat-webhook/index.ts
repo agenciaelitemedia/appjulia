@@ -164,7 +164,8 @@ function extractMediaBase64(msg: any): string | undefined {
 async function processHistorySet(
   rawMessages: any[],
   queue: { id: string; client_id: string; evo_url: string; evo_apikey: string; name: string },
-  allowGroups: boolean,
+  _allowGroups: boolean,
+  jobId: string | null,
 ) {
   const supabase = getSupabase();
 
@@ -173,7 +174,8 @@ async function processHistorySet(
     const remoteJid: string = msg.key?.remoteJid ?? msg.remoteJid ?? msg.chatId ?? '';
     if (!remoteJid) continue;
     const isGroup = remoteJid.endsWith('@g.us');
-    if (isGroup && !allowGroups) continue;
+    // Histórico SEMPRE ignora grupos, independente de ALLOW_GROUPS.
+    if (isGroup) continue;
     if (!byChat.has(remoteJid)) byChat.set(remoteJid, []);
     byChat.get(remoteJid)!.push(msg);
   }
@@ -181,8 +183,14 @@ async function processHistorySet(
   let totalContacts = 0;
   let totalMessages = 0;
   let totalSkipped = 0;
+  let hadErrors = false;
 
+  try {
   for (const [remoteJid, msgs] of byChat) {
+    let chatInsertedMessages = 0;
+    let chatContactCreated = false;
+    let chatError: string | null = null;
+    const phoneForLog = normalizePhone(remoteJid) || remoteJid;
     try {
       const phone = normalizePhone(remoteJid);
       if (!phone) continue;
@@ -231,6 +239,7 @@ async function processHistorySet(
         }
         contactId = inserted.id;
         totalContacts++;
+        chatContactCreated = true;
       } else {
         contactId = preExisting.id;
         if (!preExisting.avatar) {
@@ -315,8 +324,8 @@ async function processHistorySet(
               text: text ? toSafeString(text) : null,
               type,
               from_me: fromMe,
-              // Histórico: toda mensagem entra já como lida (read), independente de from_me.
-              status: 'read',
+              // Histórico: enviadas → 'read'; recebidas → 'pending' (usuário marca lida ao abrir).
+              status: fromMe ? 'read' : 'pending',
               media_url: mediaUrl ?? null,
               timestamp: isoTs,
               channel_type: 'whatsapp_uazapi',
@@ -327,13 +336,18 @@ async function processHistorySet(
 
           if (!msgErr) {
             totalMessages++;
+            chatInsertedMessages++;
           } else if (msgErr.code === '23505' || msgErr.message?.includes('duplicate')) {
             totalSkipped++;
           } else {
             console.warn(`[history-set] msg insert failed phone=${phone} id=${messageId}`, msgErr.message);
+            chatError = msgErr.message;
+            hadErrors = true;
           }
         } catch (e) {
           console.warn(`[history-set] msg error phone=${phone}`, e);
+          chatError = String((e as Error)?.message ?? e);
+          hadErrors = true;
         }
       }
 
@@ -344,6 +358,67 @@ async function processHistorySet(
 
     } catch (chatErr) {
       console.warn(`[history-set] chat error remoteJid=${remoteJid}`, chatErr);
+      chatError = String((chatErr as Error)?.message ?? chatErr);
+      hadErrors = true;
+    }
+
+    // Atualiza log do telefone + contadores do job.
+    if (jobId) {
+      try {
+        await supabase
+          .from('whatsapp_sync_job_logs')
+          .update({
+            status: chatError ? 'error' : (chatInsertedMessages > 0 ? 'ok' : 'skipped'),
+            messages_found: msgs.length,
+            messages_inserted: chatInsertedMessages,
+            contact_created: chatContactCreated,
+            error: chatError,
+            processed_at: new Date().toISOString(),
+          })
+          .eq('job_id', jobId)
+          .eq('phone', phoneForLog);
+
+        const { data: cur } = await supabase
+          .from('whatsapp_sync_jobs')
+          .select('processed_numbers, inserted_messages, inserted_contacts')
+          .eq('id', jobId)
+          .single();
+        if (cur) {
+          await supabase
+            .from('whatsapp_sync_jobs')
+            .update({
+              processed_numbers: (cur.processed_numbers ?? 0) + 1,
+              inserted_messages: (cur.inserted_messages ?? 0) + chatInsertedMessages,
+              inserted_contacts: (cur.inserted_contacts ?? 0) + (chatContactCreated ? 1 : 0),
+            })
+            .eq('id', jobId);
+        }
+      } catch (logErr) {
+        console.warn('[history-set] log update failed', logErr);
+      }
+    }
+  }
+
+    if (jobId) {
+      await supabase
+        .from('whatsapp_sync_jobs')
+        .update({
+          status: hadErrors ? 'partial' : 'done',
+          finished_at: new Date().toISOString(),
+        })
+        .eq('id', jobId);
+    }
+  } catch (fatal) {
+    console.error('[history-set] fatal error', fatal);
+    if (jobId) {
+      await supabase
+        .from('whatsapp_sync_jobs')
+        .update({
+          status: 'error',
+          error: String((fatal as Error)?.message ?? fatal),
+          finished_at: new Date().toISOString(),
+        })
+        .eq('id', jobId);
     }
   }
 
