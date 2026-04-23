@@ -98,6 +98,7 @@ async function persistToChat(
           last_message_at: new Date().toISOString(),
           last_message_text: message.text?.body || message.type || '',
           unread_count: 1,
+          wa_name: contactName || null,
         },
         { onConflict: 'phone,client_id' }
       )
