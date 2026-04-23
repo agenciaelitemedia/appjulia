@@ -294,11 +294,34 @@ export function ChatList() {
     return result;
   }, [filteredContacts, slaFilter, slaStatusByContact, modeFilter, convMetaByContact, queueAgentMap, queryClient, conversations, ownerFilter, periodFilter, stageIds, stageByPhone, user?.id, user?.name, teamMembers]);
 
-  // Count conversations by status
-  const pendingCount = conversations.filter(c => c.status === 'pending').length;
-  const openCount = conversations.filter(c => c.status === 'open').length;
-  const resolvedCount = conversations.filter(c => c.status === 'resolved').length;
-  const closedCount = conversations.filter(c => c.status === 'closed').length;
+  // Count conversations by status — scoped to the active tab (Individual / Groups)
+  // so badges match what the user actually sees in the list.
+  const isGroupByContactId = React.useMemo(() => {
+    const map = new Map<string, boolean>();
+    contacts.forEach((c) => map.set(c.id, !!c.is_group));
+    return map;
+  }, [contacts]);
+
+  const matchesActiveTab = React.useCallback(
+    (contactId: string) => {
+      if (!showGroupsTab) return !isGroupByContactId.get(contactId);
+      const isGroup = !!isGroupByContactId.get(contactId);
+      if (activeTab === 'individual') return !isGroup;
+      if (activeTab === 'groups') return isGroup;
+      return true;
+    },
+    [isGroupByContactId, activeTab, showGroupsTab]
+  );
+
+  const scopedConversations = React.useMemo(
+    () => conversations.filter((c) => matchesActiveTab(c.contact_id)),
+    [conversations, matchesActiveTab]
+  );
+
+  const pendingCount = scopedConversations.filter(c => c.status === 'pending').length;
+  const openCount = scopedConversations.filter(c => c.status === 'open').length;
+  const resolvedCount = scopedConversations.filter(c => c.status === 'resolved').length;
+  const closedCount = scopedConversations.filter(c => c.status === 'closed').length;
 
   const channelBadge = (type: string) => {
     switch (type) {
