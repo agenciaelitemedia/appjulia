@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { Check, CheckCheck, Clock, AlertCircle, Download, Play, Pause, Loader2, FileText, MapPin, User, StickyNote as StickyNoteIcon, Forward, Reply } from 'lucide-react';
+import { Check, CheckCheck, Clock, AlertCircle, Download, Play, Pause, Loader2, FileText, MapPin, User, StickyNote as StickyNoteIcon, Forward, Reply, WifiOff, ImageOff, RotateCw } from 'lucide-react';
 import { MediaLightbox } from './MediaLightbox';
 import { Button } from '@/components/ui/button';
 import { QuotedMessage } from './QuotedMessage';
@@ -9,11 +9,12 @@ import { ExpandableMessageText } from './ExpandableMessageText';
 import { format } from 'date-fns';
 import type { ChatMessage, MessageStatus, MessageType } from '@/types/chat';
 import type { MessageReaction } from '@/hooks/useMessageReactions';
+import type { DownloadMediaResult } from '@/contexts/WhatsAppDataContext';
 
 interface MessageBubbleProps {
   message: ChatMessage;
   reactions?: MessageReaction[];
-  onDownloadMedia?: (messageId: string) => Promise<string | undefined>;
+  onDownloadMedia?: (messageId: string) => Promise<DownloadMediaResult>;
   onReact?: (message: ChatMessage, emoji: string) => void;
   onForward?: (message: ChatMessage) => void;
   onReply?: (message: ChatMessage) => void;
