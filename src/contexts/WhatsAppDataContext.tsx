@@ -1308,20 +1308,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         const contact = contacts.find(c => c.id === contactId);
         if (!contact || contact.unread_count === 0) return;
 
-        // Groups: mark as read on click
-        if (contact.is_group) {
-          await markAsRead(contactId);
-          return;
-        }
-
-        // Individual: mark as read only if conversation is already assigned to the current agent
-        const currentUserName = user?.name || (user?.id ? String(user.id) : '');
-        const conv = conversations.find(
-          c => c.contact_id === contactId && ['pending', 'open'].includes(c.status)
-        );
-        if (conv && currentUserName && conv.assigned_to === currentUserName) {
-          await markAsRead(contactId);
-        }
+        // Mark as read on click for all conversations
+        await markAsRead(contactId);
       } catch (e) {
         console.warn('[selectContact] error', e);
       }

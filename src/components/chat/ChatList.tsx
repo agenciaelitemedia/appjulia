@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, Plus, Timer, AlertTriangle, Flame, Bot, User, UserCheck, UserX, ListFilter, FolderOpen, CheckCheck, Archive, UserCircle, ChevronsUpDown, CalendarDays, Tag } from 'lucide-react';
 import { TagsManagerDialog } from './TagsManagerDialog';
 import { NewConversationDialog } from './NewConversationDialog';
+import { MessageSquarePlus } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { ChatContactItem } from './ChatContactItem';
@@ -108,6 +109,8 @@ export function ChatList() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [showTagsManager, setShowTagsManager] = useState(false);
   const [newConvOpen, setNewConvOpen] = useState(false);
+  const [footerCountry, setFooterCountry] = useState('55');
+  const [footerPhone, setFooterPhone] = useState('');
   const activeFilterCount =
     (modeFilter !== 'all' ? 1 : 0) +
     (slaFilter !== 'all' ? 1 : 0) +
@@ -690,23 +693,59 @@ export function ChatList() {
         )}
       </div>
 
+      {/* Mostrando X de Y — fora do scroll, sticky */}
+      {!isLoading && visibleContacts.length < filteredContacts.length && (
+        <div className="mx-3 mb-1 flex items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground shrink-0">
+          <span>
+            Mostrando <strong className="text-foreground">{visibleContacts.length}</strong> de{' '}
+            <strong className="text-foreground">{filteredContacts.length}</strong> conversas
+            {activeFilterCount > 0 ? ' (filtros ativos)' : ''}
+          </span>
+          {activeFilterCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => {
+                setModeFilter('all');
+                setSlaFilter('all');
+                setOwnerFilter('all');
+                setPeriodFilter('all');
+                setStageIds([]);
+                setConversationStatusFilter('pending');
+              }}
+            >
+              Limpar filtros
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Status tabs — Aguardando Atendimento / Em Atendimento */}
       <div className="flex border-b shrink-0">
         {([
-          { value: 'pending', label: 'Aguardando Atendimento' },
-          { value: 'open',    label: 'Em Atendimento' },
+          { value: 'pending', label: 'Aguardando Atendimento', count: pendingCount },
+          { value: 'open',    label: 'Em Atendimento',         count: openCount },
         ] as const).map(tab => (
           <button
             key={tab.value}
             onClick={() => setConversationStatusFilter(tab.value)}
             className={cn(
-              'flex-1 py-2 text-xs font-semibold border-b-2 transition-colors',
+              'flex-1 py-2 text-xs font-semibold border-b-2 transition-colors flex items-center justify-center gap-1.5',
               conversationStatusFilter === tab.value
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
             {tab.label}
+            <span className={cn(
+              'rounded-full min-w-[18px] h-4 flex items-center justify-center px-1 text-[9px] font-bold',
+              conversationStatusFilter === tab.value
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground'
+            )}>
+              {tab.count}
+            </span>
           </button>
         ))}
       </div>
@@ -714,32 +753,6 @@ export function ChatList() {
       {/* Contact List */}
       <ScrollArea className="flex-1">
         <div className="py-1">
-          {!isLoading && visibleContacts.length < filteredContacts.length && (
-            <div className="mx-3 mb-2 flex items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
-              <span>
-                Mostrando <strong className="text-foreground">{visibleContacts.length}</strong> de{' '}
-                <strong className="text-foreground">{filteredContacts.length}</strong> conversas
-                {activeFilterCount > 0 ? ' (filtros ativos)' : ''}
-              </span>
-              {activeFilterCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  onClick={() => {
-                    setModeFilter('all');
-                    setSlaFilter('all');
-                    setOwnerFilter('all');
-                    setPeriodFilter('all');
-                    setStageIds([]);
-                    setConversationStatusFilter('all');
-                  }}
-                >
-                  Limpar filtros
-                </Button>
-              )}
-            </div>
-          )}
           {isLoading ? (
             Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-3">
@@ -803,23 +816,52 @@ export function ChatList() {
         </div>
       </ScrollArea>
 
-      {/* Footer: novo atendimento */}
-      <div className="px-3 py-2 border-t shrink-0">
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full gap-2 text-xs"
-          onClick={() => setNewConvOpen(true)}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Novo atendimento
-        </Button>
+      {/* Footer: iniciar nova conversa */}
+      <div className="px-3 py-2 border-t bg-muted/30 shrink-0">
+        <p className="text-[10px] text-muted-foreground mb-1.5">Iniciar nova conversa</p>
+        <div className="flex items-center gap-1.5">
+          <Select value={footerCountry} onValueChange={setFooterCountry}>
+            <SelectTrigger className="h-8 w-[72px] text-xs shrink-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="55" className="text-xs">+55</SelectItem>
+              <SelectItem value="1" className="text-xs">+1</SelectItem>
+              <SelectItem value="351" className="text-xs">+351</SelectItem>
+              <SelectItem value="54" className="text-xs">+54</SelectItem>
+              <SelectItem value="56" className="text-xs">+56</SelectItem>
+            </SelectContent>
+          </Select>
+          <input
+            value={footerPhone}
+            onChange={e => {
+              const digits = e.target.value.replace(/\D/g, '').slice(0, 11);
+              let fmt = digits;
+              if (digits.length > 2 && digits.length <= 6) fmt = `(${digits.slice(0,2)}) ${digits.slice(2)}`;
+              else if (digits.length > 6 && digits.length <= 10) fmt = `(${digits.slice(0,2)}) ${digits.slice(2,6)}-${digits.slice(6)}`;
+              else if (digits.length > 10) fmt = `(${digits.slice(0,2)}) ${digits.slice(2,7)}-${digits.slice(7)}`;
+              setFooterPhone(fmt);
+            }}
+            placeholder="(00) 00000-0000"
+            className="h-8 text-xs flex-1 rounded-md border border-input bg-background px-3 py-1 focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <Button
+            size="sm"
+            className="h-8 text-xs px-3 shrink-0"
+            disabled={footerPhone.replace(/\D/g,'').length < 10}
+            onClick={() => setNewConvOpen(true)}
+          >
+            <MessageSquarePlus className="h-3.5 w-3.5 mr-1" />
+            Conversar
+          </Button>
+        </div>
       </div>
 
       <NewConversationDialog
         open={newConvOpen}
-        onOpenChange={setNewConvOpen}
+        onOpenChange={(v) => { setNewConvOpen(v); if (!v) setFooterPhone(''); }}
         queues={activeQueues.filter(q => q.channel_type === 'uazapi')}
+        initialPhone={footerCountry + footerPhone.replace(/\D/g,'')}
       />
     </div>
   );

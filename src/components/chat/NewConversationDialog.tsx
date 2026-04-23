@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Send, Loader2, Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -22,21 +22,26 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   queues: Queue[];
+  initialPhone?: string;
 }
 
-export function NewConversationDialog({ open, onOpenChange, queues }: Props) {
+export function NewConversationDialog({ open, onOpenChange, queues, initialPhone }: Props) {
   const [selectedQueueId, setSelectedQueueId] = useState('');
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState(initialPhone ?? '');
   const [name, setName] = useState('');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
 
   const selectedQueue = queues.find(q => q.id === selectedQueueId) ?? null;
 
+  useEffect(() => {
+    if (open) setPhone(initialPhone ?? '');
+  }, [open, initialPhone]);
+
   const handleClose = () => {
     if (sending) return;
     setSelectedQueueId('');
-    setPhone('');
+    setPhone(initialPhone ?? '');
     setName('');
     setMessage('');
     onOpenChange(false);
