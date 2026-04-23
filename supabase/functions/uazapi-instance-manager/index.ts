@@ -231,6 +231,41 @@ Deno.serve(async (req) => {
         return respond({ success: res.ok, data });
       }
 
+      // ==========================================
+      // DELETE - permanently delete instance from UaZapi server
+      // ==========================================
+      case 'delete': {
+        if (!queue_id) return respond({ error: 'queue_id required' }, 400);
+        const queue = await getQueueCredentials(queue_id);
+        const token = queue.evo_apikey || adminToken;
+        const url = queue.evo_url || baseUrl;
+        const instanceName = queue.evo_instance;
+
+        console.log(`[uazapi-instance-manager] Delete instance: ${instanceName} @ ${url}`);
+        let res = await fetch(`${url}/instance`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json', 'token': token },
+        });
+
+        if (res.status === 401 && token !== adminToken) {
+          console.log('[uazapi-instance-manager] Retrying delete with admintoken...');
+          res = await fetch(`${url}/instance`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json', 'admintoken': adminToken },
+          });
+        }
+
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch { data = { response: text }; }
+
+        // Treat 404/410 as success (instance already gone)
+        const ok = res.ok || res.status === 404 || res.status === 410;
+        console.log(`[uazapi-instance-manager] Delete response: ${res.status} (ok=${ok})`);
+
+        return respond({ success: ok, status: res.status, data });
+      }
+
       default:
         return respond({ error: `Unknown action: ${action}` }, 400);
     }
