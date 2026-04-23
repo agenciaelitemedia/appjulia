@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Plus, Loader2, Network, Bot, MessageSquare, RefreshCw, History, Trash2 } from 'lucide-react';
+import { Plus, Loader2, Network, Bot, MessageSquare, History, Trash2 } from 'lucide-react';
 import { AIModelsConfig } from './components/AIModelsConfig';
 import { ChatSettingsTab } from './components/ChatSettingsTab';
-import { SyncWhatsappTab } from './components/SyncWhatsappTab';
-import { SyncHistoryTab } from './components/SyncHistoryTab';
+import { UazapiHistoryTab } from './components/UazapiHistoryTab';
 import { useQueueProviders, useQueueProviderMutations, type QueueProvider } from './hooks/useQueueProviders';
 import { ProviderCard } from './components/ProviderCard';
 import { ProviderFormDialog } from './components/ProviderFormDialog';
@@ -82,13 +81,9 @@ export default function ConfiguracoesPage() {
             <Bot className="w-4 h-4" />
             IA's
           </TabsTrigger>
-          <TabsTrigger value="sync-whatsapp" className="gap-2">
-            <RefreshCw className="w-4 h-4" />
-            Sincronizar WhatsApp
-          </TabsTrigger>
-          <TabsTrigger value="sync-history" className="gap-2">
+          <TabsTrigger value="uazapi-history" className="gap-2">
             <History className="w-4 h-4" />
-            Histórico de Sincronização
+            History UaZapi
           </TabsTrigger>
         </TabsList>
 
@@ -143,12 +138,8 @@ export default function ConfiguracoesPage() {
           <AIModelsConfig />
         </TabsContent>
 
-        <TabsContent value="sync-whatsapp" className="mt-6">
-          <SyncWhatsappTab />
-        </TabsContent>
-
-        <TabsContent value="sync-history" className="mt-6">
-          <SyncHistoryTab />
+        <TabsContent value="uazapi-history" className="mt-6">
+          <UazapiHistoryTab />
         </TabsContent>
       </Tabs>
 
