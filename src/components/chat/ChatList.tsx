@@ -752,6 +752,32 @@ export function ChatList() {
       {/* Contact List */}
       <ScrollArea className="flex-1">
         <div className="py-1">
+          {!isLoading && visibleContacts.length < filteredContacts.length && (
+            <div className="mx-3 mb-2 flex items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+              <span>
+                Mostrando <strong className="text-foreground">{visibleContacts.length}</strong> de{' '}
+                <strong className="text-foreground">{filteredContacts.length}</strong> conversas
+                {activeFilterCount > 0 ? ' (filtros ativos)' : ''}
+              </span>
+              {activeFilterCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={() => {
+                    setModeFilter('all');
+                    setSlaFilter('all');
+                    setOwnerFilter('all');
+                    setPeriodFilter('all');
+                    setStageIds([]);
+                    setConversationStatusFilter('all');
+                  }}
+                >
+                  Limpar filtros
+                </Button>
+              )}
+            </div>
+          )}
           {isLoading ? (
             Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-3">
