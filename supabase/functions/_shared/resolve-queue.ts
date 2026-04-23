@@ -2,7 +2,7 @@
 // Used by meta-webhook, instagram-webhook, webchat-api
 // to enrich conversations with queue_id
 
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 /**
  * Resolve queue_id by looking up queue_agent_links for a given cod_agent.

@@ -63,6 +63,28 @@ function normalizePhone(raw: string): string {
   return raw.replace(/@.*/, '').replace(/[^\d]/g, '');
 }
 
+/** Robust group detection across UaZapi payload variants.
+ *  Returns true if the message belongs to a WhatsApp group chat. */
+function isGroupMessage(msg: any): boolean {
+  if (!msg || typeof msg !== 'object') return false;
+  const jids: Array<unknown> = [
+    msg.key?.remoteJid,
+    msg.remoteJid,
+    msg.chatId,
+    msg.chatid,
+    msg.wa_chatid,
+    msg.from,
+    msg.to,
+  ];
+  for (const j of jids) {
+    if (typeof j === 'string' && j.includes('@g.us')) return true;
+  }
+  if (msg.isGroup === true || msg.wa_isGroup === true || msg.is_group === true) return true;
+  if (msg.groupName || msg.wa_groupName || msg.group_name) return true;
+  if (msg.participant || msg.key?.participant) return true; // participant field only present in group msgs
+  return false;
+}
+
 /** Coerce any value to a safe plain string (never returns object/JSON/[object Object]). */
 function toSafeString(v: unknown): string {
   if (v == null) return '';
