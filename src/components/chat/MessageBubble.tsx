@@ -208,10 +208,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
       return (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <WifiOff className="h-4 w-4" />
-          <span>WhatsApp desconectado — tentaremos novamente</span>
-          <Button variant="ghost" size="sm" className="h-6 px-2" onClick={handleDownload} disabled={isLoading}>
-            <RotateCw className="h-3 w-3 mr-1" /> Tentar agora
-          </Button>
+          <span>Mídia indisponível</span>
         </div>
       );
     }
