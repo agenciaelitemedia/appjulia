@@ -261,7 +261,14 @@ Deno.serve(async (req) => {
           signal: AbortSignal.timeout(20000),
         });
         if (!findRes.ok) return undefined;
-        const data = await findRes.json();
+        const findText = await findRes.text();
+        let data: any;
+        try {
+          data = JSON.parse(findText);
+        } catch {
+          console.warn("[chat-media-download] /message/find returned non-JSON:", findText.slice(0, 200));
+          return undefined;
+        }
         const list: any[] = Array.isArray(data) ? data
           : Array.isArray(data?.messages) ? data.messages
           : Array.isArray(data?.data) ? data.data : [];
@@ -352,7 +359,19 @@ Deno.serve(async (req) => {
       }, 200);
     }
 
-    const dlData = await dlRes.json();
+    const dlText = await dlRes.text();
+    let dlData: any;
+    try {
+      dlData = JSON.parse(dlText);
+    } catch {
+      console.error("[chat-media-download] UaZapi returned non-JSON body:", dlText.slice(0, 300));
+      return respond({
+        error: "UAZAPI_INVALID_RESPONSE",
+        details: "Provider returned non-JSON body (likely HTML error page)",
+        fallback: true,
+        transient: true,
+      }, 200);
+    }
     const fileURL: string | undefined = dlData.fileURL || dlData.url || dlData.link;
     const base64: string | undefined = dlData.base64 || dlData.fileBase64;
     const mimetype: string = dlData.mimetype || dlData.mime || msg.metadata?.mimetype || "application/octet-stream";
@@ -399,6 +418,11 @@ Deno.serve(async (req) => {
     return respond({ url: publicUrl, cached: false, channel: "uazapi" });
   } catch (err) {
     console.error("[chat-media-download] Error:", err);
-    return respond({ error: (err as Error).message }, 500);
+    // Always respond with JSON 200 so the client never has to parse HTML
+    return respond({
+      error: (err as Error).message || "Unexpected error",
+      fallback: true,
+      transient: true,
+    }, 200);
   }
 });
