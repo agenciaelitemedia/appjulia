@@ -224,6 +224,100 @@ function isHistoryReplayEvent(event: string, payload: any, messages: any[]): boo
   return distinctChats >= 5;
 }
 
+/** Enqueue a UaZapi history payload into the dedicated processing queue.
+ *  Returns the run_id so the caller can dispatch the background processor. */
+async function enqueueHistoryRun(
+  rawMessages: any[],
+  queue: { id: string; client_id: string; name: string },
+  event: string,
+): Promise<string | null> {
+  const supabase = getSupabase();
+
+  // Group by chat and skip groups defensively at enqueue time
+  const totalMessages = rawMessages.length;
+  let groupMessages = 0;
+  const byChat = new Map<string, { phone: string; count: number }>();
+  for (const msg of rawMessages) {
+    const remoteJid: string = msg?.key?.remoteJid ?? msg?.remoteJid ?? msg?.chatId ?? msg?.chatid ?? '';
+    if (!remoteJid) continue;
+    if (isGroupMessage(msg) || remoteJid.includes('@g.us')) {
+      groupMessages++;
+      continue;
+    }
+    const phone = normalizePhone(remoteJid);
+    if (!phone) continue;
+    const cur = byChat.get(remoteJid) ?? { phone, count: 0 };
+    cur.count++;
+    byChat.set(remoteJid, cur);
+  }
+
+  // Resolve client name (best-effort) for nicer monitoring UI
+  let clientName: string | null = null;
+  try {
+    const { data: cs } = await supabase
+      .from('chat_client_settings')
+      .select('client_name, client_business_name')
+      .eq('client_id', String(queue.client_id))
+      .maybeSingle();
+    clientName = (cs as any)?.client_business_name || (cs as any)?.client_name || null;
+  } catch { /* ignore */ }
+
+  const { data: run, error: runErr } = await supabase
+    .from('uazapi_history_runs')
+    .insert({
+      client_id: String(queue.client_id),
+      client_name: clientName,
+      queue_id: queue.id,
+      queue_name: queue.name,
+      event,
+      status: byChat.size === 0 ? 'done' : 'pending',
+      total_messages: totalMessages,
+      group_messages: groupMessages,
+      individual_chats: byChat.size,
+      received_at: new Date().toISOString(),
+      finished_at: byChat.size === 0 ? new Date().toISOString() : null,
+    } as never)
+    .select('id')
+    .single();
+
+  if (runErr || !run) {
+    console.warn('[uazapi-history-queue] failed to insert run:', runErr?.message);
+    return null;
+  }
+
+  const runId = (run as { id: string }).id;
+
+  if (byChat.size > 0) {
+    const items = Array.from(byChat.entries()).map(([remote_jid, info]) => ({
+      run_id: runId,
+      remote_jid,
+      phone: info.phone,
+      received_messages: info.count,
+      status: 'pending' as const,
+    }));
+    const { error: itemsErr } = await supabase.from('uazapi_history_items').insert(items as never);
+    if (itemsErr) console.warn('[uazapi-history-queue] failed to insert items:', itemsErr.message);
+  }
+
+  return runId;
+}
+
+async function dispatchHistoryProcessor(runId: string, payload: unknown): Promise<void> {
+  try {
+    const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/uazapi-history-processor`;
+    await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({ run_id: runId, payload }),
+    });
+  } catch (e) {
+    console.warn('[uazapi-history-queue] dispatch failed:', (e as Error).message);
+  }
+}
+
 async function processHistorySet(
   rawMessages: any[],
   queue: { id: string; client_id: string; evo_url: string; evo_apikey: string; name: string },
@@ -655,102 +749,14 @@ Deno.serve(async (req) => {
         (Array.isArray(payload.data) ? payload.data : null) ??
         []
       );
-      // Defesa em camada: já remove grupos do payload antes de qualquer processamento.
-      const skippedGroups = historyMsgsRaw.length;
-      const historyMsgs = historyMsgsRaw.filter((m) => {
-        const rj: string = m?.key?.remoteJid ?? m?.remoteJid ?? m?.chatId ?? '';
-        return rj && !rj.includes('@g.us') && !isGroupMessage(m);
-      });
-      const isLatest: boolean = payload.data?.isLatest ?? true;
-      console.log(`[uazapi-webhook] ${event} queue=${queue.name} count=${historyMsgs.length} (skipped_groups=${skippedGroups - historyMsgs.length}) isLatest=${isLatest}`);
+      console.log(`[uazapi-webhook] ${event} queue=${queue.name} count=${historyMsgsRaw.length}`);
 
-      // Agrupa por chat ignorando grupos (sempre) para calcular total_numbers.
-      const phoneSet = new Map<string, number>();
-      for (const m of historyMsgs) {
-        const rj: string = m.key?.remoteJid ?? m.remoteJid ?? m.chatId ?? '';
-        if (!rj) continue;
-        if (isGroupMessage(m) || rj.includes('@g.us')) continue;
-        const ph = normalizePhone(rj);
-        if (!ph) continue;
-        phoneSet.set(ph, (phoneSet.get(ph) ?? 0) + 1);
-      }
-      const phones = Array.from(phoneSet.entries()).map(([phone, message_count]) => ({ phone, message_count }));
-
-      // Resolve client_name + cod_agent/agent_name (best-effort)
-      let clientName: string | null = null;
-      let codAgent: string | null = null;
-      let agentName: string | null = null;
-      try {
-        const { data: cs } = await supabase
-          .from('chat_client_settings')
-          .select('client_name, client_business_name')
-          .eq('client_id', String(queue.client_id))
-          .maybeSingle();
-        clientName = cs?.client_business_name || cs?.client_name || null;
-      } catch { /* ignore */ }
-      try {
-        const { data: link } = await supabase
-          .from('queue_agent_links')
-          .select('cod_agent')
-          .eq('queue_id', queue.id)
-          .limit(1)
-          .maybeSingle();
-        codAgent = link?.cod_agent ?? null;
-        if (codAgent) {
-          const { data: alias } = await supabase
-            .from('agent_aliases')
-            .select('alias')
-            .eq('cod_agent', codAgent)
-            .maybeSingle();
-          agentName = alias?.alias ?? null;
-        }
-      } catch { /* ignore */ }
-
-      // Cria job sempre (mesmo com 0 indivíduos — registro do recebimento).
-      let jobId: string | null = null;
-      try {
-        const { data: job, error: jobErr } = await supabase
-          .from('whatsapp_sync_jobs')
-          .insert({
-            client_id: String(queue.client_id),
-            client_name: clientName,
-            queue_id: queue.id,
-            queue_name: queue.name,
-            cod_agent: codAgent,
-            agent_name: agentName,
-            phase: 'history_sync',
-            status: phones.length === 0 ? 'done' : 'running',
-            total_numbers: phones.length,
-            processed_numbers: 0,
-            inserted_messages: 0,
-            inserted_contacts: 0,
-            evo_url: queue.evo_url,
-            evo_token: queue.evo_apikey,
-            numbers: phones,
-            started_at: new Date().toISOString(),
-            finished_at: phones.length === 0 ? new Date().toISOString() : null,
-          } as never)
-          .select('id')
-          .single();
-        if (jobErr) console.warn('[history-set] job insert failed', jobErr.message);
-        jobId = (job as { id: string } | null)?.id ?? null;
-
-        if (jobId && phones.length > 0) {
-          await supabase.from('whatsapp_sync_job_logs').insert(
-            phones.map((p) => ({ job_id: jobId, phone: p.phone, status: 'pending' as const })),
-          );
-        }
-      } catch (e) {
-        console.warn('[history-set] could not create sync job', e);
+      const runId = await enqueueHistoryRun(historyMsgsRaw, queue as any, event);
+      if (runId) {
+        EdgeRuntime.waitUntil(dispatchHistoryProcessor(runId, { messages: historyMsgsRaw }));
       }
 
-      if (historyMsgs.length > 0 && phones.length > 0) {
-        EdgeRuntime.waitUntil(
-          processHistorySet(historyMsgs, queue as any, false, jobId)
-        );
-      }
-
-      return respond({ ok: true, event, queued: phones.length, job_id: jobId });
+      return respond({ ok: true, event, queued: historyMsgsRaw.length, run_id: runId });
     }
 
     // ─── MESSAGES (main handler) ───
@@ -767,10 +773,11 @@ Deno.serve(async (req) => {
     const isHistoryReplay = isHistoryReplayEvent(event, payload, messages);
     if (isHistoryReplay) {
       console.log(`[uazapi-chat-webhook] treating batch as history replay event=${event} count=${messages.length}`);
-      if (messages.length > 0) {
-        EdgeRuntime.waitUntil(processHistorySet(messages, queue as any, false, null));
+      const runId = await enqueueHistoryRun(messages, queue as any, `${event}:replay`);
+      if (runId) {
+        EdgeRuntime.waitUntil(dispatchHistoryProcessor(runId, { messages }));
       }
-      return respond({ ok: true, event, queued: messages.length, replay: true });
+      return respond({ ok: true, event, queued: messages.length, replay: true, run_id: runId });
     }
 
     if (isMessageUpsert) {
