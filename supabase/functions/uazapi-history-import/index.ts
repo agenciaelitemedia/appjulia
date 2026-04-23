@@ -5,6 +5,7 @@
 // ============================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { fetchWhatsappProfile, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -75,32 +76,9 @@ function tsToIso(timestamp: any): string {
 
 const MEDIA_TYPES = new Set(['image', 'video', 'audio', 'ptt', 'document', 'sticker']);
 
-async function fetchChatDetails(job: any, phone: string): Promise<any | null> {
-  try {
-    const url = `${job.evo_url.replace(/\/$/, '')}/chat/details`;
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'token': job.evo_token },
-      body: JSON.stringify({ number: phone, preview: true }),
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!resp.ok) return null;
-    const data = await resp.json();
-    // UaZapi may return either an object or { chat: {...} }
-    return data?.chat || data?.data || data || null;
-  } catch (e) {
-    console.warn(`[uazapi-history-import] /chat/details failed phone=${phone} err=${(e as Error).message}`);
-    return null;
-  }
-}
-
-function resolveContactName(details: any | null, firstMsg: any, phone: string): string {
+function resolveContactName(profileName: string | null, firstMsg: any, phone: string): string {
   const candidates = [
-    details?.lead_fullName,
-    details?.lead_name,
-    details?.name,
-    details?.wa_name,
-    details?.wa_contactName,
+    profileName,
     firstMsg?.pushName,
     firstMsg?.senderName,
     firstMsg?.wa_contactName,
@@ -159,14 +137,18 @@ async function processNumber(
   if (existing) {
     contactId = existing.id;
   } else {
-    // Fetch real lead details from UaZapi /chat/details
-    const details = await fetchChatDetails(job, phone);
-    const firstName = resolveContactName(details, messages[0], phone);
-    if (details && firstName !== phone) contactEnriched = true;
+    // Fetch real lead profile via shared multi-provider helper
+    const profile = await fetchWhatsappProfile(
+      { channel_type: 'uazapi', evo_url: job.evo_url, evo_apikey: job.evo_token },
+      phone,
+    );
+    const firstName = resolveContactName(profile.name, messages[0], phone);
+    if ((profile.name || profile.avatar) && firstName !== phone) contactEnriched = true;
 
-    const avatar = details?.image || details?.profilePictureUrl || details?.imagePreview || null;
-    const isGroup = Boolean(details?.wa_isGroup);
-    const remoteJid = details?.wa_chatid || chatId;
+    const avatar = profile.avatar;
+    const isGroup = profile.isGroup;
+    const remoteJid = profile.remoteJid || chatId;
+    const enrichedCols = profileToContactColumns(profile);
 
     const { data: created, error: cErr } = await supabase
       .from('chat_contacts')
@@ -182,6 +164,7 @@ async function processNumber(
         channel_source: job.queue_id || 'uazapi',
         history_backfilled: true,
         unread_count: 0,
+        ...enrichedCols,
       })
       .select('id')
       .single();

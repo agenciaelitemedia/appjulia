@@ -5,6 +5,7 @@
 // ============================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { fetchWhatsappProfile, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -176,7 +177,7 @@ Deno.serve(async (req) => {
     // Resolve queue to get client_id
     const { data: queue, error: queueError } = await supabase
       .from('queues')
-      .select('id, client_id, channel_type, name')
+      .select('id, client_id, channel_type, name, evo_url, evo_apikey, waba_token, waba_number_id')
       .eq('id', queueId)
       .single();
 
@@ -467,6 +468,27 @@ Deno.serve(async (req) => {
           .single();
 
         if (!contact) continue;
+
+        // ── Enrich profile (avatar, wa_*, lead_*) for new contacts or those still missing avatar ──
+        const needsEnrich = !isGroup && (isNewContact || !preExisting?.avatar);
+        if (needsEnrich) {
+          // Fire-and-forget so we don't block message persistence
+          (async () => {
+            try {
+              const profile = await fetchWhatsappProfile(queue as any, senderPhone);
+              const cols = profileToContactColumns(profile);
+              const update: Record<string, unknown> = { ...cols };
+              if (profile.avatar) update.avatar = profile.avatar;
+              if (profile.name && (isPhoneLikeName(contactNameToWrite) || isNewContact)) {
+                update.name = profile.name;
+              }
+              if (profile.remoteJid) update.remote_jid = profile.remoteJid;
+              await supabase.from('chat_contacts').update(update).eq('id', contact.id);
+            } catch (e) {
+              console.warn(`[uazapi-chat-webhook] enrich failed phone=${senderPhone}: ${(e as Error).message}`);
+            }
+          })();
+        }
 
         // ── Trigger one-time backfill from UaZapi for new contacts ──
         if ((isNewContact || !alreadyBackfilled) && !backfillTriggered.has(contact.id)) {

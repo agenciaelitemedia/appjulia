@@ -1050,11 +1050,20 @@ export type Database = {
           is_muted: boolean | null
           last_message_at: string | null
           last_message_text: string | null
+          lead_email: string | null
+          lead_full_name: string | null
+          lead_personalid: string | null
           name: string
           phone: string
+          profile_fetched_at: string | null
+          profile_source: string | null
           remote_jid: string | null
           unread_count: number | null
           updated_at: string | null
+          wa_business: boolean | null
+          wa_name: string | null
+          wa_status: string | null
+          wa_verified_name: string | null
         }
         Insert: {
           avatar?: string | null
@@ -1070,11 +1079,20 @@ export type Database = {
           is_muted?: boolean | null
           last_message_at?: string | null
           last_message_text?: string | null
+          lead_email?: string | null
+          lead_full_name?: string | null
+          lead_personalid?: string | null
           name: string
           phone: string
+          profile_fetched_at?: string | null
+          profile_source?: string | null
           remote_jid?: string | null
           unread_count?: number | null
           updated_at?: string | null
+          wa_business?: boolean | null
+          wa_name?: string | null
+          wa_status?: string | null
+          wa_verified_name?: string | null
         }
         Update: {
           avatar?: string | null
@@ -1090,11 +1108,20 @@ export type Database = {
           is_muted?: boolean | null
           last_message_at?: string | null
           last_message_text?: string | null
+          lead_email?: string | null
+          lead_full_name?: string | null
+          lead_personalid?: string | null
           name?: string
           phone?: string
+          profile_fetched_at?: string | null
+          profile_source?: string | null
           remote_jid?: string | null
           unread_count?: number | null
           updated_at?: string | null
+          wa_business?: boolean | null
+          wa_name?: string | null
+          wa_status?: string | null
+          wa_verified_name?: string | null
         }
         Relationships: []
       }
