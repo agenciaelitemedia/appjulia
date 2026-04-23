@@ -14,6 +14,7 @@ const corsHeaders = {
 // Eventos padrão do webhook UaZapi (chat moderno completo)
 const DEFAULT_WEBHOOK_EVENTS = [
   'messages',
+  'messages.set',
   'messages.update',
   'messages.delete',
   'chats.update',

@@ -7,6 +7,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { fetchWhatsappProfile, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
 
+declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -159,6 +161,194 @@ function extractMediaBase64(msg: any): string | undefined {
   return msg.fileBase64 || msg.base64 || undefined;
 }
 
+async function processHistorySet(
+  rawMessages: any[],
+  queue: { id: string; client_id: string; evo_url: string; evo_apikey: string; name: string },
+  allowGroups: boolean,
+) {
+  const supabase = getSupabase();
+
+  const byChat = new Map<string, any[]>();
+  for (const msg of rawMessages) {
+    const remoteJid: string = msg.key?.remoteJid ?? msg.remoteJid ?? msg.chatId ?? '';
+    if (!remoteJid) continue;
+    const isGroup = remoteJid.endsWith('@g.us');
+    if (isGroup && !allowGroups) continue;
+    if (!byChat.has(remoteJid)) byChat.set(remoteJid, []);
+    byChat.get(remoteJid)!.push(msg);
+  }
+
+  let totalContacts = 0;
+  let totalMessages = 0;
+  let totalSkipped = 0;
+
+  for (const [remoteJid, msgs] of byChat) {
+    try {
+      const phone = normalizePhone(remoteJid);
+      if (!phone) continue;
+
+      const { data: preExisting } = await supabase
+        .from('chat_contacts')
+        .select('id, history_backfilled, avatar')
+        .eq('phone', phone)
+        .eq('client_id', queue.client_id)
+        .maybeSingle();
+
+      let contactId: string;
+
+      if (!preExisting) {
+        let profileCols: Record<string, unknown> = {};
+        let avatarUrl: string | null = null;
+        let contactName = phone;
+        try {
+          const profile = await fetchWhatsappProfile(queue as any, phone);
+          profileCols = profileToContactColumns(profile);
+          avatarUrl = profile.avatar ?? null;
+          contactName = profile.name ?? phone;
+        } catch { /* non-fatal */ }
+
+        const { data: inserted, error: insErr } = await supabase
+          .from('chat_contacts')
+          .upsert({
+            client_id: queue.client_id,
+            phone,
+            name: contactName,
+            avatar: avatarUrl,
+            channel_type: 'whatsapp_uazapi',
+            channel_source: queue.id,
+            remote_jid: remoteJid,
+            is_group: remoteJid.endsWith('@g.us'),
+            history_backfilled: true,
+            unread_count: 0,
+            ...profileCols,
+          }, { onConflict: 'phone,client_id' })
+          .select('id')
+          .single();
+
+        if (insErr || !inserted) {
+          console.warn(`[history-set] contact upsert failed phone=${phone}`, insErr?.message);
+          continue;
+        }
+        contactId = inserted.id;
+        totalContacts++;
+      } else {
+        contactId = preExisting.id;
+        if (!preExisting.avatar) {
+          fetchWhatsappProfile(queue as any, phone)
+            .then((p) => {
+              const cols = profileToContactColumns(p);
+              return supabase.from('chat_contacts').update({ avatar: p.avatar, ...cols }).eq('id', contactId);
+            })
+            .catch(() => {});
+        }
+      }
+
+      let conversationId: string | null = null;
+      const { data: existingConv } = await supabase
+        .from('chat_conversations')
+        .select('id')
+        .eq('contact_id', contactId)
+        .eq('client_id', queue.client_id)
+        .in('status', ['pending', 'open'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingConv) {
+        conversationId = existingConv.id;
+      } else {
+        const { data: newConv } = await supabase
+          .from('chat_conversations')
+          .insert({
+            contact_id: contactId,
+            client_id: queue.client_id,
+            queue_id: queue.id,
+            channel: 'whatsapp_uazapi',
+            status: 'pending',
+            priority: 'normal',
+            protocol: '',
+            metadata: { backfilled: true, source: 'messages.set' },
+          })
+          .select('id')
+          .single();
+        if (newConv) conversationId = newConv.id;
+      }
+
+      for (const msg of msgs) {
+        try {
+          const messageId: string = msg.key?.id ?? msg.id ?? msg.messageId ?? '';
+          if (!messageId) continue;
+
+          const { data: existingMsg } = await supabase
+            .from('chat_messages')
+            .select('id')
+            .eq('message_id', messageId)
+            .eq('contact_id', contactId)
+            .maybeSingle();
+          if (existingMsg) { totalSkipped++; continue; }
+
+          const fromMe: boolean = msg.key?.fromMe ?? msg.fromMe ?? msg.from_me ?? false;
+          const text = extractMessageText(msg);
+          const type = extractMessageType(msg);
+          const mediaUrl = extractMediaUrl(msg);
+          const pushName: string = msg.pushName ?? msg.senderName ?? '';
+
+          const rawTs = msg.messageTimestamp ?? msg.timestamp;
+          let isoTs: string;
+          if (rawTs) {
+            const n = typeof rawTs === 'number' ? rawTs : Number(rawTs);
+            const ms = n > 1e12 ? n : n * 1000;
+            const d = new Date(ms);
+            isoTs = (d.getFullYear() > 2000 && d.getFullYear() < 2100) ? d.toISOString() : new Date().toISOString();
+          } else {
+            isoTs = new Date().toISOString();
+          }
+
+          const { error: msgErr } = await supabase
+            .from('chat_messages')
+            .insert({
+              contact_id: contactId,
+              conversation_id: conversationId,
+              client_id: queue.client_id,
+              message_id: messageId,
+              external_id: messageId,
+              text: text ? toSafeString(text) : null,
+              type,
+              from_me: fromMe,
+              status: fromMe ? 'sent' : 'received',
+              media_url: mediaUrl ?? null,
+              timestamp: isoTs,
+              channel_type: 'whatsapp_uazapi',
+              sender_name: fromMe ? null : (pushName || null),
+              raw_payload: msg,
+              metadata: { backfilled: true, source: 'messages.set' },
+            });
+
+          if (!msgErr) {
+            totalMessages++;
+          } else if (msgErr.code === '23505' || msgErr.message?.includes('duplicate')) {
+            totalSkipped++;
+          } else {
+            console.warn(`[history-set] msg insert failed phone=${phone} id=${messageId}`, msgErr.message);
+          }
+        } catch (e) {
+          console.warn(`[history-set] msg error phone=${phone}`, e);
+        }
+      }
+
+      await supabase
+        .from('chat_contacts')
+        .update({ history_backfilled: true })
+        .eq('id', contactId);
+
+    } catch (chatErr) {
+      console.warn(`[history-set] chat error remoteJid=${remoteJid}`, chatErr);
+    }
+  }
+
+  console.log(`[history-set] done queue=${queue.name} contacts=${totalContacts} messages=${totalMessages} skipped=${totalSkipped}`);
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -309,6 +499,27 @@ Deno.serve(async (req) => {
         }
       }
       return respond({ ok: true, event: 'chats.update' });
+    }
+
+    // ─── HISTORY DUMP (messages.set / history) ───
+    if (event === 'history' || event === 'messages.set' || event === 'message.history') {
+      const historyMsgs: any[] = (
+        payload.data?.messages ??
+        payload.messages ??
+        (Array.isArray(payload.data) ? payload.data : null) ??
+        []
+      );
+      const isLatest: boolean = payload.data?.isLatest ?? true;
+      console.log(`[uazapi-webhook] ${event} queue=${queue.name} count=${historyMsgs.length} isLatest=${isLatest}`);
+
+      if (historyMsgs.length > 0) {
+        const allowGroups = await getAllowGroupsForClient(String(queue.client_id));
+        EdgeRuntime.waitUntil(
+          processHistorySet(historyMsgs, queue as any, allowGroups)
+        );
+      }
+
+      return respond({ ok: true, event, queued: historyMsgs.length });
     }
 
     // ─── MESSAGES (main handler) ───
