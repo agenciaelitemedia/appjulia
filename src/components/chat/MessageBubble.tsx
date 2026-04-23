@@ -249,13 +249,10 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
               </div>
             ) : (
               <div className="bg-muted rounded-lg p-8 flex items-center justify-center min-h-[180px] min-w-[200px]">
-                {isLoading ? (
+                {isLoading && downloadState === 'idle' ? (
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 ) : (
-                  <Button variant="ghost" size="sm" onClick={handleDownload}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Baixar imagem
-                  </Button>
+                  <FallbackBox label="Baixar imagem" />
                 )}
               </div>
             )}
