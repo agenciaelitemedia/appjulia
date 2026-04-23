@@ -102,9 +102,10 @@ function toSafeString(v: unknown): string {
 function extractMessageText(msg: any): string | undefined {
   // msg.text/content can be string OR object ({body|text|caption: "..."}) depending on UaZapi version/media
   const candidates = [
+    // UaZapi media: caption lives in msg.content.caption; msg.text may also hold it
+    msg.content?.caption,
     msg.text,
     msg.body,
-    msg.content,
     msg.caption,
     msg.message?.conversation,
     msg.message?.extendedTextMessage?.text,
@@ -114,7 +115,8 @@ function extractMessageText(msg: any): string | undefined {
   ];
   for (const c of candidates) {
     const s = toSafeString(c).trim();
-    if (s) return s;
+    // Reject JSON-looking blobs (defensive — UaZapi sometimes dumps full media payload into text)
+    if (s && !s.startsWith('{') && !s.startsWith('[') && s !== '[object Object]') return s;
   }
   return undefined;
 }
@@ -148,7 +150,8 @@ function buildLastMessagePreview(text: unknown, type: string, fileName?: string)
 }
 
 function extractMessageType(msg: any): string {
-  const mt = (msg.messageType || msg.type || '').toLowerCase();
+  // UaZapi uses messageType="ImageMessage"|"AudioMessage"|... AND mediaType="image"|"audio"|...
+  const mt = (msg.mediaType || msg.messageType || msg.type || '').toLowerCase();
   if (mt.includes('image') || msg.message?.imageMessage || msg.isMedia && mt.includes('image')) return 'image';
   if (mt.includes('video') || msg.message?.videoMessage) return 'video';
   if (mt.includes('ptt') || msg.message?.audioMessage?.ptt || msg.isPtt) return 'ptt';
@@ -159,10 +162,16 @@ function extractMessageType(msg: any): string {
   if (mt.includes('contact') || msg.message?.contactMessage) return 'contact';
   if (mt.includes('reaction') || msg.message?.reactionMessage) return 'reaction';
   if (mt.includes('revoked') || mt.includes('protocol') || msg.message?.protocolMessage) return 'revoked';
+  // Fallback: msg.type === 'media' + presence of content.URL → guess image
+  if ((msg.type === 'media' || mt === 'media') && msg.content?.URL) return 'image';
   return 'text';
 }
 
 function extractMediaUrl(msg: any): string | undefined {
+  // UaZapi v2 puts the encrypted media URL inside msg.content.URL
+  const uazapiUrl = msg.content?.URL || msg.content?.url;
+  if (uazapiUrl) return uazapiUrl;
+
   // Prefer decrypted/usable URLs first; fall back to encrypted ones (frontend will request decryption on demand)
   const decrypted = msg.fileURL
     || msg.file_url
