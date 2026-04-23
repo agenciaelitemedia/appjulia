@@ -398,28 +398,6 @@ export function ChatList() {
           </div>
         </div>
 
-        {/* Status tabs — acesso rápido Todos / Pendentes / Em atendimento */}
-        <div className="flex border-b border-t">
-          {([
-            { value: 'all',     label: 'Todos' },
-            { value: 'pending', label: 'Pendentes' },
-            { value: 'open',    label: 'Em atendimento' },
-          ] as const).map(tab => (
-            <button
-              key={tab.value}
-              onClick={() => setConversationStatusFilter(tab.value)}
-              className={cn(
-                'flex-1 py-2 text-xs font-medium border-b-2 transition-colors',
-                conversationStatusFilter === tab.value
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
         {filtersOpen && (
         <>
         {(breachedCount > 0 || atRiskCount > 0 || slaFilter !== 'all') && (
@@ -710,6 +688,27 @@ export function ChatList() {
           ))}
         </div>
         )}
+      </div>
+
+      {/* Status tabs — Aguardando Atendimento / Em Atendimento */}
+      <div className="flex border-b shrink-0">
+        {([
+          { value: 'pending', label: 'Aguardando Atendimento' },
+          { value: 'open',    label: 'Em Atendimento' },
+        ] as const).map(tab => (
+          <button
+            key={tab.value}
+            onClick={() => setConversationStatusFilter(tab.value)}
+            className={cn(
+              'flex-1 py-2 text-xs font-semibold border-b-2 transition-colors',
+              conversationStatusFilter === tab.value
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Contact List */}

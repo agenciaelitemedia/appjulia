@@ -224,7 +224,7 @@ function CrmActionBar({ phone, queueId, contactName }: CrmActionBarProps) {
 }
 
 export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps) {
-  const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact, markAsRead, conversationTagsMap } = useWhatsAppData();
+  const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact, markAsRead, conversationTagsMap, setConversationStatusFilter } = useWhatsAppData();
   const { user } = useAuth();
   const { configs: slaConfigs } = useChatSlaConfigs();
 
@@ -355,6 +355,8 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
     }
     // Now that the agent claimed the conversation, clear the unread badge.
     try { await markAsRead(contact.id); } catch (e) { /* noop */ }
+    // Switch to "Em Atendimento" tab and keep focus on this conversation
+    setConversationStatusFilter('open');
   };
 
   const handleResolve = async () => {
