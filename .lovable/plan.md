@@ -1,117 +1,63 @@
 
-## Ajuste para o histórico ignorar grupos de forma definitiva
 
-### Problema identificado
-O filtro atual do histórico está incompleto. Hoje o código ignora grupos apenas quando `remoteJid.endsWith('@g.us')`, mas eventos do UaZapi podem sinalizar grupo por outros campos como:
-- `isGroup`
-- `wa_isGroup`
-- `groupName`
-- `wa_groupName`
-- `wa_chatid`
-- `chatId` em formatos não padronizados
+## Por que a lista do /chat mostra poucos chats apesar de 400+ pendentes
 
-Com isso, parte das mensagens de grupo passa pelo fluxo de `history`, cria contato, cria conversa e grava mensagens, mesmo com a regra pedida para ignorar grupos no carregamento de histórico.
+### Diagnóstico (dados reais do client 30)
 
-Além disso, existe um erro de build no helper compartilhado `resolve-queue.ts` por causa do import genérico de `@supabase/supabase-js@2`, e isso precisa ser corrigido junto para liberar o deploy da correção.
+- `chat_conversations` com `status = 'pending'`: **436**
+  - 239 apontam para contatos **individuais**
+  - 197 apontam para contatos de **grupo**
+- `chat_contacts` carregados pela queue ativa: **459** (259 individuais + 200 grupos)
+- O badge "Pendentes" mostra **436** (soma de tudo).
+- A aba ativa é "Individual" → filtra grupos → cai para no máximo 239.
+- Em cima disso aplicam-se filtros adicionais (`ownerFilter`, `slaFilter`, `modeFilter`, `periodFilter`, `snoozedContactIds`) em `filteredContacts` no `WhatsAppDataContext`. Cada um corta mais a lista, então o usuário acaba enxergando "poucos".
 
-## O que será ajustado
+Conclusão: **o badge conta global (incluindo grupos) e a lista mostra só individuais filtrados** — a divergência é real e confusa, não há mensagem perdida.
 
-### 1. Fortalecer a detecção de grupo no histórico
-Arquivo: `supabase/functions/uazapi-chat-webhook/index.ts`
+Há também um efeito colateral: o histórico tinha gerado 200 contatos `is_group=true` em sessões anteriores (antes do fix). Eles não vêm mais do `messages.set`, mas estão no banco poluindo contagens e a aba Grupos.
 
-Criar uma função única de detecção de grupo para reaproveitar no webhook, cobrindo:
-- `remoteJid/chatId/chatid/wa_chatid` com `@g.us`
-- `msg.isGroup`
-- `msg.wa_isGroup`
-- presença de `groupName` / `wa_groupName`
+### Correção proposta
 
-Essa função será usada:
-- na criação da lista `phones` do evento `history`
-- dentro de `processHistorySet`
-- antes de qualquer criação de contato/conversa/mensagem
+#### 1. Badges por aba (contagem coerente com o que aparece)
+Arquivo: `src/components/chat/ChatList.tsx`
 
-Resultado:
-- grupo não entra no job
-- grupo não gera log por telefone
-- grupo não cria `chat_contacts`
-- grupo não cria `chat_conversations`
-- grupo não grava `chat_messages`
+- Em vez de `pendingCount = conversations.filter(c => c.status === 'pending').length`, calcular três valores e mostrar o que corresponde à aba ativa:
+  - `pendingIndividualCount` → conversas pending cujo `contact_id` pertence a contato `is_group = false`
+  - `pendingGroupCount` → conversas pending cujo `contact_id` pertence a contato `is_group = true`
+  - `pendingTotal` (soma) só para a aba "Todos" se existir
+- O badge ao lado do botão "Pendentes" passa a refletir o subset atualmente visível na aba.
+- Mesma lógica para `openCount` e `resolvedCount`.
 
-### 2. Aplicar bloqueio defensivo em mais de um ponto
-Mesmo que algum payload venha malformado, o fluxo terá proteção em camadas:
-- filtro no recebimento do evento `history`
-- filtro no agrupamento por chat
-- `continue` antes do upsert de contato
-- log de skip de grupo para auditoria
+#### 2. Mostrar quantos chats foram cortados pelos filtros laterais
+Arquivo: `src/components/chat/ChatList.tsx`
 
-Assim a regra fica resiliente mesmo se o formato do UaZapi variar.
+Quando `visibleContacts.length < filteredContacts.length` adicionar um aviso pequeno acima da lista:
+> "Mostrando X de Y conversas (filtros ativos)" + botão "Limpar filtros".
 
-### 3. Garantir que o job de sincronização mostre apenas conversas individuais
-Arquivo: `supabase/functions/uazapi-chat-webhook/index.ts`
+Isso elimina a sensação de que mensagens "sumiram".
 
-O job `history_sync` continuará sendo criado automaticamente, mas:
-- `total_numbers` contará só chats individuais
-- `numbers` terá só telefones individuais
-- `whatsapp_sync_job_logs` será criado só para individuais
+#### 3. Limpeza dos grupos criados indevidamente pelo histórico antigo
+Migration utilitária (opt-in, executar uma vez):
 
-Assim o Histórico de Sincronização refletirá exatamente o que está sendo importado de verdade.
+- Deletar `chat_messages` de contatos onde `is_group = true` AND `history_backfilled = true` AND não têm mensagens em tempo real (somente backfilled).
+- Deletar `chat_conversations` desses contatos.
+- Deletar os contatos de grupo criados pelo histórico (`is_group = true` AND `history_backfilled = true`).
 
-### 4. Corrigir o status das mensagens do histórico
-Arquivo: `supabase/functions/uazapi-chat-webhook/index.ts`
+Resultado: 197 conversas pending de grupo somem da contagem; o badge passa a refletir o real (≈239).
 
-Manter a regra já definida para histórico:
-- `from_me = true` → `status = 'read'`
-- `from_me = false` → `status = 'pending'`
+#### 4. Verificar `ALLOW_GROUPS` do agente do client 30
+Hoje grupos entram em tempo real (não via history) porque o agente tem `ALLOW_GROUPS = true`. Se a intenção é não receber grupos no /chat, basta desativar essa flag no agente — sem mudança de código.
 
-Sem incremento artificial de `unread_count` durante a importação do histórico.
+### Arquivos afetados
 
-### 5. Corrigir o build quebrado do helper compartilhado
-Arquivo: `supabase/functions/_shared/resolve-queue.ts`
+- `src/components/chat/ChatList.tsx` — contagens por aba + aviso de filtros ativos.
+- `supabase/migrations/<timestamp>_cleanup_history_groups.sql` — limpeza única de grupos backfilled.
 
-Substituir o import problemático:
-- hoje: `https://esm.sh/@supabase/supabase-js@2`
-- ajustar para a mesma versão fixada usada no restante das funções, ou remover dependência desnecessária de import remoto genérico
+### Validação
 
-Objetivo:
-- eliminar o erro de certificado no build
-- permitir publicar a correção do histórico
+1. No /chat, abrir aba "Individual" → badge "Pendentes" mostra o número de pending **individuais** (≈239), não 436.
+2. Aba "Grupos" → badge mostra pending de grupo.
+3. Se filtros laterais reduzirem a lista, aparece "Mostrando X de Y".
+4. Após a migration de limpeza, contatos `is_group=true history_backfilled=true` desaparecem do /chat.
+5. Configurar `ALLOW_GROUPS=false` no agente impede novas entradas de grupo em tempo real (validação manual).
 
-### 6. Opcional de saneamento dos dados já importados errado
-Se houver contatos/mensagens de grupo já criados pelo fluxo de histórico, incluir uma limpeza segura dos registros backfilled de grupo:
-- contatos com `is_group = true` criados pelo histórico
-- mensagens com `metadata.backfilled = true` ligadas a esses contatos
-- conversas abertas apenas por esse fluxo
-
-Essa etapa será feita com cuidado para não afetar grupos válidos de outros módulos que possam depender de grupo em tempo real.
-
-## Arquivos a ajustar
-- `supabase/functions/uazapi-chat-webhook/index.ts`
-- `supabase/functions/_shared/resolve-queue.ts`
-
-## Resultado esperado
-- Evento `history` ignora grupos sempre
-- Nenhum grupo é criado como contato no histórico
-- Nenhuma mensagem de grupo é importada no histórico
-- O Histórico de Sincronização mostra apenas conversas individuais
-- Mensagens do histórico continuam entrando como `pending/read` conforme a origem
-- Build volta a compilar normalmente
-
-## Validação
-1. Disparar novo evento `history/messages.set`.
-2. Confirmar que grupos do payload não aparecem no job `history_sync`.
-3. Confirmar que `chat_contacts` não recebe novos registros `is_group = true` vindos do histórico.
-4. Confirmar que `chat_messages` do histórico existem apenas para contatos individuais.
-5. Ver no Histórico de Sincronização que `total_numbers` e logs correspondem só a conversas individuais.
-6. Validar que o build das Edge Functions passa sem o erro de import/certificado.
-
-## Detalhes técnicos
-```text
-history payload
-   -> detectGroup(msg)
-      -> true  => ignorar totalmente
-      -> false => agrupar por telefone
-                   -> criar job/log
-                   -> processar contato/conversa/mensagens
-```
-
-A principal correção é parar de depender só de `@g.us` e reutilizar uma detecção de grupo mais robusta em todo o fluxo de histórico.
