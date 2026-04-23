@@ -15,6 +15,7 @@ const corsHeaders = {
 const DEFAULT_WEBHOOK_EVENTS = [
   'messages',
   'messages.set',
+  'history',
   'messages.update',
   'messages.delete',
   'chats.update',
