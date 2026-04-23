@@ -106,7 +106,14 @@ export function SyncHistoryTab() {
                   </TableCell>
                   <TableCell>
                     <div className="text-sm font-medium truncate max-w-[180px]">{job.client_name || job.client_id}</div>
-                    <div className="text-xs text-muted-foreground truncate max-w-[180px]">{job.queue_name || '—'}</div>
+                    <div className="text-xs text-muted-foreground truncate max-w-[180px] flex items-center gap-1">
+                      <span className="truncate">{job.queue_name || '—'}</span>
+                      {job.phase === 'history_sync' && (
+                        <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20 px-1.5 py-0 text-[10px] font-normal">
+                          Histórico WhatsApp
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-xs">
                     <div className="truncate max-w-[140px]">{job.agent_name || job.cod_agent || '—'}</div>
@@ -127,7 +134,7 @@ export function SyncHistoryTab() {
                       <Button size="icon" variant="ghost" onClick={() => openLogs(job)} title="Ver logs">
                         <Eye className="h-4 w-4" />
                       </Button>
-                      {job.status === 'running' && !job.cancel_requested && (
+                      {job.status === 'running' && !job.cancel_requested && job.phase !== 'history_sync' && (
                         <Button
                           size="icon" variant="ghost"
                           onClick={() => cancelJob.mutate(job.id)}
@@ -141,7 +148,7 @@ export function SyncHistoryTab() {
                       {job.cancel_requested && job.status === 'running' && (
                         <Clock className="h-4 w-4 text-muted-foreground animate-pulse" />
                       )}
-                      {(['done', 'partial', 'error', 'cancelled'] as const).includes(job.status as never) && (
+                      {(['done', 'partial', 'error', 'cancelled'] as const).includes(job.status as never) && job.phase !== 'history_sync' && (
                         <Button
                           size="icon" variant="ghost"
                           onClick={() => setRestartTarget(job)}
