@@ -266,32 +266,33 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // ============================================
   // Conversations (filtered by queue_id)
   // ============================================
+  // 'pending' and 'open' are grouped into one query so switching tabs never
+  // re-fetches from the DB — the local state already has both.
+  const convQueryGroup = conversationStatusFilter === 'resolved' ? 'resolved'
+    : conversationStatusFilter === 'closed' ? 'closed'
+    : 'active';
+
   const loadConversations = useCallback(async () => {
     if (!clientId) return;
-
     try {
       let query = supabase
         .from('chat_conversations')
         .select('*')
         .eq('client_id', clientId)
         .order('updated_at', { ascending: false });
-
-      if (currentQueueId) {
-        query = query.eq('queue_id', currentQueueId);
+      if (currentQueueId) query = query.eq('queue_id', currentQueueId);
+      if (convQueryGroup === 'active') {
+        query = query.in('status', ['pending', 'open']);
+      } else {
+        query = query.eq('status', convQueryGroup);
       }
-
-      if (conversationStatusFilter !== 'all') {
-        query = query.eq('status', conversationStatusFilter);
-      }
-
       const { data, error } = await query;
       if (error) throw error;
-
       setConversations((data || []) as ChatConversation[]);
     } catch (error) {
       console.error('Error loading conversations:', error);
     }
-  }, [clientId, currentQueueId, conversationStatusFilter]);
+  }, [clientId, currentQueueId, convQueryGroup]);
 
   const loadConvCounts = useCallback(async () => {
     if (!clientId) return;
@@ -1735,10 +1736,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentQueueId, clientId]);
 
-  // Reload conversations when status filter or queue changes (no selection clear)
+  // Reload conversations when query group or queue changes (no selection clear)
   useEffect(() => {
     if (clientId) loadConversations();
-  }, [clientId, currentQueueId, conversationStatusFilter, loadConversations]);
+  }, [clientId, currentQueueId, convQueryGroup, loadConversations]);
 
   // ============================================
   // Context Value
