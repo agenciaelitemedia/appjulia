@@ -235,7 +235,7 @@ async function processHistorySet(
 
       const { data: preExisting } = await supabase
         .from('chat_contacts')
-        .select('id, history_backfilled, avatar')
+        .select('id, history_backfilled, avatar, last_message_at')
         .eq('phone', phone)
         .eq('client_id', queue.client_id)
         .maybeSingle();
@@ -324,7 +324,23 @@ async function processHistorySet(
       let latestTs: string | null = null;
       let latestPreview: string | null = null;
 
-      for (const msg of msgs) {
+      // Ao reconectar, o evento messages.set/history é reenviado com histórico recente.
+      // Para contatos existentes, filtra apenas mensagens mais recentes que last_message_at,
+      // garantindo que mensagens perdidas durante o downtime sejam capturadas sem reprocessar tudo.
+      const sinceIso: string | null = (preExisting as any)?.last_message_at ?? null;
+      const msgsToProcess = sinceIso
+        ? msgs.filter((msg: any) => {
+            const rawTs = msg.messageTimestamp ?? msg.timestamp;
+            if (!rawTs) return true;
+            const n = typeof rawTs === 'number' ? rawTs : Number(rawTs);
+            const ms = n > 1e12 ? n : n * 1000;
+            const d = new Date(ms);
+            const isoTs = (d.getFullYear() > 2000 && d.getFullYear() < 2100) ? d.toISOString() : null;
+            return isoTs ? isoTs > sinceIso : true;
+          })
+        : msgs;
+
+      for (const msg of msgsToProcess) {
         try {
           const messageId: string = msg.key?.id ?? msg.id ?? msg.messageId ?? '';
           if (!messageId) continue;
