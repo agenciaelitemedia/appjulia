@@ -20,10 +20,12 @@ export function useTeamMembers() {
       if (!user?.id) return [];
       // Usa a view vw_equipe para retornar somente membros do mesmo client_id
       // do usuário logado (resolvendo via parent quando necessário).
-      return externalDb.getTeamByClient<TeamMember>(
+      const members = await externalDb.getTeamByClient<TeamMember>(
         user.id as number,
         String(user.role || "")
       );
+      // Exclui o próprio usuário logado da lista
+      return members.filter((m) => Number(m.id) !== Number(user.id));
     },
     enabled: !!user?.id,
   });
