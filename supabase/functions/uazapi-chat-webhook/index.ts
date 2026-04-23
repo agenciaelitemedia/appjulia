@@ -224,6 +224,100 @@ function isHistoryReplayEvent(event: string, payload: any, messages: any[]): boo
   return distinctChats >= 5;
 }
 
+/** Enqueue a UaZapi history payload into the dedicated processing queue.
+ *  Returns the run_id so the caller can dispatch the background processor. */
+async function enqueueHistoryRun(
+  rawMessages: any[],
+  queue: { id: string; client_id: string; name: string },
+  event: string,
+): Promise<string | null> {
+  const supabase = getSupabase();
+
+  // Group by chat and skip groups defensively at enqueue time
+  const totalMessages = rawMessages.length;
+  let groupMessages = 0;
+  const byChat = new Map<string, { phone: string; count: number }>();
+  for (const msg of rawMessages) {
+    const remoteJid: string = msg?.key?.remoteJid ?? msg?.remoteJid ?? msg?.chatId ?? msg?.chatid ?? '';
+    if (!remoteJid) continue;
+    if (isGroupMessage(msg) || remoteJid.includes('@g.us')) {
+      groupMessages++;
+      continue;
+    }
+    const phone = normalizePhone(remoteJid);
+    if (!phone) continue;
+    const cur = byChat.get(remoteJid) ?? { phone, count: 0 };
+    cur.count++;
+    byChat.set(remoteJid, cur);
+  }
+
+  // Resolve client name (best-effort) for nicer monitoring UI
+  let clientName: string | null = null;
+  try {
+    const { data: cs } = await supabase
+      .from('chat_client_settings')
+      .select('client_name, client_business_name')
+      .eq('client_id', String(queue.client_id))
+      .maybeSingle();
+    clientName = (cs as any)?.client_business_name || (cs as any)?.client_name || null;
+  } catch { /* ignore */ }
+
+  const { data: run, error: runErr } = await supabase
+    .from('uazapi_history_runs')
+    .insert({
+      client_id: String(queue.client_id),
+      client_name: clientName,
+      queue_id: queue.id,
+      queue_name: queue.name,
+      event,
+      status: byChat.size === 0 ? 'done' : 'pending',
+      total_messages: totalMessages,
+      group_messages: groupMessages,
+      individual_chats: byChat.size,
+      received_at: new Date().toISOString(),
+      finished_at: byChat.size === 0 ? new Date().toISOString() : null,
+    } as never)
+    .select('id')
+    .single();
+
+  if (runErr || !run) {
+    console.warn('[uazapi-history-queue] failed to insert run:', runErr?.message);
+    return null;
+  }
+
+  const runId = (run as { id: string }).id;
+
+  if (byChat.size > 0) {
+    const items = Array.from(byChat.entries()).map(([remote_jid, info]) => ({
+      run_id: runId,
+      remote_jid,
+      phone: info.phone,
+      received_messages: info.count,
+      status: 'pending' as const,
+    }));
+    const { error: itemsErr } = await supabase.from('uazapi_history_items').insert(items as never);
+    if (itemsErr) console.warn('[uazapi-history-queue] failed to insert items:', itemsErr.message);
+  }
+
+  return runId;
+}
+
+async function dispatchHistoryProcessor(runId: string, payload: unknown): Promise<void> {
+  try {
+    const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/uazapi-history-processor`;
+    await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({ run_id: runId, payload }),
+    });
+  } catch (e) {
+    console.warn('[uazapi-history-queue] dispatch failed:', (e as Error).message);
+  }
+}
+
 async function processHistorySet(
   rawMessages: any[],
   queue: { id: string; client_id: string; evo_url: string; evo_apikey: string; name: string },
