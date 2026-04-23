@@ -233,7 +233,17 @@ Deno.serve(async (req) => {
     const isBackfill = typeof storedMessageId === "string" && storedMessageId.startsWith("backfill:");
     const externalId = isBackfill && originalMessageId
       ? originalMessageId
-      : (storedMessageId || originalMessageId || messageId);
+      : (storedMessageId && !storedMessageId.startsWith("backfill:")
+          ? storedMessageId
+          : originalMessageId);
+
+    if (!externalId) {
+      return respond({
+        error: "MEDIA_UNAVAILABLE",
+        details: "No external WhatsApp message id available to download media",
+        fallback: true,
+      }, 200);
+    }
 
     const dlRes = await fetch(`${baseUrl}/message/download`, {
       method: "POST",
@@ -250,7 +260,14 @@ Deno.serve(async (req) => {
     if (!dlRes.ok) {
       const txt = await dlRes.text();
       console.error("[chat-media-download] UaZapi error:", dlRes.status, txt);
-      return respond({ error: `UaZapi download failed: ${dlRes.status}`, details: txt }, 502);
+      // Return 200 with fallback signal so the client doesn't crash.
+      // 404 = message not found on UaZapi side (commonly for old/backfilled msgs).
+      const isFallbackable = dlRes.status === 404 || dlRes.status >= 500;
+      return respond({
+        error: dlRes.status === 404 ? "MESSAGE_NOT_FOUND" : `UAZAPI_ERROR_${dlRes.status}`,
+        details: txt,
+        fallback: isFallbackable,
+      }, isFallbackable ? 200 : 502);
     }
 
     const dlData = await dlRes.json();
