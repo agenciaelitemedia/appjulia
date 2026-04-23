@@ -50,7 +50,7 @@ export function ProviderSelector({ open, onOpenChange, agent, onSuccess }: Provi
           <div className="grid gap-3 py-4">
             <Button
               variant="outline"
-              className="h-auto p-4 flex flex-col items-start gap-2 text-left"
+              className="h-auto w-full p-4 flex flex-col items-start gap-2 text-left whitespace-normal break-words"
               onClick={() => {
                 onOpenChange(false);
                 setShowUazapi(true);
@@ -60,7 +60,7 @@ export function ProviderSelector({ open, onOpenChange, agent, onSuccess }: Provi
                 <QrCode className="h-5 w-5 text-primary" />
                 <span className="font-semibold">QR Code (UaZapi)</span>
               </div>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground whitespace-normal break-words w-full">
                 Conexão via QR Code. Não oficial, usa WhatsApp Web.
               </span>
             </Button>
