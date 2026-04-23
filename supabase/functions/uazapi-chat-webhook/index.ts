@@ -192,6 +192,38 @@ function extractMediaBase64(msg: any): string | undefined {
   return msg.fileBase64 || msg.base64 || undefined;
 }
 
+function toIsoTimestamp(rawTs: unknown): string | null {
+  if (rawTs == null || rawTs === '') return null;
+  const n = typeof rawTs === 'number' ? rawTs : Number(rawTs);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const ms = n > 1e12 ? n : n * 1000;
+  const d = new Date(ms);
+  return d.getFullYear() > 2000 && d.getFullYear() < 2100 ? d.toISOString() : null;
+}
+
+function isHistoryReplayEvent(event: string, payload: any, messages: any[]): boolean {
+  if (event === 'history' || event === 'messages.set' || event === 'message.history') return true;
+
+  const explicitHistoryFlag =
+    payload?.type === 'history'
+    || payload?.syncType === 'history'
+    || payload?.history === true
+    || payload?.data?.history === true
+    || payload?.isLatest !== undefined
+    || payload?.data?.isLatest !== undefined;
+
+  if (explicitHistoryFlag) return true;
+  if (event !== 'messages' || !Array.isArray(messages) || messages.length < 50) return false;
+
+  const distinctChats = new Set(
+    messages
+      .map((msg) => String(msg?.key?.remoteJid ?? msg?.remoteJid ?? msg?.chatId ?? msg?.chatid ?? ''))
+      .filter(Boolean),
+  ).size;
+
+  return distinctChats >= 5;
+}
+
 async function processHistorySet(
   rawMessages: any[],
   queue: { id: string; client_id: string; evo_url: string; evo_apikey: string; name: string },
@@ -235,12 +267,43 @@ async function processHistorySet(
 
       const { data: preExisting } = await supabase
         .from('chat_contacts')
-        .select('id, history_backfilled, avatar, last_message_at')
+        .select('id, history_backfilled, avatar, last_message_at, last_message_text')
         .eq('phone', phone)
         .eq('client_id', queue.client_id)
         .maybeSingle();
 
-      let contactId: string;
+      const sortedMsgs = [...msgs].sort((a, b) => {
+        const aTs = toIsoTimestamp(a.messageTimestamp ?? a.timestamp) ?? '';
+        const bTs = toIsoTimestamp(b.messageTimestamp ?? b.timestamp) ?? '';
+        return aTs.localeCompare(bTs);
+      });
+      const candidateMessageIds = sortedMsgs
+        .map((msg) => msg.key?.id ?? msg.id ?? msg.messageId ?? '')
+        .filter(Boolean);
+
+      const existingMessageIds = new Set<string>();
+      if (preExisting?.id && candidateMessageIds.length > 0) {
+        const { data: existingMsgs } = await supabase
+          .from('chat_messages')
+          .select('message_id')
+          .eq('contact_id', preExisting.id)
+          .in('message_id', candidateMessageIds);
+        for (const row of existingMsgs ?? []) {
+          if (row.message_id) existingMessageIds.add(row.message_id);
+        }
+      }
+
+      const msgsToInsert = sortedMsgs.filter((msg) => {
+        const messageId = msg.key?.id ?? msg.id ?? msg.messageId ?? '';
+        return !!messageId && !existingMessageIds.has(messageId);
+      });
+      totalSkipped += candidateMessageIds.length - msgsToInsert.length;
+
+      if (preExisting && msgsToInsert.length === 0) {
+        continue;
+      }
+
+      let contactId = preExisting?.id ?? '';
 
       if (!preExisting) {
         let profileCols: Record<string, unknown> = {};
@@ -255,7 +318,7 @@ async function processHistorySet(
 
         const { data: inserted, error: insErr } = await supabase
           .from('chat_contacts')
-          .upsert({
+          .insert({
             client_id: queue.client_id,
             phone,
             name: contactName,
@@ -267,26 +330,26 @@ async function processHistorySet(
             history_backfilled: true,
             unread_count: 0,
             ...profileCols,
-          }, { onConflict: 'phone,client_id' })
+          })
           .select('id')
           .single();
 
         if (insErr || !inserted) {
-          console.warn(`[history-set] contact upsert failed phone=${phone}`, insErr?.message);
-          continue;
-        }
-        contactId = inserted.id;
-        totalContacts++;
-        chatContactCreated = true;
-      } else {
-        contactId = preExisting.id;
-        if (!preExisting.avatar) {
-          fetchWhatsappProfile(queue as any, phone)
-            .then((p) => {
-              const cols = profileToContactColumns(p);
-              return supabase.from('chat_contacts').update({ avatar: p.avatar, ...cols }).eq('id', contactId);
-            })
-            .catch(() => {});
+          const { data: existingContact } = await supabase
+            .from('chat_contacts')
+            .select('id')
+            .eq('phone', phone)
+            .eq('client_id', queue.client_id)
+            .maybeSingle();
+          if (!existingContact?.id) {
+            console.warn(`[history-set] contact insert failed phone=${phone}`, insErr?.message);
+            continue;
+          }
+          contactId = existingContact.id;
+        } else {
+          contactId = inserted.id;
+          totalContacts++;
+          chatContactCreated = true;
         }
       }
 
@@ -303,7 +366,7 @@ async function processHistorySet(
 
       if (existingConv) {
         conversationId = existingConv.id;
-      } else {
+      } else if (msgsToInsert.length > 0) {
         const { data: newConv } = await supabase
           .from('chat_conversations')
           .insert({
@@ -324,34 +387,10 @@ async function processHistorySet(
       let latestTs: string | null = null;
       let latestPreview: string | null = null;
 
-      // Ao reconectar, o evento messages.set/history é reenviado com histórico recente.
-      // Para contatos existentes, filtra apenas mensagens mais recentes que last_message_at,
-      // garantindo que mensagens perdidas durante o downtime sejam capturadas sem reprocessar tudo.
-      const sinceIso: string | null = (preExisting as any)?.last_message_at ?? null;
-      const msgsToProcess = sinceIso
-        ? msgs.filter((msg: any) => {
-            const rawTs = msg.messageTimestamp ?? msg.timestamp;
-            if (!rawTs) return true;
-            const n = typeof rawTs === 'number' ? rawTs : Number(rawTs);
-            const ms = n > 1e12 ? n : n * 1000;
-            const d = new Date(ms);
-            const isoTs = (d.getFullYear() > 2000 && d.getFullYear() < 2100) ? d.toISOString() : null;
-            return isoTs ? isoTs > sinceIso : true;
-          })
-        : msgs;
-
-      for (const msg of msgsToProcess) {
+      for (const msg of msgsToInsert) {
         try {
           const messageId: string = msg.key?.id ?? msg.id ?? msg.messageId ?? '';
           if (!messageId) continue;
-
-          const { data: existingMsg } = await supabase
-            .from('chat_messages')
-            .select('id')
-            .eq('message_id', messageId)
-            .eq('contact_id', contactId)
-            .maybeSingle();
-          if (existingMsg) { totalSkipped++; continue; }
 
           const fromMe: boolean = msg.key?.fromMe ?? msg.fromMe ?? msg.from_me ?? false;
           const text = extractMessageText(msg);
@@ -359,16 +398,7 @@ async function processHistorySet(
           const mediaUrl = extractMediaUrl(msg);
           const pushName: string = msg.pushName ?? msg.senderName ?? '';
 
-          const rawTs = msg.messageTimestamp ?? msg.timestamp;
-          let isoTs: string;
-          if (rawTs) {
-            const n = typeof rawTs === 'number' ? rawTs : Number(rawTs);
-            const ms = n > 1e12 ? n : n * 1000;
-            const d = new Date(ms);
-            isoTs = (d.getFullYear() > 2000 && d.getFullYear() < 2100) ? d.toISOString() : new Date().toISOString();
-          } else {
-            isoTs = new Date().toISOString();
-          }
+          const isoTs = toIsoTimestamp(msg.messageTimestamp ?? msg.timestamp) ?? new Date().toISOString();
 
           const { error: msgErr } = await supabase
             .from('chat_messages')
@@ -381,8 +411,7 @@ async function processHistorySet(
               text: text ? toSafeString(text) : null,
               type,
               from_me: fromMe,
-              // Histórico: enviadas → 'read'; recebidas → 'pending' (usuário marca lida ao abrir).
-              status: fromMe ? 'read' : 'pending',
+              status: fromMe ? 'read' : 'delivered',
               media_url: mediaUrl ?? null,
               timestamp: isoTs,
               channel_type: 'whatsapp_uazapi',
@@ -413,14 +442,20 @@ async function processHistorySet(
         }
       }
 
-      // Update contact with last message preview so it appears sorted in /chat
-      await supabase
-        .from('chat_contacts')
-        .update({
-          history_backfilled: true,
-          ...(latestTs ? { last_message_at: latestTs, last_message_text: latestPreview } : {}),
-        })
-        .eq('id', contactId);
+      const contactUpdates: Record<string, unknown> = {};
+      if (!preExisting?.history_backfilled) contactUpdates.history_backfilled = true;
+      const currentLastMessageAt = preExisting?.last_message_at ?? null;
+      if (latestTs && (!currentLastMessageAt || latestTs > currentLastMessageAt)) {
+        contactUpdates.last_message_at = latestTs;
+        contactUpdates.last_message_text = latestPreview;
+      }
+
+      if (Object.keys(contactUpdates).length > 0) {
+        await supabase
+          .from('chat_contacts')
+          .update(contactUpdates)
+          .eq('id', contactId);
+      }
 
     } catch (chatErr) {
       console.warn(`[history-set] chat error remoteJid=${remoteJid}`, chatErr);
@@ -527,38 +562,7 @@ Deno.serve(async (req) => {
 
     console.log(`[uazapi-chat-webhook] Event: ${event} (isMessageUpsert=${isMessageUpsert}), queue: ${queue.name}`);
 
-    // ─── N8N FAN-OUT (early dispatch) ───
-    // Fire BEFORE the messages loop so the fetch has the full processing time to complete.
-    // Only for MESSAGE_UPSERT events; status/delete/contacts/chats/connection return early below.
     let n8nFanOutPromise: Promise<void> = Promise.resolve();
-    if (isMessageUpsert) {
-      const { data: agentLinks, error: linksErr } = await supabase
-        .from('queue_agent_links')
-        .select('cod_agent')
-        .eq('queue_id', queueId);
-
-      if (linksErr) console.error('[fan-out] Error fetching links:', linksErr);
-
-      const targets = (agentLinks || []).filter((l: any) => l.cod_agent) as Array<{ cod_agent: string }>;
-      console.log(`[fan-out] event=${event} queue=${queueId} targets=${targets.length}`);
-
-      if (targets.length > 0) {
-        const N8N_BASE_URL = Deno.env.get('N8N_HUB_WEBHOOK_URL') || 'https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start';
-        const rawBody = JSON.stringify(payload);
-        const promises = targets.map((link) => {
-          const n8nUrl = `${N8N_BASE_URL}?app=uazapi&c=${link.cod_agent}`;
-          console.log(`[fan-out] POST n8n agent=${link.cod_agent} url=${n8nUrl}`);
-          return fetch(n8nUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: rawBody,
-          })
-            .then((r) => console.log(`[fan-out] response agent=${link.cod_agent} status=${r.status}`))
-            .catch((err: Error) => console.warn(`[fan-out] error agent=${link.cod_agent}:`, err.message));
-        });
-        n8nFanOutPromise = Promise.allSettled(promises).then(() => undefined);
-      }
-    }
 
     // ─── CONNECTION UPDATE ───
     if (event === 'connection.update') {
@@ -760,6 +764,44 @@ Deno.serve(async (req) => {
 
     console.log(`[uazapi-chat-webhook] Parsed ${messages.length} message(s). First keys: ${messages[0] ? Object.keys(messages[0]).slice(0, 20).join(',') : 'none'}`);
 
+    const isHistoryReplay = isHistoryReplayEvent(event, payload, messages);
+    if (isHistoryReplay) {
+      console.log(`[uazapi-chat-webhook] treating batch as history replay event=${event} count=${messages.length}`);
+      if (messages.length > 0) {
+        EdgeRuntime.waitUntil(processHistorySet(messages, queue as any, false, null));
+      }
+      return respond({ ok: true, event, queued: messages.length, replay: true });
+    }
+
+    if (isMessageUpsert) {
+      const { data: agentLinks, error: linksErr } = await supabase
+        .from('queue_agent_links')
+        .select('cod_agent')
+        .eq('queue_id', queueId);
+
+      if (linksErr) console.error('[fan-out] Error fetching links:', linksErr);
+
+      const targets = (agentLinks || []).filter((l: any) => l.cod_agent) as Array<{ cod_agent: string }>;
+      console.log(`[fan-out] event=${event} queue=${queueId} targets=${targets.length}`);
+
+      if (targets.length > 0) {
+        const N8N_BASE_URL = Deno.env.get('N8N_HUB_WEBHOOK_URL') || 'https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start';
+        const rawBody = JSON.stringify(payload);
+        const promises = targets.map((link) => {
+          const n8nUrl = `${N8N_BASE_URL}?app=uazapi&c=${link.cod_agent}`;
+          console.log(`[fan-out] POST n8n agent=${link.cod_agent} url=${n8nUrl}`);
+          return fetch(n8nUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: rawBody,
+          })
+            .then((r) => console.log(`[fan-out] response agent=${link.cod_agent} status=${r.status}`))
+            .catch((err: Error) => console.warn(`[fan-out] error agent=${link.cod_agent}:`, err.message));
+        });
+        n8nFanOutPromise = Promise.allSettled(promises).then(() => undefined);
+      }
+    }
+
     let processed = 0;
     const skipped: Record<string, number> = { group: 0, no_id: 0, no_phone: 0 };
     const backfillTriggered = new Set<string>();
@@ -784,6 +826,19 @@ Deno.serve(async (req) => {
 
         const messageId = msg.id || msg.messageId || msg.message_id || msg.key?.id || msg.wa_messageid;
         if (!messageId) { skipped.no_id++; console.log('[uazapi-chat-webhook] no messageId, sample:', JSON.stringify(msg).slice(0, 400)); continue; }
+
+        const { data: existingMessage } = await supabase
+          .from('chat_messages')
+          .select('id')
+          .eq('client_id', queue.client_id)
+          .eq('message_id', messageId)
+          .limit(1)
+          .maybeSingle();
+
+        if (existingMessage) {
+          processed++;
+          continue;
+        }
 
         const fromMe = msg.from_me ?? msg.fromMe ?? msg.key?.fromMe ?? msg.wa_fromMe ?? false;
 
@@ -1065,18 +1120,6 @@ Deno.serve(async (req) => {
           }
           processed++;
           continue; // do NOT insert reaction as a chat_messages row
-        }
-
-        const { data: existingMessage } = await supabase
-          .from('chat_messages')
-          .select('id')
-          .eq('message_id', messageId)
-          .limit(1)
-          .maybeSingle();
-
-        if (existingMessage) {
-          processed++;
-          continue;
         }
 
         const { error: msgError } = await supabase
