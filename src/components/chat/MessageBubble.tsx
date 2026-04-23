@@ -89,9 +89,10 @@ function StatusIcon({ status }: { status: MessageStatus }) {
   }
 }
 
-function MediaContent({ message, onDownload }: { message: ChatMessage; onDownload?: () => Promise<string | undefined> }) {
+function MediaContent({ message, onDownload }: { message: ChatMessage; onDownload?: () => Promise<DownloadMediaResult> }) {
   const [isLoading, setIsLoading] = useState(false);
   const [mediaUrl, setMediaUrl] = useState<string | undefined>(message.media_url);
+  const [downloadState, setDownloadState] = useState<'idle' | 'transient' | 'permanent'>('idle');
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioProgress, setAudioProgress] = useState(0);
   const [audioCurrent, setAudioCurrent] = useState(0);
@@ -116,8 +117,15 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
     if (mediaUrl && !isEncrypted(mediaUrl)) return;
     setIsLoading(true);
     try {
-      const url = await onDownload();
-      if (url) setMediaUrl(url);
+      const res = await onDownload();
+      if (res?.url) {
+        setMediaUrl(res.url);
+        setDownloadState('idle');
+      } else if (res?.permanent) {
+        setDownloadState('permanent');
+      } else if (res?.transient) {
+        setDownloadState('transient');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -180,6 +188,39 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
   };
 
   const usable = mediaUrl && !isEncrypted(mediaUrl);
+
+  const FallbackBox = ({ label }: { label: string }) => {
+    if (downloadState === 'permanent') {
+      return (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <ImageOff className="h-4 w-4" />
+          <span>Mídia não disponível neste histórico</span>
+          {onDownload && (
+            <Button variant="ghost" size="sm" className="h-6 px-2" onClick={handleDownload} disabled={isLoading}>
+              <RotateCw className="h-3 w-3 mr-1" /> Tentar
+            </Button>
+          )}
+        </div>
+      );
+    }
+    if (downloadState === 'transient') {
+      return (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <WifiOff className="h-4 w-4" />
+          <span>WhatsApp desconectado — tentaremos novamente</span>
+          <Button variant="ghost" size="sm" className="h-6 px-2" onClick={handleDownload} disabled={isLoading}>
+            <RotateCw className="h-3 w-3 mr-1" /> Tentar agora
+          </Button>
+        </div>
+      );
+    }
+    return (
+      <Button variant="ghost" size="sm" onClick={handleDownload} disabled={isLoading}>
+        {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+        {label}
+      </Button>
+    );
+  };
 
   switch (message.type) {
     case 'image':
