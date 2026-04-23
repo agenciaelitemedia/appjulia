@@ -143,6 +143,33 @@ async function persistToChat(
       return null;
     }
 
+    // Enrich WABA contact (validates wa_id; Meta does not expose photo for third parties)
+    if (queueInfo?.id) {
+      (async () => {
+        try {
+          const { data: q } = await supabase
+            .from('queues')
+            .select('id, channel_type, waba_token, waba_number_id')
+            .eq('id', queueInfo.id)
+            .maybeSingle();
+          if (!q) return;
+          // Skip if already enriched
+          const { data: existingProfile } = await supabase
+            .from('chat_contacts')
+            .select('profile_fetched_at')
+            .eq('id', contactId)
+            .maybeSingle();
+          if (existingProfile?.profile_fetched_at) return;
+          const profile = await fetchWhatsappProfile(q as any, from);
+          const update: Record<string, unknown> = { ...profileToContactColumns(profile) };
+          if (profile.remoteJid) update.remote_jid = profile.remoteJid;
+          await supabase.from('chat_contacts').update(update).eq('id', contactId);
+        } catch (e) {
+          console.warn(`[meta-webhook] enrich failed phone=${from}: ${(e as Error).message}`);
+        }
+      })();
+    }
+
     // 2. Ensure an open/pending conversation exists with the right queue_id
     if (queueInfo) {
       const { data: openConv } = await supabase
