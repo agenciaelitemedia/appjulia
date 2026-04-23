@@ -1738,8 +1738,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // Reload conversations when status filter or queue changes (no selection clear)
   useEffect(() => {
     if (clientId) loadConversations();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId, currentQueueId, conversationStatusFilter]);
+  }, [clientId, currentQueueId, conversationStatusFilter, loadConversations]);
 
   // ============================================
   // Context Value
