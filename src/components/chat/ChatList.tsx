@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, ArrowUpDown, Plus, Timer, AlertTriangle, Flame, Bot, User, UserCheck, UserX, ListFilter, FolderOpen, CheckCheck, Archive, UserCircle, ChevronsUpDown, CalendarDays, Tag } from 'lucide-react';
+import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, Plus, Timer, AlertTriangle, Flame, Bot, User, UserCheck, UserX, ListFilter, FolderOpen, CheckCheck, Archive, UserCircle, ChevronsUpDown, CalendarDays, Tag } from 'lucide-react';
 import { TagsManagerDialog } from './TagsManagerDialog';
+import { NewConversationDialog } from './NewConversationDialog';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { ChatContactItem } from './ChatContactItem';
@@ -106,6 +107,7 @@ export function ChatList() {
   const [stagePopoverOpen, setStagePopoverOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [showTagsManager, setShowTagsManager] = useState(false);
+  const [newConvOpen, setNewConvOpen] = useState(false);
   const activeFilterCount =
     (modeFilter !== 'all' ? 1 : 0) +
     (slaFilter !== 'all' ? 1 : 0) +
@@ -393,60 +395,33 @@ export function ChatList() {
                 </span>
               )}
             </Button>
-            <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0">
-              <ArrowUpDown className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0">
-              <Plus className="h-4 w-4" />
-            </Button>
           </div>
+        </div>
+
+        {/* Status tabs — acesso rápido Todos / Pendentes / Em atendimento */}
+        <div className="flex border-b border-t">
+          {([
+            { value: 'all',     label: 'Todos' },
+            { value: 'pending', label: 'Pendentes' },
+            { value: 'open',    label: 'Em atendimento' },
+          ] as const).map(tab => (
+            <button
+              key={tab.value}
+              onClick={() => setConversationStatusFilter(tab.value)}
+              className={cn(
+                'flex-1 py-2 text-xs font-medium border-b-2 transition-colors',
+                conversationStatusFilter === tab.value
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {filtersOpen && (
         <>
-        {/* Modo da conversa: Bot ativo / Pendente (sem bot ativo OU sem atendente) */}
-        <div className="px-4 pb-2 pt-1">
-          <div className="flex items-center gap-2">
-            <ToggleGroup
-              type="single"
-              value={modeFilter}
-              onValueChange={(val) => { if (val) setModeFilter(val as ConversationModeFilter); }}
-              size="sm"
-              className="justify-start"
-            >
-              <ToggleGroupItem
-                value="all"
-                className="text-[10px] font-medium px-2 py-1 h-auto rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-foreground/10 data-[state=on]:text-foreground data-[state=on]:border-foreground/20"
-              >
-                Todas
-              </ToggleGroupItem>
-              <ToggleGroupItem
-                value="ia_active"
-                className="text-[10px] font-medium px-2 py-1 h-auto gap-1 rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-green-500/15 data-[state=on]:text-green-600 dark:data-[state=on]:text-green-400 data-[state=on]:border-green-500/30"
-                title="IA ativa"
-              >
-                <Bot className="h-3 w-3 text-green-600" />
-                IA ativa
-              </ToggleGroupItem>
-              <ToggleGroupItem
-                value="ia_inactive"
-                className="text-[10px] font-medium px-2 py-1 h-auto gap-1 rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-destructive/15 data-[state=on]:text-destructive data-[state=on]:border-destructive/30"
-                title="IA inativa"
-              >
-                <Bot className="h-3 w-3 text-red-600" />
-                IA inativa
-              </ToggleGroupItem>
-              <ToggleGroupItem
-                value="human"
-                className="text-[10px] font-medium px-2 py-1 h-auto gap-1 rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-amber-500/20 data-[state=on]:text-amber-600 dark:data-[state=on]:text-amber-400 data-[state=on]:border-amber-500/30"
-                title="Atendente humano"
-              >
-                <User className="h-3 w-3 text-amber-600" />
-                Atendente
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-        </div>
         {(breachedCount > 0 || atRiskCount > 0 || slaFilter !== 'all') && (
           <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
             <button
@@ -498,6 +473,31 @@ export function ChatList() {
             </button>
           </div>
         )}
+
+        {/* Status pills — dentro do painel de filtros, sem contagens */}
+        <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
+          {([
+            { value: 'all',      label: 'Todos',           icon: <ListFilter className="h-3 w-3" />,  active: 'bg-foreground/10 text-foreground border-foreground/20' },
+            { value: 'pending',  label: 'Pendentes',       icon: <Clock className="h-3 w-3" />,       active: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30' },
+            { value: 'open',     label: 'Em atendimento',  icon: <FolderOpen className="h-3 w-3" />,  active: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30' },
+            { value: 'resolved', label: 'Resolvidas',      icon: <CheckCheck className="h-3 w-3" />,  active: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' },
+            { value: 'closed',   label: 'Encerradas',      icon: <Archive className="h-3 w-3" />,     active: 'bg-foreground/10 text-foreground border-foreground/20' },
+          ] as const).map(pill => (
+            <button
+              key={pill.value}
+              onClick={() => setConversationStatusFilter(pill.value)}
+              className={cn(
+                'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+                conversationStatusFilter === pill.value
+                  ? pill.active
+                  : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+              )}
+            >
+              {pill.icon}
+              {pill.label}
+            </button>
+          ))}
+        </div>
 
         {/* Responsável (Select) */}
         <div className="px-4 pb-2 flex items-center gap-2">
@@ -647,77 +647,40 @@ export function ChatList() {
           </div>
         )}
 
-        {/* Status pills - sempre visível, fora do painel de filtros */}
-        <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
-          <button
-            onClick={() => setConversationStatusFilter('pending')}
-            className={cn(
-              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
-              conversationStatusFilter === 'pending'
-                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
-                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
-            )}
+        {/* Filtro Julia / Atendimento Humano — sempre visível, abaixo das filas */}
+        <div className="px-4 pb-2 pt-1 flex items-center gap-1.5">
+          <ToggleGroup
+            type="single"
+            value={modeFilter}
+            onValueChange={(val) => { if (val) setModeFilter(val as ConversationModeFilter); }}
+            size="sm"
+            className="justify-start w-full"
           >
-            <Clock className="h-3 w-3" />
-            Pendentes
-            {pendingCount > 0 && (
-              <span className="ml-0.5 bg-amber-500 text-white rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
-                {pendingCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setConversationStatusFilter('open')}
-            className={cn(
-              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
-              conversationStatusFilter === 'open'
-                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
-                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
-            )}
-          >
-            <FolderOpen className="h-3 w-3" />
-            Em atendimento
-            {openCount > 0 && (
-              <span className="ml-0.5 bg-blue-500 text-white rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
-                {openCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setConversationStatusFilter('resolved')}
-            className={cn(
-              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
-              conversationStatusFilter === 'resolved'
-                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
-            )}
-          >
-            <CheckCheck className="h-3 w-3" />
-            Resolvidas
-            {resolvedCount > 0 && (
-              <span className="ml-0.5 bg-emerald-500 text-white rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
-                {resolvedCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setConversationStatusFilter('closed')}
-            className={cn(
-              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
-              conversationStatusFilter === 'closed'
-                ? 'bg-foreground/10 text-foreground border-foreground/20'
-                : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
-            )}
-          >
-            <Archive className="h-3 w-3" />
-            Encerradas
-            {closedCount > 0 && (
-              <span className="ml-0.5 bg-muted-foreground text-background rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
-                {closedCount}
-              </span>
-            )}
-          </button>
+            <ToggleGroupItem
+              value="all"
+              className="flex-1 text-[10px] font-medium px-2 py-1 h-auto rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-foreground/10 data-[state=on]:text-foreground data-[state=on]:border-foreground/20"
+            >
+              Todos
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="ia_active"
+              className="flex-1 text-[10px] font-medium px-2 py-1 h-auto gap-1 rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-green-500/15 data-[state=on]:text-green-600 dark:data-[state=on]:text-green-400 data-[state=on]:border-green-500/30"
+              title="Filas com Julia IA ativa"
+            >
+              <Bot className="h-3 w-3" />
+              Julia
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="ia_inactive"
+              className="flex-1 text-[10px] font-medium px-2 py-1 h-auto gap-1 rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-amber-500/20 data-[state=on]:text-amber-600 dark:data-[state=on]:text-amber-400 data-[state=on]:border-amber-500/30"
+              title="Filas com Julia IA inativa (atendimento humano)"
+            >
+              <User className="h-3 w-3" />
+              Atendimento Humano
+            </ToggleGroupItem>
+          </ToggleGroup>
         </div>
+
 
         {/* Individual / Groups toggle (Groups only when enabled) */}
         {showGroupsTab && (
@@ -840,6 +803,25 @@ export function ChatList() {
           )}
         </div>
       </ScrollArea>
+
+      {/* Footer: novo atendimento */}
+      <div className="px-3 py-2 border-t shrink-0">
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full gap-2 text-xs"
+          onClick={() => setNewConvOpen(true)}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Novo atendimento
+        </Button>
+      </div>
+
+      <NewConversationDialog
+        open={newConvOpen}
+        onOpenChange={setNewConvOpen}
+        queues={activeQueues.filter(q => q.channel_type === 'uazapi')}
+      />
     </div>
   );
 }
