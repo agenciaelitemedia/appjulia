@@ -274,7 +274,7 @@ async function processNumber(
           text,
           type,
           from_me: fromMe,
-          status: fromMe ? 'sent' : 'received',
+          status: 'read',
           media_url: mediaUrl || null,
           timestamp: isoTs,
           channel_type: 'whatsapp_uazapi',

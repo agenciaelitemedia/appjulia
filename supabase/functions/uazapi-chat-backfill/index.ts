@@ -198,7 +198,8 @@ Deno.serve(async (req) => {
             text,
             type,
             from_me: fromMe,
-            status: fromMe ? 'sent' : 'received',
+            // Backfill on-demand: toda mensagem do histórico entra já como lida.
+            status: 'read',
             media_url: mediaUrl || null,
             timestamp: isoTs,
             channel_type: 'whatsapp_uazapi',

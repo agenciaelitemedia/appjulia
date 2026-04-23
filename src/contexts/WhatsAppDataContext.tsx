@@ -24,6 +24,38 @@ import { useQueues, type Queue } from '@/pages/agente/filas/hooks/useQueues';
 
 
 // ============================================
+// Media download — retry cache (module scope)
+// ============================================
+export type MediaDownloadStatus = 'idle' | 'loading' | 'success' | 'transient_failed' | 'permanent_failed';
+export interface DownloadMediaResult {
+  url?: string;
+  transient?: boolean;
+  permanent?: boolean;
+}
+const mediaRetryCache = new Map<string, { status: MediaDownloadStatus; lastAttempt: number; retryCount: number }>();
+const TRANSIENT_BACKOFF_MS = 30_000;
+const TRANSIENT_MAX_RETRIES = 3;
+
+export function getMediaDownloadStatus(messageId: string): MediaDownloadStatus {
+  return mediaRetryCache.get(messageId)?.status ?? 'idle';
+}
+
+export function canRetryMediaDownload(messageId: string, force = false): boolean {
+  const entry = mediaRetryCache.get(messageId);
+  if (!entry) return true;
+  if (force) return true;
+  if (entry.status === 'success') return false;
+  if (entry.status === 'permanent_failed') return false;
+  if (entry.status === 'loading') return false;
+  if (entry.status === 'transient_failed') {
+    if (entry.retryCount >= TRANSIENT_MAX_RETRIES) return false;
+    if (Date.now() - entry.lastAttempt < TRANSIENT_BACKOFF_MS) return false;
+  }
+  return true;
+}
+
+
+// ============================================
 // Types
 // ============================================
 
@@ -88,7 +120,7 @@ interface ExtendedContextValue extends ChatContextValue {
   loadConversationHistory: (conversationId: string) => Promise<void>;
 
   // Media
-  downloadMedia: (messageId: string) => Promise<string | undefined>;
+  downloadMedia: (messageId: string) => Promise<DownloadMediaResult>;
 }
 
 const WhatsAppDataContext = createContext<ExtendedContextValue | undefined>(undefined);
@@ -1126,8 +1158,21 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // ============================================
   // Download Media (decrypt UaZapi + persist)
   // ============================================
-  const downloadMedia = useCallback(async (messageId: string): Promise<string | undefined> => {
-    if (!messageId) return undefined;
+  const downloadMedia = useCallback(async (messageId: string): Promise<DownloadMediaResult> => {
+    if (!messageId) return {};
+    // Respect retry cache (skip when permanent or in backoff)
+    if (!canRetryMediaDownload(messageId)) {
+      const entry = mediaRetryCache.get(messageId);
+      return {
+        permanent: entry?.status === 'permanent_failed',
+        transient: entry?.status === 'transient_failed',
+      };
+    }
+    mediaRetryCache.set(messageId, {
+      status: 'loading',
+      lastAttempt: Date.now(),
+      retryCount: (mediaRetryCache.get(messageId)?.retryCount ?? 0),
+    });
     try {
       // Resolve the queue from the message's conversation (source of truth),
       // not from the UI's selected queue filter.
@@ -1150,7 +1195,17 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       });
       if (error) throw error;
       const url: string | undefined = data?.url;
-      if (!url) return undefined;
+      if (!url) {
+        const permanent = data?.permanent === true;
+        const transient = data?.transient === true || (data?.fallback === true && !permanent);
+        const prev = mediaRetryCache.get(messageId);
+        mediaRetryCache.set(messageId, {
+          status: permanent ? 'permanent_failed' : (transient ? 'transient_failed' : 'transient_failed'),
+          lastAttempt: Date.now(),
+          retryCount: (prev?.retryCount ?? 0) + 1,
+        });
+        return { transient, permanent };
+      }
       // Update local state for any matching message
       setMessages(prev => {
         const next: Record<string, ChatMessage[]> = {};
@@ -1163,10 +1218,17 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         }
         return next;
       });
-      return url;
+      mediaRetryCache.set(messageId, { status: 'success', lastAttempt: Date.now(), retryCount: 0 });
+      return { url };
     } catch (e) {
       console.error('[downloadMedia] failed:', e);
-      return undefined;
+      const prev = mediaRetryCache.get(messageId);
+      mediaRetryCache.set(messageId, {
+        status: 'transient_failed',
+        lastAttempt: Date.now(),
+        retryCount: (prev?.retryCount ?? 0) + 1,
+      });
+      return { transient: true };
     }
   }, [selectedQueue?.id]);
 

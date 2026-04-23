@@ -315,7 +315,8 @@ async function processHistorySet(
               text: text ? toSafeString(text) : null,
               type,
               from_me: fromMe,
-              status: fromMe ? 'sent' : 'received',
+              // Histórico: toda mensagem entra já como lida (read), independente de from_me.
+              status: 'read',
               media_url: mediaUrl ?? null,
               timestamp: isoTs,
               channel_type: 'whatsapp_uazapi',

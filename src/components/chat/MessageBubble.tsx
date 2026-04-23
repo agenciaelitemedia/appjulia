@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { Check, CheckCheck, Clock, AlertCircle, Download, Play, Pause, Loader2, FileText, MapPin, User, StickyNote as StickyNoteIcon, Forward, Reply } from 'lucide-react';
+import { Check, CheckCheck, Clock, AlertCircle, Download, Play, Pause, Loader2, FileText, MapPin, User, StickyNote as StickyNoteIcon, Forward, Reply, WifiOff, ImageOff, RotateCw } from 'lucide-react';
 import { MediaLightbox } from './MediaLightbox';
 import { Button } from '@/components/ui/button';
 import { QuotedMessage } from './QuotedMessage';
@@ -9,11 +9,12 @@ import { ExpandableMessageText } from './ExpandableMessageText';
 import { format } from 'date-fns';
 import type { ChatMessage, MessageStatus, MessageType } from '@/types/chat';
 import type { MessageReaction } from '@/hooks/useMessageReactions';
+import type { DownloadMediaResult } from '@/contexts/WhatsAppDataContext';
 
 interface MessageBubbleProps {
   message: ChatMessage;
   reactions?: MessageReaction[];
-  onDownloadMedia?: (messageId: string) => Promise<string | undefined>;
+  onDownloadMedia?: (messageId: string) => Promise<DownloadMediaResult>;
   onReact?: (message: ChatMessage, emoji: string) => void;
   onForward?: (message: ChatMessage) => void;
   onReply?: (message: ChatMessage) => void;
@@ -88,9 +89,10 @@ function StatusIcon({ status }: { status: MessageStatus }) {
   }
 }
 
-function MediaContent({ message, onDownload }: { message: ChatMessage; onDownload?: () => Promise<string | undefined> }) {
+function MediaContent({ message, onDownload }: { message: ChatMessage; onDownload?: () => Promise<DownloadMediaResult> }) {
   const [isLoading, setIsLoading] = useState(false);
   const [mediaUrl, setMediaUrl] = useState<string | undefined>(message.media_url);
+  const [downloadState, setDownloadState] = useState<'idle' | 'transient' | 'permanent'>('idle');
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioProgress, setAudioProgress] = useState(0);
   const [audioCurrent, setAudioCurrent] = useState(0);
@@ -115,8 +117,15 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
     if (mediaUrl && !isEncrypted(mediaUrl)) return;
     setIsLoading(true);
     try {
-      const url = await onDownload();
-      if (url) setMediaUrl(url);
+      const res = await onDownload();
+      if (res?.url) {
+        setMediaUrl(res.url);
+        setDownloadState('idle');
+      } else if (res?.permanent) {
+        setDownloadState('permanent');
+      } else if (res?.transient) {
+        setDownloadState('transient');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -128,6 +137,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
     const autoTypes = ['image', 'video', 'audio', 'ptt', 'sticker'];
     if (!autoTypes.includes(message.type)) return;
     if (mediaUrl && !isEncrypted(mediaUrl)) return;
+    if (downloadState === 'permanent') return;
     handleDownload();
     // runs only when message.id changes — handleDownload is intentionally excluded to avoid re-fetching on every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -180,6 +190,39 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
 
   const usable = mediaUrl && !isEncrypted(mediaUrl);
 
+  const FallbackBox = ({ label }: { label: string }) => {
+    if (downloadState === 'permanent') {
+      return (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <ImageOff className="h-4 w-4" />
+          <span>Mídia não disponível neste histórico</span>
+          {onDownload && (
+            <Button variant="ghost" size="sm" className="h-6 px-2" onClick={handleDownload} disabled={isLoading}>
+              <RotateCw className="h-3 w-3 mr-1" /> Tentar
+            </Button>
+          )}
+        </div>
+      );
+    }
+    if (downloadState === 'transient') {
+      return (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <WifiOff className="h-4 w-4" />
+          <span>WhatsApp desconectado — tentaremos novamente</span>
+          <Button variant="ghost" size="sm" className="h-6 px-2" onClick={handleDownload} disabled={isLoading}>
+            <RotateCw className="h-3 w-3 mr-1" /> Tentar agora
+          </Button>
+        </div>
+      );
+    }
+    return (
+      <Button variant="ghost" size="sm" onClick={handleDownload} disabled={isLoading}>
+        {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+        {label}
+      </Button>
+    );
+  };
+
   switch (message.type) {
     case 'image':
       return (
@@ -206,13 +249,10 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
               </div>
             ) : (
               <div className="bg-muted rounded-lg p-8 flex items-center justify-center min-h-[180px] min-w-[200px]">
-                {isLoading ? (
+                {isLoading && downloadState === 'idle' ? (
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 ) : (
-                  <Button variant="ghost" size="sm" onClick={handleDownload}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Baixar imagem
-                  </Button>
+                  <FallbackBox label="Baixar imagem" />
                 )}
               </div>
             )}
@@ -242,13 +282,10 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
             />
           ) : (
             <div className="bg-muted rounded-lg p-8 flex items-center justify-center aspect-video">
-              {isLoading ? (
+              {isLoading && downloadState === 'idle' ? (
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               ) : (
-                <Button variant="ghost" size="sm" onClick={handleDownload}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Baixar vídeo
-                </Button>
+                <FallbackBox label="Baixar vídeo" />
               )}
             </div>
           )}
@@ -310,13 +347,10 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
             </>
           ) : (
             <div className="flex items-center gap-2 py-1">
-              {isLoading ? (
+              {isLoading && downloadState === 'idle' ? (
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               ) : (
-                <Button variant="ghost" size="sm" onClick={handleDownload}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Baixar áudio
-                </Button>
+                <FallbackBox label="Baixar áudio" />
               )}
             </div>
           )}
