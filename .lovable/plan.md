@@ -1,129 +1,107 @@
 
 
-# View `vw_equipe` + filtro de responsáveis no /chat
+# Buscar foto e dados do perfil WhatsApp ao criar contatos no /chat (Multi-Provider: UaZapi + WABA Oficial)
 
-## Objetivo
+## Problema
 
-Trazer no filtro "Responsável" do `/chat` **todos os membros da equipe pertencentes ao mesmo client_id** do usuário logado, resolvendo `client_id` automaticamente conforme o role.
+Hoje os contatos do `/chat` ficam sem foto (`avatar = null`) na maioria dos casos, tanto para conexões via **UaZapi** quanto via **WABA Oficial (Meta Cloud API)**. O sistema é omnichannel e precisa enriquecer perfis usando o provedor correto da fila de origem.
 
-## Regra de resolução do `client_id`
+## Solução
 
-| Role do usuário logado | Origem do `client_id` |
-|---|---|
-| `admin` (super), `colaborador`, `user` | `users.client_id` (direto) |
-| Outros roles (`time`, `advogado`, `comercial`, etc.) | `client_id` do usuário principal referenciado em `users.user_id` |
+Centralizar o enriquecimento de perfil em um helper único **multi-provider** que detecta o tipo de fila (`channel_source`) e roteia para a API adequada (UaZapi ou Meta Graph API).
 
-Quando `admin` for super (sem client_id), retorna todos.
+---
 
-## Mudanças
+### 1. Migration — colunas extras em `chat_contacts`
 
-### 1. Banco externo — criar `vw_equipe` (migration externa via Edge Function)
+| Coluna | Tipo | Origem |
+|---|---|---|
+| `wa_name` | text | nome de exibição público |
+| `wa_verified_name` | text | nome verificado (Business) |
+| `wa_business` | boolean | flag conta business |
+| `wa_status` | text | recado/status |
+| `lead_full_name` | text | nome completo do lead (UaZapi) |
+| `lead_email` | text | email (UaZapi) |
+| `lead_personalid` | text | CPF/CNPJ |
+| `profile_fetched_at` | timestamptz | última vez enriquecido |
+| `profile_source` | text | `uazapi` \| `waba` |
 
-```sql
-CREATE OR REPLACE VIEW vw_equipe AS
-SELECT
-  u.id,
-  u.name,
-  u.email,
-  u.role,
-  u.user_id          AS parent_user_id,
-  COALESCE(u.client_id, p.client_id) AS client_id,
-  c.photo,
-  c.business_name    AS client_business_name
-FROM users u
-LEFT JOIN users   p ON p.id = u.user_id
-LEFT JOIN clients c ON c.id = COALESCE(u.client_id, p.client_id)
-WHERE u.role IN ('admin','user','colaborador','time','advogado','comercial');
-```
+### 2. Novo helper `_shared/whatsapp-profile.ts` (multi-provider)
 
-Como o banco é externo (não Supabase), a criação será feita via uma Edge Function utilitária one-shot (`run-external-sql`) ou incluída como ação no `db-query`. Optaremos pela **segunda**: adicionar uma ação `create_vw_equipe` em `db-query` que executa o `CREATE OR REPLACE VIEW` (idempotente). Disparamos uma vez após deploy.
+Função única `fetchWhatsappProfile({ queue, phone })` que detecta `queue.channel_source`:
 
-### 2. `db-query` — nova ação `get_team_by_client`
+#### A) Provider `uazapi`
+1. `POST /chat/details` com `{ number, preview: true }` → `name`, `image`, `wa_*`, `lead_*`.
+2. Fallback `POST /chat/GetNameAndImageURL` se `image` vazio.
+3. `profile_source = 'uazapi'`.
 
+#### B) Provider `waba` (API Oficial Meta)
+A Cloud API **não expõe foto/nome de contatos arbitrários** (limitação oficial — só retorna `profile.name` no payload de mensagens recebidas). O enriquecimento usa duas estratégias:
+
+1. **`GET /v22.0/{phone-number-id}/whatsapp_business_profile`** → busca o perfil **do próprio número business** (logo, descrição, vertical) para enriquecer contatos business da própria empresa.
+2. **`POST /v22.0/{phone-number-id}/contacts`** com `{ blocking: "wait", contacts: [phone], force_check: false }` → valida se o número existe no WhatsApp e retorna `wa_id`.
+3. Para o **avatar de terceiros**: como a Meta não fornece, o helper retornará `null` e o sistema cairá no fallback de iniciais. Salvamos pelo menos `wa_name` (vindo do `profile.name` no webhook de mensagem) e `wa_verified_name` quando disponível.
+4. `profile_source = 'waba'`.
+
+Retorno normalizado igual para ambos os providers:
 ```ts
-case 'get_team_by_client': {
-  const { userId, role } = data;
-  // Resolve client_id efetivo
-  const me = await sql.unsafe(
-    `SELECT COALESCE(u.client_id, p.client_id) AS client_id
-     FROM users u LEFT JOIN users p ON p.id = u.user_id
-     WHERE u.id = $1 LIMIT 1`, [userId]
-  );
-  const clientId = me[0]?.client_id;
-  // Super-admin sem client_id => retorna todos
-  if (role === 'admin' && !clientId) {
-    result = await sql.unsafe(
-      `SELECT id, name, email, role, client_id, photo FROM vw_equipe ORDER BY name`
-    );
-  } else if (clientId) {
-    result = await sql.unsafe(
-      `SELECT id, name, email, role, client_id, photo
-       FROM vw_equipe WHERE client_id = $1 ORDER BY name`, [clientId]
-    );
-  } else {
-    result = [];
-  }
-  break;
+{
+  name, avatar, remoteJid, isGroup,
+  waName, waVerifiedName, waBusiness, waStatus,
+  leadFullName, leadEmail, leadPersonalId,
+  source: 'uazapi' | 'waba',
+  raw
 }
 ```
 
-### 3. `src/lib/externalDb.ts`
+Timeout 15s, fallback silencioso.
 
-Adicionar helper:
-```ts
-async getTeamByClient<T = any>(userId: number, role: string): Promise<T[]> {
-  return this.invoke({ action: 'get_team_by_client', data: { userId, role } });
-}
-```
+### 3. Integração nos webhooks em tempo real
 
-### 4. Hook novo `src/hooks/useTeamByClient.ts`
+**`uazapi-chat-webhook`**: ao criar contato novo, chama `fetchWhatsappProfile` com `queue` carregada (já tem `channel_source='uazapi'`). Para contatos existentes sem avatar, dispara enrich em background.
 
-```ts
-export function useTeamByClient() {
-  const { user } = useAuth();
-  return useQuery({
-    queryKey: ['team-by-client', user?.id],
-    queryFn: () => externalDb.getTeamByClient(user!.id, user!.role),
-    enabled: !!user?.id,
-    staleTime: 5 * 60 * 1000,
-  });
-}
-```
+**`meta-webhook` / `waba-persistence`**: idem — ao processar `contacts[0].profile.name` do payload Meta, persiste já no `wa_name` e enfileira enrich via helper com `channel_source='waba'`.
 
-### 5. `src/components/chat/ChatList.tsx` — popular o select Responsável
+### 4. Integração no backfill histórico
 
-Substituir o map de `allAgents` no `<Select>` por `teamMembers` vindo de `useTeamByClient()`:
+`uazapi-history-import` substitui o `fetchChatDetails` local pela nova função compartilhada.
 
-```tsx
-const { data: teamMembers = [] } = useTeamByClient();
-...
-{teamMembers.map((m) => (
-  <SelectItem key={m.id} value={String(m.id)} className="text-xs">
-    {m.name}
-  </SelectItem>
-))}
-```
+### 5. Reenriquecer contatos antigos (one-shot)
 
-E ajustar o filtro `visibleContacts` para casar `assigned_to` com `String(m.id)` **ou** `m.name` (compatibilidade com leads antigos onde `assigned_to` foi gravado como nome):
+Nova edge function `chat-contacts-enrich` recebe `{ client_id, queue_id?, only_missing_avatar?: true }`:
+- busca contatos sem `avatar` ou `profile_fetched_at`,
+- agrupa por `queue_id` para resolver o provider correto,
+- chama `fetchWhatsappProfile` com a queue de cada grupo,
+- atualiza o contato com colunas extras + `profile_source`.
 
-```ts
-return assigned === ownerFilter || assigned === selectedMember?.name;
-```
+Disparada uma vez após deploy para `client_id=30`.
+
+### 6. UI
+
+Sem mudanças imediatas — `ChatList` já renderiza `contact.avatar` quando presente. Para contatos WABA sem avatar (limitação da Meta), as iniciais continuam como fallback natural.
+
+---
 
 ## Arquivos
 
 | Arquivo | Mudança |
 |---|---|
-| `supabase/functions/db-query/index.ts` | + ações `create_vw_equipe`, `get_team_by_client` |
-| `src/lib/externalDb.ts` | + `getTeamByClient` |
-| `src/hooks/useTeamByClient.ts` | novo hook |
-| `src/components/chat/ChatList.tsx` | filtro de responsáveis usa novo hook |
+| `supabase/migrations/<new>.sql` | adiciona colunas `wa_*`, `lead_*`, `profile_fetched_at`, `profile_source` |
+| `supabase/functions/_shared/whatsapp-profile.ts` | **novo** helper multi-provider (UaZapi + WABA) |
+| `supabase/functions/uazapi-chat-webhook/index.ts` | enriquecer ao criar contato; background para existentes |
+| `supabase/functions/meta-webhook/index.ts` (ou persistence bridge) | enriquecer contato WABA usando `profile.name` + helper |
+| `supabase/functions/uazapi-history-import/index.ts` | usar helper compartilhado |
+| `supabase/functions/chat-contacts-enrich/index.ts` | **novo** — reprocessa contatos sem foto agrupando por provider |
 
-Após deploy, disparo único de `create_vw_equipe` para materializar a view no banco externo.
+## Limitações conhecidas (WABA Oficial)
+
+- A Meta Cloud API **não fornece** foto de perfil ou status de contatos finais (apenas do próprio número business). Para esses casos, persistimos `wa_name` (vindo do payload de mensagem) e mantemos avatar `null` → UI mostra iniciais.
+- O endpoint `/contacts` (validação) consome quota e só é chamado uma vez por contato (idempotência via `profile_fetched_at`).
 
 ## Validação
 
-1. Logar como `admin` com `client_id` → select mostra apenas membros do mesmo client.
-2. Logar como `advogado` (role secundário) → resolve via `users.user_id` do principal e mostra a equipe deste client.
-3. Logar como super-admin (sem client_id) → mostra todos.
+1. Disparar `chat-contacts-enrich` para `client_id=30`.
+2. Recarregar `/chat` → contatos UaZapi exibem foto real; contatos WABA exibem `wa_name` correto (avatar pode permanecer iniciais por limitação da Meta).
+3. Receber nova mensagem em fila WABA → `profile.name` salvo automaticamente em `wa_name` e `name`.
+4. Conferir no banco: `select profile_source, count(*) from chat_contacts where client_id='30' group by profile_source`.
 
