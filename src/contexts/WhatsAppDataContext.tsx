@@ -1722,19 +1722,24 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     };
   }, [clientId, currentQueueId, loadConvCounts]);
 
-  // Reload when queue changes (or on initial load with "All queues")
+  // Reload everything and clear selection when queue or client changes
   useEffect(() => {
-    if (clientId) {
-      loadContacts();
-      loadConversations();
-      loadConvCounts();
-      loadTags();
-      refreshConversationTags();
-      setSelectedContactId(null);
-      setMessages({});
-      knownMessageIds.current.clear();
-    }
-  }, [currentQueueId, clientId, loadContacts, loadConversations, loadConvCounts, loadTags, refreshConversationTags]);
+    if (!clientId) return;
+    loadContacts();
+    loadConvCounts();
+    loadTags();
+    refreshConversationTags();
+    setSelectedContactId(null);
+    setMessages({});
+    knownMessageIds.current.clear();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentQueueId, clientId]);
+
+  // Reload conversations when status filter or queue changes (no selection clear)
+  useEffect(() => {
+    if (clientId) loadConversations();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, currentQueueId, conversationStatusFilter]);
 
   // ============================================
   // Context Value
