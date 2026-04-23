@@ -195,9 +195,11 @@ async function processHistorySet(
   for (const msg of rawMessages) {
     const remoteJid: string = msg.key?.remoteJid ?? msg.remoteJid ?? msg.chatId ?? '';
     if (!remoteJid) continue;
-    const isGroup = remoteJid.endsWith('@g.us');
-    // Histórico SEMPRE ignora grupos, independente de ALLOW_GROUPS.
-    if (isGroup) continue;
+    // Histórico SEMPRE ignora grupos (detecção robusta), independente de ALLOW_GROUPS.
+    if (isGroupMessage(msg) || remoteJid.includes('@g.us')) {
+      console.log('[history-set] skip group remoteJid=', remoteJid);
+      continue;
+    }
     if (!byChat.has(remoteJid)) byChat.set(remoteJid, []);
     byChat.get(remoteJid)!.push(msg);
   }
@@ -626,7 +628,8 @@ Deno.serve(async (req) => {
       const phoneSet = new Map<string, number>();
       for (const m of historyMsgs) {
         const rj: string = m.key?.remoteJid ?? m.remoteJid ?? m.chatId ?? '';
-        if (!rj || rj.endsWith('@g.us')) continue;
+        if (!rj) continue;
+        if (isGroupMessage(m) || rj.includes('@g.us')) continue;
         const ph = normalizePhone(rj);
         if (!ph) continue;
         phoneSet.set(ph, (phoneSet.get(ph) ?? 0) + 1);
