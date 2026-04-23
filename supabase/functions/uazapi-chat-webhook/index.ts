@@ -63,6 +63,28 @@ function normalizePhone(raw: string): string {
   return raw.replace(/@.*/, '').replace(/[^\d]/g, '');
 }
 
+/** Robust group detection across UaZapi payload variants.
+ *  Returns true if the message belongs to a WhatsApp group chat. */
+function isGroupMessage(msg: any): boolean {
+  if (!msg || typeof msg !== 'object') return false;
+  const jids: Array<unknown> = [
+    msg.key?.remoteJid,
+    msg.remoteJid,
+    msg.chatId,
+    msg.chatid,
+    msg.wa_chatid,
+    msg.from,
+    msg.to,
+  ];
+  for (const j of jids) {
+    if (typeof j === 'string' && j.includes('@g.us')) return true;
+  }
+  if (msg.isGroup === true || msg.wa_isGroup === true || msg.is_group === true) return true;
+  if (msg.groupName || msg.wa_groupName || msg.group_name) return true;
+  if (msg.participant || msg.key?.participant) return true; // participant field only present in group msgs
+  return false;
+}
+
 /** Coerce any value to a safe plain string (never returns object/JSON/[object Object]). */
 function toSafeString(v: unknown): string {
   if (v == null) return '';
@@ -173,9 +195,11 @@ async function processHistorySet(
   for (const msg of rawMessages) {
     const remoteJid: string = msg.key?.remoteJid ?? msg.remoteJid ?? msg.chatId ?? '';
     if (!remoteJid) continue;
-    const isGroup = remoteJid.endsWith('@g.us');
-    // Histórico SEMPRE ignora grupos, independente de ALLOW_GROUPS.
-    if (isGroup) continue;
+    // Histórico SEMPRE ignora grupos (detecção robusta), independente de ALLOW_GROUPS.
+    if (isGroupMessage(msg) || remoteJid.includes('@g.us')) {
+      console.log('[history-set] skip group remoteJid=', remoteJid);
+      continue;
+    }
     if (!byChat.has(remoteJid)) byChat.set(remoteJid, []);
     byChat.get(remoteJid)!.push(msg);
   }
@@ -194,6 +218,11 @@ async function processHistorySet(
     try {
       const phone = normalizePhone(remoteJid);
       if (!phone) continue;
+      // Última camada de defesa: nunca processar grupo no histórico.
+      if (remoteJid.includes('@g.us')) {
+        console.log('[history-set] defensive skip group', remoteJid);
+        continue;
+      }
 
       const { data: preExisting } = await supabase
         .from('chat_contacts')
@@ -225,7 +254,7 @@ async function processHistorySet(
             channel_type: 'whatsapp_uazapi',
             channel_source: queue.id,
             remote_jid: remoteJid,
-            is_group: remoteJid.endsWith('@g.us'),
+            is_group: false,
             history_backfilled: true,
             unread_count: 0,
             ...profileCols,
@@ -591,20 +620,27 @@ Deno.serve(async (req) => {
 
     // ─── HISTORY DUMP (messages.set / history) ───
     if (event === 'history' || event === 'messages.set' || event === 'message.history') {
-      const historyMsgs: any[] = (
+      const historyMsgsRaw: any[] = (
         payload.data?.messages ??
         payload.messages ??
         (Array.isArray(payload.data) ? payload.data : null) ??
         []
       );
+      // Defesa em camada: já remove grupos do payload antes de qualquer processamento.
+      const skippedGroups = historyMsgsRaw.length;
+      const historyMsgs = historyMsgsRaw.filter((m) => {
+        const rj: string = m?.key?.remoteJid ?? m?.remoteJid ?? m?.chatId ?? '';
+        return rj && !rj.includes('@g.us') && !isGroupMessage(m);
+      });
       const isLatest: boolean = payload.data?.isLatest ?? true;
-      console.log(`[uazapi-webhook] ${event} queue=${queue.name} count=${historyMsgs.length} isLatest=${isLatest}`);
+      console.log(`[uazapi-webhook] ${event} queue=${queue.name} count=${historyMsgs.length} (skipped_groups=${skippedGroups - historyMsgs.length}) isLatest=${isLatest}`);
 
       // Agrupa por chat ignorando grupos (sempre) para calcular total_numbers.
       const phoneSet = new Map<string, number>();
       for (const m of historyMsgs) {
         const rj: string = m.key?.remoteJid ?? m.remoteJid ?? m.chatId ?? '';
-        if (!rj || rj.endsWith('@g.us')) continue;
+        if (!rj) continue;
+        if (isGroupMessage(m) || rj.includes('@g.us')) continue;
         const ph = normalizePhone(rj);
         if (!ph) continue;
         phoneSet.set(ph, (phoneSet.get(ph) ?? 0) + 1);
