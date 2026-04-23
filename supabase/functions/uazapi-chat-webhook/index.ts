@@ -588,14 +588,92 @@ Deno.serve(async (req) => {
       const isLatest: boolean = payload.data?.isLatest ?? true;
       console.log(`[uazapi-webhook] ${event} queue=${queue.name} count=${historyMsgs.length} isLatest=${isLatest}`);
 
-      if (historyMsgs.length > 0) {
-        const allowGroups = await getAllowGroupsForClient(String(queue.client_id));
+      // Agrupa por chat ignorando grupos (sempre) para calcular total_numbers.
+      const phoneSet = new Map<string, number>();
+      for (const m of historyMsgs) {
+        const rj: string = m.key?.remoteJid ?? m.remoteJid ?? m.chatId ?? '';
+        if (!rj || rj.endsWith('@g.us')) continue;
+        const ph = normalizePhone(rj);
+        if (!ph) continue;
+        phoneSet.set(ph, (phoneSet.get(ph) ?? 0) + 1);
+      }
+      const phones = Array.from(phoneSet.entries()).map(([phone, message_count]) => ({ phone, message_count }));
+
+      // Resolve client_name + cod_agent/agent_name (best-effort)
+      let clientName: string | null = null;
+      let codAgent: string | null = null;
+      let agentName: string | null = null;
+      try {
+        const { data: cs } = await supabase
+          .from('chat_client_settings')
+          .select('client_name, client_business_name')
+          .eq('client_id', String(queue.client_id))
+          .maybeSingle();
+        clientName = cs?.client_business_name || cs?.client_name || null;
+      } catch { /* ignore */ }
+      try {
+        const { data: link } = await supabase
+          .from('queue_agent_links')
+          .select('cod_agent')
+          .eq('queue_id', queue.id)
+          .limit(1)
+          .maybeSingle();
+        codAgent = link?.cod_agent ?? null;
+        if (codAgent) {
+          const { data: alias } = await supabase
+            .from('agent_aliases')
+            .select('alias')
+            .eq('cod_agent', codAgent)
+            .maybeSingle();
+          agentName = alias?.alias ?? null;
+        }
+      } catch { /* ignore */ }
+
+      // Cria job sempre (mesmo com 0 indivíduos — registro do recebimento).
+      let jobId: string | null = null;
+      try {
+        const { data: job, error: jobErr } = await supabase
+          .from('whatsapp_sync_jobs')
+          .insert({
+            client_id: String(queue.client_id),
+            client_name: clientName,
+            queue_id: queue.id,
+            queue_name: queue.name,
+            cod_agent: codAgent,
+            agent_name: agentName,
+            phase: 'history_sync',
+            status: phones.length === 0 ? 'done' : 'running',
+            total_numbers: phones.length,
+            processed_numbers: 0,
+            inserted_messages: 0,
+            inserted_contacts: 0,
+            evo_url: queue.evo_url,
+            evo_token: queue.evo_apikey,
+            numbers: phones,
+            started_at: new Date().toISOString(),
+            finished_at: phones.length === 0 ? new Date().toISOString() : null,
+          } as never)
+          .select('id')
+          .single();
+        if (jobErr) console.warn('[history-set] job insert failed', jobErr.message);
+        jobId = (job as { id: string } | null)?.id ?? null;
+
+        if (jobId && phones.length > 0) {
+          await supabase.from('whatsapp_sync_job_logs').insert(
+            phones.map((p) => ({ job_id: jobId, phone: p.phone, status: 'pending' as const })),
+          );
+        }
+      } catch (e) {
+        console.warn('[history-set] could not create sync job', e);
+      }
+
+      if (historyMsgs.length > 0 && phones.length > 0) {
         EdgeRuntime.waitUntil(
-          processHistorySet(historyMsgs, queue as any, allowGroups)
+          processHistorySet(historyMsgs, queue as any, false, jobId)
         );
       }
 
-      return respond({ ok: true, event, queued: historyMsgs.length });
+      return respond({ ok: true, event, queued: phones.length, job_id: jobId });
     }
 
     // ─── MESSAGES (main handler) ───
