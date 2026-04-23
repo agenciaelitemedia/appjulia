@@ -5,6 +5,7 @@
 // ============================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { fetchWhatsappProfile, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
