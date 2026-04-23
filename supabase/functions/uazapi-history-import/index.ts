@@ -76,32 +76,9 @@ function tsToIso(timestamp: any): string {
 
 const MEDIA_TYPES = new Set(['image', 'video', 'audio', 'ptt', 'document', 'sticker']);
 
-async function fetchChatDetails(job: any, phone: string): Promise<any | null> {
-  try {
-    const url = `${job.evo_url.replace(/\/$/, '')}/chat/details`;
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'token': job.evo_token },
-      body: JSON.stringify({ number: phone, preview: true }),
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!resp.ok) return null;
-    const data = await resp.json();
-    // UaZapi may return either an object or { chat: {...} }
-    return data?.chat || data?.data || data || null;
-  } catch (e) {
-    console.warn(`[uazapi-history-import] /chat/details failed phone=${phone} err=${(e as Error).message}`);
-    return null;
-  }
-}
-
-function resolveContactName(details: any | null, firstMsg: any, phone: string): string {
+function resolveContactName(profileName: string | null, firstMsg: any, phone: string): string {
   const candidates = [
-    details?.lead_fullName,
-    details?.lead_name,
-    details?.name,
-    details?.wa_name,
-    details?.wa_contactName,
+    profileName,
     firstMsg?.pushName,
     firstMsg?.senderName,
     firstMsg?.wa_contactName,
