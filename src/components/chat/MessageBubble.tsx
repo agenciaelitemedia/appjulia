@@ -137,6 +137,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
     const autoTypes = ['image', 'video', 'audio', 'ptt', 'sticker'];
     if (!autoTypes.includes(message.type)) return;
     if (mediaUrl && !isEncrypted(mediaUrl)) return;
+    if (downloadState === 'permanent') return;
     handleDownload();
     // runs only when message.id changes — handleDownload is intentionally excluded to avoid re-fetching on every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
