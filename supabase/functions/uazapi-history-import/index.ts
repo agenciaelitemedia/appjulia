@@ -131,7 +131,14 @@ async function processNumber(
     });
     if (!resp.ok) {
       const txt = await resp.text().catch(() => '');
-      return { messages_found: 0, messages_inserted: 0, contact_created: false, error: `HTTP ${resp.status}: ${txt.slice(0, 200)}` };
+      return {
+        messages_found: 0,
+        messages_inserted: 0,
+        contact_created: false,
+        contact_enriched: false,
+        media_downloads_queued: 0,
+        error: `HTTP ${resp.status}: ${txt.slice(0, 200)}`,
+      };
     }
     const data = await resp.json();
     messages = Array.isArray(data) ? data
