@@ -67,7 +67,7 @@ export function ProviderSelector({ open, onOpenChange, agent, onSuccess }: Provi
 
             <Button
               variant="outline"
-              className="h-auto p-4 flex flex-col items-start gap-2 text-left"
+              className="h-auto w-full p-4 flex flex-col items-start gap-2 text-left whitespace-normal break-words"
               onClick={() => {
                 onOpenChange(false);
                 setShowQueue(true);
@@ -77,7 +77,7 @@ export function ProviderSelector({ open, onOpenChange, agent, onSuccess }: Provi
                 <LayoutList className="h-5 w-5 text-blue-600" />
                 <span className="font-semibold">Filas</span>
               </div>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground whitespace-normal break-words w-full">
                 Conecte via uma fila existente (UaZapi ou API Oficial). As mensagens serão encaminhadas automaticamente.
               </span>
             </Button>
