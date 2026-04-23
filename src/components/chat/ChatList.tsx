@@ -81,6 +81,7 @@ export function ChatList() {
     setConversationStatusFilter,
     conversations,
     conversationTagsMap,
+    contacts,
   } = useWhatsAppData();
   const { data: queueLimits } = useAgentQueueLimits();
   const showGroupsTab = !!(queueLimits?.allowGroups && queueLimits?.showGroupsTab);
