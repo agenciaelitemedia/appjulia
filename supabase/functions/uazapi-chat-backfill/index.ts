@@ -29,6 +29,29 @@ function normalizePhone(raw: string): string {
   return (raw || '').replace(/@.*/, '').replace(/[^\d]/g, '');
 }
 
+function isGroupChatId(value: unknown): boolean {
+  return typeof value === 'string' && value.includes('@g.us');
+}
+
+function isGroupMessage(msg: any): boolean {
+  if (!msg || typeof msg !== 'object') return false;
+  return isGroupChatId(msg.key?.remoteJid)
+    || isGroupChatId(msg.remoteJid)
+    || isGroupChatId(msg.chatId)
+    || isGroupChatId(msg.chatid)
+    || isGroupChatId(msg.wa_chatid)
+    || isGroupChatId(msg.from)
+    || isGroupChatId(msg.to)
+    || msg.isGroup === true
+    || msg.wa_isGroup === true
+    || msg.is_group === true
+    || !!msg.groupName
+    || !!msg.wa_groupName
+    || !!msg.group_name
+    || !!msg.participant
+    || !!msg.key?.participant;
+}
+
 function extractText(msg: any): string | undefined {
   if (typeof msg.text === 'string' && msg.text) return msg.text;
   if (msg.text?.body) return msg.text.body;
@@ -105,13 +128,21 @@ Deno.serve(async (req) => {
     // Re-check contact backfill flag (avoid duplicate runs)
     const { data: contact } = await supabase
       .from('chat_contacts')
-      .select('id, history_backfilled')
+      .select('id, history_backfilled, is_group, remote_jid')
       .eq('id', contact_id)
       .single();
 
     if (!contact) return respond({ error: 'Contact not found' }, 404);
     if (contact.history_backfilled) {
       return respond({ ok: true, skipped: 'already_backfilled' });
+    }
+
+    if (isGroupChatId(chat_id) || contact.is_group || isGroupChatId(contact.remote_jid)) {
+      await supabase
+        .from('chat_contacts')
+        .update({ history_backfilled: true })
+        .eq('id', contact_id);
+      return respond({ ok: true, skipped: 'group_history_ignored' });
     }
 
     const senderPhone = normalizePhone(phone || chat_id);
@@ -151,6 +182,7 @@ Deno.serve(async (req) => {
         : Array.isArray(data?.messages) ? data.messages
         : Array.isArray(data?.data) ? data.data
         : [];
+      messages = messages.filter((msg) => !isGroupMessage(msg));
     } catch (fetchErr) {
       console.error('[uazapi-chat-backfill] fetch error:', fetchErr);
       await supabase
