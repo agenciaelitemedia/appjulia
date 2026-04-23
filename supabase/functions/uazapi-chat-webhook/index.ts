@@ -218,6 +218,11 @@ async function processHistorySet(
     try {
       const phone = normalizePhone(remoteJid);
       if (!phone) continue;
+      // Última camada de defesa: nunca processar grupo no histórico.
+      if (remoteJid.includes('@g.us')) {
+        console.log('[history-set] defensive skip group', remoteJid);
+        continue;
+      }
 
       const { data: preExisting } = await supabase
         .from('chat_contacts')
@@ -249,7 +254,7 @@ async function processHistorySet(
             channel_type: 'whatsapp_uazapi',
             channel_source: queue.id,
             remote_jid: remoteJid,
-            is_group: remoteJid.endsWith('@g.us'),
+            is_group: false,
             history_backfilled: true,
             unread_count: 0,
             ...profileCols,
@@ -615,14 +620,20 @@ Deno.serve(async (req) => {
 
     // ─── HISTORY DUMP (messages.set / history) ───
     if (event === 'history' || event === 'messages.set' || event === 'message.history') {
-      const historyMsgs: any[] = (
+      const historyMsgsRaw: any[] = (
         payload.data?.messages ??
         payload.messages ??
         (Array.isArray(payload.data) ? payload.data : null) ??
         []
       );
+      // Defesa em camada: já remove grupos do payload antes de qualquer processamento.
+      const skippedGroups = historyMsgsRaw.length;
+      const historyMsgs = historyMsgsRaw.filter((m) => {
+        const rj: string = m?.key?.remoteJid ?? m?.remoteJid ?? m?.chatId ?? '';
+        return rj && !rj.includes('@g.us') && !isGroupMessage(m);
+      });
       const isLatest: boolean = payload.data?.isLatest ?? true;
-      console.log(`[uazapi-webhook] ${event} queue=${queue.name} count=${historyMsgs.length} isLatest=${isLatest}`);
+      console.log(`[uazapi-webhook] ${event} queue=${queue.name} count=${historyMsgs.length} (skipped_groups=${skippedGroups - historyMsgs.length}) isLatest=${isLatest}`);
 
       // Agrupa por chat ignorando grupos (sempre) para calcular total_numbers.
       const phoneSet = new Map<string, number>();
