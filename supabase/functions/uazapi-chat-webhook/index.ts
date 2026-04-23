@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
     // Resolve queue to get client_id
     const { data: queue, error: queueError } = await supabase
       .from('queues')
-      .select('id, client_id, channel_type, name')
+      .select('id, client_id, channel_type, name, evo_url, evo_apikey, waba_token, waba_number_id')
       .eq('id', queueId)
       .single();
 
