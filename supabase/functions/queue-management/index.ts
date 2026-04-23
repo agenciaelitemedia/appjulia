@@ -295,6 +295,13 @@ serve(async (req) => {
         const { queue_id, migrate_to_queue_id } = data;
         if (!queue_id) throw new Error('queue_id is required');
 
+        // Load queue to check channel_type and credentials before any destructive op
+        const { data: queueRow } = await supabase
+          .from('queues')
+          .select('channel_type, evo_url, evo_apikey, evo_instance')
+          .eq('id', queue_id)
+          .maybeSingle();
+
         // Check for linked agents
         const { data: links } = await supabase
           .from('queue_agent_links')
@@ -333,6 +340,32 @@ serve(async (req) => {
           if (migrateError) throw migrateError;
         }
 
+        // For UaZapi queues, delete the instance on the UaZapi server BEFORE soft delete.
+        // Failure here must NOT block the soft delete (queue must disappear from panel).
+        let instanceWarning: string | null = null;
+        if (queueRow?.channel_type === 'uazapi' && queueRow?.evo_instance && queueRow?.evo_apikey) {
+          try {
+            const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+            const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+            const delRes = await fetch(`${supabaseUrl}/functions/v1/uazapi-instance-manager`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseKey}`,
+              },
+              body: JSON.stringify({ action: 'delete', queue_id }),
+            });
+            const delData = await delRes.json();
+            console.log('[queue-management] UaZapi instance delete result:', JSON.stringify(delData));
+            if (!delData?.success) {
+              instanceWarning = `UaZapi instance delete returned status ${delData?.status ?? delRes.status}`;
+            }
+          } catch (err) {
+            console.error('[queue-management] UaZapi instance delete failed:', err);
+            instanceWarning = `Failed to delete instance on UaZapi server: ${(err as Error).message}`;
+          }
+        }
+
         // Soft delete
         const { error } = await supabase
           .from('queues')
@@ -340,7 +373,11 @@ serve(async (req) => {
           .eq('id', queue_id);
 
         if (error) throw error;
-        return respond({ success: true, migrated: activeConvos?.length || 0 });
+        return respond({
+          success: true,
+          migrated: activeConvos?.length || 0,
+          ...(instanceWarning ? { instance_warning: instanceWarning } : {}),
+        });
       }
 
       // ==========================================
