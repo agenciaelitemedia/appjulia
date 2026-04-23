@@ -88,7 +88,7 @@ interface ExtendedContextValue extends ChatContextValue {
   loadConversationHistory: (conversationId: string) => Promise<void>;
 
   // Media
-  downloadMedia: (messageId: string) => Promise<string | undefined>;
+  downloadMedia: (messageId: string) => Promise<DownloadMediaResult>;
 }
 
 const WhatsAppDataContext = createContext<ExtendedContextValue | undefined>(undefined);
