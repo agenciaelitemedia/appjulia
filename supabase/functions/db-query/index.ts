@@ -568,13 +568,34 @@ serve(async (req) => {
         const clientId = (me[0] as any)?.client_id ?? null;
         if (role === 'admin' && !clientId) {
           result = await sql.unsafe(
-            `SELECT id, name, email, role, client_id::text AS client_id, photo
-               FROM vw_equipe ORDER BY name`
+            `SELECT 
+               v.id, v.name, v.email, v.role,
+               v.client_id::text AS client_id, v.photo,
+               u.user_id, u.created_at, u.remember_token,
+               COALESCE(ac.cnt, 0)::int AS agents_count
+              FROM vw_equipe v
+              JOIN users u ON u.id = v.id
+              LEFT JOIN (
+                SELECT user_id, COUNT(*)::int AS cnt
+                  FROM user_agents GROUP BY user_id
+              ) ac ON ac.user_id = v.id
+              ORDER BY v.name`
           );
         } else if (clientId) {
           result = await sql.unsafe(
-            `SELECT id, name, email, role, client_id::text AS client_id, photo
-               FROM vw_equipe WHERE client_id = $1 ORDER BY name`,
+            `SELECT 
+               v.id, v.name, v.email, v.role,
+               v.client_id::text AS client_id, v.photo,
+               u.user_id, u.created_at, u.remember_token,
+               COALESCE(ac.cnt, 0)::int AS agents_count
+              FROM vw_equipe v
+              JOIN users u ON u.id = v.id
+              LEFT JOIN (
+                SELECT user_id, COUNT(*)::int AS cnt
+                  FROM user_agents GROUP BY user_id
+              ) ac ON ac.user_id = v.id
+              WHERE v.client_id = $1
+              ORDER BY v.name`,
             [clientId]
           );
         } else {
