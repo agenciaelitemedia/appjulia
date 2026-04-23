@@ -4645,6 +4645,131 @@ export type Database = {
         }
         Relationships: []
       }
+      uazapi_history_items: {
+        Row: {
+          contact_created: boolean
+          conversation_created: boolean
+          created_at: string
+          duplicate_messages: number
+          error: string | null
+          id: string
+          inserted_messages: number
+          phone: string | null
+          processed_at: string | null
+          received_messages: number
+          remote_jid: string
+          run_id: string
+          status: string
+        }
+        Insert: {
+          contact_created?: boolean
+          conversation_created?: boolean
+          created_at?: string
+          duplicate_messages?: number
+          error?: string | null
+          id?: string
+          inserted_messages?: number
+          phone?: string | null
+          processed_at?: string | null
+          received_messages?: number
+          remote_jid: string
+          run_id: string
+          status?: string
+        }
+        Update: {
+          contact_created?: boolean
+          conversation_created?: boolean
+          created_at?: string
+          duplicate_messages?: number
+          error?: string | null
+          id?: string
+          inserted_messages?: number
+          phone?: string | null
+          processed_at?: string | null
+          received_messages?: number
+          remote_jid?: string
+          run_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uazapi_history_items_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "uazapi_history_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      uazapi_history_runs: {
+        Row: {
+          client_id: string
+          client_name: string | null
+          created_at: string
+          duplicate_messages: number
+          error: string | null
+          event: string
+          finished_at: string | null
+          group_messages: number
+          id: string
+          individual_chats: number
+          inserted_contacts: number
+          inserted_messages: number
+          processed_chats: number
+          queue_id: string | null
+          queue_name: string | null
+          received_at: string
+          started_at: string | null
+          status: string
+          total_messages: number
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          client_name?: string | null
+          created_at?: string
+          duplicate_messages?: number
+          error?: string | null
+          event?: string
+          finished_at?: string | null
+          group_messages?: number
+          id?: string
+          individual_chats?: number
+          inserted_contacts?: number
+          inserted_messages?: number
+          processed_chats?: number
+          queue_id?: string | null
+          queue_name?: string | null
+          received_at?: string
+          started_at?: string | null
+          status?: string
+          total_messages?: number
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          client_name?: string | null
+          created_at?: string
+          duplicate_messages?: number
+          error?: string | null
+          event?: string
+          finished_at?: string | null
+          group_messages?: number
+          id?: string
+          individual_chats?: number
+          inserted_contacts?: number
+          inserted_messages?: number
+          processed_chats?: number
+          queue_id?: string | null
+          queue_name?: string | null
+          received_at?: string
+          started_at?: string | null
+          status?: string
+          total_messages?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       vellip_call_logs: {
         Row: {
           cd_called_status: string | null
