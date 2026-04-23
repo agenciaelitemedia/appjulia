@@ -149,7 +149,7 @@ serve(async (req) => {
             body: JSON.stringify({
               url: webhookUrl,
               enabled: true,
-              events: ['messages'],
+              events: ['messages', 'history'],
               excludeMessages: ['isGroupYes'],
             }),
           });
