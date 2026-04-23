@@ -20,6 +20,10 @@ function normalizePhone(raw: string): string {
   return (raw || '').replace(/@.*/, '').replace(/[^\d]/g, '');
 }
 
+function isGroupChatId(value: unknown): boolean {
+  return typeof value === 'string' && value.includes('@g.us');
+}
+
 async function warmOne(evoUrl: string, token: string, phone: string, count: number) {
   const url = `${evoUrl.replace(/\/$/, '')}/message/history-sync`;
   try {
@@ -49,7 +53,10 @@ Deno.serve(async (req) => {
       return respond({ error: 'evo_url, evo_token and numbers[] are required' }, 400);
     }
 
-    const phones = numbers.map(normalizePhone).filter((n) => n.length >= 8);
+    const phones = numbers
+      .filter((n: unknown) => !isGroupChatId(n))
+      .map(normalizePhone)
+      .filter((n) => n.length >= 8);
     const results: Array<{ phone: string; ok: boolean; error?: string }> = [];
 
     for (let i = 0; i < phones.length; i += batch_size) {

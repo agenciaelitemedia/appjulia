@@ -913,7 +913,7 @@ Deno.serve(async (req) => {
         }
 
         // ── Trigger one-time backfill from UaZapi for new contacts ──
-        if ((isNewContact || !alreadyBackfilled) && !backfillTriggered.has(contact.id)) {
+        if (!isGroup && (isNewContact || !alreadyBackfilled) && !backfillTriggered.has(contact.id)) {
           backfillTriggered.add(contact.id);
           const backfillUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/uazapi-chat-backfill`;
           void fetch(backfillUrl, {

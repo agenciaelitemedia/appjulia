@@ -30,6 +30,29 @@ function normalizePhone(raw: string): string {
   return (raw || '').replace(/@.*/, '').replace(/[^\d]/g, '');
 }
 
+function isGroupChatId(value: unknown): boolean {
+  return typeof value === 'string' && value.includes('@g.us');
+}
+
+function isGroupMessage(msg: any): boolean {
+  if (!msg || typeof msg !== 'object') return false;
+  return isGroupChatId(msg.key?.remoteJid)
+    || isGroupChatId(msg.remoteJid)
+    || isGroupChatId(msg.chatId)
+    || isGroupChatId(msg.chatid)
+    || isGroupChatId(msg.wa_chatid)
+    || isGroupChatId(msg.from)
+    || isGroupChatId(msg.to)
+    || msg.isGroup === true
+    || msg.wa_isGroup === true
+    || msg.is_group === true
+    || !!msg.groupName
+    || !!msg.wa_groupName
+    || !!msg.group_name
+    || !!msg.participant
+    || !!msg.key?.participant;
+}
+
 function extractText(msg: any): string | undefined {
   if (typeof msg.text === 'string' && msg.text) return msg.text;
   if (msg.text?.body) return msg.text.body;
@@ -115,6 +138,7 @@ async function processNumber(
       : Array.isArray(data?.messages) ? data.messages
       : Array.isArray(data?.data) ? data.data
       : [];
+    messages = messages.filter((msg) => !isGroupMessage(msg));
   } catch (e) {
     return { messages_found: 0, messages_inserted: 0, contact_created: false, contact_enriched: false, media_downloads_queued: 0, error: (e as Error).message };
   }
@@ -129,12 +153,15 @@ async function processNumber(
   let contactId: string | null = null;
   const { data: existing } = await supabase
     .from('chat_contacts')
-    .select('id')
+    .select('id, is_group, remote_jid')
     .eq('client_id', job.client_id)
     .eq('phone', phone)
     .maybeSingle();
 
   if (existing) {
+    if (existing.is_group || isGroupChatId(existing.remote_jid)) {
+      return { messages_found: messages.length, messages_inserted: 0, contact_created: false, contact_enriched: false, media_downloads_queued: 0 };
+    }
     contactId = existing.id;
   } else {
     // Fetch real lead profile via shared multi-provider helper
@@ -149,6 +176,10 @@ async function processNumber(
     const isGroup = profile.isGroup;
     const remoteJid = profile.remoteJid || chatId;
     const enrichedCols = profileToContactColumns(profile);
+
+    if (isGroup || isGroupChatId(remoteJid)) {
+      return { messages_found: messages.length, messages_inserted: 0, contact_created: false, contact_enriched: false, media_downloads_queued: 0 };
+    }
 
     const { data: created, error: cErr } = await supabase
       .from('chat_contacts')
@@ -328,7 +359,10 @@ async function runJob(jobId: string) {
     return;
   }
 
-  const phones: string[] = (job.numbers as string[]).map(normalizePhone).filter((n) => n.length >= 8);
+  const phones: string[] = (job.numbers as string[])
+    .filter((n) => !isGroupChatId(n))
+    .map(normalizePhone)
+    .filter((n) => n.length >= 8);
   const uniquePhones = Array.from(new Set(phones));
 
   await supabase
