@@ -79,9 +79,9 @@ function isGroupMessage(msg: any): boolean {
   for (const j of jids) {
     if (typeof j === 'string' && j.includes('@g.us')) return true;
   }
-  if (msg.isGroup === true || msg.wa_isGroup === true || msg.is_group === true) return true;
-  if (msg.groupName || msg.wa_groupName || msg.group_name) return true;
-  if (msg.participant || msg.key?.participant) return true; // participant field only present in group msgs
+  // Strict: only treat as group when a JID explicitly contains @g.us above.
+  // UaZapi sometimes sends `isGroup`, `groupName: ""` or `participant` for individual chats,
+  // which previously caused all messages to be skipped as "group".
   return false;
 }
 
@@ -808,12 +808,12 @@ Deno.serve(async (req) => {
     for (const msg of messages) {
       try {
         const chatId = msg.chatid || msg.chatId || msg.key?.remoteJid || msg.remoteJid || msg.from || msg.sender || '';
-        const isGroup = String(chatId).includes('@g.us')
-          || msg.isGroup
-          || msg.wa_isGroup
-          || msg.wa_chatid?.includes('@g.us')
-          || !!msg.groupName
-          || !!msg.wa_groupName;
+        // Strict group detection: only @g.us in a JID counts.
+        // Avoid false positives from `isGroup`/`groupName` flags that UaZapi
+        // sometimes sends for individual chats.
+        const isGroup =
+          String(chatId).includes('@g.us') ||
+          (typeof msg.wa_chatid === 'string' && msg.wa_chatid.includes('@g.us'));
 
         // Honor agent's ALLOW_GROUPS flag — silently skip group messages when disabled.
         if (isGroup) {
