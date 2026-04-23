@@ -81,6 +81,7 @@ export function ChatList() {
     setConversationStatusFilter,
     conversations,
     conversationTagsMap,
+    contacts,
   } = useWhatsAppData();
   const { data: queueLimits } = useAgentQueueLimits();
   const showGroupsTab = !!(queueLimits?.allowGroups && queueLimits?.showGroupsTab);
@@ -293,11 +294,34 @@ export function ChatList() {
     return result;
   }, [filteredContacts, slaFilter, slaStatusByContact, modeFilter, convMetaByContact, queueAgentMap, queryClient, conversations, ownerFilter, periodFilter, stageIds, stageByPhone, user?.id, user?.name, teamMembers]);
 
-  // Count conversations by status
-  const pendingCount = conversations.filter(c => c.status === 'pending').length;
-  const openCount = conversations.filter(c => c.status === 'open').length;
-  const resolvedCount = conversations.filter(c => c.status === 'resolved').length;
-  const closedCount = conversations.filter(c => c.status === 'closed').length;
+  // Count conversations by status — scoped to the active tab (Individual / Groups)
+  // so badges match what the user actually sees in the list.
+  const isGroupByContactId = React.useMemo(() => {
+    const map = new Map<string, boolean>();
+    contacts.forEach((c) => map.set(c.id, !!c.is_group));
+    return map;
+  }, [contacts]);
+
+  const matchesActiveTab = React.useCallback(
+    (contactId: string) => {
+      if (!showGroupsTab) return !isGroupByContactId.get(contactId);
+      const isGroup = !!isGroupByContactId.get(contactId);
+      if (activeTab === 'individual') return !isGroup;
+      if (activeTab === 'groups') return isGroup;
+      return true;
+    },
+    [isGroupByContactId, activeTab, showGroupsTab]
+  );
+
+  const scopedConversations = React.useMemo(
+    () => conversations.filter((c) => matchesActiveTab(c.contact_id)),
+    [conversations, matchesActiveTab]
+  );
+
+  const pendingCount = scopedConversations.filter(c => c.status === 'pending').length;
+  const openCount = scopedConversations.filter(c => c.status === 'open').length;
+  const resolvedCount = scopedConversations.filter(c => c.status === 'resolved').length;
+  const closedCount = scopedConversations.filter(c => c.status === 'closed').length;
 
   const channelBadge = (type: string) => {
     switch (type) {
@@ -728,6 +752,32 @@ export function ChatList() {
       {/* Contact List */}
       <ScrollArea className="flex-1">
         <div className="py-1">
+          {!isLoading && visibleContacts.length < filteredContacts.length && (
+            <div className="mx-3 mb-2 flex items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+              <span>
+                Mostrando <strong className="text-foreground">{visibleContacts.length}</strong> de{' '}
+                <strong className="text-foreground">{filteredContacts.length}</strong> conversas
+                {activeFilterCount > 0 ? ' (filtros ativos)' : ''}
+              </span>
+              {activeFilterCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={() => {
+                    setModeFilter('all');
+                    setSlaFilter('all');
+                    setOwnerFilter('all');
+                    setPeriodFilter('all');
+                    setStageIds([]);
+                    setConversationStatusFilter('all');
+                  }}
+                >
+                  Limpar filtros
+                </Button>
+              )}
+            </div>
+          )}
           {isLoading ? (
             Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-3">
