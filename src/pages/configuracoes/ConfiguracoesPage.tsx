@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Plus, Loader2, Network, Bot, MessageSquare, RefreshCw, History } from 'lucide-react';
+import { Plus, Loader2, Network, Bot, MessageSquare, RefreshCw, History, Trash2 } from 'lucide-react';
 import { AIModelsConfig } from './components/AIModelsConfig';
 import { ChatSettingsTab } from './components/ChatSettingsTab';
 import { SyncWhatsappTab } from './components/SyncWhatsappTab';
@@ -9,6 +9,7 @@ import { SyncHistoryTab } from './components/SyncHistoryTab';
 import { useQueueProviders, useQueueProviderMutations, type QueueProvider } from './hooks/useQueueProviders';
 import { ProviderCard } from './components/ProviderCard';
 import { ProviderFormDialog } from './components/ProviderFormDialog';
+import { ResetChatDialog } from './components/ResetChatDialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -41,6 +42,7 @@ export default function ConfiguracoesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<QueueProvider | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<QueueProvider | null>(null);
+  const [resetOpen, setResetOpen] = useState(false);
 
   const handleEdit = (provider: QueueProvider) => {
     setEditingProvider(provider);
@@ -98,9 +100,14 @@ export default function ConfiguracoesPage() {
                 Configure as credenciais dos canais de comunicação que serão usadas nas filas
               </p>
             </div>
-            <Button onClick={handleNew}>
-              <Plus className="w-4 h-4 mr-2" /> Novo Provedor
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="destructive" onClick={() => setResetOpen(true)}>
+                <Trash2 className="w-4 h-4 mr-2" /> Resetar Chat
+              </Button>
+              <Button onClick={handleNew}>
+                <Plus className="w-4 h-4 mr-2" /> Novo Provedor
+              </Button>
+            </div>
           </div>
 
           {isLoading ? (
@@ -146,6 +153,8 @@ export default function ConfiguracoesPage() {
       </Tabs>
 
       <ProviderFormDialog open={formOpen} onOpenChange={setFormOpen} provider={editingProvider} />
+
+      <ResetChatDialog open={resetOpen} onOpenChange={setResetOpen} />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
