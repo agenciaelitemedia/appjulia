@@ -137,14 +137,18 @@ async function processNumber(
   if (existing) {
     contactId = existing.id;
   } else {
-    // Fetch real lead details from UaZapi /chat/details
-    const details = await fetchChatDetails(job, phone);
-    const firstName = resolveContactName(details, messages[0], phone);
-    if (details && firstName !== phone) contactEnriched = true;
+    // Fetch real lead profile via shared multi-provider helper
+    const profile = await fetchWhatsappProfile(
+      { channel_type: 'uazapi', evo_url: job.evo_url, evo_apikey: job.evo_token },
+      phone,
+    );
+    const firstName = resolveContactName(profile.name, messages[0], phone);
+    if ((profile.name || profile.avatar) && firstName !== phone) contactEnriched = true;
 
-    const avatar = details?.image || details?.profilePictureUrl || details?.imagePreview || null;
-    const isGroup = Boolean(details?.wa_isGroup);
-    const remoteJid = details?.wa_chatid || chatId;
+    const avatar = profile.avatar;
+    const isGroup = profile.isGroup;
+    const remoteJid = profile.remoteJid || chatId;
+    const enrichedCols = profileToContactColumns(profile);
 
     const { data: created, error: cErr } = await supabase
       .from('chat_contacts')
@@ -160,6 +164,7 @@ async function processNumber(
         channel_source: job.queue_id || 'uazapi',
         history_backfilled: true,
         unread_count: 0,
+        ...enrichedCols,
       })
       .select('id')
       .single();
