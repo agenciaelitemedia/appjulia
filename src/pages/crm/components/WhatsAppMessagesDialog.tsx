@@ -1734,8 +1734,8 @@ export function WhatsAppMessagesDialog({
         {/* Header */}
         <Header className="px-4 py-3 border-b bg-muted/30">
           <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10 bg-green-600">
-              <AvatarFallback className="bg-green-600 text-white">
+            <Avatar className={cn('h-10 w-10', avatarBg)}>
+              <AvatarFallback className={cn(avatarBg, 'text-white')}>
                 <MessageCircle className="h-5 w-5" />
               </AvatarFallback>
             </Avatar>
@@ -1771,6 +1771,20 @@ export function WhatsAppMessagesDialog({
               <p className="text-xs text-muted-foreground">
                 {whatsappNumber}
               </p>
+              {sourceLabel && (
+                <Badge
+                  variant="secondary"
+                  className={cn(
+                    'mt-0.5 text-[10px] px-1.5 py-0 h-4 font-medium text-white border-0',
+                    isViaQueue
+                      ? 'bg-blue-600 hover:bg-blue-600'
+                      : 'bg-green-600 hover:bg-green-600'
+                  )}
+                  title={isViaQueue ? 'Conexão via Fila vinculada' : 'Conexão UaZapi direta'}
+                >
+                  {isViaQueue ? '📥 ' : '🔗 '}{sourceLabel}
+                </Badge>
+              )}
             </div>
             {/* Contract icon + Julia Status Inline */}
             <div className="flex items-center gap-1.5 mr-6">
