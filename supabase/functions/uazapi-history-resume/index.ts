@@ -197,7 +197,15 @@ async function processOneItem(supabase: any, item: PendingItem, run: any, queue:
         const bTs = toIso(b.messageTimestamp ?? b.timestamp) ?? '';
         return aTs.localeCompare(bTs);
       });
-    const candidateIds = sortedMsgs.map((m) => m.key?.id ?? m.id ?? m.messageId ?? '').filter(Boolean);
+    // Incremental reconnect: skip messages older than last known timestamp
+    const sinceIso = existingContact?.last_message_at ?? null;
+    const filteredMsgs = sinceIso
+      ? sortedMsgs.filter((m) => {
+          const ts = toIso(m.messageTimestamp ?? m.timestamp);
+          return ts ? ts > sinceIso : true;
+        })
+      : sortedMsgs;
+    const candidateIds = filteredMsgs.map((m) => m.key?.id ?? m.id ?? m.messageId ?? '').filter(Boolean);
 
     const existingIds = new Set<string>();
     if (existingContact?.id && candidateIds.length > 0) {
@@ -205,7 +213,7 @@ async function processOneItem(supabase: any, item: PendingItem, run: any, queue:
         .select('message_id').eq('contact_id', existingContact.id).in('message_id', candidateIds);
       for (const row of existing ?? []) if (row.message_id) existingIds.add(row.message_id);
     }
-    const newMsgs = sortedMsgs.filter((m) => {
+    const newMsgs = filteredMsgs.filter((m) => {
       const mid = m.key?.id ?? m.id ?? m.messageId ?? '';
       return mid && !existingIds.has(mid);
     });
@@ -213,24 +221,12 @@ async function processOneItem(supabase: any, item: PendingItem, run: any, queue:
 
     let contactId = existingContact?.id ?? '';
     if (!existingContact) {
-      let profileCols: Record<string, unknown> = {};
-      let avatarUrl: string | null = null;
-      let contactName = phone;
-      try {
-        if (queue?.evo_url && queue?.evo_apikey) {
-          const profile = await fetchWhatsappProfile(queue as any, phone);
-          profileCols = profileToContactColumns(profile);
-          avatarUrl = profile.avatar ?? null;
-          contactName = profile.name ?? phone;
-        }
-      } catch { /* non-fatal */ }
-
       const { data: inserted, error: insErr } = await supabase.from('chat_contacts').insert({
-        client_id: clientId, phone, name: contactName, avatar: avatarUrl,
+        client_id: clientId, phone, name: phone, avatar: null,
         channel_type: 'whatsapp_uazapi',
         channel_source: queue?.id ?? run.queue_id,
         remote_jid: remoteJid, is_group: false,
-        history_backfilled: true, unread_count: 0, ...profileCols,
+        history_backfilled: true, unread_count: 0,
       }).select('id').single();
       if (insErr || !inserted) {
         const { data: again } = await supabase.from('chat_contacts').select('id')
@@ -239,6 +235,23 @@ async function processOneItem(supabase: any, item: PendingItem, run: any, queue:
         contactId = again.id;
       } else {
         contactId = inserted.id; contactCreated = true;
+        // Enrich profile in background; does not block message insertion
+        if (queue?.evo_url && queue?.evo_apikey) {
+          const insertedId = inserted.id;
+          void (async () => {
+            try {
+              const profile = await fetchWhatsappProfile(queue as any, phone);
+              const cols = profileToContactColumns(profile);
+              const enriched: Record<string, unknown> = {};
+              if (profile.name) enriched.name = profile.name;
+              if (profile.avatar) enriched.avatar = profile.avatar;
+              Object.assign(enriched, cols);
+              if (Object.keys(enriched).length > 0) {
+                await getSupabase().from('chat_contacts').update(enriched).eq('id', insertedId);
+              }
+            } catch { /* non-fatal */ }
+          })();
+        }
       }
     }
 
@@ -263,6 +276,9 @@ async function processOneItem(supabase: any, item: PendingItem, run: any, queue:
     let latestPreview: string | null = existingContact?.last_message_text ?? null;
     let latestFromHistory = false;
 
+    // Build rows first (skip reactions), then batch insert
+    type MsgMeta = { row: Record<string, unknown>; isoTs: string; text: string | undefined; type: string; fileName?: string };
+    const rowsToInsert: MsgMeta[] = [];
     for (const msg of newMsgs) {
       const messageId: string = msg.key?.id ?? msg.id ?? msg.messageId ?? '';
       if (!messageId) continue;
@@ -273,28 +289,54 @@ async function processOneItem(supabase: any, item: PendingItem, run: any, queue:
       const mediaUrl = extractMediaUrl(msg);
       const pushName: string = msg.pushName ?? msg.senderName ?? '';
       const isoTs = toIso(msg.messageTimestamp ?? msg.timestamp) ?? new Date().toISOString();
-
-      const { error: msgErr } = await supabase.from('chat_messages').insert({
-        contact_id: contactId, conversation_id: conversationId, client_id: clientId,
-        message_id: messageId, external_id: messageId,
-        text: text ? toSafeString(text) : null, type, from_me: fromMe,
-        status: 'read', media_url: mediaUrl ?? null, timestamp: isoTs,
-        channel_type: 'whatsapp_uazapi',
-        sender_name: fromMe ? null : (pushName || null),
-        raw_payload: msg,
-        metadata: { source: 'uazapi_history_resume', run_id: run.id, history: true },
+      rowsToInsert.push({
+        row: {
+          contact_id: contactId, conversation_id: conversationId, client_id: clientId,
+          message_id: messageId, external_id: messageId,
+          text: text ? toSafeString(text) : null, type, from_me: fromMe,
+          status: 'read', media_url: mediaUrl ?? null, timestamp: isoTs,
+          channel_type: 'whatsapp_uazapi',
+          sender_name: fromMe ? null : (pushName || null),
+          raw_payload: msg,
+          metadata: { source: 'uazapi_history_resume', run_id: run.id, history: true },
+        },
+        isoTs, text, type,
+        fileName: msg.message?.documentMessage?.fileName || msg.fileName,
       });
-      if (!msgErr) {
-        chatInserted++;
-        if (!latestTs || isoTs > latestTs) {
-          latestTs = isoTs;
-          latestPreview = buildPreview(text, type, msg.message?.documentMessage?.fileName || msg.fileName);
-          latestFromHistory = true;
+    }
+
+    const BATCH_SIZE = 100;
+    for (let bi = 0; bi < rowsToInsert.length; bi += BATCH_SIZE) {
+      const batch = rowsToInsert.slice(bi, bi + BATCH_SIZE);
+      const { error: batchErr } = await supabase.from('chat_messages').insert(batch.map((b) => b.row));
+      if (!batchErr) {
+        chatInserted += batch.length;
+        for (const { isoTs, text, type, fileName } of batch) {
+          if (!latestTs || isoTs > latestTs) {
+            latestTs = isoTs;
+            latestPreview = buildPreview(text, type, fileName);
+            latestFromHistory = true;
+          }
         }
-      } else if (msgErr.code === '23505' || msgErr.message?.includes('duplicate')) {
-        chatDuplicates++;
+      } else if (batchErr.code === '23505' || batchErr.message?.includes('duplicate')) {
+        // Fallback one-by-one to salvage non-duplicates in mixed batch
+        for (const { row, isoTs, text, type, fileName } of batch) {
+          const { error: e2 } = await supabase.from('chat_messages').insert(row);
+          if (!e2) {
+            chatInserted++;
+            if (!latestTs || isoTs > latestTs) {
+              latestTs = isoTs;
+              latestPreview = buildPreview(text, type, fileName);
+              latestFromHistory = true;
+            }
+          } else if (e2.code === '23505' || e2.message?.includes('duplicate')) {
+            chatDuplicates++;
+          } else {
+            chatError = e2.message;
+          }
+        }
       } else {
-        chatError = msgErr.message;
+        chatError = batchErr.message;
       }
     }
 
@@ -434,7 +476,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    let max = 5;
+    let max = 25;
     let force = false;
     if (req.method === 'POST') {
       try {

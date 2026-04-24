@@ -242,7 +242,15 @@ async function processRun(runId: string, payload: any): Promise<void> {
         const bTs = toIso(b.messageTimestamp ?? b.timestamp) ?? '';
         return aTs.localeCompare(bTs);
       });
-      const candidateIds = sortedMsgs
+      // Incremental reconnect: skip messages older than last known timestamp
+      const sinceIso = existingContact?.last_message_at ?? null;
+      const filteredMsgs = sinceIso
+        ? sortedMsgs.filter((m) => {
+            const ts = toIso(m.messageTimestamp ?? m.timestamp);
+            return ts ? ts > sinceIso : true;
+          })
+        : sortedMsgs;
+      const candidateIds = filteredMsgs
         .map((m) => m.key?.id ?? m.id ?? m.messageId ?? '')
         .filter(Boolean);
 
@@ -259,7 +267,7 @@ async function processRun(runId: string, payload: any): Promise<void> {
         }
       }
 
-      const newMsgs = sortedMsgs.filter((m) => {
+      const newMsgs = filteredMsgs.filter((m) => {
         const mid = m.key?.id ?? m.id ?? m.messageId ?? '';
         return mid && !existingIds.has(mid);
       });
@@ -281,32 +289,19 @@ async function processRun(runId: string, payload: any): Promise<void> {
       // ── Resolve contact_id (only insert if missing) ──
       let contactId = existingContact?.id ?? '';
       if (!existingContact) {
-        let profileCols: Record<string, unknown> = {};
-        let avatarUrl: string | null = null;
-        let contactName = phone;
-        try {
-          if (queue?.evo_url && queue?.evo_apikey) {
-            const profile = await fetchWhatsappProfile(queue as any, phone);
-            profileCols = profileToContactColumns(profile);
-            avatarUrl = profile.avatar ?? null;
-            contactName = profile.name ?? phone;
-          }
-        } catch { /* non-fatal */ }
-
         const { data: inserted, error: insErr } = await supabase
           .from('chat_contacts')
           .insert({
             client_id: clientId,
             phone,
-            name: contactName,
-            avatar: avatarUrl,
+            name: phone,
+            avatar: null,
             channel_type: 'whatsapp_uazapi',
             channel_source: queue?.id ?? (run as any).queue_id,
             remote_jid: remoteJid,
             is_group: false,
             history_backfilled: true,
             unread_count: 0,
-            ...profileCols,
           })
           .select('id')
           .single();
@@ -324,6 +319,23 @@ async function processRun(runId: string, payload: any): Promise<void> {
           contactId = inserted.id;
           contactCreated = true;
           totalContactsCreated++;
+          // Enrich profile in background; does not block message insertion
+          if (queue?.evo_url && queue?.evo_apikey) {
+            const insertedId = inserted.id;
+            void (async () => {
+              try {
+                const profile = await fetchWhatsappProfile(queue as any, phone);
+                const cols = profileToContactColumns(profile);
+                const enriched: Record<string, unknown> = {};
+                if (profile.name) enriched.name = profile.name;
+                if (profile.avatar) enriched.avatar = profile.avatar;
+                Object.assign(enriched, cols);
+                if (Object.keys(enriched).length > 0) {
+                  await getSupabase().from('chat_contacts').update(enriched).eq('id', insertedId);
+                }
+              } catch { /* non-fatal */ }
+            })();
+          }
         }
       }
 
@@ -366,50 +378,70 @@ async function processRun(runId: string, payload: any): Promise<void> {
       let latestPreview: string | null = existingContact?.last_message_text ?? null;
       let latestFromHistory = false;
 
+      // Build rows first (skip reactions), then batch insert
+      type MsgMeta = { row: Record<string, unknown>; isoTs: string; text: string | undefined; type: string; fileName?: string };
+      const rowsToInsert: MsgMeta[] = [];
       for (const msg of newMsgs) {
         const messageId: string = msg.key?.id ?? msg.id ?? msg.messageId ?? '';
         if (!messageId) continue;
         const fromMe: boolean = msg.key?.fromMe ?? msg.fromMe ?? msg.from_me ?? false;
         const text = extractText(msg);
         const type = extractType(msg);
-        if (type === 'reaction') continue; // skip reactions in history
+        if (type === 'reaction') continue;
         const mediaUrl = extractMediaUrl(msg);
         const pushName: string = msg.pushName ?? msg.senderName ?? '';
         const isoTs = toIso(msg.messageTimestamp ?? msg.timestamp) ?? new Date().toISOString();
-
-        const { error: msgErr } = await supabase
-          .from('chat_messages')
-          .insert({
-            contact_id: contactId,
-            conversation_id: conversationId,
-            client_id: clientId,
-            message_id: messageId,
-            external_id: messageId,
-            text: text ? toSafeString(text) : null,
-            type,
-            from_me: fromMe,
-            // Use 'read' so the realtime listener never increments unread_count
-            status: 'read',
-            media_url: mediaUrl ?? null,
-            timestamp: isoTs,
+        rowsToInsert.push({
+          row: {
+            contact_id: contactId, conversation_id: conversationId, client_id: clientId,
+            message_id: messageId, external_id: messageId,
+            text: text ? toSafeString(text) : null, type, from_me: fromMe,
+            status: 'read', media_url: mediaUrl ?? null, timestamp: isoTs,
             channel_type: 'whatsapp_uazapi',
             sender_name: fromMe ? null : (pushName || null),
             raw_payload: msg,
             metadata: { source: 'uazapi_history', run_id: runId, history: true },
-          });
+          },
+          isoTs, text, type,
+          fileName: msg.message?.documentMessage?.fileName || msg.fileName,
+        });
+      }
 
-        if (!msgErr) {
-          chatInserted++;
-          if (!latestTs || isoTs > latestTs) {
-            latestTs = isoTs;
-            latestPreview = buildPreview(text, type, msg.message?.documentMessage?.fileName || msg.fileName);
-            latestFromHistory = true;
+      const BATCH_SIZE = 100;
+      for (let bi = 0; bi < rowsToInsert.length; bi += BATCH_SIZE) {
+        const batch = rowsToInsert.slice(bi, bi + BATCH_SIZE);
+        const { error: batchErr } = await supabase.from('chat_messages').insert(batch.map((b) => b.row));
+        if (!batchErr) {
+          chatInserted += batch.length;
+          for (const { isoTs, text, type, fileName } of batch) {
+            if (!latestTs || isoTs > latestTs) {
+              latestTs = isoTs;
+              latestPreview = buildPreview(text, type, fileName);
+              latestFromHistory = true;
+            }
           }
-        } else if (msgErr.code === '23505' || msgErr.message?.includes('duplicate')) {
-          chatDuplicates++;
+        } else if (batchErr.code === '23505' || batchErr.message?.includes('duplicate')) {
+          // Fallback one-by-one to salvage non-duplicates in mixed batch
+          for (const { row, isoTs, text, type, fileName } of batch) {
+            const { error: e2 } = await supabase.from('chat_messages').insert(row);
+            if (!e2) {
+              chatInserted++;
+              if (!latestTs || isoTs > latestTs) {
+                latestTs = isoTs;
+                latestPreview = buildPreview(text, type, fileName);
+                latestFromHistory = true;
+              }
+            } else if (e2.code === '23505' || e2.message?.includes('duplicate')) {
+              chatDuplicates++;
+            } else {
+              console.warn(`[uazapi-history-processor] insert failed phone=${phone} id=${(row as any).message_id}:`, e2.message);
+              chatError = e2.message;
+              hadErrors = true;
+            }
+          }
         } else {
-          console.warn(`[uazapi-history-processor] insert failed phone=${phone} id=${messageId}:`, msgErr.message);
-          chatError = msgErr.message;
+          console.warn(`[uazapi-history-processor] batch insert failed phone=${phone}:`, batchErr.message);
+          chatError = batchErr.message;
           hadErrors = true;
         }
       }

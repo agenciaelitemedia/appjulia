@@ -760,11 +760,8 @@ Deno.serve(async (req) => {
       console.log(`[uazapi-webhook] ${event} queue=${queue.name} count=${historyMsgsRaw.length}`);
 
       const runId = await enqueueHistoryRun(historyMsgsRaw, queue as any, event);
-      // NOTE: do NOT dispatch the processor inline. The bursty `messages:replay`
-      // events from UaZapi (40+ in seconds) saturate EdgeRuntime if processed
-      // in parallel. The `uazapi-history-resume` cron worker drains pending
-      // items in small batches every minute.
-
+      // Dispara processamento imediato (fire-and-forget); cron cobre eventuais falhas
+      if (runId) void dispatchHistoryProcessor(runId, { messages: historyMsgsRaw });
       return respond({ ok: true, event, queued: historyMsgsRaw.length, run_id: runId });
     }
 
@@ -783,7 +780,7 @@ Deno.serve(async (req) => {
     if (isHistoryReplay) {
       console.log(`[uazapi-chat-webhook] treating batch as history replay event=${event} count=${messages.length}`);
       const runId = await enqueueHistoryRun(messages, queue as any, `${event}:replay`);
-      // Do NOT dispatch — `uazapi-history-resume` cron will drain.
+      if (runId) void dispatchHistoryProcessor(runId, { messages });
       return respond({ ok: true, event, queued: messages.length, replay: true, run_id: runId });
     }
 
