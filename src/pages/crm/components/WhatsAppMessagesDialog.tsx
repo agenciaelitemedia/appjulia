@@ -831,7 +831,7 @@ export function WhatsAppMessagesDialog({
   const { data: contractInfo, isLoading: contractLoading } = useContractInfo(whatsappNumber, codAgent, open);
 
   // Connection origin: queue (azul) vs direct UaZapi (verde)
-  const { data: agentLink } = useAgentQueueLink(codAgent, open);
+  const { data: agentLink, isLoading: agentLinkLoading } = useAgentQueueLink(codAgent, open);
   const isViaQueue = agentLink?.source === 'queue';
   const avatarBg = isViaQueue ? 'bg-blue-600' : 'bg-green-600';
   const sourceLabel = isViaQueue
