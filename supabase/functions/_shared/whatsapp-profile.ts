@@ -52,6 +52,39 @@ function pickStr(...candidates: unknown[]): string | null {
 
 // ────────────────────── UaZapi ──────────────────────
 
+async function fetchUazapiGroupProfile(queue: QueueLike, groupJid: string): Promise<NormalizedProfile> {
+  const result = emptyProfile('uazapi');
+  result.isGroup = true;
+  if (!queue.evo_url || !queue.evo_apikey) return result;
+
+  const base = queue.evo_url.replace(/\/$/, '');
+  const headers = { 'Content-Type': 'application/json', token: queue.evo_apikey };
+
+  try {
+    const r = await fetch(`${base}/group/info`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ groupjid: groupJid, pictureUrl: true }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (r.ok) {
+      const data = await r.json();
+      const info = data?.group || data?.data || data || null;
+      if (info) {
+        result.name = pickStr(info.subject, info.name, info.groupName);
+        result.avatar = pickStr(info.pictureUrl, info.image, info.profilePictureUrl, info.imagePreview);
+        result.remoteJid = pickStr(info.groupjid, info.id, groupJid);
+        result.raw = info;
+      }
+    } else {
+      console.warn(`[whatsapp-profile][uazapi] /group/info HTTP ${r.status} jid=${groupJid}`);
+    }
+  } catch (e) {
+    console.warn(`[whatsapp-profile][uazapi] /group/info failed jid=${groupJid}: ${(e as Error).message}`);
+  }
+
+  return result;
+}
+
 async function fetchUazapiProfile(queue: QueueLike, phone: string): Promise<NormalizedProfile> {
   const result = emptyProfile('uazapi');
   if (!queue.evo_url || !queue.evo_apikey) return result;
@@ -165,7 +198,9 @@ export async function fetchWhatsappProfile(
 ): Promise<NormalizedProfile> {
   const ch = (queue.channel_type || '').toLowerCase();
   const isWaba = ch.includes('waba') || ch.includes('cloud') || (!queue.evo_url && !!queue.waba_token);
+  const isGroupJid = typeof phone === 'string' && phone.includes('@g.us');
   try {
+    if (isGroupJid && !isWaba) return await fetchUazapiGroupProfile(queue, phone);
     return isWaba ? await fetchWabaProfile(queue, phone) : await fetchUazapiProfile(queue, phone);
   } catch (e) {
     console.warn(`[whatsapp-profile] unexpected error phone=${phone}: ${(e as Error).message}`);
