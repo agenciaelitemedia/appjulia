@@ -107,3 +107,27 @@ export function useUazapiHistoryPending() {
     refetchInterval: 5000,
   });
 }
+
+export interface UazapiQueueOption {
+  id: string;
+  name: string;
+  client_id: string;
+  evo_instance: string | null;
+}
+
+export function useUazapiQueues() {
+  return useQuery<UazapiQueueOption[]>({
+    queryKey: ['uazapi-queues-active'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('queues')
+        .select('id, name, client_id, evo_instance')
+        .eq('channel_type', 'uazapi')
+        .eq('is_active', true)
+        .eq('is_deleted', false)
+        .order('name', { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as UazapiQueueOption[];
+    },
+  });
+}
