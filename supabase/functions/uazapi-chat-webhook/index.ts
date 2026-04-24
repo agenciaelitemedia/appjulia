@@ -305,7 +305,11 @@ async function enqueueHistoryRun(
 async function dispatchHistoryProcessor(runId: string, payload: unknown): Promise<void> {
   try {
     const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/uazapi-history-processor`;
-    await fetch(url, {
+    // Fire-and-forget: do NOT await the body. The processor uses
+    // EdgeRuntime.waitUntil internally, so as soon as it returns 200 we are done.
+    // Awaiting the full response here was causing the webhook to time out before
+    // the processor finished, leaving runs stuck in "running".
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -313,6 +317,8 @@ async function dispatchHistoryProcessor(runId: string, payload: unknown): Promis
       },
       body: JSON.stringify({ run_id: runId, payload }),
     });
+    // Drain body to release the connection but ignore content.
+    try { await res.text(); } catch { /* ignore */ }
   } catch (e) {
     console.warn('[uazapi-history-queue] dispatch failed:', (e as Error).message);
   }
