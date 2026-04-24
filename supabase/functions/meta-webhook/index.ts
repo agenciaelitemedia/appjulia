@@ -520,25 +520,7 @@ serve(async (req) => {
             const msgText = message.text?.body || message.type || 'unknown';
             const msgType = message.type || 'text';
 
-            // ── Anti-echo filter: discard ONLY when sender's number matches
-            //    another active queue of the same client (true cross-instance
-            //    echo) AND the sender is not already a known contact.
-            if (agentInfo?.client_id) {
-              const fromDigits = String(from).replace(/\D/g, '');
-              const ownNumbers = await getOwnNumbersForClient(String(agentInfo.client_id));
-              const match = ownNumbers.get(fromDigits);
-              const sameQueue = match && queueInfo && match.queueId === queueInfo.id;
-              if (match && !sameQueue) {
-                // Safety net: if we already track this number as a customer
-                // contact, treat it as legit (avoid false positives).
-                const known = await isKnownContact(String(agentInfo.client_id), fromDigits);
-                if (!known) {
-                  console.log(`[meta-webhook] skip self-conversation phone=${fromDigits} client=${agentInfo.client_id} senderQueue=${match.queueId}/${match.channelType} currentQueue=${queueInfo?.id || 'none'}`);
-                  continue;
-                }
-                console.log(`[meta-webhook] anti-echo bypassed (known contact) phone=${fromDigits} client=${agentInfo.client_id}`);
-              }
-            }
+            // Anti-echo filter removido (causava falsos positivos).
 
             // Extract contact name
             const contacts = value.contacts || [];
