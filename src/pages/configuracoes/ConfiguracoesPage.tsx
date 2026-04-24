@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Plus, Loader2, Network, Bot, MessageSquare, History, Trash2 } from 'lucide-react';
+import { Plus, Loader2, Network, Bot, MessageSquare, History, Trash2, Activity } from 'lucide-react';
 import { AIModelsConfig } from './components/AIModelsConfig';
 import { ChatSettingsTab } from './components/ChatSettingsTab';
 import { UazapiHistoryTab } from './components/UazapiHistoryTab';
+import { UazapiMonitorTab } from './components/UazapiMonitorTab';
 import { useQueueProviders, useQueueProviderMutations, type QueueProvider } from './hooks/useQueueProviders';
 import { ProviderCard } from './components/ProviderCard';
 import { ProviderFormDialog } from './components/ProviderFormDialog';
@@ -85,6 +86,10 @@ export default function ConfiguracoesPage() {
             <History className="w-4 h-4" />
             History UaZapi
           </TabsTrigger>
+          <TabsTrigger value="uazapi-monitor" className="gap-2">
+            <Activity className="w-4 h-4" />
+            Monitor da Fila
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="providers" className="mt-6 space-y-4">
@@ -140,6 +145,10 @@ export default function ConfiguracoesPage() {
 
         <TabsContent value="uazapi-history" className="mt-6">
           <UazapiHistoryTab />
+        </TabsContent>
+
+        <TabsContent value="uazapi-monitor" className="mt-6">
+          <UazapiMonitorTab />
         </TabsContent>
       </Tabs>
 
