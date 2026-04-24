@@ -4,9 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, History, Eye, CheckCircle2, AlertCircle, MinusCircle, Clock, XCircle, Ban, PlayCircle, AlertTriangle } from 'lucide-react';
+import { Loader2, History, Eye, CheckCircle2, AlertCircle, MinusCircle, Clock, XCircle, Ban, PlayCircle, AlertTriangle, Zap, Activity, Gauge } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useUazapiHistoryRuns, useUazapiHistoryItems, useUazapiHistoryPending, useUazapiQueues, type UazapiHistoryRun } from '../hooks/useUazapiHistoryRuns';
+import { useUazapiHistoryRuns, useUazapiHistoryItems, useUazapiHistoryPending, useUazapiQueues, useDispatcherHealth, useUazapiPendingByClient, type UazapiHistoryRun } from '../hooks/useUazapiHistoryRuns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
@@ -146,9 +146,12 @@ export function UazapiHistoryTab() {
   const { data: runs = [], isLoading } = useUazapiHistoryRuns();
   const { data: pending } = useUazapiHistoryPending();
   const { data: queues = [] } = useUazapiQueues();
+  const { data: dispatcher } = useDispatcherHealth();
+  const { data: pendingByClient = [] } = useUazapiPendingByClient();
   const queryClient = useQueryClient();
   const [resuming, setResuming] = useState(false);
   const [resyncing, setResyncing] = useState(false);
+  const [restartingDispatcher, setRestartingDispatcher] = useState(false);
   const [resyncQueueId, setResyncQueueId] = useState<string>('');
   const [selected, setSelected] = useState<UazapiHistoryRun | null>(null);
   const [open, setOpen] = useState(false);
@@ -157,7 +160,7 @@ export function UazapiHistoryTab() {
     setResuming(true);
     try {
       const { data, error } = await supabase.functions.invoke('uazapi-history-resume', {
-        body: { force: true, max_items: 25 },
+        body: { force: true, batch_size: 100, max_total: 1000 },
       });
       if (error) throw error;
       const inserted = (data as any)?.inserted ?? 0;
@@ -169,6 +172,25 @@ export function UazapiHistoryTab() {
       toast.error(`Falha ao reprocessar: ${(err as Error).message}`);
     } finally {
       setResuming(false);
+    }
+  };
+
+  const handleRestartDispatcher = async () => {
+    setRestartingDispatcher(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('uazapi-history-dispatcher', {
+        body: { action: 'tick' },
+      });
+      if (error) throw error;
+      const fired = (data as any)?.fired ?? 0;
+      const pendingNow = (data as any)?.pending ?? 0;
+      toast.success(`Dispatcher acionado: ${fired} worker(s) em paralelo · ${pendingNow.toLocaleString('pt-BR')} pendentes.`);
+      queryClient.invalidateQueries({ queryKey: ['uazapi-dispatcher-heartbeat'] });
+      queryClient.invalidateQueries({ queryKey: ['uazapi-history-pending'] });
+    } catch (err) {
+      toast.error(`Falha ao acionar dispatcher: ${(err as Error).message}`);
+    } finally {
+      setRestartingDispatcher(false);
     }
   };
 
@@ -284,6 +306,65 @@ export function UazapiHistoryTab() {
             {resuming ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
             Reprocessar pendentes
           </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleRestartDispatcher}
+            disabled={restartingDispatcher}
+            className="gap-2"
+            title="Aciona o dispatcher para disparar workers em paralelo agora"
+          >
+            {restartingDispatcher ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+            Drenagem turbo
+          </Button>
+        </div>
+      </div>
+
+      {/* Dispatcher health card */}
+      <div className={`flex items-center gap-3 rounded-lg border p-3 ${
+        !dispatcher
+          ? 'border-muted bg-muted/30'
+          : dispatcher.is_offline
+            ? 'border-red-500/30 bg-red-500/10'
+            : dispatcher.is_warning
+              ? 'border-amber-500/30 bg-amber-500/10'
+              : 'border-green-500/30 bg-green-500/10'
+      }`}>
+        <Activity className={`h-5 w-5 shrink-0 ${
+          !dispatcher ? 'text-muted-foreground' :
+          dispatcher.is_offline ? 'text-red-600' :
+          dispatcher.is_warning ? 'text-amber-600' : 'text-green-600'
+        } ${dispatcher?.is_healthy && (dispatcher?.workers_active ?? 0) > 0 ? 'animate-pulse' : ''}`} />
+        <div className="flex-1 text-sm">
+          <div className="flex items-center gap-2 flex-wrap">
+            <strong className={
+              !dispatcher ? 'text-muted-foreground' :
+              dispatcher.is_offline ? 'text-red-700' :
+              dispatcher.is_warning ? 'text-amber-700' : 'text-green-700'
+            }>
+              {!dispatcher ? 'Dispatcher: aguardando primeiro heartbeat' :
+                dispatcher.is_offline ? 'Dispatcher OFFLINE' :
+                dispatcher.is_warning ? 'Dispatcher com atraso' : 'Dispatcher saudável'}
+            </strong>
+            {dispatcher && (
+              <>
+                <Badge variant="outline" className="gap-1">
+                  <Gauge className="h-3 w-3" />
+                  {dispatcher.workers_active}/{dispatcher.workers_max} workers
+                </Badge>
+                <Badge variant="outline" className="gap-1">
+                  {dispatcher.items_per_min.toLocaleString('pt-BR')} items/min
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  · último heartbeat há {dispatcher.seconds_since_heartbeat}s
+                </span>
+              </>
+            )}
+          </div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            Pipeline push-based: até 10 workers em paralelo, lotes de 50, drena ~5.000 items/min em pico.
+            {dispatcher?.is_offline && ' Clique em "Drenagem turbo" para reativar.'}
+          </div>
         </div>
       </div>
 
@@ -295,7 +376,7 @@ export function UazapiHistoryTab() {
             <div className="text-muted-foreground mt-0.5">
               A UaZapi só envia histórico quando a sessão (re)conecta após estar desconectada.
               Use <strong>Forçar resync de histórico</strong> acima para que ela reenvie o burst de mensagens.
-              Em seguida o cron drena os items em lotes de 5/min sem saturar o servidor.
+              Em seguida o dispatcher drena automaticamente em até 5.000 items/min.
             </div>
           </div>
         </div>
@@ -311,9 +392,21 @@ export function UazapiHistoryTab() {
                 {' '}· mais antigo desde {format(new Date(pending.oldest_pending_at), "dd/MM HH:mm:ss", { locale: ptBR })}
               </span>
             )}
+            {dispatcher && dispatcher.items_per_min > 0 && (
+              <span className="text-muted-foreground">
+                {' '}· ETA ~{Math.max(1, Math.ceil(pending.pending / dispatcher.items_per_min))} min
+              </span>
+            )}
             <div className="text-xs text-muted-foreground mt-0.5">
-              O worker automático drena 5 itens por minuto. Use o botão para forçar uma rodada maior agora.
+              O dispatcher escala workers automaticamente conforme o backlog. Use <strong>Drenagem turbo</strong> para forçar agora.
             </div>
+            {pendingByClient.length > 1 && (
+              <div className="text-xs text-muted-foreground mt-1">
+                Distribuição: {pendingByClient.slice(0, 5).map((c) => (
+                  `${c.client_name || c.client_id}: ${c.pending_count.toLocaleString('pt-BR')}`
+                )).join(' · ')}
+              </div>
+            )}
           </div>
         </div>
       )}

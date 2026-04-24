@@ -131,3 +131,62 @@ export function useUazapiQueues() {
     },
   });
 }
+
+export interface DispatcherHealth {
+  id: string;
+  last_seen_at: string;
+  workers_active: number;
+  workers_max: number;
+  items_per_min: number;
+  total_processed_session: number;
+  started_at: string;
+  is_healthy: boolean;
+  is_warning: boolean;
+  is_offline: boolean;
+  seconds_since_heartbeat: number;
+}
+
+export function useDispatcherHealth() {
+  return useQuery<DispatcherHealth | null>({
+    queryKey: ['uazapi-dispatcher-heartbeat'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('dispatcher_heartbeat' as never)
+        .select('*')
+        .eq('id', 'uazapi-history-dispatcher')
+        .maybeSingle();
+      if (!data) return null;
+      const row = data as unknown as Omit<DispatcherHealth, 'is_healthy' | 'is_warning' | 'is_offline' | 'seconds_since_heartbeat'>;
+      const seconds = (Date.now() - new Date(row.last_seen_at).getTime()) / 1000;
+      return {
+        ...row,
+        seconds_since_heartbeat: Math.round(seconds),
+        is_healthy: seconds < 90,
+        is_warning: seconds >= 90 && seconds < 300,
+        is_offline: seconds >= 300,
+      };
+    },
+    refetchInterval: 5000,
+  });
+}
+
+export interface PendingByClient {
+  client_id: string;
+  client_name: string | null;
+  pending_count: number;
+  oldest_pending_at: string | null;
+}
+
+export function useUazapiPendingByClient() {
+  return useQuery<PendingByClient[]>({
+    queryKey: ['uazapi-history-pending-by-client'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('uazapi_history_pending_by_client' as never)
+        .select('*');
+      if (error) return [];
+      return (data ?? []) as unknown as PendingByClient[];
+    },
+    refetchInterval: 8000,
+  });
+}

@@ -410,23 +410,39 @@ async function finalizeRunIfDone(supabase: any, runId: string) {
   }).eq('id', runId);
 }
 
-async function drain(maxItems: number) {
+async function drainBatch(maxItems: number, workerId: number) {
   const supabase = getSupabase();
 
-  const { data: items, error } = await supabase
-    .from('uazapi_history_items')
-    .select('id, run_id, remote_jid, phone, payload, attempts')
-    .eq('status', 'pending')
-    .lt('attempts', 5)
-    .order('created_at', { ascending: true })
-    .limit(maxItems);
-
-  if (error) {
-    console.error('[uazapi-history-resume] fetch pending failed:', error.message);
-    return { picked: 0, processed: 0, inserted: 0 };
+  // Tenta usar SELECT FOR UPDATE SKIP LOCKED via RPC (suporta workers paralelos sem race)
+  let items: any[] | null = null;
+  let rpcFailed = false;
+  try {
+    const rpc = await supabase.rpc('uazapi_pick_pending_items', {
+      p_worker_id: workerId,
+      p_limit: maxItems,
+    });
+    if (rpc.error) rpcFailed = true;
+    else items = (rpc.data as any[]) ?? [];
+  } catch {
+    rpcFailed = true;
   }
 
-  const list = (items ?? []) as PendingItem[];
+  if (rpcFailed || !items) {
+    const fb = await supabase
+      .from('uazapi_history_items')
+      .select('id, run_id, remote_jid, phone, payload, attempts')
+      .eq('status', 'pending')
+      .lt('attempts', 5)
+      .order('created_at', { ascending: true })
+      .limit(maxItems);
+    if (fb.error) {
+      console.error('[uazapi-history-resume] fetch pending failed:', fb.error.message);
+      return { picked: 0, processed: 0, inserted: 0 };
+    }
+    items = fb.data ?? [];
+  }
+
+  const list = items as PendingItem[];
   if (list.length === 0) return { picked: 0, processed: 0, inserted: 0 };
 
   // Cache run + queue per run_id to avoid N round-trips
@@ -472,23 +488,57 @@ async function drain(maxItems: number) {
   return { picked: list.length, processed: list.length, inserted: totalInserted };
 }
 
+// Loop de drain: invoca drainBatch repetidamente até esgotar pendências,
+// ou estourar max_total, ou estourar loop_ms. Aproveita 25s de janela do EdgeRuntime.
+async function drainLoop(opts: { batchSize: number; maxTotal: number; loopMs: number; workerId: number }) {
+  const { batchSize, maxTotal, loopMs, workerId } = opts;
+  const t0 = Date.now();
+  let totalPicked = 0;
+  let totalInserted = 0;
+  let iterations = 0;
+
+  while (totalPicked < maxTotal && (Date.now() - t0) < loopMs) {
+    const r = await drainBatch(batchSize, workerId);
+    iterations++;
+    if (r.picked === 0) break; // nada mais para fazer
+    totalPicked += r.picked;
+    totalInserted += r.inserted;
+  }
+
+  return { picked: totalPicked, inserted: totalInserted, iterations, ms: Date.now() - t0 };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    let max = 25;
+    let batchSize = 50;
+    let maxTotal = 500;
+    let loopMs = 25000;
+    let workerId = 0;
     let force = false;
     if (req.method === 'POST') {
       try {
         const body = await req.json();
-        if (typeof body?.max_items === 'number') max = Math.max(1, Math.min(50, body.max_items));
+        if (typeof body?.batch_size === 'number') batchSize = Math.max(1, Math.min(100, body.batch_size));
+        if (typeof body?.max_total === 'number') maxTotal = Math.max(1, Math.min(2000, body.max_total));
+        if (typeof body?.loop_ms === 'number') loopMs = Math.max(1000, Math.min(50000, body.loop_ms));
+        if (typeof body?.worker_id === 'number') workerId = Math.max(0, Math.min(99, body.worker_id));
+        // legacy support
+        if (typeof body?.max_items === 'number') {
+          batchSize = Math.max(1, Math.min(100, body.max_items));
+          maxTotal = Math.max(maxTotal, body.max_items * 5);
+        }
         force = !!body?.force;
       } catch { /* empty body OK */ }
     }
-    // When `force=true` we drain a larger batch in one go (still bounded)
-    if (force) max = Math.max(max, 25);
+    if (force) {
+      // Force = single big sweep, push limits para drenar manualmente
+      batchSize = Math.max(batchSize, 100);
+      maxTotal = Math.max(maxTotal, 1000);
+    }
 
-    const result = await drain(max);
+    const result = await drainLoop({ batchSize, maxTotal, loopMs, workerId });
     return respond({ ok: true, ...result, force });
   } catch (err) {
     console.error('[uazapi-history-resume] error:', err);
