@@ -328,3 +328,71 @@ export function useUazapiThroughput(minutes = 30) {
     refetchInterval: 10000,
   });
 }
+
+// ============================================
+// Tempo médio de conclusão (created_at → processed_at)
+// Calcula sobre itens 'ok' processados na última hora
+// ============================================
+
+export interface CompletionTimeStats {
+  sample_size: number;
+  avg_seconds: number;
+  p50_seconds: number;
+  p95_seconds: number;
+  min_seconds: number;
+  max_seconds: number;
+  success_rate_pct: number;
+}
+
+export function useUazapiCompletionTime(minutes = 60) {
+  return useQuery<CompletionTimeStats>({
+    queryKey: ['uazapi-history-completion-time', minutes],
+    queryFn: async () => {
+      const sinceIso = new Date(Date.now() - minutes * 60 * 1000).toISOString();
+      const { data } = await supabase
+        .from('uazapi_history_items' as never)
+        .select('created_at, processed_at, status')
+        .in('status', ['ok', 'error'])
+        .gte('processed_at', sinceIso)
+        .limit(20000);
+
+      const rows = (data ?? []) as Array<{ created_at: string; processed_at: string | null; status: string }>;
+      const okRows = rows.filter((r) => r.status === 'ok' && r.processed_at);
+      const errRows = rows.filter((r) => r.status === 'error');
+      const total = okRows.length + errRows.length;
+      const successRate = total > 0 ? Math.round((okRows.length / total) * 1000) / 10 : 100;
+
+      if (okRows.length === 0) {
+        return {
+          sample_size: 0,
+          avg_seconds: 0,
+          p50_seconds: 0,
+          p95_seconds: 0,
+          min_seconds: 0,
+          max_seconds: 0,
+          success_rate_pct: successRate,
+        };
+      }
+
+      const durations = okRows
+        .map((r) => (new Date(r.processed_at!).getTime() - new Date(r.created_at).getTime()) / 1000)
+        .filter((d) => d >= 0 && d < 3600 * 24)
+        .sort((a, b) => a - b);
+
+      const avg = durations.reduce((s, d) => s + d, 0) / durations.length;
+      const p50 = durations[Math.floor(durations.length * 0.5)] ?? 0;
+      const p95 = durations[Math.floor(durations.length * 0.95)] ?? 0;
+
+      return {
+        sample_size: durations.length,
+        avg_seconds: Math.round(avg * 10) / 10,
+        p50_seconds: Math.round(p50 * 10) / 10,
+        p95_seconds: Math.round(p95 * 10) / 10,
+        min_seconds: Math.round(durations[0] * 10) / 10,
+        max_seconds: Math.round(durations[durations.length - 1] * 10) / 10,
+        success_rate_pct: successRate,
+      };
+    },
+    refetchInterval: 15000,
+  });
+}
