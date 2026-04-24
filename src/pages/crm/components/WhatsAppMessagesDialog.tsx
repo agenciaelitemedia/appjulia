@@ -1164,13 +1164,15 @@ export function WhatsAppMessagesDialog({
   // Load messages after credentials are loaded
   useEffect(() => {
     if (open && whatsappNumber && isConfigured) {
-      if (provider === 'waba') {
+      if (useDbSource) {
+        loadDbMessages().then(() => loadAndMergeNotes());
+      } else if (provider === 'waba') {
         loadWabaMessages().then(() => loadAndMergeNotes());
       } else if (client) {
         loadMessages().then(() => loadAndMergeNotes());
       }
     }
-  }, [open, whatsappNumber, client, isConfigured, provider]);
+  }, [open, whatsappNumber, client, isConfigured, provider, useDbSource]);
 
   // Scroll to bottom only on initial load
   useEffect(() => {
