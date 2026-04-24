@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -141,6 +141,41 @@ export function UazapiHistoryTab() {
   const [selected, setSelected] = useState<UazapiHistoryRun | null>(null);
   const [open, setOpen] = useState(false);
 
+  const stats = useMemo(() => {
+    const counts = { pending: 0, running: 0, done: 0, partial: 0, error: 0 };
+    let totalReceived = 0;
+    let totalInserted = 0;
+    let totalDuplicates = 0;
+    let totalGroups = 0;
+    let lastReceivedAt: string | null = null;
+    let lastFinishedAt: string | null = null;
+    let oldestRunningAt: string | null = null;
+    for (const r of runs) {
+      counts[r.status] = (counts[r.status] ?? 0) + 1;
+      totalReceived += r.total_messages || 0;
+      totalInserted += r.inserted_messages || 0;
+      totalDuplicates += r.duplicate_messages || 0;
+      totalGroups += r.group_messages || 0;
+      if (!lastReceivedAt || r.received_at > lastReceivedAt) lastReceivedAt = r.received_at;
+      if (r.finished_at && (!lastFinishedAt || r.finished_at > lastFinishedAt)) lastFinishedAt = r.finished_at;
+      if (r.status === 'running' && r.started_at) {
+        if (!oldestRunningAt || r.started_at < oldestRunningAt) oldestRunningAt = r.started_at;
+      }
+    }
+    return { counts, totalReceived, totalInserted, totalDuplicates, totalGroups, lastReceivedAt, lastFinishedAt, oldestRunningAt };
+  }, [runs]);
+
+  const fmtTs = (v: string | null) =>
+    v ? format(new Date(v), "dd/MM HH:mm:ss", { locale: ptBR }) : '—';
+
+  const statCards: Array<{ key: keyof typeof stats.counts; label: string; cls: string; icon: any; spin?: boolean }> = [
+    { key: 'pending', label: 'Aguardando', cls: 'bg-muted text-muted-foreground border-border', icon: Clock },
+    { key: 'running', label: 'Processando', cls: 'bg-blue-500/10 text-blue-600 border-blue-500/20', icon: Loader2, spin: true },
+    { key: 'done', label: 'Concluídos', cls: 'bg-green-500/10 text-green-600 border-green-500/20', icon: CheckCircle2 },
+    { key: 'partial', label: 'Parciais', cls: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20', icon: AlertCircle },
+    { key: 'error', label: 'Erros', cls: 'bg-red-500/10 text-red-600 border-red-500/20', icon: XCircle },
+  ];
+
   return (
     <div className="space-y-4">
       <div>
@@ -150,6 +185,46 @@ export function UazapiHistoryTab() {
           Apenas mensagens que ainda não existem são inseridas — grupos são sempre ignorados e nada é marcado como não lido.
         </p>
       </div>
+
+      {!isLoading && runs.length > 0 && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+            {statCards.map(({ key, label, cls, icon: Icon, spin }) => (
+              <div key={key} className={`border rounded-lg p-3 ${cls}`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium uppercase tracking-wide opacity-80">{label}</span>
+                  <Icon className={`h-3.5 w-3.5 ${spin && stats.counts[key] > 0 ? 'animate-spin' : ''}`} />
+                </div>
+                <div className="text-2xl font-bold mt-1">{stats.counts[key]}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="border rounded-lg p-3 bg-card">
+              <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Último recebido</div>
+              <div className="text-sm font-semibold mt-1 text-foreground">{fmtTs(stats.lastReceivedAt)}</div>
+            </div>
+            <div className="border rounded-lg p-3 bg-card">
+              <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Último concluído</div>
+              <div className="text-sm font-semibold mt-1 text-foreground">{fmtTs(stats.lastFinishedAt)}</div>
+            </div>
+            <div className="border rounded-lg p-3 bg-card">
+              <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Mais antigo em execução</div>
+              <div className="text-sm font-semibold mt-1 text-foreground">{fmtTs(stats.oldestRunningAt)}</div>
+            </div>
+            <div className="border rounded-lg p-3 bg-card">
+              <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Mensagens (recebidas / inseridas)</div>
+              <div className="text-sm font-semibold mt-1 text-foreground">
+                {stats.totalReceived.toLocaleString('pt-BR')} / <span className="text-green-600">{stats.totalInserted.toLocaleString('pt-BR')}</span>
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                {stats.totalDuplicates.toLocaleString('pt-BR')} duplicadas · {stats.totalGroups.toLocaleString('pt-BR')} grupos ignorados
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex items-center justify-center h-32">
