@@ -195,14 +195,21 @@ async function processRun(runId: string, payload: any): Promise<void> {
 
   const clientId = String((run as any).client_id);
 
-  // Group payload messages by remote_jid (skip groups defensively)
+  // Group payload messages by REAL phone (skip groups + LID defensively).
+  // We use resolvePeerPhone() so a LinkedID (@lid) chat identifier never
+  // becomes a fake 14-digit "phone".
   const rawMessages: any[] = Array.isArray(payload?.messages) ? payload.messages : [];
   const byChat = new Map<string, any[]>();
+  let totalSkippedLid = 0;
   for (const msg of rawMessages) {
-    const remoteJid: string = msg?.key?.remoteJid ?? msg?.remoteJid ?? msg?.chatId ?? msg?.chatid ?? '';
-    if (!remoteJid || isGroupMessage(msg) || isGroupJid(remoteJid)) continue;
-    if (!byChat.has(remoteJid)) byChat.set(remoteJid, []);
-    byChat.get(remoteJid)!.push(msg);
+    if (isGroupMessage(msg)) continue;
+    const phone = resolvePeerPhone(msg);
+    if (!phone) {
+      totalSkippedLid++;
+      continue;
+    }
+    if (!byChat.has(phone)) byChat.set(phone, []);
+    byChat.get(phone)!.push(msg);
   }
 
   let totalProcessed = 0;
@@ -211,9 +218,8 @@ async function processRun(runId: string, payload: any): Promise<void> {
   let totalContactsCreated = 0;
   let hadErrors = false;
 
-  for (const [remoteJid, msgs] of byChat) {
-    const phone = normalizePhone(remoteJid);
-    if (!phone) continue;
+  for (const [phone, msgs] of byChat) {
+    const remoteJid = `${phone}@s.whatsapp.net`;
 
     let chatInserted = 0;
     let chatDuplicates = 0;
