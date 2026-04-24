@@ -1,105 +1,31 @@
-## Plano: filtros pré-enqueue para eventos history (UaZapi)
+# Correção da lentidão na sincronização de mensagens
 
-Aplicar dois filtros no `uazapi-chat-webhook` **somente para eventos identificados como history** (replay/sync inicial), **antes de inserir** em `uazapi_history_items`. Eventos de mensagens em tempo real seguem inalterados.
+## Problema
+- 3.500+ itens travados em `pending`, throughput próximo de zero.
+- Workers bootando e dando shutdown em <1s sem processar.
+- Locks órfãos acumulando porque `uazapi_pick_pending_items` não muda status para `processing` — múltiplos workers competem pelo mesmo lote e os que perdem o `SKIP LOCKED` saem sem trabalho.
+- Filtro redundante no worker (`ts <= last_message_at`) descarta histórico válido como `skipped` e ainda apaga o `payload`, impedindo reprocessamento.
 
-### Local único de mudança
-`supabase/functions/uazapi-chat-webhook/index.ts` — função `enqueueHistoryRun()` (linhas ~258-336).
+## Correções
 
----
+### 1. Migration SQL — corrigir RPCs de lock
+- **`uazapi_pick_pending_items`**: passar a marcar `status = 'processing'` (em vez de manter `pending`) e exigir `worker_id IS NULL` no `WHERE`. Isso garante exclusão real entre workers concorrentes.
+- **`uazapi_release_stale_locks`**: liberar tanto `pending` com lock antigo quanto `processing` parado >2min, voltando para `pending` com `worker_id=NULL`.
+- Adicionar índice parcial `(status, created_at) WHERE status='pending' AND worker_id IS NULL` para acelerar o pick.
 
-### Filtro 1 — Grupos (reforço do existente)
+### 2. `supabase/functions/uazapi-history-resume/index.ts`
+- Remover o filtro `ts <= existingContact.last_message_at` que estava marcando histórico válido como `skipped` (a deduplicação real já é feita por `external_id`).
+- Ao marcar item como `skipped`/`error`, **não apagar o payload** — manter para auditoria/reprocesso.
+- Reduzir fan-out de `maybeRespawnSelf` de 4 para 1 e só respawnar se `pending > 100`.
+- Adicionar `UPDATE ... SET status='ok'` explícito no fim de `processOneItem` (necessário com a mudança do RPC).
 
-Hoje já há `if (isGroupMessage(msg) || remoteJid.includes('@g.us')) { groupMessages++; continue; }` no loop de agrupamento. Está correto e fica como está. Apenas:
+### 3. Recovery imediato (SQL data-only)
+- `UPDATE uazapi_history_items SET worker_id=NULL, locked_at=NULL, status='pending' WHERE status IN ('pending','processing') AND locked_at IS NOT NULL` — libera os 242 locks órfãos atuais.
+- Itens já `skipped` sem payload ficam como estão; backfill on-demand recria quando o usuário abrir a conversa.
 
-- Adicionar log resumido: `console.log('[history-enqueue] groups skipped: X / total: Y')` quando `groupMessages > 0`, para visibilidade.
-- Garantir que mensagens com `key.participant` preenchido (indicador forte de grupo mesmo sem `@g.us` no remoteJid) sejam descartadas — `isGroupMessage` já cobre isso.
+## Fora de escopo
+- Dispatcher (lógica de pool está correta).
+- Filtros de grupo/duplicata recém-implementados (funcionando).
 
-Custo: zero query, ~0ms. Continua eliminando 70-95% do volume típico de history.
-
----
-
-### Filtro 2 — Dedup por `external_id` contra `chat_messages`
-
-Após agrupar por chat e antes do `insert` em `uazapi_history_items`, fazer **um único SELECT em batch** para descobrir quais `external_id`s já existem.
-
-**Fluxo:**
-
-1. Coletar todos os `messageId` (= `msg.key?.id` ou `msg.messageid` ou `msg.id`) das mensagens já filtradas (sem grupos).
-2. Uma query:
-   ```sql
-   SELECT external_id
-   FROM chat_messages
-   WHERE client_id = $1
-     AND external_id = ANY($2)
-   ```
-   Usa o índice `idx_chat_messages_ext_lookup` (parcial em `external_id`).
-3. Construir `Set<string>` dos IDs já presentes.
-4. No loop de agrupamento, descartar mensagens cujo `messageId` está no Set. Contabilizar em novo campo `duplicate_messages` (já existe esquema com `duplicate_messages` em items — manter compatível adicionando contagem agregada no run).
-5. Se um chat fica com 0 mensagens após dedup, não enfileirar item daquele chat.
-6. Se todos os chats ficam vazios, marcar run como `done` direto (mesmo branch já existente quando `byChat.size === 0`).
-
-**Performance:** 1 SELECT por evento history (não por mensagem). Em batches de 200-1000 mensagens, custa <50ms. Índice cobre 100%.
-
-**Edge cases:**
-- Mensagens sem `messageId` (raras): não dá pra deduplicar — mantém no batch (comportamento atual).
-- Quando `external_id` veio de outra fila do mesmo cliente (cenário anti-eco): será detectado como duplicata e descartado — ganho extra grátis.
-
----
-
-### Métricas adicionadas em `uazapi_history_runs`
-
-Aproveitar campos já existentes (`group_messages`) e adicionar contagem de duplicados via update na inserção do run. Verificar se a coluna `duplicate_messages` existe no `uazapi_history_runs`; se não existir, adicionar via migração simples:
-
-```sql
-ALTER TABLE public.uazapi_history_runs
-  ADD COLUMN IF NOT EXISTS duplicate_messages integer NOT NULL DEFAULT 0;
-```
-
-Isso permite ver no painel de monitoramento quantas msgs foram cortadas como duplicata vs. grupo vs. processadas.
-
----
-
-### O que NÃO muda
-
-- `uazapi-history-resume` / `uazapi-history-processor`: nenhuma alteração. Continuam recebendo apenas itens "limpos".
-- `uazapi-history-dispatcher`: inalterado.
-- Webhook de mensagens em tempo real (`event === 'messages'` sem flag history): inalterado. Sem dedup extra, sem custo adicional.
-- `chat-webhook-dispatcher` (webhooks externos para Slack/Discord/etc): fora do escopo.
-
----
-
-### Ordem de execução final em `enqueueHistoryRun`
-
-```text
-1. Loop mensagens:
-   ├─ Skip se grupo (filtro 1, já existe)
-   └─ Coletar messageId em lista
-2. SELECT external_id batch em chat_messages (filtro 2, NOVO)
-3. Loop mensagens novamente (ou no mesmo loop em 2 passos):
-   ├─ Skip se duplicado (filtro 2)
-   └─ Agrupar por chat
-4. Insert run (com group_messages + duplicate_messages)
-5. Insert items (apenas chats com mensagens novas)
-```
-
----
-
-### Resultado esperado
-
-- **Volume enfileirado**: redução típica de 80-95% (grupos + reprocessamentos + ecos entre filas).
-- **Custo do worker pool** (`uazapi-history-resume`): cai proporcionalmente — menos download de mídia, menos upserts em `chat_contacts`, menos triggers de realtime.
-- **Tempo de drenagem do backlog**: eventos history grandes (1000+ msgs) processam em segundos em vez de minutos.
-
----
-
-### Detalhes técnicos
-
-**Arquivo único editado:** `supabase/functions/uazapi-chat-webhook/index.ts`
-
-**Migração:** 1 ALTER TABLE adicionando `duplicate_messages` em `uazapi_history_runs` (se ainda não existe).
-
-**Deploy:** apenas `uazapi-chat-webhook`.
-
-**Rollback:** trivial — remover o SELECT de dedup; comportamento volta ao atual.
-
-Confirma para implementar?
+## Resultado esperado
+Workers param de competir, locks param de acumular, throughput volta. Backlog de 3.5k deve drenar em <10min com 10 workers × 50 itens/lote.
