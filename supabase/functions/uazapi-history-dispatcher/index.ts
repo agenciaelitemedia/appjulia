@@ -19,6 +19,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
+declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void };
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -54,11 +56,35 @@ function respond(body: unknown, status = 200) {
   });
 }
 
-function pickFreeWorker(): number | null {
+function pickFreeWorker(busyIds: Set<number>): number | null {
   for (let i = 0; i < MAX_WORKERS; i++) {
-    if (!state.busy.has(i)) return i;
+    if (!busyIds.has(i) && !state.busy.has(i)) return i;
   }
   return null;
+}
+
+// Lê do DB quais worker_ids estão ativos (lock fresco < 30s).
+// Permite que o dispatcher saiba do pool real mesmo entre cold-starts.
+async function getActiveWorkerIds(): Promise<Set<number>> {
+  try {
+    const sb = getSb();
+    const sinceIso = new Date(Date.now() - 30_000).toISOString();
+    const { data } = await sb
+      .from('uazapi_history_items')
+      .select('worker_id')
+      .eq('status', 'pending')
+      .not('worker_id', 'is', null)
+      .gte('locked_at', sinceIso)
+      .limit(1000);
+    const set = new Set<number>();
+    for (const r of (data ?? []) as Array<{ worker_id: number | null }>) {
+      if (typeof r.worker_id === 'number') set.add(r.worker_id);
+    }
+    return set;
+  } catch (e) {
+    console.warn('[dispatcher] getActiveWorkerIds failed:', (e as Error).message);
+    return new Set();
+  }
 }
 
 async function invokeWorker(workerId: number) {
@@ -97,19 +123,52 @@ async function invokeWorker(workerId: number) {
 }
 
 async function ensurePool(pendingHint: number) {
-  // Decide quantos workers disparar com base no backlog
-  let target = 1;
-  if (pendingHint > 100) target = 3;
-  if (pendingHint > 1000) target = 6;
-  if (pendingHint > 5000) target = MAX_WORKERS;
+  // Pool agressivo: sempre tenta encher até MAX_WORKERS quando há backlog.
+  let target = MAX_WORKERS;
+  if (pendingHint < 100) target = 2;
+  else if (pendingHint < 500) target = 5;
+
+  // Slots já ocupados segundo o DB (workers vivos com lock fresco)
+  const dbBusy = await getActiveWorkerIds();
+  const totalBusy = dbBusy.size + state.busy.size;
+  const slotsAvailable = Math.max(0, target - totalBusy);
 
   const fired: Promise<unknown>[] = [];
-  for (let i = 0; i < target; i++) {
-    const wid = pickFreeWorker();
+  for (let i = 0; i < slotsAvailable; i++) {
+    const wid = pickFreeWorker(dbBusy);
     if (wid === null) break;
     fired.push(invokeWorker(wid));
   }
   return fired;
+}
+
+// Self-tick: agenda nova chamada do próprio dispatcher em ~10s para
+// repor pool sem esperar o cron de 60s. Só dispara se a instância ainda
+// estiver viva (waitUntil mantém o promise vivo).
+let selfTickScheduled = false;
+function scheduleSelfTick() {
+  if (selfTickScheduled) return;
+  selfTickScheduled = true;
+  const url = `${SUPABASE_URL}/functions/v1/uazapi-history-dispatcher`;
+  const p = new Promise<void>((resolve) => {
+    setTimeout(async () => {
+      try {
+        await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SERVICE_KEY}`,
+            'apikey': SERVICE_KEY,
+          },
+          body: JSON.stringify({ action: 'tick' }),
+        }).catch((e) => console.warn('[dispatcher] self-tick failed:', e?.message));
+      } finally {
+        selfTickScheduled = false;
+        resolve();
+      }
+    }, 10_000);
+  });
+  try { EdgeRuntime.waitUntil(p); } catch { /* ignore */ }
 }
 
 // Vazão real lida do DB: items com status='ok' processados no último minuto.
@@ -211,6 +270,9 @@ Deno.serve(async (req) => {
   Promise.allSettled(fired).then(async () => {
     await writeHeartbeat({ pending_after: await getPendingCount(), action: 'post-batch' });
   });
+
+  // Agenda self-tick em 10s para manter o pool cheio entre os cron heartbeats (60s)
+  scheduleSelfTick();
 
   const ipm = await itemsPerMin();
   return respond({
