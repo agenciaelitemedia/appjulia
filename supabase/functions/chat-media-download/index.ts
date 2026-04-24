@@ -166,7 +166,10 @@ Deno.serve(async (req) => {
 
       const mediaId = extractWabaMediaId(msg);
       if (!mediaId) {
-        return respond({ error: "WABA media_id not found in message" }, 400);
+        // No downloadable media on this message (e.g. text-only or log_outbound
+        // without media). Return existing media_url (may be null) without erroring
+        // so the client UI doesn't blow up.
+        return respond({ url: msg.media_url ?? null, cached: true, channel: "waba", noMedia: true });
       }
 
       // Call waba-send action download_media (returns base64 + mimetype)
