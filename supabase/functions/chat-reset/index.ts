@@ -187,6 +187,43 @@ serve(async (req) => {
             deleted[t] = await deleteAndCount(supabase, t, (q) => q.eq('client_id', clientId));
           }
         }
+
+        // --- Webhook tables (always cleaned, scoped to this client) ---
+        // 1) uazapi_history_items via run_id (no client_id column)
+        const { data: runs } = await supabase
+          .from('uazapi_history_runs')
+          .select('id')
+          .eq('client_id', clientId);
+        const runIds = (runs ?? []).map((r: any) => r.id);
+        if (runIds.length > 0) {
+          let total = 0;
+          for (let i = 0; i < runIds.length; i += 200) {
+            const slice = runIds.slice(i, i + 200);
+            total += await deleteAndCount(supabase, 'uazapi_history_items', (q) => q.in('run_id', slice));
+          }
+          deleted['uazapi_history_items'] = total;
+        } else {
+          deleted['uazapi_history_items'] = 0;
+        }
+        deleted['uazapi_history_runs'] = await deleteAndCount(supabase, 'uazapi_history_runs', (q) => q.eq('client_id', clientId));
+
+        // 2) chat_webhook_deliveries via webhook_id from chat_webhooks of this client
+        const { data: hooks } = await supabase
+          .from('chat_webhooks')
+          .select('id')
+          .eq('client_id', clientId);
+        const hookIds = (hooks ?? []).map((h: any) => h.id);
+        if (hookIds.length > 0) {
+          let total = 0;
+          for (let i = 0; i < hookIds.length; i += 200) {
+            const slice = hookIds.slice(i, i + 200);
+            total += await deleteAndCount(supabase, 'chat_webhook_deliveries', (q) => q.in('webhook_id', slice));
+          }
+          deleted['chat_webhook_deliveries'] = total;
+        } else {
+          deleted['chat_webhook_deliveries'] = 0;
+        }
+        deleted['chat_webhooks'] = await deleteAndCount(supabase, 'chat_webhooks', (q) => q.eq('client_id', clientId));
       }
 
       return new Response(JSON.stringify({ success: true, deleted, scope: clientId ?? 'all' }), {
