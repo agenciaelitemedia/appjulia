@@ -248,17 +248,58 @@ export function UazapiHistoryTab() {
             Apenas mensagens que ainda não existem são inseridas — grupos são sempre ignorados e nada é marcado como não lido.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleResume}
-          disabled={resuming}
-          className="shrink-0 gap-2"
-        >
-          {resuming ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-          Reprocessar pendentes
-        </Button>
+        <div className="shrink-0 flex flex-col items-end gap-2">
+          <div className="flex gap-2 items-center">
+            {queues.length > 1 && (
+              <Select value={resyncQueueId} onValueChange={setResyncQueueId}>
+                <SelectTrigger className="h-9 w-[220px]">
+                  <SelectValue placeholder="Selecione a fila..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {queues.map((q) => (
+                    <SelectItem key={q.id} value={q.id}>{q.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleForceResync}
+              disabled={resyncing || queues.length === 0}
+              className="gap-2"
+              title="Faz disconnect+connect na UaZapi para que ela reenvie o histórico"
+            >
+              {resyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Forçar resync de histórico
+            </Button>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleResume}
+            disabled={resuming}
+            className="gap-2"
+          >
+            {resuming ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+            Reprocessar pendentes
+          </Button>
+        </div>
       </div>
+
+      {!isLoading && runs.length === 0 && queues.length > 0 && (
+        <div className="flex items-start gap-3 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3">
+          <AlertCircle className="h-5 w-5 shrink-0 text-blue-600 mt-0.5" />
+          <div className="flex-1 text-sm">
+            <strong className="text-blue-700">Nenhum histórico recebido ainda.</strong>
+            <div className="text-muted-foreground mt-0.5">
+              A UaZapi só envia histórico quando a sessão (re)conecta após estar desconectada.
+              Use <strong>Forçar resync de histórico</strong> acima para que ela reenvie o burst de mensagens.
+              Em seguida o cron drena os items em lotes de 5/min sem saturar o servidor.
+            </div>
+          </div>
+        </div>
+      )}
 
       {pending && pending.pending > 0 && (
         <div className="flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
