@@ -142,8 +142,30 @@ function RunDetails({ run, open, onOpenChange }: {
 
 export function UazapiHistoryTab() {
   const { data: runs = [], isLoading } = useUazapiHistoryRuns();
+  const { data: pending } = useUazapiHistoryPending();
+  const queryClient = useQueryClient();
+  const [resuming, setResuming] = useState(false);
   const [selected, setSelected] = useState<UazapiHistoryRun | null>(null);
   const [open, setOpen] = useState(false);
+
+  const handleResume = async () => {
+    setResuming(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('uazapi-history-resume', {
+        body: { force: true, max_items: 25 },
+      });
+      if (error) throw error;
+      const inserted = (data as any)?.inserted ?? 0;
+      const picked = (data as any)?.picked ?? 0;
+      toast.success(`Reprocessamento disparado: ${picked} item(ns) processado(s), ${inserted} mensagem(ns) inserida(s).`);
+      queryClient.invalidateQueries({ queryKey: ['uazapi-history-pending'] });
+      queryClient.invalidateQueries({ queryKey: ['uazapi-history-runs'] });
+    } catch (err) {
+      toast.error(`Falha ao reprocessar: ${(err as Error).message}`);
+    } finally {
+      setResuming(false);
+    }
+  };
 
   const stats = useMemo(() => {
     const counts = { pending: 0, running: 0, done: 0, partial: 0, error: 0 };
