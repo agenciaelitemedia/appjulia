@@ -4647,6 +4647,7 @@ export type Database = {
       }
       uazapi_history_items: {
         Row: {
+          attempts: number
           contact_created: boolean
           conversation_created: boolean
           created_at: string
@@ -4654,6 +4655,8 @@ export type Database = {
           error: string | null
           id: string
           inserted_messages: number
+          last_attempt_at: string | null
+          payload: Json | null
           phone: string | null
           processed_at: string | null
           received_messages: number
@@ -4663,6 +4666,7 @@ export type Database = {
           status: string
         }
         Insert: {
+          attempts?: number
           contact_created?: boolean
           conversation_created?: boolean
           created_at?: string
@@ -4670,6 +4674,8 @@ export type Database = {
           error?: string | null
           id?: string
           inserted_messages?: number
+          last_attempt_at?: string | null
+          payload?: Json | null
           phone?: string | null
           processed_at?: string | null
           received_messages?: number
@@ -4679,6 +4685,7 @@ export type Database = {
           status?: string
         }
         Update: {
+          attempts?: number
           contact_created?: boolean
           conversation_created?: boolean
           created_at?: string
@@ -4686,6 +4693,8 @@ export type Database = {
           error?: string | null
           id?: string
           inserted_messages?: number
+          last_attempt_at?: string | null
+          payload?: Json | null
           phone?: string | null
           processed_at?: string | null
           received_messages?: number
