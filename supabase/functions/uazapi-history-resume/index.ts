@@ -588,19 +588,32 @@ async function maybeRespawnSelf(workerId: number, batchSize: number, maxTotal: n
       .from('uazapi_history_items')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending');
-    if ((count ?? 0) === 0) return;
+    const pending = count ?? 0;
+    if (pending === 0) return;
+
+    // Fan-out: quantos workers paralelos disparar como respawn.
+    // Mais pending = mais respawns (até 4 paralelos por worker, somando ao pool).
+    let fanOut = 1;
+    if (pending > 200) fanOut = 2;
+    if (pending > 1000) fanOut = 3;
+    if (pending > 3000) fanOut = 4;
 
     const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/uazapi-history-resume`;
-    const respawn = fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-        'apikey': Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-      },
-      body: JSON.stringify({ worker_id: workerId, batch_size: batchSize, max_total: maxTotal, loop_ms: loopMs }),
-    }).then((r) => r.text()).catch((e) => console.warn('[respawn] failed:', e?.message));
-    try { EdgeRuntime.waitUntil(respawn as Promise<unknown>); } catch { /* ignore */ }
+    const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    // Distribui respawns em worker_ids diferentes do atual (cobre 0..9)
+    for (let k = 0; k < fanOut; k++) {
+      const respawnWorkerId = (workerId + 1 + k) % 10;
+      const respawn = fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SERVICE_KEY}`,
+          'apikey': SERVICE_KEY,
+        },
+        body: JSON.stringify({ worker_id: respawnWorkerId, batch_size: batchSize, max_total: maxTotal, loop_ms: loopMs }),
+      }).then((r) => r.text()).catch((e) => console.warn('[respawn] failed:', e?.message));
+      try { EdgeRuntime.waitUntil(respawn as Promise<unknown>); } catch { /* ignore */ }
+    }
   } catch (e) {
     console.warn('[respawn] check failed:', (e as Error).message);
   }
