@@ -792,6 +792,8 @@ export function WhatsAppMessagesDialog({
   const isInitialLoad = useRef(true);
   const [provider, setProvider] = useState<WhatsAppProvider>('uazapi');
   const [agentInstance, setAgentInstance] = useState<string | null>(null);
+  // When source='queue' we read messages from chat_messages (DB) instead of UaZapi /message/find or webhook_logs
+  const [dbContactId, setDbContactId] = useState<string | null>(null);
   
   // Media download state
   const [downloadingMedia, setDownloadingMedia] = useState<Set<string>>(new Set());
@@ -833,6 +835,7 @@ export function WhatsAppMessagesDialog({
   // Connection origin: queue (azul) vs direct UaZapi (verde)
   const { data: agentLink, isLoading: agentLinkLoading } = useAgentQueueLink(codAgent, open);
   const isViaQueue = agentLink?.source === 'queue';
+  const useDbSource = isViaQueue; // queue vinculada → ler/escutar chat_messages
   const avatarBg = isViaQueue ? 'bg-blue-600' : 'bg-green-600';
   const sourceLabel = isViaQueue
     ? agentLink?.queueName
