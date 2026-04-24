@@ -216,6 +216,22 @@ export function UazapiHistoryTab() {
               <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Mais antigo em execução</div>
               <div className="text-sm font-semibold mt-1 text-foreground">{fmtTs(stats.oldestRunningAt)}</div>
             </div>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="border rounded-lg p-3 bg-orange-500/5 border-orange-500/20 cursor-help">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-medium uppercase tracking-wide text-orange-700">Descartadas (LID)</span>
+                      <Ban className="h-3.5 w-3.5 text-orange-600" />
+                    </div>
+                    <div className="text-2xl font-bold mt-1 text-orange-600">{stats.totalSkippedLid.toLocaleString('pt-BR')}</div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs">
+                  Mensagens recebidas sem número real do WhatsApp (identificador interno @lid). São ignoradas para evitar criar contatos sem telefone válido.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <div className="border rounded-lg p-3 bg-card">
               <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Mensagens (recebidas / inseridas)</div>
               <div className="text-sm font-semibold mt-1 text-foreground">
