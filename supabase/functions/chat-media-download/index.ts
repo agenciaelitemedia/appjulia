@@ -135,6 +135,17 @@ Deno.serve(async (req) => {
     // WABA branch
     // ============================================
     if (wabaMode) {
+      // If media_url is already a usable http(s) URL (not a waba_media:<id> placeholder),
+      // there is nothing to download — return it as-is. This covers outbound messages
+      // logged via log_outbound and any media already persisted by the sender.
+      if (
+        typeof msg.media_url === "string" &&
+        /^https?:\/\//i.test(msg.media_url) &&
+        !msg.media_url.startsWith("waba_media:")
+      ) {
+        return respond({ url: msg.media_url, cached: true, channel: "waba" });
+      }
+
       // Fallback: any WABA queue with credentials for this client
       if (!queue?.waba_token || !queue?.waba_number_id) {
         const { data } = await supabase
