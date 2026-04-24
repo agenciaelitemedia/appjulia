@@ -1693,7 +1693,44 @@ export function WhatsAppMessagesDialog({
 
     setLoadingMore(true);
     try {
-      if (provider === 'waba') {
+      if (useDbSource) {
+        // DB source (queue mode) — paginate chat_messages
+        if (!dbContactId) {
+          setHasMoreMessages(false);
+          return;
+        }
+        const { data: msgs, error } = await supabase
+          .from('chat_messages')
+          .select('*')
+          .eq('contact_id', dbContactId)
+          .order('timestamp', { ascending: false })
+          .range(currentOffset, currentOffset + 49);
+        if (error) throw error;
+
+        if (msgs && msgs.length > 0) {
+          const parsed = msgs.map(mapDbRowToMessage);
+          const scrollContainer = scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+          const previousScrollHeight = scrollContainer?.scrollHeight || 0;
+
+          setMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const newMessages = parsed.filter(m => !existingIds.has(m.id));
+            const combined = [...newMessages, ...prev];
+            combined.sort((a, b) => a.timestamp - b.timestamp);
+            return combined;
+          });
+          setTimeout(() => {
+            if (scrollContainer) {
+              const newScrollHeight = scrollContainer.scrollHeight;
+              scrollContainer.scrollTop = newScrollHeight - previousScrollHeight;
+            }
+          }, 50);
+          setCurrentOffset(prev => prev + 50);
+          setHasMoreMessages(msgs.length === 50);
+        } else {
+          setHasMoreMessages(false);
+        }
+      } else if (provider === 'waba') {
         // WABA: paginate from webhook_logs
         const cleanNumber = whatsappNumber.replace(/\D/g, '');
         const { data: logs, error } = await supabase
