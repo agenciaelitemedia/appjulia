@@ -1,120 +1,62 @@
 
 
-## Problema identificado
+## Diagnóstico: por que a sincronização da UaZapi parou pela metade
 
-**174 dos 309 contatos UaZapi (56%) foram criados com identificador LinkedID (`@lid`) ao invés do número real do WhatsApp.**
+Após você reconectar, o servidor UaZapi disparou **40 webhooks de `messages:replay` em ~10 segundos** (cada um com 200 mensagens). O frontend está vazio porque:
 
-Exemplo: contato `54014163079397` tem:
-- `phone = 54014163079397` (NÃO é telefone — é um LID interno do WhatsApp)
-- `remote_jid = 54014163079397@lid`
-- `name = 54014163079397` (sem nome real)
-- Mas no payload existe `sender_pn = 552120181195@s.whatsapp.net` (telefone real!)
+1. O webhook enfileira tudo corretamente — **40 runs** foram criados em `uazapi_history_runs`, com **888 items** em `uazapi_history_items`.
+2. O `uazapi-history-processor` é invocado **em paralelo (uma instância por run)**. Como cada invocação carrega 200 mensagens + abre conexões para 20–28 chats simultâneos, o EdgeRuntime satura, mata as instâncias e o processor abandona o trabalho **no meio do run**.
+3. Resultado: cada run termina com ~5–13 items `ok` e o restante fica eternamente `pending`. Os mais recentes nem chegaram a processar nada (`ok=0`).
+4. Não existe **retentativa** dos items `pending` — eles ficam órfãos e nada nunca é inserido em `chat_contacts`/`chat_messages` para esses chats.
 
-### Causa raiz
-
-Em `supabase/functions/uazapi-history-processor/index.ts` (linhas 154‑162), o agrupamento de mensagens é feito direto pelo `remoteJid` sem rejeitar `@lid`:
-
-```ts
-const remoteJid = msg?.key?.remoteJid ?? msg?.remoteJid ?? msg?.chatId ?? msg?.chatid ?? '';
-if (!remoteJid || isGroupMessage(msg) || isGroupJid(remoteJid)) continue; // ❌ não filtra @lid
-```
-
-Depois `normalizePhone(remoteJid)` produz um "telefone" de 14 dígitos a partir do LID, e o contato é inserido com esse lixo. O webhook em tempo real (`uazapi-chat-webhook`) JÁ filtra `@lid` corretamente (linha 890), mas o processor de histórico não — daí a divergência.
-
-Adicionalmente, o backfill (`uazapi-chat-backfill`) também usa `phone || chat_id` sem rejeitar `@lid`.
-
-### Regra que vamos aplicar
-
-Em **toda** ingestão de mensagem individual UaZapi:
-1. Rejeitar qualquer JID com `@lid` como fonte de telefone
-2. Resolver o número real na ordem: `sender_pn` → `chatid` (se for `@s.whatsapp.net` ou puro dígito) → demais campos não-LID
-3. Se nenhum candidato válido (8–13 dígitos, sem `@lid`/`@g.us`) for encontrado → **descartar a mensagem** e logar como `skipped.lid`
-4. Resolver o nome do lead via `pushName`/`senderName`/perfil UaZapi (`fetchWhatsappProfile`) — nunca usar o número como nome se houver alternativa real
-5. Aplicar a mesma regra para o `remote_jid` salvo: sempre `<phone>@s.whatsapp.net`, nunca `@lid`
-
-## Mudanças propostas
-
-### 1. `supabase/functions/uazapi-history-processor/index.ts`
-- Adicionar helpers `isLidJid()` e `resolvePeerPhone(msg)` (espelhando a lógica do webhook em tempo real)
-- Reescrever o agrupamento para usar `resolvePeerPhone` como chave canônica em vez de `remoteJid` cru
-- Descartar mensagens sem telefone válido (incrementar contador `skipped_lid` no run)
-- Ao criar contato: usar `<phone>@s.whatsapp.net` como `remote_jid` e tentar `pushName`/perfil para o `name`
-- Após o loop, sempre disparar enriquecimento de perfil (`fetchWhatsappProfile`) em background quando o nome ainda for igual ao telefone
-
-### 2. `supabase/functions/uazapi-chat-backfill/index.ts`
-- Em `senderPhone = normalizePhone(phone || chat_id)` adicionar rejeição de `@lid` e priorizar `phone` puro
-- Se o `chat_id` recebido for `@lid`, NÃO chamar `/message/find` (não há como, é fake) e marcar `history_backfilled=true` para encerrar
-
-### 3. `supabase/functions/uazapi-chat-webhook/index.ts`
-- Pequeno reforço: nunca gravar `remote_jid` contendo `@lid` no `chat_contacts` (linha 963) — sempre normalizar para `<senderPhone>@s.whatsapp.net`
-- Adicionar contador `skipped.lid` e log explícito
-
-### 4. Migração de saneamento (corrige os 174 contatos já estragados)
-Nova migração SQL que, para cada contato com `remote_jid LIKE '%@lid%'`:
-- Tenta extrair o telefone real a partir de `chat_messages.raw_payload->>'sender_pn'` (mais frequente desse contato)
-- **Se** existir um contato bom com esse telefone → mover mensagens para o contato bom e deletar o LID
-- **Se não** existir → atualizar o registro LID: `phone` = telefone real, `remote_jid` = `<phone>@s.whatsapp.net`, `name` = NULL (para enriquecimento posterior)
-- Disparar (via marcação `history_backfilled=false` + `profile_fetched_at=NULL`) o enriquecimento na próxima visita
-
-Os contatos que não tiverem nenhum `sender_pn` em nenhuma mensagem ficam com flag `metadata->>'needs_review' = 'lid_unresolved'` para auditoria manual (deve ser muito raro).
-
-### 5. UI — Aba "Histórico UaZapi" em /configuracoes
-- Adicionar novo card no painel: **"Mensagens descartadas (LID)"** com tooltip explicando "mensagens sem número real do WhatsApp"
-- Mostrar por run: `skipped_lid` (nova coluna em `uazapi_history_runs` e `uazapi_history_items`)
-
-## Detalhes técnicos
+Estado atual: **53 contatos** criados em `chat_contacts` para o cliente 30 (apenas dos items `ok`); **650 items pending** parados.
 
 ```text
-Payload UaZapi (history)
-        │
-        ▼
-┌──────────────────────────┐
-│ resolvePeerPhone(msg)    │
-│  1. msg.sender_pn  ───┐  │
-│  2. msg.chatid (não @lid)│
-│  3. msg.PhoneNumber  │   │
-│  4. msg.from/to (fromMe?)│
-│  └──> normalize 8-13d ◄──┘
-└──────────────────────────┘
-        │
-   válido? ──── não ──► skipped.lid++ (descarta)
-        │ sim
-        ▼
-   group by phone real → cria/atualiza contato com remote_jid=<phone>@s.whatsapp.net
+UaZapi reconecta
+   │
+   ▼  40 webhooks em rajada
+uazapi-chat-webhook ─┐
+   │                 │ enqueueHistoryRun ✅ (40 runs criados)
+   │                 └─ dispatchHistoryProcessor (40x em paralelo)
+   ▼
+uazapi-history-processor ✗ EdgeRuntime satura → instâncias morrem
+   │
+   ▼ items: 238 ok ✅, 650 pending 💀 (nunca retomados)
 ```
 
-Migração de saneamento (resumo):
-```sql
-ALTER TABLE uazapi_history_runs ADD COLUMN skipped_lid INT DEFAULT 0;
-ALTER TABLE uazapi_history_items ADD COLUMN skipped_lid INT DEFAULT 0;
+## Correções
 
-WITH lid_contacts AS (
-  SELECT cc.id, cc.client_id,
-         (SELECT regexp_replace(cm.raw_payload->>'sender_pn','\D','','g')
-            FROM chat_messages cm
-           WHERE cm.contact_id=cc.id
-             AND cm.raw_payload->>'sender_pn' ~ '^\d+@s\.whatsapp\.net'
-           GROUP BY cm.raw_payload->>'sender_pn'
-           ORDER BY count(*) DESC LIMIT 1) AS real_phone
-    FROM chat_contacts cc
-   WHERE cc.remote_jid LIKE '%@lid%'
-)
--- merge ou update conforme existir contato bom
-...
-```
+### 1. Worker de retomada (cron) para items `pending`
+Criar **`uazapi-history-resume`** edge function que:
+- Roda a cada 1 min via `pg_cron`
+- Pega items `status='pending'` mais antigos que 30s (lote de 5 por execução)
+- Reprocessa cada um chamando `/message/find` na UaZapi para o `remote_jid` daquele item, inserindo em `chat_messages` e `chat_contacts`
+- Atualiza item para `ok`/`error` e ajusta `processed_chats`/status do run pai (vira `done` ou `partial` quando tudo termina)
+
+### 2. Serializar dispatch no webhook
+Em `uazapi-chat-webhook` → `dispatchHistoryProcessor`:
+- Não disparar mais a fan-out paralela. Apenas **enfileirar** (já faz) e marcar `status='pending'`
+- O `uazapi-history-resume` (cron) faz todo o trabalho — webhook responde 200 em milissegundos sem invocar processor
+
+### 3. Reduzir lote do processor
+Quando o resume chamar o processor, passar **`max_items=5`** para evitar saturação. Processor processa, devolve, próximo tick continua.
+
+### 4. Botão "Reprocessar pendentes" na aba Histórico UaZapi
+Em `/configuracoes` aba **Histórico UaZapi**, botão que invoca manualmente `uazapi-history-resume` com `force=true` para destravar a fila imediatamente sem esperar o cron.
+
+### 5. Banner de pendência na aba Histórico UaZapi
+Mostrar no topo: `"⚠ X items aguardando processamento"` (count de `uazapi_history_items` com `status='pending'`), com data do mais antigo.
 
 ## Arquivos afetados
-- `supabase/functions/uazapi-history-processor/index.ts` (refactor + helpers)
-- `supabase/functions/uazapi-chat-backfill/index.ts` (rejeitar `@lid`)
-- `supabase/functions/uazapi-chat-webhook/index.ts` (hardening)
-- `supabase/functions/_shared/whatsapp-profile.ts` (sem mudança, apenas chamado mais vezes)
-- `supabase/migrations/<timestamp>_fix_lid_contacts.sql` (nova — saneamento + 2 colunas)
-- `src/pages/configuracoes/components/UazapiHistoryTab.tsx` (novo card "LID descartado")
-- `src/pages/configuracoes/hooks/useUazapiHistoryRuns.ts` (incluir `skipped_lid`)
-- `src/integrations/supabase/types.ts` (regenerado automaticamente)
+- `supabase/functions/uazapi-history-resume/index.ts` (novo — worker cron)
+- `supabase/functions/uazapi-history-processor/index.ts` (aceitar `max_items` e processar items pending por id)
+- `supabase/functions/uazapi-chat-webhook/index.ts` (parar de invocar processor diretamente — só enfileira)
+- `supabase/migrations/<ts>_history_resume_cron.sql` (pg_cron job a cada 1 min + grant)
+- `src/pages/configuracoes/components/UazapiHistoryTab.tsx` (banner + botão "Reprocessar pendentes")
+- `src/pages/configuracoes/hooks/useUazapiHistoryRuns.ts` (novo hook `useUazapiHistoryPending`)
 
 ## Resultado esperado
-- Nenhum novo contato será criado a partir de `@lid` — mensagens sem telefone real são descartadas e contabilizadas
-- Os 174 contatos LID atuais serão mesclados com seus equivalentes reais (ou corrigidos in‑place) e perfil reenriquecido
-- Painel de monitoramento ganha visibilidade da nova métrica
+- Os 650 items `pending` atuais serão drenados em ~10 min após o cron entrar em ação
+- Novas reconexões nunca mais saturarão: o webhook só enfileira, o cron drena no ritmo do EdgeRuntime
+- Painel mostra contagem viva de pendências e botão para forçar drain
 
