@@ -1148,12 +1148,15 @@ export function WhatsAppMessagesDialog({
     return `${cleaned}@s.whatsapp.net`;
   };
 
-  // Load agent credentials from view
+  // Load credentials (from queue when linked, otherwise from agent).
+  // Wait for the queue-link query to settle so we don't briefly use
+  // the wrong source when both could resolve.
   useEffect(() => {
-    if (open && codAgent) {
+    if (open && codAgent && !agentLinkLoading) {
       loadAgentCredentials();
     }
-  }, [open, codAgent]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, codAgent, agentLinkLoading, agentLink?.source, agentLink?.queueId]);
 
   // Load messages after credentials are loaded
   useEffect(() => {
