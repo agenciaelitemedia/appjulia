@@ -501,37 +501,59 @@ async function drainBatch(maxItems: number, workerId: number) {
   let totalInserted = 0;
   const touchedRuns = new Set<string>();
 
-  for (const item of list) {
-    let run = runCache.get(item.run_id);
-    if (!run) {
-      const { data } = await supabase.from('uazapi_history_runs').select('*').eq('id', item.run_id).single();
-      if (!data) continue;
-      run = data; runCache.set(item.run_id, run);
-    }
-    let queue = run.queue_id ? queueCache.get(run.queue_id) : null;
-    if (run.queue_id && !queue) {
-      const { data } = await supabase.from('queues')
+  // Pré-carrega runs e queues distintos do lote em paralelo (1 query cada)
+  const distinctRunIds = Array.from(new Set(list.map((i) => i.run_id)));
+  if (distinctRunIds.length > 0) {
+    const { data: runs } = await supabase
+      .from('uazapi_history_runs')
+      .select('*')
+      .in('id', distinctRunIds);
+    for (const r of runs ?? []) runCache.set(r.id, r);
+
+    const distinctQueueIds = Array.from(new Set((runs ?? []).map((r: any) => r.queue_id).filter(Boolean)));
+    if (distinctQueueIds.length > 0) {
+      const { data: queues } = await supabase.from('queues')
         .select('id, client_id, name, channel_type, evo_url, evo_apikey, evo_instance')
-        .eq('id', run.queue_id).maybeSingle();
-      queue = data; if (queue) queueCache.set(run.queue_id, queue);
+        .in('id', distinctQueueIds);
+      for (const q of queues ?? []) queueCache.set(q.id, q);
     }
 
-    // Mark run as running on first touch
-    if (run.status === 'pending') {
+    // Marca em massa runs pending → running (1 update só)
+    const pendingRunIds = (runs ?? []).filter((r: any) => r.status === 'pending').map((r: any) => r.id);
+    if (pendingRunIds.length > 0) {
       await supabase.from('uazapi_history_runs').update({
         status: 'running', started_at: new Date().toISOString(),
-      }).eq('id', run.id);
-      run.status = 'running';
+      }).in('id', pendingRunIds);
+      for (const id of pendingRunIds) {
+        const r = runCache.get(id); if (r) r.status = 'running';
+      }
     }
-
-    const r = await processOneItem(supabase, item, run, queue);
-    totalInserted += r.inserted;
-    touchedRuns.add(item.run_id);
   }
 
-  for (const runId of touchedRuns) {
-    await finalizeRunIfDone(supabase, runId);
+  // Processa items em chunks paralelos (concurrency 5)
+  const CONCURRENCY = 5;
+  for (let i = 0; i < list.length; i += CONCURRENCY) {
+    const chunk = list.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(chunk.map(async (item) => {
+      const run = runCache.get(item.run_id);
+      if (!run) return { inserted: 0, runId: item.run_id };
+      const queue = run.queue_id ? queueCache.get(run.queue_id) : null;
+      try {
+        const r = await processOneItem(supabase, item, run, queue);
+        return { inserted: r.inserted, runId: item.run_id };
+      } catch (e) {
+        console.warn('[uazapi-history-resume] chunk item failed:', (e as Error).message);
+        return { inserted: 0, runId: item.run_id };
+      }
+    }));
+    for (const r of results) {
+      totalInserted += r.inserted;
+      touchedRuns.add(r.runId);
+    }
   }
+
+  // Finalize coalescido: 1 query agregada para TODOS os runs tocados
+  await finalizeRunsCoalesced(supabase, Array.from(touchedRuns));
 
   console.log(`[uazapi-history-resume] picked=${list.length} inserted=${totalInserted} runs=${touchedRuns.size}`);
   return { picked: list.length, processed: list.length, inserted: totalInserted };
