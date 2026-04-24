@@ -224,6 +224,8 @@ async function persistToChat(
         .select('id, queue_id')
         .eq('contact_id', contactId)
         .eq('client_id', effectiveClientId)
+        .eq('queue_id', queueInfo.id)
+        .eq('channel', 'whatsapp_waba')
         .in('status', ['pending', 'open'])
         .order('created_at', { ascending: false })
         .limit(1)
