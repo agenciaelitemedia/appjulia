@@ -77,3 +77,33 @@ export function useUazapiHistoryItems(runId: string | null) {
     refetchInterval: 4000,
   });
 }
+
+export interface UazapiHistoryPending {
+  pending: number;
+  oldest_pending_at: string | null;
+}
+
+export function useUazapiHistoryPending() {
+  return useQuery<UazapiHistoryPending>({
+    queryKey: ['uazapi-history-pending'],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from('uazapi_history_items' as never)
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      let oldest: string | null = null;
+      if ((count ?? 0) > 0) {
+        const { data } = await supabase
+          .from('uazapi_history_items' as never)
+          .select('created_at')
+          .eq('status', 'pending')
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        oldest = (data as { created_at?: string } | null)?.created_at ?? null;
+      }
+      return { pending: count ?? 0, oldest_pending_at: oldest };
+    },
+    refetchInterval: 5000,
+  });
+}
