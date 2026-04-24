@@ -118,6 +118,56 @@ serve(async (req) => {
       });
     }
 
+    if (action === 'clear_storage') {
+      const bucket: string = body?.bucket || 'chat-media';
+      // Recursively list all files using storage list API
+      const allFiles: string[] = [];
+      async function walk(prefix: string) {
+        let offset = 0;
+        // page in groups of 1000
+        // deno-lint-ignore no-constant-condition
+        while (true) {
+          const { data, error } = await supabase.storage.from(bucket).list(prefix, {
+            limit: 1000,
+            offset,
+            sortBy: { column: 'name', order: 'asc' },
+          });
+          if (error) {
+            console.warn(`[clear_storage] list ${prefix} failed:`, error.message);
+            break;
+          }
+          if (!data || data.length === 0) break;
+          for (const item of data) {
+            const path = prefix ? `${prefix}/${item.name}` : item.name;
+            // Folders have id === null
+            if ((item as any).id === null) {
+              await walk(path);
+            } else {
+              allFiles.push(path);
+            }
+          }
+          if (data.length < 1000) break;
+          offset += 1000;
+        }
+      }
+      await walk('');
+
+      let deleted = 0;
+      const errors: string[] = [];
+      for (let i = 0; i < allFiles.length; i += 100) {
+        const slice = allFiles.slice(i, i + 100);
+        const { data, error } = await supabase.storage.from(bucket).remove(slice);
+        if (error) {
+          errors.push(error.message);
+        } else {
+          deleted += data?.length ?? 0;
+        }
+      }
+      return new Response(JSON.stringify({ success: true, bucket, total: allFiles.length, deleted, errors }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     if (action === 'reset') {
       const clientId: string | null = body?.client_id && body.client_id !== 'all' ? String(body.client_id) : null;
       const includeSync: boolean = !!body?.include_sync;
