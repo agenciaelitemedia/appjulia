@@ -218,6 +218,7 @@ async function persistToChat(
     }
 
     // 2. Ensure an open/pending conversation exists with the right queue_id
+    let conversationId: string | null = null;
     if (queueInfo) {
       const { data: openConv } = await supabase
         .from('chat_conversations')
@@ -232,7 +233,7 @@ async function persistToChat(
         .maybeSingle();
 
       if (!openConv) {
-        await supabase.from('chat_conversations').insert({
+        const { data: created } = await supabase.from('chat_conversations').insert({
           contact_id: contactId,
           client_id: effectiveClientId,
           queue_id: queueInfo.id,
@@ -240,16 +241,20 @@ async function persistToChat(
           status: 'pending',
           priority: 'normal',
           protocol: '',
-        });
+        }).select('id').maybeSingle();
+        conversationId = created?.id ?? null;
       } else if (!openConv.queue_id) {
         await supabase
           .from('chat_conversations')
           .update({ queue_id: queueInfo.id })
           .eq('id', openConv.id);
+        conversationId = openConv.id;
+      } else {
+        conversationId = openConv.id;
       }
     }
 
-    return await persistMessage(contactId, { ...agentInfo, client_id: effectiveClientId }, message, msgType);
+    return await persistMessage(contactId, { ...agentInfo, client_id: effectiveClientId }, message, msgType, conversationId);
   } catch (err) {
     console.error('[persistToChat] Exception:', err);
     return null;
@@ -261,6 +266,7 @@ async function persistMessage(
   agentInfo: { cod_agent: string; client_id: string },
   message: any,
   msgType: string,
+  conversationId: string | null = null,
 ) {
   const msgText = message.text?.body || message.caption || null;
   const externalId = message.id || null;
@@ -291,6 +297,7 @@ async function persistMessage(
     .insert({
       contact_id: contactId,
       client_id: agentInfo.client_id,
+      conversation_id: conversationId,
       external_id: externalId,
       message_id: externalId,
       text: msgText,
