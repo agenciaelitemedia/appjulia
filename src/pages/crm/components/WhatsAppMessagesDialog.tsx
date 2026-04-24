@@ -1174,6 +1174,40 @@ export function WhatsAppMessagesDialog({
     }
   }, [open, whatsappNumber, client, isConfigured, provider, useDbSource]);
 
+  // Realtime subscription on chat_messages — only when in queue (DB) mode
+  useEffect(() => {
+    if (!open || !useDbSource || !dbContactId) return;
+    const channel = supabase
+      .channel(`crm-popup-msgs-${dbContactId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `contact_id=eq.${dbContactId}` },
+        (payload) => {
+          const row: any = payload.new;
+          const incoming = mapDbRowToMessage(row);
+          setMessages(prev => {
+            if (prev.some(m => m.id === incoming.id)) return prev;
+            const combined = [...prev, incoming];
+            combined.sort((a, b) => a.timestamp - b.timestamp);
+            return combined;
+          });
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `contact_id=eq.${dbContactId}` },
+        (payload) => {
+          const row: any = payload.new;
+          const updated = mapDbRowToMessage(row);
+          setMessages(prev => prev.map(m => m.id === updated.id ? { ...m, ...updated } : m));
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [open, useDbSource, dbContactId]);
+
   // Scroll to bottom only on initial load
   useEffect(() => {
     if (scrollRef.current && isInitialLoad.current && messages.length > 0) {
