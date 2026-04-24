@@ -1004,6 +1004,14 @@ export function WhatsAppMessagesDialog({
 
       const ext = mimeType.includes('ogg') ? 'ogg' : 'webm';
 
+      if (useDbSource && agentLink?.queueId) {
+        // Linked-queue: route audio through the queue pipeline (UaZapi/WABA + chat_messages).
+        const audioFile = new File([blob], `audio.${ext}`, { type: mimeType });
+        await sendViaQueue({ kind: 'media', file: audioFile, mediaType: 'audio', isPtt: true });
+        toast.success('Áudio enviado');
+        return;
+      }
+
       if (provider === 'waba') {
         // Meta WABA não aceita audio/webm. Como o codec gravado é opus,
         // re-rotulamos como audio/ogg (container compatível com opus aceito pela Meta).
