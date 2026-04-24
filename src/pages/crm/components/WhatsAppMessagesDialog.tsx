@@ -1452,6 +1452,128 @@ export function WhatsAppMessagesDialog({
     }
   };
 
+  // ─────────────────────────────────────────────
+  // Map a chat_messages row → local Message
+  // ─────────────────────────────────────────────
+  const mapDbRowToMessage = (m: any): Message => {
+    const meta = (m.metadata && typeof m.metadata === 'object' && !Array.isArray(m.metadata))
+      ? m.metadata
+      : {};
+    const rawType = (m.type || 'text') as string;
+    const isPtt = rawType === 'ptt' || meta.is_ptt === true;
+    const mappedType: MessageType = (() => {
+      if (rawType === 'ptt') return 'audio';
+      if (rawType === 'reaction' || rawType === 'revoked') return 'unknown';
+      if ((['text','image','audio','video','document','sticker','location','contact'] as const).includes(rawType as any)) {
+        return rawType as MessageType;
+      }
+      return 'unknown';
+    })();
+    const isInternalNote = m.internal_note === true || meta.internal_note === true;
+    const tsRaw = m.timestamp || m.created_at;
+    const tsMs = tsRaw ? new Date(tsRaw).getTime() : Date.now();
+    return {
+      id: m.id,
+      text: m.text || meta.location_name || '',
+      fromMe: !!m.from_me,
+      timestamp: tsMs,
+      type: isInternalNote ? 'internal_note' : mappedType,
+      mediaUrl: m.media_url || undefined,
+      mimetype: meta.mimetype || undefined,
+      caption: m.caption || undefined,
+      fileName: m.file_name || undefined,
+      seconds: meta.duration || undefined,
+      ptt: isPtt || undefined,
+      thumbnail: meta.thumbnail || undefined,
+      latitude: meta.latitude || undefined,
+      longitude: meta.longitude || undefined,
+      quotedId: meta.quoted_message?.id,
+      quotedText: meta.quoted_message?.text,
+      quotedParticipant: meta.quoted_message?.sender_name,
+      authorName: m.sender_name || meta.sender_name || undefined,
+    };
+  };
+
+  // ─────────────────────────────────────────────
+  // Load messages from chat_messages (queue mode)
+  // Uses chat_contacts (client_id + phone) to resolve contact_id
+  // ─────────────────────────────────────────────
+  const loadDbMessages = async () => {
+    setLoading(true);
+    isInitialLoad.current = true;
+    setCurrentOffset(0);
+    setHasMoreMessages(true);
+
+    try {
+      const cleanNumber = whatsappNumber.replace(/\D/g, '');
+      const clientId = authUser?.client_id?.toString();
+      if (!clientId) {
+        setMessages([]);
+        setHasMoreMessages(false);
+        return;
+      }
+
+      // Resolve contact_id (try matches by phone for this client)
+      const { data: contactRows, error: contactErr } = await supabase
+        .from('chat_contacts')
+        .select('id, phone')
+        .eq('client_id', clientId)
+        .or(`phone.eq.${cleanNumber},phone.eq.+${cleanNumber}`)
+        .order('updated_at', { ascending: false })
+        .limit(5);
+
+      if (contactErr) throw contactErr;
+
+      // Fallback: also try last-4-digits match if no exact hit (handles 55/9 prefixes)
+      let contact = contactRows?.[0];
+      if (!contact && cleanNumber.length >= 8) {
+        const tail = cleanNumber.slice(-8);
+        const { data: fuzzy } = await supabase
+          .from('chat_contacts')
+          .select('id, phone')
+          .eq('client_id', clientId)
+          .like('phone', `%${tail}`)
+          .order('updated_at', { ascending: false })
+          .limit(1);
+        contact = fuzzy?.[0];
+      }
+
+      if (!contact) {
+        setDbContactId(null);
+        setMessages([]);
+        setHasMoreMessages(false);
+        return;
+      }
+
+      setDbContactId(contact.id);
+
+      const { data: msgs, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('contact_id', contact.id)
+        .order('timestamp', { ascending: false })
+        .range(0, 49);
+
+      if (error) throw error;
+
+      if (msgs && msgs.length > 0) {
+        const parsed = msgs.map(mapDbRowToMessage);
+        parsed.sort((a, b) => a.timestamp - b.timestamp);
+        setMessages(parsed);
+        setCurrentOffset(50);
+        setHasMoreMessages(msgs.length === 50);
+      } else {
+        setMessages([]);
+        setHasMoreMessages(false);
+      }
+    } catch (error: any) {
+      console.error('[CRM popup] Error loading DB messages:', error);
+      toast.error('Erro ao carregar mensagens');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const loadWabaMessages = async () => {
     setLoading(true);
     isInitialLoad.current = true;
