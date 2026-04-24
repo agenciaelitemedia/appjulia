@@ -410,23 +410,39 @@ async function finalizeRunIfDone(supabase: any, runId: string) {
   }).eq('id', runId);
 }
 
-async function drain(maxItems: number) {
+async function drainBatch(maxItems: number, workerId: number) {
   const supabase = getSupabase();
 
-  const { data: items, error } = await supabase
-    .from('uazapi_history_items')
-    .select('id, run_id, remote_jid, phone, payload, attempts')
-    .eq('status', 'pending')
-    .lt('attempts', 5)
-    .order('created_at', { ascending: true })
-    .limit(maxItems);
-
-  if (error) {
-    console.error('[uazapi-history-resume] fetch pending failed:', error.message);
-    return { picked: 0, processed: 0, inserted: 0 };
+  // Tenta usar SELECT FOR UPDATE SKIP LOCKED via RPC (suporta workers paralelos sem race)
+  let items: any[] | null = null;
+  let rpcFailed = false;
+  try {
+    const rpc = await supabase.rpc('uazapi_pick_pending_items', {
+      p_worker_id: workerId,
+      p_limit: maxItems,
+    });
+    if (rpc.error) rpcFailed = true;
+    else items = (rpc.data as any[]) ?? [];
+  } catch {
+    rpcFailed = true;
   }
 
-  const list = (items ?? []) as PendingItem[];
+  if (rpcFailed || !items) {
+    const fb = await supabase
+      .from('uazapi_history_items')
+      .select('id, run_id, remote_jid, phone, payload, attempts')
+      .eq('status', 'pending')
+      .lt('attempts', 5)
+      .order('created_at', { ascending: true })
+      .limit(maxItems);
+    if (fb.error) {
+      console.error('[uazapi-history-resume] fetch pending failed:', fb.error.message);
+      return { picked: 0, processed: 0, inserted: 0 };
+    }
+    items = fb.data ?? [];
+  }
+
+  const list = items as PendingItem[];
   if (list.length === 0) return { picked: 0, processed: 0, inserted: 0 };
 
   // Cache run + queue per run_id to avoid N round-trips
