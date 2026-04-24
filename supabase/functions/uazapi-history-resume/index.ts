@@ -199,14 +199,9 @@ async function processOneItem(supabase: any, item: PendingItem, run: any, queue:
         const bTs = toIso(b.messageTimestamp ?? b.timestamp) ?? '';
         return aTs.localeCompare(bTs);
       });
-    // Incremental reconnect: skip messages older than last known timestamp
-    const sinceIso = existingContact?.last_message_at ?? null;
-    const filteredMsgs = sinceIso
-      ? sortedMsgs.filter((m) => {
-          const ts = toIso(m.messageTimestamp ?? m.timestamp);
-          return ts ? ts > sinceIso : true;
-        })
-      : sortedMsgs;
+    // Dedup é feito por external_id (constraint do chat_messages) — não filtrar por timestamp,
+    // senão histórico legítimo entra como skipped e o payload é descartado.
+    const filteredMsgs = sortedMsgs;
     const candidateIds = filteredMsgs.map((m) => m.key?.id ?? m.id ?? m.messageId ?? '').filter(Boolean);
 
     const existingIds = new Set<string>();
@@ -362,8 +357,8 @@ async function processOneItem(supabase: any, item: PendingItem, run: any, queue:
       attempts: (item.attempts ?? 0) + 1,
       last_attempt_at: new Date().toISOString(),
       processed_at: new Date().toISOString(),
-      // free up payload to keep table small once successfully drained
-      payload: chatError ? item.payload : null,
+      // só limpa payload em sucesso real (ok). Em skipped/error mantém para reprocesso/auditoria.
+      payload: chatInserted > 0 && !chatError ? null : item.payload,
     }).eq('id', item.id);
 
     return { processed: 1, inserted: chatInserted, duplicates: chatDuplicates, contactCreated: contactCreated ? 1 : 0, error: !!chatError };
@@ -591,12 +586,10 @@ async function maybeRespawnSelf(workerId: number, batchSize: number, maxTotal: n
     const pending = count ?? 0;
     if (pending === 0) return;
 
-    // Fan-out: quantos workers paralelos disparar como respawn.
-    // Mais pending = mais respawns (até 4 paralelos por worker, somando ao pool).
-    let fanOut = 1;
-    if (pending > 200) fanOut = 2;
-    if (pending > 1000) fanOut = 3;
-    if (pending > 3000) fanOut = 4;
+    // Fan-out conservador: só respawna se houver backlog real (>100) e sempre 1 worker.
+    // Múltiplos respawns geravam timeouts em cascata e disputa de locks.
+    if (pending <= 100) return;
+    const fanOut = 1;
 
     const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/uazapi-history-resume`;
     const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
