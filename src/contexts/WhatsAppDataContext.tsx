@@ -859,7 +859,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           },
         });
         if (error) throw error;
-        if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : 'WABA send failed');
+        // Meta returns error in body even with HTTP 200 from edge function
+        if (data?.error) {
+          const metaErr = data.error?.error_user_msg
+            || data.error?.message
+            || (typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
+          throw new Error(`WABA: ${metaErr}`);
+        }
         externalMessageId = data?.messageId || data?.messages?.[0]?.id;
       } else {
         // UaZapi send via proxy with queue credentials
@@ -946,7 +952,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
     } catch (error) {
       console.error('Error sending message:', error);
-      toast.error('Erro ao enviar mensagem');
+      const msg = error instanceof Error ? error.message : 'Erro ao enviar mensagem';
+      toast.error(msg);
 
       setMessages(prev => ({
         ...prev,
