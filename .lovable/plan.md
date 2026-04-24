@@ -1,81 +1,105 @@
+## Plano: filtros pré-enqueue para eventos history (UaZapi)
 
+Aplicar dois filtros no `uazapi-chat-webhook` **somente para eventos identificados como history** (replay/sync inicial), **antes de inserir** em `uazapi_history_items`. Eventos de mensagens em tempo real seguem inalterados.
 
-## Plano final: filtro anti-eco entre filas do mesmo cliente, com auto-resolução de números
+### Local único de mudança
+`supabase/functions/uazapi-chat-webhook/index.ts` — função `enqueueHistoryRun()` (linhas ~258-336).
 
-### Comportamento confirmado
-- Contatos externos com mesmo telefone em filas diferentes continuam aparecendo como atendimentos separados (comportamento desejado)
-- Apenas mensagens entre **números do próprio cliente** (UaZapi ↔ WABA do mesmo `client_id`) são descartadas
-- **Nenhum input manual de número** — sempre auto-resolvido via API do provedor
+---
 
-### Auto-resolução de números
+### Filtro 1 — Grupos (reforço do existente)
 
-**WABA (Meta)**: chamar `GET https://graph.facebook.com/v22.0/{phone_number_id}` com `Bearer {access_token}` retorna `display_phone_number` no formato `+55 34 9163-3679`. Normalizar para E.164 puro `553491633679`.
+Hoje já há `if (isGroupMessage(msg) || remoteJid.includes('@g.us')) { groupMessages++; continue; }` no loop de agrupamento. Está correto e fica como está. Apenas:
 
-**UaZapi**: chamar `GET {evo_url}/instance/status` (ou `/instance/info`) com header `token: {evo_apikey}` retorna `instance.owner` no formato `553488860163@s.whatsapp.net`. Extrair só os dígitos.
+- Adicionar log resumido: `console.log('[history-enqueue] groups skipped: X / total: Y')` quando `groupMessages > 0`, para visibilidade.
+- Garantir que mensagens com `key.participant` preenchido (indicador forte de grupo mesmo sem `@g.us` no remoteJid) sejam descartadas — `isGroupMessage` já cobre isso.
 
-### Passos
+Custo: zero query, ~0ms. Continua eliminando 70-95% do volume típico de history.
 
-#### 1. Migration: schema
-- `ALTER TABLE queues ADD COLUMN phone_number text` (E.164, nullable)
-- `ALTER TABLE queues ADD COLUMN phone_resolved_at timestamptz` (controle de quando foi resolvido pela última vez)
-- Índice parcial em `(client_id, phone_number) WHERE phone_number IS NOT NULL` para lookup rápido no webhook
+---
 
-#### 2. Edge function nova: `queue-resolve-phone`
-Recebe `{ queue_id }`. Lê a fila, identifica `channel_type`, chama API do provedor para obter o número real, faz `UPDATE queues SET phone_number=..., phone_resolved_at=now()`. Retorna `{ phone_number }`.
-- Para WABA: `GET /v22.0/{waba_number_id}` → `display_phone_number` → strip non-digits
-- Para UaZapi: `GET /instance/status` com fallback para `/instance/info` → `instance.owner` → strip non-digits
+### Filtro 2 — Dedup por `external_id` contra `chat_messages`
 
-#### 3. Auto-disparo da resolução
-- **Ao criar fila** (em `useQueueMutations.createQueue` ou wizard de criação): após insert da fila, chamar `queue-resolve-phone` em background (fire-and-forget). Sem bloquear UI.
-- **Ao conectar instância UaZapi** (em `useConnectionActions.connect` `onSuccess`): re-resolver para capturar o owner que só existe após pareamento
-- **Backfill one-shot** via insert tool: chamar resolução para as 2 filas existentes (client 30 — `mario` e `Meta Official`) imediatamente após deploy
+Após agrupar por chat e antes do `insert` em `uazapi_history_items`, fazer **um único SELECT em batch** para descobrir quais `external_id`s já existem.
 
-#### 4. Filtro anti-eco em `uazapi-chat-webhook/index.ts`
-Antes do upsert de `chat_contacts` (linhas ~340-380), carregar uma vez por execução do handler:
-```ts
-const { data: ownNumbers } = await supabase
-  .from('queues')
-  .select('phone_number')
-  .eq('client_id', queue.client_id)
-  .not('phone_number', 'is', null);
-const ownSet = new Set(ownNumbers.map(q => q.phone_number));
+**Fluxo:**
 
-// dentro do loop de mensagens:
-const phoneDigits = jid.replace(/\D/g, '');
-if (ownSet.has(phoneDigits)) {
-  console.log(`[uazapi-chat-webhook] skip self-conversation phone=${phoneDigits}`);
-  continue;
-}
+1. Coletar todos os `messageId` (= `msg.key?.id` ou `msg.messageid` ou `msg.id`) das mensagens já filtradas (sem grupos).
+2. Uma query:
+   ```sql
+   SELECT external_id
+   FROM chat_messages
+   WHERE client_id = $1
+     AND external_id = ANY($2)
+   ```
+   Usa o índice `idx_chat_messages_ext_lookup` (parcial em `external_id`).
+3. Construir `Set<string>` dos IDs já presentes.
+4. No loop de agrupamento, descartar mensagens cujo `messageId` está no Set. Contabilizar em novo campo `duplicate_messages` (já existe esquema com `duplicate_messages` em items — manter compatível adicionando contagem agregada no run).
+5. Se um chat fica com 0 mensagens após dedup, não enfileirar item daquele chat.
+6. Se todos os chats ficam vazios, marcar run como `done` direto (mesmo branch já existente quando `byChat.size === 0`).
+
+**Performance:** 1 SELECT por evento history (não por mensagem). Em batches de 200-1000 mensagens, custa <50ms. Índice cobre 100%.
+
+**Edge cases:**
+- Mensagens sem `messageId` (raras): não dá pra deduplicar — mantém no batch (comportamento atual).
+- Quando `external_id` veio de outra fila do mesmo cliente (cenário anti-eco): será detectado como duplicata e descartado — ganho extra grátis.
+
+---
+
+### Métricas adicionadas em `uazapi_history_runs`
+
+Aproveitar campos já existentes (`group_messages`) e adicionar contagem de duplicados via update na inserção do run. Verificar se a coluna `duplicate_messages` existe no `uazapi_history_runs`; se não existir, adicionar via migração simples:
+
+```sql
+ALTER TABLE public.uazapi_history_runs
+  ADD COLUMN IF NOT EXISTS duplicate_messages integer NOT NULL DEFAULT 0;
 ```
 
-#### 5. Filtro simétrico em `meta-webhook/index.ts`
-Mesma lógica no laço `messages` do payload Meta — descartar quando `from` bater com algum `phone_number` do client.
+Isso permite ver no painel de monitoramento quantas msgs foram cortadas como duplicata vs. grupo vs. processadas.
 
-#### 6. Limpeza one-shot dos contatos-fantasma
-Via insert tool, no client 30:
-- Deletar `chat_messages` dos contatos cujo `phone IN ('553491633679','553488860163')` quando a fila do contato é a "errada" (ou seja, contato `553491633679` em fila UaZapi `mario`, e contato `553488860163` em fila WABA `Meta Official`)
-- Deletar `chat_conversations` desses contatos
-- Deletar os contatos
+---
 
-### Arquivos afetados
-- **migration**: nova coluna `phone_number` + `phone_resolved_at` + índice
-- **insert tool**: backfill da resolução + limpeza dos fantasmas
-- `supabase/functions/queue-resolve-phone/index.ts` — **nova** edge function
-- `supabase/functions/uazapi-chat-webhook/index.ts` — filtro anti-eco
-- `supabase/functions/meta-webhook/index.ts` — filtro anti-eco
-- `src/pages/agente/filas/hooks/useQueues.ts` (ou wizard correspondente) — disparar `queue-resolve-phone` após criação
-- `src/pages/agente/meus-agentes/hooks/useConnectionActions.ts` — re-disparar após connect bem-sucedido da UaZapi
-- **mem://**: nova memory `mem://features/chat/anti-echo-self-conversation` documentando a regra
+### O que NÃO muda
+
+- `uazapi-history-resume` / `uazapi-history-processor`: nenhuma alteração. Continuam recebendo apenas itens "limpos".
+- `uazapi-history-dispatcher`: inalterado.
+- Webhook de mensagens em tempo real (`event === 'messages'` sem flag history): inalterado. Sem dedup extra, sem custo adicional.
+- `chat-webhook-dispatcher` (webhooks externos para Slack/Discord/etc): fora do escopo.
+
+---
+
+### Ordem de execução final em `enqueueHistoryRun`
+
+```text
+1. Loop mensagens:
+   ├─ Skip se grupo (filtro 1, já existe)
+   └─ Coletar messageId em lista
+2. SELECT external_id batch em chat_messages (filtro 2, NOVO)
+3. Loop mensagens novamente (ou no mesmo loop em 2 passos):
+   ├─ Skip se duplicado (filtro 2)
+   └─ Agrupar por chat
+4. Insert run (com group_messages + duplicate_messages)
+5. Insert items (apenas chats com mensagens novas)
+```
+
+---
 
 ### Resultado esperado
-1. Após deploy + backfill: contatos `553491633679` (na fila mario) e `553488860163` (na fila Meta Official) somem do `/chat` do client 30
-2. Novas mensagens entre os 2 números próprios são descartadas silenciosamente em ambos os webhooks
-3. Conversas reais com clientes externos não são afetadas (mesmo se um cliente externo conversar pelos 2 canais — cada fila mostra normalmente)
-4. Operador não precisa preencher nada — número é resolvido automaticamente via API do provedor
-5. Logs do webhook mostram `skip self-conversation phone=...` quando o filtro atua
 
-### Riscos / mitigações
-- **UaZapi `owner` só existe após pareamento**: se a fila for criada e nunca conectada, `phone_number` fica `NULL` e o filtro não atua para ela. Aceitável — sem pareamento, ela não recebe mensagens mesmo. Re-resolvemos no `connect`.
-- **Token WABA inválido**: resolução falha silenciosamente, fila fica sem `phone_number`. Logamos warning. Sem impacto em conversas reais.
-- **Contato externo com mesmo número de uma fila do cliente**: cenário extremamente raro (cliente externo teria que ter o mesmo número WhatsApp que o escritório). Aceito como falso-positivo — filtramos por client_id, então só afeta o próprio cliente.
+- **Volume enfileirado**: redução típica de 80-95% (grupos + reprocessamentos + ecos entre filas).
+- **Custo do worker pool** (`uazapi-history-resume`): cai proporcionalmente — menos download de mídia, menos upserts em `chat_contacts`, menos triggers de realtime.
+- **Tempo de drenagem do backlog**: eventos history grandes (1000+ msgs) processam em segundos em vez de minutos.
 
+---
+
+### Detalhes técnicos
+
+**Arquivo único editado:** `supabase/functions/uazapi-chat-webhook/index.ts`
+
+**Migração:** 1 ALTER TABLE adicionando `duplicate_messages` em `uazapi_history_runs` (se ainda não existe).
+
+**Deploy:** apenas `uazapi-chat-webhook`.
+
+**Rollback:** trivial — remover o SELECT de dedup; comportamento volta ao atual.
+
+Confirma para implementar?

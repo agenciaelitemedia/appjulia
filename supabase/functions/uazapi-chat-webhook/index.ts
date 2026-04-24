@@ -267,12 +267,63 @@ async function enqueueHistoryRun(
   // Group by chat and skip groups defensively at enqueue time
   const totalMessages = rawMessages.length;
   let groupMessages = 0;
-  const byChat = new Map<string, { phone: string; count: number; messages: any[] }>();
+  let duplicateMessages = 0;
+
+  // ---- Pré-filtro 1: descartar grupos (zero query) ----
+  const nonGroupMessages: any[] = [];
   for (const msg of rawMessages) {
     const remoteJid: string = msg?.key?.remoteJid ?? msg?.remoteJid ?? msg?.chatId ?? msg?.chatid ?? '';
     if (!remoteJid) continue;
     if (isGroupMessage(msg) || remoteJid.includes('@g.us')) {
       groupMessages++;
+      continue;
+    }
+    nonGroupMessages.push(msg);
+  }
+  if (groupMessages > 0) {
+    console.log(`[history-enqueue] groups skipped=${groupMessages} of total=${totalMessages} client=${queue.client_id}`);
+  }
+
+  // ---- Pré-filtro 2: dedup contra chat_messages.external_id (1 SELECT em batch) ----
+  const idsInBatch: string[] = [];
+  for (const msg of nonGroupMessages) {
+    const mid: string = msg?.key?.id ?? msg?.messageid ?? msg?.id ?? msg?.messageId ?? '';
+    if (mid) idsInBatch.push(String(mid));
+  }
+  const existingIds = new Set<string>();
+  if (idsInBatch.length > 0) {
+    try {
+      // Chunk para evitar payloads grandes (Postgres aceita arrays grandes, mas
+      // deixamos margem). 500 ids por chunk.
+      const CHUNK = 500;
+      for (let i = 0; i < idsInBatch.length; i += CHUNK) {
+        const slice = idsInBatch.slice(i, i + CHUNK);
+        const { data, error } = await supabase
+          .from('chat_messages')
+          .select('external_id')
+          .eq('client_id', String(queue.client_id))
+          .in('external_id', slice);
+        if (error) {
+          console.warn('[history-enqueue] dedup lookup failed:', error.message);
+          break;
+        }
+        for (const row of (data ?? []) as Array<{ external_id: string | null }>) {
+          if (row.external_id) existingIds.add(row.external_id);
+        }
+      }
+    } catch (e) {
+      console.warn('[history-enqueue] dedup lookup exception:', (e as Error).message);
+    }
+  }
+
+  // ---- Agrupamento por chat já considerando dedup ----
+  const byChat = new Map<string, { phone: string; count: number; messages: any[] }>();
+  for (const msg of nonGroupMessages) {
+    const remoteJid: string = msg?.key?.remoteJid ?? msg?.remoteJid ?? msg?.chatId ?? msg?.chatid ?? '';
+    if (!remoteJid) continue;
+    const mid: string = msg?.key?.id ?? msg?.messageid ?? msg?.id ?? msg?.messageId ?? '';
+    if (mid && existingIds.has(String(mid))) {
+      duplicateMessages++;
       continue;
     }
     const phone = normalizePhone(remoteJid);
@@ -281,6 +332,9 @@ async function enqueueHistoryRun(
     cur.count++;
     cur.messages.push(msg);
     byChat.set(remoteJid, cur);
+  }
+  if (duplicateMessages > 0) {
+    console.log(`[history-enqueue] duplicates skipped=${duplicateMessages} client=${queue.client_id}`);
   }
 
   // Resolve client name (best-effort) for nicer monitoring UI
@@ -305,6 +359,7 @@ async function enqueueHistoryRun(
       status: byChat.size === 0 ? 'done' : 'pending',
       total_messages: totalMessages,
       group_messages: groupMessages,
+      duplicate_messages: duplicateMessages,
       individual_chats: byChat.size,
       received_at: new Date().toISOString(),
       finished_at: byChat.size === 0 ? new Date().toISOString() : null,
