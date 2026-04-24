@@ -6,7 +6,9 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, History, Eye, CheckCircle2, AlertCircle, MinusCircle, Clock, XCircle, Ban, PlayCircle, AlertTriangle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useUazapiHistoryRuns, useUazapiHistoryItems, useUazapiHistoryPending, type UazapiHistoryRun } from '../hooks/useUazapiHistoryRuns';
+import { useUazapiHistoryRuns, useUazapiHistoryItems, useUazapiHistoryPending, useUazapiQueues, type UazapiHistoryRun } from '../hooks/useUazapiHistoryRuns';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
