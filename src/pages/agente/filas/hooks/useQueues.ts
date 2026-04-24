@@ -100,15 +100,34 @@ export function useQueueMutations() {
       if (!clientId) throw new Error('Não foi possível identificar o cliente. Verifique se há um agente vinculado ao seu usuário.');
       if (!formData.name?.trim()) throw new Error('Nome da fila é obrigatório');
       if (!formData.channel_type) throw new Error('Canal é obrigatório');
-      return invokeQueueManagement('create', { ...formData, client_id: clientId });
+      const result = await invokeQueueManagement('create', { ...formData, client_id: clientId });
+      // Fire-and-forget: auto-resolve the queue's real WhatsApp phone via provider API.
+      // Used by the anti-echo filter in the webhooks. Never blocks the UI.
+      const newQueueId = result?.queue?.id || result?.id;
+      if (newQueueId) {
+        supabase.functions
+          .invoke('queue-resolve-phone', { body: { queue_id: newQueueId } })
+          .catch((err) => console.warn('[useQueues] queue-resolve-phone failed:', err));
+      }
+      return result;
     },
     onSuccess: () => { toast.success('Fila criada com sucesso'); invalidate(); },
     onError: (e) => toast.error(e.message),
   });
 
   const updateQueue = useMutation({
-    mutationFn: ({ queue_id, ...fields }: { queue_id: string } & Partial<QueueFormData>) =>
-      invokeQueueManagement('update', { queue_id, ...fields }),
+    mutationFn: async ({ queue_id, ...fields }: { queue_id: string } & Partial<QueueFormData>) => {
+      const result = await invokeQueueManagement('update', { queue_id, ...fields });
+      // Re-resolve when credentials change (token, instance, number id).
+      const credentialChanged = ['evo_url', 'evo_apikey', 'evo_instance', 'waba_token', 'waba_number_id']
+        .some((k) => k in fields);
+      if (credentialChanged) {
+        supabase.functions
+          .invoke('queue-resolve-phone', { body: { queue_id } })
+          .catch((err) => console.warn('[useQueues] queue-resolve-phone failed:', err));
+      }
+      return result;
+    },
     onSuccess: () => { toast.success('Fila atualizada'); invalidate(); },
     onError: (e) => toast.error(e.message),
   });

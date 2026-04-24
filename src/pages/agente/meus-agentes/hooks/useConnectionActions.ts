@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { UaZapiClient } from '@/lib/uazapi/client';
 import { UserAgent } from '../types';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 export function useConnectionActions(agent: UserAgent) {
   const queryClient = useQueryClient();
@@ -44,6 +45,19 @@ export function useConnectionActions(agent: UserAgent) {
       });
 
       return client.post('/instance/connect');
+    },
+    onSuccess: () => {
+      // Re-resolve the queue phone after pairing (UaZapi `owner` only
+      // becomes available after the device is connected). Fire-and-forget.
+      const queueId = (agent as unknown as { queue_id?: string }).queue_id;
+      if (queueId) {
+        // Wait a moment for pairing to settle, then resolve.
+        setTimeout(() => {
+          supabase.functions
+            .invoke('queue-resolve-phone', { body: { queue_id: queueId } })
+            .catch((err) => console.warn('[useConnectionActions] queue-resolve-phone failed:', err));
+        }, 5000);
+      }
     },
     onError: (error) => {
       console.error('Erro ao iniciar conexão:', error);
