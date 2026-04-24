@@ -1,69 +1,81 @@
 
 
-## Bug: botão "Desconectar" não desconecta de fato
+## Plano final: filtro anti-eco entre filas do mesmo cliente, com auto-resolução de números
 
-### Causa raiz (confirmada nos logs e código)
-O `uazapi-instance-manager` no case `disconnect` chama:
+### Comportamento confirmado
+- Contatos externos com mesmo telefone em filas diferentes continuam aparecendo como atendimentos separados (comportamento desejado)
+- Apenas mensagens entre **números do próprio cliente** (UaZapi ↔ WABA do mesmo `client_id`) são descartadas
+- **Nenhum input manual de número** — sempre auto-resolvido via API do provedor
+
+### Auto-resolução de números
+
+**WABA (Meta)**: chamar `GET https://graph.facebook.com/v22.0/{phone_number_id}` com `Bearer {access_token}` retorna `display_phone_number` no formato `+55 34 9163-3679`. Normalizar para E.164 puro `553491633679`.
+
+**UaZapi**: chamar `GET {evo_url}/instance/status` (ou `/instance/info`) com header `token: {evo_apikey}` retorna `instance.owner` no formato `553488860163@s.whatsapp.net`. Extrair só os dígitos.
+
+### Passos
+
+#### 1. Migration: schema
+- `ALTER TABLE queues ADD COLUMN phone_number text` (E.164, nullable)
+- `ALTER TABLE queues ADD COLUMN phone_resolved_at timestamptz` (controle de quando foi resolvido pela última vez)
+- Índice parcial em `(client_id, phone_number) WHERE phone_number IS NOT NULL` para lookup rápido no webhook
+
+#### 2. Edge function nova: `queue-resolve-phone`
+Recebe `{ queue_id }`. Lê a fila, identifica `channel_type`, chama API do provedor para obter o número real, faz `UPDATE queues SET phone_number=..., phone_resolved_at=now()`. Retorna `{ phone_number }`.
+- Para WABA: `GET /v22.0/{waba_number_id}` → `display_phone_number` → strip non-digits
+- Para UaZapi: `GET /instance/status` com fallback para `/instance/info` → `instance.owner` → strip non-digits
+
+#### 3. Auto-disparo da resolução
+- **Ao criar fila** (em `useQueueMutations.createQueue` ou wizard de criação): após insert da fila, chamar `queue-resolve-phone` em background (fire-and-forget). Sem bloquear UI.
+- **Ao conectar instância UaZapi** (em `useConnectionActions.connect` `onSuccess`): re-resolver para capturar o owner que só existe após pareamento
+- **Backfill one-shot** via insert tool: chamar resolução para as 2 filas existentes (client 30 — `mario` e `Meta Official`) imediatamente após deploy
+
+#### 4. Filtro anti-eco em `uazapi-chat-webhook/index.ts`
+Antes do upsert de `chat_contacts` (linhas ~340-380), carregar uma vez por execução do handler:
 ```ts
-DELETE /instance/logout/{instanceName}
-```
-Isso é **sintaxe da Evolution API**, não da UaZapi. A UaZapi não tem essa rota — o servidor responde 200/404 silencioso (sem ação real), o frontend mostra toast de sucesso, mas a sessão WhatsApp continua viva. Por isso o usuário consegue clicar "Conectar" logo em seguida e voltar como "Mário Castro" **sem escanear QR**.
+const { data: ownNumbers } = await supabase
+  .from('queues')
+  .select('phone_number')
+  .eq('client_id', queue.client_id)
+  .not('phone_number', 'is', null);
+const ownSet = new Set(ownNumbers.map(q => q.phone_number));
 
-### Endpoints corretos da UaZapi
-- `POST /instance/disconnect` — derruba sessão WS, mantém pareamento
-- `POST /instance/logout` — desparear conta (precisa QR na próxima vez)
-
-Sua escolha: **logout completo (desparear)**.
-
-## Correção
-
-### Arquivo: `supabase/functions/uazapi-instance-manager/index.ts`
-Reescrever o case `disconnect` para usar o endpoint correto da UaZapi:
-
-```ts
-case 'disconnect': {
-  if (!queue_id) return respond({ error: 'queue_id required' }, 400);
-  const queue = await getQueueCredentials(queue_id);
-  const token = queue.evo_apikey || adminToken;
-  const url = queue.evo_url || baseUrl;
-
-  console.log(`[uazapi-instance-manager] Logout (unpair): ${queue.evo_instance}`);
-  let res = await fetch(`${url}/instance/logout`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'token': token },
-  });
-
-  if (res.status === 401 && token !== adminToken) {
-    res = await fetch(`${url}/instance/logout`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'admintoken': adminToken },
-    });
-  }
-
-  const text = await res.text();
-  let data; try { data = JSON.parse(text); } catch { data = { response: text }; }
-  console.log(`[uazapi-instance-manager] Logout response: ${res.status}`);
-
-  return respond({ success: res.ok, status: res.status, data });
+// dentro do loop de mensagens:
+const phoneDigits = jid.replace(/\D/g, '');
+if (ownSet.has(phoneDigits)) {
+  console.log(`[uazapi-chat-webhook] skip self-conversation phone=${phoneDigits}`);
+  continue;
 }
 ```
 
-Mudanças:
-- Método: `DELETE` → `POST`
-- URL: `/instance/logout/{name}` → `/instance/logout` (UaZapi identifica a instância pelo header `token`)
-- Semântica: agora faz logout real — exige QR Code novo na próxima conexão
-- Log mais claro indicando "unpair"
+#### 5. Filtro simétrico em `meta-webhook/index.ts`
+Mesma lógica no laço `messages` do payload Meta — descartar quando `from` bater com algum `phone_number` do client.
 
-### Validação após o deploy
-1. Clicar "Desconectar" no `/agente/filas` → toast de sucesso
-2. Verificar nos logs: `Logout response: 200` (não mais "Status response")
-3. Clicar "Conectar" → deve aparecer **QR Code** (não reconectar automaticamente como antes)
-4. Status da instância vai para `disconnected` na UaZapi
+#### 6. Limpeza one-shot dos contatos-fantasma
+Via insert tool, no client 30:
+- Deletar `chat_messages` dos contatos cujo `phone IN ('553491633679','553488860163')` quando a fila do contato é a "errada" (ou seja, contato `553491633679` em fila UaZapi `mario`, e contato `553488860163` em fila WABA `Meta Official`)
+- Deletar `chat_conversations` desses contatos
+- Deletar os contatos
 
-## Arquivos afetados
-- `supabase/functions/uazapi-instance-manager/index.ts` — case `disconnect` corrigido
+### Arquivos afetados
+- **migration**: nova coluna `phone_number` + `phone_resolved_at` + índice
+- **insert tool**: backfill da resolução + limpeza dos fantasmas
+- `supabase/functions/queue-resolve-phone/index.ts` — **nova** edge function
+- `supabase/functions/uazapi-chat-webhook/index.ts` — filtro anti-eco
+- `supabase/functions/meta-webhook/index.ts` — filtro anti-eco
+- `src/pages/agente/filas/hooks/useQueues.ts` (ou wizard correspondente) — disparar `queue-resolve-phone` após criação
+- `src/pages/agente/meus-agentes/hooks/useConnectionActions.ts` — re-disparar após connect bem-sucedido da UaZapi
+- **mem://**: nova memory `mem://features/chat/anti-echo-self-conversation` documentando a regra
 
-## Nada mais precisa mudar
-- Frontend (`UazapiInstanceStatus`, `useConnectionActions`) já chama corretamente a action `disconnect` — só estava recebendo resposta enganosa do backend
-- Demais funções (`uazapi-history-force-resync`, `_shared/uazapi-adapter.ts`) já usam endpoints corretos
+### Resultado esperado
+1. Após deploy + backfill: contatos `553491633679` (na fila mario) e `553488860163` (na fila Meta Official) somem do `/chat` do client 30
+2. Novas mensagens entre os 2 números próprios são descartadas silenciosamente em ambos os webhooks
+3. Conversas reais com clientes externos não são afetadas (mesmo se um cliente externo conversar pelos 2 canais — cada fila mostra normalmente)
+4. Operador não precisa preencher nada — número é resolvido automaticamente via API do provedor
+5. Logs do webhook mostram `skip self-conversation phone=...` quando o filtro atua
+
+### Riscos / mitigações
+- **UaZapi `owner` só existe após pareamento**: se a fila for criada e nunca conectada, `phone_number` fica `NULL` e o filtro não atua para ela. Aceitável — sem pareamento, ela não recebe mensagens mesmo. Re-resolvemos no `connect`.
+- **Token WABA inválido**: resolução falha silenciosamente, fila fica sem `phone_number`. Logamos warning. Sem impacto em conversas reais.
+- **Contato externo com mesmo número de uma fila do cliente**: cenário extremamente raro (cliente externo teria que ter o mesmo número WhatsApp que o escritório). Aceito como falso-positivo — filtramos por client_id, então só afeta o próprio cliente.
 
