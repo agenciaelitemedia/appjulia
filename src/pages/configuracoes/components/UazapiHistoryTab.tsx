@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { forwardRef, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -47,7 +47,7 @@ function RunStatusBadge({ status }: { status: UazapiHistoryRun['status'] }) {
   );
 }
 
-function ItemStatusBadge({ status }: { status: string }) {
+const ItemStatusBadge = forwardRef<HTMLDivElement, { status: string }>(({ status }, ref) => {
   const map: Record<string, { label: string; cls: string; icon: any }> = {
     pending: { label: 'Pendente', cls: 'bg-muted text-muted-foreground', icon: Clock },
     ok: { label: 'Inseridas', cls: 'bg-green-500/10 text-green-600 border-green-500/20', icon: CheckCircle2 },
@@ -57,11 +57,14 @@ function ItemStatusBadge({ status }: { status: string }) {
   const cfg = map[status] ?? map.pending;
   const Icon = cfg.icon;
   return (
-    <Badge variant="outline" className={`gap-1 ${cfg.cls}`}>
-      <Icon className="h-3 w-3" /> {cfg.label}
-    </Badge>
+    <div ref={ref} className="inline-flex">
+      <Badge variant="outline" className={`gap-1 ${cfg.cls}`}>
+        <Icon className="h-3 w-3" /> {cfg.label}
+      </Badge>
+    </div>
   );
-}
+});
+ItemStatusBadge.displayName = 'ItemStatusBadge';
 
 function RunDetails({ run, open, onOpenChange }: {
   run: UazapiHistoryRun | null;

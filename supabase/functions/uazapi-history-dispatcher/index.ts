@@ -112,22 +112,38 @@ async function ensurePool(pendingHint: number) {
   return fired;
 }
 
-function itemsPerMin(): number {
-  // Cada worker drena ~WORKER_MAX_TOTAL items. Estimar pela janela de 60s.
-  const cutoff = Date.now() - 60_000;
-  state.processedWindow = state.processedWindow.filter((t) => t >= cutoff);
-  return state.processedWindow.length * WORKER_MAX_TOTAL;
+// Vazão real lida do DB: items com status='ok' processados no último minuto.
+// Cache de 5s para evitar count repetido por chamada.
+let lastThroughput = { value: 0, at: 0 };
+async function itemsPerMin(): Promise<number> {
+  const now = Date.now();
+  if (now - lastThroughput.at < 5000) return lastThroughput.value;
+  try {
+    const sb = getSb();
+    const sinceIso = new Date(now - 60_000).toISOString();
+    const { count } = await sb
+      .from('uazapi_history_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'ok')
+      .gte('processed_at', sinceIso);
+    lastThroughput = { value: count ?? 0, at: now };
+    return lastThroughput.value;
+  } catch (e) {
+    console.warn('[dispatcher] throughput query failed:', (e as Error).message);
+    return lastThroughput.value;
+  }
 }
 
 async function writeHeartbeat(extra: Record<string, unknown> = {}) {
   try {
     const sb = getSb();
+    const ipm = await itemsPerMin();
     await sb.from('dispatcher_heartbeat').upsert({
       id: HEARTBEAT_ID,
       last_seen_at: new Date().toISOString(),
       workers_active: state.active,
       workers_max: MAX_WORKERS,
-      items_per_min: itemsPerMin(),
+      items_per_min: ipm,
       total_processed_session: state.processedSession,
       started_at: new Date(state.startedAt).toISOString(),
       metadata: { ...extra },
@@ -167,12 +183,13 @@ Deno.serve(async (req) => {
   }
 
   if (action === 'status') {
+    const ipm = await itemsPerMin();
     return respond({
       ok: true,
       active: state.active,
       max: MAX_WORKERS,
       processed_session: state.processedSession,
-      items_per_min: itemsPerMin(),
+      items_per_min: ipm,
       uptime_ms: Date.now() - state.startedAt,
     });
   }
@@ -195,11 +212,12 @@ Deno.serve(async (req) => {
     await writeHeartbeat({ pending_after: await getPendingCount(), action: 'post-batch' });
   });
 
+  const ipm = await itemsPerMin();
   return respond({
     ok: true,
     pending,
     fired: fired.length,
     active: state.active,
-    items_per_min: itemsPerMin(),
+    items_per_min: ipm,
   });
 });
