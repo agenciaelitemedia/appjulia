@@ -1260,7 +1260,8 @@ export function WhatsAppMessagesDialog({
       if (result && result.length > 0) {
         const creds = result[0];
         const agentHub = creds.hub || 'uazapi';
-        
+        setAgentInstance(creds.api_instance || null);
+
         if (agentHub === 'waba') {
           // WABA provider
           setProvider('waba');
