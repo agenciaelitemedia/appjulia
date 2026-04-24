@@ -74,3 +74,9 @@ verify_jwt = false
 
 [functions.asaas-configure-webhook]
 verify_jwt = false
+
+[functions.uazapi-history-dispatcher]
+verify_jwt = false
+
+[functions.uazapi-history-dispatcher-heartbeat]
+verify_jwt = false
