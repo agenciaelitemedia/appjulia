@@ -294,6 +294,7 @@ async function enqueueHistoryRun(
       phone: info.phone,
       received_messages: info.count,
       status: 'pending' as const,
+      payload: info.messages,
     }));
     const { error: itemsErr } = await supabase.from('uazapi_history_items').insert(items as never);
     if (itemsErr) console.warn('[uazapi-history-queue] failed to insert items:', itemsErr.message);
