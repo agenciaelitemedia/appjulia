@@ -1,79 +1,90 @@
-## 🐛 Diagnóstico
+## Objetivo
+No header do `WhatsAppMessagesDialog` (popup de chat do CRM em `/crm/leads`), identificar visualmente se o agente envia mensagens via **UaZapi direto** (credenciais próprias na tabela `agents`) ou via **Fila vinculada** (`queue_agent_links` → `queues`), através de:
 
-**Caso reproduzido:** contato `553488860163` (cliente 30) enviou mensagem para a fila **WABA "Meta Official"** (`f81446ce...`), mas o ticket aberto está vinculado à fila **UaZapi "mario"** (`03b1b983...`).
+1. **Cor do ícone do avatar** ao lado do nome/telefone:
+   - 🟢 Verde (já é o atual `bg-green-600`) → conexão **UaZapi direta**.
+   - 🔵 Azul (`bg-blue-600`) → conexão via **Fila vinculada** (UaZapi ou WABA).
+2. **Badge** logo abaixo do número de telefone com o nome da origem:
+   - Se vínculo com fila: `queues.name` (ex: "Atendimento Comercial").
+   - Se direto: `evo_instance` (ou "UaZapi" como fallback).
+   - Cor do badge espelhando a cor do avatar (verde/azul).
 
-Estado real no banco:
-
-| Campo | Valor |
-|---|---|
-| `chat_contacts.channel_type` | `whatsapp_waba` ✅ |
-| `chat_contacts.channel_source` | fila WABA ✅ |
-| `chat_conversations.channel` | `whatsapp_uazapi` ❌ |
-| `chat_conversations.queue_id` | fila **UaZapi** ❌ |
-
-### Causa raiz (em `supabase/functions/meta-webhook/index.ts`, linhas 220-247)
-
-A lógica que garante o ticket aberto faz:
-```ts
-.from('chat_conversations')
-.select('id, queue_id')
-.eq('contact_id', contactId)
-.eq('client_id', effectiveClientId)
-.in('status', ['pending','open'])
-```
-
-**Não filtra por `channel` nem por `queue_id`.** Assim:
-1. Já existia uma conversa aberta criada antes pelo `uazapi-chat-webhook` (canal UaZapi, queue mario).
-2. Quando o cliente respondeu pela WABA, o `meta-webhook` encontrou aquela conversa aberta e **reaproveitou** sem trocar `queue_id` nem `channel` (o `else if (!openConv.queue_id)` só atualiza se `queue_id` for nulo — não é o caso).
-3. Mensagem WABA acabou anexada ao ticket UaZapi.
-
-O mesmo bug existe espelhado no `uazapi-chat-webhook` (que provavelmente também não filtra por canal ao buscar a conversa aberta).
-
----
-
-## ✅ Plano de correção
-
-### 1. `supabase/functions/meta-webhook/index.ts` (linhas 220-247)
-Filtrar a busca da conversa aberta **pelo canal e pela fila**:
-```ts
-const { data: openConv } = await supabase
-  .from('chat_conversations')
-  .select('id, queue_id')
-  .eq('contact_id', contactId)
-  .eq('client_id', effectiveClientId)
-  .eq('queue_id', queueInfo.id)        // ✅ mesma fila
-  .eq('channel', 'whatsapp_waba')      // ✅ mesmo canal
-  .in('status', ['pending', 'open'])
-  .order('created_at', { ascending: false })
-  .limit(1)
-  .maybeSingle();
-```
-Assim, se o contato tiver ticket aberto pela UaZapi, será criado um **novo ticket WABA** paralelo (omnichannel correto: cada canal tem seu protocolo).
-
-### 2. `supabase/functions/uazapi-chat-webhook/index.ts`
-Aplicar o mesmo filtro espelhado: `eq('channel','whatsapp_uazapi')` + `eq('queue_id', queueInfo.id)` ao buscar conversa aberta antes de criar/reaproveitar.
-
-### 3. Recovery do caso atual (cliente 30 / contato `a3e8c2d7...`)
-Migration única para corrigir tickets já bagunçados onde `chat_contacts.channel_source` aponta para uma fila com `channel_type` diferente do `chat_conversations.queue_id` correspondente:
+## Como detectar a origem
+Já existe na consulta atual (`loadAgentCredentials`) o `hub`, `evo_instance`, `waba_id`, etc. Falta consultar o vínculo do agente com filas:
 
 ```sql
--- Para o ticket atual: redirecionar para a fila WABA correta
-UPDATE chat_conversations
-SET queue_id = 'f81446ce-e830-47cc-8a5d-4f08b0984614',
-    channel = 'whatsapp_waba'
-WHERE id = '1ec8f2ae-9498-4e68-a676-e98d73270f28';
+SELECT q.id, q.name, q.channel_type, q.hub
+FROM queue_agent_links qal
+JOIN queues q ON q.id = qal.queue_id
+WHERE qal.cod_agent = $1
+  AND q.is_active = true
+  AND COALESCE(q.is_deleted, false) = false
+ORDER BY qal.is_primary DESC NULLS LAST, q.created_at ASC
+LIMIT 1;
 ```
-(Opcional: varrer todos os clientes procurando esse mismatch e logar.)
 
-### 4. Memória
-Atualizar `mem://features/chat/omnichannel-ticketing-system-v3` com a regra:
-> **Tickets são por (contact_id, queue_id, channel)** — webhooks de canais diferentes nunca reaproveitam ticket de outro canal; cada canal abre seu próprio protocolo.
+- Se retornar **0 linhas** → conexão direta → cor **verde** + badge com `evo_instance` (ou "UaZapi").
+- Se retornar **1+ linhas** → vínculo com fila → cor **azul** + badge com `queue.name`.
 
----
+Observação: como o popup do CRM é client-side e a tabela `queue_agent_links` está no Supabase (público), a query pode ser feita pelo client `supabase` diretamente — não precisa passar pelo `externalDb`. Já existe o hook reaproveitável `useQueueAgentLink` (lê apenas por `queueId`); criaremos um irmão por `cod_agent`.
 
-## 📊 Impacto
-- Mensagens WABA passam a ir para tickets WABA, mesmo quando há ticket UaZapi aberto para o mesmo contato.
-- Cliente vê dois tickets/protocolos separados (um por canal) = comportamento omnichannel correto.
-- Sem mudança de schema; só um filtro adicional + 1 UPDATE de recuperação.
+## Mudanças de código (1 hook novo + 1 edição no popup)
+
+### 1. `src/hooks/useAgentQueueLink.ts` (NOVO)
+Hook React Query que recebe `cod_agent` e retorna:
+```ts
+{
+  source: 'queue' | 'direct',
+  queueName: string | null,   // quando source === 'queue'
+  queueId: string | null,
+  channelType: string | null,  // 'uazapi' | 'waba' | ...
+}
+```
+Faz `select` em `queue_agent_links` join `queues` ativo/não-deletado, ordenado por `is_primary desc`. Stale 5 min.
+
+### 2. `src/pages/crm/components/WhatsAppMessagesDialog.tsx` (EDIÇÃO)
+Linhas ~1723-1762 (header/avatar/título/telefone):
+
+- Importar `useAgentQueueLink` e `Badge`.
+- Chamar o hook com `codAgent` quando `open && codAgent`.
+- Computar:
+  ```ts
+  const isViaQueue = agentLink?.source === 'queue';
+  const avatarBg = isViaQueue ? 'bg-blue-600' : 'bg-green-600';
+  const sourceLabel = isViaQueue
+    ? agentLink.queueName
+    : (evoInstance || 'UaZapi');
+  ```
+- Trocar as classes do `<Avatar>` e `<AvatarFallback>` (linhas 1725-1726) para usar `avatarBg`.
+- Após o `<p className="text-xs text-muted-foreground">{whatsappNumber}</p>` (linha 1759-1761), adicionar:
+  ```tsx
+  {sourceLabel && (
+    <Badge
+      variant="secondary"
+      className={cn(
+        'mt-0.5 text-[10px] px-1.5 py-0 h-4 font-medium text-white border-0',
+        isViaQueue ? 'bg-blue-600 hover:bg-blue-600' : 'bg-green-600 hover:bg-green-600'
+      )}
+    >
+      {isViaQueue ? '📥 ' : '🔗 '}{sourceLabel}
+    </Badge>
+  )}
+  ```
+- Para acessar `evoInstance` no header: já é carregado em `loadAgentCredentials` (linha 1240). Vamos guardar `evo_instance` em um state novo `agentInstance` (atualmente é descartado) — pequena edição no setter para também persistir o valor.
+
+## Comportamento esperado
+- Agente sem fila vinculada (UaZapi próprio): avatar **verde** + badge verde "🔗 nome-da-instancia" (ou "UaZapi").
+- Agente vinculado a uma fila UaZapi: avatar **azul** + badge azul "📥 QUEUE_..." com o nome da fila.
+- Agente vinculado a uma fila WABA: avatar **azul** + badge azul "📥 Meta Official" (ou nome configurado).
+- Loading: mantém o verde atual até o hook resolver (no flicker), badge só aparece quando há valor.
+
+## Arquivos
+- **Criar**: `src/hooks/useAgentQueueLink.ts`
+- **Editar**: `src/pages/crm/components/WhatsAppMessagesDialog.tsx` (header + persistir `evo_instance` em state)
+
+## Não faz parte deste plano
+- Mudar lógica de envio (continua usando o `provider`/`client` já calculado em `loadAgentCredentials`).
+- Alterar outras telas (chat omnichannel, atendimento humano) — escopo restrito ao popup do CRM.
+- Permitir trocar a fila pela UI.
 
 Confirma para implementar?
