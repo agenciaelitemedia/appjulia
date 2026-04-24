@@ -1,75 +1,71 @@
 
 
-## Diagnóstico dos gargalos remanescentes
+## Diagnóstico: por que apenas 4 workers ativos (e não 10)
 
-### Vazão real medida (não a teórica)
-- **Atual**: ~318 items/min (3.500 items em 11 min)
-- **Pendente**: 9.007 items → ETA real **~28 minutos** (não os 5.000/min projetados)
-- **Pool subutilizado**: dispatcher dispara 10 workers, mas apenas 4 mantêm locks ativos a cada momento
+Investiguei os logs em tempo real e o código atual. O problema **não é a vazão por worker** — cada um está processando 50 items em ~1.5s (excelente!). O problema é que o **dispatcher não consegue manter 10 workers vivos simultaneamente**.
 
-### Os 5 gargalos reais (medidos, não suposições)
+### Evidências dos logs (últimos 30s)
+- **uazapi-history-resume**: dezenas de invocações, cada uma `picked=50` em ~500ms-1.5s — worker está rápido
+- **uazapi-history-dispatcher**: apenas 2 invocações registradas no período, `worker=1` e `worker=5` durando 50s cada
+- **`inserted=0` ou `inserted=1`** em quase todos os lotes: 98% das mensagens já são duplicatas (deduplicação por `message_id`)
 
-| # | Gargalo | Evidência | Impacto |
-|---|---|---|---|
-| 1 | **N+1 sequencial dentro do worker** | 200 items em 32s = 160ms/item, com 7 queries cada = 22ms/query serializadas | Worker fica 90% do tempo aguardando round-trip |
-| 2 | **Items minúsculos** | Média de **1.5 mensagens por item** (max 11) | Overhead de orquestração 5× maior que o trabalho útil |
-| 3 | **Pool ocioso entre ticks** | Heartbeat dispara workers a cada 60s; workers terminam em ~32s e ficam ociosos 28s | 47% de idle time |
-| 4 | **Heartbeat com vazão quebrada** | DB mostra `items_per_min: 0` mesmo com 318/min real | Monitor mente, dispatcher não escala pool corretamente |
-| 5 | **`finalizeRunIfDone` chamado por run tocada** | Cada lote toca ~50 runs → 50 queries extras de agregação | 15-20% do tempo do worker desperdiçado |
+### As 4 causas reais (medidas)
+
+| # | Causa | Evidência |
+|---|---|---|
+| 1 | **Dispatcher dispara só 6 workers no máximo** | `ensurePool` tem `target=6` se `pending>1000`, só vai a 10 se `pending>5000`. Com 9k pending caiu pra 6 |
+| 2 | **Auto-respawn só dispara 1 worker** | No fim do `drainLoop`, worker faz fire-and-forget de **1 nova invocação de si mesmo** (mesmo `worker_id`), não preenche os outros slots |
+| 3 | **Dispatcher é stateless entre invocações** | Cada chamada do heartbeat (1/min) cria nova instância do Edge → `state.busy` zera → não sabe que workers estão rodando → pode disparar duplicatas ou ficar sem disparar |
+| 4 | **Heartbeat roda só a cada 60s** | Entre ticks, se workers terminam, ninguém repõe. Auto-respawn cobre parcialmente mas com apenas 1 worker |
+
+### Por que está "lento" mesmo com 50 items/1.5s por worker
+- 4 workers × 33 items/s = **133 items/s = 8.000/min teórico**
+- Mas como `inserted=0` na maioria, o trabalho útil é menor que o overhead de I/O
+- Cada `picked=50` lida 50 mensagens do DB, faz dedup, descarta — gasta tempo de banco mas não gera progresso visível
 
 ## Correções
 
-### 1. Paralelismo intra-worker (concurrency 5)
-No `drainBatch`, substituir `for (const item of list)` por processamento em **chunks paralelos de 5**:
+### 1. Pool agressivo desde o início
+No `ensurePool` do dispatcher:
 ```ts
-const CONCURRENCY = 5;
-for (let i = 0; i < list.length; i += CONCURRENCY) {
-  const chunk = list.slice(i, i + CONCURRENCY);
-  const results = await Promise.all(chunk.map(item => processOneItem(...)));
-}
+let target = MAX_WORKERS; // sempre 10 se houver backlog
+if (pending < 100) target = 2;
+if (pending < 500) target = 5;
 ```
-**Ganho estimado**: 5× a vazão por worker (de 6 items/s para ~30 items/s).
+Elimina o "ramp up" tímido.
 
-### 2. Auto-respawn do worker (sem esperar próximo tick)
-No fim do `drainLoop`, se ainda houver `pending > 0`, o worker **dispara fire-and-forget** uma nova invocação de si mesmo via `fetch` (com `EdgeRuntime.waitUntil`) antes de retornar. Elimina o gap de 28s entre ciclos.
+### 2. Auto-respawn em fan-out (não 1, mas N)
+No `uazapi-history-resume`, ao terminar, se `pending > 200`, dispara **fan-out de 3 invocações paralelas** (workers diferentes) via `EdgeRuntime.waitUntil`. Mantém pool cheio sem depender do dispatcher.
 
-### 3. Coalescência de finalize de runs
-Trocar `for (const runId of touchedRuns) await finalizeRunIfDone(...)` por uma **única query agregada** que verifica todas as runs tocadas em um SELECT e finaliza só as que zeraram. Reduz 50 queries para 1.
+### 3. Dispatcher com self-tick rápido
+Após disparar workers, o dispatcher agenda **auto-tick de 10s** (via `setTimeout` + `EdgeRuntime.waitUntil`) enquanto a instância estiver viva. Reduz o gap de 60s do heartbeat para 10s.
 
-### 4. Compactação de items no webhook (próximas reconexões)
-Atualizar `uazapi-chat-webhook` → `enqueueHistoryRun` para **agrupar mensagens do mesmo `remote_jid` em um único item** dentro do batch recebido. Hoje cria 1 item por mensagem; passará a criar 1 item por chat. Reduz volume de items em ~40% (média de 1.5 msg/item subirá pra ~10).
-
-### 5. Heartbeat com vazão real
-Substituir `processedWindow` (que conta invocações de worker) por **leitura direta do DB** a cada heartbeat:
-```ts
-SELECT COUNT(*) FROM uazapi_history_items 
-WHERE status='ok' AND processed_at > now() - interval '1 minute'
+### 4. Lock de slot via DB (não memória)
+Substituir `state.busy: Set<number>` por consulta real ao DB:
+```sql
+SELECT DISTINCT worker_id FROM uazapi_history_items 
+WHERE status='pending' AND locked_at > now() - interval '30 seconds'
 ```
-Permite que o dispatcher tome decisões corretas de scaling.
+Dispatcher pega só worker_ids livres → nunca dispara duplicado, nunca deixa slot vazio. Funciona mesmo se a instância reiniciar.
 
-### 6. Bug de UI: `forwardRef` no `ItemStatusBadge`
-Console mostra warning React em `UazapiHistoryTab.tsx:108` — `ItemStatusBadge` é usado dentro de `<Tooltip>` que precisa de ref. Envolver com `React.forwardRef`.
+### 5. Reduzir trabalho desperdiçado em duplicatas
+No worker, antes de processar payload, fazer **batch-check de message_ids existentes** com `SELECT id FROM messages WHERE message_id = ANY($1)` e descartar duplicatas em uma query só (em vez de 50 INSERTs que falham no UNIQUE constraint).
 
-## Capacidade projetada após correções
+## Capacidade projetada
 
-| Métrica | Hoje (medido) | Após correções | Ganho |
-|---|---|---|---|
-| Items/seg por worker | 6 | 30 | 5× |
-| Workers efetivos simultâneos | 4 | 8-10 | 2× |
-| Idle time entre ciclos | 28s | <1s | ∞ |
-| Vazão total | 318/min | **~3.000/min** | 9× |
-| 9k items pending | ~28 min | **~3 min** | 9× |
-| 240k items (20 clientes) | ~13h | **~80 min** | 10× |
+| Métrica | Hoje | Após correções |
+|---|---|---|
+| Workers simultâneos | 2-4 | **8-10 sustentado** |
+| Gap entre ciclos | 60s (heartbeat) | 10s (self-tick) |
+| Items/min reais | ~318 | **~3.000** |
+| Tempo dedup (inserted=0) | 1.5s/lote | 0.3s/lote |
 
 ## Arquivos afetados
-- `supabase/functions/uazapi-history-resume/index.ts` — concurrency intra-worker, auto-respawn, finalize coalescido
-- `supabase/functions/uazapi-history-dispatcher/index.ts` — leitura real de vazão do DB no heartbeat
-- `supabase/functions/uazapi-chat-webhook/index.ts` — agrupar items por `remote_jid` no enqueue
-- `src/pages/configuracoes/components/UazapiHistoryTab.tsx` — corrigir `forwardRef` no `ItemStatusBadge`
+- `supabase/functions/uazapi-history-dispatcher/index.ts` — `ensurePool` agressivo, lock via DB, self-tick de 10s
+- `supabase/functions/uazapi-history-resume/index.ts` — fan-out de 3 no auto-respawn, batch-check de duplicatas antes de INSERT
 
 ## Resultado esperado
-- Drenagem dos 9k items atuais em **~3 minutos** após deploy (vs 28 min de ETA atual)
-- Vazão sustentada de **~3.000 items/min** com pool real de 8-10 workers ativos
-- Heartbeat passa a refletir a vazão verdadeira (hoje mostra zero)
-- Reconexões futuras geram 40% menos items, baixando custo de I/O do banco
+- Pool real de 8-10 workers ativos visível na aba Monitor
+- Vazão sustentada de ~3.000 items/min mesmo com alta taxa de duplicatas
+- Drenagem dos pendentes atuais em poucos minutos
 
