@@ -16,6 +16,8 @@ export interface Queue {
   waba_id: string | null;
   waba_token: string | null;
   waba_number_id: string | null;
+  phone_number: string | null;
+  phone_resolved_at: string | null;
   is_active: boolean;
   is_deleted: boolean;
   deleted_at: string | null;
