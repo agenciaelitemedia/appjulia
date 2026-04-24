@@ -4659,6 +4659,7 @@ export type Database = {
           received_messages: number
           remote_jid: string
           run_id: string
+          skipped_lid: number
           status: string
         }
         Insert: {
@@ -4674,6 +4675,7 @@ export type Database = {
           received_messages?: number
           remote_jid: string
           run_id: string
+          skipped_lid?: number
           status?: string
         }
         Update: {
@@ -4689,6 +4691,7 @@ export type Database = {
           received_messages?: number
           remote_jid?: string
           run_id?: string
+          skipped_lid?: number
           status?: string
         }
         Relationships: [
@@ -4719,6 +4722,7 @@ export type Database = {
           queue_id: string | null
           queue_name: string | null
           received_at: string
+          skipped_lid: number
           started_at: string | null
           status: string
           total_messages: number
@@ -4741,6 +4745,7 @@ export type Database = {
           queue_id?: string | null
           queue_name?: string | null
           received_at?: string
+          skipped_lid?: number
           started_at?: string | null
           status?: string
           total_messages?: number
@@ -4763,6 +4768,7 @@ export type Database = {
           queue_id?: string | null
           queue_name?: string | null
           received_at?: string
+          skipped_lid?: number
           started_at?: string | null
           status?: string
           total_messages?: number
