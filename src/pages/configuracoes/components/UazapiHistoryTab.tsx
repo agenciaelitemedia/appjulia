@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, History, Eye, CheckCircle2, AlertCircle, MinusCircle, Clock, XCircle } from 'lucide-react';
+import { Loader2, History, Eye, CheckCircle2, AlertCircle, MinusCircle, Clock, XCircle, Ban } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useUazapiHistoryRuns, useUazapiHistoryItems, type UazapiHistoryRun } from '../hooks/useUazapiHistoryRuns';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -147,6 +148,7 @@ export function UazapiHistoryTab() {
     let totalInserted = 0;
     let totalDuplicates = 0;
     let totalGroups = 0;
+    let totalSkippedLid = 0;
     let lastReceivedAt: string | null = null;
     let lastFinishedAt: string | null = null;
     let oldestRunningAt: string | null = null;
@@ -156,13 +158,14 @@ export function UazapiHistoryTab() {
       totalInserted += r.inserted_messages || 0;
       totalDuplicates += r.duplicate_messages || 0;
       totalGroups += r.group_messages || 0;
+      totalSkippedLid += r.skipped_lid || 0;
       if (!lastReceivedAt || r.received_at > lastReceivedAt) lastReceivedAt = r.received_at;
       if (r.finished_at && (!lastFinishedAt || r.finished_at > lastFinishedAt)) lastFinishedAt = r.finished_at;
       if (r.status === 'running' && r.started_at) {
         if (!oldestRunningAt || r.started_at < oldestRunningAt) oldestRunningAt = r.started_at;
       }
     }
-    return { counts, totalReceived, totalInserted, totalDuplicates, totalGroups, lastReceivedAt, lastFinishedAt, oldestRunningAt };
+    return { counts, totalReceived, totalInserted, totalDuplicates, totalGroups, totalSkippedLid, lastReceivedAt, lastFinishedAt, oldestRunningAt };
   }, [runs]);
 
   const fmtTs = (v: string | null) =>
@@ -213,6 +216,22 @@ export function UazapiHistoryTab() {
               <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Mais antigo em execução</div>
               <div className="text-sm font-semibold mt-1 text-foreground">{fmtTs(stats.oldestRunningAt)}</div>
             </div>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="border rounded-lg p-3 bg-orange-500/5 border-orange-500/20 cursor-help">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-medium uppercase tracking-wide text-orange-700">Descartadas (LID)</span>
+                      <Ban className="h-3.5 w-3.5 text-orange-600" />
+                    </div>
+                    <div className="text-2xl font-bold mt-1 text-orange-600">{stats.totalSkippedLid.toLocaleString('pt-BR')}</div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs">
+                  Mensagens recebidas sem número real do WhatsApp (identificador interno @lid). São ignoradas para evitar criar contatos sem telefone válido.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <div className="border rounded-lg p-3 bg-card">
               <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Mensagens (recebidas / inseridas)</div>
               <div className="text-sm font-semibold mt-1 text-foreground">

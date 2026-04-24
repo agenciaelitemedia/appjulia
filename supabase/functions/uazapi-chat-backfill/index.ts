@@ -33,6 +33,10 @@ function isGroupChatId(value: unknown): boolean {
   return typeof value === 'string' && value.includes('@g.us');
 }
 
+function isLidJid(value: unknown): boolean {
+  return typeof value === 'string' && value.includes('@lid');
+}
+
 function isGroupMessage(msg: any): boolean {
   if (!msg || typeof msg !== 'object') return false;
   return isGroupChatId(msg.key?.remoteJid)
@@ -145,8 +149,29 @@ Deno.serve(async (req) => {
       return respond({ ok: true, skipped: 'group_history_ignored' });
     }
 
-    const senderPhone = normalizePhone(phone || chat_id);
-    const targetChatId = chat_id || `${senderPhone}@s.whatsapp.net`;
+    // Reject LinkedIDs as a phone source — they are not real WhatsApp numbers.
+    if (isLidJid(chat_id) || isLidJid(contact.remote_jid)) {
+      await supabase
+        .from('chat_contacts')
+        .update({ history_backfilled: true })
+        .eq('id', contact_id);
+      console.warn('[uazapi-chat-backfill] skipping LID chat_id:', chat_id || contact.remote_jid);
+      return respond({ ok: true, skipped: 'lid_chat_ignored' });
+    }
+
+    // Prefer the explicit phone arg, then fall back to chat_id only if it's
+    // a real @s.whatsapp.net JID or pure digits — never a @lid.
+    const phoneSource = phone && !isLidJid(phone) ? phone
+      : (chat_id && !isLidJid(chat_id) ? chat_id : '');
+    const senderPhone = normalizePhone(phoneSource);
+    if (!senderPhone || senderPhone.length < 8 || senderPhone.length > 13) {
+      await supabase
+        .from('chat_contacts')
+        .update({ history_backfilled: true })
+        .eq('id', contact_id);
+      return respond({ ok: true, skipped: 'invalid_phone' });
+    }
+    const targetChatId = `${senderPhone}@s.whatsapp.net`;
 
     // Call UaZapi /message/find endpoint
     const url = `${queue.evo_url.replace(/\/$/, '')}/message/find`;

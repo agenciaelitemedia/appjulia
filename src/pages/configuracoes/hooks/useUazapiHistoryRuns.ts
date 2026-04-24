@@ -16,6 +16,7 @@ export interface UazapiHistoryRun {
   inserted_messages: number;
   duplicate_messages: number;
   inserted_contacts: number;
+  skipped_lid: number;
   error: string | null;
   received_at: string;
   started_at: string | null;
@@ -34,6 +35,7 @@ export interface UazapiHistoryItem {
   duplicate_messages: number;
   contact_created: boolean;
   conversation_created: boolean;
+  skipped_lid: number;
   error: string | null;
   processed_at: string | null;
 }

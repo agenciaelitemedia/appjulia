@@ -37,6 +37,50 @@ function isGroupJid(value: unknown): boolean {
   return typeof value === 'string' && value.includes('@g.us');
 }
 
+function isLidJid(value: unknown): boolean {
+  return typeof value === 'string' && value.includes('@lid');
+}
+
+/**
+ * Resolve the real WhatsApp peer phone for a message coming from UaZapi
+ * history. NEVER returns a LinkedID (`@lid`)-derived number.
+ * Order of precedence:
+ *   1. msg.sender_pn (explicit phone-number field set by UaZapi when chat
+ *      identifier is a LID)
+ *   2. chatid / remoteJid / chatId variants — only if not @lid/@g.us
+ *   3. PhoneNumber, phone, from, to, sender — only if not @lid/@g.us
+ * Returns the normalized 8–13 digit phone, or null if no real phone is found.
+ */
+function resolvePeerPhone(msg: any): string | null {
+  if (!msg || typeof msg !== 'object') return null;
+  const fromMe: boolean = msg.key?.fromMe ?? msg.fromMe ?? msg.from_me ?? false;
+
+  const ordered: unknown[] = [
+    msg.sender_pn,
+    msg.PhoneNumber,
+    msg.phone,
+    msg.chatid,
+    msg.chatId,
+    msg.key?.remoteJid,
+    msg.remoteJid,
+    msg.wa_chatid,
+    fromMe ? msg.to : msg.from,
+    msg.sender,
+    msg.recipient,
+  ];
+
+  for (const cand of ordered) {
+    if (!cand) continue;
+    const raw = String(cand);
+    if (isLidJid(raw) || isGroupJid(raw)) continue;
+    const normalized = normalizePhone(raw);
+    if (normalized && normalized.length >= 8 && normalized.length <= 13) {
+      return normalized;
+    }
+  }
+  return null;
+}
+
 function isGroupMessage(msg: any): boolean {
   if (!msg || typeof msg !== 'object') return false;
   const jids = [
@@ -151,14 +195,21 @@ async function processRun(runId: string, payload: any): Promise<void> {
 
   const clientId = String((run as any).client_id);
 
-  // Group payload messages by remote_jid (skip groups defensively)
+  // Group payload messages by REAL phone (skip groups + LID defensively).
+  // We use resolvePeerPhone() so a LinkedID (@lid) chat identifier never
+  // becomes a fake 14-digit "phone".
   const rawMessages: any[] = Array.isArray(payload?.messages) ? payload.messages : [];
   const byChat = new Map<string, any[]>();
+  let totalSkippedLid = 0;
   for (const msg of rawMessages) {
-    const remoteJid: string = msg?.key?.remoteJid ?? msg?.remoteJid ?? msg?.chatId ?? msg?.chatid ?? '';
-    if (!remoteJid || isGroupMessage(msg) || isGroupJid(remoteJid)) continue;
-    if (!byChat.has(remoteJid)) byChat.set(remoteJid, []);
-    byChat.get(remoteJid)!.push(msg);
+    if (isGroupMessage(msg)) continue;
+    const phone = resolvePeerPhone(msg);
+    if (!phone) {
+      totalSkippedLid++;
+      continue;
+    }
+    if (!byChat.has(phone)) byChat.set(phone, []);
+    byChat.get(phone)!.push(msg);
   }
 
   let totalProcessed = 0;
@@ -167,9 +218,8 @@ async function processRun(runId: string, payload: any): Promise<void> {
   let totalContactsCreated = 0;
   let hadErrors = false;
 
-  for (const [remoteJid, msgs] of byChat) {
-    const phone = normalizePhone(remoteJid);
-    if (!phone) continue;
+  for (const [phone, msgs] of byChat) {
+    const remoteJid = `${phone}@s.whatsapp.net`;
 
     let chatInserted = 0;
     let chatDuplicates = 0;
@@ -414,10 +464,11 @@ async function processRun(runId: string, payload: any): Promise<void> {
     inserted_messages: totalInserted,
     duplicate_messages: totalDuplicates,
     inserted_contacts: totalContactsCreated,
+    skipped_lid: totalSkippedLid,
     finished_at: new Date().toISOString(),
   }).eq('id', runId);
 
-  console.log(`[uazapi-history-processor] run=${runId} processed=${totalProcessed} inserted=${totalInserted} duplicates=${totalDuplicates} contacts=${totalContactsCreated}`);
+  console.log(`[uazapi-history-processor] run=${runId} processed=${totalProcessed} inserted=${totalInserted} duplicates=${totalDuplicates} contacts=${totalContactsCreated} skipped_lid=${totalSkippedLid}`);
 }
 
 Deno.serve(async (req) => {
