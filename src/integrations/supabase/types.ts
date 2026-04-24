@@ -4437,6 +4437,8 @@ export type Database = {
           is_active: boolean
           is_deleted: boolean
           name: string
+          phone_number: string | null
+          phone_resolved_at: string | null
           updated_at: string
           waba_id: string | null
           waba_number_id: string | null
@@ -4455,6 +4457,8 @@ export type Database = {
           is_active?: boolean
           is_deleted?: boolean
           name: string
+          phone_number?: string | null
+          phone_resolved_at?: string | null
           updated_at?: string
           waba_id?: string | null
           waba_number_id?: string | null
@@ -4473,6 +4477,8 @@ export type Database = {
           is_active?: boolean
           is_deleted?: boolean
           name?: string
+          phone_number?: string | null
+          phone_resolved_at?: string | null
           updated_at?: string
           waba_id?: string | null
           waba_number_id?: string | null
