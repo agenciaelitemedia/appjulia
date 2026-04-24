@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, History, Eye, CheckCircle2, AlertCircle, MinusCircle, Clock, XCircle } from 'lucide-react';
+import { Loader2, History, Eye, CheckCircle2, AlertCircle, MinusCircle, Clock, XCircle, Ban } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useUazapiHistoryRuns, useUazapiHistoryItems, type UazapiHistoryRun } from '../hooks/useUazapiHistoryRuns';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -147,6 +148,7 @@ export function UazapiHistoryTab() {
     let totalInserted = 0;
     let totalDuplicates = 0;
     let totalGroups = 0;
+    let totalSkippedLid = 0;
     let lastReceivedAt: string | null = null;
     let lastFinishedAt: string | null = null;
     let oldestRunningAt: string | null = null;
@@ -156,13 +158,14 @@ export function UazapiHistoryTab() {
       totalInserted += r.inserted_messages || 0;
       totalDuplicates += r.duplicate_messages || 0;
       totalGroups += r.group_messages || 0;
+      totalSkippedLid += r.skipped_lid || 0;
       if (!lastReceivedAt || r.received_at > lastReceivedAt) lastReceivedAt = r.received_at;
       if (r.finished_at && (!lastFinishedAt || r.finished_at > lastFinishedAt)) lastFinishedAt = r.finished_at;
       if (r.status === 'running' && r.started_at) {
         if (!oldestRunningAt || r.started_at < oldestRunningAt) oldestRunningAt = r.started_at;
       }
     }
-    return { counts, totalReceived, totalInserted, totalDuplicates, totalGroups, lastReceivedAt, lastFinishedAt, oldestRunningAt };
+    return { counts, totalReceived, totalInserted, totalDuplicates, totalGroups, totalSkippedLid, lastReceivedAt, lastFinishedAt, oldestRunningAt };
   }, [runs]);
 
   const fmtTs = (v: string | null) =>

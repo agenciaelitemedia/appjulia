@@ -960,7 +960,11 @@ Deno.serve(async (req) => {
             name: contactNameToWrite,
             channel_type: 'whatsapp_uazapi',
             channel_source: queueId,
-            remote_jid: chatId || null,
+            // NEVER persist a @lid identifier — always normalize to <phone>@s.whatsapp.net
+            // (or @g.us for groups). This avoids contacts being keyed by LinkedIDs.
+            remote_jid: (chatId && !String(chatId).includes('@lid'))
+              ? chatId
+              : (isGroup ? `${senderPhone}@g.us` : `${senderPhone}@s.whatsapp.net`),
             is_group: isGroup,
             avatar: fromMe ? ((preExisting as any)?.avatar ?? null) : (msg.profilePictureUrl || msg.groupPictureUrl || null),
             last_message_at: isoTimestamp,
