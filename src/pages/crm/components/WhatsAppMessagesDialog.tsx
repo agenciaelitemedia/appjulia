@@ -1246,6 +1246,45 @@ export function WhatsAppMessagesDialog({
   const loadAgentCredentials = async () => {
     setLoading(true);
     try {
+      // ─────────────────────────────────────────────────────────
+      // 1) Queue-routed: use the QUEUE's credentials (not the agent's).
+      //    Ensures /message/find, /send/text and /message/download
+      //    hit the same UaZapi/WABA instance the queue sends from.
+      // ─────────────────────────────────────────────────────────
+      if (agentLink?.source === 'queue') {
+        const qHub = (agentLink.hub || 'uazapi').toLowerCase();
+        setAgentInstance(agentLink.evoInstance || null);
+
+        if (qHub === 'waba') {
+          setProvider('waba');
+          setClient(null);
+          if (agentLink.wabaId && agentLink.wabaNumberId) {
+            setIsConfigured(true);
+          } else {
+            setIsConfigured(false);
+            toast.error('Fila WABA incompleta: a fila vinculada não possui waba_id/waba_number_id.');
+          }
+        } else {
+          setProvider('uazapi');
+          if (agentLink.evoUrl && agentLink.evoApikey) {
+            const newClient = new UaZapiClient({
+              baseUrl: agentLink.evoUrl,
+              token: agentLink.evoApikey,
+              instance: agentLink.evoInstance || undefined,
+            });
+            setClient(newClient);
+            setIsConfigured(true);
+          } else {
+            setIsConfigured(false);
+            toast.error('Fila UaZapi incompleta: a fila vinculada não possui URL/Token configurados.');
+          }
+        }
+        return;
+      }
+
+      // ─────────────────────────────────────────────────────────
+      // 2) Direct: fall back to the agent's own credentials.
+      // ─────────────────────────────────────────────────────────
       const result = await externalDb.raw<AgentCredentials>({
         query: `
           SELECT evo_url as api_url, evo_apikey as api_key, evo_instance as api_instance,
