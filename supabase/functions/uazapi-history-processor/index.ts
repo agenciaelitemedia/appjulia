@@ -37,6 +37,50 @@ function isGroupJid(value: unknown): boolean {
   return typeof value === 'string' && value.includes('@g.us');
 }
 
+function isLidJid(value: unknown): boolean {
+  return typeof value === 'string' && value.includes('@lid');
+}
+
+/**
+ * Resolve the real WhatsApp peer phone for a message coming from UaZapi
+ * history. NEVER returns a LinkedID (`@lid`)-derived number.
+ * Order of precedence:
+ *   1. msg.sender_pn (explicit phone-number field set by UaZapi when chat
+ *      identifier is a LID)
+ *   2. chatid / remoteJid / chatId variants — only if not @lid/@g.us
+ *   3. PhoneNumber, phone, from, to, sender — only if not @lid/@g.us
+ * Returns the normalized 8–13 digit phone, or null if no real phone is found.
+ */
+function resolvePeerPhone(msg: any): string | null {
+  if (!msg || typeof msg !== 'object') return null;
+  const fromMe: boolean = msg.key?.fromMe ?? msg.fromMe ?? msg.from_me ?? false;
+
+  const ordered: unknown[] = [
+    msg.sender_pn,
+    msg.PhoneNumber,
+    msg.phone,
+    msg.chatid,
+    msg.chatId,
+    msg.key?.remoteJid,
+    msg.remoteJid,
+    msg.wa_chatid,
+    fromMe ? msg.to : msg.from,
+    msg.sender,
+    msg.recipient,
+  ];
+
+  for (const cand of ordered) {
+    if (!cand) continue;
+    const raw = String(cand);
+    if (isLidJid(raw) || isGroupJid(raw)) continue;
+    const normalized = normalizePhone(raw);
+    if (normalized && normalized.length >= 8 && normalized.length <= 13) {
+      return normalized;
+    }
+  }
+  return null;
+}
+
 function isGroupMessage(msg: any): boolean {
   if (!msg || typeof msg !== 'object') return false;
   const jids = [
