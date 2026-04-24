@@ -1067,20 +1067,28 @@ Deno.serve(async (req) => {
 
         if (!contact) continue;
 
-        // ── Enrich profile (avatar, wa_*, lead_*) for new contacts or those still missing avatar ──
-        const needsEnrich = !isGroup && (isNewContact || !preExisting?.avatar);
+        // ── Enrich profile (avatar, name, wa_*, lead_*) ──
+        // Runs only when the contact is brand new OR still has no avatar after persistence.
+        // No TTL / no retries: a single attempt at "first contact" is enough.
+        const needsEnrich = isNewContact || !preExisting?.avatar;
         if (needsEnrich) {
+          // For groups, query by the group JID so /group/info is used.
+          const lookupKey = isGroup
+            ? (chatId && String(chatId).includes('@g.us') ? String(chatId) : `${senderPhone}@g.us`)
+            : senderPhone;
           // Fire-and-forget so we don't block message persistence
           (async () => {
             try {
-              const profile = await fetchWhatsappProfile(queue as any, senderPhone);
+              const profile = await fetchWhatsappProfile(queue as any, lookupKey);
               const cols = profileToContactColumns(profile);
               const update: Record<string, unknown> = { ...cols };
               if (profile.avatar) update.avatar = profile.avatar;
               if (profile.name && (isPhoneLikeName(contactNameToWrite) || isNewContact)) {
                 update.name = profile.name;
               }
-              if (profile.remoteJid) update.remote_jid = profile.remoteJid;
+              if (profile.remoteJid && !String(profile.remoteJid).includes('@lid')) {
+                update.remote_jid = profile.remoteJid;
+              }
               await supabase.from('chat_contacts').update(update).eq('id', contact.id);
             } catch (e) {
               console.warn(`[uazapi-chat-webhook] enrich failed phone=${senderPhone}: ${(e as Error).message}`);
