@@ -148,18 +148,21 @@ Deno.serve(async (req) => {
   try {
     const { action, cod_agent, queue_id, sender_name, source, ...params } = await req.json();
 
-    if (!action || (!cod_agent && !queue_id)) {
+    const phone_number_id_in: string | undefined = params.phone_number_id;
+
+    if (!action || (!cod_agent && !queue_id && !phone_number_id_in)) {
       return new Response(
-        JSON.stringify({ error: "action and (queue_id or cod_agent) are required" }),
+        JSON.stringify({ error: "action and (queue_id, cod_agent or phone_number_id) are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Resolve WABA credentials: prefer queue_id (queues table in Lovable Cloud),
+    // Resolve WABA credentials: prefer queue_id, then phone_number_id (waba_number_id lookup),
     // fallback to cod_agent (legacy: agents table in external DB via db-query)
     let waba_token: string | undefined;
     let phone_number_id: string | undefined;
     let waba_id: string | undefined;
+    let resolved_queue_id: string | null = queue_id ?? null;
 
     if (queue_id) {
       const { data: queue, error: qErr } = await supabase
@@ -174,6 +177,26 @@ Deno.serve(async (req) => {
           { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+      waba_token = queue.waba_token ?? undefined;
+      phone_number_id = queue.waba_number_id ?? undefined;
+      waba_id = queue.waba_id ?? undefined;
+    } else if (phone_number_id_in) {
+      const { data: queue, error: qErr } = await supabase
+        .from("queues")
+        .select("id, waba_token, waba_number_id, waba_id")
+        .eq("waba_number_id", phone_number_id_in)
+        .eq("is_active", true)
+        .eq("is_deleted", false)
+        .limit(1)
+        .maybeSingle();
+
+      if (qErr || !queue) {
+        return new Response(
+          JSON.stringify({ error: "Queue not found for phone_number_id", details: qErr?.message }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      resolved_queue_id = queue.id;
       waba_token = queue.waba_token ?? undefined;
       phone_number_id = queue.waba_number_id ?? undefined;
       waba_id = queue.waba_id ?? undefined;
@@ -207,7 +230,8 @@ Deno.serve(async (req) => {
       waba_id = agent.waba_id;
     }
 
-    if (!waba_token || !phone_number_id) {
+    // log_outbound does NOT call Meta — it only persists. Skip credential check.
+    if (action !== "log_outbound" && (!waba_token || !phone_number_id)) {
       return new Response(
         JSON.stringify({ error: "WABA credentials incomplete" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -216,6 +240,65 @@ Deno.serve(async (req) => {
 
     // Route by action
     switch (action) {
+      case "log_outbound": {
+        const { to, type, text, caption, media_url, file_name, meta_message_id, reply_to } = params;
+        if (!to || !type || !meta_message_id) {
+          return new Response(
+            JSON.stringify({ error: "to, type and meta_message_id are required" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const allowedTypes = ["text", "image", "video", "audio", "document", "sticker"];
+        if (!allowedTypes.includes(type)) {
+          return new Response(
+            JSON.stringify({ error: `Invalid type. Allowed: ${allowedTypes.join(", ")}` }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        if (!resolved_queue_id) {
+          return new Response(
+            JSON.stringify({ error: "Could not resolve queue_id" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const cleanNumber = String(to).replace(/\D/g, "");
+
+        // Dedupe by external_id
+        const { data: existing } = await supabase
+          .from("chat_messages")
+          .select("id, conversation_id, contact_id")
+          .eq("external_id", meta_message_id)
+          .maybeSingle();
+
+        if (existing?.id) {
+          console.log(`[waba-send] log_outbound deduped meta_id=${meta_message_id}`);
+          return new Response(
+            JSON.stringify({ ok: true, deduped: true, message_id: existing.id, conversation_id: existing.conversation_id, contact_id: existing.contact_id }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        await persistOutbound({
+          queueId: resolved_queue_id,
+          toPhone: cleanNumber,
+          metaMessageId: meta_message_id,
+          type,
+          text: text ?? null,
+          caption: caption ?? null,
+          mediaUrl: media_url ?? null,
+          fileName: file_name ?? null,
+          senderName: sender_name,
+          source: source || "log_outbound",
+          replyTo: reply_to ?? null,
+        });
+
+        return new Response(
+          JSON.stringify({ ok: true, deduped: false, meta_message_id }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       case "send_text": {
         const { to, text } = params;
         if (!to || !text) {
