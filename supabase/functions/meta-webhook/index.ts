@@ -16,29 +16,50 @@ const VERIFY_TOKEN = Deno.env.get('META_WEBHOOK_VERIFY_TOKEN') || 'julia_meta_ve
 const N8N_BASE_URL = 'https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start';
 
 // In-memory cache (60s) of own phone numbers per client (anti-echo filter).
-const ownNumbersCache = new Map<string, { value: Set<string>; expires: number }>();
-async function getOwnNumbersForClient(clientId: string): Promise<Set<string>> {
+// Returns map<phoneDigits, { queueId, channelType }> of client's own queues.
+const ownNumbersCache = new Map<string, { value: Map<string, { queueId: string; channelType: string }>; expires: number }>();
+async function getOwnNumbersForClient(clientId: string): Promise<Map<string, { queueId: string; channelType: string }>> {
   const now = Date.now();
   const cached = ownNumbersCache.get(clientId);
   if (cached && cached.expires > now) return cached.value;
-  const set = new Set<string>();
+  const map = new Map<string, { queueId: string; channelType: string }>();
   try {
     const { data, error } = await supabase
       .from('queues')
-      .select('phone_number')
+      .select('id, phone_number, channel_type, is_active, is_deleted')
       .eq('client_id', clientId)
+      .eq('is_active', true)
+      .eq('is_deleted', false)
       .not('phone_number', 'is', null);
     if (!error && Array.isArray(data)) {
       for (const row of data) {
         const p = String((row as any).phone_number || '').replace(/\D/g, '');
-        if (p) set.add(p);
+        if (p) map.set(p, { queueId: String((row as any).id), channelType: String((row as any).channel_type || '') });
       }
     }
   } catch (err) {
     console.warn('[meta-webhook] own numbers lookup failed:', err);
   }
-  ownNumbersCache.set(clientId, { value: set, expires: now + 60_000 });
-  return set;
+  ownNumbersCache.set(clientId, { value: map, expires: now + 60_000 });
+  return map;
+}
+
+// Check if an existing chat_contact already exists for this phone+client.
+// If yes, this is a real customer conversation — never filter as echo.
+async function isKnownContact(clientId: string, phoneDigits: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('chat_contacts')
+      .select('id')
+      .eq('client_id', clientId)
+      .eq('phone', phoneDigits)
+      .limit(1)
+      .maybeSingle();
+    if (error) return false;
+    return !!data;
+  } catch {
+    return false;
+  }
 }
 
 // ─── Resolve queue (preferred) by waba phone_number_id ───────────
@@ -497,15 +518,23 @@ serve(async (req) => {
             const msgText = message.text?.body || message.type || 'unknown';
             const msgType = message.type || 'text';
 
-            // ── Anti-echo filter: discard messages whose sender is one of the
-            //    client's own queue numbers (self-conversation between WABA and
-            //    UaZapi instances of the same office).
+            // ── Anti-echo filter: discard ONLY when sender's number matches
+            //    another active queue of the same client (true cross-instance
+            //    echo) AND the sender is not already a known contact.
             if (agentInfo?.client_id) {
-              const ownNumbers = await getOwnNumbersForClient(String(agentInfo.client_id));
               const fromDigits = String(from).replace(/\D/g, '');
-              if (ownNumbers.has(fromDigits)) {
-                console.log(`[meta-webhook] skip self-conversation phone=${fromDigits} client=${agentInfo.client_id}`);
-                continue;
+              const ownNumbers = await getOwnNumbersForClient(String(agentInfo.client_id));
+              const match = ownNumbers.get(fromDigits);
+              const sameQueue = match && queueInfo && match.queueId === queueInfo.id;
+              if (match && !sameQueue) {
+                // Safety net: if we already track this number as a customer
+                // contact, treat it as legit (avoid false positives).
+                const known = await isKnownContact(String(agentInfo.client_id), fromDigits);
+                if (!known) {
+                  console.log(`[meta-webhook] skip self-conversation phone=${fromDigits} client=${agentInfo.client_id} senderQueue=${match.queueId}/${match.channelType} currentQueue=${queueInfo?.id || 'none'}`);
+                  continue;
+                }
+                console.log(`[meta-webhook] anti-echo bypassed (known contact) phone=${fromDigits} client=${agentInfo.client_id}`);
               }
             }
 
