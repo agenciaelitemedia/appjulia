@@ -27,6 +27,7 @@ export function ResetChatDialog({ open, onOpenChange }: Props) {
   const [includeSync, setIncludeSync] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [clearingMedia, setClearingMedia] = useState(false);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -48,6 +49,22 @@ export function ResetChatDialog({ open, onOpenChange }: Props) {
   }, [open]);
 
   const canConfirm = confirmText.trim().toUpperCase() === 'RESETAR' && !submitting;
+
+  const handleClearMedia = async () => {
+    if (!confirm('Remover TODOS os arquivos do bucket chat-media? Esta ação é irreversível.')) return;
+    setClearingMedia(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('chat-reset', {
+        body: { action: 'clear_storage', bucket: 'chat-media' },
+      });
+      if (error) throw error;
+      toast.success(`Mídias removidas: ${data?.deleted ?? 0} de ${data?.total ?? 0}`);
+    } catch (err) {
+      toast.error('Erro ao limpar mídias', { description: (err as Error).message });
+    } finally {
+      setClearingMedia(false);
+    }
+  };
 
   const handleConfirm = async () => {
     setSubmitting(true);
@@ -139,6 +156,17 @@ export function ResetChatDialog({ open, onOpenChange }: Props) {
               placeholder="Digite RESETAR"
               autoComplete="off"
             />
+          </div>
+
+          <div className="rounded-md border border-border p-3 space-y-2">
+            <Label className="text-sm">Limpar mídias do chat (storage)</Label>
+            <p className="text-xs text-muted-foreground">
+              Remove todos os arquivos do bucket <code className="font-mono">chat-media</code>. Independente do escopo acima.
+            </p>
+            <Button variant="outline" size="sm" onClick={handleClearMedia} disabled={clearingMedia}>
+              {clearingMedia && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Limpar mídias do chat
+            </Button>
           </div>
         </div>
 
