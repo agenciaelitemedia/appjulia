@@ -1864,7 +1864,15 @@ export function WhatsAppMessagesDialog({
         ? `*${senderName}:*\n${newMessage.trim()}`
         : newMessage.trim();
 
-      if (provider === 'waba') {
+      if (useDbSource && agentLink?.queueId) {
+        // ───────────────────────────────────────────────
+        // Linked-queue mode: replicate /chat send logic.
+        // Uses queue credentials (UaZapi proxy or WABA edge)
+        // and persists into chat_messages so Realtime updates UI.
+        // ───────────────────────────────────────────────
+        await sendViaQueue({ kind: 'text', text: messageWithSignature });
+        setNewMessage('');
+      } else if (provider === 'waba') {
         // WABA: send via edge function
         const { data, error } = await supabase.functions.invoke('waba-send', {
           body: {
@@ -1877,6 +1885,13 @@ export function WhatsAppMessagesDialog({
         
         if (error) throw error;
         if (data?.error) throw new Error(data.error.message || data.error);
+
+        // Local UI add (non-DB mode)
+        setMessages(prev => [
+          ...prev,
+          { id: Date.now().toString(), text: messageWithSignature, fromMe: true, timestamp: Date.now(), type: 'text' },
+        ]);
+        setNewMessage('');
       } else {
         // UaZapi
         if (!client) return;
@@ -1884,21 +1899,12 @@ export function WhatsAppMessagesDialog({
           number: whatsappNumber.replace(/\D/g, ''),
           text: messageWithSignature,
         });
+        setMessages(prev => [
+          ...prev,
+          { id: Date.now().toString(), text: messageWithSignature, fromMe: true, timestamp: Date.now(), type: 'text' },
+        ]);
+        setNewMessage('');
       }
-
-      // Add message to local state
-      setMessages(prev => [
-        ...prev,
-        {
-          id: Date.now().toString(),
-          text: messageWithSignature,
-          fromMe: true,
-          timestamp: Date.now(),
-          type: 'text',
-        },
-      ]);
-      
-      setNewMessage('');
 
       // Update stage_entered_at on CRM card
       try {
