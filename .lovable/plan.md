@@ -1,31 +1,79 @@
-# Correção da lentidão na sincronização de mensagens
+## 🐛 Diagnóstico
 
-## Problema
-- 3.500+ itens travados em `pending`, throughput próximo de zero.
-- Workers bootando e dando shutdown em <1s sem processar.
-- Locks órfãos acumulando porque `uazapi_pick_pending_items` não muda status para `processing` — múltiplos workers competem pelo mesmo lote e os que perdem o `SKIP LOCKED` saem sem trabalho.
-- Filtro redundante no worker (`ts <= last_message_at`) descarta histórico válido como `skipped` e ainda apaga o `payload`, impedindo reprocessamento.
+**Caso reproduzido:** contato `553488860163` (cliente 30) enviou mensagem para a fila **WABA "Meta Official"** (`f81446ce...`), mas o ticket aberto está vinculado à fila **UaZapi "mario"** (`03b1b983...`).
 
-## Correções
+Estado real no banco:
 
-### 1. Migration SQL — corrigir RPCs de lock
-- **`uazapi_pick_pending_items`**: passar a marcar `status = 'processing'` (em vez de manter `pending`) e exigir `worker_id IS NULL` no `WHERE`. Isso garante exclusão real entre workers concorrentes.
-- **`uazapi_release_stale_locks`**: liberar tanto `pending` com lock antigo quanto `processing` parado >2min, voltando para `pending` com `worker_id=NULL`.
-- Adicionar índice parcial `(status, created_at) WHERE status='pending' AND worker_id IS NULL` para acelerar o pick.
+| Campo | Valor |
+|---|---|
+| `chat_contacts.channel_type` | `whatsapp_waba` ✅ |
+| `chat_contacts.channel_source` | fila WABA ✅ |
+| `chat_conversations.channel` | `whatsapp_uazapi` ❌ |
+| `chat_conversations.queue_id` | fila **UaZapi** ❌ |
 
-### 2. `supabase/functions/uazapi-history-resume/index.ts`
-- Remover o filtro `ts <= existingContact.last_message_at` que estava marcando histórico válido como `skipped` (a deduplicação real já é feita por `external_id`).
-- Ao marcar item como `skipped`/`error`, **não apagar o payload** — manter para auditoria/reprocesso.
-- Reduzir fan-out de `maybeRespawnSelf` de 4 para 1 e só respawnar se `pending > 100`.
-- Adicionar `UPDATE ... SET status='ok'` explícito no fim de `processOneItem` (necessário com a mudança do RPC).
+### Causa raiz (em `supabase/functions/meta-webhook/index.ts`, linhas 220-247)
 
-### 3. Recovery imediato (SQL data-only)
-- `UPDATE uazapi_history_items SET worker_id=NULL, locked_at=NULL, status='pending' WHERE status IN ('pending','processing') AND locked_at IS NOT NULL` — libera os 242 locks órfãos atuais.
-- Itens já `skipped` sem payload ficam como estão; backfill on-demand recria quando o usuário abrir a conversa.
+A lógica que garante o ticket aberto faz:
+```ts
+.from('chat_conversations')
+.select('id, queue_id')
+.eq('contact_id', contactId)
+.eq('client_id', effectiveClientId)
+.in('status', ['pending','open'])
+```
 
-## Fora de escopo
-- Dispatcher (lógica de pool está correta).
-- Filtros de grupo/duplicata recém-implementados (funcionando).
+**Não filtra por `channel` nem por `queue_id`.** Assim:
+1. Já existia uma conversa aberta criada antes pelo `uazapi-chat-webhook` (canal UaZapi, queue mario).
+2. Quando o cliente respondeu pela WABA, o `meta-webhook` encontrou aquela conversa aberta e **reaproveitou** sem trocar `queue_id` nem `channel` (o `else if (!openConv.queue_id)` só atualiza se `queue_id` for nulo — não é o caso).
+3. Mensagem WABA acabou anexada ao ticket UaZapi.
 
-## Resultado esperado
-Workers param de competir, locks param de acumular, throughput volta. Backlog de 3.5k deve drenar em <10min com 10 workers × 50 itens/lote.
+O mesmo bug existe espelhado no `uazapi-chat-webhook` (que provavelmente também não filtra por canal ao buscar a conversa aberta).
+
+---
+
+## ✅ Plano de correção
+
+### 1. `supabase/functions/meta-webhook/index.ts` (linhas 220-247)
+Filtrar a busca da conversa aberta **pelo canal e pela fila**:
+```ts
+const { data: openConv } = await supabase
+  .from('chat_conversations')
+  .select('id, queue_id')
+  .eq('contact_id', contactId)
+  .eq('client_id', effectiveClientId)
+  .eq('queue_id', queueInfo.id)        // ✅ mesma fila
+  .eq('channel', 'whatsapp_waba')      // ✅ mesmo canal
+  .in('status', ['pending', 'open'])
+  .order('created_at', { ascending: false })
+  .limit(1)
+  .maybeSingle();
+```
+Assim, se o contato tiver ticket aberto pela UaZapi, será criado um **novo ticket WABA** paralelo (omnichannel correto: cada canal tem seu protocolo).
+
+### 2. `supabase/functions/uazapi-chat-webhook/index.ts`
+Aplicar o mesmo filtro espelhado: `eq('channel','whatsapp_uazapi')` + `eq('queue_id', queueInfo.id)` ao buscar conversa aberta antes de criar/reaproveitar.
+
+### 3. Recovery do caso atual (cliente 30 / contato `a3e8c2d7...`)
+Migration única para corrigir tickets já bagunçados onde `chat_contacts.channel_source` aponta para uma fila com `channel_type` diferente do `chat_conversations.queue_id` correspondente:
+
+```sql
+-- Para o ticket atual: redirecionar para a fila WABA correta
+UPDATE chat_conversations
+SET queue_id = 'f81446ce-e830-47cc-8a5d-4f08b0984614',
+    channel = 'whatsapp_waba'
+WHERE id = '1ec8f2ae-9498-4e68-a676-e98d73270f28';
+```
+(Opcional: varrer todos os clientes procurando esse mismatch e logar.)
+
+### 4. Memória
+Atualizar `mem://features/chat/omnichannel-ticketing-system-v3` com a regra:
+> **Tickets são por (contact_id, queue_id, channel)** — webhooks de canais diferentes nunca reaproveitam ticket de outro canal; cada canal abre seu próprio protocolo.
+
+---
+
+## 📊 Impacto
+- Mensagens WABA passam a ir para tickets WABA, mesmo quando há ticket UaZapi aberto para o mesmo contato.
+- Cliente vê dois tickets/protocolos separados (um por canal) = comportamento omnichannel correto.
+- Sem mudança de schema; só um filtro adicional + 1 UPDATE de recuperação.
+
+Confirma para implementar?
