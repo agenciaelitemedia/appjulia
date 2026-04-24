@@ -87,7 +87,8 @@ export function ResetChatDialog({ open, onOpenChange }: Props) {
             <AlertTriangle className="w-5 h-5" /> Resetar Chat
           </DialogTitle>
           <DialogDescription>
-            Esta ação remove permanentemente todas as conversas, mensagens e contatos do escopo selecionado.
+            Esta ação remove permanentemente todas as conversas, mensagens, contatos e os
+            registros gerados pelos webhooks (UaZapi history, fila e logs de webhook) do escopo selecionado.
           </DialogDescription>
         </DialogHeader>
 
