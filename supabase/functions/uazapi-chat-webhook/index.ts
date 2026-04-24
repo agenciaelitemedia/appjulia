@@ -236,7 +236,7 @@ async function enqueueHistoryRun(
   // Group by chat and skip groups defensively at enqueue time
   const totalMessages = rawMessages.length;
   let groupMessages = 0;
-  const byChat = new Map<string, { phone: string; count: number }>();
+  const byChat = new Map<string, { phone: string; count: number; messages: any[] }>();
   for (const msg of rawMessages) {
     const remoteJid: string = msg?.key?.remoteJid ?? msg?.remoteJid ?? msg?.chatId ?? msg?.chatid ?? '';
     if (!remoteJid) continue;
@@ -246,8 +246,9 @@ async function enqueueHistoryRun(
     }
     const phone = normalizePhone(remoteJid);
     if (!phone) continue;
-    const cur = byChat.get(remoteJid) ?? { phone, count: 0 };
+    const cur = byChat.get(remoteJid) ?? { phone, count: 0, messages: [] };
     cur.count++;
+    cur.messages.push(msg);
     byChat.set(remoteJid, cur);
   }
 
