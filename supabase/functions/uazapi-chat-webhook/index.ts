@@ -23,6 +23,37 @@ function getSupabase() {
 
 // In-memory cache (60s) for agent queue settings keyed by client_id.
 const agentSettingsCache = new Map<string, { value: { allow_groups: boolean; queue_limit: number }; expires: number }>();
+
+// In-memory cache (60s) of own phone numbers per client (anti-echo filter).
+const ownNumbersCache = new Map<string, { value: Set<string>; expires: number }>();
+async function getOwnNumbersForClient(clientId: string): Promise<Set<string>> {
+  const now = Date.now();
+  const cached = ownNumbersCache.get(clientId);
+  if (cached && cached.expires > now) return cached.value;
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('queues')
+      .select('phone_number')
+      .eq('client_id', clientId)
+      .not('phone_number', 'is', null);
+    const set = new Set<string>();
+    if (!error && Array.isArray(data)) {
+      for (const row of data) {
+        const p = String((row as any).phone_number || '').replace(/\D/g, '');
+        if (p) set.add(p);
+      }
+    }
+    ownNumbersCache.set(clientId, { value: set, expires: now + 60_000 });
+    return set;
+  } catch (err) {
+    console.warn('[uazapi-chat-webhook] own numbers lookup failed:', err);
+    const set = new Set<string>();
+    ownNumbersCache.set(clientId, { value: set, expires: now + 60_000 });
+    return set;
+  }
+}
+
 async function getAllowGroupsForClient(clientId: string): Promise<boolean> {
   const now = Date.now();
   const cached = agentSettingsCache.get(clientId);
@@ -896,6 +927,17 @@ Deno.serve(async (req) => {
           if (!senderPhone) {
             skipped.no_phone++;
             console.log('[uazapi-chat-webhook] no valid peer phone, fromMe=', fromMe, 'sample:', JSON.stringify({ chatid: msg.chatid, sender: msg.sender, sender_pn: msg.sender_pn, from: msg.from }).slice(0, 300));
+            continue;
+          }
+        }
+
+        // ── Anti-echo filter: discard messages whose peer is one of the
+        //    client's own queue numbers (self-conversation between WABA
+        //    and UaZapi instances of the same office).
+        if (!isGroup) {
+          const ownNumbers = await getOwnNumbersForClient(String(queue.client_id));
+          if (ownNumbers.has(senderPhone)) {
+            console.log(`[uazapi-chat-webhook] skip self-conversation phone=${senderPhone} client=${queue.client_id}`);
             continue;
           }
         }

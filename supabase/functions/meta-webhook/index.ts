@@ -15,6 +15,32 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 const VERIFY_TOKEN = Deno.env.get('META_WEBHOOK_VERIFY_TOKEN') || 'julia_meta_verify_token_test_123';
 const N8N_BASE_URL = 'https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start';
 
+// In-memory cache (60s) of own phone numbers per client (anti-echo filter).
+const ownNumbersCache = new Map<string, { value: Set<string>; expires: number }>();
+async function getOwnNumbersForClient(clientId: string): Promise<Set<string>> {
+  const now = Date.now();
+  const cached = ownNumbersCache.get(clientId);
+  if (cached && cached.expires > now) return cached.value;
+  const set = new Set<string>();
+  try {
+    const { data, error } = await supabase
+      .from('queues')
+      .select('phone_number')
+      .eq('client_id', clientId)
+      .not('phone_number', 'is', null);
+    if (!error && Array.isArray(data)) {
+      for (const row of data) {
+        const p = String((row as any).phone_number || '').replace(/\D/g, '');
+        if (p) set.add(p);
+      }
+    }
+  } catch (err) {
+    console.warn('[meta-webhook] own numbers lookup failed:', err);
+  }
+  ownNumbersCache.set(clientId, { value: set, expires: now + 60_000 });
+  return set;
+}
+
 // ─── Resolve queue (preferred) by waba phone_number_id ───────────
 async function resolveQueueForWaba(phoneNumberId: string): Promise<{ id: string; client_id: string } | null> {
   try {
@@ -470,6 +496,18 @@ serve(async (req) => {
             const from = message.from || 'unknown';
             const msgText = message.text?.body || message.type || 'unknown';
             const msgType = message.type || 'text';
+
+            // ── Anti-echo filter: discard messages whose sender is one of the
+            //    client's own queue numbers (self-conversation between WABA and
+            //    UaZapi instances of the same office).
+            if (agentInfo?.client_id) {
+              const ownNumbers = await getOwnNumbersForClient(String(agentInfo.client_id));
+              const fromDigits = String(from).replace(/\D/g, '');
+              if (ownNumbers.has(fromDigits)) {
+                console.log(`[meta-webhook] skip self-conversation phone=${fromDigits} client=${agentInfo.client_id}`);
+                continue;
+              }
+            }
 
             // Extract contact name
             const contacts = value.contacts || [];
