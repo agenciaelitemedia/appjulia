@@ -464,10 +464,11 @@ async function processRun(runId: string, payload: any): Promise<void> {
     inserted_messages: totalInserted,
     duplicate_messages: totalDuplicates,
     inserted_contacts: totalContactsCreated,
+    skipped_lid: totalSkippedLid,
     finished_at: new Date().toISOString(),
   }).eq('id', runId);
 
-  console.log(`[uazapi-history-processor] run=${runId} processed=${totalProcessed} inserted=${totalInserted} duplicates=${totalDuplicates} contacts=${totalContactsCreated}`);
+  console.log(`[uazapi-history-processor] run=${runId} processed=${totalProcessed} inserted=${totalInserted} duplicates=${totalDuplicates} contacts=${totalContactsCreated} skipped_lid=${totalSkippedLid}`);
 }
 
 Deno.serve(async (req) => {
