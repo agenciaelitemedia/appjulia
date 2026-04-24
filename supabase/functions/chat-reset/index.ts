@@ -44,6 +44,11 @@ const CHILD_TABLES_BY_CONVERSATION = [
 
 const SYNC_TABLES = ['whatsapp_sync_job_logs', 'whatsapp_sync_jobs'];
 
+// Tables populated by inbound webhooks (UaZapi, Meta) — sempre limpas no reset.
+// Logs/queue globais (sem client_id) só são limpos no escopo "todos".
+const WEBHOOK_TABLES_GLOBAL = ['webhook_logs', 'webhook_queue'];
+const WEBHOOK_TABLES_BY_CLIENT = ['uazapi_history_items', 'uazapi_history_runs', 'chat_webhook_deliveries', 'chat_webhooks'];
+
 // Order matters: children first, then parents
 const TRUNCATE_ALL_ORDER = [
   'chat_message_reactions',
@@ -60,6 +65,13 @@ const TRUNCATE_ALL_ORDER = [
   'chat_messages',
   'chat_conversations',
   'chat_contacts',
+  // Webhook tables (children first)
+  'uazapi_history_items',
+  'uazapi_history_runs',
+  'chat_webhook_deliveries',
+  'chat_webhooks',
+  'webhook_logs',
+  'webhook_queue',
 ];
 
 async function deleteAndCount(supabase: ReturnType<typeof getSupabase>, table: string, filter: (q: any) => any): Promise<number> {
