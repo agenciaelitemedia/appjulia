@@ -341,11 +341,14 @@ async function processRun(runId: string, payload: any): Promise<void> {
 
       // ── Resolve or create conversation only when there are new messages ──
       let conversationId: string | null = null;
+      const historyQueueId = queue?.id ?? (run as any).queue_id ?? null;
       const { data: activeConv } = await supabase
         .from('chat_conversations')
         .select('id')
         .eq('contact_id', contactId)
         .eq('client_id', clientId)
+        .eq('queue_id', historyQueueId)
+        .eq('channel', 'whatsapp_uazapi')
         .in('status', ['pending', 'open'])
         .order('created_at', { ascending: false })
         .limit(1)
@@ -358,7 +361,7 @@ async function processRun(runId: string, payload: any): Promise<void> {
           .insert({
             contact_id: contactId,
             client_id: clientId,
-            queue_id: queue?.id ?? (run as any).queue_id ?? null,
+            queue_id: historyQueueId,
             channel: 'whatsapp_uazapi',
             status: 'pending',
             priority: 'normal',
