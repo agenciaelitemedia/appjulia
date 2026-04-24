@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { externalDb } from '@/lib/externalDb';
@@ -41,6 +42,7 @@ import { useCRMCardByWhatsapp, useCRMStages, useUpdateCardName } from '../hooks/
 import { ContractInfoContent } from './ContractInfoContent';
 import { CRMLeadDetailsDialog } from './CRMLeadDetailsDialog';
 import { PhoneCallDialog } from './PhoneCallDialog';
+import { useAgentQueueLink } from '@/hooks/useAgentQueueLink';
 
 
 // ============================================
@@ -789,6 +791,7 @@ export function WhatsAppMessagesDialog({
   const scrollRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
   const [provider, setProvider] = useState<WhatsAppProvider>('uazapi');
+  const [agentInstance, setAgentInstance] = useState<string | null>(null);
   
   // Media download state
   const [downloadingMedia, setDownloadingMedia] = useState<Set<string>>(new Set());
@@ -826,6 +829,14 @@ export function WhatsAppMessagesDialog({
    // Contract sidebar state
   const [contractSidebarOpen, setContractSidebarOpen] = useState(false);
   const { data: contractInfo, isLoading: contractLoading } = useContractInfo(whatsappNumber, codAgent, open);
+
+  // Connection origin: queue (azul) vs direct UaZapi (verde)
+  const { data: agentLink } = useAgentQueueLink(codAgent, open);
+  const isViaQueue = agentLink?.source === 'queue';
+  const avatarBg = isViaQueue ? 'bg-blue-600' : 'bg-green-600';
+  const sourceLabel = isViaQueue
+    ? agentLink?.queueName
+    : (agentInstance || (provider === 'waba' ? 'WABA' : 'UaZapi'));
 
   // Editable name state
   const { data: crmCard } = useCRMCardByWhatsapp(open ? whatsappNumber : null);
