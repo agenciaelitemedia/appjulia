@@ -1,7 +1,6 @@
 // chat-webhook-dispatcher: envia eventos para webhooks externos com HMAC opcional
 // Detecta automaticamente provedores (Slack, Discord, Teams) pela URL e formata o payload
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -112,12 +111,19 @@ function formatForProvider(provider: Provider, event: string, payload: any): { b
   return { body, headers: { "Content-Type": "application/json", "X-Lovable-Event": event } };
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !serviceRoleKey) {
+      return new Response(JSON.stringify({ error: "Missing SUPABASE env vars" }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
+
     const { event, client_id, payload } = await req.json();
     if (!event || !client_id) {
       return new Response(JSON.stringify({ error: "event and client_id required" }), {
