@@ -3310,6 +3310,39 @@ export type Database = {
         }
         Relationships: []
       }
+      dispatcher_heartbeat: {
+        Row: {
+          id: string
+          items_per_min: number
+          last_seen_at: string
+          metadata: Json
+          started_at: string
+          total_processed_session: number
+          workers_active: number
+          workers_max: number
+        }
+        Insert: {
+          id: string
+          items_per_min?: number
+          last_seen_at?: string
+          metadata?: Json
+          started_at?: string
+          total_processed_session?: number
+          workers_active?: number
+          workers_max?: number
+        }
+        Update: {
+          id?: string
+          items_per_min?: number
+          last_seen_at?: string
+          metadata?: Json
+          started_at?: string
+          total_processed_session?: number
+          workers_active?: number
+          workers_max?: number
+        }
+        Relationships: []
+      }
       generation_agent_prompt_cases: {
         Row: {
           agent_prompt_id: string
@@ -4656,6 +4689,7 @@ export type Database = {
           id: string
           inserted_messages: number
           last_attempt_at: string | null
+          locked_at: string | null
           payload: Json | null
           phone: string | null
           processed_at: string | null
@@ -4664,6 +4698,7 @@ export type Database = {
           run_id: string
           skipped_lid: number
           status: string
+          worker_id: number | null
         }
         Insert: {
           attempts?: number
@@ -4675,6 +4710,7 @@ export type Database = {
           id?: string
           inserted_messages?: number
           last_attempt_at?: string | null
+          locked_at?: string | null
           payload?: Json | null
           phone?: string | null
           processed_at?: string | null
@@ -4683,6 +4719,7 @@ export type Database = {
           run_id: string
           skipped_lid?: number
           status?: string
+          worker_id?: number | null
         }
         Update: {
           attempts?: number
@@ -4694,6 +4731,7 @@ export type Database = {
           id?: string
           inserted_messages?: number
           last_attempt_at?: string | null
+          locked_at?: string | null
           payload?: Json | null
           phone?: string | null
           processed_at?: string | null
@@ -4702,6 +4740,7 @@ export type Database = {
           run_id?: string
           skipped_lid?: number
           status?: string
+          worker_id?: number | null
         }
         Relationships: [
           {
@@ -5254,11 +5293,31 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      uazapi_history_pending_by_client: {
+        Row: {
+          client_id: string | null
+          client_name: string | null
+          oldest_pending_at: string | null
+          pending_count: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      uazapi_pick_pending_items: {
+        Args: { p_limit?: number; p_worker_id: number }
+        Returns: {
+          attempts: number
+          id: string
+          payload: Json
+          phone: string
+          remote_jid: string
+          run_id: string
+        }[]
+      }
+      uazapi_release_stale_locks: { Args: never; Returns: number }
     }
     Enums: {
       [_ in never]: never
