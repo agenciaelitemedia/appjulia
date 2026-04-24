@@ -2687,7 +2687,18 @@ export function WhatsAppMessagesDialog({
               setSendingFile(true);
               try {
                 const cleanNumber = whatsappNumber.replace(/\D/g, '');
-                
+                const sendMediaType: 'image' | 'video' | 'audio' | 'document' = file.type.startsWith('image/') ? 'image'
+                  : file.type.startsWith('video/') ? 'video'
+                  : file.type.startsWith('audio/') ? 'audio'
+                  : 'document';
+
+                if (useDbSource && agentLink?.queueId) {
+                  // Linked-queue: route file through queue pipeline + chat_messages.
+                  await sendViaQueue({ kind: 'media', file, mediaType: sendMediaType });
+                  toast.success('Arquivo enviado');
+                  return;
+                }
+
                 if (provider === 'waba') {
                   // WABA: upload via edge function
                   const reader = new FileReader();
@@ -2725,10 +2736,6 @@ export function WhatsAppMessagesDialog({
                     reader.readAsDataURL(file);
                   });
 
-                  const sendMediaType: 'image' | 'video' | 'audio' | 'document' = file.type.startsWith('image/') ? 'image'
-                    : file.type.startsWith('video/') ? 'video'
-                    : file.type.startsWith('audio/') ? 'audio'
-                    : 'document';
                   await client.post('/send/media', {
                     number: cleanNumber,
                     file: `data:${file.type};base64,${base64}`,
