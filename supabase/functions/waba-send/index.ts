@@ -113,6 +113,11 @@ Deno.serve(async (req) => {
         });
 
         const data = await resp.json();
+        if (!resp.ok) {
+          console.error(`[waba-send] send_text failed: status=${resp.status}, to=${cleanNumber}, response=${JSON.stringify(data)}`);
+        } else {
+          console.log(`[waba-send] send_text ok: to=${cleanNumber}, message_id=${data?.messages?.[0]?.id}`);
+        }
         return new Response(JSON.stringify(data), {
           status: resp.ok ? 200 : resp.status,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
