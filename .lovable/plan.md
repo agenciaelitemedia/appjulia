@@ -1,71 +1,69 @@
 
 
-## Diagnóstico: por que apenas 4 workers ativos (e não 10)
+## Bug: botão "Desconectar" não desconecta de fato
 
-Investiguei os logs em tempo real e o código atual. O problema **não é a vazão por worker** — cada um está processando 50 items em ~1.5s (excelente!). O problema é que o **dispatcher não consegue manter 10 workers vivos simultaneamente**.
-
-### Evidências dos logs (últimos 30s)
-- **uazapi-history-resume**: dezenas de invocações, cada uma `picked=50` em ~500ms-1.5s — worker está rápido
-- **uazapi-history-dispatcher**: apenas 2 invocações registradas no período, `worker=1` e `worker=5` durando 50s cada
-- **`inserted=0` ou `inserted=1`** em quase todos os lotes: 98% das mensagens já são duplicatas (deduplicação por `message_id`)
-
-### As 4 causas reais (medidas)
-
-| # | Causa | Evidência |
-|---|---|---|
-| 1 | **Dispatcher dispara só 6 workers no máximo** | `ensurePool` tem `target=6` se `pending>1000`, só vai a 10 se `pending>5000`. Com 9k pending caiu pra 6 |
-| 2 | **Auto-respawn só dispara 1 worker** | No fim do `drainLoop`, worker faz fire-and-forget de **1 nova invocação de si mesmo** (mesmo `worker_id`), não preenche os outros slots |
-| 3 | **Dispatcher é stateless entre invocações** | Cada chamada do heartbeat (1/min) cria nova instância do Edge → `state.busy` zera → não sabe que workers estão rodando → pode disparar duplicatas ou ficar sem disparar |
-| 4 | **Heartbeat roda só a cada 60s** | Entre ticks, se workers terminam, ninguém repõe. Auto-respawn cobre parcialmente mas com apenas 1 worker |
-
-### Por que está "lento" mesmo com 50 items/1.5s por worker
-- 4 workers × 33 items/s = **133 items/s = 8.000/min teórico**
-- Mas como `inserted=0` na maioria, o trabalho útil é menor que o overhead de I/O
-- Cada `picked=50` lida 50 mensagens do DB, faz dedup, descarta — gasta tempo de banco mas não gera progresso visível
-
-## Correções
-
-### 1. Pool agressivo desde o início
-No `ensurePool` do dispatcher:
+### Causa raiz (confirmada nos logs e código)
+O `uazapi-instance-manager` no case `disconnect` chama:
 ```ts
-let target = MAX_WORKERS; // sempre 10 se houver backlog
-if (pending < 100) target = 2;
-if (pending < 500) target = 5;
+DELETE /instance/logout/{instanceName}
 ```
-Elimina o "ramp up" tímido.
+Isso é **sintaxe da Evolution API**, não da UaZapi. A UaZapi não tem essa rota — o servidor responde 200/404 silencioso (sem ação real), o frontend mostra toast de sucesso, mas a sessão WhatsApp continua viva. Por isso o usuário consegue clicar "Conectar" logo em seguida e voltar como "Mário Castro" **sem escanear QR**.
 
-### 2. Auto-respawn em fan-out (não 1, mas N)
-No `uazapi-history-resume`, ao terminar, se `pending > 200`, dispara **fan-out de 3 invocações paralelas** (workers diferentes) via `EdgeRuntime.waitUntil`. Mantém pool cheio sem depender do dispatcher.
+### Endpoints corretos da UaZapi
+- `POST /instance/disconnect` — derruba sessão WS, mantém pareamento
+- `POST /instance/logout` — desparear conta (precisa QR na próxima vez)
 
-### 3. Dispatcher com self-tick rápido
-Após disparar workers, o dispatcher agenda **auto-tick de 10s** (via `setTimeout` + `EdgeRuntime.waitUntil`) enquanto a instância estiver viva. Reduz o gap de 60s do heartbeat para 10s.
+Sua escolha: **logout completo (desparear)**.
 
-### 4. Lock de slot via DB (não memória)
-Substituir `state.busy: Set<number>` por consulta real ao DB:
-```sql
-SELECT DISTINCT worker_id FROM uazapi_history_items 
-WHERE status='pending' AND locked_at > now() - interval '30 seconds'
+## Correção
+
+### Arquivo: `supabase/functions/uazapi-instance-manager/index.ts`
+Reescrever o case `disconnect` para usar o endpoint correto da UaZapi:
+
+```ts
+case 'disconnect': {
+  if (!queue_id) return respond({ error: 'queue_id required' }, 400);
+  const queue = await getQueueCredentials(queue_id);
+  const token = queue.evo_apikey || adminToken;
+  const url = queue.evo_url || baseUrl;
+
+  console.log(`[uazapi-instance-manager] Logout (unpair): ${queue.evo_instance}`);
+  let res = await fetch(`${url}/instance/logout`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'token': token },
+  });
+
+  if (res.status === 401 && token !== adminToken) {
+    res = await fetch(`${url}/instance/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'admintoken': adminToken },
+    });
+  }
+
+  const text = await res.text();
+  let data; try { data = JSON.parse(text); } catch { data = { response: text }; }
+  console.log(`[uazapi-instance-manager] Logout response: ${res.status}`);
+
+  return respond({ success: res.ok, status: res.status, data });
+}
 ```
-Dispatcher pega só worker_ids livres → nunca dispara duplicado, nunca deixa slot vazio. Funciona mesmo se a instância reiniciar.
 
-### 5. Reduzir trabalho desperdiçado em duplicatas
-No worker, antes de processar payload, fazer **batch-check de message_ids existentes** com `SELECT id FROM messages WHERE message_id = ANY($1)` e descartar duplicatas em uma query só (em vez de 50 INSERTs que falham no UNIQUE constraint).
+Mudanças:
+- Método: `DELETE` → `POST`
+- URL: `/instance/logout/{name}` → `/instance/logout` (UaZapi identifica a instância pelo header `token`)
+- Semântica: agora faz logout real — exige QR Code novo na próxima conexão
+- Log mais claro indicando "unpair"
 
-## Capacidade projetada
-
-| Métrica | Hoje | Após correções |
-|---|---|---|
-| Workers simultâneos | 2-4 | **8-10 sustentado** |
-| Gap entre ciclos | 60s (heartbeat) | 10s (self-tick) |
-| Items/min reais | ~318 | **~3.000** |
-| Tempo dedup (inserted=0) | 1.5s/lote | 0.3s/lote |
+### Validação após o deploy
+1. Clicar "Desconectar" no `/agente/filas` → toast de sucesso
+2. Verificar nos logs: `Logout response: 200` (não mais "Status response")
+3. Clicar "Conectar" → deve aparecer **QR Code** (não reconectar automaticamente como antes)
+4. Status da instância vai para `disconnected` na UaZapi
 
 ## Arquivos afetados
-- `supabase/functions/uazapi-history-dispatcher/index.ts` — `ensurePool` agressivo, lock via DB, self-tick de 10s
-- `supabase/functions/uazapi-history-resume/index.ts` — fan-out de 3 no auto-respawn, batch-check de duplicatas antes de INSERT
+- `supabase/functions/uazapi-instance-manager/index.ts` — case `disconnect` corrigido
 
-## Resultado esperado
-- Pool real de 8-10 workers ativos visível na aba Monitor
-- Vazão sustentada de ~3.000 items/min mesmo com alta taxa de duplicatas
-- Drenagem dos pendentes atuais em poucos minutos
+## Nada mais precisa mudar
+- Frontend (`UazapiInstanceStatus`, `useConnectionActions`) já chama corretamente a action `disconnect` — só estava recebendo resposta enganosa do backend
+- Demais funções (`uazapi-history-force-resync`, `_shared/uazapi-adapter.ts`) já usam endpoints corretos
 
