@@ -1853,6 +1853,212 @@ export function WhatsAppMessagesDialog({
     }
   };
 
+  // ─────────────────────────────────────────────────────────────
+  // Linked-queue send pipeline (mirrors /chat behavior).
+  // - Routes through queue credentials (UaZapi proxy or WABA edge).
+  // - Persists into chat_messages → Realtime subscription updates UI.
+  // - For media: uploads to chat-media bucket for previews.
+  // ─────────────────────────────────────────────────────────────
+  type QueueSendInput =
+    | { kind: 'text'; text: string }
+    | { kind: 'media'; file: File; mediaType: 'image' | 'video' | 'audio' | 'document'; caption?: string; isPtt?: boolean };
+
+  const sendViaQueue = async (input: QueueSendInput) => {
+    if (!agentLink || agentLink.source !== 'queue' || !agentLink.queueId) {
+      throw new Error('Fila vinculada indisponível');
+    }
+    const clientIdStr = authUser?.client_id?.toString();
+    if (!clientIdStr) throw new Error('Client ID indisponível');
+    if (!dbContactId) throw new Error('Contato (chat_contacts) não resolvido');
+
+    const cleanNumber = whatsappNumber.replace(/\D/g, '');
+    const isWaba = agentLink.channelType === 'waba';
+
+    // Resolve an existing open/pending conversation for persistence (best-effort).
+    let conversationId: string | null = null;
+    try {
+      const { data: existingConv } = await supabase
+        .from('chat_conversations')
+        .select('id')
+        .eq('contact_id', dbContactId)
+        .eq('client_id', clientIdStr)
+        .in('status', ['pending', 'open'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      conversationId = existingConv?.id ?? null;
+    } catch {
+      conversationId = null;
+    }
+
+    let externalMessageId: string | undefined;
+    let persistedUrl: string | null = null;
+    let insertText: string | null = null;
+    let insertType: string = 'text';
+    let insertFileName: string | null = null;
+    let insertCaption: string | null = null;
+
+    if (input.kind === 'text') {
+      insertText = input.text;
+      insertType = 'text';
+
+      if (isWaba) {
+        const { data, error } = await supabase.functions.invoke('waba-send', {
+          body: { action: 'send_text', queue_id: agentLink.queueId, to: cleanNumber, text: input.text },
+        });
+        if (error) throw error;
+        if (data?.error) {
+          const m = data.error?.error_user_msg || data.error?.message || JSON.stringify(data.error);
+          throw new Error(typeof m === 'string' ? m : 'WABA send failed');
+        }
+        externalMessageId = data?.messageId || data?.messages?.[0]?.id;
+      } else {
+        const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
+          body: {
+            method: 'POST',
+            endpoint: '/send/text',
+            token: agentLink.evoApikey,
+            baseUrl: agentLink.evoUrl,
+            body: { number: cleanNumber, text: input.text },
+          },
+        });
+        if (error) throw error;
+        if (!data?.ok) {
+          const upstream = data?.data;
+          const m = upstream?.message || upstream?.error || `UaZapi status ${data?.status}`;
+          throw new Error(typeof m === 'string' ? m : JSON.stringify(m));
+        }
+        const proxyData = data?.data || {};
+        externalMessageId = proxyData?.key?.id || proxyData?.id || proxyData?.messageId;
+      }
+    } else {
+      const { file, mediaType, caption, isPtt } = input;
+      insertText = caption ?? null;
+      insertType = mediaType;
+      insertFileName = file.name;
+      insertCaption = caption ?? null;
+
+      const isAudio = mediaType === 'audio';
+      // For WABA audio recorded as webm, relabel container as ogg (codec is opus).
+      const sendMime = isWaba && isAudio && (file.type || '').toLowerCase().includes('webm') ? 'audio/ogg' : (file.type || 'application/octet-stream');
+      const sendName = isWaba && isAudio && (file.type || '').toLowerCase().includes('webm')
+        ? file.name.replace(/\.[^.]+$/u, '') + '.ogg'
+        : file.name;
+
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve((r.result as string).split(',')[1]);
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+
+      // Upload for storage/preview (tolerant of failures).
+      try {
+        const { data: uploadData, error: uploadError } = await supabase.functions.invoke('chat-media-upload', {
+          body: {
+            base64,
+            mimetype: sendMime,
+            fileName: sendName,
+            contactId: dbContactId,
+            clientId: clientIdStr,
+            source: 'outgoing',
+          },
+        });
+        if (!uploadError && uploadData?.url) persistedUrl = uploadData.url;
+      } catch (e) {
+        console.warn('[CRM popup] chat-media-upload failed (continuing):', e);
+      }
+
+      if (isWaba) {
+        const { data, error } = await supabase.functions.invoke('waba-send', {
+          body: {
+            action: 'send_media',
+            queue_id: agentLink.queueId,
+            to: cleanNumber,
+            mediaBase64: base64,
+            mimetype: sendMime,
+            type: mediaType,
+            caption,
+            fileName: sendName,
+          },
+        });
+        if (error) throw error;
+        if (data?.error) {
+          const m = data.error?.error_user_msg || data.error?.message || JSON.stringify(data.error);
+          throw new Error(typeof m === 'string' ? m : 'WABA media send failed');
+        }
+        externalMessageId = data?.messageId || data?.messages?.[0]?.id;
+      } else {
+        const fileField = isAudio
+          ? `data:${file.type || 'audio/webm;codecs=opus'};base64,${base64}`
+          : (persistedUrl || `data:${file.type};base64,${base64}`);
+        const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
+          body: {
+            method: 'POST',
+            endpoint: '/send/media',
+            token: agentLink.evoApikey,
+            baseUrl: agentLink.evoUrl,
+            body: {
+              number: cleanNumber,
+              file: fileField,
+              mediaUrl: persistedUrl || undefined,
+              type: mediaType,
+              mediaType,
+              mimetype: file.type || undefined,
+              caption,
+              fileName: file.name,
+              docName: mediaType === 'document' ? file.name : undefined,
+              ptt: isPtt ? true : undefined,
+            },
+          },
+        });
+        if (error) throw error;
+        if (!data?.ok) {
+          const upstream = data?.data;
+          const m = upstream?.message || upstream?.error || `UaZapi status ${data?.status}`;
+          throw new Error(typeof m === 'string' ? m : JSON.stringify(m));
+        }
+        const proxyData = data?.data || {};
+        externalMessageId = proxyData?.key?.id || proxyData?.id || proxyData?.messageId;
+      }
+    }
+
+    // Persist to chat_messages — Realtime subscription will render it in this popup.
+    const nowIso = new Date().toISOString();
+    try {
+      await supabase.from('chat_messages').insert({
+        contact_id: dbContactId,
+        client_id: clientIdStr,
+        text: insertText,
+        type: insertType,
+        from_me: true,
+        status: 'sent',
+        message_id: externalMessageId,
+        external_id: externalMessageId,
+        media_url: persistedUrl,
+        file_name: insertFileName,
+        caption: insertCaption,
+        timestamp: nowIso,
+        created_at: nowIso,
+        conversation_id: conversationId,
+        sender_name: authUser?.name,
+        channel_type: isWaba ? 'whatsapp_waba' : 'whatsapp_uazapi',
+      });
+    } catch (e) {
+      console.warn('[CRM popup] Failed to persist outgoing message in chat_messages:', e);
+    }
+
+    // Update last_message on chat_contacts (best-effort).
+    try {
+      await supabase
+        .from('chat_contacts')
+        .update({ last_message_at: nowIso, last_message_text: insertText || `[${insertType}]` })
+        .eq('id', dbContactId);
+    } catch {
+      /* noop */
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!newMessage.trim() || sending) return;
 
