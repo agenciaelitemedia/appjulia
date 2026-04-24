@@ -145,8 +145,11 @@ function RunDetails({ run, open, onOpenChange }: {
 export function UazapiHistoryTab() {
   const { data: runs = [], isLoading } = useUazapiHistoryRuns();
   const { data: pending } = useUazapiHistoryPending();
+  const { data: queues = [] } = useUazapiQueues();
   const queryClient = useQueryClient();
   const [resuming, setResuming] = useState(false);
+  const [resyncing, setResyncing] = useState(false);
+  const [resyncQueueId, setResyncQueueId] = useState<string>('');
   const [selected, setSelected] = useState<UazapiHistoryRun | null>(null);
   const [open, setOpen] = useState(false);
 
@@ -166,6 +169,35 @@ export function UazapiHistoryTab() {
       toast.error(`Falha ao reprocessar: ${(err as Error).message}`);
     } finally {
       setResuming(false);
+    }
+  };
+
+  const handleForceResync = async () => {
+    const queueId = resyncQueueId || (queues.length === 1 ? queues[0].id : '');
+    if (!queueId) {
+      toast.error('Selecione a fila UaZapi para forçar o resync.');
+      return;
+    }
+    setResyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('uazapi-history-force-resync', {
+        body: { queue_id: queueId },
+      });
+      if (error) throw error;
+      const d = data as any;
+      if (d?.error) throw new Error(d.error);
+      toast.success(
+        `Resync solicitado para "${d?.queue_name ?? queueId}". A UaZapi deve reenviar o histórico em alguns segundos — atualize esta aba.`,
+        { duration: 6000 },
+      );
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['uazapi-history-runs'] });
+        queryClient.invalidateQueries({ queryKey: ['uazapi-history-pending'] });
+      }, 4000);
+    } catch (err) {
+      toast.error(`Falha ao forçar resync: ${(err as Error).message}`);
+    } finally {
+      setResyncing(false);
     }
   };
 
