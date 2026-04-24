@@ -12,6 +12,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { fetchWhatsappProfile, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
 
+declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void };
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -408,6 +410,53 @@ async function finalizeRunIfDone(supabase: any, runId: string) {
     inserted_contacts: totalContacts,
     finished_at: new Date().toISOString(),
   }).eq('id', runId);
+}
+
+// Coalesced finalize: single aggregate query for all touched runs.
+// Only finalizes runs that have zero remaining pending items.
+async function finalizeRunsCoalesced(supabase: any, runIds: string[]) {
+  if (runIds.length === 0) return;
+  // 1) Buscar contagem de pending por run, em uma única query
+  const { data: pendingRows } = await supabase
+    .from('uazapi_history_items')
+    .select('run_id')
+    .in('run_id', runIds)
+    .eq('status', 'pending');
+  const pendingByRun = new Set<string>((pendingRows ?? []).map((r: any) => r.run_id));
+  const doneRuns = runIds.filter((id) => !pendingByRun.has(id));
+  if (doneRuns.length === 0) return;
+
+  // 2) Buscar agregados de todos os runs prontos em uma única query
+  const { data: items } = await supabase
+    .from('uazapi_history_items')
+    .select('run_id, status, inserted_messages, duplicate_messages, contact_created')
+    .in('run_id', doneRuns);
+
+  const agg = new Map<string, { inserted: number; duplicates: number; contacts: number; processed: number; hadErrors: boolean }>();
+  for (const it of items ?? []) {
+    const cur = agg.get(it.run_id) ?? { inserted: 0, duplicates: 0, contacts: 0, processed: 0, hadErrors: false };
+    cur.inserted += it.inserted_messages || 0;
+    cur.duplicates += it.duplicate_messages || 0;
+    if (it.contact_created) cur.contacts += 1;
+    cur.processed += 1;
+    if (it.status === 'error') cur.hadErrors = true;
+    agg.set(it.run_id, cur);
+  }
+
+  const nowIso = new Date().toISOString();
+  // 3) Update em paralelo (1 update por run, mas todos disparados ao mesmo tempo)
+  await Promise.all(
+    Array.from(agg.entries()).map(([runId, a]) =>
+      supabase.from('uazapi_history_runs').update({
+        status: a.hadErrors ? 'partial' : 'done',
+        processed_chats: a.processed,
+        inserted_messages: a.inserted,
+        duplicate_messages: a.duplicates,
+        inserted_contacts: a.contacts,
+        finished_at: nowIso,
+      }).eq('id', runId)
+    )
+  );
 }
 
 async function drainBatch(maxItems: number, workerId: number) {
