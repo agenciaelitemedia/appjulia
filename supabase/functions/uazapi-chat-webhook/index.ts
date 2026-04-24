@@ -236,7 +236,7 @@ async function enqueueHistoryRun(
   // Group by chat and skip groups defensively at enqueue time
   const totalMessages = rawMessages.length;
   let groupMessages = 0;
-  const byChat = new Map<string, { phone: string; count: number }>();
+  const byChat = new Map<string, { phone: string; count: number; messages: any[] }>();
   for (const msg of rawMessages) {
     const remoteJid: string = msg?.key?.remoteJid ?? msg?.remoteJid ?? msg?.chatId ?? msg?.chatid ?? '';
     if (!remoteJid) continue;
@@ -246,8 +246,9 @@ async function enqueueHistoryRun(
     }
     const phone = normalizePhone(remoteJid);
     if (!phone) continue;
-    const cur = byChat.get(remoteJid) ?? { phone, count: 0 };
+    const cur = byChat.get(remoteJid) ?? { phone, count: 0, messages: [] };
     cur.count++;
+    cur.messages.push(msg);
     byChat.set(remoteJid, cur);
   }
 
@@ -294,6 +295,7 @@ async function enqueueHistoryRun(
       phone: info.phone,
       received_messages: info.count,
       status: 'pending' as const,
+      payload: info.messages,
     }));
     const { error: itemsErr } = await supabase.from('uazapi_history_items').insert(items as never);
     if (itemsErr) console.warn('[uazapi-history-queue] failed to insert items:', itemsErr.message);
@@ -758,9 +760,10 @@ Deno.serve(async (req) => {
       console.log(`[uazapi-webhook] ${event} queue=${queue.name} count=${historyMsgsRaw.length}`);
 
       const runId = await enqueueHistoryRun(historyMsgsRaw, queue as any, event);
-      if (runId) {
-        EdgeRuntime.waitUntil(dispatchHistoryProcessor(runId, { messages: historyMsgsRaw }));
-      }
+      // NOTE: do NOT dispatch the processor inline. The bursty `messages:replay`
+      // events from UaZapi (40+ in seconds) saturate EdgeRuntime if processed
+      // in parallel. The `uazapi-history-resume` cron worker drains pending
+      // items in small batches every minute.
 
       return respond({ ok: true, event, queued: historyMsgsRaw.length, run_id: runId });
     }
@@ -780,9 +783,7 @@ Deno.serve(async (req) => {
     if (isHistoryReplay) {
       console.log(`[uazapi-chat-webhook] treating batch as history replay event=${event} count=${messages.length}`);
       const runId = await enqueueHistoryRun(messages, queue as any, `${event}:replay`);
-      if (runId) {
-        EdgeRuntime.waitUntil(dispatchHistoryProcessor(runId, { messages }));
-      }
+      // Do NOT dispatch — `uazapi-history-resume` cron will drain.
       return respond({ ok: true, event, queued: messages.length, replay: true, run_id: runId });
     }
 
