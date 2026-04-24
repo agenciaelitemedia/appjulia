@@ -1005,6 +1005,10 @@ export function WhatsAppMessagesDialog({
       const ext = mimeType.includes('ogg') ? 'ogg' : 'webm';
 
       if (provider === 'waba') {
+        // Meta WABA não aceita audio/webm. Como o codec gravado é opus,
+        // re-rotulamos como audio/ogg (container compatível com opus aceito pela Meta).
+        const wabaMime = 'audio/ogg';
+        const wabaExt = 'ogg';
         const { error } = await supabase.functions.invoke('waba-send', {
           body: {
             action: 'send_media',
@@ -1012,8 +1016,8 @@ export function WhatsAppMessagesDialog({
             to: cleanNumber,
             media_type: 'audio',
             base64,
-            mimetype: mimeType,
-            filename: `audio.${ext}`,
+            mimetype: wabaMime,
+            filename: `audio.${wabaExt}`,
           },
         });
         if (error) throw error;
