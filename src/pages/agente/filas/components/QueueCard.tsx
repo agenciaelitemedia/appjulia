@@ -80,11 +80,19 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
           </p>
         )}
         {queue.channel_type === 'waba' && queue.waba_number_id && (
-          <div className="flex items-center gap-1.5 mb-1">
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-500/40 text-blue-700 dark:text-blue-300">
-              API Oficial
-            </Badge>
-            <p className="text-xs text-muted-foreground truncate">ID: {queue.waba_number_id}</p>
+          <div className="space-y-1 mb-1">
+            <div className="flex items-center gap-1.5">
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-500/40 text-blue-700 dark:text-blue-300">
+                API Oficial
+              </Badge>
+              {queue.phone_number && (
+                <p className="text-xs font-medium text-foreground truncate flex items-center gap-1">
+                  <Phone className="w-3 h-3" />
+                  +{queue.phone_number}
+                </p>
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground truncate">ID: {queue.waba_number_id}</p>
           </div>
         )}
 
