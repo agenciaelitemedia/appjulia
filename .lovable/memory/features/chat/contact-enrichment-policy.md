@@ -15,6 +15,8 @@ UaZapi:
 
 WABA (Meta Cloud API): só valida `wa_id` em /contacts; não devolve foto de terceiros. O nome do contato vem do payload em `contacts[0].profile.name` e já é gravado no upsert (campos `name` e `wa_name`).
 
+**Cross-provider WABA → UaZapi**: quando o client tem fila WABA + fila UaZapi ativa simultaneamente, o enriquecimento de contatos WABA tenta buscar a foto na fila UaZapi do mesmo `client_id` via `fetchWabaProfileWithUazapiFallback` (em `_shared/whatsapp-profile.ts`). 1 chamada extra por contato novo, sem retentativa.
+
 Implementado em:
 - supabase/functions/_shared/whatsapp-profile.ts (rota grupo + helpers)
 - supabase/functions/uazapi-chat-webhook/index.ts (linhas ~1070, fire-and-forget)

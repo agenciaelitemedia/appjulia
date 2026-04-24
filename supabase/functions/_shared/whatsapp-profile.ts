@@ -5,6 +5,7 @@
 
 export interface QueueLike {
   id?: string;
+  client_id?: string;
   channel_type?: string | null;
   evo_url?: string | null;
   evo_apikey?: string | null;
@@ -221,4 +222,43 @@ export function profileToContactColumns(p: NormalizedProfile): Record<string, un
     profile_fetched_at: new Date().toISOString(),
     profile_source: p.source,
   };
+}
+
+// ────────────────────── Cross-Provider WABA → UaZapi ──────────────────────
+// When a WABA queue cannot fetch the contact's avatar (Meta limitation),
+// try to look up the same phone via any active UaZapi queue of the same client.
+// Falls back gracefully if no UaZapi queue exists.
+export async function fetchWabaProfileWithUazapiFallback(
+  wabaQueue: QueueLike,
+  phone: string,
+  supabase: any,
+): Promise<NormalizedProfile> {
+  const profile = await fetchWabaProfile(wabaQueue, phone);
+
+  // Only fallback if avatar is missing and we have a client_id to look up sibling queues
+  if (profile.avatar || !wabaQueue.client_id) return profile;
+
+  try {
+    const { data: uaQueues } = await supabase
+      .from('queues')
+      .select('id, evo_url, evo_apikey, channel_type')
+      .eq('client_id', wabaQueue.client_id)
+      .eq('is_active', true)
+      .eq('is_deleted', false)
+      .not('evo_url', 'is', null)
+      .not('evo_apikey', 'is', null)
+      .limit(1);
+
+    const uaQueue = Array.isArray(uaQueues) && uaQueues.length > 0 ? uaQueues[0] : null;
+    if (!uaQueue) return profile;
+
+    const uaProfile = await fetchUazapiProfile(uaQueue as QueueLike, phone);
+    if (uaProfile.avatar) profile.avatar = uaProfile.avatar;
+    if (!profile.waName && uaProfile.waName) profile.waName = uaProfile.waName;
+    if (!profile.name && uaProfile.name) profile.name = uaProfile.name;
+  } catch (e) {
+    console.warn(`[whatsapp-profile] WABA→UaZapi fallback failed phone=${phone}: ${(e as Error).message}`);
+  }
+
+  return profile;
 }

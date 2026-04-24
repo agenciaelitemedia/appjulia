@@ -12,13 +12,141 @@ const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// ============================================
+// Persist outbound message to chat_messages (Meta does NOT echo to webhook)
+// ============================================
+async function persistOutbound(args: {
+  queueId: string | null;
+  toPhone: string;
+  metaMessageId: string | undefined;
+  type: "text" | "image" | "video" | "audio" | "document" | "sticker";
+  text?: string | null;
+  caption?: string | null;
+  mediaUrl?: string | null;
+  fileName?: string | null;
+  senderName?: string | null;
+  source?: string | null;
+  replyTo?: string | null;
+}) {
+  try {
+    if (!args.queueId) {
+      console.warn("[waba-send] persistOutbound skipped: no queue_id");
+      return;
+    }
+    const { data: queue } = await supabase
+      .from("queues")
+      .select("id, client_id")
+      .eq("id", args.queueId)
+      .maybeSingle();
+    if (!queue?.client_id) {
+      console.warn(`[waba-send] persistOutbound skipped: queue ${args.queueId} has no client_id`);
+      return;
+    }
+    const clientId = queue.client_id as string;
+    const cleanPhone = args.toPhone.replace(/\D/g, "");
+
+    // Upsert contact
+    let contactId: string | null = null;
+    const { data: existing } = await supabase
+      .from("chat_contacts")
+      .select("id")
+      .eq("client_id", clientId)
+      .eq("phone", cleanPhone)
+      .maybeSingle();
+    if (existing?.id) {
+      contactId = existing.id;
+      await supabase
+        .from("chat_contacts")
+        .update({
+          last_message_at: new Date().toISOString(),
+          last_message_text: args.text || args.caption || args.type,
+        })
+        .eq("id", contactId);
+    } else {
+      const { data: created } = await supabase
+        .from("chat_contacts")
+        .insert({
+          client_id: clientId,
+          phone: cleanPhone,
+          name: cleanPhone,
+          channel_type: "whatsapp_waba",
+          channel_source: args.queueId,
+          last_message_at: new Date().toISOString(),
+          last_message_text: args.text || args.caption || args.type,
+        })
+        .select("id")
+        .maybeSingle();
+      contactId = created?.id ?? null;
+    }
+    if (!contactId) {
+      console.warn(`[waba-send] persistOutbound: failed to resolve contact for ${cleanPhone}`);
+      return;
+    }
+
+    // Resolve or create active conversation
+    let conversationId: string | null = null;
+    const { data: openConv } = await supabase
+      .from("chat_conversations")
+      .select("id")
+      .eq("contact_id", contactId)
+      .eq("client_id", clientId)
+      .eq("queue_id", args.queueId)
+      .eq("channel", "whatsapp_waba")
+      .in("status", ["pending", "open"])
+      .order("opened_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (openConv?.id) {
+      conversationId = openConv.id;
+    } else {
+      const { data: createdConv } = await supabase
+        .from("chat_conversations")
+        .insert({
+          client_id: clientId,
+          contact_id: contactId,
+          queue_id: args.queueId,
+          channel: "whatsapp_waba",
+          status: "open",
+          protocol: "",
+        })
+        .select("id")
+        .maybeSingle();
+      conversationId = createdConv?.id ?? null;
+    }
+
+    // Insert message
+    await supabase.from("chat_messages").insert({
+      client_id: clientId,
+      contact_id: contactId,
+      conversation_id: conversationId,
+      channel_type: "whatsapp_waba",
+      from_me: true,
+      status: "sent",
+      type: args.type,
+      text: args.text ?? null,
+      caption: args.caption ?? null,
+      media_url: args.mediaUrl ?? null,
+      file_name: args.fileName ?? null,
+      external_id: args.metaMessageId ?? null,
+      message_id: args.metaMessageId ?? null,
+      sender_name: args.senderName || "Assistente",
+      reply_to: args.replyTo ?? null,
+      timestamp: new Date().toISOString(),
+      metadata: { source: args.source || "api" },
+    });
+    console.log(`[waba-send] persisted outbound msg meta_id=${args.metaMessageId} conv=${conversationId}`);
+  } catch (e) {
+    console.error(`[waba-send] persistOutbound error: ${(e as Error).message}`);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { action, cod_agent, queue_id, ...params } = await req.json();
+    const { action, cod_agent, queue_id, sender_name, source, ...params } = await req.json();
 
     if (!action || (!cod_agent && !queue_id)) {
       return new Response(
@@ -117,6 +245,15 @@ Deno.serve(async (req) => {
           console.error(`[waba-send] send_text failed: status=${resp.status}, to=${cleanNumber}, response=${JSON.stringify(data)}`);
         } else {
           console.log(`[waba-send] send_text ok: to=${cleanNumber}, message_id=${data?.messages?.[0]?.id}`);
+          await persistOutbound({
+            queueId: queue_id ?? null,
+            toPhone: cleanNumber,
+            metaMessageId: data?.messages?.[0]?.id,
+            type: "text",
+            text,
+            senderName: sender_name,
+            source,
+          });
         }
         return new Response(JSON.stringify(data), {
           status: resp.ok ? 200 : resp.status,
@@ -220,6 +357,18 @@ Deno.serve(async (req) => {
         });
 
         const msgData = await msgResp.json();
+        if (msgResp.ok) {
+          await persistOutbound({
+            queueId: queue_id ?? null,
+            toPhone: cleanNumber,
+            metaMessageId: msgData?.messages?.[0]?.id,
+            type: waType as any,
+            caption: caption ?? null,
+            fileName: filename ?? null,
+            senderName: sender_name,
+            source,
+          });
+        }
         return new Response(JSON.stringify(msgData), {
           status: msgResp.ok ? 200 : msgResp.status,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
