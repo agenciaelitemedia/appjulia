@@ -1,132 +1,75 @@
 
 
-## Diagnóstico: por que cron não escala para 20 clientes
+## Diagnóstico dos gargalos remanescentes
 
-### Estado atual (1 cliente = 12k items)
-- Cron `pg_cron` dispara **a cada 60s** (mínimo do Postgres)
-- Worker pega lote de **5 items** → ~5 items/min = **300 items/hora**
-- 12k items = **40 horas** para drenar
+### Vazão real medida (não a teórica)
+- **Atual**: ~318 items/min (3.500 items em 11 min)
+- **Pendente**: 9.007 items → ETA real **~28 minutos** (não os 5.000/min projetados)
+- **Pool subutilizado**: dispatcher dispara 10 workers, mas apenas 4 mantêm locks ativos a cada momento
 
-### Projeção para 20 clientes simultâneos
-- 20 × 12k = **240.000 items** por rajada de reconexão
-- No ritmo atual: **800 horas** (33 dias) — completamente inviável
-- `pg_cron` não tem granularidade sub-minuto → impossível ir mais rápido com cron
+### Os 5 gargalos reais (medidos, não suposições)
 
-### Por que cron é o modelo errado
-Cron é **pull-based com janela fixa**: a fila fica ociosa 59s entre cada tick. Para 20 clientes, precisamos **push-based em tempo real**: assim que um item entra em `pending`, um worker pega imediatamente.
-
-## Arquitetura nova: realtime push-based com backpressure
-
-```text
-                    ┌─────────────────────────────────────────────┐
-                    │  uazapi-chat-webhook (recebe burst UaZapi)  │
-                    └──────────────────┬──────────────────────────┘
-                                       │ INSERT items (pending)
-                                       ▼
-                    ┌─────────────────────────────────────────────┐
-                    │  uazapi_history_items (tabela com trigger)  │
-                    └──────────────────┬──────────────────────────┘
-                                       │ AFTER INSERT trigger
-                                       │ pg_notify('history_pending', payload)
-                                       ▼
-                    ┌─────────────────────────────────────────────┐
-                    │  uazapi-history-dispatcher (sempre ativo)   │
-                    │  • escuta pg_notify via Realtime postgres   │
-                    │  • controla pool de workers (max 10)        │
-                    │  • dispara worker assim que chega item      │
-                    └──────────────────┬──────────────────────────┘
-                                       │ invoke parallel
-                                       ▼
-                    ┌─────────────────────────────────────────────┐
-                    │  uazapi-history-resume (worker)             │
-                    │  • lote de 50 items, loop até 25s           │
-                    │  • SELECT FOR UPDATE SKIP LOCKED            │
-                    └─────────────────────────────────────────────┘
-```
-
-### Componentes
-
-#### 1. Trigger + Realtime (substitui cron)
-- Trigger `AFTER INSERT` em `uazapi_history_items` chama `pg_notify('history_pending', client_id)`
-- Tabela adicionada à publication `supabase_realtime` para emitir eventos no canal Postgres Changes
-- Latência: **<500ms** entre INSERT e início do processamento (vs 60s do cron)
-
-#### 2. Dispatcher (Edge Function persistente em tempo real)
-Nova função `uazapi-history-dispatcher`:
-- Conecta ao Supabase Realtime e escuta INSERTs em `uazapi_history_items`
-- Mantém um **pool de até 10 workers concorrentes** (semáforo interno)
-- Ao receber evento, dispara `invoke('uazapi-history-resume')` se houver slot livre
-- Implementa **debounce de 2s** para agrupar bursts (evita 200 invokes em 1 segundo)
-- Auto-mantém-se ativo via heartbeat (cron a cada 5min reinicia se cair)
-
-#### 3. Worker turbinado com lock pessimista
-`uazapi-history-resume` reescrito:
-- Aceita parâmetro `worker_id` (0-9) para particionar trabalho
-- `SELECT ... FOR UPDATE SKIP LOCKED LIMIT 50` — pega lote sem conflito entre workers paralelos
-- Processa em loop até **25s** ou esgotar pendências (~250 items por invocação)
-- Capacidade: **10 workers × 250 items × 30s ciclo = 5.000 items/min**
-
-#### 4. Particionamento por cliente (fairness)
-Sem isso, 1 cliente com 200k items bloquearia os outros. Solução:
-- Worker escolhe próximo lote com `ORDER BY client_id, created_at` rotacionando
-- View materializada `uazapi_history_pending_by_client` atualizada a cada minuto mostra distribuição
-- Dispatcher distribui workers proporcionalmente (round-robin entre clientes ativos)
-
-#### 5. Cron de segurança (safety net, não primário)
-Mantém o `pg_cron` existente, mas:
-- Roda a cada **5min** (não 1min)
-- Só dispara se houver pendências há mais de 2min (sinal de que dispatcher caiu)
-- Função: garantir que nunca fique pending órfão se o realtime falhar
-
-#### 6. Throttling para a UaZapi
-Se 20 clientes reconectam ao mesmo tempo, são 20 × 40 = 800 webhooks chegando. Adicionar:
-- Rate limit no webhook: max 50 INSERTs/seg por cliente (drop com 429 se exceder, UaZapi reenvia)
-- Configurar `keep_history_items_for_days = 7` (auto-cleanup de items processados)
-
-### Capacidade comparada
-
-| Métrica | Hoje (cron) | Novo (realtime) | Ganho |
+| # | Gargalo | Evidência | Impacto |
 |---|---|---|---|
-| Latência primeiro item | 0–60s | <1s | 60× |
-| Vazão por cliente | 5/min | 5.000/min | 1.000× |
-| 20 clientes (240k items) | 800h | **~50min** | 960× |
-| Workers paralelos | 1 | 10 | 10× |
-| Lote por worker | 5 | 50 | 10× |
-| Frequência | 60s | contínuo | ∞ |
+| 1 | **N+1 sequencial dentro do worker** | 200 items em 32s = 160ms/item, com 7 queries cada = 22ms/query serializadas | Worker fica 90% do tempo aguardando round-trip |
+| 2 | **Items minúsculos** | Média de **1.5 mensagens por item** (max 11) | Overhead de orquestração 5× maior que o trabalho útil |
+| 3 | **Pool ocioso entre ticks** | Heartbeat dispara workers a cada 60s; workers terminam em ~32s e ficam ociosos 28s | 47% de idle time |
+| 4 | **Heartbeat com vazão quebrada** | DB mostra `items_per_min: 0` mesmo com 318/min real | Monitor mente, dispatcher não escala pool corretamente |
+| 5 | **`finalizeRunIfDone` chamado por run tocada** | Cada lote toca ~50 runs → 50 queries extras de agregação | 15-20% do tempo do worker desperdiçado |
+
+## Correções
+
+### 1. Paralelismo intra-worker (concurrency 5)
+No `drainBatch`, substituir `for (const item of list)` por processamento em **chunks paralelos de 5**:
+```ts
+const CONCURRENCY = 5;
+for (let i = 0; i < list.length; i += CONCURRENCY) {
+  const chunk = list.slice(i, i + CONCURRENCY);
+  const results = await Promise.all(chunk.map(item => processOneItem(...)));
+}
+```
+**Ganho estimado**: 5× a vazão por worker (de 6 items/s para ~30 items/s).
+
+### 2. Auto-respawn do worker (sem esperar próximo tick)
+No fim do `drainLoop`, se ainda houver `pending > 0`, o worker **dispara fire-and-forget** uma nova invocação de si mesmo via `fetch` (com `EdgeRuntime.waitUntil`) antes de retornar. Elimina o gap de 28s entre ciclos.
+
+### 3. Coalescência de finalize de runs
+Trocar `for (const runId of touchedRuns) await finalizeRunIfDone(...)` por uma **única query agregada** que verifica todas as runs tocadas em um SELECT e finaliza só as que zeraram. Reduz 50 queries para 1.
+
+### 4. Compactação de items no webhook (próximas reconexões)
+Atualizar `uazapi-chat-webhook` → `enqueueHistoryRun` para **agrupar mensagens do mesmo `remote_jid` em um único item** dentro do batch recebido. Hoje cria 1 item por mensagem; passará a criar 1 item por chat. Reduz volume de items em ~40% (média de 1.5 msg/item subirá pra ~10).
+
+### 5. Heartbeat com vazão real
+Substituir `processedWindow` (que conta invocações de worker) por **leitura direta do DB** a cada heartbeat:
+```ts
+SELECT COUNT(*) FROM uazapi_history_items 
+WHERE status='ok' AND processed_at > now() - interval '1 minute'
+```
+Permite que o dispatcher tome decisões corretas de scaling.
+
+### 6. Bug de UI: `forwardRef` no `ItemStatusBadge`
+Console mostra warning React em `UazapiHistoryTab.tsx:108` — `ItemStatusBadge` é usado dentro de `<Tooltip>` que precisa de ref. Envolver com `React.forwardRef`.
+
+## Capacidade projetada após correções
+
+| Métrica | Hoje (medido) | Após correções | Ganho |
+|---|---|---|---|
+| Items/seg por worker | 6 | 30 | 5× |
+| Workers efetivos simultâneos | 4 | 8-10 | 2× |
+| Idle time entre ciclos | 28s | <1s | ∞ |
+| Vazão total | 318/min | **~3.000/min** | 9× |
+| 9k items pending | ~28 min | **~3 min** | 9× |
+| 240k items (20 clientes) | ~13h | **~80 min** | 10× |
 
 ## Arquivos afetados
+- `supabase/functions/uazapi-history-resume/index.ts` — concurrency intra-worker, auto-respawn, finalize coalescido
+- `supabase/functions/uazapi-history-dispatcher/index.ts` — leitura real de vazão do DB no heartbeat
+- `supabase/functions/uazapi-chat-webhook/index.ts` — agrupar items por `remote_jid` no enqueue
+- `src/pages/configuracoes/components/UazapiHistoryTab.tsx` — corrigir `forwardRef` no `ItemStatusBadge`
 
-**Backend (novos)**
-- `supabase/functions/uazapi-history-dispatcher/index.ts` — dispatcher persistente com pool de workers e Realtime listener
-- `supabase/migrations/<ts>_realtime_pipeline.sql`:
-  - Trigger `AFTER INSERT` em `uazapi_history_items` com `pg_notify`
-  - Adicionar `uazapi_history_items` em `supabase_realtime` publication
-  - Coluna `worker_id` (smallint) e `locked_at` (timestamptz) em `uazapi_history_items`
-  - Índice parcial `(status, created_at) WHERE status = 'pending'`
-  - View `uazapi_history_pending_by_client` para fairness
-  - Atualizar `pg_cron` existente para rodar a cada 5min como safety net
-
-**Backend (atualizados)**
-- `supabase/functions/uazapi-history-resume/index.ts` — `SELECT FOR UPDATE SKIP LOCKED LIMIT 50`, loop de 25s, parâmetro `worker_id`
-- `supabase/functions/uazapi-chat-webhook/index.ts` — rate limit 50 INSERTs/seg/cliente
-- `supabase/functions/uazapi-history-dispatcher-heartbeat/index.ts` (novo) — cron a cada 5min para reiniciar dispatcher se cair
-
-**Frontend**
-- `src/pages/configuracoes/components/UazapiHistoryTab.tsx`:
-  - Banner com vazão real-time (items/min) e ETA por cliente
-  - Indicador de saúde do dispatcher (verde/amarelo/vermelho)
-  - Botão "Reiniciar dispatcher" (admin)
-- `src/pages/configuracoes/hooks/useUazapiHistoryRuns.ts` — hook `useDispatcherHealth` (consulta heartbeat)
-
-**Tabela auxiliar nova**
-- `dispatcher_heartbeat` (id, last_seen_at, workers_active, items_per_min) — atualizada pelo dispatcher a cada 10s
-
-## Resultado esperado para 20 clientes
-
-- **Latência**: novo item entra em processamento em <1 segundo (vs até 60s hoje)
-- **Vazão sustentada**: ~5.000 items/min com 10 workers paralelos
-- **Burst de 240k items**: drenado em ~50 minutos (vs 33 dias hoje)
-- **Fairness**: nenhum cliente monopoliza; round-robin garante progresso para todos
-- **Resiliência**: cron de 5min como safety net; heartbeat detecta dispatcher caído
-- **Sem saturação**: pool de 10 workers + lock SKIP LOCKED elimina race conditions
+## Resultado esperado
+- Drenagem dos 9k items atuais em **~3 minutos** após deploy (vs 28 min de ETA atual)
+- Vazão sustentada de **~3.000 items/min** com pool real de 8-10 workers ativos
+- Heartbeat passa a refletir a vazão verdadeira (hoje mostra zero)
+- Reconexões futuras geram 40% menos items, baixando custo de I/O do banco
 
