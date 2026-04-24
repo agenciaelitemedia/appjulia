@@ -988,16 +988,7 @@ Deno.serve(async (req) => {
           }
         }
 
-        // ── Anti-echo filter: discard messages whose peer is one of the
-        //    client's own queue numbers (self-conversation between WABA
-        //    and UaZapi instances of the same office).
-        if (!isGroup) {
-          const ownNumbers = await getOwnNumbersForClient(String(queue.client_id));
-          if (ownNumbers.has(senderPhone)) {
-            console.log(`[uazapi-chat-webhook] skip self-conversation phone=${senderPhone} client=${queue.client_id}`);
-            continue;
-          }
-        }
+        // Anti-echo filter removed (causava falsos positivos com mesmo número em filas diferentes).
 
         // pushName/senderName belongs to the message author. For fromMe=true that's the OWNER.
         // In groups, pushName is the in-group sender — store on message but never use as contact name.
