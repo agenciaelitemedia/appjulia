@@ -206,13 +206,42 @@ export function UazapiHistoryTab() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">Histórico do evento UaZapi</h2>
-        <p className="text-sm text-muted-foreground">
-          Acompanhe os lotes do evento <strong>history</strong> recebidos da UaZapi por fila de conexão.
-          Apenas mensagens que ainda não existem são inseridas — grupos são sempre ignorados e nada é marcado como não lido.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Histórico do evento UaZapi</h2>
+          <p className="text-sm text-muted-foreground">
+            Acompanhe os lotes do evento <strong>history</strong> recebidos da UaZapi por fila de conexão.
+            Apenas mensagens que ainda não existem são inseridas — grupos são sempre ignorados e nada é marcado como não lido.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleResume}
+          disabled={resuming}
+          className="shrink-0 gap-2"
+        >
+          {resuming ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+          Reprocessar pendentes
+        </Button>
       </div>
+
+      {pending && pending.pending > 0 && (
+        <div className="flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" />
+          <div className="flex-1 text-sm">
+            <strong className="text-amber-700">{pending.pending.toLocaleString('pt-BR')} item(ns) aguardando processamento</strong>
+            {pending.oldest_pending_at && (
+              <span className="text-muted-foreground">
+                {' '}· mais antigo desde {format(new Date(pending.oldest_pending_at), "dd/MM HH:mm:ss", { locale: ptBR })}
+              </span>
+            )}
+            <div className="text-xs text-muted-foreground mt-0.5">
+              O worker automático drena 5 itens por minuto. Use o botão para forçar uma rodada maior agora.
+            </div>
+          </div>
+        </div>
+      )}
 
       {!isLoading && runs.length > 0 && (
         <div className="space-y-3">
