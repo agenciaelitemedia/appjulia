@@ -209,17 +209,16 @@ Deno.serve(async (req) => {
         const queue = await getQueueCredentials(queue_id);
         const token = queue.evo_apikey || adminToken;
         const url = queue.evo_url || baseUrl;
-        const instanceName = queue.evo_instance;
 
-        console.log(`[uazapi-instance-manager] Disconnect: ${instanceName}`);
-        let res = await fetch(`${url}/instance/logout/${instanceName}`, {
-          method: 'DELETE',
+        console.log(`[uazapi-instance-manager] Logout (unpair): ${queue.evo_instance}`);
+        let res = await fetch(`${url}/instance/logout`, {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json', 'token': token },
         });
 
         if (res.status === 401 && token !== adminToken) {
-          res = await fetch(`${url}/instance/logout/${instanceName}`, {
-            method: 'DELETE',
+          res = await fetch(`${url}/instance/logout`, {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json', 'admintoken': adminToken },
           });
         }
@@ -227,8 +226,9 @@ Deno.serve(async (req) => {
         const text = await res.text();
         let data;
         try { data = JSON.parse(text); } catch { data = { response: text }; }
+        console.log(`[uazapi-instance-manager] Logout response: ${res.status}`);
 
-        return respond({ success: res.ok, data });
+        return respond({ success: res.ok, status: res.status, data });
       }
 
       // ==========================================
