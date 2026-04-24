@@ -579,6 +579,33 @@ async function drainLoop(opts: { batchSize: number; maxTotal: number; loopMs: nu
   return { picked: totalPicked, inserted: totalInserted, iterations, ms: Date.now() - t0 };
 }
 
+// Auto-respawn: dispara nova invocação de si mesmo (fire-and-forget) se
+// ainda houver itens pending. Elimina o gap entre ticks do dispatcher.
+async function maybeRespawnSelf(workerId: number, batchSize: number, maxTotal: number, loopMs: number) {
+  try {
+    const sb = getSupabase();
+    const { count } = await sb
+      .from('uazapi_history_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending');
+    if ((count ?? 0) === 0) return;
+
+    const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/uazapi-history-resume`;
+    const respawn = fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'apikey': Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      },
+      body: JSON.stringify({ worker_id: workerId, batch_size: batchSize, max_total: maxTotal, loop_ms: loopMs }),
+    }).then((r) => r.text()).catch((e) => console.warn('[respawn] failed:', e?.message));
+    try { EdgeRuntime.waitUntil(respawn as Promise<unknown>); } catch { /* ignore */ }
+  } catch (e) {
+    console.warn('[respawn] check failed:', (e as Error).message);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -610,6 +637,8 @@ Deno.serve(async (req) => {
     }
 
     const result = await drainLoop({ batchSize, maxTotal, loopMs, workerId });
+    // Auto-respawn se ainda houver pending (fire-and-forget, não bloqueia response)
+    await maybeRespawnSelf(workerId, batchSize, maxTotal, loopMs);
     return respond({ ok: true, ...result, force });
   } catch (err) {
     console.error('[uazapi-history-resume] error:', err);
