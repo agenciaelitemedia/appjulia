@@ -783,9 +783,7 @@ Deno.serve(async (req) => {
     if (isHistoryReplay) {
       console.log(`[uazapi-chat-webhook] treating batch as history replay event=${event} count=${messages.length}`);
       const runId = await enqueueHistoryRun(messages, queue as any, `${event}:replay`);
-      if (runId) {
-        EdgeRuntime.waitUntil(dispatchHistoryProcessor(runId, { messages }));
-      }
+      // Do NOT dispatch — `uazapi-history-resume` cron will drain.
       return respond({ ok: true, event, queued: messages.length, replay: true, run_id: runId });
     }
 
