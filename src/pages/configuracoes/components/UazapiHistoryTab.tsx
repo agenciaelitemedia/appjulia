@@ -4,9 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, History, Eye, CheckCircle2, AlertCircle, MinusCircle, Clock, XCircle, Ban, PlayCircle, AlertTriangle } from 'lucide-react';
+import { Loader2, History, Eye, CheckCircle2, AlertCircle, MinusCircle, Clock, XCircle, Ban, PlayCircle, AlertTriangle, Zap, Activity, Gauge } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useUazapiHistoryRuns, useUazapiHistoryItems, useUazapiHistoryPending, useUazapiQueues, type UazapiHistoryRun } from '../hooks/useUazapiHistoryRuns';
+import { useUazapiHistoryRuns, useUazapiHistoryItems, useUazapiHistoryPending, useUazapiQueues, useDispatcherHealth, useUazapiPendingByClient, type UazapiHistoryRun } from '../hooks/useUazapiHistoryRuns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
@@ -146,9 +146,12 @@ export function UazapiHistoryTab() {
   const { data: runs = [], isLoading } = useUazapiHistoryRuns();
   const { data: pending } = useUazapiHistoryPending();
   const { data: queues = [] } = useUazapiQueues();
+  const { data: dispatcher } = useDispatcherHealth();
+  const { data: pendingByClient = [] } = useUazapiPendingByClient();
   const queryClient = useQueryClient();
   const [resuming, setResuming] = useState(false);
   const [resyncing, setResyncing] = useState(false);
+  const [restartingDispatcher, setRestartingDispatcher] = useState(false);
   const [resyncQueueId, setResyncQueueId] = useState<string>('');
   const [selected, setSelected] = useState<UazapiHistoryRun | null>(null);
   const [open, setOpen] = useState(false);
@@ -157,7 +160,7 @@ export function UazapiHistoryTab() {
     setResuming(true);
     try {
       const { data, error } = await supabase.functions.invoke('uazapi-history-resume', {
-        body: { force: true, max_items: 25 },
+        body: { force: true, batch_size: 100, max_total: 1000 },
       });
       if (error) throw error;
       const inserted = (data as any)?.inserted ?? 0;
@@ -169,6 +172,25 @@ export function UazapiHistoryTab() {
       toast.error(`Falha ao reprocessar: ${(err as Error).message}`);
     } finally {
       setResuming(false);
+    }
+  };
+
+  const handleRestartDispatcher = async () => {
+    setRestartingDispatcher(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('uazapi-history-dispatcher', {
+        body: { action: 'tick' },
+      });
+      if (error) throw error;
+      const fired = (data as any)?.fired ?? 0;
+      const pendingNow = (data as any)?.pending ?? 0;
+      toast.success(`Dispatcher acionado: ${fired} worker(s) em paralelo · ${pendingNow.toLocaleString('pt-BR')} pendentes.`);
+      queryClient.invalidateQueries({ queryKey: ['uazapi-dispatcher-heartbeat'] });
+      queryClient.invalidateQueries({ queryKey: ['uazapi-history-pending'] });
+    } catch (err) {
+      toast.error(`Falha ao acionar dispatcher: ${(err as Error).message}`);
+    } finally {
+      setRestartingDispatcher(false);
     }
   };
 
