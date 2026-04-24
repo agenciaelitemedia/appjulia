@@ -1126,7 +1126,7 @@ Deno.serve(async (req) => {
 
         if (activeConv) {
           conversationId = activeConv.id;
-        } else if (!fromMe) {
+        } else {
           // 2) Check for a resolved conversation to reopen (resolved = soft close, reopens on reply)
           const { data: resolvedConv } = await supabase
             .from('chat_conversations')
@@ -1141,7 +1141,8 @@ Deno.serve(async (req) => {
             .maybeSingle();
 
           if (resolvedConv) {
-            // Reopen the resolved conversation
+            // Reopen the resolved conversation (only on inbound reply; echoes just attach)
+            if (!fromMe) {
             await supabase
               .from('chat_conversations')
               .update({ status: 'open', resolved_at: null })
@@ -1152,9 +1153,11 @@ Deno.serve(async (req) => {
               actor_name: 'Sistema (webhook)',
               notes: 'Cliente respondeu após resolução',
             });
+            }
             conversationId = resolvedConv.id;
           } else {
-            // 3) No active or resolved conversation — create new
+            // 3) No active or resolved conversation — create new (also for echoes,
+            // so external sends/agent replies are not orphaned with conversation_id=null)
             const { data: newConv } = await supabase
               .from('chat_conversations')
               .insert({
