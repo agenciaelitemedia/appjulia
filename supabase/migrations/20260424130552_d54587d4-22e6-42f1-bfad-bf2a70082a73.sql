@@ -1,0 +1,1 @@
+UPDATE chat_messages m SET conversation_id = c.id FROM chat_conversations c WHERE m.conversation_id IS NULL AND m.channel_type = 'whatsapp_waba' AND c.contact_id = m.contact_id AND c.channel = 'whatsapp_waba' AND c.status IN ('pending','open');
