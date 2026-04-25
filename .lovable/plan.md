@@ -1,45 +1,34 @@
 ## Objetivo
+Reorganizar o conteúdo da aba **Detalhes** do `DealDetailsSheet` (sidebar de detalhes do card no CRM Builder) seguindo a nova ordem solicitada e adicionar edição inline para Responsável, Descrição e Valor.
 
-No CRM Builder, ao clicar no ícone do WhatsApp em um card, em vez de abrir um painel **inline** que empurra o board para a esquerda, abrir um **Sheet lateral overlay** (igual ao "Detalhes do contato" do módulo `/chat`) que sobrepõe a tela inteira a partir da direita, sem alterar o layout do Kanban.
+## Nova ordem (de cima para baixo, após o título)
 
-## Padrão a replicar
+1. **Vínculos** — `<DealLinksSection>` (Chat / Julia / fila / stage). Mover para o topo.
+2. **Contato** — nome + telefone (+ email se existir), como já é renderizado.
+3. **Responsável** — badge ocupando a linha inteira, com botão de editar inline (input + salvar/cancelar). Atualiza via `updateDeal({ assigned_to })`.
+4. **Prioridade + Tempo na fase** — uma linha própria, ocupando toda a largura (grid 2 colunas full-width como já existe, mas reposicionada). Prioridade continua como badge colorido (sem edição aqui — já é editável pelo card).
+5. **Tags** — se houver (mantém renderização atual).
+6. **Descrição** — se houver, com botão de editar inline (Textarea + salvar/cancelar). Se vazia, mostrar botão "Adicionar descrição". Atualiza via `updateDeal({ description })`.
+7. **Valor** — caixa destacada existente, com ícone de lápis para editar inline (Input numérico + salvar/cancelar). Atualiza via `updateDeal({ value })`.
+8. **Datas (Criado / Atualizado)** — rodapé do conteúdo (mantém formatação atual).
 
-O `ChatContainer.tsx` usa este padrão para detalhes do contato:
+> Observação: o bloco "Previsão de Fechamento" (`expected_close_date`) não foi listado pelo usuário, mas existe hoje. Vou mantê-lo logo antes das datas (rodapé) para não perder informação. Caso queira removê-lo, basta avisar.
 
-```tsx
-<Sheet open={showDetailPanel} onOpenChange={setShowDetailPanel}>
-  <SheetContent side="right" className="w-[456px] sm:w-[504px] sm:max-w-[504px] p-0 overflow-y-auto">
-    <ContactDetailPanel ... />
-  </SheetContent>
-</Sheet>
-```
+## Mudanças técnicas — `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx`
 
-## Mudanças
+- Reordenar os blocos JSX dentro do `<TabsContent value="details">` conforme a nova ordem.
+- Adicionar 3 estados locais de edição:
+  - `editingAssignee` + `assigneeDraft`
+  - `editingDescription` + `descriptionDraft`
+  - `editingValue` + `valueDraft`
+- Receber nova prop `onUpdate: (data: Partial<CRMDealFormData>) => Promise<boolean>` (ligada ao `updateDeal` já existente em `useCRMDeals`).
+- Cada campo editável segue o padrão já usado no projeto (ícone de lápis pequeno → input/textarea inline → botões check/x), com `Enter` salva e `Esc` cancela quando aplicável.
+- Adicionar bloco novo de **Responsável** (badge full-width estilo prioridade, com avatar/User icon + nome ou "Não atribuído" + botão editar).
 
-### 1. `src/pages/crm-builder/components/deals/BoardChatSidePanel.tsx`
-- Envolver o conteúdo atual em `<Sheet>` + `<SheetContent side="right">`.
-- Largura responsiva maior (chat tem header + mensagens + input): `w-[480px] sm:w-[560px] md:w-[640px] lg:w-[720px] sm:max-w-[720px]`.
-- `p-0` no `SheetContent`, `overflow-hidden` para o chat gerenciar seu próprio scroll.
-- Manter o `WhatsAppDataProvider` isolado e o `ScopedChat` exatamente como estão.
-- Substituir prop `deal: CRMDeal | null` + `onClose` por padrão controlado: `open: boolean`, `onOpenChange: (v: boolean) => void`, `deal: CRMDeal | null`.
-- Remover o `<aside>` inline e o handler manual de `Esc` (o `Sheet` do shadcn já cuida disso, e do overlay/click-outside).
-- Manter o header interno mini (botão "Abrir no Chat" + fechar) acima do `ChatHeader`, já que o `Sheet` não tem header próprio aqui.
+## Mudanças em `BoardPage.tsx`
+- Passar `onUpdate={(data) => updateDeal(selectedDeal.id, data)}` para o `DealDetailsSheet`.
 
-### 2. `src/pages/crm-builder/BoardPage.tsx`
-- Remover do layout o slot inline que reservava espaço de 420–480px à direita do board.
-- Voltar o container do board para o layout original (ocupando 100% da largura disponível).
-- Continuar mantendo o estado `chatPanelDeal` (ou renomear para `chatPanelOpen` + `chatPanelDeal`) e passar para o `BoardChatSidePanel` como `open` / `onOpenChange` / `deal`.
-- O `Sheet` é renderizado fora do fluxo (portal), então pode ficar no nível raiz do `BoardPage` sem afetar o grid.
-
-## Resultado de UX
-
-- Clique no ícone WhatsApp do card → Sheet desliza da direita sobre o board (overlay escurecido).
-- Board permanece visível atrás (parcialmente), sem reflow das colunas.
-- Fechar: botão X, tecla Esc, ou clique fora — todos nativos do `Sheet`.
-- Botão "Abrir no Chat" continua disponível para ir ao módulo `/chat` completo.
-- Comportamento idêntico ao painel de "Detalhes do contato" do `/chat`, mantendo consistência visual em todo o produto.
-
-## Arquivos
-
-- ✏️ `src/pages/crm-builder/components/deals/BoardChatSidePanel.tsx` — converter para `Sheet`
-- ✏️ `src/pages/crm-builder/BoardPage.tsx` — remover slot inline, renderizar Sheet no nível raiz
+## Não muda
+- Footer de ações (Editar/Ganho/Perdido/Arquivar) permanece como está.
+- Aba **Atividade** permanece intocada.
+- `DealCard` (board) não é alterado.
