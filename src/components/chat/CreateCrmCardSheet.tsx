@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { Loader2, Kanban, ChevronRight, MessageSquare, Scale, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { externalDb } from '@/lib/externalDb';
 import type { ChatContact } from '@/types/chat';
 import { useQueueAgentLink } from '@/hooks/useQueueAgentLink';
@@ -47,6 +47,7 @@ interface CreateCrmCardSheetProps {
 export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queueId, conversationId }: CreateCrmCardSheetProps) {
   const { user } = useAuth();
   const clientId = user?.client_id ? String(user.client_id) : '';
+  const queryClient = useQueryClient();
 
   // ---- Resolve effective cod_agent (prop → queue → user's first agent) ----
   const queueLink = useQueueAgentLink(!codAgent && open ? queueId ?? null : null);
@@ -246,6 +247,8 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
       }
 
       toast.success('Card criado no CRM');
+      // Invalida o link do CRM no header do chat para refletir a cor de vínculo imediatamente
+      await queryClient.invalidateQueries({ queryKey: ['chat-deal-link', conversationId, clientId] });
       onOpenChange(false);
     } catch (err) {
       console.error(err);
