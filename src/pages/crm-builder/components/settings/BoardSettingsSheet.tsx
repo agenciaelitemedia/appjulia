@@ -16,6 +16,7 @@ interface BoardSettingsSheetProps {
   onOpenChange: (open: boolean) => void;
   boardId: string;
   codAgent: string;
+  clientId: string;
   boardName: string;
   pipelines: CRMPipeline[];
   deals: CRMDeal[];
@@ -26,6 +27,7 @@ export function BoardSettingsSheet({
   onOpenChange,
   boardId,
   codAgent,
+  clientId,
   boardName,
   pipelines,
   deals,
@@ -65,11 +67,11 @@ export function BoardSettingsSheet({
           </TabsContent>
 
           <TabsContent value="custom-fields" className="mt-4">
-            <CustomFieldsManager boardId={boardId} codAgent={codAgent} />
+            <CustomFieldsManager boardId={boardId} codAgent={codAgent} clientId={clientId} />
           </TabsContent>
 
           <TabsContent value="automations" className="mt-4">
-            <AutomationsManager boardId={boardId} codAgent={codAgent} pipelines={pipelines} />
+            <AutomationsManager boardId={boardId} codAgent={codAgent} clientId={clientId} pipelines={pipelines} />
           </TabsContent>
 
           <TabsContent value="general" className="mt-4">
