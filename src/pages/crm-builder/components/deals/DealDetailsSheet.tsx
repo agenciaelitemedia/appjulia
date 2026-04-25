@@ -14,8 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
+import { TeamMemberSelect } from '@/components/TeamMemberSelect';
 import { 
   Archive,
   Calendar,
@@ -78,9 +78,6 @@ export function DealDetailsSheet({
   // Mesma fonte usada na página Equipe (vw_equipe filtrada por client_id),
   // que inclui o dono/responsável principal e todos os membros do mesmo cliente.
   const { data: team = [] } = useTeamByClient();
-  const uniqueAssignees = Array.from(
-    new Set(team.map((m) => m.name).filter(Boolean))
-  ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
   const { history, isLoading: isLoadingHistory, addNote } = useCRMDealHistory({
     dealId: open && deal ? deal.id : null,
@@ -262,22 +259,16 @@ export function DealDetailsSheet({
                 </div>
                 {editingAssignee ? (
                   <div className="flex items-center gap-2">
-                    <Select
-                      value={assigneeDraft || '__none__'}
-                      onValueChange={(v) => setAssigneeDraft(v === '__none__' ? '' : v)}
-                    >
-                      <SelectTrigger className="h-9 flex-1">
-                        <SelectValue placeholder="Selecionar responsável" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">Não atribuído</SelectItem>
-                        {uniqueAssignees.map((name) => (
-                          <SelectItem key={name} value={name}>
-                            {name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <TeamMemberSelect
+                      members={team}
+                      valueKey="name"
+                      value={assigneeDraft || null}
+                      onValueChange={(v) => setAssigneeDraft(v ?? '')}
+                      allowUnassigned
+                      unassignedLabel="Não atribuído"
+                      showCurrentUserShortcut
+                      className="flex-1"
+                    />
                     <Button size="icon" className="h-9 w-9 flex-shrink-0" onClick={saveAssignee} disabled={savingField === 'assignee'}>
                       <Check className="h-4 w-4" />
                     </Button>

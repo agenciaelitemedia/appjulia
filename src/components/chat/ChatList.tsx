@@ -10,6 +10,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, Plus, Timer, AlertTriangle, Flame, Bot, User, UserCheck, UserX, ListFilter, FolderOpen, CheckCheck, Archive, UserCircle, ChevronsUpDown, CalendarDays, Tag, Settings } from 'lucide-react';
+import { TeamMemberSelect } from '@/components/TeamMemberSelect';
 import { TagsManagerDialog } from './TagsManagerDialog';
 import { NewConversationDialog } from './NewConversationDialog';
 import { MessageSquarePlus } from 'lucide-react';
@@ -474,28 +475,24 @@ export function ChatList() {
           ))}
         </div>
 
-        {/* Responsável (Select) */}
+        {/* Responsável (busca + avatares) */}
         <div className="px-4 pb-2 flex items-center gap-2">
           <UserCircle className="h-4 w-4 text-muted-foreground shrink-0" />
-          <Select value={ownerFilter} onValueChange={setOwnerFilter}>
-            <SelectTrigger className="h-8 w-full text-xs">
-              <SelectValue placeholder="Responsável" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all" className="text-xs">Todos</SelectItem>
-              <SelectItem value="mine" className="text-xs font-bold uppercase tracking-wide text-primary">
-                MEUS CARDS
-              </SelectItem>
-              <SelectItem value="unassigned" className="text-xs text-muted-foreground italic">
-                Sem Responsável
-              </SelectItem>
-              {teamMembers.map((m) => (
-                <SelectItem key={m.id} value={String(m.id)} className="text-xs">
-                  {m.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <TeamMemberSelect
+            members={teamMembers}
+            valueKey="id"
+            value={['all', 'mine', 'unassigned'].includes(ownerFilter) ? ownerFilter : ownerFilter}
+            onValueChange={(v) => setOwnerFilter(v ?? 'all')}
+            allowUnassigned={false}
+            extraOptions={[
+              { value: 'all', label: 'Todos atendentes', icon: Users },
+              { value: 'mine', label: 'Meus atendimentos', icon: UserCheck, badgeLabel: 'EU' },
+              { value: 'unassigned', label: 'Sem atendente', icon: UserX },
+            ]}
+            placeholder="Responsável"
+            size="sm"
+            className="w-full text-xs"
+          />
         </div>
 
         {/* Etapas (multi-select) */}
