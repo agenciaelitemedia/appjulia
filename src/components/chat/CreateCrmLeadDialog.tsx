@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { Loader2, Sparkles } from 'lucide-react';
 import type { ChatContact } from '@/types/chat';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Board {
   id: string;
@@ -32,6 +33,8 @@ interface CreateCrmLeadDialogProps {
 }
 
 export function CreateCrmLeadDialog({ open, onOpenChange, contact, codAgent, conversationId }: CreateCrmLeadDialogProps) {
+  const { user } = useAuth();
+  const clientId = user?.client_id ? String(user.client_id) : '';
   const [boards, setBoards] = useState<Board[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedBoard, setSelectedBoard] = useState<string>('');
@@ -51,13 +54,13 @@ export function CreateCrmLeadDialog({ open, onOpenChange, contact, codAgent, con
   }, [open]);
 
   const loadBoards = async () => {
-    if (!codAgent) return;
+    if (!clientId) return;
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('crm_boards')
         .select('id, name, cod_agent')
-        .eq('cod_agent', codAgent)
+        .eq('client_id', clientId)
         .eq('is_archived', false)
         .order('position');
       if (error) throw error;
@@ -105,6 +108,7 @@ export function CreateCrmLeadDialog({ open, onOpenChange, contact, codAgent, con
       const { error } = await supabase.from('crm_deals').insert({
         board_id: selectedBoard,
         pipeline_id: selectedPipeline,
+        client_id: clientId,
         cod_agent: codAgent,
         title: title.trim() || contact.name,
         description,
