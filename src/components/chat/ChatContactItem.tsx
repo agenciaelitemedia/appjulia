@@ -242,7 +242,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
               label={assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO'}
               className={cn(
                 'w-[110px]',
-                assignedAgentName ? 'bg-muted text-foreground' : 'bg-muted/60 text-muted-foreground',
+                assignedAgentName ? 'bg-yellow-400 text-yellow-950' : 'bg-yellow-200 text-yellow-900',
                 !hasCrmCard && 'rounded-r'
               )}
             />
