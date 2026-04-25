@@ -4,10 +4,12 @@ import { useToast } from '@/hooks/use-toast';
 import type { CRMBoard, CRMBoardFormData } from '../types';
 
 interface UseCRMBoardsOptions {
+  clientId: string;
   codAgent: string;
+  canManage?: boolean;
 }
 
-export function useCRMBoards({ codAgent }: UseCRMBoardsOptions) {
+export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoardsOptions) {
   const { toast } = useToast();
   const [boards, setBoards] = useState<CRMBoard[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -15,7 +17,7 @@ export function useCRMBoards({ codAgent }: UseCRMBoardsOptions) {
 
   // Fetch all boards for the agent
   const fetchBoards = useCallback(async () => {
-    if (!codAgent) return;
+    if (!clientId) return;
     
     setIsLoading(true);
     setError(null);
@@ -24,7 +26,7 @@ export function useCRMBoards({ codAgent }: UseCRMBoardsOptions) {
       const { data, error: queryError } = await supabase
         .from('crm_boards')
         .select('*')
-        .eq('cod_agent', codAgent)
+        .eq('client_id', clientId)
         .eq('is_archived', false)
         .order('position', { ascending: true });
 
@@ -42,11 +44,11 @@ export function useCRMBoards({ codAgent }: UseCRMBoardsOptions) {
     } finally {
       setIsLoading(false);
     }
-  }, [codAgent, toast]);
+  }, [clientId, toast]);
 
   // Create a new board
   const createBoard = useCallback(async (data: CRMBoardFormData): Promise<CRMBoard | null> => {
-    if (!codAgent) return null;
+    if (!clientId || !canManage) return null;
 
     try {
       // Get the max position
@@ -57,6 +59,7 @@ export function useCRMBoards({ codAgent }: UseCRMBoardsOptions) {
       const { data: newBoard, error: insertError } = await supabase
         .from('crm_boards')
         .insert({
+          client_id: clientId,
           cod_agent: codAgent,
           name: data.name,
           description: data.description || null,
@@ -87,10 +90,11 @@ export function useCRMBoards({ codAgent }: UseCRMBoardsOptions) {
       });
       return null;
     }
-  }, [codAgent, boards, toast]);
+  }, [clientId, codAgent, canManage, boards, toast]);
 
   // Update a board
   const updateBoard = useCallback(async (boardId: string, data: Partial<CRMBoardFormData>): Promise<boolean> => {
+    if (!canManage) return false;
     try {
       const { error: updateError } = await supabase
         .from('crm_boards')
@@ -125,10 +129,11 @@ export function useCRMBoards({ codAgent }: UseCRMBoardsOptions) {
       });
       return false;
     }
-  }, [toast]);
+  }, [canManage, toast]);
 
   // Archive a board
   const archiveBoard = useCallback(async (boardId: string): Promise<boolean> => {
+    if (!canManage) return false;
     try {
       const { error: updateError } = await supabase
         .from('crm_boards')
@@ -154,10 +159,11 @@ export function useCRMBoards({ codAgent }: UseCRMBoardsOptions) {
       });
       return false;
     }
-  }, [toast]);
+  }, [canManage, toast]);
 
   // Reorder boards
   const reorderBoards = useCallback(async (reorderedBoards: CRMBoard[]): Promise<boolean> => {
+    if (!canManage) return false;
     try {
       // Update positions locally first (optimistic)
       setBoards(reorderedBoards);
@@ -184,11 +190,11 @@ export function useCRMBoards({ codAgent }: UseCRMBoardsOptions) {
       });
       return false;
     }
-  }, [fetchBoards, toast]);
+  }, [canManage, fetchBoards, toast]);
 
   // Set up realtime subscription
   useEffect(() => {
-    if (!codAgent) return;
+    if (!clientId) return;
 
     const channel = supabase
       .channel('crm-boards-changes')
@@ -198,7 +204,7 @@ export function useCRMBoards({ codAgent }: UseCRMBoardsOptions) {
           event: '*',
           schema: 'public',
           table: 'crm_boards',
-          filter: `cod_agent=eq.${codAgent}`,
+          filter: `client_id=eq.${clientId}`,
         },
         () => {
           // Refetch on any change
@@ -210,7 +216,7 @@ export function useCRMBoards({ codAgent }: UseCRMBoardsOptions) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [codAgent, fetchBoards]);
+  }, [clientId, fetchBoards]);
 
   // Initial fetch
   useEffect(() => {
