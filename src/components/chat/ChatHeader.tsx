@@ -32,7 +32,7 @@ import { ChatSearchDialog } from './ChatSearchDialog';
 import { ScheduledMessagesList } from './ScheduledMessagesList';
 import { SnoozeDialog } from './SnoozeDialog';
 import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
-import { CreateCrmLeadDialog } from './CreateCrmLeadDialog';
+import { CreateCrmCardSheet } from './CreateCrmCardSheet';
 import { AIAssistPanel } from './AIAssistPanel';
 import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
 import { SlaBadge } from './SlaBadge';
@@ -571,7 +571,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => setShowCrmLead(true)}>
                         <Sparkles className="h-4 w-4 mr-2" />
-                        Criar lead no CRM
+                        Criar Card no CRM
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -581,7 +581,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
             );
           })()}
 
-          <CreateCrmLeadDialog
+          <CreateCrmCardSheet
             open={showCrmLead}
             onOpenChange={setShowCrmLead}
             contact={contact}
