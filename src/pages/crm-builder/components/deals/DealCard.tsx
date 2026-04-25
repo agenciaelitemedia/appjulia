@@ -180,7 +180,7 @@ export function DealCard({
               </Tooltip>
             )}
 
-          {!isLinked && <DropdownMenu>
+          <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
                 variant="ghost" 
@@ -192,11 +192,15 @@ export function DealCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
-                <Pencil className="h-4 w-4 mr-2" />
-                Editar
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
+              {!isLinked && (
+                <>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Editar
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onWon(); }}>
                 <Trophy className="h-4 w-4 mr-2 text-primary" />
                 Marcar como Ganho
@@ -207,37 +211,14 @@ export function DealCard({
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem 
-                onClick={(e) => { e.stopPropagation(); onArchive(); }}
+                onClick={(e) => { e.stopPropagation(); setConfirmArchive(true); }}
                 className="text-destructive"
               >
                 <Archive className="h-4 w-4 mr-2" />
-                Arquivar
+                {isLinked ? 'Excluir card' : 'Arquivar'}
               </DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>}
-          {isLinked && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <MoreHorizontal className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={(e) => { e.stopPropagation(); onArchive(); }}
-                  className="text-destructive"
-                >
-                  <Archive className="h-4 w-4 mr-2" />
-                  Excluir card
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          </DropdownMenu>
           </div>
         </div>
 
