@@ -257,6 +257,9 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, conv
                   </Badge>
                 )}
               </div>
+              <p className="text-[11px] text-muted-foreground">
+                O card sempre será criado na primeira etapa do quadro.
+              </p>
 
               {loadingBoards ? (
                 <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
@@ -267,11 +270,12 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, conv
                   {boards.map((b) => {
                     const isExpanded = expandedBoard === b.id;
                     const pipelines = pipelinesByBoard[b.id] || [];
+                    const firstStage = pipelines[0];
                     return (
                       <div key={b.id} className="border rounded-lg overflow-hidden bg-card">
                         <button
                           type="button"
-                          onClick={() => handleExpand(b.id)}
+                          onClick={() => handleSelectBoard(b.id)}
                           className={cn(
                             'w-full flex items-center gap-3 p-3 text-left hover:bg-muted/50 transition-colors',
                             selectedBoard === b.id && 'bg-primary/5'
@@ -286,38 +290,30 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, conv
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-sm truncate">{b.name}</div>
                             <div className="text-[11px] text-muted-foreground">
-                              {pipelines.length > 0 ? `${pipelines.length} etapa(s)` : 'Clique para ver etapas'}
+                              {pipelines.length > 0 ? `${pipelines.length} etapa(s)` : 'Clique para selecionar'}
                             </div>
                           </div>
                           <ChevronRight className={cn('h-4 w-4 text-muted-foreground transition-transform', isExpanded && 'rotate-90')} />
                         </button>
 
                         {isExpanded && (
-                          <div className="border-t bg-muted/20 p-2 space-y-1">
+                          <div className="border-t bg-muted/20 p-3">
                             {pipelines.length === 0 ? (
-                              <div className="text-xs text-muted-foreground p-2">Carregando etapas...</div>
+                              <div className="text-xs text-muted-foreground">Carregando etapas...</div>
+                            ) : firstStage ? (
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="text-muted-foreground">Entrará em:</span>
+                                <span
+                                  className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                                  style={{ backgroundColor: firstStage.color }}
+                                />
+                                <span className="font-medium">{firstStage.name}</span>
+                                <Check className="h-3.5 w-3.5 text-primary ml-auto" />
+                              </div>
                             ) : (
-                              pipelines.map((p) => {
-                                const isSelected = selectedPipeline === p.id;
-                                return (
-                                  <button
-                                    key={p.id}
-                                    type="button"
-                                    onClick={() => handleSelectStage(b.id, p.id)}
-                                    className={cn(
-                                      'w-full flex items-center gap-2 px-3 py-2 rounded text-sm text-left transition-colors',
-                                      isSelected ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-                                    )}
-                                  >
-                                    <span
-                                      className="h-2.5 w-2.5 rounded-full flex-shrink-0"
-                                      style={{ backgroundColor: p.color }}
-                                    />
-                                    <span className="flex-1 truncate">{p.name}</span>
-                                    {isSelected && <Check className="h-4 w-4" />}
-                                  </button>
-                                );
-                              })
+                              <div className="text-xs text-muted-foreground">
+                                Este quadro não possui etapas ativas.
+                              </div>
                             )}
                           </div>
                         )}
