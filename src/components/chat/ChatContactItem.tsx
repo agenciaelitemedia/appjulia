@@ -243,7 +243,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
               className={cn(
                 'w-[110px]',
                 'bg-slate-300 text-slate-900',
-                assignedAgentName ? 'font-bold' : 'font-normal',
+                assignedAgentName ? 'font-bold' : '!font-normal',
                 !hasCrmCard && 'rounded-r'
               )}
             />
