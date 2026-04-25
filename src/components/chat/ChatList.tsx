@@ -111,6 +111,7 @@ export function ChatList() {
   const [stagePopoverOpen, setStagePopoverOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [showTagsManager, setShowTagsManager] = useState(false);
+  const [showChatSettings, setShowChatSettings] = useState(false);
   const [newConvOpen, setNewConvOpen] = useState(false);
   const [footerCountry, setFooterCountry] = useState('55');
   const [footerPhone, setFooterPhone] = useState('');
@@ -339,9 +340,6 @@ export function ChatList() {
         <div className="flex items-center gap-2 px-4 pt-3 pb-2">
           {/* Right side actions */}
           <div className="ml-auto flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/metricas')} title="Métricas">
-              <BarChart3 className="h-4 w-4" />
-            </Button>
             {isAdmin && (
               <>
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/automacoes')} title="Automações">
@@ -352,15 +350,10 @@ export function ChatList() {
                 </Button>
               </>
             )}
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/chat/sla')} title="Configurar SLA">
-              <Timer className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowTagsManager(true)} title="Gerenciar Tags">
-              <Tag className="h-4 w-4" />
-            </Button>
           </div>
         </div>
         <TagsManagerDialog open={showTagsManager} onOpenChange={setShowTagsManager} />
+        <ChatModuleSettingsDialog open={showChatSettings} onOpenChange={setShowChatSettings} />
 
         {/* Search bar with filter icons */}
         <div className="px-4 pb-2">
@@ -374,6 +367,15 @@ export function ChatList() {
                 className="pl-9 h-9 bg-muted/40 border-0"
               />
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 flex-shrink-0"
+              onClick={() => navigate('/chat/metricas')}
+              title="Métricas"
+            >
+              <BarChart3 className="h-4 w-4" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -391,6 +393,17 @@ export function ChatList() {
                 </span>
               )}
             </Button>
+            {(isAdmin || user?.role === 'user') && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 flex-shrink-0"
+                onClick={() => setShowChatSettings(true)}
+                title="Configurações do chat"
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
 
