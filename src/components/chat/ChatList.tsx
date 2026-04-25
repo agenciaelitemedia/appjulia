@@ -370,15 +370,6 @@ export function ChatList() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 flex-shrink-0"
-              onClick={() => navigate('/chat/metricas')}
-              title="Métricas"
-            >
-              <BarChart3 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
               className={cn(
                 'h-9 w-9 flex-shrink-0 relative',
                 filtersOpen && 'bg-muted text-foreground'
@@ -393,16 +384,27 @@ export function ChatList() {
                 </span>
               )}
             </Button>
-            {(isAdmin || user?.role === 'user') && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 flex-shrink-0"
-                onClick={() => setShowChatSettings(true)}
-                title="Configurações do chat"
-              >
-                <Settings className="h-4 w-4" />
-              </Button>
+            {(isAdmin || user?.role === 'user' || user?.role === 'colaborador') && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 flex-shrink-0"
+                  onClick={() => navigate('/chat/metricas')}
+                  title="Métricas"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 flex-shrink-0"
+                  onClick={() => setShowChatSettings(true)}
+                  title="Configurações do chat"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </>
             )}
           </div>
         </div>
