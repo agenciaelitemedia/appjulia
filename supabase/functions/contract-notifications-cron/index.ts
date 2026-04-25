@@ -98,7 +98,7 @@ async function processLeadFollowup(
   cfg: any,
   contracts: Contract[],
   codAgent: string,
-  adapter: UaZapiAdapter,
+  adapter: any,
 ) {
   const results: any[] = [];
   const unsignedContracts = contracts.filter(c => c.status_document === 'CREATED');
@@ -177,7 +177,7 @@ async function processOfficeAlert(
   cfg: any,
   contracts: Contract[],
   codAgent: string,
-  adapter: UaZapiAdapter,
+  adapter: any,
 ) {
   const results: any[] = [];
 

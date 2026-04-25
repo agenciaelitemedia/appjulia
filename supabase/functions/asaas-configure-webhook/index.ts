@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
   } catch (err) {
     console.error("asaas-configure-webhook error:", err);
     return new Response(
-      JSON.stringify({ error: err.message || "Internal error" }),
+      JSON.stringify({ error: (err as Error)?.message || "Internal error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

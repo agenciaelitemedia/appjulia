@@ -162,7 +162,8 @@ serve(async (req) => {
     if (shouldQueueMediaProcessing) {
       const functionUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/support-transcribe-audio`;
 
-      EdgeRuntime.waitUntil((async () => {
+      // @ts-ignore - EdgeRuntime is available at runtime in Supabase edge functions
+      (globalThis as any).EdgeRuntime?.waitUntil?.((async () => {
         try {
           const triggerResp = await fetch(functionUrl, {
             method: "POST",
