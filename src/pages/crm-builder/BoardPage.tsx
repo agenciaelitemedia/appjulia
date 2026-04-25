@@ -32,6 +32,7 @@ import { CreatePipelineDialog } from './components/pipeline/CreatePipelineDialog
 import { DealCard } from './components/deals/DealCard';
 import { CreateDealDialog } from './components/deals/CreateDealDialog';
 import { DealDetailsSheet } from './components/deals/DealDetailsSheet';
+import { BoardChatSidePanel } from './components/deals/BoardChatSidePanel';
 import { BoardFilters, type BoardFiltersState } from './components/filters/BoardFilters';
 import { BoardSettingsSheet } from './components/settings/BoardSettingsSheet';
 import { useCRMPipelines } from './hooks/useCRMPipelines';
@@ -94,6 +95,7 @@ export default function BoardPage() {
   const [selectedPipelineForDeal, setSelectedPipelineForDeal] = useState<CRMPipeline | null>(null);
   const [editingDeal, setEditingDeal] = useState<CRMDeal | null>(null);
   const [viewingDeal, setViewingDeal] = useState<CRMDeal | null>(null);
+  const [chatPanelDeal, setChatPanelDeal] = useState<CRMDeal | null>(null);
 
   // DnD state
   const [activeDeal, setActiveDeal] = useState<CRMDeal | null>(null);
@@ -374,19 +376,22 @@ export default function BoardPage() {
         </div>
       </div>
 
-      {/* Filters Bar */}
-      <div className="px-4 py-3 border-b bg-muted/20">
-        <BoardFilters
-          filters={filters}
-          onFiltersChange={setFilters}
-          pipelines={pipelines.map(p => ({ id: p.id, name: p.name, color: p.color }))}
-          totalDeals={deals.length}
-          filteredDeals={filteredDeals.length}
-        />
-      </div>
+      {/* Main area: kanban (à esquerda) + painel de chat opcional (à direita) */}
+      <div className="flex flex-1 min-h-0">
+        <div className="flex flex-col flex-1 min-w-0">
+        {/* Filters Bar */}
+        <div className="px-4 py-3 border-b bg-muted/20">
+          <BoardFilters
+            filters={filters}
+            onFiltersChange={setFilters}
+            pipelines={pipelines.map(p => ({ id: p.id, name: p.name, color: p.color }))}
+            totalDeals={deals.length}
+            filteredDeals={filteredDeals.length}
+          />
+        </div>
 
-      {/* Pipeline Container */}
-      <div className="flex flex-col flex-1 min-h-0">
+        {/* Pipeline Container */}
+        <div className="flex flex-col flex-1 min-h-0">
         <div 
           ref={scrollRef}
           className="flex-1 overflow-x-auto overflow-y-auto p-4 pb-20 scrollbar-none"
@@ -434,6 +439,7 @@ export default function BoardPage() {
                                 onArchive={() => archiveDeal(deal.id)}
                                 onWon={() => setDealStatus(deal.id, 'won')}
                                 onLost={() => setDealStatus(deal.id, 'lost')}
+                                onOpenChat={(d) => setChatPanelDeal(d)}
                               />
                             ))}
                           </SortableContext>
@@ -471,6 +477,16 @@ export default function BoardPage() {
             </DragOverlay>
           </DndContext>
         </div>
+        </div>
+        </div>
+
+        {/* Painel lateral de chat (aparece quando o usuário clica no ícone WhatsApp do card) */}
+        {chatPanelDeal && (
+          <BoardChatSidePanel
+            deal={chatPanelDeal}
+            onClose={() => setChatPanelDeal(null)}
+          />
+        )}
       </div>
 
       {/* Fixed bottom scroll navigation */}
