@@ -13,6 +13,14 @@ import { JuliaStatusBadge } from '@/components/chat/JuliaStatusBadge';
 import { PriorityBadge } from '@/components/chat/PriorityBadge';
 import { getMessagePreview } from '@/lib/chat/messagePreview';
 
+function toTitleCase(s: string): string {
+  return s
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(' ');
+}
+
 interface ChatContactItemProps {
   contact: ChatContact;
   isSelected: boolean;
@@ -231,12 +239,12 @@ export const ChatContactItem = React.memo(function ChatContactItem({
           <div className="flex items-stretch gap-0 flex-shrink-0 mr-2">
             {queueName && (
               <Pill
-                label={queueName.toUpperCase()}
+                label={toTitleCase(queueName)}
                 className="bg-blue-600 text-white rounded-l w-[110px]"
               />
             )}
             <Pill
-              label={assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO'}
+              label={assignedAgentName ? toTitleCase(assignedAgentName) : 'Não Atribuído'}
               className={cn(
                 'w-[110px]',
                 'bg-slate-100 text-slate-900',
