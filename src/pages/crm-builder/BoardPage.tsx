@@ -537,6 +537,7 @@ export default function BoardPage() {
         boardName={board.name}
         pipelines={pipelines}
         deals={deals}
+        canManage={canManage}
       />
     </div>
   );

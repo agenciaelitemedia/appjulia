@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { CRMPipeline, CRMPipelineFormData } from '../types';
+import { logCRMAudit } from './useCRMAuditLog';
 
 interface UseCRMPipelinesOptions {
   boardId: string | null;
@@ -80,6 +81,16 @@ export function useCRMPipelines({ boardId, clientId, codAgent, canManage = true 
       const pipeline = newPipeline as CRMPipeline;
       setPipelines(prev => [...prev, pipeline]);
 
+      logCRMAudit({
+        clientId,
+        codAgent,
+        entityType: 'pipeline',
+        entityId: pipeline.id,
+        entityName: pipeline.name,
+        action: 'created',
+        changes: { board_id: boardId, color: pipeline.color, win_probability: pipeline.win_probability },
+      });
+
       toast({
         title: 'Etapa criada',
         description: `"${data.name}" foi criada com sucesso.`,
@@ -118,6 +129,16 @@ export function useCRMPipelines({ boardId, clientId, codAgent, canManage = true 
           : p
       ));
 
+      logCRMAudit({
+        clientId,
+        codAgent,
+        entityType: 'pipeline',
+        entityId: pipelineId,
+        entityName: data.name ?? pipelines.find(p => p.id === pipelineId)?.name ?? null,
+        action: 'updated',
+        changes: { ...(data as Record<string, unknown>), board_id: boardId },
+      });
+
       toast({
         title: 'Etapa atualizada',
         description: 'As alterações foram salvas.',
@@ -133,12 +154,13 @@ export function useCRMPipelines({ boardId, clientId, codAgent, canManage = true 
       });
       return false;
     }
-  }, [canManage, toast]);
+  }, [canManage, clientId, codAgent, boardId, pipelines, toast]);
 
   // Delete (deactivate) a pipeline
   const deletePipeline = useCallback(async (pipelineId: string): Promise<boolean> => {
     if (!canManage) return false;
     try {
+      const target = pipelines.find(p => p.id === pipelineId);
       const { error: updateError } = await supabase
         .from('crm_pipelines')
         .update({ is_active: false })
@@ -147,6 +169,16 @@ export function useCRMPipelines({ boardId, clientId, codAgent, canManage = true 
       if (updateError) throw updateError;
 
       setPipelines(prev => prev.filter(p => p.id !== pipelineId));
+
+      logCRMAudit({
+        clientId,
+        codAgent,
+        entityType: 'pipeline',
+        entityId: pipelineId,
+        entityName: target?.name ?? null,
+        action: 'deleted',
+        changes: { board_id: boardId },
+      });
 
       toast({
         title: 'Etapa removida',
@@ -163,7 +195,7 @@ export function useCRMPipelines({ boardId, clientId, codAgent, canManage = true 
       });
       return false;
     }
-  }, [canManage, toast]);
+  }, [canManage, clientId, codAgent, boardId, pipelines, toast]);
 
   // Reorder pipelines
   const reorderPipelines = useCallback(async (reorderedPipelines: CRMPipeline[]): Promise<boolean> => {
@@ -182,6 +214,19 @@ export function useCRMPipelines({ boardId, clientId, codAgent, canManage = true 
 
       await Promise.all(updates);
 
+      logCRMAudit({
+        clientId,
+        codAgent,
+        entityType: 'pipeline',
+        entityId: reorderedPipelines[0]?.id ?? '00000000-0000-0000-0000-000000000000',
+        entityName: null,
+        action: 'reordered',
+        changes: {
+          board_id: boardId,
+          order: reorderedPipelines.map(p => ({ id: p.id, name: p.name })),
+        },
+      });
+
       return true;
     } catch (err) {
       // Revert on error
@@ -194,14 +239,14 @@ export function useCRMPipelines({ boardId, clientId, codAgent, canManage = true 
       });
       return false;
     }
-  }, [canManage, fetchPipelines, toast]);
+  }, [canManage, clientId, codAgent, boardId, fetchPipelines, toast]);
 
   // Set up realtime subscription
   useEffect(() => {
     if (!boardId || !clientId) return;
 
     const channel = supabase
-      .channel(`crm-pipelines-${boardId}`)
+      .channel(`crm-pipelines-${clientId}-${boardId}`)
       .on(
         'postgres_changes',
         {

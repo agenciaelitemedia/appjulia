@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Json } from '@/integrations/supabase/types';
+import { logCRMAudit } from './useCRMAuditLog';
 
 export type FieldType = 'text' | 'number' | 'date' | 'select' | 'multiselect' | 'checkbox' | 'url' | 'email' | 'phone';
 
@@ -149,6 +150,16 @@ export function useCRMCustomFields({ boardId, clientId, codAgent, canManage = tr
 
       setFields(prev => [...prev, field]);
 
+      logCRMAudit({
+        clientId,
+        codAgent,
+        entityType: 'custom_field',
+        entityId: field.id,
+        entityName: field.field_label,
+        action: 'created',
+        changes: { board_id: boardId, field_type: field.field_type, field_name: field.field_name },
+      });
+
       toast({
         title: 'Campo criado',
         description: `Campo "${data.field_label}" foi criado com sucesso.`,
@@ -189,6 +200,16 @@ export function useCRMCustomFields({ boardId, clientId, codAgent, canManage = tr
           : f
       ));
 
+      logCRMAudit({
+        clientId,
+        codAgent,
+        entityType: 'custom_field',
+        entityId: fieldId,
+        entityName: data.field_label ?? fields.find(f => f.id === fieldId)?.field_label ?? null,
+        action: 'updated',
+        changes: { ...(data as Record<string, unknown>), board_id: boardId },
+      });
+
       toast({
         title: 'Campo atualizado',
         description: 'As alterações foram salvas.',
@@ -204,12 +225,13 @@ export function useCRMCustomFields({ boardId, clientId, codAgent, canManage = tr
       });
       return false;
     }
-  }, [canManage, toast]);
+  }, [canManage, clientId, codAgent, boardId, fields, toast]);
 
   // Delete a custom field
   const deleteField = useCallback(async (fieldId: string): Promise<boolean> => {
     if (!canManage) return false;
     try {
+      const target = fields.find(f => f.id === fieldId);
       const { error: deleteError } = await supabase
         .from('crm_custom_fields')
         .delete()
@@ -218,6 +240,16 @@ export function useCRMCustomFields({ boardId, clientId, codAgent, canManage = tr
       if (deleteError) throw deleteError;
 
       setFields(prev => prev.filter(f => f.id !== fieldId));
+
+      logCRMAudit({
+        clientId,
+        codAgent,
+        entityType: 'custom_field',
+        entityId: fieldId,
+        entityName: target?.field_label ?? null,
+        action: 'deleted',
+        changes: { board_id: boardId },
+      });
 
       toast({
         title: 'Campo removido',
@@ -234,7 +266,7 @@ export function useCRMCustomFields({ boardId, clientId, codAgent, canManage = tr
       });
       return false;
     }
-  }, [canManage, toast]);
+  }, [canManage, clientId, codAgent, boardId, fields, toast]);
 
   // Reorder fields
   const reorderFields = useCallback(async (reorderedFields: CRMCustomField[]) => {
@@ -252,6 +284,19 @@ export function useCRMCustomFields({ boardId, clientId, codAgent, canManage = tr
       );
 
       await Promise.all(updates);
+
+      logCRMAudit({
+        clientId,
+        codAgent,
+        entityType: 'custom_field',
+        entityId: reorderedFields[0]?.id ?? '00000000-0000-0000-0000-000000000000',
+        entityName: null,
+        action: 'reordered',
+        changes: {
+          board_id: boardId,
+          order: reorderedFields.map(f => ({ id: f.id, label: f.field_label })),
+        },
+      });
     } catch (err) {
       // Revert on error
       fetchFields();
@@ -262,14 +307,14 @@ export function useCRMCustomFields({ boardId, clientId, codAgent, canManage = tr
         variant: 'destructive',
       });
     }
-  }, [canManage, fetchFields, toast]);
+  }, [canManage, clientId, codAgent, boardId, fetchFields, toast]);
 
   // Subscribe to realtime updates
   useEffect(() => {
     if (!boardId || !clientId) return;
 
     const channel = supabase
-      .channel(`crm-custom-fields-${boardId}`)
+      .channel(`crm-custom-fields-${clientId}-${boardId}`)
       .on(
         'postgres_changes',
         {

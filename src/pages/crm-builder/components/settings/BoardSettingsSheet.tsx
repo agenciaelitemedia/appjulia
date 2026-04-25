@@ -5,10 +5,11 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings2, Layers, Zap, BarChart3 } from 'lucide-react';
+import { Settings2, Layers, Zap, BarChart3, History } from 'lucide-react';
 import { CustomFieldsManager } from '../custom-fields/CustomFieldsManager';
 import { AutomationsManager } from '../automations/AutomationsManager';
 import { BoardAnalyticsDashboard } from '../analytics/BoardAnalyticsDashboard';
+import { AuditLogPanel } from '../audit/AuditLogPanel';
 import type { CRMPipeline, CRMDeal } from '../../types';
 
 interface BoardSettingsSheetProps {
@@ -20,6 +21,7 @@ interface BoardSettingsSheetProps {
   boardName: string;
   pipelines: CRMPipeline[];
   deals: CRMDeal[];
+  canManage?: boolean;
 }
 
 export function BoardSettingsSheet({
@@ -31,7 +33,9 @@ export function BoardSettingsSheet({
   boardName,
   pipelines,
   deals,
+  canManage = true,
 }: BoardSettingsSheetProps) {
+  const tabsCount = canManage ? 5 : 4;
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
@@ -43,7 +47,10 @@ export function BoardSettingsSheet({
         </SheetHeader>
 
         <Tabs defaultValue="analytics" className="mt-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList
+            className="grid w-full"
+            style={{ gridTemplateColumns: `repeat(${tabsCount}, minmax(0, 1fr))` }}
+          >
             <TabsTrigger value="analytics" className="gap-1 text-xs px-2">
               <BarChart3 className="h-3.5 w-3.5" />
               Analytics
@@ -56,6 +63,12 @@ export function BoardSettingsSheet({
               <Zap className="h-3.5 w-3.5" />
               Automações
             </TabsTrigger>
+            {canManage && (
+              <TabsTrigger value="audit" className="gap-1 text-xs px-2">
+                <History className="h-3.5 w-3.5" />
+                Auditoria
+              </TabsTrigger>
+            )}
             <TabsTrigger value="general" className="gap-1 text-xs px-2">
               <Settings2 className="h-3.5 w-3.5" />
               Geral
@@ -73,6 +86,12 @@ export function BoardSettingsSheet({
           <TabsContent value="automations" className="mt-4">
             <AutomationsManager boardId={boardId} codAgent={codAgent} clientId={clientId} pipelines={pipelines} />
           </TabsContent>
+
+          {canManage && (
+            <TabsContent value="audit" className="mt-4">
+              <AuditLogPanel clientId={clientId} boardId={boardId} enabled={open} />
+            </TabsContent>
+          )}
 
           <TabsContent value="general" className="mt-4">
             <div className="rounded-lg border bg-muted/20 p-6 text-center text-muted-foreground">
