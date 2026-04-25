@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Trash2, Pencil, Check, X, Plus, Tag } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import type { ChatTag } from '@/types/conversation';
 
@@ -107,6 +108,8 @@ function TagRow({ tag, onSaved, onDeleted }: { tag: ChatTag; onSaved: () => void
 
 export function TagsManagerDialog({ open, onOpenChange }: TagsManagerDialogProps) {
   const { tags, createTag } = useWhatsAppData();
+  const { user, isAdmin } = useAuth();
+  const canManage = isAdmin || user?.role === 'user';
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('#3b82f6');
   const [creating, setCreating] = useState(false);
@@ -127,7 +130,7 @@ export function TagsManagerDialog({ open, onOpenChange }: TagsManagerDialogProps
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-sm">
-            <Tag className="h-4 w-4" /> Gerenciar Tags
+            <Tag className="h-4 w-4" /> {canManage ? 'Gerenciar Tags' : 'Tags disponíveis'}
           </DialogTitle>
         </DialogHeader>
 
@@ -136,11 +139,18 @@ export function TagsManagerDialog({ open, onOpenChange }: TagsManagerDialogProps
             <p className="text-xs text-muted-foreground text-center py-4">Nenhuma tag criada</p>
           )}
           {tags.map(tag => (
-            <TagRow key={tag.id} tag={tag} onSaved={() => {}} onDeleted={() => {}} />
+            canManage ? (
+              <TagRow key={tag.id} tag={tag} onSaved={() => {}} onDeleted={() => {}} />
+            ) : (
+              <div key={tag.id} className="flex items-center gap-2 py-1.5 px-2 rounded-lg">
+                <span className="h-3 w-3 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
+                <span className="flex-1 text-sm truncate">{tag.name}</span>
+              </div>
+            )
           ))}
         </div>
 
-        {showNew ? (
+        {!canManage ? null : showNew ? (
           <div className="space-y-2 p-2 rounded-lg border bg-muted/30">
             <Input
               placeholder="Nome da tag"
