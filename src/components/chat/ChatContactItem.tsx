@@ -77,7 +77,7 @@ function MessagePreview({ text }: { text?: string }) {
 /** Single pill */
 function Pill({ label, className }: { label: string; className: string }) {
   return (
-    <span className={cn('text-[9px] font-bold px-1.5 py-0.5 whitespace-nowrap', className)}>
+    <span className={cn('inline-flex items-center text-[9px] font-bold px-1.5 h-5 whitespace-nowrap', className)}>
       {label}
     </span>
   );
@@ -225,17 +225,20 @@ export const ChatContactItem = React.memo(function ChatContactItem({
 
         {/* Row 3: Tags — fila → SLA → atribuído → extras → prioridade (direita) */}
         <div className="flex items-center gap-1 flex-nowrap min-w-0 overflow-hidden w-full">
-          <div className="flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
+          <div className="flex items-center gap-0 flex-1 min-w-0 overflow-hidden">
             {queueName && (
               <span className="flex-shrink min-w-0 max-w-[110px] truncate">
-                <Pill label={queueName.toUpperCase()} className="bg-blue-600 text-white" />
+                <Pill label={queueName.toUpperCase()} className="bg-blue-600 text-white rounded-l" />
               </span>
             )}
             {slaEvaluation && <span className="flex-shrink-0"><SlaBadge evaluation={slaEvaluation} compact /></span>}
             <span className="flex-shrink min-w-0 max-w-[110px] truncate">
               <Pill
                 label={assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO'}
-                className={assignedAgentName ? 'bg-muted text-foreground' : 'bg-muted/60 text-muted-foreground'}
+                className={cn(
+                  assignedAgentName ? 'bg-muted text-foreground' : 'bg-muted/60 text-muted-foreground',
+                  !hasCrmCard && 'rounded-r'
+                )}
               />
             </span>
             {hasCrmCard && (
@@ -243,7 +246,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span
-                      className="flex-shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-r bg-blue-50 text-blue-700 whitespace-nowrap"
+                      className="flex-shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 h-5 rounded-r bg-blue-50 text-blue-700 whitespace-nowrap"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Kanban className="h-2.5 w-2.5" />
