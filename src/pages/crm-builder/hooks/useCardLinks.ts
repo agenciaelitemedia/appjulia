@@ -41,7 +41,7 @@ export function useChatConversationPreview(conversationId: string | null | undef
       if (!conversationId) return null;
       const { data, error } = await supabase
         .from('chat_conversations')
-        .select('id, last_message_at, last_message_preview, contact_name, contact_phone, status')
+        .select('id, status, protocol, channel, updated_at, contact_id')
         .eq('id', conversationId)
         .maybeSingle();
       if (error) throw error;
