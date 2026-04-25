@@ -15,7 +15,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
+import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { 
   Archive,
   Calendar,
@@ -75,12 +75,12 @@ export function DealDetailsSheet({
   const [valueDraft, setValueDraft] = useState('');
   const [savingField, setSavingField] = useState<null | 'assignee' | 'description' | 'value'>(null);
   
-  const { data: agentsData } = useMyAgents();
-  const assigneeOptions = [
-    ...(agentsData?.myAgents || []),
-    ...(agentsData?.monitoredAgents || []),
-  ].map((a) => a.client_name || a.business_name || a.cod_agent);
-  const uniqueAssignees = Array.from(new Set(assigneeOptions.filter(Boolean)));
+  // Mesma fonte usada na página Equipe (vw_equipe filtrada por client_id),
+  // que inclui o dono/responsável principal e todos os membros do mesmo cliente.
+  const { data: team = [] } = useTeamByClient();
+  const uniqueAssignees = Array.from(
+    new Set(team.map((m) => m.name).filter(Boolean))
+  ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
   const { history, isLoading: isLoadingHistory, addNote } = useCRMDealHistory({
     dealId: open && deal ? deal.id : null,
