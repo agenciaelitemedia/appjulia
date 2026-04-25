@@ -1220,9 +1220,22 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         if (convQueueId) queueId = convQueueId;
       } catch { /* fall through */ }
       if (!queueId) queueId = selectedQueue?.id;
-      const { data, error } = await supabase.functions.invoke('chat-media-download', {
-        body: { messageId, queueId },
-      });
+      let data: any = null;
+      let error: any = null;
+      const maxAttempts = 4;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const res = await supabase.functions.invoke('chat-media-download', {
+          body: { messageId, queueId },
+        });
+        data = res.data;
+        error = res.error;
+        const msg = (error?.message || '') + ' ' + (data?.code || '');
+        const isTransient = !!error &&
+          /503|temporarily unavailable|SUPABASE_EDGE_RUNTIME_ERROR|Failed to fetch|NetworkError/i.test(msg);
+        if (!isTransient) break;
+        if (attempt === maxAttempts) break;
+        await new Promise((r) => setTimeout(r, 500 * attempt));
+      }
       if (error) throw error;
       const url: string | undefined = data?.url;
       if (!url) {
