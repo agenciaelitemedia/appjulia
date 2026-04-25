@@ -243,7 +243,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span
-                      className="flex-shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-600 text-white whitespace-nowrap"
+                      className="flex-shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-300 whitespace-nowrap"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Kanban className="h-2.5 w-2.5" />
