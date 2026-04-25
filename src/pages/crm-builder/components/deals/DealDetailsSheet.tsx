@@ -213,7 +213,7 @@ export function DealDetailsSheet({
 
         {/* Bloco Etapas (acima das abas) — só renderiza quando há stages + onMoveToStage */}
         {showStagesBlock && (
-          <div className="px-6 py-3 border-b bg-muted/20">
+          <div className="px-6 py-3 border-b bg-muted/20 shrink-0">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -282,8 +282,9 @@ export function DealDetailsSheet({
           </div>
         )}
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-          <div className="px-6 pt-4">
+        {/* Tabs + conteúdo central — única área que rola */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+          <div className="px-6 pt-4 shrink-0">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="details" className="gap-2">
                 <FileText className="h-4 w-4" />
@@ -296,7 +297,7 @@ export function DealDetailsSheet({
             </TabsList>
           </div>
 
-          <ScrollArea className="flex-1">
+          <div className="flex-1 overflow-y-auto min-h-0">
             <TabsContent value="details" className="p-6 pt-4 m-0 space-y-6">
               {/* 1. Vínculos */}
               <DealLinksSection deal={deal} />
