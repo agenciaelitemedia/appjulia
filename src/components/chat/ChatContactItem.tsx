@@ -235,18 +235,22 @@ export const ChatContactItem = React.memo(function ChatContactItem({
                 className="bg-blue-600 text-white rounded-l w-[110px]"
               />
             )}
-            {slaEvaluation && (
-              <SlaBadge evaluation={slaEvaluation} compact className="w-[64px]" />
-            )}
             <Pill
               label={assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO'}
               className={cn(
                 'w-[110px]',
                 'bg-slate-100 text-slate-900',
                 assignedAgentName ? 'font-bold' : '!font-normal',
-                !hasCrmCard && 'rounded-r'
+                !slaEvaluation && !hasCrmCard && 'rounded-r'
               )}
             />
+            {slaEvaluation && (
+              <SlaBadge
+                evaluation={slaEvaluation}
+                compact
+                className={cn('w-[64px]', !hasCrmCard && 'rounded-r')}
+              />
+            )}
             {hasCrmCard && (
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
