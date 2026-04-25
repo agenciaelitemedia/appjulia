@@ -1,8 +1,9 @@
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Users, MessageCircle, Globe, Instagram } from 'lucide-react';
+import { Users, MessageCircle, Globe, Instagram, Kanban } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { differenceInMinutes, differenceInHours } from 'date-fns';
 import type { ChatContact } from '@/types/chat';
 import type { ChatConversation, ChatTag } from '@/types/conversation';
@@ -25,6 +26,7 @@ interface ChatContactItemProps {
   agentAlias?: string | null;
   stageName?: string | null;
   stageColor?: string | null;
+  hasCrmCard?: boolean;
 }
 
 function ChannelOverlay({ channel }: { channel?: string }) {
@@ -94,6 +96,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   agentAlias,
   stageName,
   stageColor,
+  hasCrmCard,
 }: ChatContactItemProps) {
   const { configs } = useChatSlaConfigs();
 
@@ -235,6 +238,24 @@ export const ChatContactItem = React.memo(function ChatContactItem({
                 className={assignedAgentName ? 'bg-muted text-foreground' : 'bg-muted/60 text-muted-foreground'}
               />
             </span>
+            {hasCrmCard && (
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className="flex-shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-600 text-white whitespace-nowrap"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Kanban className="h-2.5 w-2.5" />
+                      CRM
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs">
+                    Este contato possui card no CRM
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </div>
           {conversation && (
             <div className="ml-auto flex-shrink-0">
