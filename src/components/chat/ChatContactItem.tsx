@@ -78,7 +78,7 @@ function MessagePreview({ text }: { text?: string }) {
 function Pill({ label, className }: { label: string; className: string }) {
   return (
     <span className={cn(
-      'inline-flex items-center justify-start h-5 px-1.5 text-[9px] font-bold leading-none overflow-hidden whitespace-nowrap',
+      'inline-flex items-center justify-center h-5 px-1.5 text-[9px] font-bold leading-none overflow-hidden whitespace-nowrap text-center',
       className
     )}>
       <span className="truncate">{label}</span>
@@ -239,10 +239,11 @@ export const ChatContactItem = React.memo(function ChatContactItem({
               <SlaBadge evaluation={slaEvaluation} compact className="w-[64px]" />
             )}
             <Pill
-              label={assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO'}
+              label={assignedAgentName ? assignedAgentName.toUpperCase() : 'RESPONSÁVEL'}
               className={cn(
                 'w-[110px]',
-                assignedAgentName ? 'bg-slate-400 text-slate-950' : 'bg-slate-300 text-slate-800',
+                'bg-slate-300 text-slate-900',
+                assignedAgentName ? 'font-bold' : '!font-normal',
                 !hasCrmCard && 'rounded-r'
               )}
             />
