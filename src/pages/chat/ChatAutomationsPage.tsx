@@ -47,7 +47,7 @@ const ACTIONS: Record<string, string> = {
   transfer_queue: 'Transferir fila',
 };
 
-export default function ChatAutomationsPage() {
+export default function ChatAutomationsPage({ embedded = false }: { embedded?: boolean } = {}) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [rules, setRules] = useState<Rule[]>([]);
@@ -105,17 +105,19 @@ export default function ChatAutomationsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+    <div className={embedded ? 'space-y-6' : 'p-6 space-y-6 max-w-5xl mx-auto'}>
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/chat')}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2"><Zap className="h-5 w-5 text-amber-500" /> Automações de Chat</h2>
-            <p className="text-muted-foreground text-sm">Regras automáticas para atribuição, tags, mensagens e fechamento</p>
+        {embedded ? <div /> : (
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/chat')}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <h2 className="text-2xl font-bold flex items-center gap-2"><Zap className="h-5 w-5 text-amber-500" /> Automações de Chat</h2>
+              <p className="text-muted-foreground text-sm">Regras automáticas para atribuição, tags, mensagens e fechamento</p>
+            </div>
           </div>
-        </div>
+        )}
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => setShowTemplates(true)}>
             <Sparkles className="h-4 w-4 mr-1 text-amber-500" /> Templates
