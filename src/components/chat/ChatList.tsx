@@ -11,7 +11,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, Plus, Timer, AlertTriangle, Flame, Bot, User, UserCheck, UserX, ListFilter, FolderOpen, CheckCheck, Archive, UserCircle, ChevronsUpDown, CalendarDays, Tag, Settings } from 'lucide-react';
 import { TagsManagerDialog } from './TagsManagerDialog';
-import { ChatModuleSettingsDialog } from './ChatModuleSettingsDialog';
 import { NewConversationDialog } from './NewConversationDialog';
 import { MessageSquarePlus } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
@@ -111,7 +110,6 @@ export function ChatList() {
   const [stagePopoverOpen, setStagePopoverOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [showTagsManager, setShowTagsManager] = useState(false);
-  const [showChatSettings, setShowChatSettings] = useState(false);
   const [newConvOpen, setNewConvOpen] = useState(false);
   const [footerCountry, setFooterCountry] = useState('55');
   const [footerPhone, setFooterPhone] = useState('');
@@ -353,7 +351,6 @@ export function ChatList() {
           </div>
         </div>
         <TagsManagerDialog open={showTagsManager} onOpenChange={setShowTagsManager} />
-        <ChatModuleSettingsDialog open={showChatSettings} onOpenChange={setShowChatSettings} />
 
         {/* Search bar with filter icons */}
         <div className="px-4 pb-2">
@@ -399,7 +396,7 @@ export function ChatList() {
                   variant="ghost"
                   size="icon"
                   className="h-9 w-9 flex-shrink-0"
-                  onClick={() => setShowChatSettings(true)}
+                  onClick={() => navigate('/chat/configuracoes')}
                   title="Configurações do chat"
                 >
                   <Settings className="h-4 w-4" />
