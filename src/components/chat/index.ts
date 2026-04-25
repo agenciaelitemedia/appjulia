@@ -31,3 +31,4 @@ export { CreateCrmLeadDialog } from './CreateCrmLeadDialog';
 export { AIAssistPanel } from './AIAssistPanel';
 export { ChatCommandPalette } from './ChatCommandPalette';
 export { ExpandableMessageText } from './ExpandableMessageText';
+export { ChatModuleSettingsDialog } from './ChatModuleSettingsDialog';
