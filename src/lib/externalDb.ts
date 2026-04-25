@@ -26,7 +26,7 @@ class ExternalDatabase {
     const startTime = performance.now();
     
     try {
-      // Retry transient edge runtime errors (503/boot/cold start)
+      // Retry transient edge runtime errors (503/boot/cold start) with exponential backoff + jitter
       let data: any = null;
       let error: any = null;
       const maxAttempts = 5;
@@ -35,14 +35,30 @@ class ExternalDatabase {
         data = res.data;
         error = res.error;
 
-        const msg = (error?.message || '') + ' ' + (data?.code || '');
+        // Try to read status code from FunctionsHttpError context if present
+        const status =
+          (error as any)?.context?.status ??
+          (error as any)?.status ??
+          undefined;
+        const msg = `${error?.message || ''} ${data?.code || ''} ${data?.message || ''}`;
         const isTransient =
           !!error &&
-          /503|temporarily unavailable|SUPABASE_EDGE_RUNTIME_ERROR|Failed to fetch|NetworkError/i.test(msg);
+          (status === 503 ||
+            status === 502 ||
+            status === 504 ||
+            /\b50[234]\b|temporarily unavailable|SUPABASE_EDGE_RUNTIME_ERROR|Failed to fetch|NetworkError|TypeError: fetch/i.test(msg));
 
         if (!isTransient) break;
-        if (attempt === maxAttempts) break;
-        await new Promise((r) => setTimeout(r, 500 * attempt)); // 500/1000/1500/2000ms
+        if (attempt === maxAttempts) {
+          console.warn(`[externalDb] db-query falhou após ${maxAttempts} tentativas`, { action: payload.action, status, msg });
+          break;
+        }
+        // Exponential backoff with jitter: ~300ms, 600ms, 1.2s, 2.4s (cap 5s) + 0-250ms jitter
+        const base = Math.min(300 * Math.pow(2, attempt - 1), 5000);
+        const jitter = Math.floor(Math.random() * 250);
+        const delay = base + jitter;
+        console.info(`[externalDb] retry ${attempt}/${maxAttempts - 1} em ${delay}ms (action=${payload.action})`);
+        await new Promise((r) => setTimeout(r, delay));
       }
 
       const duration = performance.now() - startTime;
