@@ -46,13 +46,18 @@ export function DiscadorTab({ codAgent }: Props) {
   return (
     <div className="max-w-md mx-auto">
       {planDeactivated && (
-        <Alert variant="destructive" className="mb-4">
-          <Ban className="h-4 w-4" />
-          <AlertDescription>
-            <p>Para ter acesso às ligações você precisa fazer a contratação de um plano de telefonia.</p>
-            <p className="mt-1">Entre em contato com o administrador do sistema para mais informações.</p>
-          </AlertDescription>
-        </Alert>
+        <div className="text-center py-6 space-y-2 mb-4">
+          <PhoneOff className="h-10 w-10 mx-auto text-muted-foreground" />
+          <p className="text-sm font-medium text-destructive">Você não possui ramal ativo.</p>
+          <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 text-yellow-700 dark:text-yellow-400">
+            <p className="text-base leading-snug">
+              Para ter acesso às ligações você precisa fazer a contratação de um plano de telefonia.
+            </p>
+            <p className="text-base leading-snug mt-1">
+              Entre em contato com o administrador do sistema para mais informações.
+            </p>
+          </div>
+        </div>
       )}
       <Card className={planDeactivated ? 'opacity-50 pointer-events-none' : ''}>
         <CardHeader>
