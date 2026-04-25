@@ -177,6 +177,10 @@ function createConnection(caCerts: string[]) {
 let pool: ReturnType<typeof postgres> | null = null;
 let poolCaSignature: string | null = null;
 
+const rawCaCert = Deno.env.get('EXTERNAL_DB_CA_CERT') ?? '';
+const caCerts = rawCaCert ? normalizeCaCert(rawCaCert) : [];
+const hasExternalDbUrl = Boolean(Deno.env.get('EXTERNAL_DB_URL'));
+
 function getPool(caCerts: string[]) {
   const signature = caCerts.length > 0 ? caCerts[0].slice(0, 80) : 'no-ca';
   if (!pool || poolCaSignature !== signature) {
@@ -194,16 +198,12 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
-
-  // Get and normalize CA certificate once
-  const rawCaCert = Deno.env.get('EXTERNAL_DB_CA_CERT') ?? '';
-  const caCerts = rawCaCert ? normalizeCaCert(rawCaCert) : [];
   
   console.log("CA certificates found:", caCerts.length);
   if (caCerts.length > 0) {
     console.log("First cert preview:", caCerts[0].substring(0, 60) + "...");
   }
-  console.log('External DB URL provided:', Boolean(Deno.env.get('EXTERNAL_DB_URL')));
+  console.log('External DB URL provided:', hasExternalDbUrl);
 
   let lastError: unknown = null;
   
