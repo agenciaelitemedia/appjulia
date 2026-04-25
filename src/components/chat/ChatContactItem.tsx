@@ -13,6 +13,14 @@ import { JuliaStatusBadge } from '@/components/chat/JuliaStatusBadge';
 import { PriorityBadge } from '@/components/chat/PriorityBadge';
 import { getMessagePreview } from '@/lib/chat/messagePreview';
 
+function toTitleCase(s: string): string {
+  return s
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(' ');
+}
+
 interface ChatContactItemProps {
   contact: ChatContact;
   isSelected: boolean;
