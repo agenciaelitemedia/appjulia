@@ -78,9 +78,6 @@ export function DealDetailsSheet({
   // Mesma fonte usada na página Equipe (vw_equipe filtrada por client_id),
   // que inclui o dono/responsável principal e todos os membros do mesmo cliente.
   const { data: team = [] } = useTeamByClient();
-  const uniqueAssignees = Array.from(
-    new Set(team.map((m) => m.name).filter(Boolean))
-  ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
   const { history, isLoading: isLoadingHistory, addNote } = useCRMDealHistory({
     dealId: open && deal ? deal.id : null,
