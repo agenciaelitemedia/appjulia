@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { 
   LayoutDashboard,
   RefreshCw,
+  History,
 } from 'lucide-react';
 import { BoardGrid } from './components/boards/BoardGrid';
 import { CreateBoardDialog } from './components/boards/CreateBoardDialog';
@@ -20,6 +21,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import { AuditLogPanel } from './components/audit/AuditLogPanel';
 
 export default function CRMBuilderPage() {
   const navigate = useNavigate();
@@ -41,6 +49,7 @@ export default function CRMBuilderPage() {
   const [editingBoard, setEditingBoard] = useState<CRMBoard | null>(null);
   const [archivingBoard, setArchivingBoard] = useState<CRMBoard | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isAuditOpen, setIsAuditOpen] = useState(false);
 
   const handleCreateBoard = async (data: CRMBoardFormData) => {
     return await createBoard(data);
@@ -88,14 +97,27 @@ export default function CRMBuilderPage() {
           </div>
         </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-        >
-          <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-        </Button>
+        <div className="flex items-center gap-1">
+          {canManage && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsAuditOpen(true)}
+              className="gap-2"
+            >
+              <History className="h-4 w-4" />
+              Auditoria
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
       </div>
 
       {/* Boards Grid */}
@@ -142,6 +164,22 @@ export default function CRMBuilderPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {canManage && (
+        <Sheet open={isAuditOpen} onOpenChange={setIsAuditOpen}>
+          <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Auditoria do CRM Builder
+              </SheetTitle>
+            </SheetHeader>
+            <div className="mt-6">
+              <AuditLogPanel clientId={clientId} enabled={isAuditOpen} />
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 }
