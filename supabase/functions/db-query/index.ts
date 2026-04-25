@@ -227,7 +227,7 @@ serve(async (req) => {
     
     try {
 
-      sql = createConnection(caCerts);
+      sql = getPool(caCerts);
 
       // Set timezone for this session to America/Sao_Paulo (UTC-3)
       await sql`SET timezone = 'America/Sao_Paulo'`;
