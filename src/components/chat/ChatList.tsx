@@ -26,7 +26,7 @@ import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
 import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
-import { useCRMBuilderPhones } from '@/hooks/useCRMBuilderPhones';
+import { useCRMBuilderLinkedConversations } from '@/hooks/useCRMBuilderLinkedConversations';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { externalDb } from '@/lib/externalDb';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
@@ -222,7 +222,7 @@ export function ChatList() {
     [filteredContacts]
   );
   const { data: stageByPhone } = useCRMStageByPhone(allPhones);
-  const { data: crmBuilderPhones } = useCRMBuilderPhones();
+  const { data: crmLinkedConversationIds } = useCRMBuilderLinkedConversations();
 
   const stageSet = React.useMemo(() => new Set(stageIds), [stageIds]);
   const allStagesSelected = stages.length > 0 && stageIds.length === stages.length;
@@ -774,7 +774,7 @@ export function ChatList() {
                   agentAlias={agentAlias}
                   stageName={queueLink?.hasAgent ? stageInfo?.stageName : undefined}
                   stageColor={queueLink?.hasAgent ? stageInfo?.stageColor : undefined}
-                  hasCrmCard={normPhone ? !!crmBuilderPhones?.has(normPhone) : false}
+                  hasCrmCard={conv?.id ? !!crmLinkedConversationIds?.has(conv.id) : false}
                 />
               );
             })
