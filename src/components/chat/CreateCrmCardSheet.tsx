@@ -268,6 +268,24 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
           <SheetDescription>
             {contact.name || 'Contato'} · {contact.phone || 'sem telefone'}
           </SheetDescription>
+          <div className="pt-2">
+            {agentResolving ? (
+              <Badge variant="outline" className="text-[10px] gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" /> Resolvendo agente...
+              </Badge>
+            ) : effectiveCodAgent ? (
+              <Badge variant="outline" className="text-[10px]">
+                Agente: #{effectiveCodAgent}
+                {agentSource === 'queue' && ' (via fila)'}
+                {agentSource === 'user' && ' (seu agente)'}
+                {agentSource === 'conversation' && ' (conversa)'}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-[10px] text-destructive border-destructive/40">
+                Nenhum agente disponível
+              </Badge>
+            )}
+          </div>
         </SheetHeader>
 
         <ScrollArea className="flex-1">
@@ -432,7 +450,7 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="flex-1">
             Cancelar
           </Button>
-          <Button onClick={handleCreate} disabled={saving || !stageSelected} className="flex-1">
+          <Button onClick={handleCreate} disabled={saving || !stageSelected || !effectiveCodAgent || agentResolving} className="flex-1">
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Criar Card
           </Button>
         </SheetFooter>
