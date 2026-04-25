@@ -22,6 +22,9 @@ import {
   Clock,
   MessageSquare,
   Scale,
+  MessageCircle,
+  Flag,
+  Inbox,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -29,6 +32,8 @@ import { ptBR } from 'date-fns/locale';
 import type { CRMDeal } from '../../types';
 import { PRIORITY_CONFIG } from '../../types';
 import { getChatLink, getJuliaLink, useJuliaCardPreview } from '../../hooks/useCardLinks';
+import { useDealConversation } from '../../hooks/useDealConversation';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface DealCardProps {
   deal: CRMDeal;
@@ -38,6 +43,7 @@ interface DealCardProps {
   onWon: () => void;
   onLost: () => void;
   onClick?: () => void;
+  onOpenChat?: (deal: CRMDeal) => void;
 }
 
 export function DealCard({
@@ -48,6 +54,7 @@ export function DealCard({
   onWon,
   onLost,
   onClick,
+  onOpenChat,
 }: DealCardProps) {
   const {
     attributes,
@@ -76,6 +83,18 @@ export function DealCard({
   const juliaLive = useJuliaCardPreview(juliaLink);
   const liveJulia = juliaLive.data;
   const isLinked = !!chatLink || !!juliaLink;
+
+  // Resolve fila e dados da conversa quando o card está vinculado ao chat
+  const dealConv = useDealConversation(chatLink ? deal : null);
+  const queueName = dealConv.data?.queueName ?? null;
+
+  // Cor do ícone de prioridade
+  const priorityIconColor: Record<string, string> = {
+    low: 'text-gray-400',
+    medium: 'text-blue-500',
+    high: 'text-orange-500',
+    urgent: 'text-red-500',
+  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -127,7 +146,28 @@ export function DealCard({
           <h4 className="font-medium text-sm line-clamp-2 flex-1">
             {deal.title}
           </h4>
-          
+
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {chatLink && onOpenChat && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenChat(deal);
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Abrir conversa</TooltipContent>
+              </Tooltip>
+            )}
+
           {!isLinked && <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
@@ -186,6 +226,7 @@ export function DealCard({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+          </div>
         </div>
 
         {/* Value */}
@@ -224,17 +265,47 @@ export function DealCard({
           </div>
         </div>
 
-        {/* Footer with priority, time and timezone */}
-        <div className="flex items-center justify-between gap-2 pt-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <Badge 
-              variant="outline" 
-              className={cn('text-[10px] px-1.5 py-0', priorityConfig.color, priorityConfig.bgColor)}
+        {/* Status row: prioridade (sempre), responsável (sempre), fila (se vinculado) */}
+        <div className="flex items-center gap-1.5 flex-wrap pt-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className={cn('inline-flex items-center', priorityIconColor[deal.priority] || 'text-muted-foreground')}>
+                <Flag className="h-3.5 w-3.5" fill="currentColor" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Prioridade: {priorityConfig.label}</TooltipContent>
+          </Tooltip>
+
+          <Badge
+            variant="outline"
+            className={cn(
+              'text-[10px] px-1.5 py-0 gap-1 max-w-[140px]',
+              deal.assigned_to
+                ? 'bg-primary/5 border-primary/30 text-primary'
+                : 'bg-muted text-muted-foreground border-border'
+            )}
+            title={deal.assigned_to || 'Não atribuído'}
+          >
+            <User className="h-2.5 w-2.5 flex-shrink-0" />
+            <span className="truncate">{deal.assigned_to || 'Não atribuído'}</span>
+          </Badge>
+
+          {chatLink && queueName && (
+            <Badge
+              variant="outline"
+              className="text-[10px] px-1.5 py-0 gap-1 bg-amber-500/10 text-amber-700 border-amber-500/30 max-w-[140px]"
+              title={`Fila: ${queueName}`}
             >
-              {priorityConfig.label}
+              <Inbox className="h-2.5 w-2.5 flex-shrink-0" />
+              <span className="truncate">{queueName}</span>
             </Badge>
-            
-            {deal.tags?.slice(0, 2).map((tag) => (
+          )}
+        </div>
+
+        {/* Tags */}
+        {(deal.tags?.length ?? 0) > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {deal.tags!.slice(0, 2).map((tag) => (
               <Badge 
                 key={tag} 
                 variant="secondary" 
@@ -243,17 +314,16 @@ export function DealCard({
                 {tag}
               </Badge>
             ))}
-            
-            {deal.tags?.length > 2 && (
+            {deal.tags!.length > 2 && (
               <Badge 
                 variant="secondary" 
                 className="text-[10px] px-1.5 py-0"
               >
-                +{deal.tags.length - 2}
+                +{deal.tags!.length - 2}
               </Badge>
             )}
           </div>
-        </div>
+        )}
 
         {/* Link badges */}
         {(chatLink || juliaLink) && (
