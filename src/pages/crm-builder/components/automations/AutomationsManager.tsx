@@ -22,6 +22,7 @@ export function AutomationsManager({
 }: AutomationsManagerProps) {
   const { rules, isLoading, createRule, updateRule, deleteRule, toggleRuleActive } = useCRMAutomations({
     boardId,
+    clientId,
     codAgent,
   });
 
