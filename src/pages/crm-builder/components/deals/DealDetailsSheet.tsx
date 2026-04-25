@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { TeamMemberSelect } from '@/components/TeamMemberSelect';
+import { maskPhone } from '@/lib/inputMasks';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,7 +31,6 @@ import {
   Calendar,
   Clock,
   DollarSign,
-  Edit,
   Mail,
   Phone,
   Trophy,
@@ -96,11 +96,17 @@ export function DealDetailsSheet({
   const [activeTab, setActiveTab] = useState('details');
   const [editingAssignee, setEditingAssignee] = useState(false);
   const [assigneeDraft, setAssigneeDraft] = useState('');
+  const [editingContact, setEditingContact] = useState(false);
+  const [contactDraft, setContactDraft] = useState<{ name: string; phone: string; email: string }>({
+    name: '',
+    phone: '',
+    email: '',
+  });
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState('');
   const [editingValue, setEditingValue] = useState(false);
   const [valueDraft, setValueDraft] = useState('');
-  const [savingField, setSavingField] = useState<null | 'assignee' | 'description' | 'value'>(null);
+  const [savingField, setSavingField] = useState<null | 'assignee' | 'description' | 'value' | 'contact'>(null);
   const [stagesExpanded, setStagesExpanded] = useState(false);
   const [movingToStage, setMovingToStage] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
@@ -160,6 +166,32 @@ export function DealDetailsSheet({
     await onUpdate({ assigned_to: next });
     setSavingField(null);
     setEditingAssignee(false);
+  };
+
+  const startEditContact = () => {
+    setContactDraft({
+      name: deal.contact_name || '',
+      phone: deal.contact_phone || '',
+      email: deal.contact_email || '',
+    });
+    setEditingContact(true);
+  };
+  const saveContact = async () => {
+    if (!onUpdate) { setEditingContact(false); return; }
+    const next = {
+      contact_name: contactDraft.name.trim() || undefined,
+      contact_phone: contactDraft.phone.trim() || undefined,
+      contact_email: contactDraft.email.trim() || undefined,
+    };
+    const unchanged =
+      next.contact_name === (deal.contact_name || undefined) &&
+      next.contact_phone === (deal.contact_phone || undefined) &&
+      next.contact_email === (deal.contact_email || undefined);
+    if (unchanged) { setEditingContact(false); return; }
+    setSavingField('contact');
+    await onUpdate(next);
+    setSavingField(null);
+    setEditingContact(false);
   };
 
   const startEditDescription = () => {
@@ -305,48 +337,115 @@ export function DealDetailsSheet({
               {/* 2. Contato */}
               <Separator />
               <div>
-                <h4 className="text-sm font-medium mb-3">Contato</h4>
-                <div className="space-y-3">
-                  {deal.contact_name && (
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <span className="text-sm">{deal.contact_name}</span>
-                    </div>
-                  )}
-                  {deal.contact_phone && (
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <a 
-                        href={`tel:${deal.contact_phone}`}
-                        className="text-sm text-primary hover:underline"
-                      >
-                        {deal.contact_phone}
-                      </a>
-                    </div>
-                  )}
-                  {deal.contact_email && (
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <a 
-                        href={`mailto:${deal.contact_email}`}
-                        className="text-sm text-primary hover:underline"
-                      >
-                        {deal.contact_email}
-                      </a>
-                    </div>
-                  )}
-                  {!deal.contact_name && !deal.contact_phone && !deal.contact_email && (
-                    <p className="text-sm text-muted-foreground">
-                      Nenhuma informação de contato
-                    </p>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-medium">Contato</h4>
+                  {!editingContact && onUpdate && (deal.contact_name || deal.contact_phone || deal.contact_email) && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                      onClick={startEditContact}
+                      title="Editar contato"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
                   )}
                 </div>
+
+                {editingContact ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <Input
+                        value={contactDraft.name}
+                        placeholder="Nome do contato"
+                        onChange={(e) => setContactDraft((d) => ({ ...d, name: e.target.value }))}
+                        className="h-9"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <Input
+                        value={contactDraft.phone}
+                        placeholder="(00) 00000-0000"
+                        onChange={(e) => setContactDraft((d) => ({ ...d, phone: maskPhone(e.target.value) }))}
+                        className="h-9"
+                        inputMode="tel"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <Input
+                        value={contactDraft.email}
+                        placeholder="email@exemplo.com"
+                        onChange={(e) => setContactDraft((d) => ({ ...d, email: e.target.value }))}
+                        className="h-9"
+                        type="email"
+                        inputMode="email"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-1">
+                      <Button size="sm" variant="ghost" onClick={() => setEditingContact(false)}>
+                        <XIcon className="h-4 w-4 mr-1" /> Cancelar
+                      </Button>
+                      <Button size="sm" onClick={saveContact} disabled={savingField === 'contact'}>
+                        <Check className="h-4 w-4 mr-1" /> Salvar
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {deal.contact_name && (
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <span className="text-sm">{deal.contact_name}</span>
+                      </div>
+                    )}
+                    {deal.contact_phone && (
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                          <Phone className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <a
+                          href={`tel:${deal.contact_phone}`}
+                          className="text-sm text-primary hover:underline"
+                        >
+                          {deal.contact_phone}
+                        </a>
+                      </div>
+                    )}
+                    {deal.contact_email && (
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <a
+                          href={`mailto:${deal.contact_email}`}
+                          className="text-sm text-primary hover:underline"
+                        >
+                          {deal.contact_email}
+                        </a>
+                      </div>
+                    )}
+                    {!deal.contact_name && !deal.contact_phone && !deal.contact_email && (
+                      onUpdate ? (
+                        <Button variant="outline" size="sm" onClick={startEditContact} className="gap-1.5">
+                          <Plus className="h-3.5 w-3.5" /> Adicionar contato
+                        </Button>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Nenhuma informação de contato</p>
+                      )
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* 3. Responsável (full-width, editável) */}
@@ -578,22 +677,10 @@ export function DealDetailsSheet({
             <>
               {/* Linha 1: Editar | Perdido | Ganho */}
               {!hideStatusActions && deal.status === 'open' && (
-                <div className="grid grid-cols-3 gap-2">
-                  {!isLinked && (
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        onOpenChange(false);
-                        onEdit();
-                      }}
-                    >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Editar
-                    </Button>
-                  )}
+                <div className="grid grid-cols-2 gap-2">
                   <Button
                     variant="outline"
-                    className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    className="w-full border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
                     onClick={() => {
                       onLost();
                       onOpenChange(false);
@@ -604,7 +691,7 @@ export function DealDetailsSheet({
                   </Button>
                   <Button
                     variant="outline"
-                    className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                    className="w-full border-primary text-primary hover:bg-primary hover:text-primary-foreground"
                     onClick={() => {
                       onWon();
                       onOpenChange(false);
@@ -623,7 +710,7 @@ export function DealDetailsSheet({
                   onClick={() => setConfirmArchive(true)}
                 >
                   <Archive className="h-4 w-4 mr-2" />
-                  {isLinked ? 'Excluir card' : 'Arquivar Deal'}
+                  Arquivar Card
                 </Button>
               )}
             </>
@@ -633,12 +720,10 @@ export function DealDetailsSheet({
         <AlertDialog open={confirmArchive} onOpenChange={setConfirmArchive}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>
-                {isLinked ? 'Excluir este card?' : 'Arquivar este card?'}
-              </AlertDialogTitle>
+              <AlertDialogTitle>Arquivar este card?</AlertDialogTitle>
               <AlertDialogDescription>
                 {isLinked
-                  ? `O card "${deal.title}" será removido. Essa ação não pode ser desfeita.`
+                  ? `O card "${deal.title}" será arquivado e o vínculo com a conversa será mantido. Você poderá restaurá-lo depois em arquivados.`
                   : `O card "${deal.title}" será arquivado e removido do board. Você poderá restaurá-lo depois em arquivados.`}
               </AlertDialogDescription>
             </AlertDialogHeader>
@@ -652,7 +737,7 @@ export function DealDetailsSheet({
                   onOpenChange(false);
                 }}
               >
-                {isLinked ? 'Excluir card' : 'Arquivar'}
+                Arquivar Card
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
