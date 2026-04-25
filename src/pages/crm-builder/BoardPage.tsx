@@ -46,7 +46,7 @@ export default function BoardPage() {
   const { user } = useAuth();
   const codAgent = user?.cod_agent?.toString() || '';
   const clientId = user?.client_id ? String(user.client_id) : '';
-  const canManage = user?.role === 'user' || user?.role === 'admin';
+  const canManage = user?.role === 'user' || user?.role === 'admin' || user?.role === 'colaborador';
 
   // Board state
   const [board, setBoard] = useState<CRMBoard | null>(null);
