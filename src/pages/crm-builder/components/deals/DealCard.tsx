@@ -248,18 +248,6 @@ export function DealCard({
           )}
         </div>
 
-        {/* Dates section */}
-        <div className="space-y-0.5 pt-1 border-t border-border/50 text-[10px] text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <span className="font-medium">Criado:</span>
-            <span>{formatDate(deal.created_at)}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="font-medium">Atualizado:</span>
-            <span>{formatDate(deal.updated_at)}</span>
-          </div>
-        </div>
-
         {/* Status row: prioridade (sempre), responsável (sempre), fila (se vinculado) */}
         <div className="flex items-center gap-1.5 flex-wrap pt-1">
           <Badge
@@ -390,12 +378,23 @@ export function DealCard({
           </div>
         )}
 
-        <div className="flex items-center justify-between pt-1 text-[10px] text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <Clock className="h-3 w-3" />
-            <span>Na fase: {timeInStage}</span>
+        {/* Footer: datas + tempo na fase */}
+        <div className="pt-1 border-t border-border/50 space-y-0.5 text-[10px] text-muted-foreground">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-medium">Criado:</span>
+            <span>{formatDate(deal.created_at)}</span>
           </div>
-          <span className="text-[9px]">🇧🇷 Brasília</span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-medium">Atualizado:</span>
+            <span>{formatDate(deal.updated_at)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-2 pt-0.5">
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              <span>Na fase: {timeInStage}</span>
+            </div>
+            <span className="text-[9px]">🇧🇷 Brasília</span>
+          </div>
         </div>
       </CardContent>
       <AlertDialog open={confirmArchive} onOpenChange={setConfirmArchive}>
