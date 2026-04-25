@@ -422,6 +422,40 @@ export function DealCard({
           </div>
         )}
 
+        {/* Descrição (sempre visível, clicável para editar) */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={(e) => { e.stopPropagation(); onEdit(); }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onEdit();
+                }
+              }}
+              className="cursor-pointer rounded p-1 -mx-1 hover:bg-muted/60 transition-colors"
+            >
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70 font-medium mb-0.5">
+                Descrição
+              </div>
+              {deal.description ? (
+                <p className="text-xs text-muted-foreground line-clamp-3 whitespace-pre-wrap break-words">
+                  {deal.description}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground/60 italic">
+                  Adicionar descrição...
+                </p>
+              )}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>Clique para editar</TooltipContent>
+        </Tooltip>
+
         {/* Footer: datas + tempo na fase */}
         <div className="pt-1 border-t border-border/50 space-y-0.5 text-[10px] text-muted-foreground">
           <div className="flex items-center justify-between gap-2">
