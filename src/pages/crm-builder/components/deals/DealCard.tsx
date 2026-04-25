@@ -281,17 +281,6 @@ export function DealCard({
             <span className="truncate">{deal.assigned_to || 'Não atribuído'}</span>
           </Badge>
 
-          {chatLink && queueName && (
-            <Badge
-              variant="outline"
-              className="text-[10px] px-1.5 py-0 gap-1 bg-amber-500/10 text-amber-700 border-amber-500/30 max-w-[140px]"
-              title={`Fila: ${queueName}`}
-            >
-              <Inbox className="h-2.5 w-2.5 flex-shrink-0" />
-              <span className="truncate">{queueName}</span>
-            </Badge>
-          )}
-
           <Tooltip>
             <TooltipTrigger asChild>
               <span className={cn('inline-flex items-center ml-auto', priorityIconColor[deal.priority] || 'text-muted-foreground')}>
@@ -334,6 +323,16 @@ export function DealCard({
                 className="text-[10px] px-1.5 py-0 bg-blue-500/10 text-blue-700 border-blue-500/30 gap-1"
               >
                 <MessageSquare className="h-2.5 w-2.5" /> Chat
+              </Badge>
+            )}
+            {chatLink && queueName && (
+              <Badge
+                variant="outline"
+                className="text-[10px] px-1.5 py-0 gap-1 bg-amber-500/10 text-amber-700 border-amber-500/30 max-w-[140px]"
+                title={`Fila: ${queueName}`}
+              >
+                <Inbox className="h-2.5 w-2.5 flex-shrink-0" />
+                <span className="truncate">{queueName}</span>
               </Badge>
             )}
             {juliaLink && (
