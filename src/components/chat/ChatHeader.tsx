@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram, Search, Calendar, AlarmClock, Keyboard, Sparkles, UserCheck, Scale, Eye, Phone, PhoneOff, ExternalLink, Bot, Loader2 } from 'lucide-react';
+import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram, Search, Calendar, AlarmClock, Keyboard, UserCheck, Scale, Eye, Phone, PhoneOff, ExternalLink, Bot, Loader2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -32,8 +32,7 @@ import { ChatSearchDialog } from './ChatSearchDialog';
 import { ScheduledMessagesList } from './ScheduledMessagesList';
 import { SnoozeDialog } from './SnoozeDialog';
 import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
-import { CreateCrmCardSheet } from './CreateCrmCardSheet';
-import { AIAssistPanel } from './AIAssistPanel';
+import { ChatCrmButton } from './ChatCrmButton';
 import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
 import { SlaBadge } from './SlaBadge';
 import { JuliaStatusBadge } from './JuliaStatusBadge';
@@ -249,7 +248,6 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const [showScheduledList, setShowScheduledList] = useState(false);
   const [showSnooze, setShowSnooze] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
-  const [showCrmLead, setShowCrmLead] = useState(false);
   const [showPhoneCall, setShowPhoneCall] = useState(false);
 
   const { data: queueLink } = useQueueAgentLink(selectedConversation?.queue_id);
@@ -464,7 +462,12 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
             const isActive = ['pending', 'open'].includes(currentStatus);
             return (
               <>
-                <AIAssistPanel conversationId={selectedConversation.id} />
+                <ChatCrmButton
+                  conversationId={selectedConversation.id}
+                  contact={contact}
+                  codAgent={selectedConversation?.cod_agent || (contact as any).cod_agent || null}
+                  queueId={selectedConversation?.queue_id || null}
+                />
 
                 <Button
                   variant="outline"
@@ -568,11 +571,6 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                         <Keyboard className="h-4 w-4 mr-2" />
                         Atalhos de teclado
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => setShowCrmLead(true)}>
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Criar Card no CRM
-                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -580,15 +578,6 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
               </>
             );
           })()}
-
-          <CreateCrmCardSheet
-            open={showCrmLead}
-            onOpenChange={setShowCrmLead}
-            contact={contact}
-            codAgent={selectedConversation?.cod_agent || (contact as any).cod_agent || null}
-            queueId={selectedConversation?.queue_id || null}
-            conversationId={selectedConversation?.id || null}
-          />
 
           <Button
             variant="ghost"
