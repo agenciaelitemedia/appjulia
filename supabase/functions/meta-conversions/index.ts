@@ -1,5 +1,20 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createHash } from "https://deno.land/std@0.168.0/crypto/mod.ts";
+
+async function createHash(_alg: string) {
+  let _data = "";
+  return {
+    update(input: string) { _data += input; return this; },
+    async digest(_enc: string) {
+      const buf = new TextEncoder().encode(_data);
+      const hash = await crypto.subtle.digest("SHA-256", buf);
+      return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+    },
+    toString() {
+      // sync digest fallback (not used; provided for type compat)
+      return _data;
+    },
+  };
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
