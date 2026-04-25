@@ -9,7 +9,7 @@ import { WhatsAppDataProvider } from '@/contexts/WhatsAppDataContext';
 function ChatSettingsContent() {
   const navigate = useNavigate();
   return (
-    <div className="p-6 space-y-6 max-w-4xl mx-auto">
+    <div className="p-6 space-y-6 w-full">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate('/chat')}>
           <ArrowLeft className="h-4 w-4" />
@@ -48,9 +48,7 @@ function ChatSettingsContent() {
         </TabsContent>
 
         <TabsContent value="etiquetas" className="mt-6">
-          <div className="max-w-xl">
-            <TagsManagerContent />
-          </div>
+          <TagsManagerContent />
         </TabsContent>
       </Tabs>
     </div>
