@@ -1,90 +1,54 @@
 ## Objetivo
-No header do `WhatsAppMessagesDialog` (popup de chat do CRM em `/crm/leads`), identificar visualmente se o agente envia mensagens via **UaZapi direto** (credenciais próprias na tabela `agents`) ou via **Fila vinculada** (`queue_agent_links` → `queues`), através de:
+Reorganizar a barra de ícones do `/chat` (`ChatList.tsx`):
+1. Mover o ícone de **Métricas** (BarChart3) para ficar **ao lado do ícone de Filtro** (próximo à barra de busca).
+2. Criar um novo ícone de **Configurações do Chat** (`Settings`) — visível **apenas para o dono da conta** (`role === 'user'` ou `isAdmin`).
+3. Esse ícone abre um Dialog com 3 abas: **Geral / SLA / Etiquetas**.
+4. **Remover** os ícones individuais de SLA (Timer) e Etiquetas (Tag) da barra superior — seu conteúdo vai para as abas.
 
-1. **Cor do ícone do avatar** ao lado do nome/telefone:
-   - 🟢 Verde (já é o atual `bg-green-600`) → conexão **UaZapi direta**.
-   - 🔵 Azul (`bg-blue-600`) → conexão via **Fila vinculada** (UaZapi ou WABA).
-2. **Badge** logo abaixo do número de telefone com o nome da origem:
-   - Se vínculo com fila: `queues.name` (ex: "Atendimento Comercial").
-   - Se direto: `evo_instance` (ou "UaZapi" como fallback).
-   - Cor do badge espelhando a cor do avatar (verde/azul).
+---
 
-## Como detectar a origem
-Já existe na consulta atual (`loadAgentCredentials`) o `hub`, `evo_instance`, `waba_id`, etc. Falta consultar o vínculo do agente com filas:
+## Passo 1 — Criar `ChatSettingsDialog.tsx`
+Novo arquivo `src/components/chat/ChatSettingsDialog.tsx`:
+- `Dialog` largo (`sm:max-w-3xl`) com `Tabs` (shadcn) e 3 abas: **Geral**, **SLA**, **Etiquetas**.
+- **Aba Geral**: placeholder simples ("Configurações gerais do chat em breve") — pode listar atalhos/preferências básicas existentes.
+- **Aba SLA**: importar e renderizar inline o conteúdo da página `ChatSlaConfigPage` (ou extrair seu corpo principal para um componente reutilizável `ChatSlaConfigContent`). Como é dialog, usar `max-h-[70vh] overflow-y-auto`.
+- **Aba Etiquetas**: reutilizar o conteúdo já presente em `TagsManagerDialog` — extrair o corpo (lista + criação) para um `TagsManagerContent` interno (ou apenas renderizar o `TagsManagerDialog` como conteúdo embutido removendo o wrapper Dialog).
 
-```sql
-SELECT q.id, q.name, q.channel_type, q.hub
-FROM queue_agent_links qal
-JOIN queues q ON q.id = qal.queue_id
-WHERE qal.cod_agent = $1
-  AND q.is_active = true
-  AND COALESCE(q.is_deleted, false) = false
-ORDER BY qal.is_primary DESC NULLS LAST, q.created_at ASC
-LIMIT 1;
-```
+## Passo 2 — Atualizar `ChatList.tsx`
+- Importar `Settings` do lucide-react e `ChatSettingsDialog`.
+- Importar `useAuth` (já usado na lib) para obter `user.role` / `isAdmin`.
+- Definir `canManageChat = isAdmin || user?.role === 'user'`.
+- **Remover** da barra superior (linhas ~354-359):
+  - Botão SLA (`Timer`, navigate `/chat/sla`).
+  - Botão Tags (`Tag`, abre `TagsManagerDialog`).
+- **Remover** o botão de Métricas (linhas 341-343) da barra superior.
+- **Adicionar**, **ao lado do botão de Filtro** (dentro do `div` da search bar, antes do botão Filter), o botão de **Métricas** (`BarChart3`, navigate `/chat/metricas`).
+- **Adicionar**, também ao lado do Filtro, o botão de **Configurações do Chat** (`Settings`) — somente se `canManageChat` — que faz `setShowChatSettings(true)`.
+- Manter os botões admin (Automações/Canais) na barra superior.
+- Renderizar `<ChatSettingsDialog open={showChatSettings} onOpenChange={setShowChatSettings} />`.
+- Remover o `<TagsManagerDialog>` standalone daqui (passa a ser usado dentro do dialog de configurações).
 
-- Se retornar **0 linhas** → conexão direta → cor **verde** + badge com `evo_instance` (ou "UaZapi").
-- Se retornar **1+ linhas** → vínculo com fila → cor **azul** + badge com `queue.name`.
+## Passo 3 — Refatorar `TagsManagerDialog`
+Extrair o corpo (lista de tags + form de criação) para um componente `TagsManagerContent` exportado, mantendo o `TagsManagerDialog` como wrapper que usa esse content. Isso permite reuso na aba Etiquetas sem duplicar Dialog dentro de Dialog.
 
-Observação: como o popup do CRM é client-side e a tabela `queue_agent_links` está no Supabase (público), a query pode ser feita pelo client `supabase` diretamente — não precisa passar pelo `externalDb`. Já existe o hook reaproveitável `useQueueAgentLink` (lê apenas por `queueId`); criaremos um irmão por `cod_agent`.
+A regra de permissão de criação/edição já implementada (`canManage = isAdmin || role === 'user'`) permanece dentro do conteúdo.
 
-## Mudanças de código (1 hook novo + 1 edição no popup)
+## Passo 4 — Reaproveitar SLA Config
+Inspecionar `src/pages/chat/ChatSlaConfigPage.tsx` e extrair o corpo principal para `ChatSlaConfigContent` (mesmo padrão). A página continua existindo e renderiza o `Content`. A aba SLA do dialog usa o `Content` diretamente.
 
-### 1. `src/hooks/useAgentQueueLink.ts` (NOVO)
-Hook React Query que recebe `cod_agent` e retorna:
-```ts
-{
-  source: 'queue' | 'direct',
-  queueName: string | null,   // quando source === 'queue'
-  queueId: string | null,
-  channelType: string | null,  // 'uazapi' | 'waba' | ...
-}
-```
-Faz `select` em `queue_agent_links` join `queues` ativo/não-deletado, ordenado por `is_primary desc`. Stale 5 min.
+## Passo 5 — Atualizar `src/components/chat/index.ts`
+- Exportar `ChatSettingsDialog`.
 
-### 2. `src/pages/crm/components/WhatsAppMessagesDialog.tsx` (EDIÇÃO)
-Linhas ~1723-1762 (header/avatar/título/telefone):
+---
 
-- Importar `useAgentQueueLink` e `Badge`.
-- Chamar o hook com `codAgent` quando `open && codAgent`.
-- Computar:
-  ```ts
-  const isViaQueue = agentLink?.source === 'queue';
-  const avatarBg = isViaQueue ? 'bg-blue-600' : 'bg-green-600';
-  const sourceLabel = isViaQueue
-    ? agentLink.queueName
-    : (evoInstance || 'UaZapi');
-  ```
-- Trocar as classes do `<Avatar>` e `<AvatarFallback>` (linhas 1725-1726) para usar `avatarBg`.
-- Após o `<p className="text-xs text-muted-foreground">{whatsappNumber}</p>` (linha 1759-1761), adicionar:
-  ```tsx
-  {sourceLabel && (
-    <Badge
-      variant="secondary"
-      className={cn(
-        'mt-0.5 text-[10px] px-1.5 py-0 h-4 font-medium text-white border-0',
-        isViaQueue ? 'bg-blue-600 hover:bg-blue-600' : 'bg-green-600 hover:bg-green-600'
-      )}
-    >
-      {isViaQueue ? '📥 ' : '🔗 '}{sourceLabel}
-    </Badge>
-  )}
-  ```
-- Para acessar `evoInstance` no header: já é carregado em `loadAgentCredentials` (linha 1240). Vamos guardar `evo_instance` em um state novo `agentInstance` (atualmente é descartado) — pequena edição no setter para também persistir o valor.
+## Arquivos afetados
+- **Criar**: `src/components/chat/ChatSettingsDialog.tsx`
+- **Editar**: `src/components/chat/ChatList.tsx`
+- **Editar**: `src/components/chat/TagsManagerDialog.tsx` (extrair `TagsManagerContent`)
+- **Editar**: `src/pages/chat/ChatSlaConfigPage.tsx` (extrair `ChatSlaConfigContent`)
+- **Editar**: `src/components/chat/index.ts`
 
-## Comportamento esperado
-- Agente sem fila vinculada (UaZapi próprio): avatar **verde** + badge verde "🔗 nome-da-instancia" (ou "UaZapi").
-- Agente vinculado a uma fila UaZapi: avatar **azul** + badge azul "📥 QUEUE_..." com o nome da fila.
-- Agente vinculado a uma fila WABA: avatar **azul** + badge azul "📥 Meta Official" (ou nome configurado).
-- Loading: mantém o verde atual até o hook resolver (no flicker), badge só aparece quando há valor.
-
-## Arquivos
-- **Criar**: `src/hooks/useAgentQueueLink.ts`
-- **Editar**: `src/pages/crm/components/WhatsAppMessagesDialog.tsx` (header + persistir `evo_instance` em state)
-
-## Não faz parte deste plano
-- Mudar lógica de envio (continua usando o `provider`/`client` já calculado em `loadAgentCredentials`).
-- Alterar outras telas (chat omnichannel, atendimento humano) — escopo restrito ao popup do CRM.
-- Permitir trocar a fila pela UI.
-
-Confirma para implementar?
+## Resultado
+- Barra superior: apenas botões admin (Automações, Canais).
+- Linha da busca: `[input busca] [Métricas] [Filtro] [Configurações (somente dono)]`.
+- Configurações abre Dialog com abas Geral/SLA/Etiquetas, restrito a `role === 'user'` (dono) ou admin.
