@@ -20,12 +20,15 @@ import {
   Phone,
   DollarSign,
   Clock,
+  MessageSquare,
+  Scale,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { CRMDeal } from '../../types';
 import { PRIORITY_CONFIG } from '../../types';
+import { getChatLink, getJuliaLink } from '../../hooks/useCardLinks';
 
 interface DealCardProps {
   deal: CRMDeal;
@@ -67,6 +70,8 @@ export function DealCard({
   };
 
   const priorityConfig = PRIORITY_CONFIG[deal.priority];
+  const chatLink = getChatLink(deal);
+  const juliaLink = getJuliaLink(deal);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -222,6 +227,28 @@ export function DealCard({
             )}
           </div>
         </div>
+
+        {/* Link badges */}
+        {(chatLink || juliaLink) && (
+          <div className="flex items-center gap-1 flex-wrap pt-1">
+            {chatLink && (
+              <Badge
+                variant="outline"
+                className="text-[10px] px-1.5 py-0 bg-blue-500/10 text-blue-700 border-blue-500/30 gap-1"
+              >
+                <MessageSquare className="h-2.5 w-2.5" /> Chat
+              </Badge>
+            )}
+            {juliaLink && (
+              <Badge
+                variant="outline"
+                className="text-[10px] px-1.5 py-0 bg-purple-500/10 text-purple-700 border-purple-500/30 gap-1"
+              >
+                <Scale className="h-2.5 w-2.5" /> Julia #{juliaLink.card_id}
+              </Badge>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center justify-between pt-1 text-[10px] text-muted-foreground">
           <div className="flex items-center gap-1">
