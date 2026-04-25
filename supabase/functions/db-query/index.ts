@@ -155,6 +155,7 @@ function createConnection(caCerts: string[]) {
         connect_timeout: 15,
         idle_timeout: 20,
         max_lifetime: 60 * 30,
+        max: 5,
       })
     : postgres({
         host: Deno.env.get('EXTERNAL_DB_HOST'),
@@ -166,7 +167,26 @@ function createConnection(caCerts: string[]) {
         connect_timeout: 15,
         idle_timeout: 20,
         max_lifetime: 60 * 30,
+        max: 5,
       });
+}
+
+// Singleton pool reused across requests within the same function instance.
+// Avoids opening/closing a new connection per invocation (the main cause of
+// 503 SUPABASE_EDGE_RUNTIME_ERROR under load).
+let pool: ReturnType<typeof postgres> | null = null;
+let poolCaSignature: string | null = null;
+
+function getPool(caCerts: string[]) {
+  const signature = caCerts.length > 0 ? caCerts[0].slice(0, 80) : 'no-ca';
+  if (!pool || poolCaSignature !== signature) {
+    if (pool) {
+      try { pool.end({ timeout: 0 }); } catch { /* ignore */ }
+    }
+    pool = createConnection(caCerts);
+    poolCaSignature = signature;
+  }
+  return pool;
 }
 
 serve(async (req) => {
@@ -207,7 +227,7 @@ serve(async (req) => {
     
     try {
 
-      sql = createConnection(caCerts);
+      sql = getPool(caCerts);
 
       // Set timezone for this session to America/Sao_Paulo (UTC-3)
       await sql`SET timezone = 'America/Sao_Paulo'`;
@@ -2801,17 +2821,13 @@ serve(async (req) => {
         throw new Error(`Unknown action: ${action}`);
     }
 
-    await sql.end();
-
     return new Response(JSON.stringify({ data: result, error: null }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
     } catch (error: unknown) {
-      // Close connection on error
-      if (sql) {
-        try { await sql.end(); } catch { /* ignore */ }
-      }
+      // Do NOT close the singleton pool on error — it is reused across requests.
+      // postgres.js will recover broken connections from the pool automatically.
       
       lastError = error;
       
