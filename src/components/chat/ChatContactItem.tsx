@@ -78,7 +78,7 @@ function MessagePreview({ text }: { text?: string }) {
 function Pill({ label, className }: { label: string; className: string }) {
   return (
     <span className={cn(
-      'inline-flex items-center justify-center h-5 px-1.5 text-[9px] font-bold leading-none overflow-hidden whitespace-nowrap',
+      'inline-flex items-center justify-center h-5 px-1.5 text-[9px] font-bold leading-none overflow-hidden whitespace-nowrap text-center',
       className
     )}>
       <span className="truncate">{label}</span>
