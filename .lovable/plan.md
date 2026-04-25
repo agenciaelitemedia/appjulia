@@ -1,99 +1,126 @@
-## Objetivo
+## Diagnóstico (já feito)
 
-Hoje o CRM Builder isola boards/pipelines/deals por `cod_agent`. Vamos passar a isolar por **`client_id`** para que:
-- O **dono** (role `user`) crie e gerencie boards, pipelines, automações e campos personalizados.
-- Toda a **equipe vinculada ao mesmo `client_id`** veja os mesmos boards e possa **criar/editar/mover deals**, mas **não** possa criar/editar/arquivar boards nem pipelines.
-- Cada cliente continua vendo somente os seus dados (isolamento total entre client_ids).
+Consultei as tabelas do CRM Builder no banco:
+
+| Tabela | Total | Com `client_id` | Nulos |
+|---|---|---|---|
+| `crm_boards` | 4 | 4 | **0** |
+| `crm_pipelines` | 17 | 17 | **0** |
+| `crm_deals` | 3 | 3 | **0** |
+| `crm_custom_fields` | 0 | 0 | **0** |
+| `crm_automation_rules` | 2 | 2 | **0** |
+
+**Resultado**: o backfill executado na migração anterior cobriu 100% das linhas. Não há `client_id` nulo. Vou apenas gerar um relatório formal (markdown em `/mnt/documents/crm-builder-backfill-report.md`) confirmando o estado e listando os `client_id`s ativos.
+
+Sobre realtime: hoje os hooks `useCRMPipelines`, `useCRMDeals`, `useCRMCustomFields` e `useCRMAutomations` filtram a subscription apenas por `board_id`. Como `board_id` é UUID único globalmente não há vazamento prático entre clientes, mas falta defesa em profundidade — vou adicionar `client_id` ao filtro e isolar nome do canal.
 
 ---
 
-## 1. Banco de dados (migração)
+## 1. Relatório de backfill (entregável)
 
-Adicionar `client_id text` (nullable inicialmente, depois NOT NULL) nas tabelas do CRM Builder e backfillar a partir do `cod_agent` atual.
+Gerar `/mnt/documents/crm-builder-backfill-report.md` contendo:
+- Resumo das 5 tabelas (total / preenchidas / nulas — todas 0 nulas).
+- Lista distinta de `client_id`s presentes em cada tabela, com `cod_agent`s associados (mapeamento auditoria).
+- Confirmação de que nenhuma linha precisou ser atualizada nesta rodada.
+- Procedimento idempotente para futuro (caso surjam novas linhas órfãs): UPDATE setando `client_id` a partir do `agents.client_id` via `cod_agent`.
 
-**Tabelas afetadas:**
-- `crm_boards`
-- `crm_pipelines`
-- `crm_deals`
-- `crm_custom_fields`
-- `crm_automation_rules`
+Não haverá `UPDATE` no banco — tudo já está preenchido.
 
-**Passos da migração:**
-1. `ALTER TABLE ... ADD COLUMN client_id text` em cada tabela.
-2. Backfill: para cada linha, resolver o `client_id` do dono do `cod_agent` consultando a base externa (apenas 1 agent / 4 boards hoje, então simples). Faremos via uma única atualização pontual após confirmar o `client_id` correto do agent atual.
-3. Criar índice `CREATE INDEX ON <tabela>(client_id)` em todas.
-4. `ALTER COLUMN client_id SET NOT NULL` após backfill.
-5. Manter `cod_agent` nas linhas (passa a representar quem criou — auditoria).
+## 2. Auditoria estrutural (boards / pipelines / automations / custom fields)
 
-> Observação: as tabelas hoje **não têm RLS habilitada** (são acessadas por `cod_agent` puro do app, idêntico ao que já existe). Vamos manter o mesmo padrão e fazer o isolamento na camada de aplicação (filtrando por `client_id`), igual aos demais módulos do projeto. Não vamos habilitar RLS agora para não quebrar o restante do CRM.
+### 2.1 Migração (nova tabela `crm_audit_log`)
+```sql
+CREATE TABLE public.crm_audit_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id text NOT NULL,
+  cod_agent text NOT NULL,           -- quem executou
+  entity_type text NOT NULL,         -- 'board' | 'pipeline' | 'automation' | 'custom_field'
+  entity_id uuid NOT NULL,
+  entity_name text,                  -- snapshot do nome no momento
+  action text NOT NULL,              -- 'created' | 'updated' | 'archived' | 'deleted' | 'reordered' | 'toggled_active'
+  changes jsonb DEFAULT '{}'::jsonb, -- diff/payload
+  created_at timestamptz DEFAULT now()
+);
+CREATE INDEX ON public.crm_audit_log(client_id, created_at DESC);
+CREATE INDEX ON public.crm_audit_log(entity_type, entity_id);
+```
+Sem RLS (mesmo padrão das demais tabelas `crm_*` do builder); isolamento na aplicação por `client_id`.
 
-## 2. Resolução do `client_id` no frontend
+### 2.2 Gravar logs nos hooks
+Adicionar helper `logAudit(...)` chamado em:
+- `useCRMBoards`: `createBoard`, `updateBoard`, `archiveBoard`, `reorderBoards`.
+- `useCRMPipelines`: `createPipeline`, `updatePipeline`, `deletePipeline`, `reorderPipelines`.
+- `useCRMAutomations`: `createRule`, `updateRule`, `toggleRuleActive`, `deleteRule`.
+- `useCRMCustomFields`: `createField`, `updateField`, `deleteField`, `reorderFields`.
 
-Já existe em `AuthContext`:
-- `user.client_id` para usuários `role=user` (dono).
-- Para sub-usuários (equipe), o `AuthContext` já hidrata o `client_id` herdado via `externalDb.getEffectiveClientId` no `restoreSession`.
+Cada chamada grava `{client_id, cod_agent, entity_type, entity_id, entity_name, action, changes}` (silent-fail, igual ao `crm_deal_history`).
 
-Vamos:
-- Em todas as páginas/hooks do CRM Builder, deixar de ler `user.cod_agent` para escopo e passar a usar `user.client_id` (string).
-- Continuar usando `user.cod_agent` apenas para preencher o campo de auditoria `cod_agent` ao **criar** registros (saber quem criou).
+### 2.3 Hook `useCRMAuditLog`
+Novo hook em `src/pages/crm-builder/hooks/useCRMAuditLog.ts`:
+- Recebe `{ clientId, boardId?, entityType?, limit }`.
+- `SELECT * FROM crm_audit_log WHERE client_id=$1 [AND ...] ORDER BY created_at DESC LIMIT 100`.
+- Retorna entradas com `cod_agent`, `entity_type`, `entity_name`, `action`, `created_at`, `changes`.
 
-## 3. Hooks — alterações
+### 2.4 UI — aba "Auditoria"
+- Em `BoardSettingsSheet.tsx` (settings do board) adicionar nova tab **Auditoria** ao lado de Custom Fields e Automações, **só renderizada se `canManage`** (dono/admin).
+- Componente `AuditLogPanel`:
+  - Lista cronológica (timeline) com badge da entidade (Board / Pipeline / Automação / Campo), ação (criou/editou/arquivou/removeu), nome, `cod_agent` (quem fez), e `created_at` formatado (`dd/MM/yyyy HH:mm`).
+  - Filtros simples: tipo de entidade, ação.
+  - Empty state amigável.
+- Em `CRMBuilderPage` (grid de boards), adicionar botão "Auditoria" no header **só para `canManage`** abrindo um Sheet/Dialog com auditoria global do `client_id` (todos os boards).
 
-Trocar o filtro/insert de `cod_agent` por `client_id` em:
+## 3. Hardening do realtime (defesa em profundidade)
 
-### `src/pages/crm-builder/hooks/useCRMBoards.ts`
-- Assinatura: `useCRMBoards({ clientId, codAgent, canManage })`.
-- `fetchBoards`: `.eq('client_id', clientId)`.
-- `createBoard` / `updateBoard` / `archiveBoard` / `reorderBoards`: só executam se `canManage === true`; inserts gravam `client_id` + `cod_agent` (auditoria).
-- Realtime: `filter: client_id=eq.${clientId}`.
+Ajustar todos os hooks para que a subscription:
+1. Inclua `client_id` no nome do canal (evita colisão entre clientes que abrem o mesmo board id por engano em multi-tenant).
+2. Não confie em `board_id` global — manter filtro server-side por `board_id` (e deixar filtragem de `client_id` redundante via re-fetch, que já lê `.eq('client_id', clientId)`).
 
-### `src/pages/crm-builder/hooks/useCRMPipelines.ts`
-- Filtro de leitura por `client_id`.
-- Mutations protegidas por `canManage` (apenas dono cria/edita/arquiva pipelines).
-- Insert grava `client_id` + `cod_agent`.
+Mudanças concretas:
 
-### `src/pages/crm-builder/hooks/useCRMDeals.ts`
-- Filtro de leitura por `client_id` (toda a equipe vê).
-- **Sem** restrição de role para criar/editar/mover deals.
-- Insert grava `client_id` + `cod_agent` do usuário logado (auditoria).
+| Hook | Canal antes | Canal depois | Filtro server-side |
+|---|---|---|---|
+| `useCRMBoards` | `crm-boards-changes` | `crm-boards-${clientId}` | `client_id=eq.${clientId}` (já tem) |
+| `useCRMPipelines` | `crm-pipelines-${boardId}` | `crm-pipelines-${clientId}-${boardId}` | `board_id=eq.${boardId}` (mantém; refetch reaplica `client_id`) |
+| `useCRMDeals` | `crm-deals-${boardId}` | `crm-deals-${clientId}-${boardId}` | `board_id=eq.${boardId}` |
+| `useCRMCustomFields` | `crm-custom-fields-${boardId}` | `crm-custom-fields-${clientId}-${boardId}` | `board_id=eq.${boardId}` |
+| `useCRMAutomations` | `crm-automations-${boardId}` | `crm-automations-${clientId}-${boardId}` | `board_id=eq.${boardId}` |
 
-### `src/pages/crm-builder/hooks/useCRMCustomFields.ts` e `useCRMAutomations.ts`
-- Filtro por `client_id`.
-- Mutations protegidas por `canManage` (estrutura é do dono).
-- Insert grava `client_id` + `cod_agent`.
+Também adicionar guard `if (!clientId) return;` em todos os `useEffect` de subscription (alguns só checam `boardId`).
 
-## 4. Páginas — alterações
+Justificativa para manter filtro server-side por `board_id` em vez de `client_id`: o realtime do Postgres só aceita 1 filtro `eq` por subscription. Como `board_id` é mais seletivo (notifica só do board aberto) e o `fetchX` já restringe leituras por `client_id`, mantemos `board_id` no filtro e usamos `client_id` no nome do canal para evitar conflito de canais entre tenants.
 
-### `src/pages/crm-builder/CRMBuilderPage.tsx`
-- Calcular `clientId = String(user?.client_id || '')` e `canManage = user?.role === 'user' || user?.role === 'admin'`.
-- Passar `{ clientId, codAgent, canManage }` para `useCRMBoards`.
-- Esconder o botão "Criar Board" / menus de editar / arquivar quando `!canManage` (equipe vê o grid e pode entrar nos boards, mas não cria/edita/arquiva).
-- O grid (`BoardGrid`) já recebe handlers — passaremos `undefined`/no-op + uma flag `canManage` para esconder os botões de edição/arquivamento nos cards.
+## 4. Memória
 
-### `src/pages/crm-builder/BoardPage.tsx`
-- Usar `clientId` para os hooks de pipelines/deals/custom fields/automations.
-- `canManage` controla:
-  - Botão "Adicionar pipeline".
-  - Editar/arquivar pipeline.
-  - Acesso às telas de Custom Fields e Automations (esconder os botões para a equipe; manter visualização básica do board).
-- Equipe pode normalmente: criar deal, editar deal, mover deal entre pipelines.
+Atualizar `mem://features/crm/builder-client-scope.md` adicionando:
+- Existência de `crm_audit_log`.
+- Padrão de canal realtime `crm-<entity>-${clientId}-${boardId}`.
 
-## 5. Tipos
+## 5. Validações pós-deploy
 
-`src/pages/crm-builder/types.ts`:
-- Adicionar `client_id: string` em `CRMBoard`, `CRMPipeline`, `CRMDeal`, e nas interfaces auxiliares de `useCRMCustomFields` e `useCRMAutomations`.
-- Manter `cod_agent` (auditoria/quem criou).
+- Editar nome de um board como dono → entrada aparece em Auditoria com `cod_agent` e timestamp.
+- Arquivar pipeline → linha "archived" no log.
+- Criar automação e togglar ativo → 2 linhas no log.
+- Membro da equipe não vê o botão "Auditoria" nem a tab.
+- Abrir 2 navegadores com `client_id`s diferentes — subscriptions não colidem (canais separados).
 
-## 6. Memória do projeto
+## Arquivos a editar/criar
 
-Adicionar memória `mem://features/crm/builder-client-scope` com a regra: "CRM Builder é escopado por `client_id`. Toda a equipe do mesmo client vê os mesmos boards. Apenas role `user`/`admin` pode criar/editar/arquivar boards, pipelines, custom fields e automações; demais perfis podem apenas operar deals." E atualizar a entrada já existente `CRM Builder Perms` no `index.md`.
+**Criar**
+- `supabase/migrations/<ts>_crm_audit_log.sql`
+- `src/pages/crm-builder/hooks/useCRMAuditLog.ts`
+- `src/pages/crm-builder/components/audit/AuditLogPanel.tsx`
+- `/mnt/documents/crm-builder-backfill-report.md` (artifact)
 
-## 7. Validações pós-deploy
-
-- Login como dono: cria board → aparece. Login como membro de equipe (mesmo client): vê o board, consegue criar deal, **não** vê botões de criar/editar/arquivar board ou pipeline.
-- Login com outro `client_id`: não vê nenhum board do primeiro.
-- Realtime: criar deal como equipe reflete na tela do dono e vice-versa.
+**Editar**
+- `src/pages/crm-builder/hooks/useCRMBoards.ts` (audit + canal realtime)
+- `src/pages/crm-builder/hooks/useCRMPipelines.ts` (audit + canal realtime)
+- `src/pages/crm-builder/hooks/useCRMDeals.ts` (canal realtime)
+- `src/pages/crm-builder/hooks/useCRMCustomFields.ts` (audit + canal realtime)
+- `src/pages/crm-builder/hooks/useCRMAutomations.ts` (audit + canal realtime)
+- `src/pages/crm-builder/components/settings/BoardSettingsSheet.tsx` (nova tab Auditoria)
+- `src/pages/crm-builder/CRMBuilderPage.tsx` (botão Auditoria global p/ dono/admin)
+- `mem/features/crm/builder-client-scope.md`
 
 ## Fora do escopo
-- Não vamos habilitar RLS nas tabelas `crm_*` agora (mantém o padrão atual do projeto, evitando regressão).
-- Não alteramos o CRM Comercial nem o CRM da Júlia (já têm seus próprios escopos).
+- Não vamos habilitar RLS nas tabelas `crm_*` (mantém padrão atual).
+- Não vamos auditar mudanças em `crm_deals` (já existe `crm_deal_history`).

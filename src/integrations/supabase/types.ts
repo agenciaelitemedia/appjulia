@@ -2436,6 +2436,42 @@ export type Database = {
           },
         ]
       }
+      crm_audit_log: {
+        Row: {
+          action: string
+          changes: Json
+          client_id: string
+          cod_agent: string
+          created_at: string
+          entity_id: string
+          entity_name: string | null
+          entity_type: string
+          id: string
+        }
+        Insert: {
+          action: string
+          changes?: Json
+          client_id: string
+          cod_agent: string
+          created_at?: string
+          entity_id: string
+          entity_name?: string | null
+          entity_type: string
+          id?: string
+        }
+        Update: {
+          action?: string
+          changes?: Json
+          client_id?: string
+          cod_agent?: string
+          created_at?: string
+          entity_id?: string
+          entity_name?: string | null
+          entity_type?: string
+          id?: string
+        }
+        Relationships: []
+      }
       crm_automation_logs: {
         Row: {
           deal_id: string
