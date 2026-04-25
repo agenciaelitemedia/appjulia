@@ -155,7 +155,8 @@ function createConnection(caCerts: string[]) {
         connect_timeout: 15,
         idle_timeout: 20,
         max_lifetime: 60 * 30,
-        max: 5,
+        max: 2,
+        prepare: false,
       })
     : postgres({
         host: Deno.env.get('EXTERNAL_DB_HOST'),
@@ -167,7 +168,8 @@ function createConnection(caCerts: string[]) {
         connect_timeout: 15,
         idle_timeout: 20,
         max_lifetime: 60 * 30,
-        max: 5,
+        max: 2,
+        prepare: false,
       });
 }
 
