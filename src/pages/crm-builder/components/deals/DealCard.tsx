@@ -45,7 +45,6 @@ import { PRIORITY_CONFIG } from '../../types';
 import { getChatLink, getJuliaLink, useJuliaCardPreview } from '../../hooks/useCardLinks';
 import { useDealConversation } from '../../hooks/useDealConversation';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useTeamMembers } from '@/pages/equipe/hooks/useEquipeData';
 
 interface DealCardProps {
   deal: CRMDeal;
@@ -57,7 +56,6 @@ interface DealCardProps {
   onClick?: () => void;
   onOpenChat?: (deal: CRMDeal) => void;
   onChangePriority?: (deal: CRMDeal, priority: 'low' | 'medium' | 'high' | 'urgent') => void;
-  onChangeAssignee?: (deal: CRMDeal, assignedTo: string | null) => void;
 }
 
 export function DealCard({
@@ -70,10 +68,8 @@ export function DealCard({
   onClick,
   onOpenChat,
   onChangePriority,
-  onChangeAssignee,
 }: DealCardProps) {
   const [confirmArchive, setConfirmArchive] = useState(false);
-  const { data: teamMembers = [] } = useTeamMembers();
   const {
     attributes,
     listeners,
@@ -254,59 +250,19 @@ export function DealCard({
 
         {/* Status row: prioridade (sempre), responsável (sempre), fila (se vinculado) */}
         <div className="flex items-center gap-1.5 flex-wrap pt-1">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                title={`Responsável: ${deal.assigned_to || 'Não atribuído'} — clique para alterar`}
-                onClick={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-                className={cn(
-                  'inline-flex items-center gap-1 text-[10px] px-1.5 py-0 border rounded-md max-w-[160px] hover:opacity-80 transition-opacity',
-                  deal.assigned_to
-                    ? 'bg-primary/5 border-primary/30 text-primary'
-                    : 'bg-muted text-muted-foreground border-border'
-                )}
-              >
-                <User className="h-2.5 w-2.5 flex-shrink-0" />
-                <span className="truncate">{deal.assigned_to || 'Não atribuído'}</span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="start"
-              className="max-h-[280px] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (deal.assigned_to) onChangeAssignee?.(deal, null);
-                }}
-                className={cn(!deal.assigned_to && 'bg-muted font-medium')}
-              >
-                <User className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                Não atribuído
-              </DropdownMenuItem>
-              {teamMembers.length > 0 && <DropdownMenuSeparator />}
-              {teamMembers.map((m) => {
-                const label = m.name || m.email;
-                const isActive = deal.assigned_to === label;
-                return (
-                  <DropdownMenuItem
-                    key={String(m.id)}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!isActive) onChangeAssignee?.(deal, label);
-                    }}
-                    className={cn(isActive && 'bg-muted font-medium')}
-                  >
-                    <User className="h-3.5 w-3.5 mr-2 text-primary" />
-                    {label}
-                  </DropdownMenuItem>
-                );
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Badge
+            variant="outline"
+            className={cn(
+              'text-[10px] px-1.5 py-0 gap-1 max-w-[140px]',
+              deal.assigned_to
+                ? 'bg-primary/5 border-primary/30 text-primary'
+                : 'bg-muted text-muted-foreground border-border'
+            )}
+            title={deal.assigned_to || 'Não atribuído'}
+          >
+            <User className="h-2.5 w-2.5 flex-shrink-0" />
+            <span className="truncate">{deal.assigned_to || 'Não atribuído'}</span>
+          </Badge>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -421,40 +377,6 @@ export function DealCard({
             )}
           </div>
         )}
-
-        {/* Descrição (sempre visível, clicável para editar) */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={(e) => { e.stopPropagation(); onEdit(); }}
-              onPointerDown={(e) => e.stopPropagation()}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onEdit();
-                }
-              }}
-              className="cursor-pointer rounded p-1 -mx-1 hover:bg-muted/60 transition-colors"
-            >
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70 font-medium mb-0.5">
-                Descrição
-              </div>
-              {deal.description ? (
-                <p className="text-xs text-muted-foreground line-clamp-3 whitespace-pre-wrap break-words">
-                  {deal.description}
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground/60 italic">
-                  Adicionar descrição...
-                </p>
-              )}
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>Clique para editar</TooltipContent>
-        </Tooltip>
 
         {/* Footer: datas + tempo na fase */}
         <div className="pt-1 border-t border-border/50 space-y-0.5 text-[10px] text-muted-foreground">
