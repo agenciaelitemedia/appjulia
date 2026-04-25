@@ -31,3 +31,6 @@ Cards do CRM Builder (`crm_deals`) podem ter vínculos opcionais armazenados em 
 - Menu do `DealCard` mostra apenas "Excluir card" (usa `archiveDeal`).
 - `DealDetailsSheet` esconde o botão "Editar"; o botão de arquivar vira "Excluir card".
 - Cards normais (sem vínculo) mantêm fluxo completo de edição/Ganho/Perdido/Arquivar.
+
+**Resolução do `cod_agent` no `CreateCrmCardSheet`:**
+Cadeia de fallback: prop `codAgent` (conversa) → `useQueueAgentLink(queueId)` (primary do queue_agent_links) → `useMyAgents().myAgents[0].cod_agent`. Badge no header indica a origem ("conversa", "via fila", "seu agente"). Só bloqueia se nenhuma das três fontes resolver.
