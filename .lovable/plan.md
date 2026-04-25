@@ -1,54 +1,99 @@
 ## Objetivo
-Reorganizar a barra de ícones do `/chat` (`ChatList.tsx`):
-1. Mover o ícone de **Métricas** (BarChart3) para ficar **ao lado do ícone de Filtro** (próximo à barra de busca).
-2. Criar um novo ícone de **Configurações do Chat** (`Settings`) — visível **apenas para o dono da conta** (`role === 'user'` ou `isAdmin`).
-3. Esse ícone abre um Dialog com 3 abas: **Geral / SLA / Etiquetas**.
-4. **Remover** os ícones individuais de SLA (Timer) e Etiquetas (Tag) da barra superior — seu conteúdo vai para as abas.
+
+Hoje o CRM Builder isola boards/pipelines/deals por `cod_agent`. Vamos passar a isolar por **`client_id`** para que:
+- O **dono** (role `user`) crie e gerencie boards, pipelines, automações e campos personalizados.
+- Toda a **equipe vinculada ao mesmo `client_id`** veja os mesmos boards e possa **criar/editar/mover deals**, mas **não** possa criar/editar/arquivar boards nem pipelines.
+- Cada cliente continua vendo somente os seus dados (isolamento total entre client_ids).
 
 ---
 
-## Passo 1 — Criar `ChatSettingsDialog.tsx`
-Novo arquivo `src/components/chat/ChatSettingsDialog.tsx`:
-- `Dialog` largo (`sm:max-w-3xl`) com `Tabs` (shadcn) e 3 abas: **Geral**, **SLA**, **Etiquetas**.
-- **Aba Geral**: placeholder simples ("Configurações gerais do chat em breve") — pode listar atalhos/preferências básicas existentes.
-- **Aba SLA**: importar e renderizar inline o conteúdo da página `ChatSlaConfigPage` (ou extrair seu corpo principal para um componente reutilizável `ChatSlaConfigContent`). Como é dialog, usar `max-h-[70vh] overflow-y-auto`.
-- **Aba Etiquetas**: reutilizar o conteúdo já presente em `TagsManagerDialog` — extrair o corpo (lista + criação) para um `TagsManagerContent` interno (ou apenas renderizar o `TagsManagerDialog` como conteúdo embutido removendo o wrapper Dialog).
+## 1. Banco de dados (migração)
 
-## Passo 2 — Atualizar `ChatList.tsx`
-- Importar `Settings` do lucide-react e `ChatSettingsDialog`.
-- Importar `useAuth` (já usado na lib) para obter `user.role` / `isAdmin`.
-- Definir `canManageChat = isAdmin || user?.role === 'user'`.
-- **Remover** da barra superior (linhas ~354-359):
-  - Botão SLA (`Timer`, navigate `/chat/sla`).
-  - Botão Tags (`Tag`, abre `TagsManagerDialog`).
-- **Remover** o botão de Métricas (linhas 341-343) da barra superior.
-- **Adicionar**, **ao lado do botão de Filtro** (dentro do `div` da search bar, antes do botão Filter), o botão de **Métricas** (`BarChart3`, navigate `/chat/metricas`).
-- **Adicionar**, também ao lado do Filtro, o botão de **Configurações do Chat** (`Settings`) — somente se `canManageChat` — que faz `setShowChatSettings(true)`.
-- Manter os botões admin (Automações/Canais) na barra superior.
-- Renderizar `<ChatSettingsDialog open={showChatSettings} onOpenChange={setShowChatSettings} />`.
-- Remover o `<TagsManagerDialog>` standalone daqui (passa a ser usado dentro do dialog de configurações).
+Adicionar `client_id text` (nullable inicialmente, depois NOT NULL) nas tabelas do CRM Builder e backfillar a partir do `cod_agent` atual.
 
-## Passo 3 — Refatorar `TagsManagerDialog`
-Extrair o corpo (lista de tags + form de criação) para um componente `TagsManagerContent` exportado, mantendo o `TagsManagerDialog` como wrapper que usa esse content. Isso permite reuso na aba Etiquetas sem duplicar Dialog dentro de Dialog.
+**Tabelas afetadas:**
+- `crm_boards`
+- `crm_pipelines`
+- `crm_deals`
+- `crm_custom_fields`
+- `crm_automation_rules`
 
-A regra de permissão de criação/edição já implementada (`canManage = isAdmin || role === 'user'`) permanece dentro do conteúdo.
+**Passos da migração:**
+1. `ALTER TABLE ... ADD COLUMN client_id text` em cada tabela.
+2. Backfill: para cada linha, resolver o `client_id` do dono do `cod_agent` consultando a base externa (apenas 1 agent / 4 boards hoje, então simples). Faremos via uma única atualização pontual após confirmar o `client_id` correto do agent atual.
+3. Criar índice `CREATE INDEX ON <tabela>(client_id)` em todas.
+4. `ALTER COLUMN client_id SET NOT NULL` após backfill.
+5. Manter `cod_agent` nas linhas (passa a representar quem criou — auditoria).
 
-## Passo 4 — Reaproveitar SLA Config
-Inspecionar `src/pages/chat/ChatSlaConfigPage.tsx` e extrair o corpo principal para `ChatSlaConfigContent` (mesmo padrão). A página continua existindo e renderiza o `Content`. A aba SLA do dialog usa o `Content` diretamente.
+> Observação: as tabelas hoje **não têm RLS habilitada** (são acessadas por `cod_agent` puro do app, idêntico ao que já existe). Vamos manter o mesmo padrão e fazer o isolamento na camada de aplicação (filtrando por `client_id`), igual aos demais módulos do projeto. Não vamos habilitar RLS agora para não quebrar o restante do CRM.
 
-## Passo 5 — Atualizar `src/components/chat/index.ts`
-- Exportar `ChatSettingsDialog`.
+## 2. Resolução do `client_id` no frontend
 
----
+Já existe em `AuthContext`:
+- `user.client_id` para usuários `role=user` (dono).
+- Para sub-usuários (equipe), o `AuthContext` já hidrata o `client_id` herdado via `externalDb.getEffectiveClientId` no `restoreSession`.
 
-## Arquivos afetados
-- **Criar**: `src/components/chat/ChatSettingsDialog.tsx`
-- **Editar**: `src/components/chat/ChatList.tsx`
-- **Editar**: `src/components/chat/TagsManagerDialog.tsx` (extrair `TagsManagerContent`)
-- **Editar**: `src/pages/chat/ChatSlaConfigPage.tsx` (extrair `ChatSlaConfigContent`)
-- **Editar**: `src/components/chat/index.ts`
+Vamos:
+- Em todas as páginas/hooks do CRM Builder, deixar de ler `user.cod_agent` para escopo e passar a usar `user.client_id` (string).
+- Continuar usando `user.cod_agent` apenas para preencher o campo de auditoria `cod_agent` ao **criar** registros (saber quem criou).
 
-## Resultado
-- Barra superior: apenas botões admin (Automações, Canais).
-- Linha da busca: `[input busca] [Métricas] [Filtro] [Configurações (somente dono)]`.
-- Configurações abre Dialog com abas Geral/SLA/Etiquetas, restrito a `role === 'user'` (dono) ou admin.
+## 3. Hooks — alterações
+
+Trocar o filtro/insert de `cod_agent` por `client_id` em:
+
+### `src/pages/crm-builder/hooks/useCRMBoards.ts`
+- Assinatura: `useCRMBoards({ clientId, codAgent, canManage })`.
+- `fetchBoards`: `.eq('client_id', clientId)`.
+- `createBoard` / `updateBoard` / `archiveBoard` / `reorderBoards`: só executam se `canManage === true`; inserts gravam `client_id` + `cod_agent` (auditoria).
+- Realtime: `filter: client_id=eq.${clientId}`.
+
+### `src/pages/crm-builder/hooks/useCRMPipelines.ts`
+- Filtro de leitura por `client_id`.
+- Mutations protegidas por `canManage` (apenas dono cria/edita/arquiva pipelines).
+- Insert grava `client_id` + `cod_agent`.
+
+### `src/pages/crm-builder/hooks/useCRMDeals.ts`
+- Filtro de leitura por `client_id` (toda a equipe vê).
+- **Sem** restrição de role para criar/editar/mover deals.
+- Insert grava `client_id` + `cod_agent` do usuário logado (auditoria).
+
+### `src/pages/crm-builder/hooks/useCRMCustomFields.ts` e `useCRMAutomations.ts`
+- Filtro por `client_id`.
+- Mutations protegidas por `canManage` (estrutura é do dono).
+- Insert grava `client_id` + `cod_agent`.
+
+## 4. Páginas — alterações
+
+### `src/pages/crm-builder/CRMBuilderPage.tsx`
+- Calcular `clientId = String(user?.client_id || '')` e `canManage = user?.role === 'user' || user?.role === 'admin'`.
+- Passar `{ clientId, codAgent, canManage }` para `useCRMBoards`.
+- Esconder o botão "Criar Board" / menus de editar / arquivar quando `!canManage` (equipe vê o grid e pode entrar nos boards, mas não cria/edita/arquiva).
+- O grid (`BoardGrid`) já recebe handlers — passaremos `undefined`/no-op + uma flag `canManage` para esconder os botões de edição/arquivamento nos cards.
+
+### `src/pages/crm-builder/BoardPage.tsx`
+- Usar `clientId` para os hooks de pipelines/deals/custom fields/automations.
+- `canManage` controla:
+  - Botão "Adicionar pipeline".
+  - Editar/arquivar pipeline.
+  - Acesso às telas de Custom Fields e Automations (esconder os botões para a equipe; manter visualização básica do board).
+- Equipe pode normalmente: criar deal, editar deal, mover deal entre pipelines.
+
+## 5. Tipos
+
+`src/pages/crm-builder/types.ts`:
+- Adicionar `client_id: string` em `CRMBoard`, `CRMPipeline`, `CRMDeal`, e nas interfaces auxiliares de `useCRMCustomFields` e `useCRMAutomations`.
+- Manter `cod_agent` (auditoria/quem criou).
+
+## 6. Memória do projeto
+
+Adicionar memória `mem://features/crm/builder-client-scope` com a regra: "CRM Builder é escopado por `client_id`. Toda a equipe do mesmo client vê os mesmos boards. Apenas role `user`/`admin` pode criar/editar/arquivar boards, pipelines, custom fields e automações; demais perfis podem apenas operar deals." E atualizar a entrada já existente `CRM Builder Perms` no `index.md`.
+
+## 7. Validações pós-deploy
+
+- Login como dono: cria board → aparece. Login como membro de equipe (mesmo client): vê o board, consegue criar deal, **não** vê botões de criar/editar/arquivar board ou pipeline.
+- Login com outro `client_id`: não vê nenhum board do primeiro.
+- Realtime: criar deal como equipe reflete na tela do dono e vice-versa.
+
+## Fora do escopo
+- Não vamos habilitar RLS nas tabelas `crm_*` agora (mantém o padrão atual do projeto, evitando regressão).
+- Não alteramos o CRM Comercial nem o CRM da Júlia (já têm seus próprios escopos).
