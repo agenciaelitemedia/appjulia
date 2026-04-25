@@ -67,13 +67,13 @@ function ChatSettingsContent() {
 
         {isAdmin && (
           <TabsContent value="canais" className="mt-6">
-            <ChatChannelsPage />
+            <ChatChannelsPage embedded />
           </TabsContent>
         )}
 
         {isAdmin && (
           <TabsContent value="automacoes" className="mt-6">
-            <ChatAutomationsPage />
+            <ChatAutomationsPage embedded />
           </TabsContent>
         )}
       </Tabs>
