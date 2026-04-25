@@ -1,5 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { 
   MoreHorizontal, 
   Pencil, 
@@ -56,6 +67,7 @@ export function DealCard({
   onClick,
   onOpenChat,
 }: DealCardProps) {
+  const [confirmArchive, setConfirmArchive] = useState(false);
   const {
     attributes,
     listeners,
@@ -168,7 +180,7 @@ export function DealCard({
               </Tooltip>
             )}
 
-          {!isLinked && <DropdownMenu>
+          <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
                 variant="ghost" 
@@ -180,11 +192,15 @@ export function DealCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
-                <Pencil className="h-4 w-4 mr-2" />
-                Editar
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
+              {!isLinked && (
+                <>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Editar
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onWon(); }}>
                 <Trophy className="h-4 w-4 mr-2 text-primary" />
                 Marcar como Ganho
@@ -195,37 +211,14 @@ export function DealCard({
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem 
-                onClick={(e) => { e.stopPropagation(); onArchive(); }}
+                onClick={(e) => { e.stopPropagation(); setConfirmArchive(true); }}
                 className="text-destructive"
               >
                 <Archive className="h-4 w-4 mr-2" />
-                Arquivar
+                {isLinked ? 'Excluir card' : 'Arquivar'}
               </DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>}
-          {isLinked && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <MoreHorizontal className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={(e) => { e.stopPropagation(); onArchive(); }}
-                  className="text-destructive"
-                >
-                  <Archive className="h-4 w-4 mr-2" />
-                  Excluir card
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          </DropdownMenu>
           </div>
         </div>
 
@@ -377,6 +370,29 @@ export function DealCard({
           <span className="text-[9px]">🇧🇷 Brasília</span>
         </div>
       </CardContent>
+      <AlertDialog open={confirmArchive} onOpenChange={setConfirmArchive}>
+        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {isLinked ? 'Excluir card?' : 'Arquivar card?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {isLinked
+                ? `Isso removerá o card "${deal.title}" do CRM. A conversa vinculada não será afetada. Esta ação não pode ser desfeita.`
+                : `O card "${deal.title}" será arquivado e não aparecerá mais no funil. Você poderá restaurá-lo depois.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.stopPropagation(); onArchive(); setConfirmArchive(false); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isLinked ? 'Excluir' : 'Arquivar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
