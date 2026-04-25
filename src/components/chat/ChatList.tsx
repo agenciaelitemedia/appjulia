@@ -774,7 +774,7 @@ export function ChatList() {
                   agentAlias={agentAlias}
                   stageName={queueLink?.hasAgent ? stageInfo?.stageName : undefined}
                   stageColor={queueLink?.hasAgent ? stageInfo?.stageColor : undefined}
-                  hasCrmCard={!!stageInfo}
+                  hasCrmCard={normPhone ? !!crmBuilderPhones?.has(normPhone) : false}
                 />
               );
             })
