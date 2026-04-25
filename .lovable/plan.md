@@ -1,34 +1,53 @@
-## Objetivo
-Reorganizar o conteúdo da aba **Detalhes** do `DealDetailsSheet` (sidebar de detalhes do card no CRM Builder) seguindo a nova ordem solicitada e adicionar edição inline para Responsável, Descrição e Valor.
 
-## Nova ordem (de cima para baixo, após o título)
+## Problema
 
-1. **Vínculos** — `<DealLinksSection>` (Chat / Julia / fila / stage). Mover para o topo.
-2. **Contato** — nome + telefone (+ email se existir), como já é renderizado.
-3. **Responsável** — badge ocupando a linha inteira, com botão de editar inline (input + salvar/cancelar). Atualiza via `updateDeal({ assigned_to })`.
-4. **Prioridade + Tempo na fase** — uma linha própria, ocupando toda a largura (grid 2 colunas full-width como já existe, mas reposicionada). Prioridade continua como badge colorido (sem edição aqui — já é editável pelo card).
-5. **Tags** — se houver (mantém renderização atual).
-6. **Descrição** — se houver, com botão de editar inline (Textarea + salvar/cancelar). Se vazia, mostrar botão "Adicionar descrição". Atualiza via `updateDeal({ description })`.
-7. **Valor** — caixa destacada existente, com ícone de lápis para editar inline (Input numérico + salvar/cancelar). Atualiza via `updateDeal({ value })`.
-8. **Datas (Criado / Atualizado)** — rodapé do conteúdo (mantém formatação atual).
+No `DealDetailsSheet` (sidebar de detalhes do card no CRM Builder), o seletor "Responsável" está hoje populado com `useMyAgents` — que retorna **agentes de IA** (`myAgents` + `monitoredAgents`), exibindo `client_name || business_name || cod_agent`.
 
-> Observação: o bloco "Previsão de Fechamento" (`expected_close_date`) não foi listado pelo usuário, mas existe hoje. Vou mantê-lo logo antes das datas (rodapé) para não perder informação. Caso queira removê-lo, basta avisar.
+Isso está **errado**: o usuário deixou claro que a lista de responsáveis deve ser **idêntica à da página Equipe**, incluindo o **responsável principal (dono)** e qualquer outro membro humano da equipe — não agentes de IA.
 
-## Mudanças técnicas — `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx`
+A fonte oficial e única correta é a view `vw_equipe` (já consultada em `useTeamByClient` / `getTeamByClient`), que retorna todos os usuários do mesmo `client_id` (dono `admin`/`user` + subordinados `time`/`advogado`/`comercial`/`colaborador`).
 
-- Reordenar os blocos JSX dentro do `<TabsContent value="details">` conforme a nova ordem.
-- Adicionar 3 estados locais de edição:
-  - `editingAssignee` + `assigneeDraft`
-  - `editingDescription` + `descriptionDraft`
-  - `editingValue` + `valueDraft`
-- Receber nova prop `onUpdate: (data: Partial<CRMDealFormData>) => Promise<boolean>` (ligada ao `updateDeal` já existente em `useCRMDeals`).
-- Cada campo editável segue o padrão já usado no projeto (ícone de lápis pequeno → input/textarea inline → botões check/x), com `Enter` salva e `Esc` cancela quando aplicável.
-- Adicionar bloco novo de **Responsável** (badge full-width estilo prioridade, com avatar/User icon + nome ou "Não atribuído" + botão editar).
+## Mudanças
 
-## Mudanças em `BoardPage.tsx`
-- Passar `onUpdate={(data) => updateDeal(selectedDeal.id, data)}` para o `DealDetailsSheet`.
+### 1. `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx`
 
-## Não muda
-- Footer de ações (Editar/Ganho/Perdido/Arquivar) permanece como está.
-- Aba **Atividade** permanece intocada.
-- `DealCard` (board) não é alterado.
+- **Remover** o uso de `useMyAgents` para popular o seletor de Responsável.
+- **Usar** `useTeamByClient` (mesma query da página Equipe — `vw_equipe` filtrada por `client_id` do usuário logado).
+- A lista vinda de `useTeamByClient` já inclui o **dono/responsável principal** (`role` `admin`/`user`) — não filtrar por role.
+- **Incluir o próprio usuário logado** na lista (diferente da página Equipe, que o esconde, aqui ele precisa poder ser atribuído a si mesmo). Como `vw_equipe` já contém o usuário logado, basta não aplicar o filtro de exclusão que a página Equipe usa.
+- Usar `member.name` como label e como valor armazenado em `assigned_to` (mantém compatibilidade com o restante do sistema, que armazena o nome em `crm_deals.assigned_to`).
+- Ordenar alfabeticamente por nome.
+- Manter a opção `"Não atribuído"` no topo.
+
+Exemplo do novo bloco:
+```ts
+import { useTeamByClient } from '@/hooks/useTeamByClient';
+// ...
+const { data: team = [] } = useTeamByClient();
+const assigneeOptions = [...team]
+  .map(m => m.name)
+  .filter(Boolean);
+const uniqueAssignees = Array.from(new Set(assigneeOptions))
+  .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+```
+
+E remover o import e uso de `useMyAgents` neste arquivo.
+
+### 2. Verificação de outros pontos no CRM Builder
+
+Auditar e corrigir, se existirem, outros locais do CRM Builder onde o seletor de Responsável seja populado de forma diferente (ex: dialog de criar/editar deal, filtros de board). Pontos a verificar:
+
+- `src/pages/crm-builder/components/deals/DealFormDialog.tsx` (ou equivalente) — campo "Responsável" no formulário de criar/editar.
+- Filtros de responsável no header/board do CRM Builder (se houver).
+
+Em todos esses pontos, a regra é a mesma: usar `useTeamByClient` e exibir `member.name`. Caso algum deles esteja correto (já usando `useTeamByClient`), não tocar.
+
+### 3. Não alterar o TransferDialog do chat
+
+O `TransferDialog` do módulo /chat (`src/components/chat/TransferDialog.tsx`) continua usando `useMyAgents` porque ali o objetivo é transferir entre **agentes de IA**, não entre membros humanos da equipe. Esse caso é diferente e não está no escopo desta correção.
+
+## Resultado esperado
+
+- O seletor "Responsável" no `DealDetailsSheet` mostra exatamente os mesmos nomes que aparecem na página `/equipe`, **mais o dono/responsável principal** (que naturalmente faz parte de `vw_equipe`).
+- Nenhum agente de IA aparece mais nessa lista.
+- Qualquer outro seletor de Responsável dentro do CRM Builder fica alinhado com essa mesma fonte.
