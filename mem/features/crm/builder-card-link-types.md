@@ -34,3 +34,11 @@ Cards do CRM Builder (`crm_deals`) podem ter vínculos opcionais armazenados em 
 
 **Resolução do `cod_agent` no `CreateCrmCardSheet`:**
 Cadeia de fallback: prop `codAgent` (conversa) → `useQueueAgentLink(queueId)` (primary do queue_agent_links) → `useMyAgents().myAgents[0].cod_agent`. Badge no header indica a origem ("conversa", "via fila", "seu agente"). Só bloqueia se nenhuma das três fontes resolver.
+
+**Acesso pelo header da conversa (`ChatHeader`):**
+- Botão único `<ChatCrmButton />` substituiu o antigo botão IA (`AIAssistPanel` removido). Mesmo slot visual (`size="sm" variant="outline" gap-1.5`) com ícone Kanban + texto "CRM".
+- Estado branco (outline) → conversa não vinculada → abre `CreateCrmCardSheet`.
+- Estado azul preenchido (`bg-blue-50 text-blue-700 border-blue-300`) → conversa já vinculada a um deal → mostra também a etapa atual (ex.: `CRM · Qualificação`) e abre `ChatLinkedDealSheet`.
+- `ChatLinkedDealSheet` permite mover o card entre etapas do mesmo board direto pelo chat (via `Select` → `UPDATE crm_deals.pipeline_id` + history `moved`), exibe vínculo Julia ao vivo (`useJuliaCardPreview`), e tem botão "Abrir no CRM" navegando para `/crm-builder/{boardId}?deal={dealId}`.
+- O item "Criar Card no CRM" do menu MoreVertical foi removido — acesso exclusivo pelo botão.
+- Detecção do vínculo via `useChatDealLink(conversationId, clientId)` que faz `contains('custom_fields', { links: { chat: { conversation_id } } })` em `crm_deals` (status != archived).
