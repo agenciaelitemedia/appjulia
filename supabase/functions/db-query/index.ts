@@ -527,15 +527,18 @@ serve(async (req) => {
             COALESCE(ua.can_edit_config, true) as can_edit_config,
             a.settings,
             COALESCE(ua.can_edit_config, true) as can_edit_config,
-            (SELECT COUNT(DISTINCT s.id) FROM sessions s 
-             WHERE s.agent_id = a.id 
-             AND EXISTS (SELECT 1 FROM log_messages lm 
-                         WHERE lm.session_id = s.id 
-                         AND lm.created_at >= DATE_TRUNC('month', CURRENT_DATE))) as leads_received
+            COALESCE(ls.leads_received, 0) as leads_received
           FROM user_agents ua
           LEFT JOIN agents a ON a.id = ua.agent_id OR a.cod_agent::text = ua.cod_agent::text
           LEFT JOIN clients c ON c.id = a.client_id
           LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
+          LEFT JOIN LATERAL (
+            SELECT COUNT(DISTINCT s.id) as leads_received
+            FROM sessions s
+            JOIN log_messages lm ON lm.session_id = s.id
+            WHERE s.agent_id = a.id
+              AND lm.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+          ) ls ON true
           WHERE ua.user_id = $1
           ORDER BY c.business_name`,
           [userId]
