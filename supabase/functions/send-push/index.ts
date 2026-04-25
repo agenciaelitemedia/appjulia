@@ -142,7 +142,7 @@ async function encryptPayload(payload: string, p256dhKey: string, authSecret: st
   // Import client public key
   const clientKey = await crypto.subtle.importKey(
     "raw",
-    clientPublicKey,
+    clientPublicKey as BufferSource,
     { name: "ECDH", namedCurve: "P-256" },
     false,
     []
@@ -172,7 +172,7 @@ async function encryptPayload(payload: string, p256dhKey: string, authSecret: st
     ...localPublicKeyRaw,
   ]);
   
-  const prkKey = await crypto.subtle.importKey("raw", clientAuth, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const prkKey = await crypto.subtle.importKey("raw", clientAuth as BufferSource, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const prk = new Uint8Array(await crypto.subtle.sign("HMAC", prkKey, sharedSecret));
   
   // IKM
