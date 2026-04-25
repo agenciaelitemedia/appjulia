@@ -1,126 +1,105 @@
-## Diagnóstico (já feito)
+# Criar Card no CRM — Painel lateral + integração CRM Builder ↔ Chat ↔ Julia
 
-Consultei as tabelas do CRM Builder no banco:
-
-| Tabela | Total | Com `client_id` | Nulos |
-|---|---|---|---|
-| `crm_boards` | 4 | 4 | **0** |
-| `crm_pipelines` | 17 | 17 | **0** |
-| `crm_deals` | 3 | 3 | **0** |
-| `crm_custom_fields` | 0 | 0 | **0** |
-| `crm_automation_rules` | 2 | 2 | **0** |
-
-**Resultado**: o backfill executado na migração anterior cobriu 100% das linhas. Não há `client_id` nulo. Vou apenas gerar um relatório formal (markdown em `/mnt/documents/crm-builder-backfill-report.md`) confirmando o estado e listando os `client_id`s ativos.
-
-Sobre realtime: hoje os hooks `useCRMPipelines`, `useCRMDeals`, `useCRMCustomFields` e `useCRMAutomations` filtram a subscription apenas por `board_id`. Como `board_id` é UUID único globalmente não há vazamento prático entre clientes, mas falta defesa em profundidade — vou adicionar `client_id` ao filtro e isolar nome do canal.
+## Objetivo
+Substituir o atual diálogo "Criar lead no CRM" por um painel lateral (Sheet à direita) chamado **"Criar Card no CRM"**, com seleção em duas etapas (Quadro → Etapa) usando lista expansível, e preparar o **CRM Builder** para representar cards vinculados a:
+- **Chat** (conversa omnichannel) — abre direto na conversa
+- **Julia** (CRM da Julia / `crm_atendimento_cards`) — abre detalhes completos do lead Julia
+- **Ambos** (chat + Julia) no mesmo card
 
 ---
 
-## 1. Relatório de backfill (entregável)
+## 1. Renomear ação no chat
+Arquivo: `src/components/chat/ChatHeader.tsx` (linha 572-575)
+- Trocar label `"Criar lead no CRM"` → `"Criar Card no CRM"`.
+- Trocar ícone para algo mais coerente (`Kanban` ou manter `Sparkles`).
 
-Gerar `/mnt/documents/crm-builder-backfill-report.md` contendo:
-- Resumo das 5 tabelas (total / preenchidas / nulas — todas 0 nulas).
-- Lista distinta de `client_id`s presentes em cada tabela, com `cod_agent`s associados (mapeamento auditoria).
-- Confirmação de que nenhuma linha precisou ser atualizada nesta rodada.
-- Procedimento idempotente para futuro (caso surjam novas linhas órfãs): UPDATE setando `client_id` a partir do `agents.client_id` via `cod_agent`.
+## 2. Novo painel lateral `CreateCrmCardSheet`
+Substitui `CreateCrmLeadDialog.tsx` (mantém o arquivo antigo apenas como referência ou já remove). Novo arquivo: `src/components/chat/CreateCrmCardSheet.tsx`.
 
-Não haverá `UPDATE` no banco — tudo já está preenchido.
+**Layout (Sheet `side="right"`, largura ~`sm:max-w-md`)**
+- Cabeçalho: "Criar Card no CRM" + descrição curta com nome/telefone do contato.
+- **Passo 1 — Lista de Quadros (Collapsible/Accordion)**
+  - Cada quadro renderizado como card clicável (ícone + nome + cor + contagem de etapas).
+  - Ao clicar, expande inline mostrando as **etapas (pipelines)** daquele quadro como lista de chips/itens selecionáveis.
+  - Apenas um quadro expandido por vez (Accordion `type="single"`).
+- **Passo 2 — Detalhes do card** (aparece embaixo após selecionar etapa)
+  - Título (pré-preenchido com nome do contato)
+  - Valor estimado (opcional)
+  - Prioridade
+  - Descrição
+  - **Tipo de vínculo** (auto-detectado, exibido como badges informativos):
+    - 🟢 `Chat` — sempre presente (vem da conversa atual)
+    - 🟡 `Julia` — se houver `crm_atendimento_cards` com mesmo `whatsapp_number` + `cod_agent`, oferecer toggle "Vincular também ao card da Julia" (busca em background ao abrir o sheet).
+- Footer: `Cancelar` | `Criar Card`.
 
-## 2. Auditoria estrutural (boards / pipelines / automations / custom fields)
-
-### 2.1 Migração (nova tabela `crm_audit_log`)
-```sql
-CREATE TABLE public.crm_audit_log (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  client_id text NOT NULL,
-  cod_agent text NOT NULL,           -- quem executou
-  entity_type text NOT NULL,         -- 'board' | 'pipeline' | 'automation' | 'custom_field'
-  entity_id uuid NOT NULL,
-  entity_name text,                  -- snapshot do nome no momento
-  action text NOT NULL,              -- 'created' | 'updated' | 'archived' | 'deleted' | 'reordered' | 'toggled_active'
-  changes jsonb DEFAULT '{}'::jsonb, -- diff/payload
-  created_at timestamptz DEFAULT now()
-);
-CREATE INDEX ON public.crm_audit_log(client_id, created_at DESC);
-CREATE INDEX ON public.crm_audit_log(entity_type, entity_id);
+**Estrutura de dados gravada em `crm_deals.custom_fields`** (jsonb):
+```json
+{
+  "source": "chat",
+  "links": {
+    "chat": {
+      "conversation_id": "...",
+      "contact_phone": "...",
+      "contact_name": "...",
+      "queue_id": "..."
+    },
+    "julia": {
+      "card_id": 123,
+      "whatsapp_number": "...",
+      "cod_agent": "..."
+    }
+  }
+}
 ```
-Sem RLS (mesmo padrão das demais tabelas `crm_*` do builder); isolamento na aplicação por `client_id`.
+Sem migration necessária — `custom_fields jsonb` já existe.
 
-### 2.2 Gravar logs nos hooks
-Adicionar helper `logAudit(...)` chamado em:
-- `useCRMBoards`: `createBoard`, `updateBoard`, `archiveBoard`, `reorderBoards`.
-- `useCRMPipelines`: `createPipeline`, `updatePipeline`, `deletePipeline`, `reorderPipelines`.
-- `useCRMAutomations`: `createRule`, `updateRule`, `toggleRuleActive`, `deleteRule`.
-- `useCRMCustomFields`: `createField`, `updateField`, `deleteField`, `reorderFields`.
+## 3. CRM Builder: card com vínculos (`DealCard.tsx`)
+Adicionar **badges de vínculo** no rodapé do card (acima do "Na fase: ..."):
+- Badge azul `💬 Chat` se `custom_fields.links.chat` existir → clique navega para `/chat?conversation=<id>` (ou abre painel).
+- Badge roxo `⚖️ Julia` se `custom_fields.links.julia` existir → clique navega para `/crm/leads?card=<id>` ou abre `CRMLeadDetailsDialog`.
+- Ambos podem coexistir.
 
-Cada chamada grava `{client_id, cod_agent, entity_type, entity_id, entity_name, action, changes}` (silent-fail, igual ao `crm_deal_history`).
+**Comportamento no clique do card (DealDetailsSheet)**
+- Adicionar nova seção **"Vínculos"** com:
+  - Bloco Chat: avatar + nome + último snippet (busca em `chat_conversations` por id) + botão **"Abrir conversa"**.
+  - Bloco Julia: nome + estágio atual + botão **"Ver detalhes do lead Julia"** que abre o `CRMLeadDetailsDialog` reutilizado de `src/pages/crm/`.
 
-### 2.3 Hook `useCRMAuditLog`
-Novo hook em `src/pages/crm-builder/hooks/useCRMAuditLog.ts`:
-- Recebe `{ clientId, boardId?, entityType?, limit }`.
-- `SELECT * FROM crm_audit_log WHERE client_id=$1 [AND ...] ORDER BY created_at DESC LIMIT 100`.
-- Retorna entradas com `cod_agent`, `entity_type`, `entity_name`, `action`, `created_at`, `changes`.
+## 4. Hook utilitário `useCardLinks`
+Novo: `src/pages/crm-builder/hooks/useCardLinks.ts`
+- `getChatLink(deal)` / `getJuliaLink(deal)` — extraem de `custom_fields.links`.
+- `useJuliaCardPreview(whatsapp, codAgent)` — React Query que busca `crm_atendimento_cards` no banco externo via Edge Function existente (`db-query`) para popular o painel de detalhes.
+- `useChatConversationPreview(conversationId)` — busca em `chat_conversations` (Supabase) — last_message_at, snippet.
 
-### 2.4 UI — aba "Auditoria"
-- Em `BoardSettingsSheet.tsx` (settings do board) adicionar nova tab **Auditoria** ao lado de Custom Fields e Automações, **só renderizada se `canManage`** (dono/admin).
-- Componente `AuditLogPanel`:
-  - Lista cronológica (timeline) com badge da entidade (Board / Pipeline / Automação / Campo), ação (criou/editou/arquivou/removeu), nome, `cod_agent` (quem fez), e `created_at` formatado (`dd/MM/yyyy HH:mm`).
-  - Filtros simples: tipo de entidade, ação.
-  - Empty state amigável.
-- Em `CRMBuilderPage` (grid de boards), adicionar botão "Auditoria" no header **só para `canManage`** abrindo um Sheet/Dialog com auditoria global do `client_id` (todos os boards).
+## 5. Detecção automática Julia ao abrir o sheet
+Ao abrir `CreateCrmCardSheet`, dispara consulta em paralelo:
+```sql
+SELECT id, contact_name, stage_id, stage_name 
+FROM crm_atendimento_cards 
+WHERE whatsapp_number = $1 AND cod_agent = $2 LIMIT 1;
+```
+via `db-query` Edge Function. Se encontrar, mostra opção "Vincular ao card existente da Julia (#ID — etapa)".
 
-## 3. Hardening do realtime (defesa em profundidade)
-
-Ajustar todos os hooks para que a subscription:
-1. Inclua `client_id` no nome do canal (evita colisão entre clientes que abrem o mesmo board id por engano em multi-tenant).
-2. Não confie em `board_id` global — manter filtro server-side por `board_id` (e deixar filtragem de `client_id` redundante via re-fetch, que já lê `.eq('client_id', clientId)`).
-
-Mudanças concretas:
-
-| Hook | Canal antes | Canal depois | Filtro server-side |
-|---|---|---|---|
-| `useCRMBoards` | `crm-boards-changes` | `crm-boards-${clientId}` | `client_id=eq.${clientId}` (já tem) |
-| `useCRMPipelines` | `crm-pipelines-${boardId}` | `crm-pipelines-${clientId}-${boardId}` | `board_id=eq.${boardId}` (mantém; refetch reaplica `client_id`) |
-| `useCRMDeals` | `crm-deals-${boardId}` | `crm-deals-${clientId}-${boardId}` | `board_id=eq.${boardId}` |
-| `useCRMCustomFields` | `crm-custom-fields-${boardId}` | `crm-custom-fields-${clientId}-${boardId}` | `board_id=eq.${boardId}` |
-| `useCRMAutomations` | `crm-automations-${boardId}` | `crm-automations-${clientId}-${boardId}` | `board_id=eq.${boardId}` |
-
-Também adicionar guard `if (!clientId) return;` em todos os `useEffect` de subscription (alguns só checam `boardId`).
-
-Justificativa para manter filtro server-side por `board_id` em vez de `client_id`: o realtime do Postgres só aceita 1 filtro `eq` por subscription. Como `board_id` é mais seletivo (notifica só do board aberto) e o `fetchX` já restringe leituras por `client_id`, mantemos `board_id` no filtro e usamos `client_id` no nome do canal para evitar conflito de canais entre tenants.
-
-## 4. Memória
-
-Atualizar `mem://features/crm/builder-client-scope.md` adicionando:
-- Existência de `crm_audit_log`.
-- Padrão de canal realtime `crm-<entity>-${clientId}-${boardId}`.
-
-## 5. Validações pós-deploy
-
-- Editar nome de um board como dono → entrada aparece em Auditoria com `cod_agent` e timestamp.
-- Arquivar pipeline → linha "archived" no log.
-- Criar automação e togglar ativo → 2 linhas no log.
-- Membro da equipe não vê o botão "Auditoria" nem a tab.
-- Abrir 2 navegadores com `client_id`s diferentes — subscriptions não colidem (canais separados).
-
-## Arquivos a editar/criar
-
+## 6. Arquivos afetados
 **Criar**
-- `supabase/migrations/<ts>_crm_audit_log.sql`
-- `src/pages/crm-builder/hooks/useCRMAuditLog.ts`
-- `src/pages/crm-builder/components/audit/AuditLogPanel.tsx`
-- `/mnt/documents/crm-builder-backfill-report.md` (artifact)
+- `src/components/chat/CreateCrmCardSheet.tsx` (substitui o dialog)
+- `src/pages/crm-builder/hooks/useCardLinks.ts`
+- `src/pages/crm-builder/components/deals/DealLinksSection.tsx` (seção "Vínculos" no DealDetailsSheet)
 
-**Editar**
-- `src/pages/crm-builder/hooks/useCRMBoards.ts` (audit + canal realtime)
-- `src/pages/crm-builder/hooks/useCRMPipelines.ts` (audit + canal realtime)
-- `src/pages/crm-builder/hooks/useCRMDeals.ts` (canal realtime)
-- `src/pages/crm-builder/hooks/useCRMCustomFields.ts` (audit + canal realtime)
-- `src/pages/crm-builder/hooks/useCRMAutomations.ts` (audit + canal realtime)
-- `src/pages/crm-builder/components/settings/BoardSettingsSheet.tsx` (nova tab Auditoria)
-- `src/pages/crm-builder/CRMBuilderPage.tsx` (botão Auditoria global p/ dono/admin)
-- `mem/features/crm/builder-client-scope.md`
+**Modificar**
+- `src/components/chat/ChatHeader.tsx` — trocar label, importar novo sheet, remover `CreateCrmLeadDialog`.
+- `src/pages/crm-builder/components/deals/DealCard.tsx` — adicionar badges de vínculo + handlers de navegação.
+- `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx` — incluir `<DealLinksSection deal={deal} />`.
 
-## Fora do escopo
-- Não vamos habilitar RLS nas tabelas `crm_*` (mantém padrão atual).
-- Não vamos auditar mudanças em `crm_deals` (já existe `crm_deal_history`).
+**Remover (após validação)**
+- `src/components/chat/CreateCrmLeadDialog.tsx`
+
+## 7. Memória a salvar
+Após implementação:
+- `mem://features/crm/builder-card-link-types` — descreve schema `custom_fields.links.{chat,julia}`, badges no DealCard, navegação cross-módulo.
+
+---
+
+## Pontos a confirmar com o usuário antes de executar
+1. **Quando o vínculo Julia existir**, o card deve **espelhar** automaticamente movimentações (mover deal quando o card Julia mudar de fase) ou ficar apenas com o **link de leitura**?
+2. **Botão "Abrir conversa"** no DealDetailsSheet do CRM Builder — devo navegar para `/chat?conversation=<id>` (rota existe?) ou abrir um drawer interno?
+3. **Edição posterior**: usuário poderá adicionar/remover vínculos depois de criado o card (via `DealLinksSection`)?
