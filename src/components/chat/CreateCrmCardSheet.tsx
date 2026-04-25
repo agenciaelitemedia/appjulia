@@ -249,6 +249,8 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
       toast.success('Card criado no CRM');
       // Invalida o link do CRM no header do chat para refletir a cor de vínculo imediatamente
       await queryClient.invalidateQueries({ queryKey: ['chat-deal-link', conversationId, clientId] });
+      // Invalida o set de conversas vinculadas para que a lista de conversas atualize o badge CRM
+      await queryClient.invalidateQueries({ queryKey: ['crm-builder-linked-conversations', clientId] });
       onOpenChange(false);
     } catch (err) {
       console.error(err);
