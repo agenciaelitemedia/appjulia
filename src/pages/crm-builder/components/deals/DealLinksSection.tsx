@@ -12,7 +12,7 @@ import {
 } from '../../hooks/useCardLinks';
 import type { CRMDeal } from '../../types';
 import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialog';
-import { useCRMStages } from '@/pages/crm/hooks/useCRMStages';
+import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import type { CRMCard } from '@/pages/crm/types';
 
 interface Props { deal: CRMDeal }
