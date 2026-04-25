@@ -221,6 +221,7 @@ export function ChatList() {
     [filteredContacts]
   );
   const { data: stageByPhone } = useCRMStageByPhone(allPhones);
+  const { data: crmBuilderPhones } = useCRMBuilderPhones();
 
   const stageSet = React.useMemo(() => new Set(stageIds), [stageIds]);
   const allStagesSelected = stages.length > 0 && stageIds.length === stages.length;
