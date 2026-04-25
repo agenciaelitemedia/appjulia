@@ -14,16 +14,18 @@ import { toast } from 'sonner';
 import { Globe, Instagram, Copy, Check, Code, Palette, Settings2, Eye } from 'lucide-react';
 import { WebChatWidgetPreview } from './WebChatWidgetPreview';
 
-export function ChatChannelsConfig() {
+export function ChatChannelsConfig({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('webchat');
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground">Canais de Atendimento</h2>
-        <p className="text-muted-foreground">Configure os canais de entrada para o chat omnichannel</p>
-      </div>
+    <div className={embedded ? 'space-y-6' : 'p-6 max-w-5xl mx-auto space-y-6'}>
+      {!embedded && (
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Canais de Atendimento</h2>
+          <p className="text-muted-foreground">Configure os canais de entrada para o chat omnichannel</p>
+        </div>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-2">
