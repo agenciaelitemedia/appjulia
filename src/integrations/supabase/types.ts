@@ -5361,6 +5361,8 @@ export type Database = {
       }
     }
     Functions: {
+      map_priority_chat_to_crm: { Args: { p: string }; Returns: string }
+      map_priority_crm_to_chat: { Args: { p: string }; Returns: string }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       uazapi_pick_pending_items: {
