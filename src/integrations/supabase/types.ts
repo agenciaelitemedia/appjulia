@@ -2503,6 +2503,7 @@ export type Database = {
           action_data: Json | null
           action_type: string
           board_id: string
+          client_id: string | null
           cod_agent: string
           conditions: Json | null
           created_at: string
@@ -2525,6 +2526,7 @@ export type Database = {
           action_data?: Json | null
           action_type?: string
           board_id: string
+          client_id?: string | null
           cod_agent: string
           conditions?: Json | null
           created_at?: string
@@ -2547,6 +2549,7 @@ export type Database = {
           action_data?: Json | null
           action_type?: string
           board_id?: string
+          client_id?: string | null
           cod_agent?: string
           conditions?: Json | null
           created_at?: string
@@ -2591,6 +2594,7 @@ export type Database = {
       }
       crm_boards: {
         Row: {
+          client_id: string | null
           cod_agent: string
           color: string | null
           created_at: string
@@ -2605,6 +2609,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          client_id?: string | null
           cod_agent: string
           color?: string | null
           created_at?: string
@@ -2619,6 +2624,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          client_id?: string | null
           cod_agent?: string
           color?: string | null
           created_at?: string
@@ -2916,6 +2922,7 @@ export type Database = {
       crm_custom_fields: {
         Row: {
           board_id: string
+          client_id: string | null
           cod_agent: string
           created_at: string
           default_value: string | null
@@ -2931,6 +2938,7 @@ export type Database = {
         }
         Insert: {
           board_id: string
+          client_id?: string | null
           cod_agent: string
           created_at?: string
           default_value?: string | null
@@ -2946,6 +2954,7 @@ export type Database = {
         }
         Update: {
           board_id?: string
+          client_id?: string | null
           cod_agent?: string
           created_at?: string
           default_value?: string | null
@@ -3031,6 +3040,7 @@ export type Database = {
         Row: {
           assigned_to: string | null
           board_id: string
+          client_id: string | null
           cod_agent: string
           contact_email: string | null
           contact_name: string | null
@@ -3055,6 +3065,7 @@ export type Database = {
         Insert: {
           assigned_to?: string | null
           board_id: string
+          client_id?: string | null
           cod_agent: string
           contact_email?: string | null
           contact_name?: string | null
@@ -3079,6 +3090,7 @@ export type Database = {
         Update: {
           assigned_to?: string | null
           board_id?: string
+          client_id?: string | null
           cod_agent?: string
           contact_email?: string | null
           contact_name?: string | null
@@ -3150,6 +3162,7 @@ export type Database = {
       crm_pipelines: {
         Row: {
           board_id: string
+          client_id: string | null
           cod_agent: string
           color: string | null
           created_at: string
@@ -3162,6 +3175,7 @@ export type Database = {
         }
         Insert: {
           board_id: string
+          client_id?: string | null
           cod_agent: string
           color?: string | null
           created_at?: string
@@ -3174,6 +3188,7 @@ export type Database = {
         }
         Update: {
           board_id?: string
+          client_id?: string | null
           cod_agent?: string
           color?: string | null
           created_at?: string
