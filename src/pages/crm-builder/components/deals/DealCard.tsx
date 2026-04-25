@@ -370,6 +370,29 @@ export function DealCard({
           <span className="text-[9px]">🇧🇷 Brasília</span>
         </div>
       </CardContent>
+      <AlertDialog open={confirmArchive} onOpenChange={setConfirmArchive}>
+        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {isLinked ? 'Excluir card?' : 'Arquivar card?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {isLinked
+                ? `Isso removerá o card "${deal.title}" do CRM. A conversa vinculada não será afetada. Esta ação não pode ser desfeita.`
+                : `O card "${deal.title}" será arquivado e não aparecerá mais no funil. Você poderá restaurá-lo depois.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.stopPropagation(); onArchive(); setConfirmArchive(false); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isLinked ? 'Excluir' : 'Arquivar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
