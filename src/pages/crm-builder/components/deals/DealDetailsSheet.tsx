@@ -11,11 +11,20 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { TeamMemberSelect } from '@/components/TeamMemberSelect';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { 
   Archive,
   Calendar,
@@ -94,6 +103,7 @@ export function DealDetailsSheet({
   const [savingField, setSavingField] = useState<null | 'assignee' | 'description' | 'value'>(null);
   const [stagesExpanded, setStagesExpanded] = useState(false);
   const [movingToStage, setMovingToStage] = useState<string | null>(null);
+  const [confirmArchive, setConfirmArchive] = useState(false);
   
   // Mesma fonte usada na página Equipe (vw_equipe filtrada por client_id),
   // que inclui o dono/responsável principal e todos os membros do mesmo cliente.
@@ -183,24 +193,14 @@ export function DealDetailsSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col">
-        <SheetHeader className="p-6 pb-4 border-b">
+      <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col h-full">
+        {/* Header — fixo no topo */}
+        <SheetHeader className="p-6 pb-4 border-b shrink-0">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
-              <SheetTitle className="text-lg font-semibold line-clamp-2">
+              <SheetTitle className="text-xl font-semibold line-clamp-2">
                 {deal.title}
               </SheetTitle>
-              {pipeline && (
-                <div className="flex items-center gap-2 mt-2">
-                  <div 
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: pipeline.color }}
-                  />
-                  <span className="text-sm text-muted-foreground">
-                    {pipeline.name}
-                  </span>
-                </div>
-              )}
             </div>
             <Badge 
               variant="outline"
@@ -213,7 +213,7 @@ export function DealDetailsSheet({
 
         {/* Bloco Etapas (acima das abas) — só renderiza quando há stages + onMoveToStage */}
         {showStagesBlock && (
-          <div className="px-6 py-3 border-b bg-muted/20">
+          <div className="px-6 py-3 border-b bg-muted/20 shrink-0">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -282,8 +282,9 @@ export function DealDetailsSheet({
           </div>
         )}
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-          <div className="px-6 pt-4">
+        {/* Tabs + conteúdo central — única área que rola */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+          <div className="px-6 pt-4 shrink-0">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="details" className="gap-2">
                 <FileText className="h-4 w-4" />
@@ -296,7 +297,7 @@ export function DealDetailsSheet({
             </TabsList>
           </div>
 
-          <ScrollArea className="flex-1">
+          <div className="flex-1 overflow-y-auto min-h-0">
             <TabsContent value="details" className="p-6 pt-4 m-0 space-y-6">
               {/* 1. Vínculos */}
               <DealLinksSection deal={deal} />
@@ -565,67 +566,97 @@ export function DealDetailsSheet({
                 onAddNote={addNote}
               />
             </TabsContent>
-          </ScrollArea>
+          </div>
         </Tabs>
 
-        {/* Actions Footer */}
-        <div className="p-4 border-t space-y-2">
-          <div className="flex gap-2">
-            {!isLinked && !hideStatusActions && (
-              <Button
-                variant="outline"
-                className="flex-1"
+        {/* Footer — sempre fixo, contextual (Chat vs CRM) */}
+        <div className="p-4 border-t shrink-0 bg-background space-y-2">
+          {footerExtra ? (
+            // Modo Chat: usa exatamente o que o consumidor passar
+            footerExtra
+          ) : (
+            <>
+              {/* Linha 1: Editar | Perdido | Ganho */}
+              {!hideStatusActions && deal.status === 'open' && (
+                <div className="grid grid-cols-3 gap-2">
+                  {!isLinked && (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        onOpenChange(false);
+                        onEdit();
+                      }}
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Editar
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    onClick={() => {
+                      onLost();
+                      onOpenChange(false);
+                    }}
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Perdido
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                    onClick={() => {
+                      onWon();
+                      onOpenChange(false);
+                    }}
+                  >
+                    <Trophy className="h-4 w-4 mr-2" />
+                    Ganho
+                  </Button>
+                </div>
+              )}
+              {/* Linha 2: Arquivar (com confirmação) */}
+              {!hideArchiveAction && (
+                <Button
+                  variant="ghost"
+                  className="w-full text-destructive hover:bg-destructive/10"
+                  onClick={() => setConfirmArchive(true)}
+                >
+                  <Archive className="h-4 w-4 mr-2" />
+                  {isLinked ? 'Excluir card' : 'Arquivar Deal'}
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+
+        <AlertDialog open={confirmArchive} onOpenChange={setConfirmArchive}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {isLinked ? 'Excluir este card?' : 'Arquivar este card?'}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {isLinked
+                  ? `O card "${deal.title}" será removido. Essa ação não pode ser desfeita.`
+                  : `O card "${deal.title}" será arquivado e removido do board. Você poderá restaurá-lo depois em arquivados.`}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 onClick={() => {
+                  setConfirmArchive(false);
+                  onArchive();
                   onOpenChange(false);
-                  onEdit();
                 }}
               >
-                <Edit className="h-4 w-4 mr-2" />
-                Editar
-              </Button>
-            )}
-            {!hideStatusActions && deal.status === 'open' && (
-              <>
-                <Button 
-                  variant="outline"
-                  className="flex-1 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-                  onClick={() => {
-                    onWon();
-                    onOpenChange(false);
-                  }}
-                >
-                  <Trophy className="h-4 w-4 mr-2" />
-                  Ganho
-                </Button>
-                <Button 
-                  variant="outline"
-                  className="flex-1 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                  onClick={() => {
-                    onLost();
-                    onOpenChange(false);
-                  }}
-                >
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Perdido
-                </Button>
-              </>
-            )}
-          </div>
-          {!hideArchiveAction && (
-            <Button 
-              variant="ghost" 
-              className="w-full text-destructive hover:bg-destructive/10"
-              onClick={() => {
-                onArchive();
-                onOpenChange(false);
-              }}
-            >
-              <Archive className="h-4 w-4 mr-2" />
-              {isLinked ? 'Excluir card' : 'Arquivar Deal'}
-            </Button>
-          )}
-          {footerExtra}
-        </div>
+                {isLinked ? 'Excluir card' : 'Arquivar'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SheetContent>
     </Sheet>
   );
