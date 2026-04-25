@@ -231,12 +231,12 @@ export const ChatContactItem = React.memo(function ChatContactItem({
           <div className="flex items-stretch gap-0 flex-shrink-0 mr-2">
             {queueName && (
               <Pill
-                label={queueName.toUpperCase()}
+                label={toTitleCase(queueName)}
                 className="bg-blue-600 text-white rounded-l w-[110px]"
               />
             )}
             <Pill
-              label={assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO'}
+              label={assignedAgentName ? toTitleCase(assignedAgentName) : 'Não Atribuído'}
               className={cn(
                 'w-[110px]',
                 'bg-slate-100 text-slate-900',
