@@ -42,3 +42,16 @@ Cadeia de fallback: prop `codAgent` (conversa) → `useQueueAgentLink(queueId)` 
 - `ChatLinkedDealSheet` permite mover o card entre etapas do mesmo board direto pelo chat (via `Select` → `UPDATE crm_deals.pipeline_id` + history `moved`), exibe vínculo Julia ao vivo (`useJuliaCardPreview`), e tem botão "Abrir no CRM" navegando para `/crm-builder/{boardId}?deal={dealId}`.
 - O item "Criar Card no CRM" do menu MoreVertical foi removido — acesso exclusivo pelo botão.
 - Detecção do vínculo via `useChatDealLink(conversationId, clientId)` que faz `contains('custom_fields', { links: { chat: { conversation_id } } })` em `crm_deals` (status != archived).
+
+**Painel de chat lateral no CRM Builder Board:**
+- `DealCard` exibe ícone WhatsApp verde (clicável, `MessageCircle`) ao lado do título quando há `chatLink`. Click chama prop `onOpenChat(deal)` repassada pelo `BoardPage` → abre `BoardChatSidePanel` à direita do kanban (largura 420/480px), empurrando o conteúdo (não é overlay).
+- `BoardChatSidePanel` monta `WhatsAppDataProvider` isolado e renderiza `ChatHeader + ChatMessages + ChatInput` reaproveitando 100% o módulo `/chat`. `selectContact(contactId)` é chamado automaticamente no mount. `Esc` fecha o painel.
+- `useDealConversation(deal)` resolve `conversation_id`, `contact_id`, `queue_id`, `queue_name`, `assigned_to`, `priority` e `status` da conversa vinculada.
+- Badges sempre presentes no `DealCard` (substituíram o badge textual de prioridade): ícone `Flag` colorido por prioridade (cinza/azul/laranja/vermelho), badge de responsável (`assigned_to` ou "Não atribuído" cinza), e — apenas se vinculado — badge de fila com nome resolvido via `queues.name`.
+
+**Sincronização bidirecional `assigned_to` + `priority` (DB triggers):**
+- Coluna `crm_deals.assigned_to text` + índice GIN `idx_crm_deals_chat_link` em `(custom_fields->'links'->'chat')`.
+- Funções `public.map_priority_chat_to_crm(text)` e `public.map_priority_crm_to_chat(text)` mapeiam `medium ↔ normal` (demais valores idênticos). Espelhadas em TS no `src/lib/crm/priorityMap.ts`.
+- Triggers `trg_sync_deal_to_conversation` e `trg_sync_conversation_to_deal` propagam `assigned_to` e `priority` em ambas direções, com guarda `pg_trigger_depth() <= 1` para evitar loop.
+- Backfill executado na migration: cards já vinculados herdam `assigned_to` e `priority` da conversa.
+- Consequência: assumir conversa pelo chat atualiza o responsável do card; mudar prioridade no CRM Builder atualiza no chat.
