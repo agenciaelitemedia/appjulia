@@ -25,6 +25,8 @@ export default function CRMBuilderPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const codAgent = user?.cod_agent?.toString() || '';
+  const clientId = user?.client_id ? String(user.client_id) : '';
+  const canManage = user?.role === 'user' || user?.role === 'admin';
 
   const {
     boards,
@@ -33,7 +35,7 @@ export default function CRMBuilderPage() {
     createBoard,
     updateBoard,
     archiveBoard,
-  } = useCRMBoards({ codAgent });
+  } = useCRMBoards({ clientId, codAgent, canManage });
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingBoard, setEditingBoard] = useState<CRMBoard | null>(null);
@@ -104,6 +106,7 @@ export default function CRMBuilderPage() {
         onBoardEdit={setEditingBoard}
         onBoardArchive={setArchivingBoard}
         onCreateClick={() => setIsCreateDialogOpen(true)}
+        canManage={canManage}
       />
 
       {/* Create Board Dialog */}

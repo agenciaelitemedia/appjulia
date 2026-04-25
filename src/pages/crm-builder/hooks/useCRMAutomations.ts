@@ -18,6 +18,7 @@ export interface CRMAutomationRule {
   id: string;
   board_id: string;
   cod_agent: string;
+  client_id?: string;
   name: string;
   description?: string;
   is_active: boolean;
@@ -54,10 +55,12 @@ export interface CRMAutomationRuleFormData {
 
 interface UseCRMAutomationsOptions {
   boardId: string | null;
+  clientId: string;
   codAgent: string;
+  canManage?: boolean;
 }
 
-export function useCRMAutomations({ boardId, codAgent }: UseCRMAutomationsOptions) {
+export function useCRMAutomations({ boardId, clientId, codAgent, canManage = true }: UseCRMAutomationsOptions) {
   const { toast } = useToast();
   const [rules, setRules] = useState<CRMAutomationRule[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -65,7 +68,7 @@ export function useCRMAutomations({ boardId, codAgent }: UseCRMAutomationsOption
 
   // Fetch all automation rules for the board
   const fetchRules = useCallback(async () => {
-    if (!boardId || !codAgent) {
+    if (!boardId || !clientId) {
       setRules([]);
       return;
     }
@@ -78,7 +81,7 @@ export function useCRMAutomations({ boardId, codAgent }: UseCRMAutomationsOption
         .from('crm_automation_rules')
         .select('*')
         .eq('board_id', boardId)
-        .eq('cod_agent', codAgent)
+        .eq('client_id', clientId)
         .order('position', { ascending: true });
 
       if (queryError) throw queryError;
@@ -119,11 +122,11 @@ export function useCRMAutomations({ boardId, codAgent }: UseCRMAutomationsOption
     } finally {
       setIsLoading(false);
     }
-  }, [boardId, codAgent, toast]);
+  }, [boardId, clientId, toast]);
 
   // Create a new automation rule
   const createRule = useCallback(async (data: CRMAutomationRuleFormData): Promise<CRMAutomationRule | null> => {
-    if (!boardId || !codAgent) return null;
+    if (!boardId || !clientId || !canManage) return null;
 
     try {
       const maxPosition = rules.length > 0 
@@ -132,6 +135,7 @@ export function useCRMAutomations({ boardId, codAgent }: UseCRMAutomationsOption
 
       const insertPayload = {
         board_id: boardId,
+        client_id: clientId,
         cod_agent: codAgent,
         name: data.name,
         description: data.description || null,
@@ -196,10 +200,11 @@ export function useCRMAutomations({ boardId, codAgent }: UseCRMAutomationsOption
       });
       return null;
     }
-  }, [boardId, codAgent, rules, toast]);
+  }, [boardId, clientId, codAgent, canManage, rules, toast]);
 
   // Update an automation rule
   const updateRule = useCallback(async (ruleId: string, data: Partial<CRMAutomationRuleFormData>): Promise<boolean> => {
+    if (!canManage) return false;
     try {
       const updatePayload: Record<string, unknown> = {};
       
@@ -244,7 +249,7 @@ export function useCRMAutomations({ boardId, codAgent }: UseCRMAutomationsOption
       });
       return false;
     }
-  }, [toast]);
+  }, [canManage, toast]);
 
   // Toggle rule active status
   const toggleRuleActive = useCallback(async (ruleId: string): Promise<boolean> => {
@@ -256,6 +261,7 @@ export function useCRMAutomations({ boardId, codAgent }: UseCRMAutomationsOption
 
   // Delete an automation rule
   const deleteRule = useCallback(async (ruleId: string): Promise<boolean> => {
+    if (!canManage) return false;
     try {
       const { error: deleteError } = await supabase
         .from('crm_automation_rules')
@@ -281,11 +287,11 @@ export function useCRMAutomations({ boardId, codAgent }: UseCRMAutomationsOption
       });
       return false;
     }
-  }, [toast]);
+  }, [canManage, toast]);
 
   // Set up realtime subscription
   useEffect(() => {
-    if (!boardId || !codAgent) return;
+    if (!boardId || !clientId) return;
 
     const channel = supabase
       .channel(`crm-automations-${boardId}`)
@@ -306,7 +312,7 @@ export function useCRMAutomations({ boardId, codAgent }: UseCRMAutomationsOption
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [boardId, codAgent, fetchRules]);
+  }, [boardId, clientId, fetchRules]);
 
   // Fetch on board change
   useEffect(() => {

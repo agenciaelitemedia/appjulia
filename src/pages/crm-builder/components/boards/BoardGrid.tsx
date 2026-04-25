@@ -11,6 +11,7 @@ interface BoardGridProps {
   onBoardEdit: (board: CRMBoard) => void;
   onBoardArchive: (board: CRMBoard) => void;
   onCreateClick: () => void;
+  canManage?: boolean;
 }
 
 export function BoardGrid({
@@ -20,6 +21,7 @@ export function BoardGrid({
   onBoardEdit,
   onBoardArchive,
   onCreateClick,
+  canManage = true,
 }: BoardGridProps) {
   if (isLoading) {
     return (
@@ -40,20 +42,23 @@ export function BoardGrid({
           onClick={() => onBoardClick(board)}
           onEdit={() => onBoardEdit(board)}
           onArchive={() => onBoardArchive(board)}
+          canManage={canManage}
         />
       ))}
       
       {/* Create new board card */}
-      <Button
-        variant="outline"
-        className="h-40 border-2 border-dashed hover:border-primary hover:bg-primary/5 transition-all"
-        onClick={onCreateClick}
-      >
-        <div className="flex flex-col items-center gap-2 text-muted-foreground">
-          <Plus className="h-8 w-8" />
-          <span className="font-medium">Novo Board</span>
-        </div>
-      </Button>
+      {canManage && (
+        <Button
+          variant="outline"
+          className="h-40 border-2 border-dashed hover:border-primary hover:bg-primary/5 transition-all"
+          onClick={onCreateClick}
+        >
+          <div className="flex flex-col items-center gap-2 text-muted-foreground">
+            <Plus className="h-8 w-8" />
+            <span className="font-medium">Novo Board</span>
+          </div>
+        </Button>
+      )}
     </div>
   );
 }

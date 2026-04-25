@@ -10,6 +10,7 @@ export type DealHistoryAction = 'created' | 'moved' | 'updated' | 'note_added' |
 export interface CRMBoard {
   id: string;
   cod_agent: string;
+  client_id: string;
   name: string;
   description?: string;
   icon: string;
@@ -34,6 +35,7 @@ export interface CRMPipeline {
   id: string;
   board_id: string;
   cod_agent: string;
+  client_id: string;
   name: string;
   color: string;
   position: number;
@@ -58,6 +60,7 @@ export interface CRMDeal {
   pipeline_id: string;
   board_id: string;
   cod_agent: string;
+  client_id: string;
   title: string;
   description?: string;
   value: number;

@@ -36,16 +36,17 @@ import { FIELD_TYPE_CONFIG } from './DynamicFieldRenderer';
 interface CustomFieldsManagerProps {
   boardId: string;
   codAgent: string;
+  clientId: string;
 }
 
-export function CustomFieldsManager({ boardId, codAgent }: CustomFieldsManagerProps) {
+export function CustomFieldsManager({ boardId, codAgent, clientId }: CustomFieldsManagerProps) {
   const {
     fields,
     isLoading,
     createField,
     updateField,
     deleteField,
-  } = useCRMCustomFields({ boardId, codAgent });
+  } = useCRMCustomFields({ boardId, clientId, codAgent });
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingField, setEditingField] = useState<CRMCustomField | null>(null);

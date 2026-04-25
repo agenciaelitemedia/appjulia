@@ -6,10 +6,11 @@ import type { Json } from '@/integrations/supabase/types';
 
 interface UseCRMDealsOptions {
   boardId: string | null;
+  clientId: string;
   codAgent: string;
 }
 
-export function useCRMDeals({ boardId, codAgent }: UseCRMDealsOptions) {
+export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions) {
   const { toast } = useToast();
   const [deals, setDeals] = useState<CRMDeal[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -17,7 +18,7 @@ export function useCRMDeals({ boardId, codAgent }: UseCRMDealsOptions) {
 
   // Fetch all deals for the board
   const fetchDeals = useCallback(async () => {
-    if (!boardId || !codAgent) {
+    if (!boardId || !clientId) {
       setDeals([]);
       return;
     }
@@ -30,7 +31,7 @@ export function useCRMDeals({ boardId, codAgent }: UseCRMDealsOptions) {
         .from('crm_deals')
         .select('*')
         .eq('board_id', boardId)
-        .eq('cod_agent', codAgent)
+        .eq('client_id', clientId)
         .neq('status', 'archived')
         .order('position', { ascending: true });
 
@@ -48,7 +49,7 @@ export function useCRMDeals({ boardId, codAgent }: UseCRMDealsOptions) {
     } finally {
       setIsLoading(false);
     }
-  }, [boardId, codAgent, toast]);
+  }, [boardId, clientId, toast]);
 
   // Get deals by pipeline
   const getDealsByPipeline = useCallback((pipelineId: string) => {
@@ -59,7 +60,7 @@ export function useCRMDeals({ boardId, codAgent }: UseCRMDealsOptions) {
 
   // Create a new deal
   const createDeal = useCallback(async (pipelineId: string, data: CRMDealFormData): Promise<CRMDeal | null> => {
-    if (!boardId || !codAgent) return null;
+    if (!boardId || !clientId) return null;
 
     try {
       // Get the max position in the pipeline
@@ -71,6 +72,7 @@ export function useCRMDeals({ boardId, codAgent }: UseCRMDealsOptions) {
       const insertPayload = {
         pipeline_id: pipelineId,
         board_id: boardId,
+        client_id: clientId,
         cod_agent: codAgent,
         title: data.title,
         description: data.description || null,
@@ -115,7 +117,7 @@ export function useCRMDeals({ boardId, codAgent }: UseCRMDealsOptions) {
       });
       return null;
     }
-  }, [boardId, codAgent, deals, toast]);
+  }, [boardId, clientId, codAgent, deals, toast]);
 
   // Update a deal
   const updateDeal = useCallback(async (dealId: string, data: Partial<CRMDealFormData>): Promise<boolean> => {
@@ -329,7 +331,7 @@ export function useCRMDeals({ boardId, codAgent }: UseCRMDealsOptions) {
 
   // Set up realtime subscription
   useEffect(() => {
-    if (!boardId || !codAgent) return;
+    if (!boardId || !clientId) return;
 
     const channel = supabase
       .channel(`crm-deals-${boardId}`)
@@ -350,7 +352,7 @@ export function useCRMDeals({ boardId, codAgent }: UseCRMDealsOptions) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [boardId, codAgent, fetchDeals]);
+  }, [boardId, clientId, fetchDeals]);
 
   // Fetch on board change
   useEffect(() => {

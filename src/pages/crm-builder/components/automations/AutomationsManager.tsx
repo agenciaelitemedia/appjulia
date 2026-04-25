@@ -10,16 +10,19 @@ import type { CRMPipeline } from '../../types';
 interface AutomationsManagerProps {
   boardId: string;
   codAgent: string;
+  clientId: string;
   pipelines: CRMPipeline[];
 }
 
 export function AutomationsManager({
   boardId,
   codAgent,
+  clientId,
   pipelines,
 }: AutomationsManagerProps) {
   const { rules, isLoading, createRule, updateRule, deleteRule, toggleRuleActive } = useCRMAutomations({
     boardId,
+    clientId,
     codAgent,
   });
 

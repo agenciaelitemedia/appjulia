@@ -64,9 +64,10 @@ interface BoardCardProps {
   onClick: () => void;
   onEdit: () => void;
   onArchive: () => void;
+  canManage?: boolean;
 }
 
-export function BoardCard({ board, onClick, onEdit, onArchive }: BoardCardProps) {
+export function BoardCard({ board, onClick, onEdit, onArchive, canManage = true }: BoardCardProps) {
   const IconComponent = iconMap[board.icon] || LayoutDashboard;
 
   return (
@@ -87,6 +88,7 @@ export function BoardCard({ board, onClick, onEdit, onArchive }: BoardCardProps)
             />
           </div>
           
+          {canManage && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
               <Button 
@@ -116,6 +118,7 @@ export function BoardCard({ board, onClick, onEdit, onArchive }: BoardCardProps)
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
         </div>
 
         <h3 className="font-semibold text-lg text-foreground mb-1">

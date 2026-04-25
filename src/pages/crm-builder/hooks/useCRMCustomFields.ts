@@ -14,6 +14,7 @@ export interface CRMCustomField {
   id: string;
   board_id: string;
   cod_agent: string;
+  client_id?: string;
   field_name: string;
   field_label: string;
   field_type: FieldType;
@@ -37,10 +38,12 @@ export interface CRMCustomFieldFormData {
 
 interface UseCRMCustomFieldsOptions {
   boardId: string | null;
+  clientId: string;
   codAgent: string;
+  canManage?: boolean;
 }
 
-export function useCRMCustomFields({ boardId, codAgent }: UseCRMCustomFieldsOptions) {
+export function useCRMCustomFields({ boardId, clientId, codAgent, canManage = true }: UseCRMCustomFieldsOptions) {
   const { toast } = useToast();
   const [fields, setFields] = useState<CRMCustomField[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -48,7 +51,7 @@ export function useCRMCustomFields({ boardId, codAgent }: UseCRMCustomFieldsOpti
 
   // Fetch all custom fields for the board
   const fetchFields = useCallback(async () => {
-    if (!boardId || !codAgent) {
+    if (!boardId || !clientId) {
       setFields([]);
       return;
     }
@@ -61,7 +64,7 @@ export function useCRMCustomFields({ boardId, codAgent }: UseCRMCustomFieldsOpti
         .from('crm_custom_fields')
         .select('*')
         .eq('board_id', boardId)
-        .eq('cod_agent', codAgent)
+        .eq('client_id', clientId)
         .order('position', { ascending: true });
 
       if (queryError) throw queryError;
@@ -95,11 +98,11 @@ export function useCRMCustomFields({ boardId, codAgent }: UseCRMCustomFieldsOpti
     } finally {
       setIsLoading(false);
     }
-  }, [boardId, codAgent, toast]);
+  }, [boardId, clientId, toast]);
 
   // Create a new custom field
   const createField = useCallback(async (data: CRMCustomFieldFormData): Promise<CRMCustomField | null> => {
-    if (!boardId || !codAgent) return null;
+    if (!boardId || !clientId || !canManage) return null;
 
     try {
       // Get the max position
@@ -109,6 +112,7 @@ export function useCRMCustomFields({ boardId, codAgent }: UseCRMCustomFieldsOpti
 
       const insertData = {
         board_id: boardId,
+        client_id: clientId,
         cod_agent: codAgent,
         field_name: data.field_name,
         field_label: data.field_label,
@@ -160,10 +164,11 @@ export function useCRMCustomFields({ boardId, codAgent }: UseCRMCustomFieldsOpti
       });
       return null;
     }
-  }, [boardId, codAgent, fields, toast]);
+  }, [boardId, clientId, codAgent, canManage, fields, toast]);
 
   // Update a custom field
   const updateField = useCallback(async (fieldId: string, data: Partial<CRMCustomFieldFormData>): Promise<boolean> => {
+    if (!canManage) return false;
     try {
       const { error: updateError } = await supabase
         .from('crm_custom_fields')
@@ -199,10 +204,11 @@ export function useCRMCustomFields({ boardId, codAgent }: UseCRMCustomFieldsOpti
       });
       return false;
     }
-  }, [toast]);
+  }, [canManage, toast]);
 
   // Delete a custom field
   const deleteField = useCallback(async (fieldId: string): Promise<boolean> => {
+    if (!canManage) return false;
     try {
       const { error: deleteError } = await supabase
         .from('crm_custom_fields')
@@ -228,10 +234,11 @@ export function useCRMCustomFields({ boardId, codAgent }: UseCRMCustomFieldsOpti
       });
       return false;
     }
-  }, [toast]);
+  }, [canManage, toast]);
 
   // Reorder fields
   const reorderFields = useCallback(async (reorderedFields: CRMCustomField[]) => {
+    if (!canManage) return;
     // Optimistic update
     setFields(reorderedFields);
 
@@ -255,11 +262,11 @@ export function useCRMCustomFields({ boardId, codAgent }: UseCRMCustomFieldsOpti
         variant: 'destructive',
       });
     }
-  }, [fetchFields, toast]);
+  }, [canManage, fetchFields, toast]);
 
   // Subscribe to realtime updates
   useEffect(() => {
-    if (!boardId || !codAgent) return;
+    if (!boardId || !clientId) return;
 
     const channel = supabase
       .channel(`crm-custom-fields-${boardId}`)
@@ -280,7 +287,7 @@ export function useCRMCustomFields({ boardId, codAgent }: UseCRMCustomFieldsOpti
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [boardId, codAgent, fetchFields]);
+  }, [boardId, clientId, fetchFields]);
 
   // Fetch on board change
   useEffect(() => {
