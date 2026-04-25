@@ -29,7 +29,7 @@ class ExternalDatabase {
       // Retry transient edge runtime errors (503/boot/cold start)
       let data: any = null;
       let error: any = null;
-      const maxAttempts = 3;
+      const maxAttempts = 5;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         const res = await supabase.functions.invoke('db-query', { body: payload });
         data = res.data;
@@ -42,7 +42,7 @@ class ExternalDatabase {
 
         if (!isTransient) break;
         if (attempt === maxAttempts) break;
-        await new Promise((r) => setTimeout(r, 300 * attempt)); // 300ms, 600ms
+        await new Promise((r) => setTimeout(r, 500 * attempt)); // 500/1000/1500/2000ms
       }
 
       const duration = performance.now() - startTime;
