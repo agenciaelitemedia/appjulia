@@ -477,6 +477,16 @@ export default function BoardPage() {
             </DragOverlay>
           </DndContext>
         </div>
+        </div>
+        </div>
+
+        {/* Painel lateral de chat (aparece quando o usuário clica no ícone WhatsApp do card) */}
+        {chatPanelDeal && (
+          <BoardChatSidePanel
+            deal={chatPanelDeal}
+            onClose={() => setChatPanelDeal(null)}
+          />
+        )}
       </div>
 
       {/* Fixed bottom scroll navigation */}
