@@ -334,7 +334,7 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
     if (!boardId || !clientId) return;
 
     const channel = supabase
-      .channel(`crm-deals-${boardId}`)
+      .channel(`crm-deals-${clientId}-${boardId}`)
       .on(
         'postgres_changes',
         {

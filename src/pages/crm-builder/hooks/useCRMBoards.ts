@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { CRMBoard, CRMBoardFormData } from '../types';
+import { logCRMAudit } from './useCRMAuditLog';
 
 interface UseCRMBoardsOptions {
   clientId: string;
@@ -75,6 +76,16 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
       const board = newBoard as CRMBoard;
       setBoards(prev => [...prev, board]);
 
+      logCRMAudit({
+        clientId,
+        codAgent,
+        entityType: 'board',
+        entityId: board.id,
+        entityName: board.name,
+        action: 'created',
+        changes: { name: board.name, icon: board.icon, color: board.color },
+      });
+
       toast({
         title: 'Board criado',
         description: `"${data.name}" foi criado com sucesso.`,
@@ -114,6 +125,16 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
           : b
       ));
 
+      logCRMAudit({
+        clientId,
+        codAgent,
+        entityType: 'board',
+        entityId: boardId,
+        entityName: data.name ?? boards.find(b => b.id === boardId)?.name ?? null,
+        action: 'updated',
+        changes: data as Record<string, unknown>,
+      });
+
       toast({
         title: 'Board atualizado',
         description: 'As alterações foram salvas.',
@@ -129,12 +150,13 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
       });
       return false;
     }
-  }, [canManage, toast]);
+  }, [canManage, clientId, codAgent, boards, toast]);
 
   // Archive a board
   const archiveBoard = useCallback(async (boardId: string): Promise<boolean> => {
     if (!canManage) return false;
     try {
+      const target = boards.find(b => b.id === boardId);
       const { error: updateError } = await supabase
         .from('crm_boards')
         .update({ is_archived: true })
@@ -143,6 +165,15 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
       if (updateError) throw updateError;
 
       setBoards(prev => prev.filter(b => b.id !== boardId));
+
+      logCRMAudit({
+        clientId,
+        codAgent,
+        entityType: 'board',
+        entityId: boardId,
+        entityName: target?.name ?? null,
+        action: 'archived',
+      });
 
       toast({
         title: 'Board arquivado',
@@ -159,7 +190,7 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
       });
       return false;
     }
-  }, [canManage, toast]);
+  }, [canManage, clientId, codAgent, boards, toast]);
 
   // Reorder boards
   const reorderBoards = useCallback(async (reorderedBoards: CRMBoard[]): Promise<boolean> => {
@@ -178,6 +209,16 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
 
       await Promise.all(updates);
 
+      logCRMAudit({
+        clientId,
+        codAgent,
+        entityType: 'board',
+        entityId: reorderedBoards[0]?.id ?? '00000000-0000-0000-0000-000000000000',
+        entityName: null,
+        action: 'reordered',
+        changes: { order: reorderedBoards.map(b => ({ id: b.id, name: b.name })) },
+      });
+
       return true;
     } catch (err) {
       // Revert on error
@@ -190,14 +231,14 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
       });
       return false;
     }
-  }, [canManage, fetchBoards, toast]);
+  }, [canManage, clientId, codAgent, fetchBoards, toast]);
 
   // Set up realtime subscription
   useEffect(() => {
     if (!clientId) return;
 
     const channel = supabase
-      .channel('crm-boards-changes')
+      .channel(`crm-boards-${clientId}`)
       .on(
         'postgres_changes',
         {

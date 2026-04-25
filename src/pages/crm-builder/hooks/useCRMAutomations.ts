@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Json } from '@/integrations/supabase/types';
+import { logCRMAudit } from './useCRMAuditLog';
 
 // Tipos de automação
 export type TriggerType = 'field_change' | 'time_based' | 'on_create';
@@ -185,6 +186,16 @@ export function useCRMAutomations({ boardId, clientId, codAgent, canManage = tru
 
       setRules(prev => [...prev, transformedRule]);
 
+      logCRMAudit({
+        clientId,
+        codAgent,
+        entityType: 'automation',
+        entityId: transformedRule.id,
+        entityName: transformedRule.name,
+        action: 'created',
+        changes: { board_id: boardId, trigger_type: transformedRule.trigger_type, action_type: transformedRule.action_type },
+      });
+
       toast({
         title: 'Automação criada',
         description: `"${data.name}" foi criada com sucesso.`,
@@ -234,6 +245,19 @@ export function useCRMAutomations({ boardId, clientId, codAgent, canManage = tru
           : r
       ));
 
+      const isOnlyToggle =
+        Object.keys(data).length === 1 && data.is_active !== undefined;
+      const target = rules.find(r => r.id === ruleId);
+      logCRMAudit({
+        clientId,
+        codAgent,
+        entityType: 'automation',
+        entityId: ruleId,
+        entityName: data.name ?? target?.name ?? null,
+        action: isOnlyToggle ? 'toggled_active' : 'updated',
+        changes: { ...(data as Record<string, unknown>), board_id: boardId },
+      });
+
       toast({
         title: 'Automação atualizada',
         description: 'As alterações foram salvas.',
@@ -249,7 +273,7 @@ export function useCRMAutomations({ boardId, clientId, codAgent, canManage = tru
       });
       return false;
     }
-  }, [canManage, toast]);
+  }, [canManage, clientId, codAgent, boardId, rules, toast]);
 
   // Toggle rule active status
   const toggleRuleActive = useCallback(async (ruleId: string): Promise<boolean> => {
@@ -263,6 +287,7 @@ export function useCRMAutomations({ boardId, clientId, codAgent, canManage = tru
   const deleteRule = useCallback(async (ruleId: string): Promise<boolean> => {
     if (!canManage) return false;
     try {
+      const target = rules.find(r => r.id === ruleId);
       const { error: deleteError } = await supabase
         .from('crm_automation_rules')
         .delete()
@@ -271,6 +296,16 @@ export function useCRMAutomations({ boardId, clientId, codAgent, canManage = tru
       if (deleteError) throw deleteError;
 
       setRules(prev => prev.filter(r => r.id !== ruleId));
+
+      logCRMAudit({
+        clientId,
+        codAgent,
+        entityType: 'automation',
+        entityId: ruleId,
+        entityName: target?.name ?? null,
+        action: 'deleted',
+        changes: { board_id: boardId },
+      });
 
       toast({
         title: 'Automação removida',
@@ -287,14 +322,14 @@ export function useCRMAutomations({ boardId, clientId, codAgent, canManage = tru
       });
       return false;
     }
-  }, [canManage, toast]);
+  }, [canManage, clientId, codAgent, boardId, rules, toast]);
 
   // Set up realtime subscription
   useEffect(() => {
     if (!boardId || !clientId) return;
 
     const channel = supabase
-      .channel(`crm-automations-${boardId}`)
+      .channel(`crm-automations-${clientId}-${boardId}`)
       .on(
         'postgres_changes',
         {
