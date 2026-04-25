@@ -43,11 +43,6 @@ export function ChatCrmButton({ conversationId, contact, codAgent, queueId }: Pr
           <Kanban className={cn('h-3.5 w-3.5', !isLinked && 'text-primary')} />
         )}
         <span>CRM</span>
-        {isLinked && deal?.pipeline?.name && (
-          <span className="hidden md:inline text-[10px] font-normal opacity-80 truncate max-w-[120px]">
-            · {deal.pipeline.name}
-          </span>
-        )}
       </Button>
 
       <CreateCrmCardSheet
