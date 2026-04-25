@@ -1,100 +1,132 @@
 ## Objetivo
 
-Quando, no `/chat`, o usuário clicar no botão CRM de um lead que **já possui card vinculado no CRM Builder**, abrir o **mesmo `DealDetailsSheet`** usado no CRM Builder (com abas Detalhes/Atividade, vínculos, contato, responsável editável, prioridade, tempo na etapa, tags, descrição editável, valor editável, datas), removendo apenas as ações de **Ganho**, **Perdido** e **Excluir/Arquivar**, e mantendo:
-- **Fechar** (fecha o sheet)
-- **Abrir no CRM** (navega para `/crm-builder/{board_id}?deal={id}`)
+Adicionar, no topo do `DealDetailsSheet` (logo **antes** das abas "Detalhes / Atividade"), um bloco **Etapas** que mostra a etapa atual e um botão para expandir/recolher. Quando expandido, exibe **uma lista de cards (um por linha)** com todas as etapas do board — cada linha mostra a bolinha colorida + nome da etapa, é clicável e move o deal para aquela etapa imediatamente.
 
-Hoje o chat usa um sheet próprio (`ChatLinkedDealSheet`) muito mais enxuto que apenas mostra título, badges, "mover para etapa" e o link da Julia.
+Funciona tanto no CRM Builder quanto no chat (via `ChatLinkedDealSheet`).
 
-## Alterações
+---
 
-### 1. `src/components/deals/DealDetailsSheet.tsx` (componente compartilhado do CRM Builder)
+## 1. `DealDetailsSheet.tsx` — novo bloco "Etapas"
 
-Adicionar props opcionais para customizar o rodapé sem quebrar o uso atual no `BoardPage`:
+Arquivo: `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx`
 
+### 1.1 Novas props
 ```ts
-interface DealDetailsSheetProps {
-  // ...existentes
-  hideStatusActions?: boolean;   // esconde Ganho/Perdido (e o Editar quando ativo)
-  hideArchiveAction?: boolean;   // esconde o botão Arquivar/Excluir
-  footerExtra?: React.ReactNode; // ações adicionais no rodapé (ex.: "Abrir no CRM")
-}
+/** Lista completa de etapas (pipelines) do board para permitir mover */
+stages?: CRMPipeline[];
+/** Callback quando o usuário clica numa etapa diferente da atual */
+onMoveToStage?: (stageId: string) => Promise<boolean> | boolean | void;
 ```
 
-No JSX do rodapé (linhas ~463–517):
-- Envolver o bloco "Ganho/Perdido" com `{!hideStatusActions && deal.status === 'open' && (...)}`.
-- Envolver o `Button` "Arquivar/Excluir" com `{!hideArchiveAction && (...)}`.
-- Renderizar `{footerExtra}` ao final do rodapé.
+Mantém o componente retrocompatível: se `stages` ou `onMoveToStage` não forem passados, o bloco não é renderizado.
 
-Comportamento atual no `BoardPage` permanece idêntico (todas as novas props são opcionais e default `false`/`undefined`).
+### 1.2 UI do bloco (renderizado entre `SheetHeader` e `<Tabs>`)
 
-### 2. `src/hooks/useChatDealLink.ts`
+- Container com `border-b px-6 py-3` para se integrar visualmente ao header.
+- Linha "resumo" sempre visível:
+  - Esquerda: rótulo `Etapa` (texto pequeno) + badge da etapa atual (bolinha colorida `pipeline.color` + nome).
+  - Direita: botão fantasma `Editar` com ícone `ChevronDown`/`ChevronUp` que alterna o estado `expanded`.
+- Quando `expanded === true`, abaixo do resumo, lista vertical (`space-y-1.5 mt-3`) com **um card por linha** para cada `stage` em `stages` (ordenadas por `position`):
+  - Card: `flex items-center gap-2 px-3 py-2 rounded-md border cursor-pointer hover:bg-muted/50 transition-colors w-full text-left`.
+  - A etapa atual recebe destaque: `border-primary/40 bg-primary/5` + ícone `Check` à direita.
+  - Conteúdo: `<span className="h-3 w-3 rounded-full" style={{ backgroundColor: stage.color }} />` + `<span className="text-sm">{stage.name}</span>`.
+- Estado local: `const [expanded, setExpanded] = useState(false);` e `const [movingTo, setMovingTo] = useState<string | null>(null);` para mostrar `Loader2` na linha clicada e desabilitar cliques durante o save.
 
-Hoje o hook seleciona apenas um subconjunto de colunas (`id, title, value, currency, priority, status, contact_name, contact_phone, pipeline_id, board_id, custom_fields, board, pipeline`). Para reutilizar o `DealDetailsSheet` completo, expandir o `select` para trazer **todas** as colunas exigidas pelo tipo `CRMDeal`:
-
+### 1.3 Handler de clique
+```ts
+const handleStageClick = async (stageId: string) => {
+  if (!onMoveToStage || stageId === deal.pipeline_id || movingTo) return;
+  setMovingTo(stageId);
+  try {
+    await onMoveToStage(stageId);
+    setExpanded(false);
+  } finally {
+    setMovingTo(null);
+  }
+};
 ```
-id, title, description, value, currency, priority, status,
-contact_name, contact_phone, contact_email,
-assigned_to, tags, expected_close_date,
-pipeline_id, board_id, stage_entered_at, created_at, updated_at,
-client_id, cod_agent, custom_fields,
-board:crm_boards(id,name,color),
-pipeline:crm_pipelines(id,name,color)
-```
 
-Atualizar a interface `ChatLinkedDeal` para refletir o shape completo (compatível com `CRMDeal` usado pelo Sheet) e manter compatibilidade com os dois consumidores atuais (`ChatCrmButton`, `ChatLinkedDealSheet`).
+### 1.4 Importações novas
+- `ChevronDown`, `ChevronUp`, `Check`, `Loader2` de `lucide-react`.
 
-### 3. `src/components/chat/ChatLinkedDealSheet.tsx` (reescrita enxuta)
+---
 
-Transformar em um wrapper fino sobre o `DealDetailsSheet`:
+## 2. CRM Builder — passar `stages` e `onMoveToStage`
 
-- Receber `deal: ChatLinkedDeal` (já no shape de `CRMDeal`).
-- Buscar o `pipeline` correspondente via `useQuery` (`crm_pipelines` por `board_id`) **ou** simplesmente usar o objeto `deal.pipeline` que já vem aninhado no select (passando-o como `pipeline` para o Sheet — basta normalizar para o formato `CRMPipeline`).
-- Implementar `onUpdate` chamando `supabase.from('crm_deals').update(...).eq('id', deal.id)` e, em caso de sucesso, invalidar:
-  - `['chat-deal-link', conversationId, clientId]`
-  - `['crm-builder-linked-conversations', clientId]`
-  - `['crm-deals', boardId]` (best-effort)
-- Renderizar:
-  ```tsx
-  <DealDetailsSheet
-    deal={deal as unknown as CRMDeal}
-    pipeline={deal.pipeline as any}
-    open={open}
-    onOpenChange={onOpenChange}
-    onEdit={() => {}}        // não usado (hideStatusActions esconde o "Editar" implícito? — o "Editar" só aparece quando !isLinked, e este deal está linkado ao chat, então já fica oculto)
-    onArchive={() => {}}     // não usado
-    onWon={() => {}}         // não usado
-    onLost={() => {}}        // não usado
-    onUpdate={handleUpdate}
-    hideStatusActions
-    hideArchiveAction
-    footerExtra={
-      <div className="flex gap-2">
-        <Button variant="ghost" className="flex-1" onClick={() => onOpenChange(false)}>Fechar</Button>
-        <Button className="flex-1" onClick={() => {
-          onOpenChange(false);
-          navigate(`/crm-builder/${deal.board_id}?deal=${deal.id}`);
-        }}>
-          <ExternalLink className="h-4 w-4 mr-2" /> Abrir no CRM
-          <ArrowRight className="h-3 w-3 ml-1" />
-        </Button>
-      </div>
-    }
-  />
-  ```
+Procurar onde `DealDetailsSheet` é instanciado no board (provavelmente em `src/pages/crm-builder/CRMBuilder.tsx` ou `components/board/...`) e:
 
-Observação: o botão "Editar" do Sheet já é condicionado a `!isLinked` (onde `isLinked = !!getChatLink(deal) || !!getJuliaLink(deal)`). Como todo deal vindo do chat tem `custom_fields.links.chat`, o botão "Editar" naturalmente fica oculto — sem necessidade de prop adicional.
+1. Passar a lista de pipelines do board atual como `stages={pipelines}` (já obtida via `useCRMPipelines`).
+2. Passar `onMoveToStage={(stageId) => moveDeal({ dealId: deal.id, fromPipelineId: deal.pipeline_id, toPipelineId: stageId, newPosition: 0 })}` reaproveitando o `moveDeal` existente em `useCRMDeals`. Isso garante que o histórico (`recordHistory(... 'moved' ...)`) seja registrado e o `stage_entered_at` resetado, exatamente como acontece no drag-and-drop.
 
-A funcionalidade que existia no sheet antigo (mover de etapa via `Select`, prévia do lead Julia) **deixa de existir nesse wrapper**, pois o `DealDetailsSheet` completo já oferece edição inline de responsável/descrição/valor e a aba "Atividade" com histórico, cobrindo um conjunto muito mais rico. A movimentação entre etapas continua disponível via "Abrir no CRM".
+> Nota: `moveDeal` hoje recebe um `DropResult`. Vou apenas montar esse objeto no callback — sem alterar a assinatura da função.
 
-### 4. Sem alterações em `ChatCrmButton.tsx`
+---
 
-A API do `ChatLinkedDealSheet` (props `open`, `onOpenChange`, `deal`) é mantida — apenas a implementação interna muda.
+## 3. `ChatLinkedDealSheet.tsx` — habilitar mover etapas a partir do chat
 
-## Resultado
+Arquivo: `src/components/chat/ChatLinkedDealSheet.tsx`
 
-- Clicar em CRM (badge azul) no header de uma conversa com card vinculado → abre o **mesmo Sheet** do CRM Builder com Detalhes/Atividade, contato, responsável editável, prioridade, tempo na etapa, tags, descrição, valor, datas e timeline de histórico.
-- Sem botões **Ganho**, **Perdido** ou **Excluir/Arquivar**.
-- Rodapé com **Fechar** e **Abrir no CRM** (navega para o board com o deal aberto).
-- Edições inline (responsável, descrição, valor) persistem e atualizam tanto o sheet do chat quanto a lista de conversas e o badge do header (via invalidação de queries).
-- Comportamento atual do `BoardPage` permanece inalterado (props novas são opt-in).
+1. Buscar as etapas do board do deal (sem precisar abrir o board inteiro):
+   ```ts
+   const { data: stages = [] } = useQuery({
+     queryKey: ['crm-builder-board-pipelines', deal.board_id],
+     enabled: open && !!deal.board_id,
+     queryFn: async () => {
+       const { data, error } = await supabase
+         .from('crm_pipelines')
+         .select('*')
+         .eq('board_id', deal.board_id)
+         .eq('is_active', true)
+         .order('position', { ascending: true });
+       if (error) throw error;
+       return (data || []) as CRMPipeline[];
+     },
+   });
+   ```
+2. Implementar `handleMoveToStage`:
+   ```ts
+   const handleMoveToStage = async (stageId: string) => {
+     const { error } = await supabase
+       .from('crm_deals')
+       .update({
+         pipeline_id: stageId,
+         stage_entered_at: new Date().toISOString(),
+         updated_at: new Date().toISOString(),
+       })
+       .eq('id', deal.id);
+     if (error) { toast.error('Erro ao mover etapa'); return false; }
+     // Registra no histórico (mesma tabela usada pelo moveDeal do board)
+     await supabase.from('crm_deal_history').insert({
+       deal_id: deal.id,
+       action: 'moved',
+       from_pipeline_id: deal.pipeline_id,
+       to_pipeline_id: stageId,
+     });
+     toast.success('Etapa atualizada');
+     await queryClient.invalidateQueries({ queryKey: ['chat-deal-link'] });
+     await queryClient.invalidateQueries({ queryKey: ['crm-builder-linked-conversations', clientId] });
+     await queryClient.invalidateQueries({ queryKey: ['crm-deals', deal.board_id] });
+     onMoved?.();
+     return true;
+   };
+   ```
+   > Vou inspecionar `useCRMDealHistory`/`recordHistory` para usar exatamente o mesmo formato (provavelmente inclui `created_by`/`changed_by`) e evitar divergência com o board.
+3. Passar `stages={stages}` e `onMoveToStage={handleMoveToStage}` para o `DealDetailsSheet`.
+
+---
+
+## 4. Comportamento esperado (resumo)
+
+- **Recolhido** (estado padrão ao abrir): mostra apenas a etapa atual + botão "Editar".
+- **Expandido**: lista vertical de todas as etapas do board, uma por linha, com bolinha colorida + nome.
+  - Etapa atual em destaque (não clicável de fato; clique é ignorado).
+  - Demais etapas clicáveis: ao clicar, exibe `Loader2` na linha, persiste no banco, fecha o expand e o badge da etapa no resumo já reflete a mudança (via invalidação de cache + atualização vinda do `onUpdate`/refetch do hook pai).
+- **CRM badge na lista de conversas e header do chat**: já são atualizados via as queries `chat-deal-link` e `crm-builder-linked-conversations` que invalidamos.
+
+---
+
+## Arquivos a editar
+
+- `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx` — adicionar bloco Etapas e props.
+- `src/pages/crm-builder/CRMBuilder.tsx` (ou onde `DealDetailsSheet` é renderizado no board) — passar `stages` e `onMoveToStage` reaproveitando `moveDeal`.
+- `src/components/chat/ChatLinkedDealSheet.tsx` — buscar pipelines do board, implementar `handleMoveToStage` e repassar para o sheet.

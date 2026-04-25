@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { ExternalLink, ArrowRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -33,6 +33,24 @@ export function ChatLinkedDealSheet({ open, onOpenChange, deal, onMoved }: Props
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const clientId = user?.client_id ? String(user.client_id) : '';
+
+  // Carrega todas as etapas (pipelines) ativas do board do deal para permitir
+  // mover diretamente a partir do sheet do chat.
+  const { data: stages = [] } = useQuery({
+    queryKey: ['crm-builder-board-pipelines', deal.board_id],
+    enabled: open && !!deal.board_id,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('crm_pipelines')
+        .select('*')
+        .eq('board_id', deal.board_id)
+        .eq('is_active', true)
+        .order('position', { ascending: true });
+      if (error) throw error;
+      return (data || []) as CRMPipeline[];
+    },
+  });
 
   // Normaliza ChatLinkedDeal -> CRMDeal (campos opcionais com defaults seguros)
   const dealForSheet: CRMDeal = {
@@ -99,6 +117,47 @@ export function ChatLinkedDealSheet({ open, onOpenChange, deal, onMoved }: Props
     }
   };
 
+  const handleMoveToStage = async (stageId: string): Promise<boolean> => {
+    if (stageId === deal.pipeline_id) return true;
+    try {
+      const { error } = await supabase
+        .from('crm_deals')
+        .update({
+          pipeline_id: stageId,
+          stage_entered_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', deal.id);
+      if (error) throw error;
+
+      // Histórico (best-effort) — mesmo formato usado pelo board no drag-and-drop
+      try {
+        await (supabase as unknown as { from: (t: string) => { insert: (v: unknown) => Promise<unknown> } })
+          .from('crm_deal_history')
+          .insert({
+            deal_id: deal.id,
+            action: 'moved',
+            from_pipeline_id: deal.pipeline_id,
+            to_pipeline_id: stageId,
+            changes: { source: 'chat' },
+          });
+      } catch (historyErr) {
+        console.warn('[ChatLinkedDealSheet] history insert failed', historyErr);
+      }
+
+      toast.success('Etapa atualizada');
+      await queryClient.invalidateQueries({ queryKey: ['chat-deal-link'] });
+      await queryClient.invalidateQueries({ queryKey: ['crm-builder-linked-conversations', clientId] });
+      await queryClient.invalidateQueries({ queryKey: ['crm-deals', deal.board_id] });
+      onMoved?.();
+      return true;
+    } catch (err) {
+      console.error('[ChatLinkedDealSheet] move stage error', err);
+      toast.error('Erro ao mover etapa');
+      return false;
+    }
+  };
+
   return (
     <DealDetailsSheet
       deal={dealForSheet}
@@ -110,6 +169,8 @@ export function ChatLinkedDealSheet({ open, onOpenChange, deal, onMoved }: Props
       onWon={() => { /* oculto via hideStatusActions */ }}
       onLost={() => { /* oculto via hideStatusActions */ }}
       onUpdate={handleUpdate}
+      stages={stages}
+      onMoveToStage={handleMoveToStage}
       hideStatusActions
       hideArchiveAction
       footerExtra={

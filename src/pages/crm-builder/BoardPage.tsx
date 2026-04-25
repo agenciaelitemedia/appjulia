@@ -540,6 +540,16 @@ export default function BoardPage() {
           if (!viewingDeal) return false;
           return await updateDeal(viewingDeal.id, data);
         }}
+        stages={pipelines}
+        onMoveToStage={async (stageId) => {
+          if (!viewingDeal) return false;
+          return await moveDeal({
+            dealId: viewingDeal.id,
+            fromPipelineId: viewingDeal.pipeline_id,
+            toPipelineId: stageId,
+            newPosition: 0,
+          });
+        }}
       />
 
       {/* Settings Sheet */}
