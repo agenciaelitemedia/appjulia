@@ -32,6 +32,7 @@ import { CreatePipelineDialog } from './components/pipeline/CreatePipelineDialog
 import { DealCard } from './components/deals/DealCard';
 import { CreateDealDialog } from './components/deals/CreateDealDialog';
 import { DealDetailsSheet } from './components/deals/DealDetailsSheet';
+import { BoardChatSidePanel } from './components/deals/BoardChatSidePanel';
 import { BoardFilters, type BoardFiltersState } from './components/filters/BoardFilters';
 import { BoardSettingsSheet } from './components/settings/BoardSettingsSheet';
 import { useCRMPipelines } from './hooks/useCRMPipelines';
@@ -94,6 +95,7 @@ export default function BoardPage() {
   const [selectedPipelineForDeal, setSelectedPipelineForDeal] = useState<CRMPipeline | null>(null);
   const [editingDeal, setEditingDeal] = useState<CRMDeal | null>(null);
   const [viewingDeal, setViewingDeal] = useState<CRMDeal | null>(null);
+  const [chatPanelDeal, setChatPanelDeal] = useState<CRMDeal | null>(null);
 
   // DnD state
   const [activeDeal, setActiveDeal] = useState<CRMDeal | null>(null);
@@ -434,6 +436,7 @@ export default function BoardPage() {
                                 onArchive={() => archiveDeal(deal.id)}
                                 onWon={() => setDealStatus(deal.id, 'won')}
                                 onLost={() => setDealStatus(deal.id, 'lost')}
+                                onOpenChat={(d) => setChatPanelDeal(d)}
                               />
                             ))}
                           </SortableContext>
