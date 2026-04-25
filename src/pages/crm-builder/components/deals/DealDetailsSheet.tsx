@@ -677,22 +677,10 @@ export function DealDetailsSheet({
             <>
               {/* Linha 1: Editar | Perdido | Ganho */}
               {!hideStatusActions && deal.status === 'open' && (
-                <div className="grid grid-cols-3 gap-2">
-                  {!isLinked && (
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        onOpenChange(false);
-                        onEdit();
-                      }}
-                    >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Editar
-                    </Button>
-                  )}
+                <div className="grid grid-cols-2 gap-2">
                   <Button
                     variant="outline"
-                    className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    className="w-full border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
                     onClick={() => {
                       onLost();
                       onOpenChange(false);
@@ -703,7 +691,7 @@ export function DealDetailsSheet({
                   </Button>
                   <Button
                     variant="outline"
-                    className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                    className="w-full border-primary text-primary hover:bg-primary hover:text-primary-foreground"
                     onClick={() => {
                       onWon();
                       onOpenChange(false);
@@ -722,7 +710,7 @@ export function DealDetailsSheet({
                   onClick={() => setConfirmArchive(true)}
                 >
                   <Archive className="h-4 w-4 mr-2" />
-                  {isLinked ? 'Excluir card' : 'Arquivar Deal'}
+                  Arquivar Card
                 </Button>
               )}
             </>
@@ -732,12 +720,10 @@ export function DealDetailsSheet({
         <AlertDialog open={confirmArchive} onOpenChange={setConfirmArchive}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>
-                {isLinked ? 'Excluir este card?' : 'Arquivar este card?'}
-              </AlertDialogTitle>
+              <AlertDialogTitle>Arquivar este card?</AlertDialogTitle>
               <AlertDialogDescription>
                 {isLinked
-                  ? `O card "${deal.title}" será removido. Essa ação não pode ser desfeita.`
+                  ? `O card "${deal.title}" será arquivado e o vínculo com a conversa será mantido. Você poderá restaurá-lo depois em arquivados.`
                   : `O card "${deal.title}" será arquivado e removido do board. Você poderá restaurá-lo depois em arquivados.`}
               </AlertDialogDescription>
             </AlertDialogHeader>
@@ -751,7 +737,7 @@ export function DealDetailsSheet({
                   onOpenChange(false);
                 }}
               >
-                {isLinked ? 'Excluir card' : 'Arquivar'}
+                Arquivar Card
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
