@@ -25,8 +25,7 @@ interface RowState {
   active: boolean;
 }
 
-export default function ChatSlaConfigPage() {
-  const navigate = useNavigate();
+export function ChatSlaConfigContent({ showIntro = true }: { showIntro?: boolean }) {
   const { configs, isLoading, upsert } = useChatSlaConfigs();
   const [state, setState] = useState<Record<string, RowState>>({});
 
@@ -58,34 +57,20 @@ export default function ChatSlaConfigPage() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-4xl mx-auto">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/chat')}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Timer className="h-5 w-5 text-primary" /> Configuração de SLA
-          </h2>
-          <p className="text-muted-foreground text-sm">
-            Defina metas de tempo de resposta e resolução por prioridade
-          </p>
-        </div>
-      </div>
-
-      <Card className="border-blue-500/30 bg-blue-500/5">
-        <CardContent className="p-4 flex gap-3 items-start">
-          <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
-          <div className="text-sm space-y-1">
-            <p className="font-semibold text-foreground">Como funciona</p>
-            <p className="text-muted-foreground">
-              O SLA é avaliado em duas etapas: <strong>tempo até a 1ª resposta</strong> (atendente responde
-              o cliente) e <strong>tempo total até a resolução</strong>. As conversas exibirão badges visuais
-              (verde, amarelo ou vermelho) na lista de chats conforme o tempo disponível.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="space-y-4">
+      {showIntro && (
+        <Card className="border-blue-500/30 bg-blue-500/5">
+          <CardContent className="p-4 flex gap-3 items-start">
+            <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+            <div className="text-sm space-y-1">
+              <p className="font-semibold text-foreground">Como funciona</p>
+              <p className="text-muted-foreground">
+                O SLA é avaliado em duas etapas: <strong>tempo até a 1ª resposta</strong> e <strong>tempo total até a resolução</strong>. As conversas exibirão badges visuais conforme o tempo disponível.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="space-y-3">
         {isLoading ? (
@@ -138,6 +123,29 @@ export default function ChatSlaConfigPage() {
           })
         )}
       </div>
+    </div>
+  );
+}
+
+export default function ChatSlaConfigPage() {
+  const navigate = useNavigate();
+  return (
+    <div className="p-6 space-y-6 max-w-4xl mx-auto">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate('/chat')}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <Timer className="h-5 w-5 text-primary" /> Configuração de SLA
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            Defina metas de tempo de resposta e resolução por prioridade
+          </p>
+        </div>
+      </div>
+
+      <ChatSlaConfigContent />
     </div>
   );
 }
