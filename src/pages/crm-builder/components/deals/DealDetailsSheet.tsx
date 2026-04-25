@@ -12,6 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   Archive,
   Calendar,
@@ -25,6 +27,10 @@ import {
   XCircle,
   History,
   FileText,
+  Pencil,
+  Check,
+  X as XIcon,
+  Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -32,7 +38,7 @@ import { useCRMDealHistory } from '../../hooks/useCRMDealHistory';
 import { DealActivityTimeline } from './DealActivityTimeline';
 import { DealLinksSection } from './DealLinksSection';
 import { getChatLink, getJuliaLink } from '../../hooks/useCardLinks';
-import type { CRMDeal, CRMPipeline } from '../../types';
+import type { CRMDeal, CRMDealFormData, CRMPipeline } from '../../types';
 import { PRIORITY_CONFIG, STATUS_CONFIG } from '../../types';
 
 interface DealDetailsSheetProps {
@@ -44,6 +50,7 @@ interface DealDetailsSheetProps {
   onArchive: () => void;
   onWon: () => void;
   onLost: () => void;
+  onUpdate?: (data: Partial<CRMDealFormData>) => Promise<boolean> | void;
 }
 
 export function DealDetailsSheet({
@@ -55,8 +62,16 @@ export function DealDetailsSheet({
   onArchive,
   onWon,
   onLost,
+  onUpdate,
 }: DealDetailsSheetProps) {
   const [activeTab, setActiveTab] = useState('details');
+  const [editingAssignee, setEditingAssignee] = useState(false);
+  const [assigneeDraft, setAssigneeDraft] = useState('');
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [descriptionDraft, setDescriptionDraft] = useState('');
+  const [editingValue, setEditingValue] = useState(false);
+  const [valueDraft, setValueDraft] = useState('');
+  const [savingField, setSavingField] = useState<null | 'assignee' | 'description' | 'value'>(null);
   
   const { history, isLoading: isLoadingHistory, addNote } = useCRMDealHistory({
     dealId: open && deal ? deal.id : null,
@@ -79,6 +94,49 @@ export function DealDetailsSheet({
     addSuffix: false,
     locale: ptBR,
   });
+
+  const startEditAssignee = () => {
+    setAssigneeDraft(deal.assigned_to || '');
+    setEditingAssignee(true);
+  };
+  const saveAssignee = async () => {
+    if (!onUpdate) { setEditingAssignee(false); return; }
+    const next = assigneeDraft.trim() || undefined;
+    if (next === (deal.assigned_to || undefined)) { setEditingAssignee(false); return; }
+    setSavingField('assignee');
+    await onUpdate({ assigned_to: next });
+    setSavingField(null);
+    setEditingAssignee(false);
+  };
+
+  const startEditDescription = () => {
+    setDescriptionDraft(deal.description || '');
+    setEditingDescription(true);
+  };
+  const saveDescription = async () => {
+    if (!onUpdate) { setEditingDescription(false); return; }
+    const next = descriptionDraft.trim() || undefined;
+    if (next === (deal.description || undefined)) { setEditingDescription(false); return; }
+    setSavingField('description');
+    await onUpdate({ description: next });
+    setSavingField(null);
+    setEditingDescription(false);
+  };
+
+  const startEditValue = () => {
+    setValueDraft(deal.value ? String(deal.value) : '');
+    setEditingValue(true);
+  };
+  const saveValue = async () => {
+    if (!onUpdate) { setEditingValue(false); return; }
+    const parsed = Number(valueDraft.replace(',', '.'));
+    const next = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+    if (next === deal.value) { setEditingValue(false); return; }
+    setSavingField('value');
+    await onUpdate({ value: next });
+    setSavingField(null);
+    setEditingValue(false);
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -126,50 +184,11 @@ export function DealDetailsSheet({
 
           <ScrollArea className="flex-1">
             <TabsContent value="details" className="p-6 pt-4 m-0 space-y-6">
-              {/* Value */}
-              <div className="flex items-center justify-between p-4 rounded-lg bg-primary/5 border border-primary/20">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-primary" />
-                  <span className="text-sm text-muted-foreground">Valor</span>
-                </div>
-                <span className="text-xl font-bold text-primary">
-                  {formatCurrency(deal.value)}
-                </span>
-              </div>
+              {/* 1. Vínculos */}
+              <DealLinksSection deal={deal} />
 
-              {/* Priority & Time in Stage */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 rounded-lg border">
-                  <div className="text-xs text-muted-foreground mb-1">Prioridade</div>
-                  <Badge 
-                    variant="outline"
-                    className={cn(priorityConfig.color, priorityConfig.bgColor)}
-                  >
-                    {priorityConfig.label}
-                  </Badge>
-                </div>
-                <div className="p-3 rounded-lg border">
-                  <div className="text-xs text-muted-foreground mb-1">Tempo na Etapa</div>
-                  <div className="flex items-center gap-1 font-medium">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    {timeInStage}
-                  </div>
-                </div>
-              </div>
-
-              {/* Description */}
-              {deal.description && (
-                <div>
-                  <h4 className="text-sm font-medium mb-2">Descrição</h4>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {deal.description}
-                  </p>
-                </div>
-              )}
-
+              {/* 2. Contato */}
               <Separator />
-
-              {/* Contact Info */}
               <div>
                 <h4 className="text-sm font-medium mb-3">Contato</h4>
                 <div className="space-y-3">
@@ -215,42 +234,206 @@ export function DealDetailsSheet({
                 </div>
               </div>
 
-              {/* Expected Close Date */}
-              {deal.expected_close_date && (
-                <>
-                  <Separator />
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <div className="text-xs text-muted-foreground">Previsão de Fechamento</div>
-                      <div className="text-sm font-medium">
-                        {format(new Date(deal.expected_close_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                      </div>
-                    </div>
+              {/* 3. Responsável (full-width, editável) */}
+              <Separator />
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-medium">Responsável</h4>
+                  {!editingAssignee && onUpdate && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                      onClick={startEditAssignee}
+                      title="Editar responsável"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+                {editingAssignee ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={assigneeDraft}
+                      onChange={(e) => setAssigneeDraft(e.target.value)}
+                      placeholder="Nome do responsável"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') saveAssignee();
+                        if (e.key === 'Escape') setEditingAssignee(false);
+                      }}
+                      className="h-9"
+                    />
+                    <Button size="icon" className="h-9 w-9 flex-shrink-0" onClick={saveAssignee} disabled={savingField === 'assignee'}>
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-9 w-9 flex-shrink-0" onClick={() => setEditingAssignee(false)}>
+                      <XIcon className="h-4 w-4" />
+                    </Button>
                   </div>
-                </>
-              )}
+                ) : (
+                  <div
+                    className={cn(
+                      'w-full flex items-center gap-2 px-3 py-2 rounded-md border',
+                      deal.assigned_to
+                        ? 'bg-primary/5 border-primary/30 text-primary'
+                        : 'bg-muted text-muted-foreground border-border'
+                    )}
+                  >
+                    <User className="h-4 w-4 flex-shrink-0" />
+                    <span className="text-sm truncate">{deal.assigned_to || 'Não atribuído'}</span>
+                  </div>
+                )}
+              </div>
 
-              {/* Tags */}
+              {/* 4. Prioridade + Tempo na fase (linha própria, full-width via grid) */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 rounded-lg border">
+                  <div className="text-xs text-muted-foreground mb-1">Prioridade</div>
+                  <Badge
+                    variant="outline"
+                    className={cn(priorityConfig.color, priorityConfig.bgColor)}
+                  >
+                    {priorityConfig.label}
+                  </Badge>
+                </div>
+                <div className="p-3 rounded-lg border">
+                  <div className="text-xs text-muted-foreground mb-1">Tempo na Etapa</div>
+                  <div className="flex items-center gap-1 font-medium text-sm">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    {timeInStage}
+                  </div>
+                </div>
+              </div>
+
+              {/* 5. Tags */}
               {deal.tags && deal.tags.length > 0 && (
-                <>
-                  <Separator />
-                  <div>
-                    <h4 className="text-sm font-medium mb-2">Tags</h4>
-                    <div className="flex flex-wrap gap-1.5">
-                      {deal.tags.map((tag) => (
-                        <Badge key={tag} variant="secondary">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Tags</h4>
+                  <div className="flex flex-wrap gap-1.5">
+                    {deal.tags.map((tag) => (
+                      <Badge key={tag} variant="secondary">
+                        {tag}
+                      </Badge>
+                    ))}
                   </div>
-                </>
+                </div>
               )}
 
-              <DealLinksSection deal={deal} />
+              {/* 6. Descrição (editável) */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-medium">Descrição</h4>
+                  {!editingDescription && deal.description && onUpdate && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                      onClick={startEditDescription}
+                      title="Editar descrição"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+                {editingDescription ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={descriptionDraft}
+                      onChange={(e) => setDescriptionDraft(e.target.value)}
+                      placeholder="Descrição do card"
+                      autoFocus
+                      className="min-h-[100px]"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') setEditingDescription(false);
+                      }}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => setEditingDescription(false)}>
+                        <XIcon className="h-4 w-4 mr-1" /> Cancelar
+                      </Button>
+                      <Button size="sm" onClick={saveDescription} disabled={savingField === 'description'}>
+                        <Check className="h-4 w-4 mr-1" /> Salvar
+                      </Button>
+                    </div>
+                  </div>
+                ) : deal.description ? (
+                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                    {deal.description}
+                  </p>
+                ) : onUpdate ? (
+                  <Button variant="outline" size="sm" onClick={startEditDescription} className="gap-1.5">
+                    <Plus className="h-3.5 w-3.5" /> Adicionar descrição
+                  </Button>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">Sem descrição</p>
+                )}
+              </div>
 
-              {/* Timestamps */}
+              {/* 7. Valor (editável) */}
+              <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-primary" />
+                    <span className="text-sm text-muted-foreground">Valor</span>
+                  </div>
+                  {!editingValue ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl font-bold text-primary">
+                        {formatCurrency(deal.value)}
+                      </span>
+                      {onUpdate && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                          onClick={startEditValue}
+                          title="Editar valor"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={valueDraft}
+                        onChange={(e) => setValueDraft(e.target.value)}
+                        autoFocus
+                        className="h-9 w-32 text-right"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') saveValue();
+                          if (e.key === 'Escape') setEditingValue(false);
+                        }}
+                      />
+                      <Button size="icon" className="h-9 w-9 flex-shrink-0" onClick={saveValue} disabled={savingField === 'value'}>
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-9 w-9 flex-shrink-0" onClick={() => setEditingValue(false)}>
+                        <XIcon className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Previsão de fechamento (mantida acima das datas) */}
+              {deal.expected_close_date && (
+                <div className="flex items-center gap-3">
+                  <Calendar className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <div className="text-xs text-muted-foreground">Previsão de Fechamento</div>
+                    <div className="text-sm font-medium">
+                      {format(new Date(deal.expected_close_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 8. Datas (rodapé) */}
               <Separator />
               <div className="text-xs text-muted-foreground space-y-1">
                 <div>
