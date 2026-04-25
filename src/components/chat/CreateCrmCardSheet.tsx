@@ -127,8 +127,8 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, conv
     }
   };
 
-  const loadPipelines = async (boardId: string) => {
-    if (pipelinesByBoard[boardId]) return;
+  const loadPipelines = async (boardId: string): Promise<Pipeline[]> => {
+    if (pipelinesByBoard[boardId]) return pipelinesByBoard[boardId];
     try {
       const { data, error } = await supabase
         .from('crm_pipelines')
@@ -137,21 +137,28 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, conv
         .eq('is_active', true)
         .order('position');
       if (error) throw error;
-      setPipelinesByBoard((prev) => ({ ...prev, [boardId]: data || [] }));
+      const list = (data || []) as Pipeline[];
+      setPipelinesByBoard((prev) => ({ ...prev, [boardId]: list }));
+      return list;
     } catch (err) {
       console.error(err);
+      return [];
     }
   };
 
-  const handleExpand = async (boardId: string) => {
+  const handleSelectBoard = async (boardId: string) => {
+    // Toggle expansion
     const next = expandedBoard === boardId ? '' : boardId;
     setExpandedBoard(next);
-    if (next) await loadPipelines(next);
-  };
-
-  const handleSelectStage = (boardId: string, pipelineId: string) => {
+    if (!next) {
+      setSelectedBoard('');
+      setSelectedPipeline('');
+      return;
+    }
+    const list = await loadPipelines(boardId);
+    const first = list[0];
     setSelectedBoard(boardId);
-    setSelectedPipeline(pipelineId);
+    setSelectedPipeline(first?.id ?? '');
   };
 
   const handleCreate = async () => {
