@@ -106,7 +106,7 @@ function TagRow({ tag, onSaved, onDeleted }: { tag: ChatTag; onSaved: () => void
   );
 }
 
-export function TagsManagerDialog({ open, onOpenChange }: TagsManagerDialogProps) {
+export function TagsManagerContent() {
   const { tags, createTag } = useWhatsAppData();
   const { user, isAdmin } = useAuth();
   const canManage = isAdmin || user?.role === 'user';
@@ -126,14 +126,7 @@ export function TagsManagerDialog({ open, onOpenChange }: TagsManagerDialogProps
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-sm">
-            <Tag className="h-4 w-4" /> {canManage ? 'Gerenciar Tags' : 'Tags disponíveis'}
-          </DialogTitle>
-        </DialogHeader>
-
+    <div className="space-y-3">
         <div className="space-y-1 max-h-[50vh] overflow-y-auto pr-1">
           {tags.length === 0 && !showNew && (
             <p className="text-xs text-muted-foreground text-center py-4">Nenhuma tag criada</p>
@@ -175,6 +168,22 @@ export function TagsManagerDialog({ open, onOpenChange }: TagsManagerDialogProps
             <Plus className="h-3.5 w-3.5" /> Nova tag
           </Button>
         )}
+    </div>
+  );
+}
+
+export function TagsManagerDialog({ open, onOpenChange }: TagsManagerDialogProps) {
+  const { user, isAdmin } = useAuth();
+  const canManage = isAdmin || user?.role === 'user';
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-sm">
+            <Tag className="h-4 w-4" /> {canManage ? 'Gerenciar Tags' : 'Tags disponíveis'}
+          </DialogTitle>
+        </DialogHeader>
+        <TagsManagerContent />
       </DialogContent>
     </Dialog>
   );
