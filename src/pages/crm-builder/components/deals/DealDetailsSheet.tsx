@@ -11,11 +11,20 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { TeamMemberSelect } from '@/components/TeamMemberSelect';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { 
   Archive,
   Calendar,
@@ -94,6 +103,7 @@ export function DealDetailsSheet({
   const [savingField, setSavingField] = useState<null | 'assignee' | 'description' | 'value'>(null);
   const [stagesExpanded, setStagesExpanded] = useState(false);
   const [movingToStage, setMovingToStage] = useState<string | null>(null);
+  const [confirmArchive, setConfirmArchive] = useState(false);
   
   // Mesma fonte usada na página Equipe (vw_equipe filtrada por client_id),
   // que inclui o dono/responsável principal e todos os membros do mesmo cliente.
@@ -183,24 +193,14 @@ export function DealDetailsSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col">
-        <SheetHeader className="p-6 pb-4 border-b">
+      <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col h-full">
+        {/* Header — fixo no topo */}
+        <SheetHeader className="p-6 pb-4 border-b shrink-0">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
-              <SheetTitle className="text-lg font-semibold line-clamp-2">
+              <SheetTitle className="text-xl font-semibold line-clamp-2">
                 {deal.title}
               </SheetTitle>
-              {pipeline && (
-                <div className="flex items-center gap-2 mt-2">
-                  <div 
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: pipeline.color }}
-                  />
-                  <span className="text-sm text-muted-foreground">
-                    {pipeline.name}
-                  </span>
-                </div>
-              )}
             </div>
             <Badge 
               variant="outline"
