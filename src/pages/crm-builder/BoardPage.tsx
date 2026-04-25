@@ -45,6 +45,8 @@ export default function BoardPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const codAgent = user?.cod_agent?.toString() || '';
+  const clientId = user?.client_id ? String(user.client_id) : '';
+  const canManage = user?.role === 'user' || user?.role === 'admin';
 
   // Board state
   const [board, setBoard] = useState<CRMBoard | null>(null);
@@ -58,7 +60,7 @@ export default function BoardPage() {
     updatePipeline,
     deletePipeline,
     reorderPipelines,
-  } = useCRMPipelines({ boardId: boardId || null, codAgent });
+  } = useCRMPipelines({ boardId: boardId || null, clientId, codAgent, canManage });
 
   // Deals
   const {
@@ -71,10 +73,10 @@ export default function BoardPage() {
     setDealStatus,
     archiveDeal,
     fetchDeals,
-  } = useCRMDeals({ boardId: boardId || null, codAgent });
+  } = useCRMDeals({ boardId: boardId || null, clientId, codAgent });
 
   // Custom Fields
-  const { fields: customFields } = useCRMCustomFields({ boardId: boardId || null, codAgent });
+  const { fields: customFields } = useCRMCustomFields({ boardId: boardId || null, clientId, codAgent, canManage });
 
   // Filters state
   const [filters, setFilters] = useState<BoardFiltersState>({
@@ -338,14 +340,16 @@ export default function BoardPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsCreatePipelineOpen(true)}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Etapa
-          </Button>
+          {canManage && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCreatePipelineOpen(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Etapa
+            </Button>
+          )}
           
           <Button
             variant="ghost"
@@ -413,8 +417,8 @@ export default function BoardPage() {
                           key={pipeline.id}
                           pipeline={pipeline}
                           deals={pipelineDeals}
-                          onEdit={() => setEditingPipeline(pipeline)}
-                          onDelete={() => deletePipeline(pipeline.id)}
+                          onEdit={() => canManage && setEditingPipeline(pipeline)}
+                          onDelete={() => canManage && deletePipeline(pipeline.id)}
                           onAddDeal={() => handleAddDeal(pipeline)}
                         >
                           <SortableContext
@@ -437,17 +441,18 @@ export default function BoardPage() {
                       );
                     })}
                     
-                    {/* Add pipeline button */}
-                    <Button
-                      variant="outline"
-                      className="h-auto min-h-[200px] min-w-[280px] max-w-[280px] flex-shrink-0 border-2 border-dashed hover:border-primary hover:bg-primary/5"
-                      onClick={() => setIsCreatePipelineOpen(true)}
-                    >
-                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                        <Plus className="h-6 w-6" />
-                        <span>Nova Etapa</span>
-                      </div>
-                    </Button>
+                    {canManage && (
+                      <Button
+                        variant="outline"
+                        className="h-auto min-h-[200px] min-w-[280px] max-w-[280px] flex-shrink-0 border-2 border-dashed hover:border-primary hover:bg-primary/5"
+                        onClick={() => setIsCreatePipelineOpen(true)}
+                      >
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                          <Plus className="h-6 w-6" />
+                          <span>Nova Etapa</span>
+                        </div>
+                      </Button>
+                    )}
                   </>
                 )}
               </div>
@@ -528,6 +533,7 @@ export default function BoardPage() {
         onOpenChange={setIsSettingsOpen}
         boardId={boardId || ''}
         codAgent={codAgent}
+        clientId={clientId}
         boardName={board.name}
         pipelines={pipelines}
         deals={deals}
