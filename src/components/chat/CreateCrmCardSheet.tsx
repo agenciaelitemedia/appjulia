@@ -16,6 +16,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { externalDb } from '@/lib/externalDb';
 import type { ChatContact } from '@/types/chat';
+import { useQueueAgentLink } from '@/hooks/useQueueAgentLink';
+import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 
 interface Board {
   id: string;
@@ -38,12 +40,35 @@ interface CreateCrmCardSheetProps {
   onOpenChange: (open: boolean) => void;
   contact: ChatContact;
   codAgent?: string | null;
+  queueId?: string | null;
   conversationId?: string | null;
 }
 
-export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, conversationId }: CreateCrmCardSheetProps) {
+export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queueId, conversationId }: CreateCrmCardSheetProps) {
   const { user } = useAuth();
   const clientId = user?.client_id ? String(user.client_id) : '';
+
+  // ---- Resolve effective cod_agent (prop → queue → user's first agent) ----
+  const queueLink = useQueueAgentLink(!codAgent && open ? queueId ?? null : null);
+  const myAgents = useMyAgents();
+
+  const effectiveCodAgent = useMemo<string | null>(() => {
+    if (codAgent) return String(codAgent);
+    if (queueLink.data?.codAgent) return String(queueLink.data.codAgent);
+    const first = myAgents.data?.myAgents?.[0]?.cod_agent;
+    if (first) return String(first);
+    return null;
+  }, [codAgent, queueLink.data?.codAgent, myAgents.data?.myAgents]);
+
+  const agentSource: 'conversation' | 'queue' | 'user' | 'none' = codAgent
+    ? 'conversation'
+    : queueLink.data?.codAgent
+      ? 'queue'
+      : myAgents.data?.myAgents?.[0]?.cod_agent
+        ? 'user'
+        : 'none';
+
+  const agentResolving = !codAgent && (queueLink.isLoading || myAgents.isLoading);
 
   const [boards, setBoards] = useState<Board[]>([]);
   const [pipelinesByBoard, setPipelinesByBoard] = useState<Record<string, Pipeline[]>>({});
@@ -67,9 +92,9 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, conv
   );
 
   const juliaCard = useQuery({
-    queryKey: ['julia-card-lookup', normalizedPhone, codAgent],
+    queryKey: ['julia-card-lookup', normalizedPhone, effectiveCodAgent],
     queryFn: async () => {
-      if (!normalizedPhone || !codAgent) return null;
+      if (!normalizedPhone || !effectiveCodAgent) return null;
       const rows = await externalDb.raw<{
         id: number;
         contact_name: string | null;
@@ -85,11 +110,11 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, conv
           ORDER BY c.updated_at DESC NULLS LAST
           LIMIT 1
         `,
-        params: [normalizedPhone, String(codAgent)],
+        params: [normalizedPhone, effectiveCodAgent],
       });
       return rows[0] ?? null;
     },
-    enabled: open && !!normalizedPhone && !!codAgent,
+    enabled: open && !!normalizedPhone && !!effectiveCodAgent,
     staleTime: 30_000,
   });
 
@@ -166,8 +191,8 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, conv
       toast.error('Selecione um quadro e uma etapa');
       return;
     }
-    if (!codAgent) {
-      toast.error('Conversa sem agente vinculado');
+    if (!effectiveCodAgent) {
+      toast.error('Nenhum agente disponível na sua conta');
       return;
     }
     setSaving(true);
@@ -183,7 +208,7 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, conv
         links.julia = {
           card_id: juliaCard.data.id,
           whatsapp_number: normalizedPhone,
-          cod_agent: String(codAgent),
+          cod_agent: effectiveCodAgent,
           stage_id: juliaCard.data.stage_id,
           stage_name: juliaCard.data.stage_name,
         };
@@ -193,7 +218,7 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, conv
         board_id: selectedBoard,
         pipeline_id: selectedPipeline,
         client_id: clientId,
-        cod_agent: String(codAgent),
+        cod_agent: effectiveCodAgent,
         title: title.trim() || contact.name || 'Novo card',
         description,
         contact_name: contact.name,
@@ -209,7 +234,7 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, conv
         try {
           await supabase.from('chat_crm_links').insert({
             client_id: clientId,
-            cod_agent: String(codAgent),
+            cod_agent: effectiveCodAgent,
             conversation_id: conversationId,
             external_system: 'crm_builder',
             external_id: selectedBoard,
