@@ -24,14 +24,14 @@ export function SlaBadge({ evaluation, compact, className }: SlaBadgeProps) {
     return (
       <span
         className={cn(
-          'inline-flex items-center gap-1 text-[9px] font-bold px-1.5 h-5',
+          'inline-flex items-center justify-center gap-1 h-5 px-1.5 text-[9px] font-bold leading-none whitespace-nowrap overflow-hidden',
           s.bg,
           className
         )}
         title={`${evaluation.label}: ${formatRemaining(evaluation.remainingMinutes)}`}
       >
-        <Icon className="h-2.5 w-2.5" />
-        {formatRemaining(evaluation.remainingMinutes)}
+        <Icon className="h-2.5 w-2.5 flex-shrink-0" />
+        <span className="truncate">{formatRemaining(evaluation.remainingMinutes)}</span>
       </span>
     );
   }
