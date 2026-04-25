@@ -376,19 +376,22 @@ export default function BoardPage() {
         </div>
       </div>
 
-      {/* Filters Bar */}
-      <div className="px-4 py-3 border-b bg-muted/20">
-        <BoardFilters
-          filters={filters}
-          onFiltersChange={setFilters}
-          pipelines={pipelines.map(p => ({ id: p.id, name: p.name, color: p.color }))}
-          totalDeals={deals.length}
-          filteredDeals={filteredDeals.length}
-        />
-      </div>
+      {/* Main area: kanban (à esquerda) + painel de chat opcional (à direita) */}
+      <div className="flex flex-1 min-h-0">
+        <div className="flex flex-col flex-1 min-w-0">
+        {/* Filters Bar */}
+        <div className="px-4 py-3 border-b bg-muted/20">
+          <BoardFilters
+            filters={filters}
+            onFiltersChange={setFilters}
+            pipelines={pipelines.map(p => ({ id: p.id, name: p.name, color: p.color }))}
+            totalDeals={deals.length}
+            filteredDeals={filteredDeals.length}
+          />
+        </div>
 
-      {/* Pipeline Container */}
-      <div className="flex flex-col flex-1 min-h-0">
+        {/* Pipeline Container */}
+        <div className="flex flex-col flex-1 min-h-0">
         <div 
           ref={scrollRef}
           className="flex-1 overflow-x-auto overflow-y-auto p-4 pb-20 scrollbar-none"
