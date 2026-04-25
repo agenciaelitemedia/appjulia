@@ -267,12 +267,35 @@ export function DealCard({
               </Badge>
             )}
             {juliaLink && (
-              <Badge
-                variant="outline"
-                className="text-[10px] px-1.5 py-0 bg-purple-500/10 text-purple-700 border-purple-500/30 gap-1"
-              >
-                <Scale className="h-2.5 w-2.5" /> Julia #{juliaLink.card_id}
-              </Badge>
+              <>
+                <Badge
+                  variant="outline"
+                  className="text-[10px] px-1.5 py-0 bg-purple-500/10 text-purple-700 border-purple-500/30 gap-1"
+                >
+                  <Scale className="h-2.5 w-2.5" /> Julia #{juliaLink.card_id}
+                </Badge>
+                {(liveJulia?.stage_name || juliaLink.stage_name) && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] px-1.5 py-0 gap-1"
+                    style={{
+                      backgroundColor: `${liveJulia?.stage_color || '#a855f7'}15`,
+                      color: liveJulia?.stage_color || '#7c3aed',
+                      borderColor: `${liveJulia?.stage_color || '#a855f7'}40`,
+                    }}
+                  >
+                    {liveJulia?.stage_name || juliaLink.stage_name}
+                  </Badge>
+                )}
+                {liveJulia?.business_name && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] px-1.5 py-0 bg-muted/40 text-muted-foreground"
+                  >
+                    {liveJulia.business_name}
+                  </Badge>
+                )}
+              </>
             )}
           </div>
         )}
