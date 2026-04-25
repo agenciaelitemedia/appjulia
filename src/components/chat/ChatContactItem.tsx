@@ -232,7 +232,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             {queueName && (
               <Pill
                 label={queueName.toUpperCase()}
-                className="bg-blue-600 text-white rounded-l w-[90px]"
+                className="bg-blue-600 text-white rounded-l w-[110px]"
               />
             )}
             {slaEvaluation && (
