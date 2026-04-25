@@ -43,6 +43,7 @@ import ChatMetricsPage from "./pages/chat/ChatMetricsPage";
 import ChatAutomationsPage from "./pages/chat/ChatAutomationsPage";
 import ChatWebhooksPage from "./pages/chat/ChatWebhooksPage";
 import ChatSlaConfigPage from "./pages/chat/ChatSlaConfigPage";
+import ChatSettingsPage from "./pages/chat/ChatSettingsPage";
 import ChatApiKeysPage from "./pages/chat/ChatApiKeysPage";
 import ChatKnowledgeBasePage from "./pages/chat/ChatKnowledgeBasePage";
 import ChatCsatPage from "./pages/chat/ChatCsatPage";
@@ -128,6 +129,7 @@ const App = () => (
                   <Route path="/chat/automacoes" element={<ChatAutomationsPage />} />
                   <Route path="/chat/webhooks" element={<ChatWebhooksPage />} />
                   <Route path="/chat/sla" element={<ChatSlaConfigPage />} />
+                  <Route path="/chat/configuracoes" element={<ChatSettingsPage />} />
                   <Route path="/chat/api-keys" element={<ChatApiKeysPage />} />
                   <Route path="/chat/kb" element={<ChatKnowledgeBasePage />} />
                   <Route path="/chat/csat" element={<ChatCsatPage />} />
