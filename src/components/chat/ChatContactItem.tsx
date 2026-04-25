@@ -77,8 +77,11 @@ function MessagePreview({ text }: { text?: string }) {
 /** Single pill */
 function Pill({ label, className }: { label: string; className: string }) {
   return (
-    <span className={cn('inline-flex items-center text-[9px] font-bold px-1.5 h-5 whitespace-nowrap', className)}>
-      {label}
+    <span className={cn(
+      'inline-flex items-center justify-start h-5 px-1.5 text-[9px] font-bold leading-none overflow-hidden whitespace-nowrap',
+      className
+    )}>
+      <span className="truncate">{label}</span>
     </span>
   );
 }
@@ -225,31 +228,33 @@ export const ChatContactItem = React.memo(function ChatContactItem({
 
         {/* Row 3: Tags — fila → SLA → atribuído → extras → prioridade (direita) */}
         <div className="flex items-center gap-1 flex-nowrap min-w-0 overflow-hidden w-full">
-          <div className="flex items-center gap-0 flex-1 min-w-0 overflow-hidden">
+          <div className="flex items-stretch gap-0 flex-shrink-0 mr-2">
             {queueName && (
-              <span className="flex-shrink min-w-0 max-w-[110px] truncate">
-                <Pill label={queueName.toUpperCase()} className="bg-blue-600 text-white rounded-l" />
-              </span>
-            )}
-            {slaEvaluation && <span className="flex-shrink-0"><SlaBadge evaluation={slaEvaluation} compact /></span>}
-            <span className="flex-shrink min-w-0 max-w-[110px] truncate">
               <Pill
-                label={assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO'}
-                className={cn(
-                  assignedAgentName ? 'bg-muted text-foreground' : 'bg-muted/60 text-muted-foreground',
-                  !hasCrmCard && 'rounded-r'
-                )}
+                label={queueName.toUpperCase()}
+                className="bg-blue-600 text-white rounded-l w-[90px]"
               />
-            </span>
+            )}
+            {slaEvaluation && (
+              <SlaBadge evaluation={slaEvaluation} compact className="w-[64px]" />
+            )}
+            <Pill
+              label={assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO'}
+              className={cn(
+                'w-[110px]',
+                assignedAgentName ? 'bg-muted text-foreground' : 'bg-muted/60 text-muted-foreground',
+                !hasCrmCard && 'rounded-r'
+              )}
+            />
             {hasCrmCard && (
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span
-                      className="flex-shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 h-5 rounded-r bg-blue-50 text-blue-700 whitespace-nowrap"
+                      className="inline-flex items-center justify-center gap-0.5 h-5 w-[44px] px-1 text-[9px] font-bold leading-none rounded-r bg-blue-50 text-blue-700 whitespace-nowrap"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <Kanban className="h-2.5 w-2.5" />
+                      <Kanban className="h-2.5 w-2.5 flex-shrink-0" />
                       CRM
                     </span>
                   </TooltipTrigger>
