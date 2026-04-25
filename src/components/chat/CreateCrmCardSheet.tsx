@@ -182,7 +182,7 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, conv
         };
       }
 
-      const { error } = await supabase.from('crm_deals').insert({
+      const { error } = await supabase.from('crm_deals').insert([{
         board_id: selectedBoard,
         pipeline_id: selectedPipeline,
         client_id: clientId,
@@ -193,8 +193,8 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, conv
         contact_phone: contact.phone,
         priority,
         value: value ? Number(value.replace(',', '.')) : 0,
-        custom_fields: { source: 'chat', links },
-      });
+        custom_fields: { source: 'chat', links } as any,
+      }]);
       if (error) throw error;
 
       // Best-effort: registrar vínculo em chat_crm_links
