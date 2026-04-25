@@ -87,7 +87,15 @@ export class UaZapiClient {
         });
 
         if (error) {
-          throw new UaZapiError(error.message, 500);
+          // Detect transient edge runtime errors (503 cold start / boot)
+          const msg = error.message || '';
+          const isTransient = /503|temporarily unavailable|SUPABASE_EDGE_RUNTIME_ERROR|Failed to fetch|NetworkError/i.test(msg);
+          if (isTransient && attempt < retries) {
+            await this.delay(300 * (attempt + 1));
+            lastError = error as Error;
+            continue;
+          }
+          throw new UaZapiError(msg || 'Edge function error', 503);
         }
 
         if (!data) {
