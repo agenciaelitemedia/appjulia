@@ -566,67 +566,97 @@ export function DealDetailsSheet({
                 onAddNote={addNote}
               />
             </TabsContent>
-          </ScrollArea>
+          </div>
         </Tabs>
 
-        {/* Actions Footer */}
-        <div className="p-4 border-t space-y-2">
-          <div className="flex gap-2">
-            {!isLinked && !hideStatusActions && (
-              <Button
-                variant="outline"
-                className="flex-1"
+        {/* Footer — sempre fixo, contextual (Chat vs CRM) */}
+        <div className="p-4 border-t shrink-0 bg-background space-y-2">
+          {footerExtra ? (
+            // Modo Chat: usa exatamente o que o consumidor passar
+            footerExtra
+          ) : (
+            <>
+              {/* Linha 1: Editar | Perdido | Ganho */}
+              {!hideStatusActions && deal.status === 'open' && (
+                <div className="grid grid-cols-3 gap-2">
+                  {!isLinked && (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        onOpenChange(false);
+                        onEdit();
+                      }}
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Editar
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    onClick={() => {
+                      onLost();
+                      onOpenChange(false);
+                    }}
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Perdido
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                    onClick={() => {
+                      onWon();
+                      onOpenChange(false);
+                    }}
+                  >
+                    <Trophy className="h-4 w-4 mr-2" />
+                    Ganho
+                  </Button>
+                </div>
+              )}
+              {/* Linha 2: Arquivar (com confirmação) */}
+              {!hideArchiveAction && (
+                <Button
+                  variant="ghost"
+                  className="w-full text-destructive hover:bg-destructive/10"
+                  onClick={() => setConfirmArchive(true)}
+                >
+                  <Archive className="h-4 w-4 mr-2" />
+                  {isLinked ? 'Excluir card' : 'Arquivar Deal'}
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+
+        <AlertDialog open={confirmArchive} onOpenChange={setConfirmArchive}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {isLinked ? 'Excluir este card?' : 'Arquivar este card?'}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {isLinked
+                  ? `O card "${deal.title}" será removido. Essa ação não pode ser desfeita.`
+                  : `O card "${deal.title}" será arquivado e removido do board. Você poderá restaurá-lo depois em arquivados.`}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 onClick={() => {
+                  setConfirmArchive(false);
+                  onArchive();
                   onOpenChange(false);
-                  onEdit();
                 }}
               >
-                <Edit className="h-4 w-4 mr-2" />
-                Editar
-              </Button>
-            )}
-            {!hideStatusActions && deal.status === 'open' && (
-              <>
-                <Button 
-                  variant="outline"
-                  className="flex-1 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-                  onClick={() => {
-                    onWon();
-                    onOpenChange(false);
-                  }}
-                >
-                  <Trophy className="h-4 w-4 mr-2" />
-                  Ganho
-                </Button>
-                <Button 
-                  variant="outline"
-                  className="flex-1 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                  onClick={() => {
-                    onLost();
-                    onOpenChange(false);
-                  }}
-                >
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Perdido
-                </Button>
-              </>
-            )}
-          </div>
-          {!hideArchiveAction && (
-            <Button 
-              variant="ghost" 
-              className="w-full text-destructive hover:bg-destructive/10"
-              onClick={() => {
-                onArchive();
-                onOpenChange(false);
-              }}
-            >
-              <Archive className="h-4 w-4 mr-2" />
-              {isLinked ? 'Excluir card' : 'Arquivar Deal'}
-            </Button>
-          )}
-          {footerExtra}
-        </div>
+                {isLinked ? 'Excluir card' : 'Arquivar'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SheetContent>
     </Sheet>
   );
