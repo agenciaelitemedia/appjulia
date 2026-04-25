@@ -55,6 +55,7 @@ interface DealCardProps {
   onLost: () => void;
   onClick?: () => void;
   onOpenChat?: (deal: CRMDeal) => void;
+  onChangePriority?: (deal: CRMDeal, priority: 'low' | 'medium' | 'high' | 'urgent') => void;
 }
 
 export function DealCard({
@@ -66,6 +67,7 @@ export function DealCard({
   onLost,
   onClick,
   onOpenChat,
+  onChangePriority,
 }: DealCardProps) {
   const [confirmArchive, setConfirmArchive] = useState(false);
   const {
