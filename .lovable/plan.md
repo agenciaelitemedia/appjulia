@@ -1,48 +1,26 @@
-
-## Problema
-O badge "CRM" na lista de conversas hoje usa `crm_deals.contact_phone` para detectar vínculo. É **frágil**: se o telefone do contato/deal for editado, o vínculo visual quebra mesmo o deal continuando atrelado àquela conversa.
-
-## Vínculo correto (forte e imutável)
-Os deals do CRM Builder já guardam o vínculo com a conversa em:
-```
-crm_deals.custom_fields -> 'links' -> 'chat' -> 'conversation_id'
-```
-Esse é o mesmo caminho usado por:
-- Triggers `sync_deal_to_conversation` / `sync_conversation_to_deal`
-- Hook `useChatDealLink` (header do chat)
-- `useCardLinks.getChatLink` (CRM Builder)
-
-`conversation_id` é UUID e nunca muda → vínculo estável.
+## Objetivo
+Fazer com que os badges da Linha 3 (Fila → SLA → Responsável → CRM) pareçam **um único badge segmentado**: mesma altura, sem espaçamento entre eles, e cantos arredondados apenas nas extremidades.
 
 ## Mudanças
 
-### 1. Substituir hook `useCRMBuilderPhones` por `useCRMBuilderLinkedConversations`
-Novo arquivo: `src/hooks/useCRMBuilderLinkedConversations.ts`
+### 1. `src/components/chat/ChatContactItem.tsx`
+- **Container**: trocar `gap-1` do wrapper interno por `gap-0` (sem espaçamento entre os segmentos). Manter `gap-1` apenas entre o grupo segmentado e o `PriorityBadge` à direita.
+- **Pill (Fila / Responsável)**: aplicar altura fixa `h-5` + `inline-flex items-center` para alinhar verticalmente com SLA e CRM. Aceitar uma prop `className` extra para arredondamento condicional.
+- **Fila (primeiro segmento)**: adicionar `rounded-l` (canto esquerdo arredondado).
+- **Responsável (último ou penúltimo segmento)**:
+  - Se **NÃO houver** badge CRM → adicionar `rounded-r` (extremidade direita).
+  - Se **houver** badge CRM → manter sem arredondamento (o CRM fecha a direita).
+- **CRM**: já usa `rounded-r`; manter. Ajustar altura para `h-5` para ficar idêntica aos demais. Remover `gap` de margem.
+- **SLA**: passar `className` extra a `SlaBadge` para garantir `h-5` e nenhum arredondamento (segmento do meio).
 
-- Query em `crm_deals` filtrando por `client_id` e `status != archived`.
-- Seleciona apenas `custom_fields`.
-- Extrai `custom_fields.links.chat.conversation_id` de cada deal.
-- Retorna um `Set<string>` de `conversation_id`s vinculados.
-- Mantém `staleTime: 60_000`.
+### 2. `src/components/chat/SlaBadge.tsx`
+- No modo `compact`, adicionar `h-5` para alinhar altura com os outros segmentos (mantém `px-1.5 py-0.5` mas com altura controlada).
 
-### 2. Atualizar `src/components/chat/ChatList.tsx`
-- Remover import e uso de `useCRMBuilderPhones`.
-- Usar `useCRMBuilderLinkedConversations()`.
-- No mapeamento de cada conversa, calcular:
-  ```ts
-  hasCrmCard={linkedConversationIds?.has(conversation.id) ?? false}
-  ```
-  (em vez do match por telefone normalizado)
+## Regras finais de arredondamento (sequência possível Fila → SLA → Responsável → CRM)
+- **Primeiro segmento existente** recebe `rounded-l`.
+- **Último segmento existente** recebe `rounded-r`.
+- Segmentos do meio: sem arredondamento.
+- Para simplificar e cobrir o pedido: Fila sempre `rounded-l`; CRM sempre `rounded-r`; Responsável recebe `rounded-r` apenas quando CRM ausente.
 
-### 3. Ajustar visual do badge em `src/components/chat/ChatContactItem.tsx`
-Conforme pedido: **somente o ícone do CRM**, sem o texto "CRM".
-- Manter o fundo azul (`bg-blue-600`), `rounded-full` (mais clean só com ícone), tamanho compacto (`h-5 w-5` flex center).
-- Manter ícone `Kanban` (azul/branco) e o `Tooltip` "Este contato possui card no CRM".
-- Remover o texto "CRM" ao lado do ícone.
-
-### 4. Limpeza
-- Remover o arquivo `src/hooks/useCRMBuilderPhones.ts` (não será mais usado).
-
-## Resultado
-- Badge CRM aparece de forma confiável sempre que existir um deal vinculado àquela conversa, independente de mudanças no telefone do contato ou do deal.
-- Visual mais enxuto: apenas o ícone Kanban em pílula azul redonda, com tooltip explicativo.
+## Resultado visual
+Uma "barra" contínua: `[ FILA | SLA | RESPONSÁVEL | CRM ]`, todos com `h-5`, sem gaps, dando aparência de um único badge dividido em seções.
