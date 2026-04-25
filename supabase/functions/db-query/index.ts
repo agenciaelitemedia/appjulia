@@ -2821,17 +2821,13 @@ serve(async (req) => {
         throw new Error(`Unknown action: ${action}`);
     }
 
-    await sql.end();
-
     return new Response(JSON.stringify({ data: result, error: null }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
     } catch (error: unknown) {
-      // Close connection on error
-      if (sql) {
-        try { await sql.end(); } catch { /* ignore */ }
-      }
+      // Do NOT close the singleton pool on error — it is reused across requests.
+      // postgres.js will recover broken connections from the pool automatically.
       
       lastError = error;
       
