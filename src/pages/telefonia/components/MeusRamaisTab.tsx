@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Plus, Pencil, Trash2, Phone, RefreshCw, CheckCircle, AlertCircle, Ban, CalendarDays } from 'lucide-react';
+import { Plus, Pencil, Trash2, Phone, RefreshCw, CheckCircle, AlertCircle, Ban, CalendarDays, PhoneOff } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { RamalDialog } from './RamalDialog';
 import type { PhoneExtension, ProviderType } from '../types';
@@ -64,13 +64,18 @@ export function MeusRamaisTab({ codAgent }: Props) {
   return (
     <div className="space-y-4">
       {planDeactivated && (
-        <Alert variant="destructive">
-          <Ban className="h-4 w-4" />
-          <AlertDescription>
-            <p>Para ter acesso às ligações você precisa fazer a contratação de um plano de telefonia.</p>
-            <p className="mt-1">Entre em contato com o administrador do sistema para mais informações.</p>
-          </AlertDescription>
-        </Alert>
+        <div className="text-center py-6 space-y-2">
+          <PhoneOff className="h-10 w-10 mx-auto text-muted-foreground" />
+          <p className="text-sm font-medium text-destructive">Você não possui ramal ativo.</p>
+          <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 text-yellow-700 dark:text-yellow-400 max-w-md mx-auto">
+            <p className="text-base leading-snug">
+              Para ter acesso às ligações você precisa fazer a contratação de um plano de telefonia.
+            </p>
+            <p className="text-base leading-snug mt-1">
+              Entre em contato com o administrador do sistema para mais informações.
+            </p>
+          </div>
+        </div>
       )}
 
       <Card>
