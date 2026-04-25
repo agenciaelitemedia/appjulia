@@ -5,10 +5,12 @@ import type { CRMPipeline, CRMPipelineFormData } from '../types';
 
 interface UseCRMPipelinesOptions {
   boardId: string | null;
+  clientId: string;
   codAgent: string;
+  canManage?: boolean;
 }
 
-export function useCRMPipelines({ boardId, codAgent }: UseCRMPipelinesOptions) {
+export function useCRMPipelines({ boardId, clientId, codAgent, canManage = true }: UseCRMPipelinesOptions) {
   const { toast } = useToast();
   const [pipelines, setPipelines] = useState<CRMPipeline[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -16,7 +18,7 @@ export function useCRMPipelines({ boardId, codAgent }: UseCRMPipelinesOptions) {
 
   // Fetch all pipelines for the board
   const fetchPipelines = useCallback(async () => {
-    if (!boardId || !codAgent) {
+    if (!boardId || !clientId) {
       setPipelines([]);
       return;
     }
@@ -29,7 +31,7 @@ export function useCRMPipelines({ boardId, codAgent }: UseCRMPipelinesOptions) {
         .from('crm_pipelines')
         .select('*')
         .eq('board_id', boardId)
-        .eq('cod_agent', codAgent)
+        .eq('client_id', clientId)
         .eq('is_active', true)
         .order('position', { ascending: true });
 
@@ -47,11 +49,11 @@ export function useCRMPipelines({ boardId, codAgent }: UseCRMPipelinesOptions) {
     } finally {
       setIsLoading(false);
     }
-  }, [boardId, codAgent, toast]);
+  }, [boardId, clientId, toast]);
 
   // Create a new pipeline
   const createPipeline = useCallback(async (data: CRMPipelineFormData): Promise<CRMPipeline | null> => {
-    if (!boardId || !codAgent) return null;
+    if (!boardId || !clientId || !canManage) return null;
 
     try {
       // Get the max position
@@ -63,6 +65,7 @@ export function useCRMPipelines({ boardId, codAgent }: UseCRMPipelinesOptions) {
         .from('crm_pipelines')
         .insert({
           board_id: boardId,
+          client_id: clientId,
           cod_agent: codAgent,
           name: data.name,
           color: data.color,
@@ -92,10 +95,11 @@ export function useCRMPipelines({ boardId, codAgent }: UseCRMPipelinesOptions) {
       });
       return null;
     }
-  }, [boardId, codAgent, pipelines, toast]);
+  }, [boardId, clientId, codAgent, canManage, pipelines, toast]);
 
   // Update a pipeline
   const updatePipeline = useCallback(async (pipelineId: string, data: Partial<CRMPipelineFormData>): Promise<boolean> => {
+    if (!canManage) return false;
     try {
       const { error: updateError } = await supabase
         .from('crm_pipelines')
@@ -129,10 +133,11 @@ export function useCRMPipelines({ boardId, codAgent }: UseCRMPipelinesOptions) {
       });
       return false;
     }
-  }, [toast]);
+  }, [canManage, toast]);
 
   // Delete (deactivate) a pipeline
   const deletePipeline = useCallback(async (pipelineId: string): Promise<boolean> => {
+    if (!canManage) return false;
     try {
       const { error: updateError } = await supabase
         .from('crm_pipelines')
@@ -158,10 +163,11 @@ export function useCRMPipelines({ boardId, codAgent }: UseCRMPipelinesOptions) {
       });
       return false;
     }
-  }, [toast]);
+  }, [canManage, toast]);
 
   // Reorder pipelines
   const reorderPipelines = useCallback(async (reorderedPipelines: CRMPipeline[]): Promise<boolean> => {
+    if (!canManage) return false;
     try {
       // Update positions locally first (optimistic)
       setPipelines(reorderedPipelines);
@@ -188,11 +194,11 @@ export function useCRMPipelines({ boardId, codAgent }: UseCRMPipelinesOptions) {
       });
       return false;
     }
-  }, [fetchPipelines, toast]);
+  }, [canManage, fetchPipelines, toast]);
 
   // Set up realtime subscription
   useEffect(() => {
-    if (!boardId || !codAgent) return;
+    if (!boardId || !clientId) return;
 
     const channel = supabase
       .channel(`crm-pipelines-${boardId}`)
@@ -213,7 +219,7 @@ export function useCRMPipelines({ boardId, codAgent }: UseCRMPipelinesOptions) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [boardId, codAgent, fetchPipelines]);
+  }, [boardId, clientId, fetchPipelines]);
 
   // Fetch on board change
   useEffect(() => {
