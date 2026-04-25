@@ -586,6 +586,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
             onOpenChange={setShowCrmLead}
             contact={contact}
             codAgent={selectedConversation?.cod_agent || (contact as any).cod_agent || null}
+            queueId={selectedConversation?.queue_id || null}
             conversationId={selectedConversation?.id || null}
           />
 
