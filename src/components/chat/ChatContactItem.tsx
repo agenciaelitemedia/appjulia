@@ -228,31 +228,58 @@ export const ChatContactItem = React.memo(function ChatContactItem({
 
         {/* Row 3: Tags — fila → SLA → atribuído → extras → prioridade (direita) */}
         <div className="flex items-center gap-1 flex-nowrap min-w-0 overflow-hidden w-full">
-          <div className="flex items-stretch gap-0 flex-shrink-0 mr-2">
-            {queueName && (
-              <Pill
-                label={queueName.toUpperCase()}
-                className="bg-blue-600 text-white rounded-l w-[110px]"
-              />
-            )}
-            <Pill
-              label={assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO'}
-              className={cn(
-                'w-[110px]',
-                'bg-slate-100 text-slate-900',
-                assignedAgentName ? 'font-bold' : '!font-normal',
-                !slaEvaluation && !hasCrmCard && 'rounded-r'
+          <TooltipProvider delayDuration={200}>
+            <div className="flex items-stretch gap-0 flex-shrink-0 mr-2">
+              {queueName && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Pill
+                        label={queueName.toUpperCase()}
+                        className="bg-blue-600 text-white rounded-l w-[110px]"
+                      />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs">
+                    Fila: {queueName}
+                  </TooltipContent>
+                </Tooltip>
               )}
-            />
-            {slaEvaluation && (
-              <SlaBadge
-                evaluation={slaEvaluation}
-                compact
-                className={cn('w-[64px]', !hasCrmCard && 'rounded-r')}
-              />
-            )}
-            {hasCrmCard && (
-              <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Pill
+                      label={assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO'}
+                      className={cn(
+                        'w-[110px]',
+                        'bg-slate-100 text-slate-900',
+                        assignedAgentName ? 'font-bold' : '!font-normal',
+                        !slaEvaluation && !hasCrmCard && 'rounded-r'
+                      )}
+                    />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  {assignedAgentName ? `Responsável: ${assignedAgentName}` : 'Conversa não atribuída a nenhum responsável'}
+                </TooltipContent>
+              </Tooltip>
+              {slaEvaluation && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <SlaBadge
+                        evaluation={slaEvaluation}
+                        compact
+                        className={cn('w-[64px]', !hasCrmCard && 'rounded-r')}
+                      />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs">
+                    SLA — {slaEvaluation.label}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              {hasCrmCard && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span
@@ -267,9 +294,9 @@ export const ChatContactItem = React.memo(function ChatContactItem({
                     Este contato possui card no CRM
                   </TooltipContent>
                 </Tooltip>
-              </TooltipProvider>
-            )}
-          </div>
+              )}
+            </div>
+          </TooltipProvider>
           {conversation && (
             <div className="ml-auto flex-shrink-0">
               <PriorityBadge
