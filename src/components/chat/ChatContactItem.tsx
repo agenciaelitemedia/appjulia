@@ -239,7 +239,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
               <SlaBadge evaluation={slaEvaluation} compact className="w-[64px]" />
             )}
             <Pill
-              label={assignedAgentName ? assignedAgentName.toUpperCase() : 'RESPONSÁVEL'}
+              label={assignedAgentName ? assignedAgentName.toUpperCase() : 'NÃO ATRIBUÍDO'}
               className={cn(
                 'w-[110px]',
                 'bg-slate-300 text-slate-900',
