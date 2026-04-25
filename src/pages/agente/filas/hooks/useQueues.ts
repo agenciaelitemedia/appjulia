@@ -40,12 +40,26 @@ export interface QueueFormData {
 }
 
 async function invokeQueueManagement(action: string, data: Record<string, unknown>) {
-  const { data: result, error } = await supabase.functions.invoke('queue-management', {
-    body: { action, data },
-  });
-  if (error) throw new Error(error.message);
-  if (result?.error) throw new Error(result.error);
-  return result;
+  const maxRetries = 3;
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const { data: result, error } = await supabase.functions.invoke('queue-management', {
+      body: { action, data },
+    });
+    if (error) {
+      const msg = error.message || '';
+      const isTransient = /503|temporarily unavailable|SUPABASE_EDGE_RUNTIME_ERROR|Failed to fetch|NetworkError/i.test(msg);
+      if (isTransient && attempt < maxRetries - 1) {
+        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+        lastError = error as Error;
+        continue;
+      }
+      throw new Error(msg || 'Edge function error');
+    }
+    if (result?.error) throw new Error(result.error);
+    return result;
+  }
+  throw lastError || new Error('Falha ao invocar queue-management');
 }
 
 // Resolve client_id from the user, falling back to the linked agents (user_agents → agents.client_id).
