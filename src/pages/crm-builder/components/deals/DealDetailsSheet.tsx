@@ -337,48 +337,115 @@ export function DealDetailsSheet({
               {/* 2. Contato */}
               <Separator />
               <div>
-                <h4 className="text-sm font-medium mb-3">Contato</h4>
-                <div className="space-y-3">
-                  {deal.contact_name && (
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <span className="text-sm">{deal.contact_name}</span>
-                    </div>
-                  )}
-                  {deal.contact_phone && (
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <a 
-                        href={`tel:${deal.contact_phone}`}
-                        className="text-sm text-primary hover:underline"
-                      >
-                        {deal.contact_phone}
-                      </a>
-                    </div>
-                  )}
-                  {deal.contact_email && (
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <a 
-                        href={`mailto:${deal.contact_email}`}
-                        className="text-sm text-primary hover:underline"
-                      >
-                        {deal.contact_email}
-                      </a>
-                    </div>
-                  )}
-                  {!deal.contact_name && !deal.contact_phone && !deal.contact_email && (
-                    <p className="text-sm text-muted-foreground">
-                      Nenhuma informação de contato
-                    </p>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-medium">Contato</h4>
+                  {!editingContact && onUpdate && (deal.contact_name || deal.contact_phone || deal.contact_email) && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                      onClick={startEditContact}
+                      title="Editar contato"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
                   )}
                 </div>
+
+                {editingContact ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <Input
+                        value={contactDraft.name}
+                        placeholder="Nome do contato"
+                        onChange={(e) => setContactDraft((d) => ({ ...d, name: e.target.value }))}
+                        className="h-9"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <Input
+                        value={contactDraft.phone}
+                        placeholder="(00) 00000-0000"
+                        onChange={(e) => setContactDraft((d) => ({ ...d, phone: maskPhone(e.target.value) }))}
+                        className="h-9"
+                        inputMode="tel"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <Input
+                        value={contactDraft.email}
+                        placeholder="email@exemplo.com"
+                        onChange={(e) => setContactDraft((d) => ({ ...d, email: e.target.value }))}
+                        className="h-9"
+                        type="email"
+                        inputMode="email"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-1">
+                      <Button size="sm" variant="ghost" onClick={() => setEditingContact(false)}>
+                        <XIcon className="h-4 w-4 mr-1" /> Cancelar
+                      </Button>
+                      <Button size="sm" onClick={saveContact} disabled={savingField === 'contact'}>
+                        <Check className="h-4 w-4 mr-1" /> Salvar
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {deal.contact_name && (
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <span className="text-sm">{deal.contact_name}</span>
+                      </div>
+                    )}
+                    {deal.contact_phone && (
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                          <Phone className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <a
+                          href={`tel:${deal.contact_phone}`}
+                          className="text-sm text-primary hover:underline"
+                        >
+                          {deal.contact_phone}
+                        </a>
+                      </div>
+                    )}
+                    {deal.contact_email && (
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <a
+                          href={`mailto:${deal.contact_email}`}
+                          className="text-sm text-primary hover:underline"
+                        >
+                          {deal.contact_email}
+                        </a>
+                      </div>
+                    )}
+                    {!deal.contact_name && !deal.contact_phone && !deal.contact_email && (
+                      onUpdate ? (
+                        <Button variant="outline" size="sm" onClick={startEditContact} className="gap-1.5">
+                          <Plus className="h-3.5 w-3.5" /> Adicionar contato
+                        </Button>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Nenhuma informação de contato</p>
+                      )
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* 3. Responsável (full-width, editável) */}
