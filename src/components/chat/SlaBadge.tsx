@@ -24,7 +24,7 @@ export function SlaBadge({ evaluation, compact, className }: SlaBadgeProps) {
     return (
       <span
         className={cn(
-          'inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5',
+          'inline-flex items-center gap-1 text-[9px] font-bold px-1.5 h-5',
           s.bg,
           className
         )}
