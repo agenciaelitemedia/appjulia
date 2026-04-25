@@ -31,6 +31,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useCRMDealHistory } from '../../hooks/useCRMDealHistory';
 import { DealActivityTimeline } from './DealActivityTimeline';
 import { DealLinksSection } from './DealLinksSection';
+import { getChatLink, getJuliaLink } from '../../hooks/useCardLinks';
 import type { CRMDeal, CRMPipeline } from '../../types';
 import { PRIORITY_CONFIG, STATUS_CONFIG } from '../../types';
 
@@ -65,6 +66,7 @@ export function DealDetailsSheet({
 
   const priorityConfig = PRIORITY_CONFIG[deal.priority];
   const statusConfig = STATUS_CONFIG[deal.status];
+  const isLinked = !!getChatLink(deal) || !!getJuliaLink(deal);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -273,17 +275,19 @@ export function DealDetailsSheet({
         {/* Actions Footer */}
         <div className="p-4 border-t space-y-2">
           <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              className="flex-1"
-              onClick={() => {
-                onOpenChange(false);
-                onEdit();
-              }}
-            >
-              <Edit className="h-4 w-4 mr-2" />
-              Editar
-            </Button>
+            {!isLinked && (
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  onOpenChange(false);
+                  onEdit();
+                }}
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Editar
+              </Button>
+            )}
             {deal.status === 'open' && (
               <>
                 <Button 
@@ -320,7 +324,7 @@ export function DealDetailsSheet({
             }}
           >
             <Archive className="h-4 w-4 mr-2" />
-            Arquivar Deal
+            {isLinked ? 'Excluir card' : 'Arquivar Deal'}
           </Button>
         </div>
       </SheetContent>

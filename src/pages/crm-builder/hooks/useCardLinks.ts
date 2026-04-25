@@ -83,5 +83,6 @@ export function useJuliaCardPreview(link: JuliaLink | null) {
     },
     enabled: !!link?.card_id,
     staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 }

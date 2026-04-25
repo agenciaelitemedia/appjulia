@@ -28,7 +28,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { CRMDeal } from '../../types';
 import { PRIORITY_CONFIG } from '../../types';
-import { getChatLink, getJuliaLink } from '../../hooks/useCardLinks';
+import { getChatLink, getJuliaLink, useJuliaCardPreview } from '../../hooks/useCardLinks';
 
 interface DealCardProps {
   deal: CRMDeal;
@@ -72,6 +72,10 @@ export function DealCard({
   const priorityConfig = PRIORITY_CONFIG[deal.priority];
   const chatLink = getChatLink(deal);
   const juliaLink = getJuliaLink(deal);
+  // Live data from Julia CRM — não move o card no kanban, só atualiza badges/info.
+  const juliaLive = useJuliaCardPreview(juliaLink);
+  const liveJulia = juliaLive.data;
+  const isLinked = !!chatLink || !!juliaLink;
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -124,7 +128,7 @@ export function DealCard({
             {deal.title}
           </h4>
           
-          <DropdownMenu>
+          {!isLinked && <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
                 variant="ghost" 
@@ -158,7 +162,30 @@ export function DealCard({
                 Arquivar
               </DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>
+          </DropdownMenu>}
+          {isLinked && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreHorizontal className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={(e) => { e.stopPropagation(); onArchive(); }}
+                  className="text-destructive"
+                >
+                  <Archive className="h-4 w-4 mr-2" />
+                  Excluir card
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         {/* Value */}
@@ -240,12 +267,35 @@ export function DealCard({
               </Badge>
             )}
             {juliaLink && (
-              <Badge
-                variant="outline"
-                className="text-[10px] px-1.5 py-0 bg-purple-500/10 text-purple-700 border-purple-500/30 gap-1"
-              >
-                <Scale className="h-2.5 w-2.5" /> Julia #{juliaLink.card_id}
-              </Badge>
+              <>
+                <Badge
+                  variant="outline"
+                  className="text-[10px] px-1.5 py-0 bg-purple-500/10 text-purple-700 border-purple-500/30 gap-1"
+                >
+                  <Scale className="h-2.5 w-2.5" /> Julia #{juliaLink.card_id}
+                </Badge>
+                {(liveJulia?.stage_name || juliaLink.stage_name) && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] px-1.5 py-0 gap-1"
+                    style={{
+                      backgroundColor: `${liveJulia?.stage_color || '#a855f7'}15`,
+                      color: liveJulia?.stage_color || '#7c3aed',
+                      borderColor: `${liveJulia?.stage_color || '#a855f7'}40`,
+                    }}
+                  >
+                    {liveJulia?.stage_name || juliaLink.stage_name}
+                  </Badge>
+                )}
+                {liveJulia?.business_name && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] px-1.5 py-0 bg-muted/40 text-muted-foreground"
+                  >
+                    {liveJulia.business_name}
+                  </Badge>
+                )}
+              </>
             )}
           </div>
         )}

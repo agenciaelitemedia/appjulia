@@ -21,3 +21,13 @@ Cards do CRM Builder (`crm_deals`) podem ter vínculos opcionais armazenados em 
 - `DealDetailsSheet` inclui `DealLinksSection` com botão "Abrir" (chat → `/chat` via sessionStorage `chat_pending_contact_id`) e "Ver" (Julia → `CRMLeadDetailsDialog`).
 - Helpers: `getChatLink`, `getJuliaLink`, `useChatConversationPreview`, `useJuliaCardPreview` em `src/pages/crm-builder/hooks/useCardLinks.ts`.
 - Também grava vínculo redundante em `chat_crm_links` (external_system='crm_builder').
+
+**Sincronização Julia → card (badges, NÃO move no kanban):**
+- `useJuliaCardPreview` faz refetch a cada 60s e expõe `stage_name`, `stage_color`, `business_name` ao vivo.
+- `DealCard` mostra badges informativos: `Julia #id` + etapa atual da Julia (com cor original) + business_name. O kanban NÃO é alterado quando a etapa Julia muda — apenas os badges atualizam.
+
+**Restrições para cards vinculados (chat ou Julia):**
+- Não podem ser editados nem desvinculados.
+- Menu do `DealCard` mostra apenas "Excluir card" (usa `archiveDeal`).
+- `DealDetailsSheet` esconde o botão "Editar"; o botão de arquivar vira "Excluir card".
+- Cards normais (sem vínculo) mantêm fluxo completo de edição/Ganho/Perdido/Arquivar.
