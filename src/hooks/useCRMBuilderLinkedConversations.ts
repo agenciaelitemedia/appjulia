@@ -11,7 +11,9 @@ import { useAuth } from '@/contexts/AuthContext';
  */
 export function useCRMBuilderLinkedConversations() {
   const { user } = useAuth();
-  const clientId = String(user?.cod_agent || user?.id || '');
+  // CRM Builder deals are scoped by user.client_id (e.g. '300'),
+  // NOT by cod_agent — must match the same scope used in useCRMDeals.
+  const clientId = user?.client_id ? String(user.client_id) : '';
 
   return useQuery({
     queryKey: ['crm-builder-linked-conversations', clientId],
