@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { useCRMDealHistory } from '../../hooks/useCRMDealHistory';
 import { DealActivityTimeline } from './DealActivityTimeline';
+import { DealLinksSection } from './DealLinksSection';
 import type { CRMDeal, CRMPipeline } from '../../types';
 import { PRIORITY_CONFIG, STATUS_CONFIG } from '../../types';
 
@@ -244,6 +245,8 @@ export function DealDetailsSheet({
                   </div>
                 </>
               )}
+
+              <DealLinksSection deal={deal} />
 
               {/* Timestamps */}
               <Separator />
