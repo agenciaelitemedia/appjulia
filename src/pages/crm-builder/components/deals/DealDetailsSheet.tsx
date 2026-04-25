@@ -53,6 +53,12 @@ interface DealDetailsSheetProps {
   onWon: () => void;
   onLost: () => void;
   onUpdate?: (data: Partial<CRMDealFormData>) => Promise<boolean> | void;
+  /** Esconde o bloco de ações Ganho/Perdido (e o botão Editar contextual) */
+  hideStatusActions?: boolean;
+  /** Esconde o botão Arquivar/Excluir do rodapé */
+  hideArchiveAction?: boolean;
+  /** Conteúdo extra renderizado no rodapé (ex.: "Abrir no CRM") */
+  footerExtra?: React.ReactNode;
 }
 
 export function DealDetailsSheet({
@@ -65,6 +71,9 @@ export function DealDetailsSheet({
   onWon,
   onLost,
   onUpdate,
+  hideStatusActions = false,
+  hideArchiveAction = false,
+  footerExtra,
 }: DealDetailsSheetProps) {
   const [activeTab, setActiveTab] = useState('details');
   const [editingAssignee, setEditingAssignee] = useState(false);
