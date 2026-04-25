@@ -33,6 +33,9 @@ import {
   Check,
   X as XIcon,
   Plus,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -59,6 +62,10 @@ interface DealDetailsSheetProps {
   hideArchiveAction?: boolean;
   /** Conteúdo extra renderizado no rodapé (ex.: "Abrir no CRM") */
   footerExtra?: React.ReactNode;
+  /** Lista completa de etapas (pipelines) do board para permitir mover */
+  stages?: CRMPipeline[];
+  /** Callback chamado quando o usuário escolhe mover o deal para outra etapa */
+  onMoveToStage?: (stageId: string) => Promise<boolean | void> | boolean | void;
 }
 
 export function DealDetailsSheet({
@@ -74,6 +81,8 @@ export function DealDetailsSheet({
   hideStatusActions = false,
   hideArchiveAction = false,
   footerExtra,
+  stages,
+  onMoveToStage,
 }: DealDetailsSheetProps) {
   const [activeTab, setActiveTab] = useState('details');
   const [editingAssignee, setEditingAssignee] = useState(false);
@@ -83,6 +92,8 @@ export function DealDetailsSheet({
   const [editingValue, setEditingValue] = useState(false);
   const [valueDraft, setValueDraft] = useState('');
   const [savingField, setSavingField] = useState<null | 'assignee' | 'description' | 'value'>(null);
+  const [stagesExpanded, setStagesExpanded] = useState(false);
+  const [movingToStage, setMovingToStage] = useState<string | null>(null);
   
   // Mesma fonte usada na página Equipe (vw_equipe filtrada por client_id),
   // que inclui o dono/responsável principal e todos os membros do mesmo cliente.
@@ -97,6 +108,23 @@ export function DealDetailsSheet({
   const priorityConfig = PRIORITY_CONFIG[deal.priority];
   const statusConfig = STATUS_CONFIG[deal.status];
   const isLinked = !!getChatLink(deal) || !!getJuliaLink(deal);
+
+  const showStagesBlock = !!stages && stages.length > 0 && !!onMoveToStage;
+  const sortedStages = showStagesBlock
+    ? [...stages!].sort((a, b) => a.position - b.position)
+    : [];
+  const currentStage = sortedStages.find((s) => s.id === deal.pipeline_id) || pipeline || null;
+
+  const handleStageClick = async (stageId: string) => {
+    if (!onMoveToStage || stageId === deal.pipeline_id || movingToStage) return;
+    setMovingToStage(stageId);
+    try {
+      await onMoveToStage(stageId);
+      setStagesExpanded(false);
+    } finally {
+      setMovingToStage(null);
+    }
+  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -182,6 +210,77 @@ export function DealDetailsSheet({
             </Badge>
           </div>
         </SheetHeader>
+
+        {/* Bloco Etapas (acima das abas) — só renderiza quando há stages + onMoveToStage */}
+        {showStagesBlock && (
+          <div className="px-6 py-3 border-b bg-muted/20">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Etapa
+                </span>
+                {currentStage && (
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: currentStage.color || '#6b7280' }}
+                    />
+                    <span className="text-sm font-medium truncate">{currentStage.name}</span>
+                  </div>
+                )}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 text-xs flex-shrink-0"
+                onClick={() => setStagesExpanded((v) => !v)}
+              >
+                <Pencil className="h-3 w-3" />
+                Editar
+                {stagesExpanded ? (
+                  <ChevronUp className="h-3 w-3" />
+                ) : (
+                  <ChevronDown className="h-3 w-3" />
+                )}
+              </Button>
+            </div>
+
+            {stagesExpanded && (
+              <div className="space-y-1.5 mt-3">
+                {sortedStages.map((stage) => {
+                  const isCurrent = stage.id === deal.pipeline_id;
+                  const isMoving = movingToStage === stage.id;
+                  return (
+                    <button
+                      key={stage.id}
+                      type="button"
+                      onClick={() => handleStageClick(stage.id)}
+                      disabled={isCurrent || !!movingToStage}
+                      className={cn(
+                        'w-full flex items-center gap-2 px-3 py-2 rounded-md border text-left transition-colors',
+                        isCurrent
+                          ? 'border-primary/40 bg-primary/5 cursor-default'
+                          : 'cursor-pointer hover:bg-muted/50 hover:border-foreground/20',
+                        movingToStage && !isMoving && 'opacity-60'
+                      )}
+                    >
+                      <span
+                        className="inline-block h-3 w-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: stage.color || '#6b7280' }}
+                      />
+                      <span className="text-sm flex-1 truncate">{stage.name}</span>
+                      {isMoving ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground flex-shrink-0" />
+                      ) : isCurrent ? (
+                        <Check className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
           <div className="px-6 pt-4">
