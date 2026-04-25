@@ -536,6 +536,10 @@ export default function BoardPage() {
         onArchive={() => viewingDeal && archiveDeal(viewingDeal.id)}
         onWon={() => viewingDeal && setDealStatus(viewingDeal.id, 'won')}
         onLost={() => viewingDeal && setDealStatus(viewingDeal.id, 'lost')}
+        onUpdate={async (data) => {
+          if (!viewingDeal) return false;
+          return await updateDeal(viewingDeal.id, data);
+        }}
       />
 
       {/* Settings Sheet */}
