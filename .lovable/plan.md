@@ -1,112 +1,37 @@
-# Objetivo
+## Ajustes no `DealDetailsSheet.tsx`
 
-Reorganizar o `DealDetailsSheet` para:
-1. Remover a etapa do título (já está no bloco "Etapas").
-2. Aumentar levemente a fonte do título.
-3. Tornar os botões de rodapé contextuais (CRM vs Chat).
-4. Garantir que o **conteúdo central role** quando ultrapassar a altura do sheet, mas os **botões do rodapé fiquem sempre fixos** na parte de baixo (sem rolar junto).
+Todas as mudanças estão no arquivo `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx`. Não precisa alterar `ChatLinkedDealSheet` nem `BoardPage` — eles já consomem este componente.
 
----
+### 1. Remover botão "Editar" do rodapé
+- Remover o botão `Editar` (com ícone `Edit`) da linha de ações.
+- A linha do CRM passa a ter apenas **Perdido** e **Ganho**, em `grid-cols-2`, ocupando a largura toda dividida em 2 colunas iguais (cada botão expande na sua coluna via `w-full` implícito do grid).
+- Pode-se remover também a verificação `!isLinked` que restringia o botão Editar, e o import de `Edit` do lucide-react.
+- A prop `onEdit` continua na interface (para não quebrar callers), mas deixa de ser usada internamente.
 
-## 1. `DealDetailsSheet.tsx` — Header
+### 2. Editar contato inline (Nome, Telefone, E-mail)
+No bloco "Contato" (atualmente apenas leitura nas linhas ~307–350):
+- Adicionar estados: `editingContact`, `contactDraft` (`{ name, phone, email }`) e incluir `'contact'` no union de `savingField`.
+- Adicionar botão lápis (`Pencil`) ao lado do título **Contato** (mesmo padrão usado em "Responsável" e "Descrição"), visível somente quando `onUpdate` existe e não está em modo edição.
+- Em modo edição, renderizar três `Input` com labels/ícones (`User`, `Phone`, `Mail`) para `contact_name`, `contact_phone`, `contact_email`, com botões **Salvar** (Check) e **Cancelar** (XIcon).
+- `saveContact()` chama `onUpdate({ contact_name, contact_phone, contact_email })` enviando apenas valores trimados (string vazia → `undefined`) e fecha a edição.
+- Em modo leitura mantém o layout atual; quando todos os 3 campos estão vazios e `onUpdate` existe, mostrar botão "Adicionar contato" (padrão Plus, igual ao de descrição) que abre o modo edição com drafts vazios.
+- Telefone pode usar `maskPhone` de `src/lib/inputMasks.ts` no `onChange` para manter consistência com o resto do app.
 
-Arquivo: `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx`
+### 3. Renomear "Arquivar Deal" → "Arquivar Card"
+No botão de arquivar (linha 626) e em qualquer texto associado:
+- Trocar o label `'Arquivar Deal'` por `'Arquivar Card'`.
+- Para cards vinculados (chat/Julia), trocar `'Excluir card'` → `'Arquivar Card'` (mesma ação, label uniforme).
+- Atualizar o `AlertDialog` correspondente:
+  - Título: `'Arquivar este card?'` em ambos os casos.
+  - Texto do botão de confirmação: `'Arquivar Card'` em ambos os casos.
+  - Descrição pode permanecer contextual (linked menciona remoção do vínculo; não-linked menciona restauração em arquivados), mas usando o termo "arquivar" em ambos.
 
-- **Remover** do `SheetHeader` o badge da etapa (bolinha colorida + nome do `pipeline`). Essa info já está no bloco "Etapas" logo abaixo.
-- **Aumentar fonte do título**: trocar `text-lg` → `text-xl` (mantendo `font-semibold`).
-- Manter título + valor/contato/etc. como estão.
+### 4. Layout dos botões Perdido/Ganho
+- Continuar usando `grid grid-cols-2 gap-2` na linha de ações (após remover o Editar) para ocupar toda a largura.
+- Manter as cores atuais (Perdido com borda destrutiva, Ganho com borda primary).
+- Manter `Arquivar Card` como botão full-width na linha logo abaixo (já é `w-full`).
 
----
-
-## 2. Layout com rodapé fixo + conteúdo rolável
-
-Hoje o `SheetContent` usa `p-6` e empilha tudo verticalmente, então quando o conteúdo cresce ele rola junto com os botões. Vamos reestruturar para flex column de altura total:
-
-```tsx
-<SheetContent className="w-full sm:max-w-xl p-0 flex flex-col h-full">
-  {/* Header — fixo no topo */}
-  <div className="px-6 pt-6 pb-3 border-b shrink-0">
-    <SheetHeader>...</SheetHeader>
-  </div>
-
-  {/* Bloco Etapas — fixo, logo abaixo do header */}
-  <div className="px-6 py-3 border-b shrink-0">...</div>
-
-  {/* Conteúdo (Tabs Detalhes/Atividade) — ROLÁVEL */}
-  <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
-    <Tabs>...</Tabs>
-  </div>
-
-  {/* Footer — FIXO no rodapé, nunca rola */}
-  <div className="border-t px-6 py-3 shrink-0 bg-background">
-    {footerContent}
-  </div>
-</SheetContent>
-```
-
-Pontos-chave:
-- `SheetContent` vira `flex flex-col h-full p-0` (padding por seção).
-- A área central recebe `flex-1 overflow-y-auto min-h-0` — é a única que rola.
-- Header, bloco Etapas e Footer têm `shrink-0` para nunca encolher e nunca rolar.
-- Footer ganha `bg-background` para não vazar conteúdo por trás se houver shadow.
-
----
-
-## 3. Footer contextual
-
-Adicionar lógica para escolher entre:
-
-### 3a. CRM (padrão — quando `footerExtra` NÃO é passado e `hideStatusActions` é false)
-Duas linhas:
-```
-[ Editar | Perdido | Ganho ]
-[          Arquivar         ]   ← largura total
-```
-- Linha 1: três botões em `grid grid-cols-3 gap-2`.
-- Linha 2: botão `Arquivar` `w-full variant="outline"` (ou destrutivo suave).
-
-### 3b. Arquivar com dupla confirmação
-- Importar `AlertDialog` de `@/components/ui/alert-dialog`.
-- Estado local `const [confirmArchive, setConfirmArchive] = useState(false)`.
-- Clicar em "Arquivar" abre o `AlertDialog` com:
-  - Título: "Arquivar este card?"
-  - Descrição: "Esta ação removerá o card do board. Você pode restaurá-lo depois em arquivados."
-  - Botões: `Cancelar` / `Confirmar arquivamento` (variant destructive). Confirmar chama `onArchive()`.
-
-### 3c. Chat (quando `footerExtra` é passado)
-Renderiza apenas `footerExtra` (que já contém `[ Fechar | Abrir no CRM ]` vindo do `ChatLinkedDealSheet`). Sem alteração nesse componente.
-
----
-
-## 4. `ChatLinkedDealSheet.tsx`
-
-Sem mudanças funcionais. Continua passando:
-- `hideStatusActions`
-- `hideArchiveAction`
-- `footerExtra={ <Fechar /> <Abrir no CRM /> }`
-
-O footer fixo já funcionará automaticamente porque agora o `SheetContent` tem o layout flex.
-
----
-
-## 5. `BoardPage.tsx`
-
-Sem mudanças. Continua passando `stages` e `onMoveToStage`. Os botões padrão (Editar/Perdido/Ganho/Arquivar) aparecerão automaticamente porque `footerExtra` não é passado.
-
----
-
-## Comportamento esperado
-
-- **Sheet sempre ocupa altura total** da viewport (`h-full`).
-- **Header + bloco Etapas** ficam fixos no topo.
-- **Conteúdo das abas (Detalhes/Atividade)** rola internamente quando excede o espaço disponível.
-- **Rodapé sempre visível** com os botões corretos:
-  - CRM: `[Editar | Perdido | Ganho]` + `[Arquivar]` (com dupla confirmação via AlertDialog).
-  - Chat: `[Fechar | Abrir no CRM]`.
-- Título do header sem etapa, fonte um pouco maior (`text-xl`).
-
----
-
-## Arquivos a editar
-
-- `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx` — header sem etapa, `text-xl`, layout flex com scroll central + footer fixo, AlertDialog de arquivamento.
+### Comportamento esperado
+- **Card comum (CRM)**: rodapé com `[ Perdido | Ganho ]` em uma linha + `[ Arquivar Card ]` full-width abaixo, com dupla confirmação via AlertDialog.
+- **Card vinculado (chat)**: continua usando `footerExtra` (Fechar / Abrir no CRM) — sem mudanças.
+- **Bloco Contato**: agora editável inline, salvando via `onUpdate` que já está conectado em ambos os contextos (CRM e Chat).

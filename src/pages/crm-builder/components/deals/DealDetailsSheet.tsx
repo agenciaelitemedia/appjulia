@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { TeamMemberSelect } from '@/components/TeamMemberSelect';
+import { maskPhone } from '@/lib/inputMasks';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,7 +31,6 @@ import {
   Calendar,
   Clock,
   DollarSign,
-  Edit,
   Mail,
   Phone,
   Trophy,
@@ -96,11 +96,17 @@ export function DealDetailsSheet({
   const [activeTab, setActiveTab] = useState('details');
   const [editingAssignee, setEditingAssignee] = useState(false);
   const [assigneeDraft, setAssigneeDraft] = useState('');
+  const [editingContact, setEditingContact] = useState(false);
+  const [contactDraft, setContactDraft] = useState<{ name: string; phone: string; email: string }>({
+    name: '',
+    phone: '',
+    email: '',
+  });
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState('');
   const [editingValue, setEditingValue] = useState(false);
   const [valueDraft, setValueDraft] = useState('');
-  const [savingField, setSavingField] = useState<null | 'assignee' | 'description' | 'value'>(null);
+  const [savingField, setSavingField] = useState<null | 'assignee' | 'description' | 'value' | 'contact'>(null);
   const [stagesExpanded, setStagesExpanded] = useState(false);
   const [movingToStage, setMovingToStage] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
@@ -160,6 +166,32 @@ export function DealDetailsSheet({
     await onUpdate({ assigned_to: next });
     setSavingField(null);
     setEditingAssignee(false);
+  };
+
+  const startEditContact = () => {
+    setContactDraft({
+      name: deal.contact_name || '',
+      phone: deal.contact_phone || '',
+      email: deal.contact_email || '',
+    });
+    setEditingContact(true);
+  };
+  const saveContact = async () => {
+    if (!onUpdate) { setEditingContact(false); return; }
+    const next = {
+      contact_name: contactDraft.name.trim() || undefined,
+      contact_phone: contactDraft.phone.trim() || undefined,
+      contact_email: contactDraft.email.trim() || undefined,
+    };
+    const unchanged =
+      next.contact_name === (deal.contact_name || undefined) &&
+      next.contact_phone === (deal.contact_phone || undefined) &&
+      next.contact_email === (deal.contact_email || undefined);
+    if (unchanged) { setEditingContact(false); return; }
+    setSavingField('contact');
+    await onUpdate(next);
+    setSavingField(null);
+    setEditingContact(false);
   };
 
   const startEditDescription = () => {
