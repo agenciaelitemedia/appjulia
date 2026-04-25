@@ -26,9 +26,24 @@ class ExternalDatabase {
     const startTime = performance.now();
     
     try {
-      const { data, error } = await supabase.functions.invoke('db-query', {
-        body: payload,
-      });
+      // Retry transient edge runtime errors (503/boot/cold start)
+      let data: any = null;
+      let error: any = null;
+      const maxAttempts = 3;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const res = await supabase.functions.invoke('db-query', { body: payload });
+        data = res.data;
+        error = res.error;
+
+        const msg = (error?.message || '') + ' ' + (data?.code || '');
+        const isTransient =
+          !!error &&
+          /503|temporarily unavailable|SUPABASE_EDGE_RUNTIME_ERROR|Failed to fetch|NetworkError/i.test(msg);
+
+        if (!isTransient) break;
+        if (attempt === maxAttempts) break;
+        await new Promise((r) => setTimeout(r, 300 * attempt)); // 300ms, 600ms
+      }
 
       const duration = performance.now() - startTime;
       
