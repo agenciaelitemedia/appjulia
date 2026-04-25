@@ -376,11 +376,8 @@ export default function BoardPage() {
         </div>
       </div>
 
-      {/* Main area: kanban (à esquerda) + painel de chat opcional (à direita) */}
-      <div className="flex flex-1 min-h-0">
-        <div className="flex flex-col flex-1 min-w-0">
-        {/* Filters Bar */}
-        <div className="px-4 py-3 border-b bg-muted/20">
+      {/* Filters Bar */}
+      <div className="px-4 py-3 border-b bg-muted/20">
           <BoardFilters
             filters={filters}
             onFiltersChange={setFilters}
@@ -388,10 +385,10 @@ export default function BoardPage() {
             totalDeals={deals.length}
             filteredDeals={filteredDeals.length}
           />
-        </div>
+      </div>
 
-        {/* Pipeline Container */}
-        <div className="flex flex-col flex-1 min-h-0">
+      {/* Pipeline Container */}
+      <div className="flex flex-col flex-1 min-h-0">
         <div 
           ref={scrollRef}
           className="flex-1 overflow-x-auto overflow-y-auto p-4 pb-20 scrollbar-none"
@@ -478,17 +475,14 @@ export default function BoardPage() {
             </DragOverlay>
           </DndContext>
         </div>
-        </div>
-        </div>
-
-        {/* Painel lateral de chat (aparece quando o usuário clica no ícone WhatsApp do card) */}
-        {chatPanelDeal && (
-          <BoardChatSidePanel
-            deal={chatPanelDeal}
-            onClose={() => setChatPanelDeal(null)}
-          />
-        )}
       </div>
+
+      {/* Sheet lateral overlay com a conversa do card (aberto pelo ícone WhatsApp) */}
+      <BoardChatSidePanel
+        open={!!chatPanelDeal}
+        onOpenChange={(o) => { if (!o) setChatPanelDeal(null); }}
+        deal={chatPanelDeal}
+      />
 
       {/* Fixed bottom scroll navigation */}
       <div className="fixed bottom-0 left-0 right-0 z-50 md:left-[var(--sidebar-width,0px)]">
