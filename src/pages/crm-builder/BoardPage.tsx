@@ -440,6 +440,7 @@ export default function BoardPage() {
                                 onWon={() => setDealStatus(deal.id, 'won')}
                                 onLost={() => setDealStatus(deal.id, 'lost')}
                                 onOpenChat={(d) => setChatPanelDeal(d)}
+                                onChangePriority={(d, p) => updateDeal(d.id, { priority: p })}
                               />
                             ))}
                           </SortableContext>
