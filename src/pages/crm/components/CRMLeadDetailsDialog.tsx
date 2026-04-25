@@ -20,11 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { TeamMemberSelect } from '@/components/TeamMemberSelect';
 import { CRMCard, CRMStage } from '../types';
 import { useCRMCardHistory, useMoveCard, useTeamForAgent, useUpdateCardOwner } from '../hooks/useCRMData';
 import { useContractInfo } from '../hooks/useContractInfo';
@@ -52,7 +48,6 @@ export function CRMLeadDetailsDialog({
   const { data: history = [], isLoading: historyLoading } = useCRMCardHistory(card?.id || null);
   const [contractDialogOpen, setContractDialogOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [ownerPopoverOpen, setOwnerPopoverOpen] = useState(false);
 
   const { isActive: isAgentActive, isLoading: isAgentLoading } = useAgentSessionStatus(
     card?.whatsapp_number || '',
@@ -180,7 +175,6 @@ export function CRMLeadDetailsDialog({
       {
         onSuccess: () => {
           sonnerToast.success(`Responsável alterado para ${name}`);
-          setOwnerPopoverOpen(false);
         },
         onError: () => {
           sonnerToast.error('Erro ao alterar responsável');
@@ -389,48 +383,19 @@ export function CRMLeadDetailsDialog({
                   </Badge>
                 ) : (
                   <div className="flex items-center gap-2 w-full">
-                    <Badge variant="outline" className="font-normal">
-                      <User className="h-3.5 w-3.5 mr-1.5" />
-                      {card.owner_name || 'Sem responsável'}
-                    </Badge>
-                    <Popover open={ownerPopoverOpen} onOpenChange={setOwnerPopoverOpen}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="ml-auto text-xs h-7">
-                          Alterar
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-64 p-2" align="end">
-                        <div className="space-y-1">
-                          <p className="text-xs font-medium text-muted-foreground px-2 py-1">Selecionar responsável</p>
-                          {/* Julia IA option first */}
-                          <button
-                            className="flex items-center gap-2 w-full rounded-md px-2 py-2 text-sm hover:bg-accent transition-colors"
-                            onClick={() => handleOwnerChange('Julia IA')}
-                            disabled={updateOwner.isPending}
-                          >
-                            <Bot className="h-4 w-4 text-green-500" />
-                            <span className="font-medium">Julia IA</span>
-                          </button>
-                          {teamMembers.length > 0 && (
-                            <Separator className="my-1" />
-                          )}
-                          {teamMembers.map((member: any) => (
-                            <button
-                              key={member.id}
-                              className="flex items-center gap-2 w-full rounded-md px-2 py-2 text-sm hover:bg-accent transition-colors"
-                              onClick={() => handleOwnerChange(member.name)}
-                              disabled={updateOwner.isPending}
-                            >
-                              <User className="h-4 w-4 text-muted-foreground" />
-                              <span>{member.name}</span>
-                              {member.role && (
-                                <span className="text-xs text-muted-foreground ml-auto">{member.role}</span>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
+                    <TeamMemberSelect
+                      members={teamMembers}
+                      valueKey="name"
+                      value={card.owner_name || null}
+                      onValueChange={(v) => v && handleOwnerChange(v)}
+                      allowUnassigned={false}
+                      extraOptions={[
+                        { value: 'Julia IA', label: 'Julia IA', icon: Bot, iconClassName: 'text-green-500', badgeLabel: 'IA' },
+                      ]}
+                      placeholder="Sem responsável"
+                      disabled={updateOwner.isPending}
+                      className="w-full"
+                    />
                   </div>
                 )}
               </div>
