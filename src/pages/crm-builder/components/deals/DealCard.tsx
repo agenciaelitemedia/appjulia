@@ -276,14 +276,40 @@ export function DealCard({
             <span className="truncate">{deal.assigned_to || 'Não atribuído'}</span>
           </Badge>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className={cn('inline-flex items-center ml-auto', priorityIconColor[deal.priority] || 'text-muted-foreground')}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                title={`Prioridade: ${priorityConfig.label} — clique para alterar`}
+                className={cn(
+                  'inline-flex items-center ml-auto rounded p-0.5 hover:bg-muted transition-colors',
+                  priorityIconColor[deal.priority] || 'text-muted-foreground'
+                )}
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
                 <Flag className="h-3.5 w-3.5" fill="currentColor" />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>Prioridade: {priorityConfig.label}</TooltipContent>
-          </Tooltip>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+              {(['low', 'medium', 'high', 'urgent'] as const).map((p) => (
+                <DropdownMenuItem
+                  key={p}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (p !== deal.priority) onChangePriority?.(deal, p);
+                  }}
+                  className={cn(deal.priority === p && 'bg-muted font-medium')}
+                >
+                  <Flag
+                    className={cn('h-3.5 w-3.5 mr-2', priorityIconColor[p])}
+                    fill="currentColor"
+                  />
+                  {PRIORITY_CONFIG[p].label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Tags */}
