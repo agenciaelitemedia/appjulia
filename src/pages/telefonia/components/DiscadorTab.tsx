@@ -49,7 +49,8 @@ export function DiscadorTab({ codAgent }: Props) {
         <Alert variant="destructive" className="mb-4">
           <Ban className="h-4 w-4" />
           <AlertDescription>
-            A telefonia está desativada para este agente. Entre em contato com o administrador.
+            <p>Para ter acesso às ligações você precisa fazer a contratação de um plano de telefonia.</p>
+            <p className="mt-1">Entre em contato com o administrador do sistema para mais informações.</p>
           </AlertDescription>
         </Alert>
       )}
