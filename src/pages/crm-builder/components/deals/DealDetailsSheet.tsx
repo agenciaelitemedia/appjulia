@@ -53,6 +53,12 @@ interface DealDetailsSheetProps {
   onWon: () => void;
   onLost: () => void;
   onUpdate?: (data: Partial<CRMDealFormData>) => Promise<boolean> | void;
+  /** Esconde o bloco de ações Ganho/Perdido (e o botão Editar contextual) */
+  hideStatusActions?: boolean;
+  /** Esconde o botão Arquivar/Excluir do rodapé */
+  hideArchiveAction?: boolean;
+  /** Conteúdo extra renderizado no rodapé (ex.: "Abrir no CRM") */
+  footerExtra?: React.ReactNode;
 }
 
 export function DealDetailsSheet({
@@ -65,6 +71,9 @@ export function DealDetailsSheet({
   onWon,
   onLost,
   onUpdate,
+  hideStatusActions = false,
+  hideArchiveAction = false,
+  footerExtra,
 }: DealDetailsSheetProps) {
   const [activeTab, setActiveTab] = useState('details');
   const [editingAssignee, setEditingAssignee] = useState(false);
@@ -463,7 +472,7 @@ export function DealDetailsSheet({
         {/* Actions Footer */}
         <div className="p-4 border-t space-y-2">
           <div className="flex gap-2">
-            {!isLinked && (
+            {!isLinked && !hideStatusActions && (
               <Button
                 variant="outline"
                 className="flex-1"
@@ -476,7 +485,7 @@ export function DealDetailsSheet({
                 Editar
               </Button>
             )}
-            {deal.status === 'open' && (
+            {!hideStatusActions && deal.status === 'open' && (
               <>
                 <Button 
                   variant="outline"
@@ -503,17 +512,20 @@ export function DealDetailsSheet({
               </>
             )}
           </div>
-          <Button 
-            variant="ghost" 
-            className="w-full text-destructive hover:bg-destructive/10"
-            onClick={() => {
-              onArchive();
-              onOpenChange(false);
-            }}
-          >
-            <Archive className="h-4 w-4 mr-2" />
-            {isLinked ? 'Excluir card' : 'Arquivar Deal'}
-          </Button>
+          {!hideArchiveAction && (
+            <Button 
+              variant="ghost" 
+              className="w-full text-destructive hover:bg-destructive/10"
+              onClick={() => {
+                onArchive();
+                onOpenChange(false);
+              }}
+            >
+              <Archive className="h-4 w-4 mr-2" />
+              {isLinked ? 'Excluir card' : 'Arquivar Deal'}
+            </Button>
+          )}
+          {footerExtra}
         </div>
       </SheetContent>
     </Sheet>
