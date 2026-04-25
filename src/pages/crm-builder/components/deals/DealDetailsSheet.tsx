@@ -15,7 +15,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useTeamByClient } from '@/hooks/useTeamByClient';
+import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { 
   Archive,
   Calendar,
@@ -75,7 +75,12 @@ export function DealDetailsSheet({
   const [valueDraft, setValueDraft] = useState('');
   const [savingField, setSavingField] = useState<null | 'assignee' | 'description' | 'value'>(null);
   
-  const { data: team = [] } = useTeamByClient();
+  const { data: agentsData } = useMyAgents();
+  const assigneeOptions = [
+    ...(agentsData?.myAgents || []),
+    ...(agentsData?.monitoredAgents || []),
+  ].map((a) => a.client_name || a.business_name || a.cod_agent);
+  const uniqueAssignees = Array.from(new Set(assigneeOptions.filter(Boolean)));
 
   const { history, isLoading: isLoadingHistory, addNote } = useCRMDealHistory({
     dealId: open && deal ? deal.id : null,
@@ -266,9 +271,9 @@ export function DealDetailsSheet({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none__">Não atribuído</SelectItem>
-                        {team.map((m) => (
-                          <SelectItem key={m.id} value={m.name}>
-                            {m.name}
+                        {uniqueAssignees.map((name) => (
+                          <SelectItem key={name} value={name}>
+                            {name}
                           </SelectItem>
                         ))}
                       </SelectContent>
