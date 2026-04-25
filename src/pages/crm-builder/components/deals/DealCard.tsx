@@ -267,15 +267,6 @@ export function DealCard({
 
         {/* Status row: prioridade (sempre), responsável (sempre), fila (se vinculado) */}
         <div className="flex items-center gap-1.5 flex-wrap pt-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className={cn('inline-flex items-center', priorityIconColor[deal.priority] || 'text-muted-foreground')}>
-                <Flag className="h-3.5 w-3.5" fill="currentColor" />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>Prioridade: {priorityConfig.label}</TooltipContent>
-          </Tooltip>
-
           <Badge
             variant="outline"
             className={cn(
@@ -300,6 +291,15 @@ export function DealCard({
               <span className="truncate">{queueName}</span>
             </Badge>
           )}
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className={cn('inline-flex items-center ml-auto', priorityIconColor[deal.priority] || 'text-muted-foreground')}>
+                <Flag className="h-3.5 w-3.5" fill="currentColor" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Prioridade: {priorityConfig.label}</TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Tags */}
