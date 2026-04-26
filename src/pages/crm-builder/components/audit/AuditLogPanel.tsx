@@ -79,7 +79,7 @@ export function AuditLogPanel({ clientId, boardId, enabled = true }: AuditLogPan
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as entidades</SelectItem>
-            <SelectItem value="board">Board</SelectItem>
+            <SelectItem value="board">Quadro</SelectItem>
             <SelectItem value="pipeline">Etapa</SelectItem>
             <SelectItem value="automation">Automação</SelectItem>
             <SelectItem value="custom_field">Campo</SelectItem>

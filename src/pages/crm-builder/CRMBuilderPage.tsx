@@ -90,7 +90,7 @@ export default function CRMBuilderPage() {
             <LayoutDashboard className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">CRM Builder</h1>
+            <h1 className="text-2xl font-bold text-foreground">Construtor de CRM</h1>
             <p className="text-sm text-muted-foreground">
               Crie e gerencie seus pipelines de vendas
             </p>
@@ -150,10 +150,10 @@ export default function CRMBuilderPage() {
       <AlertDialog open={!!archivingBoard} onOpenChange={(open) => !open && setArchivingBoard(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Arquivar Board</AlertDialogTitle>
+            <AlertDialogTitle>Arquivar Quadro</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja arquivar o board "{archivingBoard?.name}"? 
-              Todos os deals serão mantidos, mas o board não aparecerá mais na listagem.
+              Tem certeza que deseja arquivar o quadro "{archivingBoard?.name}"?
+              Todos os cards serão mantidos, mas o quadro não aparecerá mais na listagem.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -171,7 +171,7 @@ export default function CRMBuilderPage() {
             <SheetHeader>
               <SheetTitle className="flex items-center gap-2">
                 <History className="h-5 w-5" />
-                Auditoria do CRM Builder
+                Auditoria do Construtor de CRM
               </SheetTitle>
             </SheetHeader>
             <div className="mt-6">
