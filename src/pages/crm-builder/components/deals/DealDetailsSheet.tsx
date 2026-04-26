@@ -13,6 +13,13 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { TeamMemberSelect } from '@/components/TeamMemberSelect';
 import { maskPhone } from '@/lib/inputMasks';
@@ -110,6 +117,8 @@ export function DealDetailsSheet({
   const [stagesExpanded, setStagesExpanded] = useState(false);
   const [movingToStage, setMovingToStage] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [editingPriority, setEditingPriority] = useState(false);
+  const [savingPriority, setSavingPriority] = useState(false);
   
   // Mesma fonte usada na página Equipe (vw_equipe filtrada por client_id),
   // que inclui o dono/responsável principal e todos os membros do mesmo cliente.
@@ -228,15 +237,13 @@ export function DealDetailsSheet({
       <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col h-full overflow-y-auto">
         {/* Header */}
         <SheetHeader className="p-6 pb-4 border-b">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <SheetTitle className="text-xl font-semibold line-clamp-2">
-                {deal.title}
-              </SheetTitle>
-            </div>
-            <Badge 
+          <SheetTitle className="text-xl font-semibold line-clamp-2 text-left">
+            {deal.title}
+          </SheetTitle>
+          <div className="mt-2">
+            <Badge
               variant="outline"
-              className={cn('flex-shrink-0', statusConfig.color, statusConfig.bgColor)}
+              className={cn(statusConfig.color, statusConfig.bgColor)}
             >
               {statusConfig.label}
             </Badge>
@@ -507,13 +514,53 @@ export function DealDetailsSheet({
               {/* 4. Prioridade + Tempo na fase (linha própria, full-width via grid) */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-3 rounded-lg border">
-                  <div className="text-xs text-muted-foreground mb-1">Prioridade</div>
-                  <Badge
-                    variant="outline"
-                    className={cn(priorityConfig.color, priorityConfig.bgColor)}
-                  >
-                    {priorityConfig.label}
-                  </Badge>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-xs text-muted-foreground">Prioridade</div>
+                    {!editingPriority && onUpdate && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => setEditingPriority(true)}
+                        title="Editar prioridade"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                  {editingPriority && onUpdate ? (
+                    <Select
+                      value={deal.priority}
+                      disabled={savingPriority}
+                      onValueChange={async (value) => {
+                        setSavingPriority(true);
+                        try {
+                          await onUpdate({ priority: value as CRMDealFormData['priority'] });
+                        } finally {
+                          setSavingPriority(false);
+                          setEditingPriority(false);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(PRIORITY_CONFIG).map(([key, cfg]) => (
+                          <SelectItem key={key} value={key}>
+                            {cfg.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className={cn(priorityConfig.color, priorityConfig.bgColor)}
+                    >
+                      {priorityConfig.label}
+                    </Badge>
+                  )}
                 </div>
                 <div className="p-3 rounded-lg border">
                   <div className="text-xs text-muted-foreground mb-1">Tempo na Etapa</div>
