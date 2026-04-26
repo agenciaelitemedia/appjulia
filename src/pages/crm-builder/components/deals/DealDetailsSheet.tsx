@@ -13,13 +13,6 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { TeamMemberSelect } from '@/components/TeamMemberSelect';
 import { maskPhone } from '@/lib/inputMasks';
@@ -117,8 +110,7 @@ export function DealDetailsSheet({
   const [stagesExpanded, setStagesExpanded] = useState(false);
   const [movingToStage, setMovingToStage] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
-  const [editingPriority, setEditingPriority] = useState(false);
-  const [savingPriority, setSavingPriority] = useState(false);
+  const [savingPriority, setSavingPriority] = useState<CRMDealFormData['priority'] | null>(null);
   
   // Mesma fonte usada na página Equipe (vw_equipe filtrada por client_id),
   // que inclui o dono/responsável principal e todos os membros do mesmo cliente.
@@ -514,45 +506,40 @@ export function DealDetailsSheet({
               {/* 4. Prioridade + Tempo na fase (linha própria, full-width via grid) */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-3 rounded-lg border">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="text-xs text-muted-foreground">Prioridade</div>
-                    {!editingPriority && onUpdate && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => setEditingPriority(true)}
-                        title="Editar prioridade"
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </Button>
-                    )}
-                  </div>
-                  {editingPriority && onUpdate ? (
-                    <Select
-                      value={deal.priority}
-                      disabled={savingPriority}
-                      onValueChange={async (value) => {
-                        setSavingPriority(true);
-                        try {
-                          await onUpdate({ priority: value as CRMDealFormData['priority'] });
-                        } finally {
-                          setSavingPriority(false);
-                          setEditingPriority(false);
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="h-8">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(PRIORITY_CONFIG).map(([key, cfg]) => (
-                          <SelectItem key={key} value={key}>
+                  <div className="text-xs text-muted-foreground mb-2">Prioridade</div>
+                  {onUpdate ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {(Object.entries(PRIORITY_CONFIG) as Array<[CRMDealFormData['priority'], typeof PRIORITY_CONFIG[keyof typeof PRIORITY_CONFIG]]>).map(([key, cfg]) => {
+                        const isActive = deal.priority === key;
+                        const isSaving = savingPriority === key;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            disabled={!!savingPriority || isActive}
+                            onClick={async () => {
+                              setSavingPriority(key);
+                              try {
+                                await onUpdate({ priority: key });
+                              } finally {
+                                setSavingPriority(null);
+                              }
+                            }}
+                            className={cn(
+                              'px-2.5 py-1 rounded-full text-xs font-medium border transition-all flex items-center gap-1',
+                              isActive
+                                ? cn(cfg.color, cfg.bgColor, 'border-current ring-1 ring-current/30 cursor-default')
+                                : 'text-muted-foreground border-border hover:border-foreground/30 hover:bg-muted',
+                              savingPriority && !isActive && 'opacity-50'
+                            )}
+                            title={isActive ? `Prioridade atual: ${cfg.label}` : `Definir como ${cfg.label}`}
+                          >
+                            {isSaving && <Loader2 className="h-3 w-3 animate-spin" />}
                             {cfg.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                          </button>
+                        );
+                      })}
+                    </div>
                   ) : (
                     <Badge
                       variant="outline"
