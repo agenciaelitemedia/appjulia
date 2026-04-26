@@ -542,8 +542,8 @@ export function DealDetailsSheet({
                                   className={cn(
                                     'h-8 w-8 inline-flex items-center justify-center rounded-md border transition-all',
                                     isActive
-                                      ? cn(cfg.color, cfg.bgColor, 'border-current ring-1 ring-current/30 cursor-default')
-                                      : 'text-muted-foreground border-border hover:border-foreground/30 hover:bg-muted',
+                                      ? cn(cfg.color, cfg.bgColor, 'border-current ring-1 ring-current/40 cursor-default')
+                                      : cn(cfg.color, 'border-border hover:bg-muted hover:border-current/40'),
                                     savingPriority && !isActive && 'opacity-50'
                                   )}
                                 >
