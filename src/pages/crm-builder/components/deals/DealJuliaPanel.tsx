@@ -205,7 +205,9 @@ export function DealJuliaPanel({ deal }: Props) {
         <ContractInfoDialog
           open={contractOpen}
           onOpenChange={setContractOpen}
-          codDocument={ctx.contract.cod_document!}
+          whatsappNumber={phoneDigits}
+          codAgent={ctx.codAgent || ''}
+          contactName={deal.contact_name || undefined}
         />
       )}
     </>
