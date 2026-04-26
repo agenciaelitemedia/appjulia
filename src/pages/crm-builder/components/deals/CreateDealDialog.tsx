@@ -23,6 +23,10 @@ import type { CRMDealFormData, CRMDeal, DealPriority } from '../../types';
 import { PRIORITY_CONFIG } from '../../types';
 import type { CRMCustomField } from '../../hooks/useCRMCustomFields';
 import { DynamicFieldRenderer } from '../custom-fields/DynamicFieldRenderer';
+import { ContactPicker, type PickedContact } from './ContactPicker';
+import { useContactConversation } from '../../hooks/useContactConversation';
+import { MessageSquare, Info } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface CreateDealDialogProps {
   open: boolean;
@@ -45,14 +49,24 @@ export function CreateDealDialog({
   const [title, setTitle] = useState(editDeal?.title || '');
   const [description, setDescription] = useState(editDeal?.description || '');
   const [value, setValue] = useState(editDeal?.value?.toString() || '');
-  const [contactName, setContactName] = useState(editDeal?.contact_name || '');
-  const [contactPhone, setContactPhone] = useState(editDeal?.contact_phone || '');
-  const [contactEmail, setContactEmail] = useState(editDeal?.contact_email || '');
+  const [contact, setContact] = useState<PickedContact | null>(
+    editDeal?.contact_name || editDeal?.contact_phone
+      ? {
+          id: '',
+          name: editDeal?.contact_name || '',
+          phone: (editDeal?.contact_phone || '').replace(/\D/g, ''),
+          email: editDeal?.contact_email || null,
+        }
+      : null
+  );
   const [priority, setPriority] = useState<DealPriority>(editDeal?.priority || 'medium');
   const [tagsInput, setTagsInput] = useState(editDeal?.tags?.join(', ') || '');
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>(
     (editDeal?.custom_fields as Record<string, unknown>) || {}
   );
+
+  // Auto-link with chat conversation if contact already has one
+  const { data: existingConv } = useContactConversation(contact?.id || null);
 
   // Reset form when editDeal changes
   useEffect(() => {
@@ -60,9 +74,16 @@ export function CreateDealDialog({
       setTitle(editDeal.title);
       setDescription(editDeal.description || '');
       setValue(editDeal.value?.toString() || '');
-      setContactName(editDeal.contact_name || '');
-      setContactPhone(editDeal.contact_phone || '');
-      setContactEmail(editDeal.contact_email || '');
+      setContact(
+        editDeal.contact_name || editDeal.contact_phone
+          ? {
+              id: '',
+              name: editDeal.contact_name || '',
+              phone: (editDeal.contact_phone || '').replace(/\D/g, ''),
+              email: editDeal.contact_email || null,
+            }
+          : null
+      );
       setPriority(editDeal.priority);
       setTagsInput(editDeal.tags?.join(', ') || '');
       setCustomFieldValues((editDeal.custom_fields as Record<string, unknown>) || {});
@@ -70,9 +91,7 @@ export function CreateDealDialog({
       setTitle('');
       setDescription('');
       setValue('');
-      setContactName('');
-      setContactPhone('');
-      setContactEmail('');
+      setContact(null);
       setPriority('medium');
       setTagsInput('');
       setCustomFieldValues({});
@@ -102,32 +121,38 @@ export function CreateDealDialog({
         title: title.trim(),
         description: description.trim() || undefined,
         value: parseFloat(value) || 0,
-        contact_name: contactName.trim() || undefined,
-        contact_phone: contactPhone.trim() || undefined,
-        contact_email: contactEmail.trim() || undefined,
+        contact_name: contact?.name || undefined,
+        contact_phone: contact?.phone || undefined,
+        contact_email: contact?.email || undefined,
         priority,
         tags,
       };
 
-      // Add custom fields to the formData object for passing to parent
+      // Auto-link to chat conversation if contact already has one
+      const mergedCustom: Record<string, unknown> = { ...customFieldValues };
+      if (existingConv && contact) {
+        const links = (mergedCustom.links as Record<string, unknown>) || {};
+        mergedCustom.links = {
+          ...links,
+          chat: {
+            conversation_id: existingConv.conversationId,
+            contact_phone: contact.phone,
+            contact_name: contact.name,
+          },
+        };
+      }
+
       const formDataWithCustom = {
         ...formData,
-        custom_fields: Object.keys(customFieldValues).length > 0 ? customFieldValues : undefined,
+        custom_fields: Object.keys(mergedCustom).length > 0 ? mergedCustom : undefined,
       };
 
       const result = await onSubmit(formDataWithCustom as CRMDealFormData);
 
       if (result) {
         onOpenChange(false);
-        // Reset form
-        setTitle('');
-        setDescription('');
-        setValue('');
-        setContactName('');
-        setContactPhone('');
-        setContactEmail('');
-        setPriority('medium');
-        setTagsInput('');
+        setTitle(''); setDescription(''); setValue('');
+        setContact(null); setPriority('medium'); setTagsInput('');
         setCustomFieldValues({});
       }
     } finally {
@@ -137,7 +162,7 @@ export function CreateDealDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>
@@ -152,7 +177,7 @@ export function CreateDealDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+          <div className="space-y-4 py-4 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 180px)' }}>
             <div className="space-y-2">
               <Label htmlFor="title">Título *</Label>
               <Input
@@ -208,40 +233,22 @@ export function CreateDealDialog({
 
             <div className="border-t pt-4">
               <h4 className="text-sm font-medium mb-3">Contato</h4>
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="contactName">Nome</Label>
-                  <Input
-                    id="contactName"
-                    value={contactName}
-                    onChange={(e) => setContactName(e.target.value)}
-                    placeholder="Nome do contato"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="contactPhone">Telefone</Label>
-                    <Input
-                      id="contactPhone"
-                      value={contactPhone}
-                      onChange={(e) => setContactPhone(e.target.value)}
-                      placeholder="(11) 99999-9999"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="contactEmail">E-mail</Label>
-                    <Input
-                      id="contactEmail"
-                      type="email"
-                      value={contactEmail}
-                      onChange={(e) => setContactEmail(e.target.value)}
-                      placeholder="email@exemplo.com"
-                    />
-                  </div>
-                </div>
-              </div>
+              <ContactPicker
+                selected={contact}
+                onSelect={setContact}
+                onClear={() => setContact(null)}
+              />
+              {existingConv && contact && (
+                <Alert className="mt-3 border-emerald-500/40 bg-emerald-500/5">
+                  <MessageSquare className="h-4 w-4 text-emerald-600" />
+                  <AlertDescription className="text-xs">
+                    Este contato já tem conversa ativa
+                    {existingConv.protocol ? ` (${existingConv.protocol}` : ''}
+                    {existingConv.protocol ? ` · ${existingConv.status})` : ` (${existingConv.status})`}.
+                    O card será criado <span className="font-medium">vinculado ao chat</span> automaticamente.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
 
             {/* Custom Fields */}
