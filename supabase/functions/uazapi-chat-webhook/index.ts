@@ -6,6 +6,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { fetchWhatsappProfile, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
+import { normalizeBrPhone } from "../_shared/phone-normalize.ts";
 
 declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
 
@@ -91,7 +92,9 @@ function respond(body: Record<string, unknown>, status = 200) {
 }
 
 function normalizePhone(raw: string): string {
-  return raw.replace(/@.*/, '').replace(/[^\d]/g, '');
+  // Forma canônica BR: aplica regra do 9º dígito para celulares 55 + DDD + 8 díg.
+  // Para demais países e fixos, preserva os dígitos como vieram.
+  return normalizeBrPhone(raw);
 }
 
 /** Robust group detection across UaZapi payload variants.
