@@ -112,7 +112,7 @@ function CrmActionBar({ phone, queueId, contactName }: CrmActionBarProps) {
   return (
     <>
       <div className="inline-flex items-center gap-1 border rounded px-2 py-1">
-        <span className="text-[10px] text-muted-foreground mr-1 font-medium">CRM Julia</span>
+        <span className="text-[10px] text-muted-foreground mr-1 font-medium">Julia</span>
 
         <Tooltip>
           <TooltipTrigger asChild>
