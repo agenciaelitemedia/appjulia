@@ -1,65 +1,47 @@
+# Melhorias na Ordenação por Drag-and-Drop
 
-## Problema identificado
+## Problemas identificados na implementação atual
 
-No `BoardPage.tsx` (CRM Builder), arrastar um card para uma **coluna vazia**, ou para a **área vazia abaixo do último card** de outra coluna, frequentemente não funciona — o card "volta" para a posição original.
+1. **Sem feedback visual durante o arrasto** — o `SortableContext` interno (linha 474 de `BoardPage.tsx`) não declara `strategy={verticalListSortingStrategy}`, então os cards vizinhos não "abrem espaço" enquanto se arrasta.
+2. **Posições inconsistentes no banco** — `moveDeal` (em `useCRMDeals.ts`) atualiza apenas o `position` do card movido. Os demais cards da coluna mantêm seus valores antigos, causando empates de `position` e ordem instável após refresh.
+3. **Cálculo de índice de destino incorreto** — em `handleDragEnd`, ao soltar sobre outro card na MESMA coluna mais abaixo, `newPosition = overIndex` sem ajuste de offset → o card pode parar uma posição acima do esperado.
+4. **Sem `onDragOver` real** — cards só "saltam" ao soltar, sem pré-visualização entre colunas.
+5. **Sensibilidade do sensor** — `distance: 8` combinado com a falta de strategy passa sensação de travamento.
 
-### Causa raiz
-- A `PipelineColumn` usa apenas `useSortable` (para reordenar pipelines horizontalmente). **Não há `useDroppable`** registrado na área que contém os cards.
-- Com `closestCorners` como collision detection, quando o cursor entra numa coluna sem cards (ou na faixa vazia ao lado dos cards), o dnd-kit não encontra um "drop target" válido naquela coluna e retorna `over = null` ou aponta para o último card da coluna vizinha.
-- Resultado: `handleDragEnd` não consegue determinar `targetPipelineId` → nada acontece.
+## Mudanças propostas
 
----
+### 1. `src/pages/crm-builder/BoardPage.tsx`
 
-## Solução
+- **Importar `verticalListSortingStrategy`** de `@dnd-kit/sortable` e aplicar no `SortableContext` interno (que envolve os cards de cada coluna). Isso ativa a animação de reordenação e o "abrir espaço" do dnd-kit.
+- **Implementar `handleDragOver`** para mover o card visualmente entre colunas em tempo real (atualização otimista local apenas do `pipeline_id` enquanto arrasta), restaurando se cancelar.
+- **Corrigir cálculo de `newPosition`** em `handleDragEnd`:
+  - Quando soltar sobre outro card na mesma coluna e o `oldIndex < overIndex`, usar `overIndex` (o card sai antes do destino, então o destino "sobe" 1 — o índice já reflete isso após remover).
+  - Quando soltar sobre outro card em coluna diferente, usar `overIndex` direto.
+  - Quando soltar em área vazia da coluna, usar `pipelineDeals.length`.
+- **Reduzir `activationConstraint.distance` para 5** (mais responsivo) e adicionar `delay: 0`.
 
-### 1. Tornar a área de cards de cada coluna uma zona droppable
-Em `src/pages/crm-builder/components/pipeline/PipelineColumn.tsx`:
+### 2. `src/pages/crm-builder/hooks/useCRMDeals.ts` — `moveDeal`
 
-- Adicionar `useDroppable({ id: \`pipeline-drop-${pipeline.id}\`, data: { type: 'pipeline-area', pipelineId: pipeline.id } })` no `<div>` que envolve a lista de cards (o container `flex-1 p-2`).
-- Aplicar o `setNodeRef` do droppable nesse container interno (mantendo o `setNodeRef` do `useSortable` no wrapper externo da coluna — separação clara entre "arrastar coluna" e "soltar card na coluna").
-- Garantir `min-h-[120px]` no container droppable para que colunas vazias tenham área generosa de soltura.
-- Quando `isOver` do droppable for true, aplicar destaque visual (`ring-2 ring-primary/50 bg-primary/5`) — padrão já usado no `ComercialPipelineColumn.tsx`.
+Reescrever para reindexar TODOS os cards afetados (origem + destino), garantindo `position` único e sequencial:
 
-### 2. Atualizar `handleDragEnd` em `BoardPage.tsx`
-Reconhecer o novo prefixo `pipeline-drop-` como alvo de coluna inteira:
+- Calcular o array final ordenado da(s) coluna(s) afetada(s) localmente usando `arrayMove` (mesma coluna) ou split/insert (entre colunas).
+- Atribuir `position = índice` para cada card no array resultante.
+- Aplicar update otimista no estado local com TODAS as novas posições.
+- Persistir no banco via UPSERT em lote (`supabase.from('crm_deals').upsert([...])`) contendo `id`, `pipeline_id` e `position` de cada card afetado — uma única round-trip.
+- Em caso de erro, reverter chamando `fetchDeals()` (já existente).
+- Manter o `stage_entered_at` apenas para o card movido entre colunas distintas.
 
-```tsx
-} else if (overId.startsWith('pipeline-drop-')) {
-  targetPipelineId = overId.replace('pipeline-drop-', '');
-  const pipelineDeals = getDealsByPipeline(targetPipelineId);
-  newPosition = pipelineDeals.length; // anexa ao final
-}
-```
+### 3. `src/pages/crm-builder/components/pipeline/PipelineColumn.tsx`
 
-Manter os branches existentes (`pipeline-` e `deal-`) para compatibilidade com reorder de pipelines e drop sobre card específico.
+- Garantir que a área de drop (`pipeline-drop-{id}`) continue cobrindo TODA a coluna (já está com `min-h-[140px]`), mas adicionar `flex-1` no wrapper interno para que o espaço vazio abaixo dos cards também receba drops sem precisar passar pelo botão "Adicionar Card".
 
-### 3. Trocar a collision detection por uma estratégia híbrida
-Substituir `closestCorners` por uma função custom que:
-1. Tenta `pointerWithin` primeiro — se o cursor estiver dentro de uma coluna (qualquer ponto), prioriza essa coluna.
-2. Se houver colisão com cards (`deal-*`), prefere o card mais próximo via `closestCenter` para permitir reordenação fina dentro da coluna.
-3. Caso contrário, usa o droppable da coluna (`pipeline-drop-*`) como alvo.
+### 4. `DealCard.tsx`
 
-Isso resolve simultaneamente:
-- Drop em coluna vazia (sem cards).
-- Drop na área lateral/abaixo dos cards de uma coluna preenchida.
-- Reordenação sobre cards específicos continua funcionando.
-
-### 4. Feedback visual durante o drag
-Em `handleDragOver`, atualmente vazio, opcionalmente trackar o `overId` de coluna em estado para destacar visualmente. Como o próprio `useDroppable.isOver` já faz isso por coluna, basta usar a flag interna — sem mudança no `BoardPage`.
-
-### 5. Manter o `DragOverlay`
-Sem mudanças — o card flutuante continua renderizando o `<DealCard>` em `activeDeal`.
-
----
-
-## Arquivos afetados
-
-- `src/pages/crm-builder/BoardPage.tsx` — substitui `closestCorners` por collision detection custom; adiciona branch `pipeline-drop-` no `handleDragEnd`.
-- `src/pages/crm-builder/components/pipeline/PipelineColumn.tsx` — registra `useDroppable` no container de cards; aplica destaque visual no `isOver`; garante `min-h` para colunas vazias.
+- Aumentar levemente o `opacity` no estado `isDragging` para 0.4 e adicionar `cursor-grabbing` no body durante drag para feedback tátil.
 
 ## Resultado esperado
 
-- Arrastar card para qualquer parte de uma coluna vazia → solta corretamente naquela etapa.
-- Arrastar para área lateral/abaixo dos cards de uma coluna não-vazia → solta no final daquela etapa.
-- Arrastar sobre um card específico → reordena ou move para a etapa daquele card (comportamento atual preservado).
-- Coluna alvo destacada com borda/fundo durante o drag — UX clara.
+- Cards "abrem espaço" suavemente enquanto arrastados (mesma coluna ou entre colunas).
+- Ordem persistida fica idêntica à exibida — sem saltos após refresh.
+- Soltar em qualquer ponto (entre cards, no fim da coluna, em coluna vazia) coloca o card exatamente onde o cursor indica.
+- Uma única chamada ao banco por movimento (upsert em lote) mantém performance.
