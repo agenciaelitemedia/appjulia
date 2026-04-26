@@ -521,7 +521,7 @@ export function DealDetailsSheet({
                   </div>
                   {onUpdate ? (
                     <TooltipProvider delayDuration={150}>
-                      <div className="flex items-center gap-1.5">
+                      <div className="grid grid-cols-4 gap-1.5">
                         {(Object.entries(PRIORITY_CONFIG) as Array<[CRMDealFormData['priority'], typeof PRIORITY_CONFIG[keyof typeof PRIORITY_CONFIG]]>).map(([key, cfg]) => {
                           const isActive = deal.priority === key;
                           return (
@@ -540,16 +540,15 @@ export function DealDetailsSheet({
                                   }}
                                   aria-label={`Prioridade ${cfg.label}`}
                                   className={cn(
-                                    'h-8 w-8 inline-flex items-center justify-center rounded-md border transition-all',
+                                    'h-9 w-full inline-flex items-center justify-center rounded-md border-2 transition-all',
+                                    cfg.color,
                                     isActive
-                                      ? cn(cfg.color, cfg.bgColor, 'border-current ring-1 ring-current/40 cursor-default')
-                                      : cn(cfg.color, 'border-border hover:bg-muted hover:border-current/40'),
+                                      ? cn(cfg.bgColor, 'border-current ring-2 ring-current/40 shadow-sm cursor-default')
+                                      : 'border-border hover:bg-muted hover:border-current/50',
                                     savingPriority && !isActive && 'opacity-50'
                                   )}
                                 >
-                                  <Flag
-                                    className={cn('h-4 w-4', isActive && 'fill-current')}
-                                  />
+                                  <Flag className="h-4 w-4 fill-current" />
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent side="bottom">
