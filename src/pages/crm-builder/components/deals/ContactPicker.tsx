@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useQuery } from '@tanstack/react-query';
 import { maskPhone } from '@/lib/inputMasks';
+import { normalizeBrPhone, brPhoneVariants } from '@/lib/phoneNormalize';
 import { toast } from 'sonner';
 
 export interface PickedContact {
@@ -54,7 +55,7 @@ export function ContactPicker({ selected, onSelect, onClear }: Props) {
   const [saving, setSaving] = useState(false);
 
   const phoneDigits = phoneRaw.replace(/\D/g, '');
-  const fullPhone = ddi + phoneDigits;
+  const fullPhone = normalizeBrPhone(ddi + phoneDigits);
 
   // Search query
   const { data: results = [], isLoading } = useQuery({
@@ -86,8 +87,12 @@ export function ContactPicker({ selected, onSelect, onClear }: Props) {
     if (!clientId) return;
     if (phoneDigits.length < 8 && !email.trim()) return;
 
+    // Busca por telefone (variantes BR com e sem 9º dígito) OU por e-mail
+    const variants = phoneDigits.length >= 8 ? brPhoneVariants(fullPhone) : [];
     const orParts: string[] = [];
-    if (phoneDigits.length >= 8) orParts.push(`phone.eq.${fullPhone}`);
+    if (variants.length > 0) {
+      orParts.push(`phone.in.(${variants.join(',')})`);
+    }
     if (email.trim()) orParts.push(`lead_email.ilike.${email.trim()}`);
     if (orParts.length === 0) return;
 
@@ -100,7 +105,7 @@ export function ContactPicker({ selected, onSelect, onClear }: Props) {
       .maybeSingle();
 
     if (data) {
-      const matchKind: 'phone' | 'email' = data.phone === fullPhone ? 'phone' : 'email';
+      const matchKind: 'phone' | 'email' = variants.includes(data.phone) ? 'phone' : 'email';
       setDuplicate({
         kind: matchKind,
         contact: { id: data.id, name: data.name, phone: data.phone, email: data.lead_email },
@@ -120,7 +125,7 @@ export function ContactPicker({ selected, onSelect, onClear }: Props) {
         .from('chat_contacts')
         .insert({
           client_id: clientId,
-          phone: fullPhone,
+          phone: fullPhone, // já normalizado para forma canônica BR (13 díg)
           name: name.trim(),
           lead_email: email.trim() || null,
           channel_type: 'whatsapp_uazapi',

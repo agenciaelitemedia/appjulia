@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { brPhoneVariants } from '@/lib/phoneNormalize';
 
 export interface ChatContactStatus {
   hasContact: boolean;
@@ -11,8 +12,6 @@ export interface ChatContactStatus {
   queueId: string | null;
 }
 
-const normalize = (raw: string | null | undefined) => (raw || '').replace(/\D/g, '');
-
 /**
  * Given a raw phone, checks if the chat module already knows this contact and,
  * if so, whether there's an active conversation (pending/open/closed).
@@ -22,7 +21,8 @@ const normalize = (raw: string | null | undefined) => (raw || '').replace(/\D/g,
 export function useChatContactConversationStatus(phone: string | null | undefined) {
   const { user } = useAuth();
   const clientId = user?.client_id ? String(user.client_id) : '';
-  const norm = normalize(phone);
+  const variants = brPhoneVariants(phone);
+  const norm = variants[0] ?? '';
 
   return useQuery({
     queryKey: ['chat-contact-status', clientId, norm],
@@ -34,7 +34,7 @@ export function useChatContactConversationStatus(phone: string | null | undefine
         .from('chat_contacts')
         .select('id')
         .eq('client_id', clientId)
-        .eq('phone', norm)
+        .in('phone', variants)
         .limit(1)
         .maybeSingle();
 
