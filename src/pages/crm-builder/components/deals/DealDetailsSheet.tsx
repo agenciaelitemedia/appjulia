@@ -58,6 +58,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useCRMDealHistory } from '../../hooks/useCRMDealHistory';
 import { DealActivityTimeline } from './DealActivityTimeline';
 import { DealLinksSection } from './DealLinksSection';
+import { DealJuliaPanel } from './DealJuliaPanel';
 import { getChatLink, getJuliaLink } from '../../hooks/useCardLinks';
 import type { CRMDeal, CRMDealFormData, CRMPipeline } from '../../types';
 import { PRIORITY_CONFIG, STATUS_CONFIG } from '../../types';
@@ -339,6 +340,9 @@ export function DealDetailsSheet({
             <TabsContent value="details" className="p-6 pt-4 m-0 space-y-6">
               {/* 1. Vínculos */}
               <DealLinksSection deal={deal} />
+
+              {/* 1b. Vínculo Jul.IA (detectado pela fila vinculada ao agente) */}
+              <DealJuliaPanel deal={deal} />
 
               {/* 2. Contato */}
               <Separator />
