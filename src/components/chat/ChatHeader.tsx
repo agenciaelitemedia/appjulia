@@ -476,7 +476,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                   className={cn(
                     'gap-1.5',
                     phoneReady
-                      ? 'text-green-600 border-green-500 hover:bg-green-50 hover:text-green-700'
+                      ? 'bg-green-50 text-green-700 border-green-500 hover:bg-green-100 hover:text-green-800'
                       : 'text-muted-foreground border-border hover:bg-muted'
                   )}
                   onClick={() => setShowPhoneCall(true)}
