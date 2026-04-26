@@ -1,74 +1,77 @@
 
-# Drop entre etapas — soltar em qualquer espaço vazio
+## Diagnóstico
 
-## Problemas identificados
+Ao mover um card para outra etapa, dois problemas acontecem:
 
-Ao arrastar um card vindo de **outra etapa** para uma coluna que **já tem cards**, soltar no espaço abaixo do último card frequentemente falha. Causas:
+### 1. Card volta para a etapa antiga após sair e voltar (não está salvando)
 
-1. **Botão "Adicionar Card" intercepta drops** — em `PipelineColumn.tsx` o botão está no meio da área droppable e captura pointer events. Quando o cursor passa por cima dele, o `pointerWithin` não consegue mapear para o `pipeline-drop-*` da coluna.
-2. **Spacer está depois do botão** — o `<div className="flex-1 min-h-[40px]" />` (linha 227) só absorve drops abaixo do botão. Acima dele (entre o último card e o botão) há um vazio sem droppable explícito.
-3. **Colisão prioriza cards absolutamente** — `collisionDetection` em `BoardPage.tsx` (linhas 184-189) sempre retorna primeiro o `deal-*` sob o cursor. Ao arrastar entre colunas, isso impede "soltar no fim da coluna" sempre que houver algum card pintado na região.
-4. **Sem feedback visual quando o card vindo de fora paira sobre coluna com cards** — `handleDragOver` atualiza `pipeline_id` do `activeDeal`, mas o `SortableContext` interno não recebe o card como item até o `handleDragEnd`, então os cards da coluna alvo não "abrem espaço".
+A causa é uma **corrida entre o update otimista e o realtime do Supabase**:
 
-## Mudanças propostas
+- `moveDeal` em `useCRMDeals.ts` faz update otimista local + dispara N updates paralelos (`Promise.all`) no banco.
+- A subscription realtime (`postgres_changes` em `crm_deals`) escuta `event: '*'` e dispara `fetchDeals()` a cada mudança recebida.
+- Como vários updates chegam em rajada, `fetchDeals` é executado várias vezes — algumas **antes** de todos os commits propagarem — devolvendo snapshots inconsistentes que **sobrescrevem o estado otimista** com a versão antiga.
+- Visualmente: o card "volta" para a coluna de origem assim que recarrega o painel.
 
-### 1. `PipelineColumn.tsx` — droppable cobrindo TUDO
+### 2. Sem placeholder/sombra entre os cards da coluna destino durante o arrasto
 
-- Mover o botão "Adicionar Card" para **fora** do container droppable (ex: rodapé fixo da coluna abaixo de `setDropRef`), OU envolvê-lo num wrapper com `pointer-events: none` no estado de drag e ignorar via `data-no-drop`.
-  - **Solução escolhida:** mover o botão para um rodapé separado abaixo do droppable, garantindo que TODA a área entre o cabeçalho e o rodapé seja drop válido.
-- Aumentar `min-h` do droppable para `min-h-[300px]` quando vazio e manter `flex-1` para crescer.
-- Remover o spacer interno (não é mais necessário — o próprio container já é `flex-1`).
-- Reforçar feedback visual `isOver`: `ring-2 ring-primary bg-primary/10` (mais intenso que o atual `ring-primary/50 bg-primary/5`).
+- O `handleDragOver` atual só muta `activeDeal` (que afeta apenas o `DragOverlay`), **não** muta o array `deals`.
+- Como o `SortableContext` de cada coluna é alimentado por `getFilteredDealsByPipeline(pipeline.id)`, o card arrastado nunca aparece na lista da coluna destino enquanto o usuário ainda está arrastando.
+- Resultado: o `verticalListSortingStrategy` não tem o que deslocar, e nenhum espaço é aberto entre os cards vizinhos.
 
-### 2. `BoardPage.tsx` — colisão híbrida com prioridade contextual
+---
 
-Reescrever `collisionDetection` com a seguinte lógica:
+## Solução
 
-- Para reordenação de pipelines (`activeId.startsWith('pipeline-')`): manter `closestCenter`.
-- Para drag de deal:
-  1. Calcular `pointerWithin`.
-  2. Filtrar colisões por tipo: `dealCollisions` e `columnCollisions`.
-  3. **Se há colisão com card da MESMA coluna do `activeDeal`** → priorizar `deal-*` (reordenação fina).
-  4. **Se há colisão com card de OUTRA coluna** → comparar distância vertical: se o cursor está nos **40% inferiores** do card (perto da borda inferior) ou abaixo do último card visível, retornar a coluna (`pipeline-drop-*`); senão, retornar o card (insere antes dele).
-  5. Se só há `columnCollisions`, retornar a coluna.
-  6. Fallback: `rectIntersection` → `closestCorners`.
+### A) `src/pages/crm-builder/hooks/useCRMDeals.ts`
 
-Isso resolve o caso "soltar entre colunas no espaço vazio mesmo havendo cards" sem quebrar a reordenação na mesma coluna.
+1. **Adicionar guarda contra refetch durante movimentação ativa**:
+   - Criar um `ref` `isMovingRef` (useRef) que vira `true` no início de `moveDeal` e volta para `false` ~600ms após a última escrita confirmada.
+   - O handler de realtime (`postgres_changes`) deve **ignorar** eventos enquanto `isMovingRef.current === true`, evitando que fetches concorrentes sobrescrevam o estado otimista recém-aplicado.
+   - Adicionar também um pequeno *debounce* (~250ms) ao `fetchDeals` chamado pelo realtime, para coalescer rajadas de eventos.
 
-### 3. `BoardPage.tsx` — `handleDragOver` move card visualmente
+2. **Trocar updates paralelos por uma única chamada `upsert`**:
+   - Substituir o `Promise.all` de N updates por um único `supabase.from('crm_deals').upsert(rows, { onConflict: 'id' })` contendo apenas as colunas necessárias (`id`, `position`, `pipeline_id`, e opcionalmente `stage_entered_at`).
+   - Isso reduz a rajada de eventos realtime para 1 único batch e elimina estados intermediários inconsistentes vistos pelo refetch.
+   - **Importante**: o upsert exige enviar todas as colunas NOT NULL — verificar o schema antes; se necessário, manter `Promise.all` mas envolvê-lo num `await` único antes de liberar `isMovingRef`.
 
-Quando o card vem de outra etapa e o `over` é `pipeline-drop-*` (coluna alvo):
-- Já atualizamos `activeDeal.pipeline_id` localmente (feito).
-- **Adicionar:** atualizar otimisticamente o estado `deals` movendo o card para o final da coluna alvo durante o drag, para que o `SortableContext` da coluna destino inclua o card e os vizinhos abram espaço.
-- Reverter no `handleDragCancel` (adicionar handler).
-- No `handleDragEnd`, persistir o estado final via `moveDeal`.
+3. **Logar erros silenciosos**: hoje, se algum update falha dentro do `Promise.all`, o `firstErr` é lançado mas o estado otimista já foi aplicado. Garantir que, em caso de erro, o `fetchDeals` final restaure a verdade do banco (já é feito), e exibir um `toast` claro.
 
-Para evitar thrashing, usar `useRef` com snapshot do estado original ao iniciar o drag e aplicar updates locais via `setDeals` (precisa expor `setDeals` em `useCRMDeals`, ou usar uma função utilitária `previewMove` no hook).
+### B) `src/pages/crm-builder/BoardPage.tsx`
 
-### 4. `useCRMDeals.ts` — expor `previewMove` (preview local sem persistir)
+1. **Adicionar `previewMove` no hook `useCRMDeals`** (ou expor um setter `setDeals` controlado) e usá-lo no `handleDragOver` para **mover o deal entre colunas dentro do estado** quando o cursor cruza para outra coluna:
+   - Atualiza `pipeline_id` do deal arrastado no array `deals` (sem persistir).
+   - Recalcula posições da coluna destino para incluir o card na posição apontada pelo cursor.
+   - Isso faz com que o `SortableContext` da coluna destino passe a conter o `deal-<id>`, ativando o `verticalListSortingStrategy` — vizinhos abrem espaço suavemente e o "fantasma" do card aparece entre eles.
 
-Adicionar função:
-```ts
-const previewMove = (dealId: string, toPipelineId: string, position: number) => { ... }
-const cancelPreview = () => { /* restaura snapshot */ }
-```
+2. **Refinar o `handleDragOver`**:
+   - Detectar coluna alvo (já feito) e índice alvo dentro dela (a partir do `over.id` ou da posição do cursor relativa ao retângulo dos cards).
+   - Aplicar o preview apenas quando a coluna OU o índice mudarem (evitar re-renders desnecessários).
 
-Usadas pelo `handleDragOver`/`handleDragCancel`. O `moveDeal` continua sendo a função que persiste no banco.
+3. **`handleDragEnd` simplificado**:
+   - Como o estado já reflete a posição final do preview, basta chamar `moveDeal` com o `pipeline_id` e a `position` já presentes no estado para esse deal. Isso elimina a divergência entre o "preview" e o "commit".
 
-### 5. `DealCard.tsx` — feedback do card sob arraste
+4. **Cancelamento limpo**:
+   - Implementar `onDragCancel` que reverte o preview chamando `fetchDeals()` para garantir consistência se o usuário soltar fora de qualquer drop zone (Esc, drop inválido).
 
-Manter o estado atual (`opacity-40 ring-2 shadow-xl`), mas reduzir a opacidade do card original para `opacity-30` durante drag para destacar mais o `DragOverlay`.
+### C) `src/pages/crm-builder/components/deals/DealCard.tsx`
+
+- Reduzir levemente a opacidade do card original durante o drag (`opacity-30` no `isDragging`) e manter o `DragOverlay` 100% opaco — assim o "espaço aberto" na coluna destino fica visualmente claro como um placeholder, e o cursor mostra o card sendo arrastado.
+
+### D) (Opcional, ganho extra) `src/pages/crm-builder/components/pipeline/PipelineColumn.tsx`
+
+- Reforçar o destaque visual quando `isOver` durante o drag de outra coluna: já existe `ring-2 ring-primary bg-primary/10`, manter; adicionar uma transição mais suave (`transition-colors duration-150`).
+
+---
+
+## Arquivos a editar
+
+- `src/pages/crm-builder/hooks/useCRMDeals.ts` — guarda anti-refetch, debounce realtime, upsert único, expor `previewMove`/`setDeals` controlado.
+- `src/pages/crm-builder/BoardPage.tsx` — usar `previewMove` no `handleDragOver`, simplificar `handleDragEnd`, adicionar `onDragCancel`.
+- `src/pages/crm-builder/components/deals/DealCard.tsx` — ajuste fino de opacidade do placeholder.
+- `src/pages/crm-builder/components/pipeline/PipelineColumn.tsx` — micro-ajuste de transição (opcional).
 
 ## Resultado esperado
 
-- Soltar **em qualquer ponto** de uma coluna alvo (incluindo o espaço entre o último card e o botão "Adicionar Card", e a região lateral) move o card para o final da etapa.
-- Soltar **sobre um card específico** ainda insere na posição daquele card (reordenação fina).
-- Cards da coluna destino **abrem espaço em tempo real** mesmo quando o card vem de outra etapa.
-- O botão "Adicionar Card" não captura mais drops indevidamente.
-
-## Arquivos afetados
-
-- `src/pages/crm-builder/components/pipeline/PipelineColumn.tsx`
-- `src/pages/crm-builder/BoardPage.tsx`
-- `src/pages/crm-builder/hooks/useCRMDeals.ts`
-- `src/pages/crm-builder/components/deals/DealCard.tsx` (ajuste menor)
+- Movimentação entre etapas é **persistida de forma confiável** — refresh ou navegação não revertem mais a posição.
+- Durante o arrasto, os cards da coluna destino **abrem espaço suavemente** mostrando exatamente onde o card será posicionado (placeholder visual entre vizinhos).
+- Drop em qualquer área da coluna (vazia, no meio, no fim) funciona consistentemente.
