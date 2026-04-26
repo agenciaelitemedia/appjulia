@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { CRMDeal, CRMDealFormData, DropResult } from '../types';
@@ -15,6 +15,11 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
   const [deals, setDeals] = useState<CRMDeal[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Guarda contra refetch concorrente do realtime durante uma movimentação
+  // (evita que eventos postgres_changes sobrescrevam o estado otimista
+  // antes de todos os updates terem propagado).
+  const isMovingRef = useRef(false);
+  const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch all deals for the board
   const fetchDeals = useCallback(async () => {
@@ -179,6 +184,7 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
     const { dealId, fromPipelineId, toPipelineId, newPosition } = result;
 
     try {
+      isMovingRef.current = true;
       const sameColumn = fromPipelineId === toPipelineId;
       const nowIso = new Date().toISOString();
 
@@ -260,8 +266,12 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
         await recordHistory(dealId, 'moved', fromPipelineId, toPipelineId);
       }
 
+      // Libera a guarda apenas depois de uma janela em que os eventos
+      // realtime das N escritas já terão chegado e sido descartados.
+      setTimeout(() => { isMovingRef.current = false; }, 800);
       return true;
     } catch (err) {
+      isMovingRef.current = false;
       // Revert on error
       fetchDeals();
       const message = err instanceof Error ? err.message : 'Erro ao mover deal';
@@ -386,12 +396,20 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
           filter: `board_id=eq.${boardId}`,
         },
         () => {
-          fetchDeals();
+          // Ignora eventos enquanto há uma movimentação em andamento
+          // (o estado otimista já reflete a verdade que acabou de ser escrita).
+          if (isMovingRef.current) return;
+          // Debounce para coalescer rajadas de eventos de múltiplos updates.
+          if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
+          realtimeDebounceRef.current = setTimeout(() => {
+            if (!isMovingRef.current) fetchDeals();
+          }, 250);
         }
       )
       .subscribe();
 
     return () => {
+      if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
       supabase.removeChannel(channel);
     };
   }, [boardId, clientId, fetchDeals]);
@@ -400,6 +418,50 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
   useEffect(() => {
     fetchDeals();
   }, [fetchDeals]);
+
+  // Preview de movimentação (apenas estado local, sem persistir).
+  // Usado durante o onDragOver para que o card arrastado seja inserido
+  // visualmente na coluna alvo, fazendo com que os vizinhos abram espaço
+  // (placeholder/sombra entre os cards) via verticalListSortingStrategy.
+  const previewMove = useCallback((dealId: string, toPipelineId: string, toIndex: number) => {
+    setDeals(prev => {
+      const moving = prev.find(d => d.id === dealId);
+      if (!moving) return prev;
+
+      // Lista da coluna destino sem o card que está sendo movido.
+      const destList = prev
+        .filter(d => d.pipeline_id === toPipelineId && d.id !== dealId)
+        .sort((a, b) => a.position - b.position);
+
+      const insertAt = Math.max(0, Math.min(toIndex, destList.length));
+      // Se já estiver na posição alvo na coluna alvo, não há nada a fazer.
+      if (moving.pipeline_id === toPipelineId) {
+        const currentList = prev
+          .filter(d => d.pipeline_id === toPipelineId)
+          .sort((a, b) => a.position - b.position);
+        const currentIdx = currentList.findIndex(d => d.id === dealId);
+        if (currentIdx === insertAt) return prev;
+      }
+
+      const movedDeal: CRMDeal = { ...moving, pipeline_id: toPipelineId };
+      destList.splice(insertAt, 0, movedDeal);
+      const reindexedDest = destList.map((d, i) => ({ ...d, position: i }));
+
+      // Lista da coluna origem (se diferente) reindexada.
+      const fromPipelineId = moving.pipeline_id;
+      const sourceReindexed = fromPipelineId !== toPipelineId
+        ? prev
+            .filter(d => d.pipeline_id === fromPipelineId && d.id !== dealId)
+            .sort((a, b) => a.position - b.position)
+            .map((d, i) => ({ ...d, position: i }))
+        : [];
+
+      const byId = new Map<string, CRMDeal>();
+      reindexedDest.forEach(d => byId.set(d.id, d));
+      sourceReindexed.forEach(d => byId.set(d.id, d));
+      return prev.map(d => byId.get(d.id) ?? d);
+    });
+  }, []);
 
   return {
     deals,
@@ -410,6 +472,7 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
     createDeal,
     updateDeal,
     moveDeal,
+    previewMove,
     setDealStatus,
     archiveDeal,
   };

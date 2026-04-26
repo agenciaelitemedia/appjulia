@@ -148,7 +148,7 @@ export function DealCard({
       {...listeners}
       className={cn(
         'cursor-grab active:cursor-grabbing transition-all hover:shadow-md group border-l-4',
-        isDragging && 'opacity-40 shadow-xl ring-2 ring-primary/40',
+        isDragging && 'opacity-30 ring-2 ring-primary/50 ring-dashed bg-primary/5',
         deal.status === 'won' && 'border-l-primary bg-primary/5',
         deal.status === 'lost' && 'border-l-destructive bg-destructive/5'
       )}
