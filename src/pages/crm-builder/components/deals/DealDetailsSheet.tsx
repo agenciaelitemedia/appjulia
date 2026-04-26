@@ -13,6 +13,12 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { TeamMemberSelect } from '@/components/TeamMemberSelect';
 import { maskPhone } from '@/lib/inputMasks';
@@ -45,6 +51,7 @@ import {
   ChevronUp,
   Loader2,
   Trash2,
+  Flag,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -506,40 +513,53 @@ export function DealDetailsSheet({
               {/* 4. Prioridade + Tempo na fase (linha própria, full-width via grid) */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-3 rounded-lg border">
-                  <div className="text-xs text-muted-foreground mb-2">Prioridade</div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs text-muted-foreground">Prioridade</span>
+                    {savingPriority && (
+                      <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
                   {onUpdate ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {(Object.entries(PRIORITY_CONFIG) as Array<[CRMDealFormData['priority'], typeof PRIORITY_CONFIG[keyof typeof PRIORITY_CONFIG]]>).map(([key, cfg]) => {
-                        const isActive = deal.priority === key;
-                        const isSaving = savingPriority === key;
-                        return (
-                          <button
-                            key={key}
-                            type="button"
-                            disabled={!!savingPriority || isActive}
-                            onClick={async () => {
-                              setSavingPriority(key);
-                              try {
-                                await onUpdate({ priority: key });
-                              } finally {
-                                setSavingPriority(null);
-                              }
-                            }}
-                            className={cn(
-                              'px-2.5 py-1 rounded-full text-xs font-medium border transition-all flex items-center gap-1',
-                              isActive
-                                ? cn(cfg.color, cfg.bgColor, 'border-current ring-1 ring-current/30 cursor-default')
-                                : 'text-muted-foreground border-border hover:border-foreground/30 hover:bg-muted',
-                              savingPriority && !isActive && 'opacity-50'
-                            )}
-                            title={isActive ? `Prioridade atual: ${cfg.label}` : `Definir como ${cfg.label}`}
-                          >
-                            {isSaving && <Loader2 className="h-3 w-3 animate-spin" />}
-                            {cfg.label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <TooltipProvider delayDuration={150}>
+                      <div className="flex items-center gap-1.5">
+                        {(Object.entries(PRIORITY_CONFIG) as Array<[CRMDealFormData['priority'], typeof PRIORITY_CONFIG[keyof typeof PRIORITY_CONFIG]]>).map(([key, cfg]) => {
+                          const isActive = deal.priority === key;
+                          return (
+                            <Tooltip key={key}>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  disabled={!!savingPriority || isActive}
+                                  onClick={async () => {
+                                    setSavingPriority(key);
+                                    try {
+                                      await onUpdate({ priority: key });
+                                    } finally {
+                                      setSavingPriority(null);
+                                    }
+                                  }}
+                                  aria-label={`Prioridade ${cfg.label}`}
+                                  className={cn(
+                                    'h-8 w-8 inline-flex items-center justify-center rounded-md border transition-all',
+                                    isActive
+                                      ? cn(cfg.color, cfg.bgColor, 'border-current ring-1 ring-current/30 cursor-default')
+                                      : 'text-muted-foreground border-border hover:border-foreground/30 hover:bg-muted',
+                                    savingPriority && !isActive && 'opacity-50'
+                                  )}
+                                >
+                                  <Flag
+                                    className={cn('h-4 w-4', isActive && 'fill-current')}
+                                  />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">
+                                {isActive ? `Atual: ${cfg.label}` : `Definir como ${cfg.label}`}
+                              </TooltipContent>
+                            </Tooltip>
+                          );
+                        })}
+                      </div>
+                    </TooltipProvider>
                   ) : (
                     <Badge
                       variant="outline"
