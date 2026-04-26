@@ -15,11 +15,16 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
   const [deals, setDeals] = useState<CRMDeal[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dealsRef = useRef<CRMDeal[]>([]);
   // Guarda contra refetch concorrente do realtime durante uma movimentação
   // (evita que eventos postgres_changes sobrescrevam o estado otimista
   // antes de todos os updates terem propagado).
   const isMovingRef = useRef(false);
   const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    dealsRef.current = deals;
+  }, [deals]);
 
   // Fetch all deals for the board
   const fetchDeals = useCallback(async () => {
@@ -43,6 +48,7 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
       if (queryError) throw queryError;
 
       setDeals((data as CRMDeal[]) || []);
+      dealsRef.current = (data as CRMDeal[]) || [];
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao carregar deals';
       setError(message);
@@ -188,35 +194,37 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
       const sameColumn = fromPipelineId === toPipelineId;
       const nowIso = new Date().toISOString();
 
-      // Build the affected lists from the CURRENT deals state and reindex
-      // positions sequentially so they stay unique and stable.
+      const sourceDeals = dealsRef.current;
+      const moving = sourceDeals.find(d => d.id === dealId);
+      if (!moving) {
+        isMovingRef.current = false;
+        return false;
+      }
+
       let affected: CRMDeal[] = [];
-      setDeals(prev => {
-        const moving = prev.find(d => d.id === dealId);
-        if (!moving) return prev;
+      let nextDeals: CRMDeal[] = sourceDeals;
 
-        if (sameColumn) {
-          const list = prev
-            .filter(d => d.pipeline_id === toPipelineId)
-            .sort((a, b) => a.position - b.position);
-          const oldIndex = list.findIndex(d => d.id === dealId);
-          const targetIndex = Math.max(0, Math.min(newPosition, list.length - 1));
-          const without = list.filter(d => d.id !== dealId);
-          without.splice(targetIndex, 0, moving);
-          const reindexed = without.map((d, i) => ({ ...d, position: i }));
-          affected = reindexed;
-          const byId = new Map(reindexed.map(d => [d.id, d]));
-          return prev.map(d => byId.get(d.id) ?? d);
-        }
+      if (sameColumn) {
+        const list = sourceDeals
+          .filter(d => d.pipeline_id === toPipelineId)
+          .sort((a, b) => a.position - b.position);
 
-        // Cross-column move
-        const fromList = prev
+        const without = list.filter(d => d.id !== dealId);
+        const targetIndex = Math.max(0, Math.min(newPosition, without.length));
+        without.splice(targetIndex, 0, moving);
+
+        const reindexed = without.map((d, i) => ({ ...d, position: i }));
+        affected = reindexed;
+        const byId = new Map(reindexed.map(d => [d.id, d]));
+        nextDeals = sourceDeals.map(d => byId.get(d.id) ?? d);
+      } else {
+        const fromList = sourceDeals
           .filter(d => d.pipeline_id === fromPipelineId && d.id !== dealId)
           .sort((a, b) => a.position - b.position)
           .map((d, i) => ({ ...d, position: i }));
 
-        const toListBase = prev
-          .filter(d => d.pipeline_id === toPipelineId)
+        const toListBase = sourceDeals
+          .filter(d => d.pipeline_id === toPipelineId && d.id !== dealId)
           .sort((a, b) => a.position - b.position);
 
         const insertAt = Math.max(0, Math.min(newPosition, toListBase.length));
@@ -225,16 +233,20 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
           pipeline_id: toPipelineId,
           stage_entered_at: nowIso,
         };
+
         const toList = [...toListBase];
         toList.splice(insertAt, 0, movedDeal);
         const reindexedTo = toList.map((d, i) => ({ ...d, position: i }));
 
         affected = [...fromList, ...reindexedTo];
         const byId = new Map(affected.map(d => [d.id, d]));
-        return prev.map(d => byId.get(d.id) ?? d);
-      });
+        nextDeals = sourceDeals.map(d => byId.get(d.id) ?? d);
+      }
 
       if (affected.length === 0) return false;
+
+      setDeals(nextDeals);
+      dealsRef.current = nextDeals;
 
       // Persist all affected rows in a single round-trip
       const updates = affected.map(d => ({
@@ -256,6 +268,8 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
               ...(u.stage_entered_at ? { stage_entered_at: u.stage_entered_at } : {}),
             })
             .eq('id', u.id)
+            .select('id')
+            .single()
         )
       );
       const firstErr = results.find(r => r.error)?.error;
