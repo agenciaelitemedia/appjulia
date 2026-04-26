@@ -180,7 +180,7 @@ export function DealDetailsSheet({
     if (!onUpdate) { setEditingContact(false); return; }
     const next = {
       contact_name: contactDraft.name.trim() || undefined,
-      contact_phone: contactDraft.phone.trim() || undefined,
+      contact_phone: isLinked ? (deal.contact_phone || undefined) : (contactDraft.phone.trim() || undefined),
       contact_email: contactDraft.email.trim() || undefined,
     };
     const unchanged =
