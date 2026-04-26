@@ -45,6 +45,8 @@ import { PRIORITY_CONFIG } from '../../types';
 import { getChatLink, getJuliaLink, useJuliaCardPreview } from '../../hooks/useCardLinks';
 import { useDealConversation } from '../../hooks/useDealConversation';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { usePhone } from '@/contexts/PhoneContext';
+import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
 
 interface DealCardProps {
   deal: CRMDeal;
@@ -70,6 +72,8 @@ export function DealCard({
   onChangePriority,
 }: DealCardProps) {
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [phoneCallOpen, setPhoneCallOpen] = useState(false);
+  const { isAvailable: isPhoneAvailable } = usePhone();
   const {
     attributes,
     listeners,
@@ -162,6 +166,26 @@ export function DealCard({
           </h4>
 
           <div className="flex items-center gap-1 flex-shrink-0">
+            {isPhoneAvailable && deal.contact_phone && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-orange-500 hover:text-orange-600 hover:bg-orange-500/10"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPhoneCallOpen(true);
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <Phone className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Ligar via ramal</TooltipContent>
+              </Tooltip>
+            )}
+
             {chatLink && onOpenChat && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -420,6 +444,16 @@ export function DealCard({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {deal.contact_phone && (
+        <PhoneCallDialog
+          open={phoneCallOpen}
+          onOpenChange={setPhoneCallOpen}
+          whatsappNumber={deal.contact_phone}
+          contactName={deal.contact_name || deal.title}
+          codAgent={deal.cod_agent || ''}
+        />
+      )}
     </Card>
   );
 }
