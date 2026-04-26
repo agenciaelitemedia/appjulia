@@ -117,8 +117,7 @@ export function DealDetailsSheet({
   const [stagesExpanded, setStagesExpanded] = useState(false);
   const [movingToStage, setMovingToStage] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
-  const [editingPriority, setEditingPriority] = useState(false);
-  const [savingPriority, setSavingPriority] = useState(false);
+  const [savingPriority, setSavingPriority] = useState<CRMDealFormData['priority'] | null>(null);
   
   // Mesma fonte usada na página Equipe (vw_equipe filtrada por client_id),
   // que inclui o dono/responsável principal e todos os membros do mesmo cliente.
