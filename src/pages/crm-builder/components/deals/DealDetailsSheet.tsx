@@ -262,16 +262,16 @@ export function DealDetailsSheet({
               </div>
               <Button
                 variant="ghost"
-                size="sm"
-                className="h-7 gap-1 text-xs flex-shrink-0"
+                size="icon"
+                className="h-7 w-7 flex-shrink-0"
                 onClick={() => setStagesExpanded((v) => !v)}
+                title={stagesExpanded ? 'Fechar' : 'Editar etapa'}
+                aria-label={stagesExpanded ? 'Fechar' : 'Editar etapa'}
               >
-                <Pencil className="h-3 w-3" />
-                Editar
                 {stagesExpanded ? (
-                  <ChevronUp className="h-3 w-3" />
+                  <ChevronUp className="h-3.5 w-3.5" />
                 ) : (
-                  <ChevronDown className="h-3 w-3" />
+                  <Pencil className="h-3.5 w-3.5" />
                 )}
               </Button>
             </div>
