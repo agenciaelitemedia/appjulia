@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -32,6 +32,14 @@ export function CreatePipelineDialog({
   const [winProbability, setWinProbability] = useState(
     editPipeline?.win_probability?.toString() || '0'
   );
+
+  // Sync form state whenever the dialog opens or the pipeline being edited changes
+  useEffect(() => {
+    if (!open) return;
+    setName(editPipeline?.name || '');
+    setColor(editPipeline?.color || PIPELINE_COLORS[0]);
+    setWinProbability(editPipeline?.win_probability?.toString() || '0');
+  }, [open, editPipeline]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
