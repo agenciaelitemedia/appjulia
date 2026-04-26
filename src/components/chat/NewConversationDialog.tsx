@@ -23,26 +23,32 @@ interface Props {
   onOpenChange: (v: boolean) => void;
   queues: Queue[];
   initialPhone?: string;
+  initialName?: string;
+  /** When true, phone and name fields become read-only (used by CRM card flow). */
+  lockContact?: boolean;
 }
 
-export function NewConversationDialog({ open, onOpenChange, queues, initialPhone }: Props) {
+export function NewConversationDialog({ open, onOpenChange, queues, initialPhone, initialName, lockContact }: Props) {
   const [selectedQueueId, setSelectedQueueId] = useState('');
   const [phone, setPhone] = useState(initialPhone ?? '');
-  const [name, setName] = useState('');
+  const [name, setName] = useState(initialName ?? '');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
 
   const selectedQueue = queues.find(q => q.id === selectedQueueId) ?? null;
 
   useEffect(() => {
-    if (open) setPhone(initialPhone ?? '');
-  }, [open, initialPhone]);
+    if (open) {
+      setPhone(initialPhone ?? '');
+      setName(initialName ?? '');
+    }
+  }, [open, initialPhone, initialName]);
 
   const handleClose = () => {
     if (sending) return;
     setSelectedQueueId('');
     setPhone(initialPhone ?? '');
-    setName('');
+    setName(initialName ?? '');
     setMessage('');
     onOpenChange(false);
   };
@@ -124,13 +130,17 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
               onChange={e => setPhone(e.target.value)}
               placeholder="5511999999999"
               className="text-sm font-mono"
+              readOnly={lockContact}
+              disabled={lockContact}
             />
-            <p className="text-[11px] text-muted-foreground">Somente números com código do país (ex: 5511999999999)</p>
+            <p className="text-[11px] text-muted-foreground">
+              {lockContact ? 'Telefone do contato vinculado ao card.' : 'Somente números com código do país (ex: 5511999999999)'}
+            </p>
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="nc-name" className="text-sm">
-              Nome do lead <span className="text-muted-foreground text-[11px]">(opcional — usa o número se não informado)</span>
+              Nome do lead {!lockContact && <span className="text-muted-foreground text-[11px]">(opcional — usa o número se não informado)</span>}
             </Label>
             <Input
               id="nc-name"
@@ -138,6 +148,8 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
               onChange={e => setName(e.target.value)}
               placeholder="Nome do contato"
               className="text-sm"
+              readOnly={lockContact}
+              disabled={lockContact}
             />
           </div>
 
