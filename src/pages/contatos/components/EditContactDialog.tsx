@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { normalizeBrPhone } from '@/lib/phoneNormalize';
 import type { ContactRow } from '../hooks/useContactsList';
 
 interface Props {
@@ -35,7 +36,7 @@ export function EditContactDialog({ contact, open, onOpenChange }: Props) {
         .from('chat_contacts')
         .update({
           name: name.trim() || contact.phone,
-          phone: phone.trim(),
+          phone: normalizeBrPhone(phone.trim()) || phone.trim(),
           avatar: avatar.trim() || null,
         })
         .eq('id', contact.id);
