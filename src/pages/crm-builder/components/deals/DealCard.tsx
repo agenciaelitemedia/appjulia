@@ -47,6 +47,10 @@ import { useDealConversation } from '../../hooks/useDealConversation';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { usePhone } from '@/contexts/PhoneContext';
 import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
+import { useChatContactConversationStatus } from '../../hooks/useChatContactConversationStatus';
+import { useDealJuliaContext } from '../../hooks/useDealJuliaContext';
+import { NewConversationDialog } from '@/components/chat/NewConversationDialog';
+import { useQueues } from '@/pages/agente/filas/hooks/useQueues';
 
 interface DealCardProps {
   deal: CRMDeal;
@@ -73,6 +77,7 @@ export function DealCard({
 }: DealCardProps) {
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [phoneCallOpen, setPhoneCallOpen] = useState(false);
+  const [newConvOpen, setNewConvOpen] = useState(false);
   const { isAvailable: isPhoneAvailable } = usePhone();
   const {
     attributes,
@@ -105,6 +110,26 @@ export function DealCard({
   // Resolve fila e dados da conversa quando o card está vinculado ao chat
   const dealConv = useDealConversation(chatLink ? deal : null);
   const queueName = dealConv.data?.queueName ?? null;
+
+  // Júlia context: detecta se a fila vinculada é de um agente Júlia
+  const juliaCtx = useDealJuliaContext(deal);
+  const isJuliaCard = juliaCtx.isJulia;
+
+  // Status do contato no chat (somente quando NÃO há chatLink ainda e há telefone)
+  const contactStatus = useChatContactConversationStatus(!chatLink ? deal.contact_phone : null);
+  const showAmberWhatsapp = !chatLink && !!deal.contact_phone && !contactStatus.data?.hasConversation;
+
+  // Filas WhatsApp para o NewConversationDialog (carregadas só sob demanda)
+  const { data: allQueues = [] } = useQueues();
+  const waQueues = allQueues
+    .filter((q: any) => q.is_active && !q.is_deleted && q.channel_type === 'uazapi')
+    .map((q: any) => ({
+      id: q.id,
+      name: q.name,
+      evo_url: q.evo_url,
+      evo_apikey: q.evo_apikey,
+      evo_instance: q.evo_instance,
+    }));
 
   // Cor do ícone de prioridade
   const priorityIconColor: Record<string, string> = {
@@ -206,6 +231,26 @@ export function DealCard({
               </Tooltip>
             )}
 
+            {showAmberWhatsapp && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setNewConvOpen(true);
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Iniciar conversa no WhatsApp</TooltipContent>
+              </Tooltip>
+            )}
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
@@ -288,6 +333,20 @@ export function DealCard({
             <span className="truncate">{deal.assigned_to || 'Não atribuído'}</span>
           </Badge>
 
+          {isJuliaCard && juliaCtx.codAgent && (
+            <Badge
+              variant="outline"
+              className="text-[10px] px-1.5 py-0 gap-1 bg-purple-500/10 text-purple-700 border-purple-500/30 max-w-[160px]"
+              title={`Agente Jul.IA #${juliaCtx.codAgent}${juliaCtx.agentAlias ? ' - ' + juliaCtx.agentAlias : ''}`}
+            >
+              <Scale className="h-2.5 w-2.5 flex-shrink-0" />
+              <span className="truncate">
+                #{juliaCtx.codAgent}
+                {juliaCtx.agentAlias ? ` - ${juliaCtx.agentAlias}` : ''}
+              </span>
+            </Badge>
+          )}
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -350,12 +409,20 @@ export function DealCard({
         {/* Link badges */}
         {(chatLink || juliaLink) && (
           <div className="flex items-center gap-1 flex-wrap pt-1">
-            {chatLink && (
+            {chatLink && !isJuliaCard && (
               <Badge
                 variant="outline"
                 className="text-[10px] px-1.5 py-0 bg-blue-500/10 text-blue-700 border-blue-500/30 gap-1"
               >
                 <MessageSquare className="h-2.5 w-2.5" /> Chat
+              </Badge>
+            )}
+            {chatLink && isJuliaCard && (
+              <Badge
+                variant="outline"
+                className="text-[10px] px-1.5 py-0 bg-purple-500/10 text-purple-700 border-purple-500/30 gap-1"
+              >
+                <Scale className="h-2.5 w-2.5" /> Jul.IA
               </Badge>
             )}
             {chatLink && queueName && (
@@ -452,6 +519,17 @@ export function DealCard({
           whatsappNumber={deal.contact_phone}
           contactName={deal.contact_name || deal.title}
           codAgent={deal.cod_agent || ''}
+        />
+      )}
+
+      {showAmberWhatsapp && (
+        <NewConversationDialog
+          open={newConvOpen}
+          onOpenChange={setNewConvOpen}
+          queues={waQueues}
+          initialPhone={(deal.contact_phone || '').replace(/\D/g, '')}
+          initialName={deal.contact_name || ''}
+          lockContact
         />
       )}
     </Card>
