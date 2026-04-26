@@ -172,7 +172,7 @@ export function BoardFilters({
 
             {/* Status Filter */}
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Status</Label>
+              <Label className="text-xs text-muted-foreground">Situação</Label>
               <div className="flex flex-wrap gap-2">
                 {(Object.keys(STATUS_CONFIG) as DealStatus[]).map((status) => (
                   <button

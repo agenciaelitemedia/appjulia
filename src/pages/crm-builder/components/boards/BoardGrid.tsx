@@ -55,7 +55,7 @@ export function BoardGrid({
         >
           <div className="flex flex-col items-center gap-2 text-muted-foreground">
             <Plus className="h-8 w-8" />
-            <span className="font-medium">Novo Board</span>
+            <span className="font-medium">Novo Quadro</span>
           </div>
         </Button>
       )}

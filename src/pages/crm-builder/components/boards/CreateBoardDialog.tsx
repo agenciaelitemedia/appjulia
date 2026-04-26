@@ -111,12 +111,12 @@ export function CreateBoardDialog({
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>
-              {editBoard ? 'Editar Board' : 'Novo Board'}
+              {editBoard ? 'Editar Quadro' : 'Novo Quadro'}
             </DialogTitle>
             <DialogDescription>
               {editBoard 
-                ? 'Atualize as informações do seu board.'
-                : 'Crie um novo board para organizar seus negócios.'}
+                ? 'Atualize as informações do seu quadro.'
+                : 'Crie um novo quadro para organizar seus cards.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -138,7 +138,7 @@ export function CreateBoardDialog({
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Uma breve descrição do board..."
+                placeholder="Uma breve descrição do quadro..."
                 rows={2}
               />
             </div>

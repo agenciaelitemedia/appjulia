@@ -32,7 +32,7 @@ const ACTION_CONFIG: Record<DealHistoryAction, {
 }> = {
   created: { 
     icon: Plus, 
-    label: 'Deal criado', 
+    label: 'Card criado', 
     color: 'text-primary', 
     bgColor: 'bg-primary/10' 
   },
@@ -113,7 +113,7 @@ export function DealActivityTimeline({
           {showNoteInput ? (
             <div className="space-y-2">
               <Textarea
-                placeholder="Escreva uma nota sobre este deal..."
+                placeholder="Escreva uma nota sobre este card..."
                 value={newNote}
                 onChange={(e) => setNewNote(e.target.value)}
                 rows={3}

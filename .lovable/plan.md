@@ -1,59 +1,52 @@
-## Ajuste no rodapé do `DealDetailsSheet.tsx`
+## Objetivo
 
-Arquivo único: `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx` (linhas 683–720).
+Traduzir para o português **somente os textos visíveis** ao usuário no módulo `/crm-builder`. Identificadores internos (`value` de `<SelectItem>`, chaves de objetos, tipos TypeScript, nomes de campos no banco — `priority`, `status`, `won`, `lost`, `board`, `pipeline`, `deal` etc.) **permanecerão inalterados** para preservar o funcionamento da aplicação.
 
-### Mudanças
+## Termos identificados e tradução proposta
 
-1. **Unificar em uma única linha** os três botões: `Perdido`, `Ganho` e `Arquivar Card`.
-   - Substituir o `grid grid-cols-2` + botão full-width separado por um único `flex items-center gap-2`.
-   - `Perdido` e `Ganho` recebem `flex-1` para dividir o espaço restante igualmente.
-   - `Arquivar` vira botão **icon-only** com largura fixa (`size="icon"` ou `h-10 w-10`), alinhado na mesma linha à direita.
+| Original (UI) | Tradução |
+|---|---|
+| CRM Builder (título da página) | Construtor de CRM |
+| Board / Boards | Quadro / Quadros |
+| Deal / Deals | Card / Cards |
+| Pipeline (quando exposto) | Etapa |
+| Status (label de filtro) | Situação |
 
-2. **Botão Arquivar (icon-only)**:
-   - Remover o texto "Arquivar Card".
-   - Manter apenas o ícone `Archive` (lixeira/arquivo) — trocar para `Trash2` se a intenção é literal "lixeira"; usarei `Trash2` conforme pedido ("ícone da lixeira").
-   - Variante `outline` com cor destrutiva (`border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground`) para harmonizar visualmente com Perdido/Ganho na mesma linha.
-   - Adicionar `title="Arquivar card"` e `aria-label="Arquivar card"` para acessibilidade (já que perde o label visual).
-   - Continua disparando `setConfirmArchive(true)` — a dupla confirmação via `AlertDialog` permanece intacta.
+## Arquivos e mudanças exatas
 
-3. **Condicionais preservadas**:
-   - `Perdido`/`Ganho` continuam dependendo de `!hideStatusActions && deal.status === 'open'`.
-   - `Arquivar` continua dependendo de `!hideArchiveAction`.
-   - Caso apenas um dos blocos esteja visível, ainda funciona: o container flex só renderiza os filhos disponíveis. Se só o arquivar estiver visível, ele aparece sozinho à direita (mantém comportamento OK).
+### 1. `src/pages/crm-builder/CRMBuilderPage.tsx`
+- L93: `"CRM Builder"` → `"Construtor de CRM"`
+- L153: `"Arquivar Board"` → `"Arquivar Quadro"`
+- L155: `'arquivar o board "..."'` → `'arquivar o quadro "..."'`
+- L156: `"Todos os deals serão mantidos, mas o board não aparecerá mais na listagem."` → `"Todos os cards serão mantidos, mas o quadro não aparecerá mais na listagem."`
+- L174: `"Auditoria do CRM Builder"` → `"Auditoria do Construtor de CRM"`
 
-### Estrutura final esperada
+### 2. `src/pages/crm-builder/components/boards/CreateBoardDialog.tsx`
+- L114: `"Editar Board" / "Novo Board"` → `"Editar Quadro" / "Novo Quadro"`
+- L118-119: `"Atualize as informações do seu board." / "Crie um novo board para organizar seus negócios."` → `"Atualize as informações do seu quadro." / "Crie um novo quadro para organizar seus cards."`
+- L141: `placeholder "Uma breve descrição do board..."` → `"Uma breve descrição do quadro..."`
 
-```tsx
-<div className="flex items-center gap-2">
-  {!hideStatusActions && deal.status === 'open' && (
-    <>
-      <Button variant="outline" className="flex-1 border-destructive ..." onClick={...}>
-        <XCircle className="h-4 w-4 mr-2" /> Perdido
-      </Button>
-      <Button variant="outline" className="flex-1 border-primary ..." onClick={...}>
-        <Trophy className="h-4 w-4 mr-2" /> Ganho
-      </Button>
-    </>
-  )}
-  {!hideArchiveAction && (
-    <Button
-      variant="outline"
-      size="icon"
-      className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground shrink-0"
-      title="Arquivar card"
-      aria-label="Arquivar card"
-      onClick={() => setConfirmArchive(true)}
-    >
-      <Trash2 className="h-4 w-4" />
-    </Button>
-  )}
-</div>
-```
+### 3. `src/pages/crm-builder/components/boards/BoardGrid.tsx`
+- L58: `"Novo Board"` → `"Novo Quadro"`
 
-### Imports
-- Adicionar `Trash2` ao import do `lucide-react` (manter `Archive` apenas se ainda for usado em outro local do arquivo; caso contrário, remover).
+### 4. `src/pages/crm-builder/components/deals/DealActivityTimeline.tsx`
+- L35: `label: 'Deal criado'` → `label: 'Card criado'` (a chave `created` permanece)
+- L116: `placeholder "Escreva uma nota sobre este deal..."` → `"Escreva uma nota sobre este card..."`
 
-### Não muda
-- Modo Chat (`footerExtra`): continua exatamente como está (Fechar / Abrir no CRM).
-- `AlertDialog` de confirmação de arquivar (título, descrição contextual e botão "Arquivar Card") permanecem inalterados.
-- Bloco de Contato e demais seções não são tocados.
+### 5. `src/pages/crm-builder/components/audit/AuditLogPanel.tsx`
+- L82: `<SelectItem value="board">Board</SelectItem>` → `>Quadro</SelectItem>` (mantém `value="board"`)
+
+### 6. `src/pages/crm-builder/components/filters/BoardFilters.tsx`
+- L175: `<Label>Status</Label>` → `<Label>Situação</Label>` (mantém os `value`s `open|won|lost|archived`)
+
+## O que NÃO será alterado (intencional)
+
+- **Identificadores em código**: tipos `CRMDeal`, `DealPriority`, `DealStatus`, props como `onWon`, `onLost`, hooks `useCRMBoards`, nomes de tabelas/colunas (`crm_deals`, `priority`, `status`, `pipeline_id`, `board_id`).
+- **Atributos `value` dos `<SelectItem>`** (ex.: `value="board"`, `value="created"`) — apenas o texto visível muda.
+- **`PRIORITY_CONFIG` e `STATUS_CONFIG`**: já estão com `label` em português ("Baixa", "Aberto", "Ganho" etc.) — nada a mudar.
+- **Labels já traduzidos** ("Editar Card", "Novo Card", "Nova Etapa", "Prioridade", "Tags", "Tempo na Etapa", "Conversa do card", "Auditoria", "Automações", "Movido", "Atualizado", "Marcado como ganho/perdido" etc.) — permanecem.
+- **Tags/labels técnicas** como "Tags" (já é um termo amplamente usado em PT-BR no contexto de aplicações) — manter.
+
+## Resultado esperado
+
+O usuário verá somente termos em português na navegação, diálogos, filtros, abas e timeline do CRM Builder, sem qualquer mudança estrutural no código (props, tipos, valores armazenados, queries continuam idênticos).
