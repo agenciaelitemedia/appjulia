@@ -87,21 +87,23 @@ export function useDealJuliaContext(deal: CRMDeal | null): DealJuliaContext {
       try {
         const rows = await externalDb.raw<{
           cod_document: string | null;
-          status: string | null;
-          signed_at: string | null;
+          status_document: string | null;
+          data_assinatura: string | null;
         }>({
           query: `
-            SELECT cod_document, status, signed_at
-            FROM crm_atendimento_contracts
-            WHERE whatsapp_number = $1 AND cod_agent = $2
-            ORDER BY created_at DESC NULLS LAST
+            SELECT cod_document, status_document, data_assinatura
+            FROM vw_painelv2_desempenho_julia_contratos
+            WHERE whatsapp = $1 AND cod_agent::text = $2
+            ORDER BY data_contrato DESC NULLS LAST
             LIMIT 1
           `,
           params: [phone, String(codAgent)],
         });
         const row = rows[0];
         if (!row) return { cod_document: null, status: 'none' };
-        const isSigned = !!row.signed_at || (row.status || '').toLowerCase().includes('sign');
+        const isSigned =
+          !!row.data_assinatura ||
+          (row.status_document || '').toLowerCase().includes('sign');
         return {
           cod_document: row.cod_document,
           status: isSigned ? 'signed' : 'generated',
