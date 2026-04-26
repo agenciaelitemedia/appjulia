@@ -180,8 +180,8 @@ export function PipelineColumn({
       <div
         ref={setDropRef}
         className={cn(
-          'flex-1 flex flex-col p-2 rounded-b-lg transition-colors min-h-[200px]',
-          isOver && 'ring-2 ring-primary/50 bg-primary/5'
+          'flex-1 flex flex-col p-2 transition-colors min-h-[300px]',
+          isOver && 'ring-2 ring-primary bg-primary/10'
         )}
       >
         <div className="space-y-2">
@@ -212,19 +212,21 @@ export function PipelineColumn({
             </>
           )}
         </div>
-        
-        {/* Add deal button integrated */}
+        {/* Spacer interno garante que a área inteira (até o rodapé) absorva drops */}
+        <div className="flex-1 min-h-[60px]" />
+      </div>
+
+      {/* Rodapé fora do droppable: o botão "Adicionar Card" não intercepta drops */}
+      <div className="p-2 pt-0 rounded-b-lg">
         <Button
           variant="ghost"
           size="sm"
-          className="w-full justify-start text-muted-foreground hover:text-foreground mt-2 flex-shrink-0"
+          className="w-full justify-start text-muted-foreground hover:text-foreground flex-shrink-0"
           onClick={onAddDeal}
         >
           <Plus className="h-4 w-4 mr-2" />
           Adicionar Card
         </Button>
-        {/* Spacer that absorbs drops in the empty space below cards */}
-        <div className="flex-1 min-h-[40px]" />
       </div>
     </div>
   );
