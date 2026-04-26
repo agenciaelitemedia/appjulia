@@ -27,7 +27,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { 
-  Archive,
   Calendar,
   Clock,
   DollarSign,
@@ -45,6 +44,7 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -680,44 +680,47 @@ export function DealDetailsSheet({
             footerExtra
           ) : (
             <>
-              {/* Linha 1: Editar | Perdido | Ganho */}
-              {!hideStatusActions && deal.status === 'open' && (
-                <div className="grid grid-cols-2 gap-2">
+              {/* Linha única: Perdido | Ganho | [Arquivar (ícone)] */}
+              <div className="flex items-center gap-2">
+                {!hideStatusActions && deal.status === 'open' && (
+                  <>
+                    <Button
+                      variant="outline"
+                      className="flex-1 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                      onClick={() => {
+                        onLost();
+                        onOpenChange(false);
+                      }}
+                    >
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Perdido
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex-1 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                      onClick={() => {
+                        onWon();
+                        onOpenChange(false);
+                      }}
+                    >
+                      <Trophy className="h-4 w-4 mr-2" />
+                      Ganho
+                    </Button>
+                  </>
+                )}
+                {!hideArchiveAction && (
                   <Button
                     variant="outline"
-                    className="w-full border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                    onClick={() => {
-                      onLost();
-                      onOpenChange(false);
-                    }}
+                    size="icon"
+                    className="shrink-0 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    title="Arquivar card"
+                    aria-label="Arquivar card"
+                    onClick={() => setConfirmArchive(true)}
                   >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Perdido
+                    <Trash2 className="h-4 w-4" />
                   </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-                    onClick={() => {
-                      onWon();
-                      onOpenChange(false);
-                    }}
-                  >
-                    <Trophy className="h-4 w-4 mr-2" />
-                    Ganho
-                  </Button>
-                </div>
-              )}
-              {/* Linha 2: Arquivar (com confirmação) */}
-              {!hideArchiveAction && (
-                <Button
-                  variant="ghost"
-                  className="w-full text-destructive hover:bg-destructive/10"
-                  onClick={() => setConfirmArchive(true)}
-                >
-                  <Archive className="h-4 w-4 mr-2" />
-                  Arquivar Card
-                </Button>
-              )}
+                )}
+              </div>
             </>
           )}
         </div>
