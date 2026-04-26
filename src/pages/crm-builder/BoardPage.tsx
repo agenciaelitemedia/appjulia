@@ -76,6 +76,7 @@ export default function BoardPage() {
     createDeal,
     updateDeal,
     moveDeal,
+    previewMove,
     setDealStatus,
     archiveDeal,
     fetchDeals,
@@ -283,28 +284,59 @@ export default function BoardPage() {
     const activeDealRef = deals.find(d => d.id === dealId);
     if (!activeDealRef) return;
 
-    // Determine the target column id from whatever we're hovering over
-    let overPipelineId: string | null = null;
+    // Identifica coluna alvo + índice alvo a partir do alvo hovered.
+    let targetPipelineId: string | null = null;
+    let targetIndex = 0;
+
     if (overId.startsWith('pipeline-drop-')) {
-      overPipelineId = overId.replace('pipeline-drop-', '');
+      targetPipelineId = overId.replace('pipeline-drop-', '');
+      const list = deals
+        .filter(d => d.pipeline_id === targetPipelineId && d.id !== dealId)
+        .sort((a, b) => a.position - b.position);
+      targetIndex = list.length; // drop em área vazia/abaixo -> final
     } else if (overId.startsWith('deal-')) {
       const overDealId = overId.replace('deal-', '');
       const overDeal = deals.find(d => d.id === overDealId);
-      if (overDeal) overPipelineId = overDeal.pipeline_id;
+      if (!overDeal) return;
+      targetPipelineId = overDeal.pipeline_id;
+      const list = deals
+        .filter(d => d.pipeline_id === targetPipelineId)
+        .sort((a, b) => a.position - b.position);
+      const overIdx = list.findIndex(d => d.id === overDealId);
+      const sameCol = activeDealRef.pipeline_id === targetPipelineId;
+      if (sameCol) {
+        targetIndex = overIdx;
+      } else {
+        // Em coluna diferente: usar metade superior/inferior do card hovered
+        // para decidir se inserimos antes ou depois.
+        const overRect = (over.rect as { top: number; height: number } | undefined);
+        const pointerY = (event.activatorEvent as PointerEvent | undefined)?.clientY ?? 0;
+        const insertAfter = overRect ? pointerY > overRect.top + overRect.height / 2 : false;
+        targetIndex = insertAfter ? overIdx + 1 : overIdx;
+      }
     }
 
-    if (!overPipelineId || overPipelineId === activeDealRef.pipeline_id) return;
+    if (!targetPipelineId) return;
 
-    // Optimistic in-flight column change so neighbours open space immediately.
-    // Final position is settled in handleDragEnd, which also persists.
-    setActiveDeal(prev => prev ? { ...prev, pipeline_id: overPipelineId! } : prev);
+    // Aplica o preview no estado real -> o SortableContext da coluna alvo
+    // passa a conter o card e os vizinhos abrem espaço (placeholder visual).
+    previewMove(dealId, targetPipelineId, targetIndex);
+    // Mantém o overlay sincronizado com a coluna alvo.
+    if (activeDealRef.pipeline_id !== targetPipelineId) {
+      setActiveDeal(prev => prev ? { ...prev, pipeline_id: targetPipelineId! } : prev);
+    }
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
+    const wasActive = activeDeal;
     setActiveDeal(null);
 
-    if (!over) return;
+    if (!over) {
+      // Drop fora de qualquer alvo -> reverte preview consultando o banco.
+      if (wasActive) fetchDeals();
+      return;
+    }
 
     const activeId = String(active.id);
     const overId = String(over.id);
@@ -324,53 +356,32 @@ export default function BoardPage() {
     // Handle deal movement
     if (activeId.startsWith('deal-')) {
       const dealId = activeId.replace('deal-', '');
-      const deal = deals.find(d => d.id === dealId);
-      if (!deal) return;
+      // O estado já foi atualizado pelo preview do onDragOver.
+      // Lemos a posição final dali e persistimos.
+      const dealNow = deals.find(d => d.id === dealId);
+      if (!dealNow) return;
+      const fromPipelineId = wasActive?.pipeline_id && wasActive.id === dealId
+        ? wasActive.pipeline_id  // pipeline original (antes do preview)
+        : dealNow.pipeline_id;
+      // Recalcula índice atual na coluna destino conforme estado final.
+      const destList = deals
+        .filter(d => d.pipeline_id === dealNow.pipeline_id)
+        .sort((a, b) => a.position - b.position);
+      const newPosition = Math.max(0, destList.findIndex(d => d.id === dealId));
 
-      // Determine target pipeline
-      let targetPipelineId: string | null = null;
-      let newPosition = 0;
-
-      if (overId.startsWith('pipeline-drop-')) {
-        targetPipelineId = overId.replace('pipeline-drop-', '');
-        const pipelineDeals = getDealsByPipeline(targetPipelineId);
-        // Drop on empty column area -> append to end (excluding self if same col)
-        newPosition = pipelineDeals.filter(d => d.id !== deal.id).length;
-      } else if (overId.startsWith('pipeline-')) {
-        targetPipelineId = overId.replace('pipeline-', '');
-        const pipelineDeals = getDealsByPipeline(targetPipelineId);
-        newPosition = pipelineDeals.filter(d => d.id !== deal.id).length;
-      } else if (overId.startsWith('deal-')) {
-        const overDealId = overId.replace('deal-', '');
-        const overDeal = deals.find(d => d.id === overDealId);
-        if (overDeal) {
-          targetPipelineId = overDeal.pipeline_id;
-          const pipelineDeals = getDealsByPipeline(targetPipelineId);
-          const overIndex = pipelineDeals.findIndex(d => d.id === overDealId);
-          const sameColumn = deal.pipeline_id === targetPipelineId;
-          if (sameColumn) {
-            const oldIndex = pipelineDeals.findIndex(d => d.id === deal.id);
-            // When moving down inside the same column, dnd-kit reports the
-            // destination index BEFORE removal — so we use it directly; when
-            // moving up, we also use it directly. The reindex logic in
-            // moveDeal handles both consistently.
-            newPosition = overIndex;
-            if (oldIndex === overIndex) return; // no-op
-          } else {
-            newPosition = overIndex;
-          }
-        }
-      }
-
-      if (targetPipelineId) {
-        await moveDeal({
-          dealId: deal.id,
-          fromPipelineId: deal.pipeline_id,
-          toPipelineId: targetPipelineId,
-          newPosition,
-        });
-      }
+      await moveDeal({
+        dealId,
+        fromPipelineId,
+        toPipelineId: dealNow.pipeline_id,
+        newPosition,
+      });
     }
+  };
+
+  // Cancelamento: usuário soltou o Esc ou drop inválido — restaura do banco.
+  const handleDragCancel = () => {
+    setActiveDeal(null);
+    fetchDeals();
   };
 
   // Handlers
@@ -521,6 +532,7 @@ export default function BoardPage() {
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
           >
             <SortableContext
               items={pipelines.map(p => `pipeline-${p.id}`)}
