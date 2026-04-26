@@ -180,7 +180,7 @@ export function DealDetailsSheet({
     if (!onUpdate) { setEditingContact(false); return; }
     const next = {
       contact_name: contactDraft.name.trim() || undefined,
-      contact_phone: contactDraft.phone.trim() || undefined,
+      contact_phone: isLinked ? (deal.contact_phone || undefined) : (contactDraft.phone.trim() || undefined),
       contact_email: contactDraft.email.trim() || undefined,
     };
     const unchanged =
@@ -374,6 +374,9 @@ export function DealDetailsSheet({
                         placeholder="(00) 00000-0000"
                         onChange={(e) => setContactDraft((d) => ({ ...d, phone: maskPhone(e.target.value) }))}
                         className="h-9"
+                        readOnly={isLinked}
+                        disabled={isLinked}
+                        title={isLinked ? 'Telefone vinculado à conversa — não editável' : undefined}
                         inputMode="tel"
                       />
                     </div>
