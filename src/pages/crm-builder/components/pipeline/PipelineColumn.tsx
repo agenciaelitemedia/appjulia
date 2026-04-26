@@ -180,7 +180,7 @@ export function PipelineColumn({
       <div
         ref={setDropRef}
         className={cn(
-          'flex-1 p-2 rounded-b-lg transition-colors min-h-[140px]',
+          'flex-1 flex flex-col p-2 rounded-b-lg transition-colors min-h-[200px]',
           isOver && 'ring-2 ring-primary/50 bg-primary/5'
         )}
       >
@@ -217,12 +217,14 @@ export function PipelineColumn({
         <Button
           variant="ghost"
           size="sm"
-          className="w-full justify-start text-muted-foreground hover:text-foreground mt-2"
+          className="w-full justify-start text-muted-foreground hover:text-foreground mt-2 flex-shrink-0"
           onClick={onAddDeal}
         >
           <Plus className="h-4 w-4 mr-2" />
           Adicionar Card
         </Button>
+        {/* Spacer that absorbs drops in the empty space below cards */}
+        <div className="flex-1 min-h-[40px]" />
       </div>
     </div>
   );
