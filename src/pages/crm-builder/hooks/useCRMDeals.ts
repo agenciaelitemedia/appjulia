@@ -179,42 +179,84 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
     const { dealId, fromPipelineId, toPipelineId, newPosition } = result;
 
     try {
-      // Optimistic update
+      const sameColumn = fromPipelineId === toPipelineId;
+      const nowIso = new Date().toISOString();
+
+      // Build the affected lists from the CURRENT deals state and reindex
+      // positions sequentially so they stay unique and stable.
+      let affected: CRMDeal[] = [];
       setDeals(prev => {
-        const updated = prev.map(d => {
-          if (d.id === dealId) {
-            return {
-              ...d,
-              pipeline_id: toPipelineId,
-              position: newPosition,
-              stage_entered_at: fromPipelineId !== toPipelineId ? new Date().toISOString() : d.stage_entered_at,
-            };
-          }
-          return d;
-        });
-        return updated;
+        const moving = prev.find(d => d.id === dealId);
+        if (!moving) return prev;
+
+        if (sameColumn) {
+          const list = prev
+            .filter(d => d.pipeline_id === toPipelineId)
+            .sort((a, b) => a.position - b.position);
+          const oldIndex = list.findIndex(d => d.id === dealId);
+          const targetIndex = Math.max(0, Math.min(newPosition, list.length - 1));
+          const without = list.filter(d => d.id !== dealId);
+          without.splice(targetIndex, 0, moving);
+          const reindexed = without.map((d, i) => ({ ...d, position: i }));
+          affected = reindexed;
+          const byId = new Map(reindexed.map(d => [d.id, d]));
+          return prev.map(d => byId.get(d.id) ?? d);
+        }
+
+        // Cross-column move
+        const fromList = prev
+          .filter(d => d.pipeline_id === fromPipelineId && d.id !== dealId)
+          .sort((a, b) => a.position - b.position)
+          .map((d, i) => ({ ...d, position: i }));
+
+        const toListBase = prev
+          .filter(d => d.pipeline_id === toPipelineId)
+          .sort((a, b) => a.position - b.position);
+
+        const insertAt = Math.max(0, Math.min(newPosition, toListBase.length));
+        const movedDeal: CRMDeal = {
+          ...moving,
+          pipeline_id: toPipelineId,
+          stage_entered_at: nowIso,
+        };
+        const toList = [...toListBase];
+        toList.splice(insertAt, 0, movedDeal);
+        const reindexedTo = toList.map((d, i) => ({ ...d, position: i }));
+
+        affected = [...fromList, ...reindexedTo];
+        const byId = new Map(affected.map(d => [d.id, d]));
+        return prev.map(d => byId.get(d.id) ?? d);
       });
 
-      // Update in database
-      const updateData: Record<string, unknown> = {
-        pipeline_id: toPipelineId,
-        position: newPosition,
-      };
+      if (affected.length === 0) return false;
 
-      // Reset stage_entered_at if moving to a different pipeline
-      if (fromPipelineId !== toPipelineId) {
-        updateData.stage_entered_at = new Date().toISOString();
-      }
+      // Persist all affected rows in a single round-trip
+      const updates = affected.map(d => ({
+        id: d.id,
+        position: d.position,
+        pipeline_id: d.pipeline_id,
+        ...(d.id === dealId && !sameColumn ? { stage_entered_at: nowIso } : {}),
+      }));
 
-      const { error: updateError } = await supabase
-        .from('crm_deals')
-        .update(updateData)
-        .eq('id', dealId);
-
-      if (updateError) throw updateError;
+      // Use individual updates wrapped in Promise.all (upsert would require all
+      // NOT NULL columns). This stays a single network burst.
+      const results = await Promise.all(
+        updates.map(u =>
+          supabase
+            .from('crm_deals')
+            .update({
+              position: u.position,
+              pipeline_id: u.pipeline_id,
+              ...(u.stage_entered_at ? { stage_entered_at: u.stage_entered_at } : {}),
+            })
+            .eq('id', u.id)
+        )
+      );
+      const firstErr = results.find(r => r.error)?.error;
+      if (firstErr) throw firstErr;
 
       // Record history if pipeline changed
-      if (fromPipelineId !== toPipelineId) {
+      if (!sameColumn) {
         await recordHistory(dealId, 'moved', fromPipelineId, toPipelineId);
       }
 
