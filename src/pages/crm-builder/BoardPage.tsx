@@ -178,18 +178,53 @@ export default function BoardPage() {
       return closestCenter(args);
     }
 
-    // Deal drag: prefer card-over-card (for fine reordering),
-    // then column drop area (covers empty/lateral space).
+    // Deal drag — colisão contextual:
+    //  - Mesma coluna do card arrastado: priorizar `deal-*` (reordenação fina).
+    //  - Coluna diferente: se cursor está nos 40% inferiores de um card OU se há
+    //    coluna sob o cursor, priorizar a coluna (drop no fim). Caso contrário,
+    //    usar o card (insere antes dele).
+    const dealId = activeId.replace('deal-', '');
+    const activeDealRef = deals.find((d) => d.id === dealId);
+    const activePipelineId = activeDealRef?.pipeline_id ?? null;
+
     const pointerCollisions = pointerWithin(args);
     const dealCollisions = pointerCollisions.filter((c) =>
       String(c.id).startsWith('deal-')
     );
-    if (dealCollisions.length > 0) {
-      return closestCenter({ ...args, droppableContainers: args.droppableContainers.filter((d) => String(d.id).startsWith('deal-')) });
-    }
     const columnCollisions = pointerCollisions.filter((c) =>
       String(c.id).startsWith('pipeline-drop-')
     );
+
+    if (dealCollisions.length > 0) {
+      const firstDealId = String(dealCollisions[0].id).replace('deal-', '');
+      const overDeal = deals.find((d) => d.id === firstDealId);
+      const sameColumn =
+        overDeal && activePipelineId && overDeal.pipeline_id === activePipelineId;
+
+      if (sameColumn) {
+        // Reordenação fina dentro da própria coluna
+        return closestCenter({
+          ...args,
+          droppableContainers: args.droppableContainers.filter((d) =>
+            String(d.id).startsWith('deal-')
+          ),
+        });
+      }
+
+      // Coluna diferente: verificar se o cursor está na metade inferior do card
+      // -> nesse caso, preferir a COLUNA (insere ao final / abaixo).
+      const pointerY = (args.pointerCoordinates?.y ?? 0);
+      const overRect = (dealCollisions[0].data?.droppableContainer as { rect: { current: { top: number; height: number } | null } } | undefined)?.rect.current;
+      const inLowerHalf = overRect
+        ? pointerY > overRect.top + overRect.height * 0.6
+        : false;
+
+      if (inLowerHalf && columnCollisions.length > 0) {
+        return columnCollisions;
+      }
+      return dealCollisions;
+    }
+
     if (columnCollisions.length > 0) {
       return columnCollisions;
     }
@@ -197,7 +232,7 @@ export default function BoardPage() {
     const rectCollisions = rectIntersection(args);
     if (rectCollisions.length > 0) return rectCollisions;
     return closestCorners(args);
-  }, []);
+  }, [deals]);
 
   // Fetch board
   const fetchBoard = useCallback(async () => {
