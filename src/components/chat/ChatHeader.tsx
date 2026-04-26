@@ -253,6 +253,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const { data: queueLink } = useQueueAgentLink(selectedConversation?.queue_id);
   const { sip } = usePhone();
   const callActive = sip.status === 'in-call';
+  const phoneReady = ['registered', 'in-call', 'calling', 'ringing'].includes(sip.status);
 
   // Inline name editing
   const [isEditingName, setIsEditingName] = useState(false);
@@ -474,14 +475,14 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                   size="sm"
                   className={cn(
                     'gap-1.5',
-                    callActive
-                      ? 'text-green-600 border-green-500 hover:bg-green-50'
+                    phoneReady
+                      ? 'text-green-600 border-green-500 hover:bg-green-50 hover:text-green-700'
                       : 'text-muted-foreground border-border hover:bg-muted'
                   )}
                   onClick={() => setShowPhoneCall(true)}
-                  title="Ligar"
+                  title={phoneReady ? 'Ligar (ramal disponível)' : 'Ligar (ramal indisponível)'}
                 >
-                  {callActive ? <Phone className="h-4 w-4" /> : <PhoneOff className="h-4 w-4" />}
+                  {phoneReady ? <Phone className="h-4 w-4" /> : <PhoneOff className="h-4 w-4" />}
                   Ligar
                 </Button>
 
