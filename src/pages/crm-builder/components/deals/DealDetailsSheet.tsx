@@ -405,34 +405,34 @@ export function DealDetailsSheet({
                 ) : (
                   <div className="space-y-3">
                     {deal.contact_name && (
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                      <div className="flex items-center gap-3 min-h-8">
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
                           <User className="h-4 w-4 text-muted-foreground" />
                         </div>
-                        <span className="text-sm">{deal.contact_name}</span>
+                        <span className="text-sm leading-tight break-words">{deal.contact_name}</span>
                       </div>
                     )}
                     {deal.contact_phone && (
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                      <div className="flex items-center gap-3 min-h-8">
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
                           <Phone className="h-4 w-4 text-muted-foreground" />
                         </div>
                         <a
                           href={`tel:${deal.contact_phone}`}
-                          className="text-sm text-primary hover:underline"
+                          className="text-sm text-primary hover:underline leading-tight break-all"
                         >
                           {deal.contact_phone}
                         </a>
                       </div>
                     )}
                     {deal.contact_email && (
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                      <div className="flex items-center gap-3 min-h-8">
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
                           <Mail className="h-4 w-4 text-muted-foreground" />
                         </div>
                         <a
                           href={`mailto:${deal.contact_email}`}
-                          className="text-sm text-primary hover:underline"
+                          className="text-sm text-primary hover:underline leading-tight break-all"
                         >
                           {deal.contact_email}
                         </a>
