@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { CRMDeal, CRMDealFormData, DropResult } from '../types';
@@ -15,6 +15,11 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
   const [deals, setDeals] = useState<CRMDeal[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Guarda contra refetch concorrente do realtime durante uma movimentação
+  // (evita que eventos postgres_changes sobrescrevam o estado otimista
+  // antes de todos os updates terem propagado).
+  const isMovingRef = useRef(false);
+  const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch all deals for the board
   const fetchDeals = useCallback(async () => {
@@ -179,6 +184,7 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
     const { dealId, fromPipelineId, toPipelineId, newPosition } = result;
 
     try {
+      isMovingRef.current = true;
       const sameColumn = fromPipelineId === toPipelineId;
       const nowIso = new Date().toISOString();
 
@@ -260,8 +266,12 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
         await recordHistory(dealId, 'moved', fromPipelineId, toPipelineId);
       }
 
+      // Libera a guarda apenas depois de uma janela em que os eventos
+      // realtime das N escritas já terão chegado e sido descartados.
+      setTimeout(() => { isMovingRef.current = false; }, 800);
       return true;
     } catch (err) {
+      isMovingRef.current = false;
       // Revert on error
       fetchDeals();
       const message = err instanceof Error ? err.message : 'Erro ao mover deal';
@@ -386,12 +396,20 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
           filter: `board_id=eq.${boardId}`,
         },
         () => {
-          fetchDeals();
+          // Ignora eventos enquanto há uma movimentação em andamento
+          // (o estado otimista já reflete a verdade que acabou de ser escrita).
+          if (isMovingRef.current) return;
+          // Debounce para coalescer rajadas de eventos de múltiplos updates.
+          if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
+          realtimeDebounceRef.current = setTimeout(() => {
+            if (!isMovingRef.current) fetchDeals();
+          }, 250);
         }
       )
       .subscribe();
 
     return () => {
+      if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
       supabase.removeChannel(channel);
     };
   }, [boardId, clientId, fetchDeals]);
