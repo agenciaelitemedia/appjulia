@@ -114,6 +114,8 @@ export default function BoardPage() {
 
   // DnD state
   const [activeDeal, setActiveDeal] = useState<CRMDeal | null>(null);
+  // Pipeline de origem capturado no início do drag (antes do preview mover).
+  const dragOriginPipelineRef = useRef<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Scroll ref for custom navigation
@@ -268,7 +270,10 @@ export default function BoardPage() {
     if (activeId.startsWith('deal-')) {
       const dealId = activeId.replace('deal-', '');
       const deal = deals.find(d => d.id === dealId);
-      if (deal) setActiveDeal(deal);
+      if (deal) {
+        setActiveDeal(deal);
+        dragOriginPipelineRef.current = deal.pipeline_id;
+      }
     }
   };
 
@@ -360,9 +365,8 @@ export default function BoardPage() {
       // Lemos a posição final dali e persistimos.
       const dealNow = deals.find(d => d.id === dealId);
       if (!dealNow) return;
-      const fromPipelineId = wasActive?.pipeline_id && wasActive.id === dealId
-        ? wasActive.pipeline_id  // pipeline original (antes do preview)
-        : dealNow.pipeline_id;
+      const fromPipelineId = dragOriginPipelineRef.current ?? dealNow.pipeline_id;
+      dragOriginPipelineRef.current = null;
       // Recalcula índice atual na coluna destino conforme estado final.
       const destList = deals
         .filter(d => d.pipeline_id === dealNow.pipeline_id)
@@ -381,6 +385,7 @@ export default function BoardPage() {
   // Cancelamento: usuário soltou o Esc ou drop inválido — restaura do banco.
   const handleDragCancel = () => {
     setActiveDeal(null);
+    dragOriginPipelineRef.current = null;
     fetchDeals();
   };
 
