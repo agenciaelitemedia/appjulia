@@ -57,7 +57,13 @@ export function DealLinksSection({ deal }: Props) {
     <>
       <Separator />
       <div>
-        <h4 className="text-sm font-medium mb-3">Vínculos</h4>
+        <h4 className="text-sm font-medium mb-3">
+          {chat && julia
+            ? 'Vinculado ao Chat e ao CRM da Julia'
+            : chat
+              ? 'Vinculado ao Chat'
+              : 'Vinculado ao CRM da Julia'}
+        </h4>
         <div className="space-y-2">
           {chat && (
             <div className="flex items-center gap-3 p-3 rounded-lg border bg-blue-500/5 border-blue-500/20">
