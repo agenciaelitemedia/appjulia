@@ -97,6 +97,15 @@ export default function BoardPage() {
   const [viewingDeal, setViewingDeal] = useState<CRMDeal | null>(null);
   const [chatPanelDeal, setChatPanelDeal] = useState<CRMDeal | null>(null);
 
+  // Mantém o viewingDeal sincronizado com a lista (para refletir updates como prioridade)
+  useEffect(() => {
+    if (!viewingDeal) return;
+    const fresh = deals.find(d => d.id === viewingDeal.id);
+    if (fresh && fresh !== viewingDeal) {
+      setViewingDeal(fresh);
+    }
+  }, [deals, viewingDeal]);
+
   // DnD state
   const [activeDeal, setActiveDeal] = useState<CRMDeal | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
