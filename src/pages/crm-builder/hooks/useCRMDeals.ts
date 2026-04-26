@@ -419,6 +419,50 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
     fetchDeals();
   }, [fetchDeals]);
 
+  // Preview de movimentação (apenas estado local, sem persistir).
+  // Usado durante o onDragOver para que o card arrastado seja inserido
+  // visualmente na coluna alvo, fazendo com que os vizinhos abram espaço
+  // (placeholder/sombra entre os cards) via verticalListSortingStrategy.
+  const previewMove = useCallback((dealId: string, toPipelineId: string, toIndex: number) => {
+    setDeals(prev => {
+      const moving = prev.find(d => d.id === dealId);
+      if (!moving) return prev;
+
+      // Lista da coluna destino sem o card que está sendo movido.
+      const destList = prev
+        .filter(d => d.pipeline_id === toPipelineId && d.id !== dealId)
+        .sort((a, b) => a.position - b.position);
+
+      const insertAt = Math.max(0, Math.min(toIndex, destList.length));
+      // Se já estiver na posição alvo na coluna alvo, não há nada a fazer.
+      if (moving.pipeline_id === toPipelineId) {
+        const currentList = prev
+          .filter(d => d.pipeline_id === toPipelineId)
+          .sort((a, b) => a.position - b.position);
+        const currentIdx = currentList.findIndex(d => d.id === dealId);
+        if (currentIdx === insertAt) return prev;
+      }
+
+      const movedDeal: CRMDeal = { ...moving, pipeline_id: toPipelineId };
+      destList.splice(insertAt, 0, movedDeal);
+      const reindexedDest = destList.map((d, i) => ({ ...d, position: i }));
+
+      // Lista da coluna origem (se diferente) reindexada.
+      const fromPipelineId = moving.pipeline_id;
+      const sourceReindexed = fromPipelineId !== toPipelineId
+        ? prev
+            .filter(d => d.pipeline_id === fromPipelineId && d.id !== dealId)
+            .sort((a, b) => a.position - b.position)
+            .map((d, i) => ({ ...d, position: i }))
+        : [];
+
+      const byId = new Map<string, CRMDeal>();
+      reindexedDest.forEach(d => byId.set(d.id, d));
+      sourceReindexed.forEach(d => byId.set(d.id, d));
+      return prev.map(d => byId.get(d.id) ?? d);
+    });
+  }, []);
+
   return {
     deals,
     isLoading,
@@ -428,6 +472,7 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
     createDeal,
     updateDeal,
     moveDeal,
+    previewMove,
     setDealStatus,
     archiveDeal,
   };
