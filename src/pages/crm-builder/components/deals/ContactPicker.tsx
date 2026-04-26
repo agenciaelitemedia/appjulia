@@ -156,7 +156,7 @@ export function ContactPicker({ selected, onSelect, onClear }: Props) {
             {selected.email ? ` · ${selected.email}` : ''}
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={onClear} className="text-xs">
+        <Button type="button" variant="ghost" size="sm" onClick={onClear} className="text-xs">
           Trocar
         </Button>
       </div>
@@ -170,7 +170,7 @@ export function ContactPicker({ selected, onSelect, onClear }: Props) {
           <h4 className="text-sm font-medium flex items-center gap-2">
             <UserPlus className="h-4 w-4" /> Novo contato
           </h4>
-          <Button variant="ghost" size="sm" onClick={() => setMode('search')} className="text-xs">
+          <Button type="button" variant="ghost" size="sm" onClick={() => setMode('search')} className="text-xs">
             <ArrowLeft className="h-3 w-3 mr-1" /> Voltar
           </Button>
         </div>
@@ -239,7 +239,7 @@ export function ContactPicker({ selected, onSelect, onClear }: Props) {
                     {duplicate.contact.email ? ` · ${duplicate.contact.email}` : ''}
                   </div>
                 </div>
-                <Button size="sm" variant="outline" onClick={() => onSelect(duplicate.contact)}>
+                <Button type="button" size="sm" variant="outline" onClick={() => onSelect(duplicate.contact)}>
                   Usar
                 </Button>
               </div>
@@ -251,8 +251,8 @@ export function ContactPicker({ selected, onSelect, onClear }: Props) {
         )}
 
         <div className="flex justify-end gap-2 pt-1">
-          <Button variant="ghost" size="sm" onClick={() => setMode('search')}>Cancelar</Button>
-          <Button size="sm" onClick={handleSave} disabled={!canSave || saving}>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setMode('search')}>Cancelar</Button>
+          <Button type="button" size="sm" onClick={handleSave} disabled={!canSave || saving}>
             {saving && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
             Salvar contato
           </Button>
