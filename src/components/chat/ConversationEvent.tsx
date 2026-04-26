@@ -1,7 +1,33 @@
 import React from 'react';
-import { ArrowRightLeft, CheckCircle2, XCircle, MessageSquare, RefreshCw, UserCheck } from 'lucide-react';
+import { ArrowRightLeft, CheckCircle2, XCircle, MessageSquare, RefreshCw, UserCheck, StickyNote, Flag, Pencil, Trophy } from 'lucide-react';
 import { parseDbTimestamp } from '@/lib/dateUtils';
 import type { ConversationHistoryEntry } from '@/types/conversation';
+const ACTION_LABELS: Record<string, string> = {
+  note_added: 'adicionou uma nota',
+  note_updated: 'editou uma nota',
+  note_deleted: 'removeu uma nota',
+  priority_changed: 'alterou a prioridade',
+  priority_updated: 'alterou a prioridade',
+  tag_added: 'adicionou uma etiqueta',
+  tag_removed: 'removeu uma etiqueta',
+  updated: 'atualizou a conversa',
+  created: 'criou a conversa',
+  archived: 'arquivou a conversa',
+  won: 'marcou como ganho',
+  lost: 'marcou como perdido',
+  moved: 'movimentou o card',
+};
+
+const ACTION_ICONS: Record<string, React.ReactNode> = {
+  note_added: <StickyNote className="h-3 w-3" />,
+  note_updated: <Pencil className="h-3 w-3" />,
+  note_deleted: <StickyNote className="h-3 w-3" />,
+  priority_changed: <Flag className="h-3 w-3" />,
+  priority_updated: <Flag className="h-3 w-3" />,
+  won: <Trophy className="h-3 w-3" />,
+  lost: <XCircle className="h-3 w-3" />,
+};
+
 
 interface ConversationEventProps {
   entry: ConversationHistoryEntry;
@@ -77,6 +103,13 @@ function getEventConfig(entry: ConversationHistoryEntry): RenderedConfig | null 
       };
     }
     default:
+      if (ACTION_LABELS[entry.action]) {
+        return {
+          icon: ACTION_ICONS[entry.action] ?? <MessageSquare className="h-3 w-3" />,
+          label: `${actor} ${ACTION_LABELS[entry.action]}`,
+          color: 'text-muted-foreground bg-muted/50 border-border',
+        };
+      }
       return {
         icon: <MessageSquare className="h-3 w-3" />,
         label: `${actor} ${entry.action}`,
@@ -96,11 +129,6 @@ export function ConversationEvent({ entry }: ConversationEventProps) {
         <span>{config.label}</span>
         <span className="opacity-60">{formatEventTimestamp(entry.created_at)}</span>
       </div>
-      {entry.notes && (
-        <span className="text-[10px] text-muted-foreground italic ml-2 self-center">
-          {entry.notes}
-        </span>
-      )}
     </div>
   );
 }
