@@ -1,37 +1,59 @@
-## Ajustes no `DealDetailsSheet.tsx`
+## Ajuste no rodapé do `DealDetailsSheet.tsx`
 
-Todas as mudanças estão no arquivo `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx`. Não precisa alterar `ChatLinkedDealSheet` nem `BoardPage` — eles já consomem este componente.
+Arquivo único: `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx` (linhas 683–720).
 
-### 1. Remover botão "Editar" do rodapé
-- Remover o botão `Editar` (com ícone `Edit`) da linha de ações.
-- A linha do CRM passa a ter apenas **Perdido** e **Ganho**, em `grid-cols-2`, ocupando a largura toda dividida em 2 colunas iguais (cada botão expande na sua coluna via `w-full` implícito do grid).
-- Pode-se remover também a verificação `!isLinked` que restringia o botão Editar, e o import de `Edit` do lucide-react.
-- A prop `onEdit` continua na interface (para não quebrar callers), mas deixa de ser usada internamente.
+### Mudanças
 
-### 2. Editar contato inline (Nome, Telefone, E-mail)
-No bloco "Contato" (atualmente apenas leitura nas linhas ~307–350):
-- Adicionar estados: `editingContact`, `contactDraft` (`{ name, phone, email }`) e incluir `'contact'` no union de `savingField`.
-- Adicionar botão lápis (`Pencil`) ao lado do título **Contato** (mesmo padrão usado em "Responsável" e "Descrição"), visível somente quando `onUpdate` existe e não está em modo edição.
-- Em modo edição, renderizar três `Input` com labels/ícones (`User`, `Phone`, `Mail`) para `contact_name`, `contact_phone`, `contact_email`, com botões **Salvar** (Check) e **Cancelar** (XIcon).
-- `saveContact()` chama `onUpdate({ contact_name, contact_phone, contact_email })` enviando apenas valores trimados (string vazia → `undefined`) e fecha a edição.
-- Em modo leitura mantém o layout atual; quando todos os 3 campos estão vazios e `onUpdate` existe, mostrar botão "Adicionar contato" (padrão Plus, igual ao de descrição) que abre o modo edição com drafts vazios.
-- Telefone pode usar `maskPhone` de `src/lib/inputMasks.ts` no `onChange` para manter consistência com o resto do app.
+1. **Unificar em uma única linha** os três botões: `Perdido`, `Ganho` e `Arquivar Card`.
+   - Substituir o `grid grid-cols-2` + botão full-width separado por um único `flex items-center gap-2`.
+   - `Perdido` e `Ganho` recebem `flex-1` para dividir o espaço restante igualmente.
+   - `Arquivar` vira botão **icon-only** com largura fixa (`size="icon"` ou `h-10 w-10`), alinhado na mesma linha à direita.
 
-### 3. Renomear "Arquivar Deal" → "Arquivar Card"
-No botão de arquivar (linha 626) e em qualquer texto associado:
-- Trocar o label `'Arquivar Deal'` por `'Arquivar Card'`.
-- Para cards vinculados (chat/Julia), trocar `'Excluir card'` → `'Arquivar Card'` (mesma ação, label uniforme).
-- Atualizar o `AlertDialog` correspondente:
-  - Título: `'Arquivar este card?'` em ambos os casos.
-  - Texto do botão de confirmação: `'Arquivar Card'` em ambos os casos.
-  - Descrição pode permanecer contextual (linked menciona remoção do vínculo; não-linked menciona restauração em arquivados), mas usando o termo "arquivar" em ambos.
+2. **Botão Arquivar (icon-only)**:
+   - Remover o texto "Arquivar Card".
+   - Manter apenas o ícone `Archive` (lixeira/arquivo) — trocar para `Trash2` se a intenção é literal "lixeira"; usarei `Trash2` conforme pedido ("ícone da lixeira").
+   - Variante `outline` com cor destrutiva (`border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground`) para harmonizar visualmente com Perdido/Ganho na mesma linha.
+   - Adicionar `title="Arquivar card"` e `aria-label="Arquivar card"` para acessibilidade (já que perde o label visual).
+   - Continua disparando `setConfirmArchive(true)` — a dupla confirmação via `AlertDialog` permanece intacta.
 
-### 4. Layout dos botões Perdido/Ganho
-- Continuar usando `grid grid-cols-2 gap-2` na linha de ações (após remover o Editar) para ocupar toda a largura.
-- Manter as cores atuais (Perdido com borda destrutiva, Ganho com borda primary).
-- Manter `Arquivar Card` como botão full-width na linha logo abaixo (já é `w-full`).
+3. **Condicionais preservadas**:
+   - `Perdido`/`Ganho` continuam dependendo de `!hideStatusActions && deal.status === 'open'`.
+   - `Arquivar` continua dependendo de `!hideArchiveAction`.
+   - Caso apenas um dos blocos esteja visível, ainda funciona: o container flex só renderiza os filhos disponíveis. Se só o arquivar estiver visível, ele aparece sozinho à direita (mantém comportamento OK).
 
-### Comportamento esperado
-- **Card comum (CRM)**: rodapé com `[ Perdido | Ganho ]` em uma linha + `[ Arquivar Card ]` full-width abaixo, com dupla confirmação via AlertDialog.
-- **Card vinculado (chat)**: continua usando `footerExtra` (Fechar / Abrir no CRM) — sem mudanças.
-- **Bloco Contato**: agora editável inline, salvando via `onUpdate` que já está conectado em ambos os contextos (CRM e Chat).
+### Estrutura final esperada
+
+```tsx
+<div className="flex items-center gap-2">
+  {!hideStatusActions && deal.status === 'open' && (
+    <>
+      <Button variant="outline" className="flex-1 border-destructive ..." onClick={...}>
+        <XCircle className="h-4 w-4 mr-2" /> Perdido
+      </Button>
+      <Button variant="outline" className="flex-1 border-primary ..." onClick={...}>
+        <Trophy className="h-4 w-4 mr-2" /> Ganho
+      </Button>
+    </>
+  )}
+  {!hideArchiveAction && (
+    <Button
+      variant="outline"
+      size="icon"
+      className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground shrink-0"
+      title="Arquivar card"
+      aria-label="Arquivar card"
+      onClick={() => setConfirmArchive(true)}
+    >
+      <Trash2 className="h-4 w-4" />
+    </Button>
+  )}
+</div>
+```
+
+### Imports
+- Adicionar `Trash2` ao import do `lucide-react` (manter `Archive` apenas se ainda for usado em outro local do arquivo; caso contrário, remover).
+
+### Não muda
+- Modo Chat (`footerExtra`): continua exatamente como está (Fechar / Abrir no CRM).
+- `AlertDialog` de confirmação de arquivar (título, descrição contextual e botão "Arquivar Card") permanecem inalterados.
+- Bloco de Contato e demais seções não são tocados.
