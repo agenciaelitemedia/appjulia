@@ -23,6 +23,7 @@ import {
 import {
   SortableContext,
   horizontalListSortingStrategy,
+  verticalListSortingStrategy,
   arrayMove,
 } from '@dnd-kit/sortable';
 import { 
@@ -161,7 +162,7 @@ export default function BoardPage() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 5,
       },
     }),
     useSensor(KeyboardSensor)
@@ -236,7 +237,32 @@ export default function BoardPage() {
   };
 
   const handleDragOver = (event: DragOverEvent) => {
-    // Handle drag over logic for pipelines
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    if (!activeId.startsWith('deal-')) return;
+
+    const dealId = activeId.replace('deal-', '');
+    const activeDealRef = deals.find(d => d.id === dealId);
+    if (!activeDealRef) return;
+
+    // Determine the target column id from whatever we're hovering over
+    let overPipelineId: string | null = null;
+    if (overId.startsWith('pipeline-drop-')) {
+      overPipelineId = overId.replace('pipeline-drop-', '');
+    } else if (overId.startsWith('deal-')) {
+      const overDealId = overId.replace('deal-', '');
+      const overDeal = deals.find(d => d.id === overDealId);
+      if (overDeal) overPipelineId = overDeal.pipeline_id;
+    }
+
+    if (!overPipelineId || overPipelineId === activeDealRef.pipeline_id) return;
+
+    // Optimistic in-flight column change so neighbours open space immediately.
+    // Final position is settled in handleDragEnd, which also persists.
+    setActiveDeal(prev => prev ? { ...prev, pipeline_id: overPipelineId! } : prev);
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -273,11 +299,12 @@ export default function BoardPage() {
       if (overId.startsWith('pipeline-drop-')) {
         targetPipelineId = overId.replace('pipeline-drop-', '');
         const pipelineDeals = getDealsByPipeline(targetPipelineId);
-        newPosition = pipelineDeals.length;
+        // Drop on empty column area -> append to end (excluding self if same col)
+        newPosition = pipelineDeals.filter(d => d.id !== deal.id).length;
       } else if (overId.startsWith('pipeline-')) {
         targetPipelineId = overId.replace('pipeline-', '');
         const pipelineDeals = getDealsByPipeline(targetPipelineId);
-        newPosition = pipelineDeals.length;
+        newPosition = pipelineDeals.filter(d => d.id !== deal.id).length;
       } else if (overId.startsWith('deal-')) {
         const overDealId = overId.replace('deal-', '');
         const overDeal = deals.find(d => d.id === overDealId);
@@ -285,11 +312,22 @@ export default function BoardPage() {
           targetPipelineId = overDeal.pipeline_id;
           const pipelineDeals = getDealsByPipeline(targetPipelineId);
           const overIndex = pipelineDeals.findIndex(d => d.id === overDealId);
-          newPosition = overIndex;
+          const sameColumn = deal.pipeline_id === targetPipelineId;
+          if (sameColumn) {
+            const oldIndex = pipelineDeals.findIndex(d => d.id === deal.id);
+            // When moving down inside the same column, dnd-kit reports the
+            // destination index BEFORE removal — so we use it directly; when
+            // moving up, we also use it directly. The reindex logic in
+            // moveDeal handles both consistently.
+            newPosition = overIndex;
+            if (oldIndex === overIndex) return; // no-op
+          } else {
+            newPosition = overIndex;
+          }
         }
       }
 
-      if (targetPipelineId && (targetPipelineId !== deal.pipeline_id || activeDeal)) {
+      if (targetPipelineId) {
         await moveDeal({
           dealId: deal.id,
           fromPipelineId: deal.pipeline_id,
@@ -473,6 +511,7 @@ export default function BoardPage() {
                         >
                           <SortableContext
                             items={pipelineDeals.map(d => `deal-${d.id}`)}
+                            strategy={verticalListSortingStrategy}
                           >
                             {pipelineDeals.map((deal) => (
                               <DealCard
