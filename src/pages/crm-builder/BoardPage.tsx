@@ -8,6 +8,10 @@ import {
   DndContext,
   DragOverlay,
   closestCorners,
+  closestCenter,
+  pointerWithin,
+  rectIntersection,
+  type CollisionDetection,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -163,6 +167,37 @@ export default function BoardPage() {
     useSensor(KeyboardSensor)
   );
 
+  // Hybrid collision detection: prioritizes pointer position so dropping
+  // anywhere over a column (including empty space / lateral area) targets
+  // that column. Falls back to nearest deal/column otherwise.
+  const collisionDetection: CollisionDetection = useCallback((args) => {
+    const activeId = String(args.active.id);
+    // Pipeline reordering: keep default behavior between pipeline sortables
+    if (activeId.startsWith('pipeline-')) {
+      return closestCenter(args);
+    }
+
+    // Deal drag: prefer card-over-card (for fine reordering),
+    // then column drop area (covers empty/lateral space).
+    const pointerCollisions = pointerWithin(args);
+    const dealCollisions = pointerCollisions.filter((c) =>
+      String(c.id).startsWith('deal-')
+    );
+    if (dealCollisions.length > 0) {
+      return closestCenter({ ...args, droppableContainers: args.droppableContainers.filter((d) => String(d.id).startsWith('deal-')) });
+    }
+    const columnCollisions = pointerCollisions.filter((c) =>
+      String(c.id).startsWith('pipeline-drop-')
+    );
+    if (columnCollisions.length > 0) {
+      return columnCollisions;
+    }
+    // Last resort: rect intersection across everything
+    const rectCollisions = rectIntersection(args);
+    if (rectCollisions.length > 0) return rectCollisions;
+    return closestCorners(args);
+  }, []);
+
   // Fetch board
   const fetchBoard = useCallback(async () => {
     if (!boardId) return;
@@ -235,7 +270,11 @@ export default function BoardPage() {
       let targetPipelineId: string | null = null;
       let newPosition = 0;
 
-      if (overId.startsWith('pipeline-')) {
+      if (overId.startsWith('pipeline-drop-')) {
+        targetPipelineId = overId.replace('pipeline-drop-', '');
+        const pipelineDeals = getDealsByPipeline(targetPipelineId);
+        newPosition = pipelineDeals.length;
+      } else if (overId.startsWith('pipeline-')) {
         targetPipelineId = overId.replace('pipeline-', '');
         const pipelineDeals = getDealsByPipeline(targetPipelineId);
         newPosition = pipelineDeals.length;
@@ -405,7 +444,7 @@ export default function BoardPage() {
         >
           <DndContext
             sensors={sensors}
-            collisionDetection={closestCorners}
+            collisionDetection={collisionDetection}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
+import { useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -67,6 +68,15 @@ export function PipelineColumn({
     transform: CSS.Transform.toString(transform),
     transition,
   };
+
+  // Droppable area for cards (independent from sortable used to reorder columns)
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: `pipeline-drop-${pipeline.id}`,
+    data: {
+      type: 'pipeline-area',
+      pipelineId: pipeline.id,
+    },
+  });
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -167,7 +177,13 @@ export function PipelineColumn({
       )}
 
       {/* Deals container */}
-      <div className="flex-1 p-2">
+      <div
+        ref={setDropRef}
+        className={cn(
+          'flex-1 p-2 rounded-b-lg transition-colors min-h-[140px]',
+          isOver && 'ring-2 ring-primary/50 bg-primary/5'
+        )}
+      >
         <div className="space-y-2">
           {deals.length === 0 ? (
             <div className="p-4 text-center text-sm text-muted-foreground">
