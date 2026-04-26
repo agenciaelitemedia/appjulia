@@ -404,48 +404,50 @@ export function DealDetailsSheet({
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {deal.contact_name && (
-                      <div className="flex items-center gap-3 min-h-8">
-                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                        <span className="text-sm leading-tight break-words">{deal.contact_name}</span>
+                    <div className="flex items-center gap-3 min-h-8">
+                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                        <User className="h-4 w-4 text-muted-foreground" />
                       </div>
-                    )}
-                    {deal.contact_phone && (
-                      <div className="flex items-center gap-3 min-h-8">
-                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                          <Phone className="h-4 w-4 text-muted-foreground" />
-                        </div>
+                      {deal.contact_name ? (
+                        <span className="text-sm leading-tight break-words">{deal.contact_name}</span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground italic">Sem nome</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 min-h-8">
+                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      {deal.contact_phone ? (
                         <a
                           href={`tel:${deal.contact_phone}`}
                           className="text-sm text-primary hover:underline leading-tight break-all"
                         >
                           {deal.contact_phone}
                         </a>
+                      ) : (
+                        <span className="text-sm text-muted-foreground italic">Sem telefone</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 min-h-8">
+                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
                       </div>
-                    )}
-                    {deal.contact_email && (
-                      <div className="flex items-center gap-3 min-h-8">
-                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                          <Mail className="h-4 w-4 text-muted-foreground" />
-                        </div>
+                      {deal.contact_email ? (
                         <a
                           href={`mailto:${deal.contact_email}`}
                           className="text-sm text-primary hover:underline leading-tight break-all"
                         >
                           {deal.contact_email}
                         </a>
-                      </div>
-                    )}
-                    {!deal.contact_name && !deal.contact_phone && !deal.contact_email && (
-                      onUpdate ? (
-                        <Button variant="outline" size="sm" onClick={startEditContact} className="gap-1.5">
-                          <Plus className="h-3.5 w-3.5" /> Adicionar contato
-                        </Button>
                       ) : (
-                        <p className="text-sm text-muted-foreground">Nenhuma informação de contato</p>
-                      )
+                        <span className="text-sm text-muted-foreground italic">Sem e-mail</span>
+                      )}
+                    </div>
+                    {!deal.contact_name && !deal.contact_phone && !deal.contact_email && onUpdate && (
+                      <Button variant="outline" size="sm" onClick={startEditContact} className="gap-1.5">
+                        <Plus className="h-3.5 w-3.5" /> Adicionar contato
+                      </Button>
                     )}
                   </div>
                 )}
