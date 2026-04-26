@@ -156,6 +156,11 @@ export function PipelineColumn({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onAddDeal}>
+              <Plus className="h-4 w-4 mr-2" />
+              Adicionar Card
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onEdit}>
               <Pencil className="h-4 w-4 mr-2" />
               Editar Etapa
