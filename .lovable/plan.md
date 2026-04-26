@@ -1,77 +1,65 @@
+## Objetivo
+Fazer com que mover um card para outra etapa por arrastar e soltar salve de forma confiável no backend e mantenha o placeholder visual entre os cards da coluna destino.
 
 ## Diagnóstico
+O placeholder visual já está parcialmente implementado (`previewMove` + opacidade do card), mas a persistência ainda falha porque o `handleDragEnd` depende do estado `deals` renderizado no componente para descobrir a posição final.
 
-Ao mover um card para outra etapa, dois problemas acontecem:
+Hoje o fluxo está assim:
+```text
+handleDragOver -> previewMove(setDeals)
+                 -> React agenda re-render
+handleDragEnd  -> lê deals do render atual
+                 -> às vezes ainda enxerga a etapa antiga
+                 -> moveDeal recebe from/to incorretos
+                 -> backend não salva a troca real de etapa
+```
 
-### 1. Card volta para a etapa antiga após sair e voltar (não está salvando)
+Em outras palavras: o preview visual pode acontecer, mas o commit final ainda pode usar dados antigos da renderização anterior.
 
-A causa é uma **corrida entre o update otimista e o realtime do Supabase**:
+## Plano de implementação
 
-- `moveDeal` em `useCRMDeals.ts` faz update otimista local + dispara N updates paralelos (`Promise.all`) no banco.
-- A subscription realtime (`postgres_changes` em `crm_deals`) escuta `event: '*'` e dispara `fetchDeals()` a cada mudança recebida.
-- Como vários updates chegam em rajada, `fetchDeals` é executado várias vezes — algumas **antes** de todos os commits propagarem — devolvendo snapshots inconsistentes que **sobrescrevem o estado otimista** com a versão antiga.
-- Visualmente: o card "volta" para a coluna de origem assim que recarrega o painel.
+### 1) Tornar o destino do drag fonte única da verdade no `BoardPage.tsx`
+- Criar um `dragPreviewRef` com:
+  - `dealId`
+  - `toPipelineId`
+  - `toIndex`
+- Atualizar esse ref dentro de `handleDragOver` sempre que o alvo mudar.
+- Continuar chamando `previewMove` para manter a sombra/placeholder visual na coluna destino.
 
-### 2. Sem placeholder/sombra entre os cards da coluna destino durante o arrasto
+### 2) Parar de depender do array `deals` para descobrir o destino final
+- Em `handleDragEnd`, usar primeiro o valor salvo em `dragPreviewRef.current`.
+- Só usar `deals` como fallback se não houver preview registrado.
+- Passar para `moveDeal` exatamente o destino calculado no drag, sem recalcular a etapa final a partir do estado renderizado.
 
-- O `handleDragOver` atual só muta `activeDeal` (que afeta apenas o `DragOverlay`), **não** muta o array `deals`.
-- Como o `SortableContext` de cada coluna é alimentado por `getFilteredDealsByPipeline(pipeline.id)`, o card arrastado nunca aparece na lista da coluna destino enquanto o usuário ainda está arrastando.
-- Resultado: o `verticalListSortingStrategy` não tem o que deslocar, e nenhum espaço é aberto entre os cards vizinhos.
+### 3) Limpar corretamente o estado transitório do drag
+- Resetar `dragPreviewRef` em:
+  - `handleDragStart`
+  - `handleDragEnd`
+  - `handleDragCancel`
+- Manter `dragOriginPipelineRef` apenas para a etapa de origem.
+- Garantir que um drag cancelado faça `fetchDeals()` e descarte qualquer preview pendente.
 
----
+### 4) Reforçar a coerência visual do placeholder
+- Preservar o `previewMove` atual, que já injeta o card na coluna destino durante o arrasto.
+- Ajustar o cálculo do índice alvo em `handleDragOver` para evitar microoscilações ao passar sobre cards da coluna destino.
+- Manter o card original semitransparente e o overlay opaco, para a sombra de posicionamento continuar clara.
 
-## Solução
+### 5) Validar o fluxo completo de persistência
+- Testar estes cenários:
+  - mover para outra etapa com cards no meio da coluna
+  - mover para o fim da coluna
+  - mover para coluna vazia
+  - cancelar arrasto
+  - sair e voltar ao painel após mover
+- Confirmar que o card permanece na nova etapa após recarregar os dados.
 
-### A) `src/pages/crm-builder/hooks/useCRMDeals.ts`
+## Arquivos a ajustar
+- `src/pages/crm-builder/BoardPage.tsx`
+- `src/pages/crm-builder/hooks/useCRMDeals.ts` (apenas se precisar pequeno ajuste de compatibilidade com o commit final)
+- `src/pages/crm-builder/components/deals/DealCard.tsx` (somente se for necessário um refinamento visual)
 
-1. **Adicionar guarda contra refetch durante movimentação ativa**:
-   - Criar um `ref` `isMovingRef` (useRef) que vira `true` no início de `moveDeal` e volta para `false` ~600ms após a última escrita confirmada.
-   - O handler de realtime (`postgres_changes`) deve **ignorar** eventos enquanto `isMovingRef.current === true`, evitando que fetches concorrentes sobrescrevam o estado otimista recém-aplicado.
-   - Adicionar também um pequeno *debounce* (~250ms) ao `fetchDeals` chamado pelo realtime, para coalescer rajadas de eventos.
-
-2. **Trocar updates paralelos por uma única chamada `upsert`**:
-   - Substituir o `Promise.all` de N updates por um único `supabase.from('crm_deals').upsert(rows, { onConflict: 'id' })` contendo apenas as colunas necessárias (`id`, `position`, `pipeline_id`, e opcionalmente `stage_entered_at`).
-   - Isso reduz a rajada de eventos realtime para 1 único batch e elimina estados intermediários inconsistentes vistos pelo refetch.
-   - **Importante**: o upsert exige enviar todas as colunas NOT NULL — verificar o schema antes; se necessário, manter `Promise.all` mas envolvê-lo num `await` único antes de liberar `isMovingRef`.
-
-3. **Logar erros silenciosos**: hoje, se algum update falha dentro do `Promise.all`, o `firstErr` é lançado mas o estado otimista já foi aplicado. Garantir que, em caso de erro, o `fetchDeals` final restaure a verdade do banco (já é feito), e exibir um `toast` claro.
-
-### B) `src/pages/crm-builder/BoardPage.tsx`
-
-1. **Adicionar `previewMove` no hook `useCRMDeals`** (ou expor um setter `setDeals` controlado) e usá-lo no `handleDragOver` para **mover o deal entre colunas dentro do estado** quando o cursor cruza para outra coluna:
-   - Atualiza `pipeline_id` do deal arrastado no array `deals` (sem persistir).
-   - Recalcula posições da coluna destino para incluir o card na posição apontada pelo cursor.
-   - Isso faz com que o `SortableContext` da coluna destino passe a conter o `deal-<id>`, ativando o `verticalListSortingStrategy` — vizinhos abrem espaço suavemente e o "fantasma" do card aparece entre eles.
-
-2. **Refinar o `handleDragOver`**:
-   - Detectar coluna alvo (já feito) e índice alvo dentro dela (a partir do `over.id` ou da posição do cursor relativa ao retângulo dos cards).
-   - Aplicar o preview apenas quando a coluna OU o índice mudarem (evitar re-renders desnecessários).
-
-3. **`handleDragEnd` simplificado**:
-   - Como o estado já reflete a posição final do preview, basta chamar `moveDeal` com o `pipeline_id` e a `position` já presentes no estado para esse deal. Isso elimina a divergência entre o "preview" e o "commit".
-
-4. **Cancelamento limpo**:
-   - Implementar `onDragCancel` que reverte o preview chamando `fetchDeals()` para garantir consistência se o usuário soltar fora de qualquer drop zone (Esc, drop inválido).
-
-### C) `src/pages/crm-builder/components/deals/DealCard.tsx`
-
-- Reduzir levemente a opacidade do card original durante o drag (`opacity-30` no `isDragging`) e manter o `DragOverlay` 100% opaco — assim o "espaço aberto" na coluna destino fica visualmente claro como um placeholder, e o cursor mostra o card sendo arrastado.
-
-### D) (Opcional, ganho extra) `src/pages/crm-builder/components/pipeline/PipelineColumn.tsx`
-
-- Reforçar o destaque visual quando `isOver` durante o drag de outra coluna: já existe `ring-2 ring-primary bg-primary/10`, manter; adicionar uma transição mais suave (`transition-colors duration-150`).
-
----
-
-## Arquivos a editar
-
-- `src/pages/crm-builder/hooks/useCRMDeals.ts` — guarda anti-refetch, debounce realtime, upsert único, expor `previewMove`/`setDeals` controlado.
-- `src/pages/crm-builder/BoardPage.tsx` — usar `previewMove` no `handleDragOver`, simplificar `handleDragEnd`, adicionar `onDragCancel`.
-- `src/pages/crm-builder/components/deals/DealCard.tsx` — ajuste fino de opacidade do placeholder.
-- `src/pages/crm-builder/components/pipeline/PipelineColumn.tsx` — micro-ajuste de transição (opcional).
-
-## Resultado esperado
-
-- Movimentação entre etapas é **persistida de forma confiável** — refresh ou navegação não revertem mais a posição.
-- Durante o arrasto, os cards da coluna destino **abrem espaço suavemente** mostrando exatamente onde o card será posicionado (placeholder visual entre vizinhos).
-- Drop em qualquer área da coluna (vazia, no meio, no fim) funciona consistentemente.
+## Detalhes técnicos
+- O problema principal não parece mais ser o realtime: o hook já tem guarda com `isMovingRef` e debounce.
+- O ponto mais frágil agora é a leitura do destino final no `handleDragEnd` a partir de estado sujeito a atraso de renderização.
+- A correção vai fazer o commit usar o alvo calculado pelo próprio DnD, não um snapshot potencialmente antigo do React.
+- Isso mantém o comportamento visual atual e corrige a gravação real da mudança de etapa.

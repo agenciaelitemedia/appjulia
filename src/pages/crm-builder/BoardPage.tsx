@@ -116,6 +116,13 @@ export default function BoardPage() {
   const [activeDeal, setActiveDeal] = useState<CRMDeal | null>(null);
   // Pipeline de origem capturado no início do drag (antes do preview mover).
   const dragOriginPipelineRef = useRef<string | null>(null);
+  // Destino calculado pelo onDragOver — fonte única da verdade no commit
+  // final (evita ler `deals` que pode estar atrasado por re-render).
+  const dragPreviewRef = useRef<{
+    dealId: string;
+    toPipelineId: string;
+    toIndex: number;
+  } | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Scroll ref for custom navigation
@@ -273,6 +280,7 @@ export default function BoardPage() {
       if (deal) {
         setActiveDeal(deal);
         dragOriginPipelineRef.current = deal.pipeline_id;
+        dragPreviewRef.current = null;
       }
     }
   };
@@ -326,6 +334,12 @@ export default function BoardPage() {
     // Aplica o preview no estado real -> o SortableContext da coluna alvo
     // passa a conter o card e os vizinhos abrem espaço (placeholder visual).
     previewMove(dealId, targetPipelineId, targetIndex);
+    // Registra o destino atual (fonte de verdade no commit).
+    dragPreviewRef.current = {
+      dealId,
+      toPipelineId: targetPipelineId,
+      toIndex: targetIndex,
+    };
     // Mantém o overlay sincronizado com a coluna alvo.
     if (activeDealRef.pipeline_id !== targetPipelineId) {
       setActiveDeal(prev => prev ? { ...prev, pipeline_id: targetPipelineId! } : prev);
@@ -339,6 +353,8 @@ export default function BoardPage() {
 
     if (!over) {
       // Drop fora de qualquer alvo -> reverte preview consultando o banco.
+      dragPreviewRef.current = null;
+      dragOriginPipelineRef.current = null;
       if (wasActive) fetchDeals();
       return;
     }
@@ -361,22 +377,41 @@ export default function BoardPage() {
     // Handle deal movement
     if (activeId.startsWith('deal-')) {
       const dealId = activeId.replace('deal-', '');
-      // O estado já foi atualizado pelo preview do onDragOver.
-      // Lemos a posição final dali e persistimos.
-      const dealNow = deals.find(d => d.id === dealId);
-      if (!dealNow) return;
-      const fromPipelineId = dragOriginPipelineRef.current ?? dealNow.pipeline_id;
+      const fromPipelineId =
+        dragOriginPipelineRef.current ??
+        deals.find(d => d.id === dealId)?.pipeline_id ??
+        '';
+
+      // Fonte primária: o destino calculado pelo próprio onDragOver.
+      // Fallback: estado renderizado (pode estar atrasado).
+      const preview = dragPreviewRef.current;
+      let toPipelineId: string;
+      let newPosition: number;
+
+      if (preview && preview.dealId === dealId) {
+        toPipelineId = preview.toPipelineId;
+        newPosition = preview.toIndex;
+      } else {
+        const dealNow = deals.find(d => d.id === dealId);
+        if (!dealNow) {
+          dragPreviewRef.current = null;
+          dragOriginPipelineRef.current = null;
+          return;
+        }
+        toPipelineId = dealNow.pipeline_id;
+        const destList = deals
+          .filter(d => d.pipeline_id === toPipelineId)
+          .sort((a, b) => a.position - b.position);
+        newPosition = Math.max(0, destList.findIndex(d => d.id === dealId));
+      }
+
+      dragPreviewRef.current = null;
       dragOriginPipelineRef.current = null;
-      // Recalcula índice atual na coluna destino conforme estado final.
-      const destList = deals
-        .filter(d => d.pipeline_id === dealNow.pipeline_id)
-        .sort((a, b) => a.position - b.position);
-      const newPosition = Math.max(0, destList.findIndex(d => d.id === dealId));
 
       await moveDeal({
         dealId,
-        fromPipelineId,
-        toPipelineId: dealNow.pipeline_id,
+        fromPipelineId: fromPipelineId || toPipelineId,
+        toPipelineId,
         newPosition,
       });
     }
@@ -386,6 +421,7 @@ export default function BoardPage() {
   const handleDragCancel = () => {
     setActiveDeal(null);
     dragOriginPipelineRef.current = null;
+    dragPreviewRef.current = null;
     fetchDeals();
   };
 
