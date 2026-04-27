@@ -2873,17 +2873,36 @@ serve(async (req) => {
       }
 
       case 'list_module_embeds': {
-        result = await sql.unsafe(`
-          SELECT m.id, m.code, m.name, m.icon, m.menu_group, m.display_order,
-                 m.is_menu_visible, m.is_active, m.module_type,
-                 e.url_template, e.auth_mode, e.hmac_ttl_seconds,
-                 e.iframe_sandbox, e.iframe_referrer_policy, e.open_in_new_tab,
-                 e.allowed_origins, e.variables,
-                 (e.hmac_secret IS NOT NULL AND length(e.hmac_secret) > 0) as has_secret
-          FROM modules m
-          INNER JOIN module_embeds e ON e.module_id = m.id
-          ORDER BY COALESCE(m.menu_group, 'OUTROS'), m.display_order
+        // Verifica se o schema de embeds já foi inicializado (coluna + tabela).
+        // Se não, retorna lista vazia em vez de 500 — a UI mostra o botão
+        // "Inicializar sistema" que chama init_embed_system.
+        const schemaCheck = await sql.unsafe(`
+          SELECT
+            EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'modules' AND column_name = 'module_type'
+            ) AS has_column,
+            EXISTS (
+              SELECT 1 FROM information_schema.tables
+              WHERE table_schema = 'public' AND table_name = 'module_embeds'
+            ) AS has_table
         `);
+        const ready = schemaCheck?.[0]?.has_column && schemaCheck?.[0]?.has_table;
+        if (!ready) {
+          result = [];
+        } else {
+          result = await sql.unsafe(`
+            SELECT m.id, m.code, m.name, m.icon, m.menu_group, m.display_order,
+                   m.is_menu_visible, m.is_active, m.module_type,
+                   e.url_template, e.auth_mode, e.hmac_ttl_seconds,
+                   e.iframe_sandbox, e.iframe_referrer_policy, e.open_in_new_tab,
+                   e.allowed_origins, e.variables,
+                   (e.hmac_secret IS NOT NULL AND length(e.hmac_secret) > 0) as has_secret
+            FROM modules m
+            INNER JOIN module_embeds e ON e.module_id = m.id
+            ORDER BY COALESCE(m.menu_group, 'OUTROS'), m.display_order
+          `);
+        }
         break;
       }
 
