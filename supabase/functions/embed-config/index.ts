@@ -9,7 +9,6 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 
 // ---------- External DB (read-only para resolver dados de usuário) ----------
 function normalizeCaCert(input: string): string[] {
@@ -89,20 +88,7 @@ function generateNonce(): string {
   return base64url(bytes);
 }
 
-// ---------- Auth: extrair user do JWT do Supabase ----------
-async function getCallerUser(req: Request) {
-  const auth = req.headers.get('Authorization');
-  if (!auth) return null;
-  const supabase = createClient(SUPABASE_URL, ANON_KEY, {
-    global: { headers: { Authorization: auth } },
-  });
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) return null;
-  return data.user;
-}
-
 // ---------- Resolve dados autoritativos do usuário no DB externo ----------
-// Aceita: external user_id (numérico) OU email do supabase user.
 async function loadExternalUser(opts: { externalUserId?: number; email?: string }) {
   const sql = getExternalPool();
   let rows;
@@ -167,9 +153,6 @@ serve(async (req) => {
     });
 
   try {
-    const supaUser = await getCallerUser(req);
-    if (!supaUser) return json({ error: 'Unauthorized' }, 401);
-
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || '');
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -256,12 +239,10 @@ serve(async (req) => {
       if (embErr) return json({ error: embErr.message }, 500);
       if (!emb) return json({ error: 'Embed não encontrado' }, 404);
 
-      // Resolve user no DB externo (frontend pode enviar external_user_id)
+      // Resolve user no DB externo via id enviado pelo frontend (sistema usa auth externo)
       const externalUserId = body.external_user_id ? Number(body.external_user_id) : undefined;
-      const userExt = await loadExternalUser({
-        externalUserId,
-        email: supaUser.email || undefined,
-      });
+      if (!externalUserId) return json({ error: 'external_user_id obrigatório' }, 400);
+      const userExt = await loadExternalUser({ externalUserId });
       if (!userExt) return json({ error: 'Usuário externo não encontrado' }, 403);
       if (userExt.is_active === false) return json({ error: 'Usuário inativo' }, 403);
 
