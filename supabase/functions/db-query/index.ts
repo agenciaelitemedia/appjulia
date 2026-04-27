@@ -2868,6 +2868,13 @@ serve(async (req) => {
           WHERE m.code = 'admin_embeds'
           ON CONFLICT (role, module_id) DO NOTHING
         `);
+        // Migra rotas antigas /embed/* para /sys/*
+        await sql.unsafe(`
+          UPDATE modules
+             SET route = REPLACE(route, '/embed/', '/sys/'),
+                 updated_at = now()
+           WHERE module_type = 'embed' AND route LIKE '/embed/%'
+        `);
         result = [{ initialized: true }];
         break;
       }
@@ -2921,7 +2928,7 @@ serve(async (req) => {
              RETURNING id`,
             [
               codeFinal, e.name, e.icon || null,
-              `/embed/${codeFinal}`,
+              `/sys/${codeFinal}`,
               e.menu_group || 'OUTROS',
               e.display_order || 0,
               e.is_menu_visible ?? true,
