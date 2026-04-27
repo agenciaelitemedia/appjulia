@@ -4023,6 +4023,57 @@ export type Database = {
         }
         Relationships: []
       }
+      module_embeds: {
+        Row: {
+          allowed_origins: string[] | null
+          auth_mode: string
+          code: string
+          created_at: string
+          hmac_secret: string | null
+          hmac_ttl_seconds: number
+          id: string
+          iframe_referrer_policy: string
+          iframe_sandbox: string
+          is_active: boolean
+          open_in_new_tab: boolean
+          updated_at: string
+          url_template: string
+          variables: Json
+        }
+        Insert: {
+          allowed_origins?: string[] | null
+          auth_mode?: string
+          code: string
+          created_at?: string
+          hmac_secret?: string | null
+          hmac_ttl_seconds?: number
+          id?: string
+          iframe_referrer_policy?: string
+          iframe_sandbox?: string
+          is_active?: boolean
+          open_in_new_tab?: boolean
+          updated_at?: string
+          url_template?: string
+          variables?: Json
+        }
+        Update: {
+          allowed_origins?: string[] | null
+          auth_mode?: string
+          code?: string
+          created_at?: string
+          hmac_secret?: string | null
+          hmac_ttl_seconds?: number
+          id?: string
+          iframe_referrer_policy?: string
+          iframe_sandbox?: string
+          is_active?: boolean
+          open_in_new_tab?: boolean
+          updated_at?: string
+          url_template?: string
+          variables?: Json
+        }
+        Relationships: []
+      }
       phone_call_logs: {
         Row: {
           answered_at: string | null
