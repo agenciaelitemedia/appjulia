@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
+import { TeamMemberSelect, type TeamMemberOption } from '@/components/TeamMemberSelect';
+import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { Loader2 } from 'lucide-react';
 
 interface TransferDialogProps {
@@ -14,23 +14,30 @@ interface TransferDialogProps {
 }
 
 export function TransferDialog({ open, onOpenChange, onTransfer }: TransferDialogProps) {
-  const [selectedAgent, setSelectedAgent] = useState('');
+  const [selectedMember, setSelectedMember] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [isTransferring, setIsTransferring] = useState(false);
 
-  const { data: agentsData } = useMyAgents();
-  const allAgents = [
-    ...(agentsData?.myAgents || []),
-    ...(agentsData?.monitoredAgents || []),
-  ];
+  const { data: team } = useTeamByClient();
+  const members: TeamMemberOption[] = useMemo(
+    () =>
+      (team || []).map((m) => ({
+        id: m.id,
+        name: m.name,
+        email: m.email,
+        role: m.role,
+        photo: m.photo,
+      })),
+    [team],
+  );
 
   const handleTransfer = async () => {
-    if (!selectedAgent) return;
+    if (!selectedMember) return;
     setIsTransferring(true);
     try {
-      await onTransfer(selectedAgent, note || undefined);
+      await onTransfer(selectedMember, note || undefined);
       onOpenChange(false);
-      setSelectedAgent('');
+      setSelectedMember(null);
       setNote('');
     } finally {
       setIsTransferring(false);
@@ -50,21 +57,16 @@ export function TransferDialog({ open, onOpenChange, onTransfer }: TransferDialo
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Transferir para</Label>
-            <Select value={selectedAgent} onValueChange={setSelectedAgent}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um agente..." />
-              </SelectTrigger>
-              <SelectContent>
-                {allAgents.map(agent => {
-                  const displayName = agent.client_name || agent.business_name || agent.cod_agent;
-                  return (
-                    <SelectItem key={agent.cod_agent} value={displayName}>
-                      {displayName}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+            <TeamMemberSelect
+              members={members}
+              value={selectedMember}
+              onValueChange={setSelectedMember}
+              valueKey="name"
+              allowUnassigned={false}
+              showCurrentUserShortcut
+              placeholder="Selecione um membro da equipe…"
+              className="w-full"
+            />
           </div>
 
           <div className="space-y-2">
@@ -82,7 +84,7 @@ export function TransferDialog({ open, onOpenChange, onTransfer }: TransferDialo
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={handleTransfer} disabled={!selectedAgent || isTransferring}>
+          <Button onClick={handleTransfer} disabled={!selectedMember || isTransferring}>
             {isTransferring && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
             Transferir
           </Button>
