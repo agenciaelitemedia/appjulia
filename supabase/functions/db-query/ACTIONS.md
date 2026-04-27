@@ -2,7 +2,8 @@
 
 > Documentação gerada automaticamente a partir de `supabase/functions/db-query/index.ts`.
 > Cada action é invocada via `supabase.functions.invoke("db-query", { body: { action, data } })`.
-> Não edite manualmente — re-execute `node /tmp/doc_actions.mjs > supabase/functions/db-query/ACTIONS.md`.
+> Não edite manualmente — re-execute:
+> `node scripts/generate-db-query-actions-doc.mjs > supabase/functions/db-query/ACTIONS.md`
 
 Total de actions: **105**
 
