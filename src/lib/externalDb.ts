@@ -571,38 +571,6 @@ class ExternalDatabase {
     return result[0];
   }
 
-  // ─── Module Embeds ───────────────────────────────────────────
-  async initEmbedSystem(): Promise<void> {
-    await this.invoke({ action: 'init_embed_system', data: {} });
-  }
-
-  async listModuleEmbeds(): Promise<any[]> {
-    return this.invoke({ action: 'list_module_embeds', data: {} });
-  }
-
-  async upsertModuleEmbed(embed: Record<string, any>): Promise<{ module_id: number; ok: boolean }> {
-    const r = await this.invoke({ action: 'upsert_module_embed', data: { embed } });
-    return r[0];
-  }
-
-  async deleteModuleEmbed(moduleId: number): Promise<void> {
-    await this.invoke({ action: 'delete_module_embed', data: { module_id: moduleId } });
-  }
-
-  async resolveModuleEmbed(moduleCode: string, userId: number): Promise<{
-    url: string;
-    open_in_new_tab: boolean;
-    iframe_sandbox: string;
-    iframe_referrer_policy: string;
-    name: string;
-  }> {
-    const r = await this.invoke({
-      action: 'resolve_module_embed',
-      data: { module_code: moduleCode, user_id: userId },
-    });
-    return r[0];
-  }
-
   async getRoleDefaultPermissions(role: string): Promise<UserPermission[]> {
     return this.invoke({
       action: 'get_role_default_permissions',
