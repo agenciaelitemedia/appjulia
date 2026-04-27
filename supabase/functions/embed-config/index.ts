@@ -161,7 +161,7 @@ serve(async (req) => {
     if (action === 'list') {
       const { data, error } = await admin
         .from('module_embeds')
-        .select('id, code, url_template, auth_mode, hmac_ttl_seconds, iframe_sandbox, iframe_referrer_policy, open_in_new_tab, allowed_origins, variables, is_active, hmac_secret')
+        .select('id, code, name, url_template, auth_mode, hmac_ttl_seconds, iframe_sandbox, iframe_referrer_policy, open_in_new_tab, allowed_origins, variables, is_active, hmac_secret')
         .order('code');
       if (error) return json({ error: error.message }, 500);
       const rows = (data || []).map((r: any) => {
@@ -180,6 +180,7 @@ serve(async (req) => {
 
       const payload: any = {
         code: String(e.code).trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_'),
+        name: e.name ? String(e.name).trim() : null,
         url_template: String(e.url_template),
         auth_mode: e.auth_mode === 'signed' ? 'signed' : 'simple',
         hmac_ttl_seconds: Number(e.hmac_ttl_seconds) || 300,
@@ -295,7 +296,7 @@ serve(async (req) => {
       return json({
         data: {
           url: finalUrl,
-          name: code,
+          name: emb.name || code,
           open_in_new_tab: !!emb.open_in_new_tab,
           iframe_sandbox: emb.iframe_sandbox,
           iframe_referrer_policy: emb.iframe_referrer_policy,
