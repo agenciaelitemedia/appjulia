@@ -25,6 +25,7 @@ type Editable = Partial<ModuleEmbedRow> & { hmac_secret?: string };
 function emptyEmbed(): Editable {
   return {
     code: '',
+    name: '',
     url_template: '',
     auth_mode: 'simple',
     hmac_ttl_seconds: 300,
@@ -74,6 +75,7 @@ export default function EmbedManagerPage() {
   async function handleSave() {
     if (!editing) return;
     if (!editing.code?.trim()) { toast.error('Code é obrigatório'); return; }
+    if (!editing.name?.trim()) { toast.error('Nome é obrigatório'); return; }
     if (!editing.url_template?.trim()) { toast.error('URL é obrigatória'); return; }
     if (!/^https?:\/\//i.test(editing.url_template)) { toast.error('URL deve começar com http:// ou https://'); return; }
 
@@ -91,6 +93,7 @@ export default function EmbedManagerPage() {
       await embedConfig.upsert({
         ...editing,
         code: editing.code.trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_'),
+        name: editing.name?.trim() || null,
         variables: parsedVars,
       });
       toast.success('Embed salvo');
@@ -166,6 +169,7 @@ export default function EmbedManagerPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Code</TableHead>
+                  <TableHead>Nome</TableHead>
                   <TableHead>Auth</TableHead>
                   <TableHead>URL</TableHead>
                   <TableHead>Status</TableHead>
@@ -176,6 +180,7 @@ export default function EmbedManagerPage() {
                 {rows.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="font-mono text-xs">{r.code}</TableCell>
+                    <TableCell className="text-sm">{r.name || <span className="text-muted-foreground italic">—</span>}</TableCell>
                     <TableCell>
                       <Badge variant={r.auth_mode === 'signed' ? 'default' : 'outline'}>
                         {r.auth_mode === 'signed' ? (r.has_secret ? 'HMAC' : 'HMAC sem secret') : 'simples'}
@@ -233,6 +238,18 @@ export default function EmbedManagerPage() {
                 />
                 <p className="text-xs text-muted-foreground">
                   Para aparecer no menu, registre um módulo no banco externo com este mesmo code.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Nome de exibição</Label>
+                <Input
+                  value={editing.name || ''}
+                  onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                  placeholder="ex: Dashboard BI"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Usado como título da aba do navegador e fallback quando o módulo não estiver no menu.
                 </p>
               </div>
 
