@@ -2824,6 +2824,146 @@ serve(async (req) => {
       }
 
       // ============================================================
+      // QUEUE ACCESS — permissões por fila com modelo híbrido
+      // ============================================================
+      case 'init_queue_access_system': {
+        await sql.unsafe(`
+          ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS queue_access VARCHAR(10) NOT NULL DEFAULT 'all'
+        `);
+        await sql.unsafe(`
+          DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.constraint_column_usage
+              WHERE table_name = 'users' AND column_name = 'queue_access'
+                AND constraint_name LIKE '%queue_access%'
+            ) THEN
+              BEGIN
+                ALTER TABLE users ADD CONSTRAINT users_queue_access_check
+                  CHECK (queue_access IN ('all','specific'));
+              EXCEPTION WHEN duplicate_object THEN NULL;
+              END;
+            END IF;
+          END $$;
+        `);
+        await sql.unsafe(`
+          CREATE TABLE IF NOT EXISTS public.queue_members (
+            id SERIAL PRIMARY KEY,
+            queue_id VARCHAR(40) NOT NULL,
+            user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            role VARCHAR(20) NOT NULL DEFAULT 'agent'
+              CHECK (role IN ('viewer','agent','manager')),
+            created_at TIMESTAMP DEFAULT now(),
+            updated_at TIMESTAMP DEFAULT now(),
+            UNIQUE(queue_id, user_id)
+          )
+        `);
+        await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_queue_members_user ON queue_members(user_id)`);
+        await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_queue_members_queue ON queue_members(queue_id)`);
+        // Backfill: roles operacionais começam com 'specific'
+        await sql.unsafe(`
+          UPDATE users SET queue_access = 'specific'
+          WHERE role IN ('time','comercial','advogado') AND queue_access = 'all'
+        `);
+        result = [{ initialized: true }];
+        break;
+      }
+
+      case 'get_user_queue_access': {
+        const userId = Number(data.user_id);
+        if (!userId) throw new Error('user_id obrigatório');
+        const u = await sql.unsafe(`SELECT queue_access FROM users WHERE id = $1`, [userId]);
+        const access = u[0]?.queue_access ?? 'all';
+        if (access === 'all') {
+          result = [{ queue_access: 'all', queue_ids: [] }];
+        } else {
+          const rows = await sql.unsafe(`SELECT queue_id FROM queue_members WHERE user_id = $1`, [userId]);
+          result = [{ queue_access: 'specific', queue_ids: rows.map((r: any) => r.queue_id) }];
+        }
+        break;
+      }
+
+      case 'list_queue_members': {
+        const queueId = String(data.queue_id || '');
+        if (!queueId) throw new Error('queue_id obrigatório');
+        result = await sql.unsafe(`
+          SELECT qm.user_id, qm.role, u.name, u.email, u.role as user_role
+          FROM queue_members qm
+          INNER JOIN users u ON u.id = qm.user_id
+          WHERE qm.queue_id = $1
+          ORDER BY u.name
+        `, [queueId]);
+        break;
+      }
+
+      case 'set_queue_members': {
+        const queueId = String(data.queue_id || '');
+        if (!queueId) throw new Error('queue_id obrigatório');
+        const members: Array<{ user_id: number; role?: string }> = data.members || [];
+        await sql.unsafe(`DELETE FROM queue_members WHERE queue_id = $1`, [queueId]);
+        for (const m of members) {
+          await sql.unsafe(
+            `INSERT INTO queue_members (queue_id, user_id, role) VALUES ($1, $2, $3)
+             ON CONFLICT (queue_id, user_id) DO UPDATE SET role = EXCLUDED.role, updated_at = now()`,
+            [queueId, m.user_id, m.role || 'agent']
+          );
+        }
+        result = [{ ok: true, count: members.length }];
+        break;
+      }
+
+      case 'set_user_queues': {
+        const userId = Number(data.user_id);
+        if (!userId) throw new Error('user_id obrigatório');
+        const queueIds: string[] = Array.isArray(data.queue_ids) ? data.queue_ids : [];
+        const role = data.role || 'agent';
+        if (data.queue_access) {
+          await sql.unsafe(`UPDATE users SET queue_access = $1 WHERE id = $2`, [data.queue_access, userId]);
+        }
+        if (Array.isArray(data.queue_ids)) {
+          await sql.unsafe(`DELETE FROM queue_members WHERE user_id = $1`, [userId]);
+          for (const qid of queueIds) {
+            await sql.unsafe(
+              `INSERT INTO queue_members (queue_id, user_id, role) VALUES ($1, $2, $3)
+               ON CONFLICT (queue_id, user_id) DO NOTHING`,
+              [qid, userId, role]
+            );
+          }
+        }
+        result = [{ ok: true }];
+        break;
+      }
+
+      case 'list_assignable_users': {
+        // Lista usuários do client_id que podem receber acesso a filas
+        // (excluindo admin/colaborador, que acessam tudo).
+        const clientId = String(data.client_id || '');
+        if (!clientId) throw new Error('client_id obrigatório');
+        result = await sql.unsafe(`
+          SELECT id, name, email, role, COALESCE(queue_access, 'all') as queue_access
+          FROM users
+          WHERE client_id = $1 AND COALESCE(is_active, TRUE) = TRUE
+          ORDER BY name
+        `, [clientId]);
+        break;
+      }
+
+      case 'list_users_for_queue': {
+        // Usado pelo backend de roteamento: quem pode receber conversas desta fila
+        const clientId = String(data.client_id || '');
+        const queueId = String(data.queue_id || '');
+        if (!clientId || !queueId) throw new Error('client_id e queue_id obrigatórios');
+        result = await sql.unsafe(`
+          SELECT id FROM users WHERE client_id = $1 AND COALESCE(is_active, TRUE) = TRUE AND (
+            COALESCE(queue_access, 'all') = 'all'
+            OR id IN (SELECT user_id FROM queue_members WHERE queue_id = $2)
+          )
+        `, [clientId, queueId]);
+        break;
+      }
+
+      // ============================================================
       // MODULE EMBEDS — sistema de iframes externos configuráveis
       // ============================================================
       case 'init_embed_system': {

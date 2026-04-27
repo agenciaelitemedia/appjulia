@@ -18,7 +18,7 @@ import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { ChatContactItem } from './ChatContactItem';
 import { Badge } from '@/components/ui/badge';
-import { useQueues } from '@/pages/agente/filas/hooks/useQueues';
+import { useAccessibleQueues } from '@/pages/agente/filas/hooks/useQueues';
 import { useAgentQueueLimits } from '@/pages/agente/filas/hooks/useAgentQueueLimits';
 import { useChatSlaConfigs, evaluateSla, type SlaStatus } from '@/hooks/useChatSlaConfigs';
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
@@ -101,7 +101,7 @@ export function ChatList() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, isAdmin } = useAuth();
-  const { data: queues = [] } = useQueues();
+  const { data: queues = [] } = useAccessibleQueues();
   const { configs: slaConfigs } = useChatSlaConfigs();
   const [slaFilter, setSlaFilter] = useState<SlaFilter>('all');
   const [modeFilter, setModeFilter] = useState<ConversationModeFilter>('all');

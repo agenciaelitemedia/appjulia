@@ -2,10 +2,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, WifiOff } from 'lucide-react';
+import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, WifiOff, ShieldCheck } from 'lucide-react';
 import { Queue } from '../hooks/useQueues';
 import { UazapiInstanceStatus } from './UazapiInstanceStatus';
 import { DisconnectWabaDialog } from './DisconnectWabaDialog';
+import { QueueAccessDialog } from './QueueAccessDialog';
 import { useState } from 'react';
 
 const channelIcons: Record<string, React.ReactNode> = {
@@ -38,6 +39,7 @@ interface QueueCardProps {
 
 export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps) {
   const [disconnectOpen, setDisconnectOpen] = useState(false);
+  const [accessOpen, setAccessOpen] = useState(false);
   const hasWabaCreds = queue.channel_type === 'waba' && !!queue.waba_token;
 
   const channelBadgeClass =
@@ -76,6 +78,9 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
                 <>
                   <DropdownMenuItem onClick={() => onEdit(queue)}>
                     <Pencil className="mr-2 h-4 w-4" /> Editar
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setAccessOpen(true)}>
+                    <ShieldCheck className="mr-2 h-4 w-4" /> Acessos
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => onDelete(queue)} className="text-destructive">
                     <Trash2 className="mr-2 h-4 w-4" /> Excluir
@@ -141,6 +146,13 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
           onOpenChange={setDisconnectOpen}
         />
       )}
+
+      <QueueAccessDialog
+        queueId={queue.id}
+        queueName={queue.name}
+        open={accessOpen}
+        onOpenChange={setAccessOpen}
+      />
     </Card>
   );
 }

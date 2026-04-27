@@ -32,6 +32,10 @@ import { externalDb } from "@/lib/externalDb";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import type { AppRole } from "@/types/permissions";
+import { useQueues } from "@/pages/agente/filas/hooks/useQueues";
+import { useSetUserQueues } from "@/hooks/useQueueMembers";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface EquipeMemberDialogProps {
   open: boolean;
@@ -60,6 +64,12 @@ export function EquipeMemberDialog({
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [memberRole, setMemberRole] = useState<AppRole>("time");
+
+  // Queue access (acessos por fila)
+  const [queueAccess, setQueueAccess] = useState<'all' | 'specific'>('specific');
+  const [selectedQueueIds, setSelectedQueueIds] = useState<string[]>([]);
+  const { data: allQueues = [] } = useQueues();
+  const setUserQueues = useSetUserQueues();
 
   // Data hooks - load agents for logged-in user
   const { data: agents = [], isLoading: loadingAgents } =
@@ -90,6 +100,9 @@ export function EquipeMemberDialog({
         setSelectedAgents([]);
         setSelectedModuleCodes([]);
         setMemberRole("time");
+        // Default queue_access para novos membros segue regra do plano
+        setQueueAccess('specific');
+        setSelectedQueueIds([]);
       }
       setEmailError("");
       setTemporaryPassword(null);
@@ -123,6 +136,16 @@ export function EquipeMemberDialog({
       });
       if (memberInfo[0]?.role) {
         setMemberRole(memberInfo[0].role as AppRole);
+      }
+
+      // Load queue access
+      try {
+        const qa = await externalDb.getUserQueueAccess(memberId);
+        setQueueAccess(qa.queue_access);
+        setSelectedQueueIds(qa.queue_ids);
+      } catch {
+        setQueueAccess('specific');
+        setSelectedQueueIds([]);
       }
     } catch (error) {
       console.error("Error loading member data:", error);
@@ -198,6 +221,16 @@ export function EquipeMemberDialog({
           modulePermissions,
           role: memberRole,
         });
+        // Persiste acessos de fila
+        try {
+          await setUserQueues.mutateAsync({
+            userId: member.id,
+            queueIds: queueAccess === 'specific' ? selectedQueueIds : [],
+            queueAccess,
+          });
+        } catch (e) {
+          console.warn('[EquipeMemberDialog] failed to set queue access', e);
+        }
         onOpenChange(false);
         onSuccess?.();
       } else {
@@ -209,6 +242,19 @@ export function EquipeMemberDialog({
           modulePermissions,
           role: memberRole,
         });
+        // Persiste acessos de fila para o usuário recém-criado
+        const newUserId = (result as any)?.id;
+        if (newUserId) {
+          try {
+            await setUserQueues.mutateAsync({
+              userId: newUserId,
+              queueIds: queueAccess === 'specific' ? selectedQueueIds : [],
+              queueAccess,
+            });
+          } catch (e) {
+            console.warn('[EquipeMemberDialog] failed to set queue access', e);
+          }
+        }
         setTemporaryPassword(result.temporaryPassword);
       }
     } catch (error) {
@@ -375,6 +421,59 @@ export function EquipeMemberDialog({
               />
             </div>
           )}
+
+          {/* Queue Access */}
+          <div className="space-y-2">
+            <Label>Acessos a Filas (Chat)</Label>
+            <RadioGroup
+              value={queueAccess}
+              onValueChange={(v) => setQueueAccess(v as 'all' | 'specific')}
+              className="gap-1"
+            >
+              <div className="flex items-center gap-2">
+                <RadioGroupItem id="qa-all" value="all" />
+                <Label htmlFor="qa-all" className="text-sm font-normal cursor-pointer">
+                  Tem acesso a todas as filas
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem id="qa-specific" value="specific" />
+                <Label htmlFor="qa-specific" className="text-sm font-normal cursor-pointer">
+                  Apenas filas específicas
+                </Label>
+              </div>
+            </RadioGroup>
+
+            {queueAccess === 'specific' && (
+              <div className="border rounded-md p-2 max-h-40 overflow-y-auto space-y-1">
+                {allQueues.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-2 text-center">
+                    Nenhuma fila cadastrada
+                  </p>
+                ) : (
+                  allQueues.map((q) => (
+                    <div key={q.id} className="flex items-center gap-2 px-1 py-1 hover:bg-accent rounded">
+                      <Checkbox
+                        id={`q-${q.id}`}
+                        checked={selectedQueueIds.includes(q.id)}
+                        onCheckedChange={(checked) => {
+                          setSelectedQueueIds((prev) =>
+                            checked
+                              ? Array.from(new Set([...prev, q.id]))
+                              : prev.filter((id) => id !== q.id)
+                          );
+                        }}
+                      />
+                      <Label htmlFor={`q-${q.id}`} className="text-sm font-normal cursor-pointer flex-1 truncate">
+                        {q.name}
+                        <span className="ml-2 text-xs text-muted-foreground">({q.channel_type})</span>
+                      </Label>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <DialogFooter>

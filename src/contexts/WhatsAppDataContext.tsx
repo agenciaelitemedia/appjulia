@@ -20,7 +20,7 @@ import type {
   ConversationHistoryEntry,
   ChatTag,
 } from '@/types/conversation';
-import { useQueues, type Queue } from '@/pages/agente/filas/hooks/useQueues';
+import { useAccessibleQueues, type Queue } from '@/pages/agente/filas/hooks/useQueues';
 
 
 // ============================================
@@ -162,8 +162,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const clientId = user?.client_id ? String(user.client_id) : '';
   const currentQueueId = selectedQueue?.id;
 
-  // Load all active queues for this client (used to resolve effective queue per-contact)
-  const { data: allQueues = [] } = useQueues(false);
+  // Load active queues for this client filtered by user access (queue_members)
+  const { data: allQueues = [] } = useAccessibleQueues(false);
 
   // Resolve effective queue for a given contact — source of truth = the conversation itself.
   // The top-bar selectedQueue filter is for LISTING only; operations always use the contact's real queue.

@@ -571,6 +571,51 @@ class ExternalDatabase {
     return result[0];
   }
 
+  // ─── Queue Access (permissões por fila) ──────────────────────
+  async initQueueAccessSystem(): Promise<void> {
+    await this.invoke({ action: 'init_queue_access_system', data: {} });
+  }
+
+  async getUserQueueAccess(userId: number): Promise<{ queue_access: 'all' | 'specific'; queue_ids: string[] }> {
+    const r = await this.invoke({ action: 'get_user_queue_access', data: { user_id: userId } });
+    return r[0] || { queue_access: 'all', queue_ids: [] };
+  }
+
+  async listQueueMembers(queueId: string): Promise<Array<{
+    user_id: number; role: string; name: string; email: string; user_role: string;
+  }>> {
+    return this.invoke({ action: 'list_queue_members', data: { queue_id: queueId } });
+  }
+
+  async setQueueMembers(queueId: string, members: Array<{ user_id: number; role?: string }>): Promise<void> {
+    await this.invoke({ action: 'set_queue_members', data: { queue_id: queueId, members } });
+  }
+
+  async setUserQueues(
+    userId: number,
+    queueIds: string[],
+    queueAccess: 'all' | 'specific',
+    role?: string,
+  ): Promise<void> {
+    await this.invoke({
+      action: 'set_user_queues',
+      data: { user_id: userId, queue_ids: queueIds, queue_access: queueAccess, role },
+    });
+  }
+
+  async listAssignableUsers(clientId: string): Promise<Array<{
+    id: number; name: string; email: string; role: string; queue_access: 'all' | 'specific';
+  }>> {
+    return this.invoke({ action: 'list_assignable_users', data: { client_id: clientId } });
+  }
+
+  async listUsersForQueue(clientId: string, queueId: string): Promise<Array<{ id: number }>> {
+    return this.invoke({
+      action: 'list_users_for_queue',
+      data: { client_id: clientId, queue_id: queueId },
+    });
+  }
+
   // ─── Module Embeds ───────────────────────────────────────────
   async initEmbedSystem(): Promise<void> {
     await this.invoke({ action: 'init_embed_system', data: {} });

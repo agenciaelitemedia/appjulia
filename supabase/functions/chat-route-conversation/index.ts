@@ -28,6 +28,67 @@ interface Rule {
   fallback_assigned_to: string | null;
   only_business_hours: boolean;
   last_assigned_to: string | null;
+  target_queue_id?: string | null;
+}
+
+/**
+ * Filtra agent_pool removendo agentes (cod_agent) cujos user_ids não têm
+ * acesso à fila alvo da rule. Aplicado quando rule.target_queue_id existe.
+ * Se db-query falhar ou retornar vazio, mantém o pool original (fail-open).
+ */
+async function filterPoolByQueueAccess(rule: Rule): Promise<string[]> {
+  const pool = rule.agent_pool || [];
+  if (!rule.target_queue_id || pool.length === 0) return pool;
+  try {
+    const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/db-query`;
+    const allowedRes = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({
+        action: 'list_users_for_queue',
+        data: { client_id: rule.client_id, queue_id: rule.target_queue_id },
+      }),
+    });
+    const allowedJson = await allowedRes.json();
+    const allowedUserIds: number[] = (allowedJson?.data || []).map((r: any) => Number(r.id));
+    if (allowedUserIds.length === 0) return pool;
+
+    // Mapeia cod_agent → user_id via user_agents (external DB)
+    const mapRes = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({
+        action: 'raw',
+        data: {
+          query: `SELECT cod_agent::text as cod_agent, user_id FROM user_agents WHERE cod_agent::text = ANY($1)`,
+          params: [pool],
+        },
+      }),
+    });
+    const mapJson = await mapRes.json();
+    const codToUser = new Map<string, number>();
+    for (const row of (mapJson?.data || [])) {
+      codToUser.set(String(row.cod_agent), Number(row.user_id));
+    }
+
+    const allowedSet = new Set(allowedUserIds);
+    const filtered = pool.filter((cod) => {
+      const uid = codToUser.get(String(cod));
+      // Se não conseguimos mapear, deixa passar (fail-open)
+      if (!uid) return true;
+      return allowedSet.has(uid);
+    });
+    return filtered.length > 0 ? filtered : pool;
+  } catch (err) {
+    console.warn('[chat-route] queue-access filter failed, using original pool:', err);
+    return pool;
+  }
 }
 
 interface Conv {
@@ -66,7 +127,8 @@ function matchCondition(c: Cond, conv: Conv, lastMsg: string): boolean {
 }
 
 async function pickAgent(rule: Rule): Promise<string | null> {
-  const pool = rule.agent_pool || [];
+  // Aplica filtro de acesso por fila ANTES de escolher
+  const pool = await filterPoolByQueueAccess(rule);
   if (pool.length === 0) return rule.fallback_assigned_to;
 
   if (rule.strategy === 'specific_agent') return pool[0];

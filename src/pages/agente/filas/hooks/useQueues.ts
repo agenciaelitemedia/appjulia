@@ -1,8 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { externalDb } from '@/lib/externalDb';
+import { useUserQueueAccess } from '@/hooks/useUserQueueAccess';
 
 export interface Queue {
   id: string;
@@ -99,6 +101,29 @@ export function useQueues(includeDeleted = false) {
     },
     enabled: !!user?.id,
   });
+}
+
+/**
+ * Variante de useQueues filtrada por permissão do usuário logado.
+ * - queue_access='all' → retorna tudo
+ * - queue_access='specific' → retorna apenas filas em queue_members
+ * Usa este hook em telas de operação (chat); useQueues continua p/ admin.
+ */
+export function useAccessibleQueues(includeDeleted = false) {
+  const queries = useQueues(includeDeleted);
+  const { data: access, isLoading: accessLoading } = useUserQueueAccess();
+  const accessible = useMemo(() => {
+    const all = queries.data || [];
+    if (!access || access.queue_access === 'all') return all;
+    const allowed = new Set(access.queue_ids);
+    return all.filter((q) => allowed.has(q.id));
+  }, [queries.data, access]);
+  return {
+    ...queries,
+    data: accessible,
+    isLoading: queries.isLoading || accessLoading,
+    accessMode: access?.queue_access ?? 'all',
+  };
 }
 
 export function useQueueMutations() {

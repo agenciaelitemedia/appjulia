@@ -373,6 +373,23 @@ serve(async (req) => {
           .eq('id', queue_id);
 
         if (error) throw error;
+
+        // Limpa queue_members no DB externo (sem FK cross-DB)
+        try {
+          const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+          const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+          await fetch(`${supabaseUrl}/functions/v1/db-query`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
+            body: JSON.stringify({
+              action: 'set_queue_members',
+              data: { queue_id, members: [] },
+            }),
+          });
+        } catch (err) {
+          console.warn('[queue-management] failed to clear queue_members:', err);
+        }
+
         return respond({
           success: true,
           migrated: activeConvos?.length || 0,
