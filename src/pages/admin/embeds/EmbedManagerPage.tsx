@@ -43,6 +43,16 @@ function generateSecret() {
   return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+function slugify(input: string): string {
+  return (input || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // remove acentos
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 50);
+}
+
 function emptyEmbed(): Partial<EmbedRow> & { hmac_secret?: string } {
   return {
     code: '',
@@ -70,6 +80,9 @@ export default function EmbedManagerPage() {
   const [editing, setEditing] = useState<(Partial<EmbedRow> & { hmac_secret?: string }) | null>(null);
   const [variablesText, setVariablesText] = useState('{}');
   const [saving, setSaving] = useState(false);
+  // Quando true, o code acompanha automaticamente o slug do nome.
+  // Vira false assim que o usuário edita o campo code manualmente.
+  const [codeAuto, setCodeAuto] = useState(true);
 
   async function load() {
     setLoading(true);
@@ -107,12 +120,14 @@ export default function EmbedManagerPage() {
     const fresh = emptyEmbed();
     setEditing(fresh);
     setVariablesText('{}');
+    setCodeAuto(true);
     setEditOpen(true);
   }
 
   function openEdit(row: EmbedRow) {
     setEditing({ ...row, hmac_secret: undefined }); // não enviamos secret no edit a menos que rotacionar
     setVariablesText(JSON.stringify(row.variables || {}, null, 2));
+    setCodeAuto(false); // ao editar registro existente, code é fixo (disabled)
     setEditOpen(true);
   }
 
@@ -272,21 +287,37 @@ export default function EmbedManagerPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Code (identificador único)</Label>
-                  <Input
-                    value={editing.code || ''}
-                    disabled={isEditingExisting}
-                    onChange={(e) => setEditing({ ...editing, code: e.target.value })}
-                    placeholder="ex: bi_dashboard"
-                    className="font-mono text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
                   <Label>Nome (exibido no menu)</Label>
                   <Input
                     value={editing.name || ''}
-                    onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      setEditing({
+                        ...editing,
+                        name,
+                        // Atualiza o code automaticamente enquanto o usuário não digitou manualmente
+                        code: !isEditingExisting && codeAuto ? slugify(name) : editing.code,
+                      });
+                    }}
                     placeholder="Dashboard BI"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>
+                    Code (identificador único)
+                    {!isEditingExisting && codeAuto && (
+                      <span className="ml-1 text-xs text-muted-foreground font-normal">— gerado do nome</span>
+                    )}
+                  </Label>
+                  <Input
+                    value={editing.code || ''}
+                    disabled={isEditingExisting}
+                    onChange={(e) => {
+                      setCodeAuto(false);
+                      setEditing({ ...editing, code: slugify(e.target.value) });
+                    }}
+                    placeholder="ex: bi_dashboard"
+                    className="font-mono text-sm"
                   />
                 </div>
               </div>
