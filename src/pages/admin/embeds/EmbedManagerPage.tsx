@@ -240,7 +240,7 @@ export default function EmbedManagerPage() {
                     <TableCell>
                       <div className="flex gap-1">
                         <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
-                        <Button size="icon" variant="ghost" onClick={() => window.open(`/embed/${r.code}`, '_blank')}>
+                        <Button size="icon" variant="ghost" onClick={() => window.open(`/sys/${r.code}`, '_blank')}>
                           <ExternalLink className="h-4 w-4" />
                         </Button>
                         <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(r.id)}>
