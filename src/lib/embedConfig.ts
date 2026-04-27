@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 export interface ModuleEmbedRow {
   id: string;
   code: string;
+  name: string | null;
   url_template: string;
   auth_mode: 'simple' | 'signed';
   hmac_ttl_seconds: number;
