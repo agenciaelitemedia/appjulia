@@ -2921,7 +2921,7 @@ serve(async (req) => {
              RETURNING id`,
             [
               codeFinal, e.name, e.icon || null,
-              `/embed/${codeFinal}`,
+              `/sys/${codeFinal}`,
               e.menu_group || 'OUTROS',
               e.display_order || 0,
               e.is_menu_visible ?? true,
