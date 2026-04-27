@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, Copy, RefreshCw, Loader2, ExternalLink } from 'lucide-react';
+import { Plus, Pencil, Trash2, Copy, RefreshCw, ShieldCheck, Loader2, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,8 +11,31 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { embedConfig, type ModuleEmbedRow } from '@/lib/embedConfig';
+import { externalDb } from '@/lib/externalDb';
 import { toast } from 'sonner';
+
+interface EmbedRow {
+  id: number;
+  code: string;
+  name: string;
+  icon: string | null;
+  menu_group: string | null;
+  display_order: number;
+  is_menu_visible: boolean;
+  is_active: boolean;
+  module_type: string;
+  url_template: string;
+  auth_mode: 'simple' | 'signed';
+  hmac_ttl_seconds: number;
+  iframe_sandbox: string;
+  iframe_referrer_policy: string;
+  open_in_new_tab: boolean;
+  allowed_origins: string[] | null;
+  variables: Record<string, unknown>;
+  has_secret: boolean;
+}
+
+const MENU_GROUPS = ['PRINCIPAL', 'AGENTES DA JULIA', 'CRM', 'SISTEMA', 'COMERCIAL', 'ADMINISTRATIVO', 'FINANCEIRO', 'CONFIGURAÇÕES', 'OUTROS'];
 
 function generateSecret() {
   const arr = new Uint8Array(32);
@@ -20,54 +43,75 @@ function generateSecret() {
   return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-type Editable = Partial<ModuleEmbedRow> & { hmac_secret?: string };
-
-function emptyEmbed(): Editable {
+function emptyEmbed(): Partial<EmbedRow> & { hmac_secret?: string } {
   return {
     code: '',
     name: '',
+    icon: 'Plug',
+    menu_group: 'OUTROS',
+    display_order: 100,
+    is_menu_visible: true,
     url_template: '',
     auth_mode: 'simple',
     hmac_ttl_seconds: 300,
     iframe_sandbox: 'allow-scripts allow-forms allow-same-origin',
     iframe_referrer_policy: 'strict-origin',
     open_in_new_tab: false,
-    is_active: true,
     variables: {},
   };
 }
 
 export default function EmbedManagerPage() {
-  const [rows, setRows] = useState<ModuleEmbedRow[]>([]);
+  const [rows, setRows] = useState<EmbedRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initializing, setInitializing] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [editing, setEditing] = useState<Editable | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [editing, setEditing] = useState<(Partial<EmbedRow> & { hmac_secret?: string }) | null>(null);
   const [variablesText, setVariablesText] = useState('{}');
   const [saving, setSaving] = useState(false);
 
   async function load() {
     setLoading(true);
     try {
-      const data = await embedConfig.list();
-      setRows(data || []);
+      const data = await externalDb.listModuleEmbeds();
+      setRows((data || []) as EmbedRow[]);
     } catch (e: any) {
-      toast.error('Falha ao carregar: ' + (e?.message || 'erro'));
+      // Caso o sistema nunca tenha sido inicializado, tabela não existe
+      if (/does not exist|relation/i.test(e?.message || '')) {
+        setRows([]);
+      } else {
+        toast.error('Falha ao carregar: ' + (e?.message || 'erro'));
+      }
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleInit() {
+    setInitializing(true);
+    try {
+      await externalDb.initEmbedSystem();
+      toast.success('Sistema de embeds inicializado');
+      await load();
+    } catch (e: any) {
+      toast.error('Falha ao inicializar: ' + (e?.message || 'erro'));
+    } finally {
+      setInitializing(false);
     }
   }
 
   useEffect(() => { load(); }, []);
 
   function openCreate() {
-    setEditing(emptyEmbed());
+    const fresh = emptyEmbed();
+    setEditing(fresh);
     setVariablesText('{}');
     setEditOpen(true);
   }
 
-  function openEdit(row: ModuleEmbedRow) {
-    setEditing({ ...row, hmac_secret: undefined });
+  function openEdit(row: EmbedRow) {
+    setEditing({ ...row, hmac_secret: undefined }); // não enviamos secret no edit a menos que rotacionar
     setVariablesText(JSON.stringify(row.variables || {}, null, 2));
     setEditOpen(true);
   }
@@ -90,10 +134,9 @@ export default function EmbedManagerPage() {
 
     setSaving(true);
     try {
-      await embedConfig.upsert({
+      await externalDb.upsertModuleEmbed({
         ...editing,
         code: editing.code.trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_'),
-        name: editing.name?.trim() || null,
         variables: parsedVars,
       });
       toast.success('Embed salvo');
@@ -110,7 +153,7 @@ export default function EmbedManagerPage() {
   async function handleDelete() {
     if (!deleteId) return;
     try {
-      await embedConfig.remove(deleteId);
+      await externalDb.deleteModuleEmbed(deleteId);
       toast.success('Embed removido');
       setDeleteId(null);
       await load();
@@ -141,10 +184,14 @@ export default function EmbedManagerPage() {
         <div>
           <h1 className="text-2xl font-bold">Embeds Externos</h1>
           <p className="text-sm text-muted-foreground">
-            Configure sistemas externos para serem acessados via /sprint/&lt;code&gt;. A configuração técnica é armazenada no Lovable Cloud; o registro do menu permanece nos módulos.
+            Configure sistemas externos para aparecerem como módulos do menu da Julia.
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={handleInit} disabled={initializing}>
+            {initializing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShieldCheck className="h-4 w-4 mr-2" />}
+            Inicializar sistema
+          </Button>
           <Button variant="outline" onClick={load} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Recarregar
@@ -162,7 +209,7 @@ export default function EmbedManagerPage() {
             <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
           ) : rows.length === 0 ? (
             <div className="py-12 text-center text-sm text-muted-foreground">
-              Nenhum embed cadastrado. Clique em "Novo embed" para começar.
+              Nenhum embed cadastrado. Clique em "Inicializar sistema" se for a primeira vez.
             </div>
           ) : (
             <Table>
@@ -170,34 +217,30 @@ export default function EmbedManagerPage() {
                 <TableRow>
                   <TableHead>Code</TableHead>
                   <TableHead>Nome</TableHead>
+                  <TableHead>Grupo</TableHead>
                   <TableHead>Auth</TableHead>
                   <TableHead>URL</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-[140px]">Ações</TableHead>
+                  <TableHead className="w-[120px]">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="font-mono text-xs">{r.code}</TableCell>
-                    <TableCell className="text-sm">{r.name || <span className="text-muted-foreground italic">—</span>}</TableCell>
+                    <TableCell>{r.name}</TableCell>
+                    <TableCell><Badge variant="secondary">{r.menu_group || 'OUTROS'}</Badge></TableCell>
                     <TableCell>
                       <Badge variant={r.auth_mode === 'signed' ? 'default' : 'outline'}>
-                        {r.auth_mode === 'signed' ? (r.has_secret ? 'HMAC' : 'HMAC sem secret') : 'simples'}
+                        {r.auth_mode === 'signed' ? 'HMAC' : 'simples'}
                       </Badge>
                     </TableCell>
                     <TableCell className="max-w-[280px] truncate text-xs text-muted-foreground" title={r.url_template}>
                       {r.url_template}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={r.is_active ? 'secondary' : 'outline'}>
-                        {r.is_active ? 'ativo' : 'inativo'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
                       <div className="flex gap-1">
                         <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
-                        <Button size="icon" variant="ghost" onClick={() => window.open(`/sprint/${r.code}`, '_blank')}>
+                        <Button size="icon" variant="ghost" onClick={() => window.open(`/embed/${r.code}`, '_blank')}>
                           <ExternalLink className="h-4 w-4" />
                         </Button>
                         <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(r.id)}>
@@ -220,37 +263,60 @@ export default function EmbedManagerPage() {
             <DialogDescription>
               Variáveis disponíveis no template:
               <code className="block mt-1 text-xs bg-muted p-2 rounded">
-                {`{{userId}} {{clientId}} {{codAgent}} {{role}} {{email}} {{name}} {{timestamp}} {{ticket}} {{signature}}`}
+                {`{{userId}} {{clientId}} {{codAgent}} {{role}} {{email}} {{name}} {{timestamp}}`}
               </code>
             </DialogDescription>
           </DialogHeader>
 
           {editing && (
             <div className="space-y-4">
-              <div className="space-y-1.5">
-                <Label>Code (identificador único — também é a rota /sprint/&lt;code&gt;)</Label>
-                <Input
-                  value={editing.code || ''}
-                  disabled={isEditingExisting}
-                  onChange={(e) => setEditing({ ...editing, code: e.target.value })}
-                  placeholder="ex: bi_dashboard"
-                  className="font-mono text-sm"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Para aparecer no menu, registre um módulo no banco externo com este mesmo code.
-                </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Code (identificador único)</Label>
+                  <Input
+                    value={editing.code || ''}
+                    disabled={isEditingExisting}
+                    onChange={(e) => setEditing({ ...editing, code: e.target.value })}
+                    placeholder="ex: bi_dashboard"
+                    className="font-mono text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Nome (exibido no menu)</Label>
+                  <Input
+                    value={editing.name || ''}
+                    onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                    placeholder="Dashboard BI"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label>Nome de exibição</Label>
-                <Input
-                  value={editing.name || ''}
-                  onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                  placeholder="ex: Dashboard BI"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Usado como título da aba do navegador e fallback quando o módulo não estiver no menu.
-                </p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Ícone (lucide)</Label>
+                  <Input
+                    value={editing.icon || ''}
+                    onChange={(e) => setEditing({ ...editing, icon: e.target.value })}
+                    placeholder="Plug"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Grupo de menu</Label>
+                  <Select value={editing.menu_group || 'OUTROS'} onValueChange={(v) => setEditing({ ...editing, menu_group: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {MENU_GROUPS.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Ordem</Label>
+                  <Input
+                    type="number"
+                    value={editing.display_order ?? 100}
+                    onChange={(e) => setEditing({ ...editing, display_order: Number(e.target.value) })}
+                  />
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -305,21 +371,13 @@ export default function EmbedManagerPage() {
                   ) : (
                     <p className="text-xs text-muted-foreground">
                       {isEditingExisting
-                        ? 'Secret existente está armazenado no servidor e nunca é exibido. Gere um novo apenas se rotacionar.'
+                        ? 'Secret existente está armazenado e nunca é exibido. Gere um novo apenas se rotacionar.'
                         : 'Clique em "Gerar" para criar um secret. Copie agora — não será exibido novamente.'}
                     </p>
                   )}
-                  <div className="text-xs text-amber-700 dark:text-amber-400 space-y-1">
-                    <p className="font-semibold">Como o sistema externo valida:</p>
-                    <code className="block bg-background/60 p-2 rounded text-[10px] leading-tight">
-                      ticket    = base64url(JSON{`{userId, clientId, codAgent, role, email, iat, exp, nonce}`}){"\n"}
-                      signature = HMAC_SHA256(secret, ticket)  // hex{"\n\n"}
-                      validar:{"\n"}
-                      1. recompute HMAC_SHA256(secret, ticket) === signature{"\n"}
-                      2. JSON.parse(base64urlDecode(ticket)) -&gt; checar exp &gt; now(){"\n"}
-                      3. opcional: cache de nonce por TTL
-                    </code>
-                  </div>
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    Compartilhe este secret com o sistema externo para que ele valide o HMAC do ticket.
+                  </p>
                 </div>
               )}
 
@@ -362,12 +420,12 @@ export default function EmbedManagerPage() {
 
               <div className="flex items-center justify-between rounded border p-3">
                 <div className="space-y-0.5">
-                  <Label>Ativo</Label>
-                  <p className="text-xs text-muted-foreground">Desligue para desabilitar sem remover.</p>
+                  <Label>Visível no menu</Label>
+                  <p className="text-xs text-muted-foreground">Desligue para ocultar sem remover.</p>
                 </div>
                 <Switch
-                  checked={editing.is_active ?? true}
-                  onCheckedChange={(v) => setEditing({ ...editing, is_active: v })}
+                  checked={editing.is_menu_visible ?? true}
+                  onCheckedChange={(v) => setEditing({ ...editing, is_menu_visible: v })}
                 />
               </div>
 
@@ -398,7 +456,7 @@ export default function EmbedManagerPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Remover embed?</AlertDialogTitle>
             <AlertDialogDescription>
-              Isto remove apenas a configuração técnica. O módulo no menu (se existir) precisa ser removido separadamente. A ação não pode ser desfeita.
+              Isto remove o módulo do menu e suas permissões. A ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

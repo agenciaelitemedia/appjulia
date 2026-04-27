@@ -1,1 +1,0 @@
-ALTER TABLE public.module_embeds ADD COLUMN IF NOT EXISTS name TEXT;

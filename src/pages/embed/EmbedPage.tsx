@@ -1,9 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader2, AlertCircle, ExternalLink } from 'lucide-react';
-import { embedConfig, type ResolvedEmbed } from '@/lib/embedConfig';
+import { externalDb } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+
+interface ResolvedEmbed {
+  url: string;
+  open_in_new_tab: boolean;
+  iframe_sandbox: string;
+  iframe_referrer_policy: string;
+  name: string;
+}
 
 export default function EmbedPage() {
   const { code } = useParams<{ code: string }>();
@@ -18,7 +26,7 @@ export default function EmbedPage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    embedConfig.resolve(code, Number(user.id))
+    externalDb.resolveModuleEmbed(code, user.id)
       .then((data) => {
         if (cancelled) return;
         setEmbed(data);
