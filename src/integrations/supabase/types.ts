@@ -4035,6 +4035,7 @@ export type Database = {
           iframe_referrer_policy: string
           iframe_sandbox: string
           is_active: boolean
+          name: string | null
           open_in_new_tab: boolean
           updated_at: string
           url_template: string
@@ -4051,6 +4052,7 @@ export type Database = {
           iframe_referrer_policy?: string
           iframe_sandbox?: string
           is_active?: boolean
+          name?: string | null
           open_in_new_tab?: boolean
           updated_at?: string
           url_template?: string
@@ -4067,6 +4069,7 @@ export type Database = {
           iframe_referrer_policy?: string
           iframe_sandbox?: string
           is_active?: boolean
+          name?: string | null
           open_in_new_tab?: boolean
           updated_at?: string
           url_template?: string
