@@ -138,7 +138,7 @@ export default function EmbedManagerPage() {
         <div>
           <h1 className="text-2xl font-bold">Embeds Externos</h1>
           <p className="text-sm text-muted-foreground">
-            Configure sistemas externos para serem acessados via /embed/&lt;code&gt;. A configuração técnica é armazenada no Lovable Cloud; o registro do menu permanece nos módulos.
+            Configure sistemas externos para serem acessados via /sprint/&lt;code&gt;. A configuração técnica é armazenada no Lovable Cloud; o registro do menu permanece nos módulos.
           </p>
         </div>
         <div className="flex gap-2">
@@ -192,7 +192,7 @@ export default function EmbedManagerPage() {
                     <TableCell>
                       <div className="flex gap-1">
                         <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
-                        <Button size="icon" variant="ghost" onClick={() => window.open(`/embed/${r.code}`, '_blank')}>
+                        <Button size="icon" variant="ghost" onClick={() => window.open(`/sprint/${r.code}`, '_blank')}>
                           <ExternalLink className="h-4 w-4" />
                         </Button>
                         <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(r.id)}>
@@ -223,7 +223,7 @@ export default function EmbedManagerPage() {
           {editing && (
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label>Code (identificador único — também é a rota /embed/&lt;code&gt;)</Label>
+                <Label>Code (identificador único — também é a rota /sprint/&lt;code&gt;)</Label>
                 <Input
                   value={editing.code || ''}
                   disabled={isEditingExisting}
