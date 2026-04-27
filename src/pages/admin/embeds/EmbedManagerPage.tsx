@@ -287,21 +287,37 @@ export default function EmbedManagerPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Code (identificador único)</Label>
-                  <Input
-                    value={editing.code || ''}
-                    disabled={isEditingExisting}
-                    onChange={(e) => setEditing({ ...editing, code: e.target.value })}
-                    placeholder="ex: bi_dashboard"
-                    className="font-mono text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
                   <Label>Nome (exibido no menu)</Label>
                   <Input
                     value={editing.name || ''}
-                    onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      setEditing({
+                        ...editing,
+                        name,
+                        // Atualiza o code automaticamente enquanto o usuário não digitou manualmente
+                        code: !isEditingExisting && codeAuto ? slugify(name) : editing.code,
+                      });
+                    }}
                     placeholder="Dashboard BI"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>
+                    Code (identificador único)
+                    {!isEditingExisting && codeAuto && (
+                      <span className="ml-1 text-xs text-muted-foreground font-normal">— gerado do nome</span>
+                    )}
+                  </Label>
+                  <Input
+                    value={editing.code || ''}
+                    disabled={isEditingExisting}
+                    onChange={(e) => {
+                      setCodeAuto(false);
+                      setEditing({ ...editing, code: slugify(e.target.value) });
+                    }}
+                    placeholder="ex: bi_dashboard"
+                    className="font-mono text-sm"
                   />
                 </div>
               </div>
