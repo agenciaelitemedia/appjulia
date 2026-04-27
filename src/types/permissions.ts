@@ -39,7 +39,9 @@ export type ModuleCode =
   | 'configuracoes'
   | 'human_support'
   | 'push_notifications'
-  | 'contacts';
+  | 'contacts'
+  | 'admin_embeds'
+  | string; // permite codes dinâmicos para embeds (ex: 'embed_bi_dashboard')
 
 export interface Module {
   id: number;
@@ -55,6 +57,7 @@ export interface Module {
   parent_module_id?: number | null;
   menu_group?: string;
   is_menu_visible?: boolean;
+  module_type?: 'native' | 'embed' | 'external' | string;
 }
 
 export interface UserPermission {

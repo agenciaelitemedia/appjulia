@@ -73,6 +73,8 @@ import TelefoniaAdminPage from "./pages/admin/telefonia/TelefoniaAdminPage";
 import RedirectPage from "./pages/RedirectPage";
 import NotFound from "./pages/NotFound";
 import PromptGeneratorPage from "./pages/admin/prompts/PromptGeneratorPage";
+import EmbedPage from "./pages/embed/EmbedPage";
+import EmbedManagerPage from "./pages/admin/embeds/EmbedManagerPage";
 import LegalCasesPage from "./pages/legal-cases/LegalCasesPage";
 import ContractNotificationsPage from "./pages/contract-notifications/ContractNotificationsPage";
 import ComprarPage from "./pages/comprar/ComprarPage";
@@ -182,6 +184,8 @@ const App = () => (
                   <Route path="/admin/planos" element={<ProtectedRoute module="julia_plans"><PlanosPage /></ProtectedRoute>} />
                   <Route path="/admin/contrato-template" element={<ProtectedRoute module="admin_agents"><ContratoTemplatePage /></ProtectedRoute>} />
                   <Route path="/admin/notificacoes-push" element={<ProtectedRoute module="push_notifications"><PushNotificationsPage /></ProtectedRoute>} />
+                  <Route path="/admin/embeds" element={<ProtectedRoute module="admin_embeds"><EmbedManagerPage /></ProtectedRoute>} />
+                  <Route path="/embed/:code" element={<ProtectedRoute><EmbedPage /></ProtectedRoute>} />
                 </Route>
                 {/* Advogado routes - mobile layout */}
                 <Route element={<AdvLayout />}>
