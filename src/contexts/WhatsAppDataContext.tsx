@@ -338,7 +338,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         .limit(1)
         .single();
 
-      if (existing) {
+      // If the existing conversation lives in a deleted queue, ignore it and
+      // force creation of a new conversation in an active queue.
+      const existingInActiveQueue = existing && existing.queue_id && activeQueueIds.includes(existing.queue_id);
+      if (existingInActiveQueue) {
         const conv = existing as ChatConversation;
         setConversations(prev => prev.some(c => c.id === conv.id) ? prev : [conv, ...prev]);
         return conv;
@@ -360,7 +363,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (priorConv?.queue_id) {
+      if (priorConv?.queue_id && activeQueueIds.includes(priorConv.queue_id)) {
         resolvedQueueId = priorConv.queue_id;
       }
 
