@@ -1395,6 +1395,13 @@ export type Database = {
             foreignKeyName: "chat_conversations_queue_id_fkey"
             columns: ["queue_id"]
             isOneToOne: false
+            referencedRelation: "active_queues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_conversations_queue_id_fkey"
+            columns: ["queue_id"]
+            isOneToOne: false
             referencedRelation: "queues"
             referencedColumns: ["id"]
           },
@@ -3817,6 +3824,13 @@ export type Database = {
             foreignKeyName: "instagram_config_queue_id_fkey"
             columns: ["queue_id"]
             isOneToOne: false
+            referencedRelation: "active_queues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instagram_config_queue_id_fkey"
+            columns: ["queue_id"]
+            isOneToOne: false
             referencedRelation: "queues"
             referencedColumns: ["id"]
           },
@@ -4456,6 +4470,13 @@ export type Database = {
           queue_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "queue_agent_links_queue_id_fkey"
+            columns: ["queue_id"]
+            isOneToOne: false
+            referencedRelation: "active_queues"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "queue_agent_links_queue_id_fkey"
             columns: ["queue_id"]
@@ -5404,6 +5425,27 @@ export type Database = {
       }
     }
     Views: {
+      active_queues: {
+        Row: {
+          channel_type: string | null
+          client_id: string | null
+          id: string | null
+          name: string | null
+        }
+        Insert: {
+          channel_type?: string | null
+          client_id?: string | null
+          id?: string | null
+          name?: string | null
+        }
+        Update: {
+          channel_type?: string | null
+          client_id?: string | null
+          id?: string | null
+          name?: string | null
+        }
+        Relationships: []
+      }
       uazapi_history_pending_by_client: {
         Row: {
           client_id: string | null
