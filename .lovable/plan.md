@@ -1,66 +1,53 @@
 ## Objetivo
 
-Quando uma fila for **soft-deletada** (`queues.is_deleted=true`), todas as conversas e mensagens vinculadas a ela devem **sumir** do Chat e dos vínculos com o CRM. Só voltam a aparecer se forem migradas para uma fila ativa (via "Restaurar com Migração").
-
-## Diagnóstico
-
-Hoje a UI filtra apenas por `queue_id` quando o usuário escolhe uma fila no topo. Quando nenhuma fila está selecionada (ou o filtro está em "todas"), as queries em `chat_conversations` carregam tudo do `client_id` — **inclusive registros cuja fila está com `is_deleted=true`**. O mesmo vale para:
-
-- Carregamento de conversas (`WhatsAppDataContext.loadConversations` / `loadConvCounts`)
-- Realtime (`chat_conversations_changes`)
-- Vínculos CRM (`useChatCRMLinks` lista `chat_crm_links` sem checar a fila da conversa)
-- Hooks do CRM Builder que resolvem conversa por contato/deal (`useDealConversation`, `useContactConversation`, `useChatContactConversationStatus`, `useCardLinks`)
-- `WhatsAppMessagesDialog` no CRM
-- Edge functions que buscam "conversa ativa" (rota/IA/automação) — devem ignorar fila excluída para não recriar tickets fantasmas
-
-A solução é filtrar por `queue_id` que pertença a uma fila NÃO-deletada em todos esses pontos.
+Em `/admin/prompts` → aba **Casos Jurídicos**, ampliar a busca para também encontrar casos por dados dos clientes que os utilizam, e adicionar um expand em cada card mostrando todos os clientes vinculados àquele caso.
 
 ## Mudanças
 
-### 1. Banco — view auxiliar (migration)
-
-Criar uma view `public.active_queue_ids` (ou função `is_queue_active(uuid)`) que devolve apenas filas com `is_deleted=false`. Usaremos para filtros via `.in('queue_id', ...)` quando precisarmos restringir no client.
+### 1. Novo hook `useLegalCaseUsage` (`src/pages/admin/prompts/hooks/useLegalCaseUsage.ts`)
+Carrega, em uma única query, todos os vínculos de casos com agentes:
 
 ```sql
-CREATE OR REPLACE VIEW public.active_queue_ids AS
-SELECT id FROM public.queues WHERE is_deleted = false;
+SELECT pc.case_id, ap.cod_agent, ap.agent_name, ap.business_name
+FROM generation_agent_prompt_cases pc
+JOIN generation_agent_prompts ap ON ap.id = pc.agent_prompt_id
 ```
 
-### 2. Frontend — Chat (`src/contexts/WhatsAppDataContext.tsx`)
+Retorna um `Map<case_id, Array<{ cod_agent, agent_name, business_name }>>` para consulta O(1) por caso.
 
-- `loadConversations`, `loadConvCounts`, `loadHistoryConversations` (qualquer query em `chat_conversations`): adicionar filtro `.in('queue_id', activeQueueIds)` quando `currentQueueId` não estiver definido. Quando `currentQueueId` está definido, manter o filtro atual (já é uma fila explícita; se ela estiver deletada não aparece no seletor).
-- Resolução do "queue da conversa anterior" (`getOrCreateConversation`): ignorar conversas cuja `queue_id` esteja em fila deletada.
-- Realtime: no handler do `postgres_changes`, descartar eventos cujo `queue_id` não esteja em `activeQueueIds`.
-- `activeQueueIds` virá do hook `useAccessibleQueues(false)` (já carrega só não-deletadas) — basta materializar `useMemo(() => new Set(allQueues.map(q => q.id)), [allQueues])` e usar em filtro `.in()` ou em filtro client-side.
+### 2. Atualizar `LegalCasesTab.tsx`
 
-### 3. Frontend — CRM Builder e CRM
+**Busca ampliada:**
+- Trocar o placeholder do input para: *"Buscar por nome do caso, cód. agente, nome do cliente ou escritório..."*
+- Filtro `filtered` passa a aceitar match em qualquer um destes campos:
+  - `case_name`
+  - Em qualquer cliente vinculado: `cod_agent`, `agent_name` (cliente), `business_name` (escritório)
+- Comparação case-insensitive, com `includes`.
 
-- `src/hooks/useChatCRMLinks.ts`: ao listar `chat_crm_links`, fazer join lógico com `chat_conversations(queue_id)` e descartar links cuja conversa esteja em fila deletada. Implementação: `select('*, chat_conversations:conversation_id(queue_id, queues:queue_id(is_deleted))')` e filtrar no client (ou criar view `chat_crm_links_active`).
-- `src/pages/crm-builder/hooks/useDealConversation.ts`, `useContactConversation.ts`, `useChatContactConversationStatus.ts`, `useCardLinks.ts`: ao buscar a "conversa ativa" do contato, juntar com `queues` e ignorar `is_deleted=true`.
-- `src/pages/crm/components/WhatsAppMessagesDialog.tsx`: idem — não exibir mensagens cuja conversa pertença a fila deletada.
+**Expand por caso:**
+- Adicionar botão chevron (ChevronDown/ChevronUp) no card, ao lado dos demais ícones.
+- Ao expandir, renderizar abaixo do card a lista de clientes que usam o caso, no formato solicitado:
 
-### 4. Edge Functions (rota/automação/IA)
+```
+# 202603001 - Ana Carolina AS
+Ana Carolina Marques sociedade individual de advocacia
+```
 
-Atualizar buscas por "conversa existente" para não reaproveitar conversas de filas deletadas (caso contrário, mensagens novas iriam parar numa conversa "invisível"):
+ou seja:
+- Linha 1 (negrito): `# {cod_agent} - {business_name}`
+- Linha 2 (texto secundário): `{agent_name}`
 
-- `supabase/functions/chat-route-conversation/index.ts`
-- `supabase/functions/chat-ai-process/index.ts`
-- `supabase/functions/chat-automation-engine/index.ts`
-- `supabase/functions/uazapi-chat-webhook/index.ts`
-- `supabase/functions/meta-webhook/index.ts`
-- `supabase/functions/instagram-webhook/index.ts`
-- `supabase/functions/webchat-api/index.ts`
+- Mostrar contador "(N clientes)" ao lado do nome do caso.
+- Estado local: `expandedCaseIds: Set<string>`.
+- Se o caso não tem clientes: mostrar "Nenhum cliente usa este caso ainda".
 
-Padrão: ao fazer `from('chat_conversations').select(...).eq('contact_id', ...)`, adicionar join `queues!inner(is_deleted)` e filtrar `is_deleted=false`. Se a única conversa existente estiver em fila deletada, criar uma nova conversa numa fila ativa (a lógica de resolução de fila já existe no contexto).
+**Comportamento da busca + expand:**
+- Quando a busca casa por dados de cliente (e não pelo nome do caso), auto-expandir o card e destacar (highlight leve) os clientes que casaram.
 
-### 5. Restauração com migração (já existe)
+### 3. Sem mudanças de schema
+Tudo já existe nas tabelas `generation_legal_cases`, `generation_agent_prompt_cases` e `generation_agent_prompts`.
 
-Nenhuma mudança necessária — `queue-management` action `restore` com `migrate_to_queue_id` move `chat_conversations.queue_id` para a fila ativa, então as conversas/mensagens reaparecem automaticamente assim que esses filtros considerarem fila ativa.
+## Arquivos
 
-## Resultado esperado
-
-- Excluir uma fila → conversas e mensagens dessa fila somem imediatamente do Chat e dos vínculos CRM.
-- Mensagens novas que cheguem para um contato cuja última conversa estava na fila excluída criam uma nova conversa em fila ativa (não revivem a conversa órfã).
-- Restaurar a fila com migração → conversas e mensagens reaparecem na fila destino.
-- Restaurar a fila sem migração (reativar a original) → conversas e mensagens reaparecem na fila original.
-- Nenhum dado é apagado de fato; o efeito é só de visibilidade controlada pelo `is_deleted` da fila.
+- **Criar**: `src/pages/admin/prompts/hooks/useLegalCaseUsage.ts`
+- **Editar**: `src/pages/admin/prompts/components/LegalCasesTab.tsx`

@@ -12,9 +12,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Search, Trash2, Eye, Plus, Loader2, Pencil, History } from 'lucide-react';
+import { Search, Trash2, Eye, Plus, Loader2, Pencil, History, ChevronDown, ChevronUp, Users } from 'lucide-react';
 import { useLegalCases, CASE_CATEGORIES, type LegalCase } from '../hooks/useLegalCases';
 import { useLegalCaseVersions, type LegalCaseVersion } from '../hooks/useLegalCaseVersions';
+import { useLegalCaseUsage } from '../hooks/useLegalCaseUsage';
 import { SaveCaseDialog } from './SaveCaseDialog';
 import { LegalCaseHistoryDialog } from './LegalCaseHistoryDialog';
 
@@ -22,10 +23,12 @@ export function LegalCasesTab() {
   const { user } = useAuth();
   const { cases, isLoading, deleteCase, updateCase } = useLegalCases();
   const { saveVersion } = useLegalCaseVersions();
+  const { usage } = useLegalCaseUsage();
   const [searchName, setSearchName] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [selectedCase, setSelectedCase] = useState<LegalCase | null>(null);
   const [showNewDialog, setShowNewDialog] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   // Edit state
   const [editConfirmCase, setEditConfirmCase] = useState<LegalCase | null>(null);
@@ -47,11 +50,40 @@ export function LegalCasesTab() {
   // History state
   const [historyCase, setHistoryCase] = useState<LegalCase | null>(null);
 
+  const searchLower = searchName.trim().toLowerCase();
+  const matchesClient = (caseId: string): boolean => {
+    if (!searchLower) return false;
+    const list = usage.get(caseId) || [];
+    return list.some((e) =>
+      (e.cod_agent || '').toLowerCase().includes(searchLower) ||
+      (e.agent_name || '').toLowerCase().includes(searchLower) ||
+      (e.business_name || '').toLowerCase().includes(searchLower)
+    );
+  };
   const filtered = cases.filter((c) => {
-    const matchName = !searchName || c.case_name.toLowerCase().includes(searchName.toLowerCase());
     const matchCat = filterCategory === 'all' || c.category === filterCategory;
-    return matchName && matchCat;
+    if (!matchCat) return false;
+    if (!searchLower) return true;
+    return c.case_name.toLowerCase().includes(searchLower) || matchesClient(c.id);
   });
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const isMatchingClient = (entry: { cod_agent: string | null; agent_name: string | null; business_name: string | null }) => {
+    if (!searchLower) return false;
+    return (
+      (entry.cod_agent || '').toLowerCase().includes(searchLower) ||
+      (entry.agent_name || '').toLowerCase().includes(searchLower) ||
+      (entry.business_name || '').toLowerCase().includes(searchLower)
+    );
+  };
 
   const categoryColor = (cat: string) => {
     if (cat.includes('PREVIDENCIÁRIO') || cat.includes('Previdenciário')) return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
@@ -188,7 +220,7 @@ export function LegalCasesTab() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome..."
+            placeholder="Buscar por nome do caso, cód. agente, nome do cliente ou escritório..."
             value={searchName}
             onChange={(e) => setSearchName(e.target.value)}
             className="pl-9"
@@ -223,38 +255,86 @@ export function LegalCasesTab() {
         </Card>
       ) : (
         <div className="grid gap-3">
-          {filtered.map((c) => (
-            <Card key={c.id} className="hover:shadow-md transition-shadow group">
-              <CardContent className="flex items-center justify-between py-4">
-                <div className="flex items-center gap-3 cursor-pointer" onClick={() => setSelectedCase(c)}>
-                  <div>
-                    <p className="font-medium">{c.case_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(c.created_at).toLocaleDateString('pt-BR')}
-                      {c.created_by && ` • ${c.created_by}`}
-                    </p>
+          {filtered.map((c) => {
+            const clients = usage.get(c.id) || [];
+            const autoExpand = !!searchLower && matchesClient(c.id) && !c.case_name.toLowerCase().includes(searchLower);
+            const isExpanded = expandedIds.has(c.id) || autoExpand;
+            return (
+              <Card key={c.id} className="hover:shadow-md transition-shadow group">
+                <CardContent className="py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 cursor-pointer flex-1" onClick={() => setSelectedCase(c)}>
+                      <div>
+                        <p className="font-medium flex items-center gap-2">
+                          {c.case_name}
+                          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-normal">
+                            <Users className="h-3 w-3" />
+                            {clients.length}
+                          </span>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(c.created_at).toLocaleDateString('pt-BR')}
+                          {c.created_by && ` • ${c.created_by}`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className={categoryColor(c.category)}>{c.category}</Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title={isExpanded ? 'Recolher clientes' : 'Ver clientes'}
+                        onClick={() => toggleExpand(c.id)}
+                      >
+                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </Button>
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" title="Visualizar" onClick={() => setSelectedCase(c)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" title="Histórico" onClick={() => setHistoryCase(c)}>
+                          <History className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" title="Editar" onClick={() => confirmEdit(c)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" title="Excluir" onClick={() => openDelete(c)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className={categoryColor(c.category)}>{c.category}</Badge>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" title="Visualizar" onClick={() => setSelectedCase(c)}>
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" title="Histórico" onClick={() => setHistoryCase(c)}>
-                      <History className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" title="Editar" onClick={() => confirmEdit(c)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" title="Excluir" onClick={() => openDelete(c)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+
+                  {isExpanded && (
+                    <div className="mt-4 pt-4 border-t space-y-2">
+                      {clients.length === 0 ? (
+                        <p className="text-sm text-muted-foreground italic">Nenhum cliente usa este caso ainda.</p>
+                      ) : (
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {clients.map((entry, idx) => {
+                            const highlight = isMatchingClient(entry);
+                            return (
+                              <div
+                                key={`${entry.cod_agent}-${idx}`}
+                                className={`rounded-md border px-3 py-2 text-sm ${highlight ? 'bg-primary/10 border-primary/40' : 'bg-muted/30'}`}
+                              >
+                                <p className="font-semibold leading-tight">
+                                  # {entry.cod_agent || '—'} - {entry.business_name || '—'}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  {entry.agent_name || '—'}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
