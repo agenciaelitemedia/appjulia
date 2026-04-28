@@ -39,7 +39,7 @@ export function RestoreQueueDialog({ open, onOpenChange, queue, activeQueues }: 
         .eq('queue_id', queue.id);
       if (cancelled) return;
       setConvCount(c.count ?? 0);
-      const m = await supabase
+      const m = await (supabase as any)
         .from('chat_messages')
         .select('id', { count: 'exact', head: true })
         .eq('queue_id', queue.id);
