@@ -1,57 +1,70 @@
-# Nova cena no painel TV: Infraestrutura & Cloud
+# Melhorias na cena de Infra + ticker estilo bolsa
 
-Hoje `/tv/master` rotaciona 3 cenas a cada 30s (Atendimento, Saúde Técnica, Clientes). Vou adicionar uma **4ª cena** focada em infra/cloud, que entra automaticamente no rodízio.
+Três entregas independentes no painel `/tv/master`:
 
-## O que a cena vai mostrar
+## 1. Filtros de origem na cena Infra
 
-Layout grid 12 colunas, mesmo padrão visual das outras cenas (TvCard / BigKpiCard / BarRanking).
+Adicionar barra de chips no topo da `SceneInfraCloud` para escolher quais sources de webhook entram nas métricas dos KPIs (Total 24h, Última hora, Encaminhados) e no ranking.
 
-**Linha 1 — Big KPIs (status do backend Lovable Cloud)**
-- Status da instância Cloud (`ACTIVE_HEALTHY` / `COMING_UP` / `UNHEALTHY` etc.) com semáforo verde/âmbar/vermelho
-- Latência média do banco (ms) — última hora
-- Erros 5xx em Edge Functions — últimas 24h
-- Uptime % nas últimas 24h (derivado de heartbeat do dispatcher + ausência de erros 5xx)
+- Lista dinâmica: extraída do próprio resultado de `useWebhookActivity` (todas as `source` distintas das últimas 24h).
+- Estado: `useState<Set<string>>` na cena, persistido em `localStorage` (`tv:infra:source-filter`) para sobreviver a recargas/rotação.
+- Comportamento: se nenhum chip ativo → mostra todos (default). Cada chip clicável alterna inclusão. Botão "Todos" e "Limpar".
+- O hook `useWebhookActivity` passa a retornar a lista bruta (`raw: { source, created_at, forwarded }[]`) além dos agregados; a cena recalcula os totais filtrados via `useMemo` para evitar refetch.
 
-**Linha 2 — Edge Functions**
-- TvCard "Top Edge Functions por volume (24h)" — ranking com chamadas, p95 latência e % de erro por função (a partir dos `function_edge_logs`)
-- TvCard "Erros recentes" — últimos 8 eventos de erro de edge functions com timestamp, função e código de status
+Visual: chips compactos no canto superior direito do `TvCard "Webhooks recebidos"`, estilo `bg-zinc-800 text-xs`, ativos em `bg-violet-500/20 ring-1 ring-violet-400`.
 
-**Linha 3 — Banco & Storage**
-- TvCard "Banco de dados" — tamanho total, conexões ativas, slow queries (> 1s) na última hora
-- TvCard "Storage / Mídia" — total de objetos, tamanho usado, uploads nas últimas 24h (tabela `chat_messages` com `media_url` ou bucket de storage)
+## 2. Histórico em série temporal (60min)
 
-## Como buscar os dados
+Novo widget na cena Infra: `TvCard "Evolução 60min"` ocupando a linha inferior (col-span-12), com 3 sparklines lado a lado:
 
-Tudo já está disponível via tooling existente do projeto:
+- **Conexões ativas** (do banco)
+- **Webhooks/min** (volume agregado)
+- **Mídia/min** (chat_messages com `media_url`)
 
-1. **Status da instância**: nova edge function `tv-cloud-status` que chama internamente o equivalente ao `cloud_status` (ou apenas faz um `SELECT 1` com timing — se falhar/lento, marca `warn`/`bad`).
-2. **Edge function logs / latência / erros**: consulta `function_edge_logs` via RPC SQL existente (mesmo padrão usado por `useDispatcherHealth`). Vou criar um hook `useEdgeFunctionsHealth` que agrega por `function_id` nas últimas 24h.
-3. **Banco**: `pg_stat_activity` (conexões), `pg_stat_statements` (slow queries) via RPC. Se `pg_stat_statements` não estiver habilitado, mostro só conexões + tamanho via `pg_database_size`.
-4. **Storage/Mídia**: count e sum em `chat_messages` filtrando por `media_url IS NOT NULL` nas últimas 24h.
+Implementação:
 
-Tudo com `refetchInterval` de 30–60s, igual às outras cenas.
+- Novo hook `useInfraTimeSeries()` que mantém um buffer in-memory de até 60 pontos (1 ponto por minuto). Cada minuto, ao receber novo dado de `useInfraStats` / `useWebhookActivity` / `useMediaStats`, faz `push` no buffer e descarta os pontos > 60min. Buffer guardado em `useRef` + `useState` para forçar re-render.
+- Persistência leve em `sessionStorage` (`tv:infra:timeseries`) para que rotacionar entre cenas não perca o histórico já coletado.
+- Renderização com `recharts` (`AreaChart` minimalista, sem eixos, similar ao `DashboardSparkline.tsx` que já existe), em 3 cards lado a lado mostrando:
+  - Valor atual grande (tabular-nums)
+  - Min / Max do período
+  - Sparkline com gradiente
+
+Tons: cores consistentes com o resto da cena (azul para conexões, violeta para webhooks, âmbar para mídia).
+
+## 3. Ticker estilo bolsa de valores
+
+Reformatar `TvTicker.tsx` para visual de cotação financeira:
+
+- Fundo preto puro (`bg-black`), borda superior/inferior fina dourada (`border-y border-amber-500/40`).
+- Cada item formatado como ticker bursátil:
+  ```
+  SLA ▲ 12 ATRASOS  +3   |   DISPATCHER ● ONLINE  42s   |   CHURN ▼ 5 SINAIS  -2
+  ```
+- Layout por item: `[CÓDIGO em mono uppercase] [seta ▲▼●] [valor] [delta colorido]`.
+  - ▲ verde para alta positiva (mais leads, mais conversões), ▼ vermelho para queda, ● âmbar para neutro/status.
+  - Para alertas (SLA violado, churn, dispatcher offline) inverter: ▲ em vermelho = ruim subindo.
+- Separadores: `│` em `text-amber-500/30` entre tickers.
+- Tipografia: `font-mono uppercase tracking-wider text-base`, alturas reduzidas (py-2).
+- Manter marquee animation existente (60s loop, pausa no hover).
+- Tickers serão derivados das mesmas fontes (`useGlobalSlaStats`, `useChurnSignals`, `useDispatcherHealth`) mais 2 novos snapshots para enriquecer:
+  - `WEBHOOKS` — total última hora (vem de `useWebhookActivity`)
+  - `DB` — conexões ativas (vem de `useInfraStats`)
+- Delta calculado comparando com snapshot da consulta anterior guardado em `useRef`.
 
 ## Arquivos
 
-**Criar**
-- `src/pages/tv/hooks/useInfraStats.ts` — hooks: `useCloudInstanceStatus`, `useEdgeFunctionsHealth`, `useDatabaseStats`, `useStorageStats`
-- `src/pages/tv/components/scenes/SceneInfraCloud.tsx` — nova cena seguindo padrão das existentes
-- `supabase/functions/tv-infra-stats/index.ts` — edge function que executa as queries SQL administrativas (pg_stat_*, function_edge_logs) com service role e retorna JSON agregado
-
 **Editar**
-- `src/pages/tv/TvMasterPage.tsx` — adicionar a 4ª cena ao array `scenes`:
-  ```ts
-  { key: 'infra', title: 'Infraestrutura & Cloud', node: <SceneInfraCloud /> }
-  ```
+- `src/pages/tv/hooks/useInfraStats.ts` — `useWebhookActivity` retorna também lista bruta; novo hook `useInfraTimeSeries`.
+- `src/pages/tv/components/scenes/SceneInfraCloud.tsx` — chips de filtro, recálculo via memo, nova linha com 3 sparklines.
+- `src/pages/tv/components/TvTicker.tsx` — refatoração visual completa estilo bolsa, integração com webhooks/db.
 
-## Atualização e rotação
-
-- A cena entra automaticamente no `TvSceneRotator` existente (ciclo 30s, fade entre cenas, dots clicáveis).
-- Cada widget da cena tem seu próprio polling (React Query), independente do rodízio — quando a cena reaparece, mostra dados frescos.
-- Sem mudança no `TvHeaderStrip` nem no `TvTicker` (eles continuam fixos no topo/rodapé).
+**Criar**
+- `src/pages/tv/components/widgets/TvSparklineCard.tsx` — card reutilizável (label + valor + min/max + sparkline recharts).
+- `src/pages/tv/components/widgets/TvTickerItem.tsx` — item formatado código/seta/valor/delta.
 
 ## Tratamento de falhas
 
-- Se `pg_stat_statements` não existir, oculto o widget de slow queries com fallback "Métrica não disponível".
-- Se a edge function `tv-infra-stats` falhar, cada KPI mostra `—` em cinza (não quebra a cena).
-- Status `INACTIVE` / `PAUSING` é destacado em vermelho com pulse, igual aos outros alertas críticos.
+- Buffer de série temporal começa vazio na primeira carga; sparkline mostra placeholder "coletando…" até ter ≥ 2 pontos.
+- Filtro de origem que não retorna nada exibe "—" nos KPIs em vez de quebrar.
+- Ticker continua funcionando mesmo se webhooks/db falharem (apenas omite o tile correspondente).
