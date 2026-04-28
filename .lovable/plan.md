@@ -1,68 +1,66 @@
-# Filas: Exclusão sem migração + Restauração para outra fila
+## Objetivo
 
-## Mudanças solicitadas
+Quando uma fila for **soft-deletada** (`queues.is_deleted=true`), todas as conversas e mensagens vinculadas a ela devem **sumir** do Chat e dos vínculos com o CRM. Só voltam a aparecer se forem migradas para uma fila ativa (via "Restaurar com Migração").
 
-1. **Excluir sem migrar**: hoje a fila com conversas ativas exige migrar antes. Adicionar opção "Excluir sem migrar" — as conversas ficam órfãs no soft-delete da fila e podem ser recuperadas depois.
-2. **Restaurar para outra fila**: ao restaurar uma fila excluída, permitir mover suas conversas (e mensagens) para uma fila ativa de destino, em vez de só reativar a fila original.
-3. **Permissão do botão Excluir**: o item "Excluir" no card da fila só aparece para usuários com role `admin`, `colaborador` ou `user`. Demais roles (`time`, `advogado`, `comercial`) não veem.
+## Diagnóstico
 
----
+Hoje a UI filtra apenas por `queue_id` quando o usuário escolhe uma fila no topo. Quando nenhuma fila está selecionada (ou o filtro está em "todas"), as queries em `chat_conversations` carregam tudo do `client_id` — **inclusive registros cuja fila está com `is_deleted=true`**. O mesmo vale para:
 
-## Backend — `supabase/functions/queue-management/index.ts`
+- Carregamento de conversas (`WhatsAppDataContext.loadConversations` / `loadConvCounts`)
+- Realtime (`chat_conversations_changes`)
+- Vínculos CRM (`useChatCRMLinks` lista `chat_crm_links` sem checar a fila da conversa)
+- Hooks do CRM Builder que resolvem conversa por contato/deal (`useDealConversation`, `useContactConversation`, `useChatContactConversationStatus`, `useCardLinks`)
+- `WhatsAppMessagesDialog` no CRM
+- Edge functions que buscam "conversa ativa" (rota/IA/automação) — devem ignorar fila excluída para não recriar tickets fantasmas
 
-### Action `delete` (modificar)
-- Aceitar novo parâmetro `force: boolean` no body.
-- Fluxo atual:
-  - Tem agentes vinculados → 409 (mantém).
-  - Tem conversas ativas e sem `migrate_to_queue_id` → 409 (mantém).
-- Novo: se `force === true` **e** sem `migrate_to_queue_id`:
-  - Pular o passo de migração.
-  - Prosseguir direto com o soft delete (`is_deleted=true`, `is_active=false`).
-  - As conversas/mensagens permanecem com o `queue_id` original (a fila ainda existe, só está marcada como excluída) — isso preserva os dados para uma futura restauração/migração.
-- Resposta inclui `forced: true` quando aplicável.
+A solução é filtrar por `queue_id` que pertença a uma fila NÃO-deletada em todos esses pontos.
 
-### Action `restore` (modificar)
-- Aceitar novo parâmetro opcional `migrate_to_queue_id: string`.
-- Comportamento padrão (sem `migrate_to_queue_id`): reativa a fila original (igual hoje).
-- Quando `migrate_to_queue_id` é informado:
-  1. Validar que a fila destino existe, é do mesmo `client_id` e não está deletada.
-  2. `UPDATE chat_conversations SET queue_id = <destino> WHERE queue_id = <fila excluída>`.
-  3. `UPDATE chat_messages SET queue_id = <destino> WHERE queue_id = <fila excluída>` (em lotes se necessário).
-  4. **Não** reativar a fila excluída — ela permanece com `is_deleted=true` (já não tem mais dados; serve só de histórico).
-  - Resposta retorna `migrated_to`, `conversations_moved`, `messages_moved`.
+## Mudanças
 
----
+### 1. Banco — view auxiliar (migration)
 
-## Frontend
+Criar uma view `public.active_queue_ids` (ou função `is_queue_active(uuid)`) que devolve apenas filas com `is_deleted=false`. Usaremos para filtros via `.in('queue_id', ...)` quando precisarmos restringir no client.
 
-### `src/pages/agente/filas/components/DeleteQueueDialog.tsx`
-- Adicionar checkbox/switch **"Excluir sem migrar conversas (poderei recuperar depois restaurando para outra fila)"**.
-  - Quando ativado: oculta o `Select` de fila destino e libera o botão Excluir mesmo sem destino selecionado.
-  - Mostra aviso amarelo: "As N conversas ficarão preservadas até você restaurar/migrar."
-- Mantém confirmação por digitação do nome + switch final.
-- Hook `useQueueMutations.deleteQueue` ganha o campo `force?: boolean` e repassa ao edge function.
+```sql
+CREATE OR REPLACE VIEW public.active_queue_ids AS
+SELECT id FROM public.queues WHERE is_deleted = false;
+```
 
-### Novo: `RestoreQueueDialog.tsx` (em `src/pages/agente/filas/components/`)
-- Dialog acionado no item "Restaurar" do `QueueCard`.
-- Carrega a contagem de conversas/mensagens ainda atreladas à fila excluída (via `chat_conversations` count e `chat_messages` count, server-side).
-- Duas opções:
-  - **Reativar a fila original** (default): chama `restore` sem `migrate_to_queue_id`.
-  - **Restaurar dados em outra fila**: mostra `Select` com filas ativas do mesmo cliente; ao confirmar, chama `restore` com `migrate_to_queue_id`.
-- Hook `restoreQueue` aceita objeto `{ queue_id, migrate_to_queue_id? }` (substitui assinatura atual de string).
+### 2. Frontend — Chat (`src/contexts/WhatsAppDataContext.tsx`)
 
-### `QueueCard.tsx`
-- Importar `useAuth` e calcular `canDelete = ['admin','colaborador','user'].includes(user?.role)`.
-- O `DropdownMenuItem` "Excluir" só renderiza quando `canDelete` é true.
-- Item "Restaurar" agora abre o `RestoreQueueDialog` em vez de chamar `restoreQueue.mutate(id)` direto.
+- `loadConversations`, `loadConvCounts`, `loadHistoryConversations` (qualquer query em `chat_conversations`): adicionar filtro `.in('queue_id', activeQueueIds)` quando `currentQueueId` não estiver definido. Quando `currentQueueId` está definido, manter o filtro atual (já é uma fila explícita; se ela estiver deletada não aparece no seletor).
+- Resolução do "queue da conversa anterior" (`getOrCreateConversation`): ignorar conversas cuja `queue_id` esteja em fila deletada.
+- Realtime: no handler do `postgres_changes`, descartar eventos cujo `queue_id` não esteja em `activeQueueIds`.
+- `activeQueueIds` virá do hook `useAccessibleQueues(false)` (já carrega só não-deletadas) — basta materializar `useMemo(() => new Set(allQueues.map(q => q.id)), [allQueues])` e usar em filtro `.in()` ou em filtro client-side.
 
-### `FilasPage.tsx`
-- Substituir o callback inline `onRestore={(q) => restoreQueue.mutate(q.id)}` por estado `restoreTarget` análogo ao `deleteTarget` e renderizar o `RestoreQueueDialog`.
+### 3. Frontend — CRM Builder e CRM
 
----
+- `src/hooks/useChatCRMLinks.ts`: ao listar `chat_crm_links`, fazer join lógico com `chat_conversations(queue_id)` e descartar links cuja conversa esteja em fila deletada. Implementação: `select('*, chat_conversations:conversation_id(queue_id, queues:queue_id(is_deleted))')` e filtrar no client (ou criar view `chat_crm_links_active`).
+- `src/pages/crm-builder/hooks/useDealConversation.ts`, `useContactConversation.ts`, `useChatContactConversationStatus.ts`, `useCardLinks.ts`: ao buscar a "conversa ativa" do contato, juntar com `queues` e ignorar `is_deleted=true`.
+- `src/pages/crm/components/WhatsAppMessagesDialog.tsx`: idem — não exibir mensagens cuja conversa pertença a fila deletada.
 
-## Notas técnicas
+### 4. Edge Functions (rota/automação/IA)
 
-- A coluna `chat_messages.queue_id` é atualizada em batches de até 500 ids para evitar timeouts (padrão já usado no projeto).
-- Não mexemos em `queue_agent_links` — restaurar para outra fila não recria vínculos de agentes, apenas move dados de conversa/mensagem.
-- A fila origem continua com `is_deleted=true` após uma restauração com migração — fica visível em "Mostrar excluídas" mas vazia.
-- Roles: a regra de UI (`admin/colaborador/user`) é só para exibir o botão; o edge function continua validando autenticação como hoje.
+Atualizar buscas por "conversa existente" para não reaproveitar conversas de filas deletadas (caso contrário, mensagens novas iriam parar numa conversa "invisível"):
+
+- `supabase/functions/chat-route-conversation/index.ts`
+- `supabase/functions/chat-ai-process/index.ts`
+- `supabase/functions/chat-automation-engine/index.ts`
+- `supabase/functions/uazapi-chat-webhook/index.ts`
+- `supabase/functions/meta-webhook/index.ts`
+- `supabase/functions/instagram-webhook/index.ts`
+- `supabase/functions/webchat-api/index.ts`
+
+Padrão: ao fazer `from('chat_conversations').select(...).eq('contact_id', ...)`, adicionar join `queues!inner(is_deleted)` e filtrar `is_deleted=false`. Se a única conversa existente estiver em fila deletada, criar uma nova conversa numa fila ativa (a lógica de resolução de fila já existe no contexto).
+
+### 5. Restauração com migração (já existe)
+
+Nenhuma mudança necessária — `queue-management` action `restore` com `migrate_to_queue_id` move `chat_conversations.queue_id` para a fila ativa, então as conversas/mensagens reaparecem automaticamente assim que esses filtros considerarem fila ativa.
+
+## Resultado esperado
+
+- Excluir uma fila → conversas e mensagens dessa fila somem imediatamente do Chat e dos vínculos CRM.
+- Mensagens novas que cheguem para um contato cuja última conversa estava na fila excluída criam uma nova conversa em fila ativa (não revivem a conversa órfã).
+- Restaurar a fila com migração → conversas e mensagens reaparecem na fila destino.
+- Restaurar a fila sem migração (reativar a original) → conversas e mensagens reaparecem na fila original.
+- Nenhum dado é apagado de fato; o efeito é só de visibilidade controlada pelo `is_deleted` da fila.
