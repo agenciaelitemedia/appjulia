@@ -1,33 +1,50 @@
-## Mudanças no `/chat`
+## Sincronização e otimização do `ChatList`
 
-### 1. Renomear aba "Aguardando Atendimento" → "Em Abertos"
+### 1. Sincronização entre contagens das abas e lista exibida
 
-Arquivo: `src/components/chat/ChatList.tsx` (linha 692)
+A contagem das abas e a lista visível já compartilham a mesma fonte (`visibleContacts` + `statusByContact`), mas há dois pontos onde podem ficar defasadas durante interações rápidas:
 
-```tsx
-{ value: 'pending', label: 'Em Abertos', count: pendingConvCount },
-{ value: 'open',    label: 'Em Atendimento', count: openConvCount },
+- **Ordenação repetida** de `conversations` em duas memos diferentes (`convMetaByContact` e `statusByContact`) cria janelas onde uma atualiza antes da outra.
+- **`searchQuery`** vem direto do estado, sem `useDeferredValue` — durante digitação rápida + troca de aba o filtro local de contagem pode rodar em frames diferentes da lista.
+
+**Solução**: derivar **lista renderizada** e **contagens** num único `useMemo` compartilhado, garantindo cálculo atômico no mesmo render.
+
+### 2. Otimizações de custo em `useMemo`
+
+Mudanças em `src/components/chat/ChatList.tsx`:
+
+**a) Sort único de `conversations`** — substituir as duas cópias `[...conversations].sort(...)` (em `convMetaByContact` e `statusByContact`) por um `sortedConversations` memoizado:
+
+```ts
+const sortedConversations = React.useMemo(() => {
+  const withTs = conversations.map((c) => ({
+    c,
+    ts: Date.parse(c.updated_at || c.created_at || '') || 0,
+  }));
+  withTs.sort((a, b) => b.ts - a.ts);
+  return withTs.map((x) => x.c);
+}, [conversations]);
+```
+Ganhos: 1 sort em vez de 2; sem `new Date()` por comparação (Date.parse 1x por item).
+
+**b) Contagens em passada única** — substituir `tabFilteredForCounts` + `pendingConvCount` + `openConvCount` (3 iterações em sequência) por um único `for` que filtra aba/busca e incrementa os dois contadores no mesmo loop, retornando `{ pendingConvCount, openConvCount }`. Garante que ambos contadores são produzidos no mesmo render que a lista visível.
+
+**c) `useDeferredValue` em `searchQuery`** dentro do componente para que a digitação não trave a renderização e a lista + contadores recebam o mesmo valor diferido (mantém-se sincronizados):
+
+```ts
+const deferredSearch = React.useDeferredValue(searchQuery);
+// usar deferredSearch tanto no cálculo dos counts quanto onde a lista é renderizada por busca
 ```
 
-### 2. Corrigir contadores das abas para refletir os filtros
+**d) Memoizar `lowercase` de busca** uma só vez em vez de chamar `.toLowerCase()` por contato.
 
-**Problema atual:** `pendingConvCount` e `openConvCount` vêm de `WhatsAppDataContext.loadConvCounts()`, que faz uma query direta no banco filtrando apenas por `client_id` e `queue_id`. Eles **ignoram** todos os filtros aplicados no `ChatList` (período, responsável, etapa CRM, SLA, modo IA/Humano, Individual/Grupos, busca).
+**e) `slaStatusByContact`** já está bom; apenas trocar `evaluateSla` em loop por skip cedo quando `slaConfigs` não estiver definido (early return da memo).
 
-**Solução:** Calcular as contagens localmente em `ChatList.tsx` a partir do mesmo `visibleContacts` (que já reflete todos os filtros) cruzando com `conversations` para identificar o `status` (`pending`/`open`) de cada contato visível.
+### Arquivos editados
+- `src/components/chat/ChatList.tsx`
 
-Implementação em `src/components/chat/ChatList.tsx`:
-
-- Construir um `Map<contact_id, status>` a partir de `conversations` (priorizando a conversa mais recente por contato — mesma lógica já usada em `convMetaByContact`).
-- Aplicar também o filtro de aba Individual/Grupos (`matchesActiveTab`) e o filtro de busca (`searchQuery`) sobre `visibleContacts`, gerando `tabFilteredContacts`.
-- Derivar:
-  ```ts
-  const pendingConvCount = tabFilteredContacts.filter(c => statusByContact.get(c.id) === 'pending').length;
-  const openConvCount    = tabFilteredContacts.filter(c => statusByContact.get(c.id) === 'open').length;
-  ```
-- Remover o consumo de `pendingConvCount` / `openConvCount` vindos do `useWhatsAppData()` (passam a ser locais e dinâmicos).
-
-**Importante:** Como `loadConversations` no contexto só carrega conversas do grupo atual (`active` quando o filtro é `pending`/`open`), os contadores derivados localmente já contemplam ambos os status quando a aba ativa é uma das duas (a query usa `.in('status', ['pending', 'open'])`). Isso preserva o comportamento sem precisar de fetch adicional.
-
-### Resumo de arquivos editados
-
-- `src/components/chat/ChatList.tsx` — renomear label e calcular contadores localmente em cima de `visibleContacts` + `conversations`.
+### Resumo de impacto
+- Mesma fonte de verdade para lista e contadores no mesmo render → sem defasagem ao alternar abas/filtros.
+- ~50% menos trabalho em sort de conversations.
+- 1 passada única em vez de 3 para derivar contadores.
+- Digitação na busca não bloqueia a lista (deferred).
