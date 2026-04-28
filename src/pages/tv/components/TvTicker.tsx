@@ -81,18 +81,18 @@ export function TvTicker() {
   const items = events.length > 0 ? [...events, ...events] : [];
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/70 py-4 relative">
+    <div className="overflow-hidden rounded-2xl border-2 border-rose-600/70 bg-gradient-to-r from-rose-950/80 via-rose-900/60 to-rose-950/80 py-5 relative shadow-[0_0_30px_rgba(244,63,94,0.35)]">
       <div
         className="flex gap-12 whitespace-nowrap animate-[marquee_60s_linear_infinite] hover:[animation-play-state:paused]"
         style={{ width: 'max-content' }}
       >
         {items.map((e, i) => (
-          <span key={`${e.id}-${i}`} className={`text-xl font-medium inline-flex items-center gap-3 ${
-            e.tone === 'bad' ? 'text-rose-300' : e.tone === 'warn' ? 'text-amber-300' : 'text-emerald-300'
+          <span key={`${e.id}-${i}`} className={`text-2xl font-bold inline-flex items-center gap-3 ${
+            e.tone === 'bad' ? 'text-rose-200 drop-shadow-[0_0_8px_rgba(244,63,94,0.7)]' : e.tone === 'warn' ? 'text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.5)]' : 'text-emerald-200 drop-shadow-[0_0_6px_rgba(52,211,153,0.5)]'
           }`}>
-            <span className="text-2xl">{e.emoji}</span>
+            <span className="text-3xl">{e.emoji}</span>
             <span>
-              <span className="text-zinc-500 mr-2 tabular-nums">
+              <span className="text-rose-300/70 mr-2 tabular-nums font-mono text-lg">
                 {e.ts.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
               </span>
               {e.text}
