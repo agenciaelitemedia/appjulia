@@ -86,8 +86,6 @@ export function ChatList() {
     conversations,
     conversationTagsMap,
     contacts,
-    pendingConvCount,
-    openConvCount,
   } = useWhatsAppData();
   const { data: queueLimits } = useAgentQueueLimits();
   const showGroupsTab = !!(queueLimits?.allowGroups && queueLimits?.showGroupsTab);
@@ -321,6 +319,41 @@ export function ChatList() {
       return true;
     },
     [isGroupByContactId, activeTab, showGroupsTab]
+  );
+
+  // Map contact_id -> conversation status (most-recent conversation per contact).
+  const statusByContact = React.useMemo(() => {
+    const map = new Map<string, string>();
+    const sorted = [...conversations].sort(
+      (a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime()
+    );
+    sorted.forEach((c) => {
+      if (!map.has(c.contact_id)) map.set(c.contact_id, c.status);
+    });
+    return map;
+  }, [conversations]);
+
+  // Counts derived from the same filtered/visible list (Individual/Groups + search + all filters)
+  const tabFilteredForCounts = React.useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return visibleContacts.filter((c) => {
+      if (!matchesActiveTab(c.id)) return false;
+      if (!q) return true;
+      return (
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.phone || '').toLowerCase().includes(q) ||
+        (c.last_message_text || '').toLowerCase().includes(q)
+      );
+    });
+  }, [visibleContacts, matchesActiveTab, searchQuery]);
+
+  const pendingConvCount = React.useMemo(
+    () => tabFilteredForCounts.filter((c) => statusByContact.get(c.id) === 'pending').length,
+    [tabFilteredForCounts, statusByContact]
+  );
+  const openConvCount = React.useMemo(
+    () => tabFilteredForCounts.filter((c) => statusByContact.get(c.id) === 'open').length,
+    [tabFilteredForCounts, statusByContact]
   );
 
   const channelBadge = (type: string) => {
@@ -689,7 +722,7 @@ export function ChatList() {
       {/* Status tabs — Aguardando Atendimento / Em Atendimento */}
       <div className="flex border-b shrink-0">
         {([
-          { value: 'pending', label: 'Aguardando Atendimento', count: pendingConvCount },
+          { value: 'pending', label: 'Em Abertos', count: pendingConvCount },
           { value: 'open',    label: 'Em Atendimento',         count: openConvCount },
         ] as const).map(tab => (
           <button
