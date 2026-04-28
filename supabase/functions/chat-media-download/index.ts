@@ -343,15 +343,27 @@ Deno.serve(async (req) => {
       signal: AbortSignal.timeout(60000),
     });
 
-    let dlRes = await callDownload(externalId);
+    let dlRes: Response;
+    try {
+      dlRes = await callDownload(externalId);
 
-    // 404 → try to recover via /message/find once, then retry
-    if (dlRes.status === 404 && !originalMessageId) {
-      const recovered = await tryRecoverExternalId();
-      if (recovered && recovered !== externalId) {
-        externalId = recovered;
-        dlRes = await callDownload(externalId);
+      // 404 → try to recover via /message/find once, then retry
+      if (dlRes.status === 404 && !originalMessageId) {
+        const recovered = await tryRecoverExternalId();
+        if (recovered && recovered !== externalId) {
+          externalId = recovered;
+          dlRes = await callDownload(externalId);
+        }
       }
+    } catch (err) {
+      const isAbort = (err as Error)?.name === "AbortError" || (err as Error)?.name === "TimeoutError";
+      console.error("[chat-media-download] UaZapi fetch failed:", (err as Error)?.message);
+      return respond({
+        error: isAbort ? "UAZAPI_TIMEOUT" : "UAZAPI_FETCH_ERROR",
+        details: (err as Error)?.message ?? "fetch failed",
+        fallback: true,
+        transient: true,
+      }, 200);
     }
 
     if (!dlRes.ok) {
