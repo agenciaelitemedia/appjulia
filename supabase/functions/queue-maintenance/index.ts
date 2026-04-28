@@ -151,23 +151,35 @@ serve(async (req) => {
         .from('chat_conversations')
         .select('id', { count: 'exact', head: true })
         .eq('queue_id', queueId);
-      const { count: msgCount } = await supabase
-        .from('chat_messages')
-        .select('id', { count: 'exact', head: true })
-        .eq('queue_id', queueId);
-      const { count: mediaCount } = await supabase
-        .from('chat_messages')
-        .select('id', { count: 'exact', head: true })
-        .eq('queue_id', queueId)
-        .not('media_url', 'is', null);
+
+      // chat_messages has NO queue_id column — must go through conversation_id
+      const conversationIdsForPreview = await fetchAllIds(
+        supabase, 'chat_conversations', 'id', { col: 'queue_id', val: queueId },
+      );
+      let msgCount = 0;
+      let mediaCount = 0;
+      for (let i = 0; i < conversationIdsForPreview.length; i += 500) {
+        const slice = conversationIdsForPreview.slice(i, i + 500);
+        const { count: c1 } = await supabase
+          .from('chat_messages')
+          .select('id', { count: 'exact', head: true })
+          .in('conversation_id', slice);
+        msgCount += c1 ?? 0;
+        const { count: c2 } = await supabase
+          .from('chat_messages')
+          .select('id', { count: 'exact', head: true })
+          .in('conversation_id', slice)
+          .not('media_url', 'is', null);
+        mediaCount += c2 ?? 0;
+      }
 
       return new Response(JSON.stringify({
         success: true,
         queue,
         counts: {
           conversations: convCount ?? 0,
-          messages: msgCount ?? 0,
-          media: mediaCount ?? 0,
+          messages: msgCount,
+          media: mediaCount,
         },
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -199,9 +211,26 @@ serve(async (req) => {
 
       console.log(`[queue-maintenance] PURGE start queue=${queueId} (${queue.name})`);
 
-      // 1. Collect ids
+      // 1. Collect ids (chat_messages has NO queue_id — only conversation_id)
       const conversationIds = await fetchAllIds(supabase, 'chat_conversations', 'id', { col: 'queue_id', val: queueId });
-      const messageIds = await fetchAllIds(supabase, 'chat_messages', 'id', { col: 'queue_id', val: queueId });
+      const messageIds: string[] = [];
+      for (let i = 0; i < conversationIds.length; i += 500) {
+        const slice = conversationIds.slice(i, i + 500);
+        const pageSize = 1000;
+        let from = 0;
+        while (true) {
+          const { data, error } = await supabase
+            .from('chat_messages')
+            .select('id')
+            .in('conversation_id', slice)
+            .range(from, from + pageSize - 1);
+          if (error) { console.warn('[queue-maintenance] msg fetch error:', error.message); break; }
+          if (!data || data.length === 0) break;
+          for (const r of data) messageIds.push(String((r as { id: string }).id));
+          if (data.length < pageSize) break;
+          from += pageSize;
+        }
+      }
       console.log(`[queue-maintenance] conversations=${conversationIds.length} messages=${messageIds.length}`);
 
       // 2. Cascade DELETE — children first.
@@ -228,8 +257,9 @@ serve(async (req) => {
       deleted['chat_bot_flow_runs'] = await deleteByIn(supabase, 'chat_bot_flow_runs', 'conversation_id', conversationIds);
       deleted['chat_webhook_deliveries'] = await deleteByIn(supabase, 'chat_webhook_deliveries', 'conversation_id', conversationIds);
 
-      // main tables (by queue_id)
-      deleted['chat_messages'] = await deleteByEq(supabase, 'chat_messages', 'queue_id', queueId);
+      // main tables
+      // chat_messages → no queue_id, delete by conversation_id
+      deleted['chat_messages'] = await deleteByIn(supabase, 'chat_messages', 'conversation_id', conversationIds);
       deleted['chat_conversations'] = await deleteByEq(supabase, 'chat_conversations', 'queue_id', queueId);
 
       console.log(`[queue-maintenance] PURGE done`, { deleted });
