@@ -5457,6 +5457,7 @@ export type Database = {
       }
     }
     Functions: {
+      get_infra_stats: { Args: never; Returns: Json }
       map_priority_chat_to_crm: { Args: { p: string }; Returns: string }
       map_priority_crm_to_chat: { Args: { p: string }; Returns: string }
       show_limit: { Args: never; Returns: number }
