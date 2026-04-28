@@ -1,50 +1,70 @@
-## Sincronização e otimização do `ChatList`
+## Problema
 
-### 1. Sincronização entre contagens das abas e lista exibida
+As abas **"Em Abertos"** e **"Em Atendimento"** mostram contadores que **zeram** quando a aba oposta está ativa.
 
-A contagem das abas e a lista visível já compartilham a mesma fonte (`visibleContacts` + `statusByContact`), mas há dois pontos onde podem ficar defasadas durante interações rápidas:
+**Causa**: o `WhatsAppDataContext` aplica `conversationStatusFilter` dentro de `filteredContacts` (linhas 1459–1463). Quando o usuário clica em "Em Atendimento", `filteredContacts` passa a conter apenas conversas `open`, então o `pendingConvCount` calculado em `ChatList.tsx` sobre `visibleContacts` (que deriva de `filteredContacts`) sempre dá 0 — e vice-versa.
 
-- **Ordenação repetida** de `conversations` em duas memos diferentes (`convMetaByContact` e `statusByContact`) cria janelas onde uma atualiza antes da outra.
-- **`searchQuery`** vem direto do estado, sem `useDeferredValue` — durante digitação rápida + troca de aba o filtro local de contagem pode rodar em frames diferentes da lista.
+## Comportamento desejado
 
-**Solução**: derivar **lista renderizada** e **contagens** num único `useMemo` compartilhado, garantindo cálculo atômico no mesmo render.
+Os contadores das abas devem:
+- **Sempre** refletir os filtros ativos (busca, período, SLA, dono, modo IA, etapa, fila, Individual/Grupos).
+- **Nunca** depender de qual aba (`pending`/`open`) está selecionada — ambos badges sempre exibem seu valor real.
 
-### 2. Otimizações de custo em `useMemo`
+## Solução
 
-Mudanças em `src/components/chat/ChatList.tsx`:
+Calcular os contadores a partir de uma **base que ignora `conversationStatusFilter`**, mas aplica todos os outros filtros.
 
-**a) Sort único de `conversations`** — substituir as duas cópias `[...conversations].sort(...)` (em `convMetaByContact` e `statusByContact`) por um `sortedConversations` memoizado:
+### Mudanças em `src/components/chat/ChatList.tsx`
+
+1. **Importar `contacts`** do contexto (já está importado) e criar um `baseContactsForCounts` paralelo a `visibleContacts`, partindo de `contacts` (não de `filteredContacts`) e aplicando manualmente:
+   - filtro Individual/Grupos (via `matchesActiveTab`)
+   - filtro de busca (`deferredSearch` em nome/telefone)
+   - filtro snoozed (replicar a lógica do contexto: esconder snoozed quando nenhum filtro de status é aplicado a contagem)
+   - filtros existentes em `visibleContacts`: `ownerFilter`, `periodFilter`, `stageIds`, `slaFilter`, `modeFilter`
+   - filtro de fila (já vem de `filteredContacts` via contexto através de `selectedQueue`; precisaremos garantir que `contacts` também respeite a fila — verificar; se sim manter, se não, replicar)
+
+2. **Refatorar o `useMemo` dos contadores** para iterar sobre `baseContactsForCounts` em vez de `visibleContacts`, contando `pending` e `open` num único loop via `statusByContact`.
+
+3. **Manter `visibleContacts` intacto** para a renderização da lista (continua respeitando `conversationStatusFilter` via contexto).
+
+### Estratégia de implementação simplificada
+
+Para evitar duplicar toda a lógica de filtros, extrair uma função `applyClientFilters(list)` que recebe uma lista de contatos e aplica: owner, period, stage, sla, mode, tab (Individual/Grupos), busca. Essa função é usada duas vezes:
 
 ```ts
-const sortedConversations = React.useMemo(() => {
-  const withTs = conversations.map((c) => ({
-    c,
-    ts: Date.parse(c.updated_at || c.created_at || '') || 0,
-  }));
-  withTs.sort((a, b) => b.ts - a.ts);
-  return withTs.map((x) => x.c);
-}, [conversations]);
+const applyClientFilters = React.useCallback((list: ChatContact[]) => {
+  // owner, period, stage, sla, mode, tab, search filters...
+}, [/* deps */]);
+
+// Lista renderizada (com status filter aplicado via filteredContacts do contexto)
+const visibleContacts = React.useMemo(
+  () => applyClientFilters(filteredContacts),
+  [filteredContacts, applyClientFilters]
+);
+
+// Base para contadores (sem status filter)
+const baseForCounts = React.useMemo(() => {
+  // partir de `contacts` filtrando snoozed + Individual/Grupos + fila
+  const base = contacts.filter(/* tab + snoozed + queue */);
+  return applyClientFilters(base);
+}, [contacts, conversations, applyClientFilters, selectedQueue]);
+
+const { pendingConvCount, openConvCount } = React.useMemo(() => {
+  let pending = 0, open = 0;
+  for (const c of baseForCounts) {
+    const s = statusByContact.get(c.id);
+    if (s === 'pending') pending++;
+    else if (s === 'open') open++;
+  }
+  return { pendingConvCount: pending, openConvCount: open };
+}, [baseForCounts, statusByContact]);
 ```
-Ganhos: 1 sort em vez de 2; sem `new Date()` por comparação (Date.parse 1x por item).
 
-**b) Contagens em passada única** — substituir `tabFilteredForCounts` + `pendingConvCount` + `openConvCount` (3 iterações em sequência) por um único `for` que filtra aba/busca e incrementa os dois contadores no mesmo loop, retornando `{ pendingConvCount, openConvCount }`. Garante que ambos contadores são produzidos no mesmo render que a lista visível.
+### Resultado
 
-**c) `useDeferredValue` em `searchQuery`** dentro do componente para que a digitação não trave a renderização e a lista + contadores recebam o mesmo valor diferido (mantém-se sincronizados):
-
-```ts
-const deferredSearch = React.useDeferredValue(searchQuery);
-// usar deferredSearch tanto no cálculo dos counts quanto onde a lista é renderizada por busca
-```
-
-**d) Memoizar `lowercase` de busca** uma só vez em vez de chamar `.toLowerCase()` por contato.
-
-**e) `slaStatusByContact`** já está bom; apenas trocar `evaluateSla` em loop por skip cedo quando `slaConfigs` não estiver definido (early return da memo).
+- Trocar entre as abas "Em Abertos" / "Em Atendimento" não zera mais o contador da aba oposta.
+- Aplicar/remover qualquer filtro (busca, período, SLA, dono, etapa, modo IA) atualiza ambos contadores simultaneamente.
+- A lista renderizada continua estritamente filtrada pela aba ativa.
 
 ### Arquivos editados
 - `src/components/chat/ChatList.tsx`
-
-### Resumo de impacto
-- Mesma fonte de verdade para lista e contadores no mesmo render → sem defasagem ao alternar abas/filtros.
-- ~50% menos trabalho em sort de conversations.
-- 1 passada única em vez de 3 para derivar contadores.
-- Digitação na busca não bloqueia a lista (deferred).
