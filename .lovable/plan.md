@@ -1,70 +1,82 @@
-## Problema
+# Plano: Aba "Manutenção de Filas" em /configuracoes
 
-As abas **"Em Abertos"** e **"Em Atendimento"** mostram contadores que **zeram** quando a aba oposta está ativa.
+## Visão geral
+Adicionar nova aba na página `/configuracoes` com um wizard em 3 passos:
+1. **Buscar fila** (por nome da fila e/ou client_id)
+2. **Selecionar ação** (na primeira versão: "Excluir todas as mensagens e arquivos")
+3. **Confirmar e executar** (com dupla confirmação seguindo o padrão do projeto)
 
-**Causa**: o `WhatsAppDataContext` aplica `conversationStatusFilter` dentro de `filteredContacts` (linhas 1459–1463). Quando o usuário clica em "Em Atendimento", `filteredContacts` passa a conter apenas conversas `open`, então o `pendingConvCount` calculado em `ChatList.tsx` sobre `visibleContacts` (que deriva de `filteredContacts`) sempre dá 0 — e vice-versa.
+## UX / Fluxo
 
-## Comportamento desejado
-
-Os contadores das abas devem:
-- **Sempre** refletir os filtros ativos (busca, período, SLA, dono, modo IA, etapa, fila, Individual/Grupos).
-- **Nunca** depender de qual aba (`pending`/`open`) está selecionada — ambos badges sempre exibem seu valor real.
-
-## Solução
-
-Calcular os contadores a partir de uma **base que ignora `conversationStatusFilter`**, mas aplica todos os outros filtros.
-
-### Mudanças em `src/components/chat/ChatList.tsx`
-
-1. **Importar `contacts`** do contexto (já está importado) e criar um `baseContactsForCounts` paralelo a `visibleContacts`, partindo de `contacts` (não de `filteredContacts`) e aplicando manualmente:
-   - filtro Individual/Grupos (via `matchesActiveTab`)
-   - filtro de busca (`deferredSearch` em nome/telefone)
-   - filtro snoozed (replicar a lógica do contexto: esconder snoozed quando nenhum filtro de status é aplicado a contagem)
-   - filtros existentes em `visibleContacts`: `ownerFilter`, `periodFilter`, `stageIds`, `slaFilter`, `modeFilter`
-   - filtro de fila (já vem de `filteredContacts` via contexto através de `selectedQueue`; precisaremos garantir que `contacts` também respeite a fila — verificar; se sim manter, se não, replicar)
-
-2. **Refatorar o `useMemo` dos contadores** para iterar sobre `baseContactsForCounts` em vez de `visibleContacts`, contando `pending` e `open` num único loop via `statusByContact`.
-
-3. **Manter `visibleContacts` intacto** para a renderização da lista (continua respeitando `conversationStatusFilter` via contexto).
-
-### Estratégia de implementação simplificada
-
-Para evitar duplicar toda a lógica de filtros, extrair uma função `applyClientFilters(list)` que recebe uma lista de contatos e aplica: owner, period, stage, sla, mode, tab (Individual/Grupos), busca. Essa função é usada duas vezes:
-
-```ts
-const applyClientFilters = React.useCallback((list: ChatContact[]) => {
-  // owner, period, stage, sla, mode, tab, search filters...
-}, [/* deps */]);
-
-// Lista renderizada (com status filter aplicado via filteredContacts do contexto)
-const visibleContacts = React.useMemo(
-  () => applyClientFilters(filteredContacts),
-  [filteredContacts, applyClientFilters]
-);
-
-// Base para contadores (sem status filter)
-const baseForCounts = React.useMemo(() => {
-  // partir de `contacts` filtrando snoozed + Individual/Grupos + fila
-  const base = contacts.filter(/* tab + snoozed + queue */);
-  return applyClientFilters(base);
-}, [contacts, conversations, applyClientFilters, selectedQueue]);
-
-const { pendingConvCount, openConvCount } = React.useMemo(() => {
-  let pending = 0, open = 0;
-  for (const c of baseForCounts) {
-    const s = statusByContact.get(c.id);
-    if (s === 'pending') pending++;
-    else if (s === 'open') open++;
-  }
-  return { pendingConvCount: pending, openConvCount: open };
-}, [baseForCounts, statusByContact]);
+```text
+┌──────────────────────────────────────────────────┐
+│ [Provedores] [Chat] [IA's] [History] [Monitor]   │
+│ [Manutenção de Filas]  ← NOVA ABA                │
+├──────────────────────────────────────────────────┤
+│ Passo 1 — Buscar Fila                            │
+│  Cliente: [select com client_ids]                │
+│  Nome:    [input busca: "marcia"]                │
+│  Resultados:                                      │
+│   ○ COMERCIAL MÁRCIA CANUTO  · client #270       │
+│   ○ Agente Principal         · client #30        │
+│   [Avançar →]                                    │
+├──────────────────────────────────────────────────┤
+│ Passo 2 — Ações disponíveis                      │
+│  Fila: COMERCIAL MÁRCIA CANUTO (client #270)     │
+│  ┌──────────────────────────────────────────┐    │
+│  │ 🗑  Excluir todas as mensagens e arquivos │    │
+│  │     Remove conversas, mensagens, mídias,  │    │
+│  │     reações, menções, históricos e arqs   │    │
+│  │     do bucket chat-media desta fila.      │    │
+│  │     [Selecionar]                          │    │
+│  └──────────────────────────────────────────┘    │
+│  (espaço reservado p/ próximas ações)            │
+├──────────────────────────────────────────────────┤
+│ Passo 3 — Confirmação                            │
+│  ⚠ Ação irreversível                             │
+│  Será apagado X conversas, Y mensagens, Z arqs.  │
+│  [Switch: "Confirmo a exclusão definitiva"]      │
+│  Digite o nome da fila p/ confirmar: [____]      │
+│  [Cancelar] [Excluir Tudo]                       │
+└──────────────────────────────────────────────────┘
 ```
 
-### Resultado
+## Arquivos a criar / editar
 
-- Trocar entre as abas "Em Abertos" / "Em Atendimento" não zera mais o contador da aba oposta.
-- Aplicar/remover qualquer filtro (busca, período, SLA, dono, etapa, modo IA) atualiza ambos contadores simultaneamente.
-- A lista renderizada continua estritamente filtrada pela aba ativa.
+### Frontend
+1. **`src/pages/configuracoes/components/QueueMaintenanceTab.tsx`** (novo)
+   - Wizard com `step` controlado (1/2/3).
+   - Passo 1: combo de clientes (reaproveita `chat-reset` action `list_clients`) + input com debounce; lista filas via supabase client (`queues` filtradas por `client_id` e ILIKE `name`).
+   - Passo 2: cards com ações disponíveis (apenas 1 por enquanto).
+   - Passo 3: chama `queue-maintenance` action `preview` (contagens) e ao confirmar chama action `purge_messages_and_media`.
 
-### Arquivos editados
-- `src/components/chat/ChatList.tsx`
+2. **`src/pages/configuracoes/ConfiguracoesPage.tsx`** (editar)
+   - Adicionar `<TabsTrigger value="maintenance">` com ícone `Wrench` e `<TabsContent>` renderizando `QueueMaintenanceTab`.
+
+### Backend
+3. **`supabase/functions/queue-maintenance/index.ts`** (nova edge function)
+   - Actions:
+     - `search_queues` `{ client_id?, name? }` → lista filas (id, name, client_id, channel_type, is_deleted).
+     - `preview` `{ queue_id }` → conta `chat_conversations`, `chat_messages`, mídias (mensagens com `media_url`).
+     - `purge_messages_and_media` `{ queue_id, confirm_name }` → valida nome, executa exclusão na ordem correta:
+       1. Coleta `conversation_ids` via `chat_conversations.queue_id`.
+       2. Coleta `message_ids` via `chat_messages.queue_id` (e/ou `conversation_id`).
+       3. Coleta `media_url`s das mensagens da fila.
+       4. Remove arquivos do bucket `chat-media` (extrai path da URL pública/assinada, remove em lotes de 100).
+       5. DELETE em cascata: `chat_message_reactions` (por message_id), `chat_mentions`, `chat_conversation_history/tags/participants/presence/summaries` (por conversation_id), `chat_messages` (por queue_id), `chat_conversations` (por queue_id), `chat_csat_responses`, `chat_ai_classifications`, `chat_ai_autoreply_logs`, `chat_automation_logs`, `chat_call_logs`, `chat_crm_links`, `chat_scheduled_messages`, `chat_webhook_deliveries` (filtrados por conv/msg/queue).
+       6. Opcional: `uazapi_history_items` ligados às conversas.
+     - Retorna `{ deleted: { table: count }, files_deleted, total_files }`.
+   - CORS padrão; usa `SUPABASE_SERVICE_ROLE_KEY`.
+   - **Não** apaga a própria `queues` nem `queue_agent_links` (preserva a configuração da fila — só limpa os dados gerados).
+
+## Detalhes técnicos
+
+- **Busca de filas**: query direta `supabase.from('queues').select(...).ilike('name', \`%${term}%\`)` + filtro opcional `eq('client_id', ...)`. Inclui filas com `is_deleted=true` para permitir limpeza pós-soft-delete.
+- **Extração de path do bucket**: tratar URLs como `…/storage/v1/object/public/chat-media/<path>` ou `…/object/sign/chat-media/<path>?token=…`; pegar tudo após `/chat-media/` antes de `?`.
+- **Padrão de UI**: seguir `secure-deletion-workflow` (switch + digitação do nome) já usado em outras telas críticas.
+- **Permissão**: aba visível apenas para admin (mesma checagem usada em outras abas sensíveis em `ConfiguracoesPage`). Verificar `useAuth().isAdmin` e ocultar `TabsTrigger` se necessário.
+- **Toasts e invalidação**: invalida `['queues']`, `['chat-conversations']`, `['chat-messages']`, `['chat-contacts']` ao concluir.
+- **Logs**: console.log de cada etapa para troubleshooting via edge function logs.
+
+## Fora do escopo (próximas ações)
+- Ressincronizar fila do zero, exportar conversas antes de apagar, apagar somente período X. Cards extras no Passo 2 ficam preparados para receber essas ações depois.
