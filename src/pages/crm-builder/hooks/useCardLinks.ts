@@ -41,10 +41,12 @@ export function useChatConversationPreview(conversationId: string | null | undef
       if (!conversationId) return null;
       const { data, error } = await supabase
         .from('chat_conversations')
-        .select('id, status, protocol, channel, updated_at, contact_id')
+        .select('id, status, protocol, channel, updated_at, contact_id, queue_id, queues:queue_id(is_deleted)')
         .eq('id', conversationId)
         .maybeSingle();
       if (error) throw error;
+      // Hide preview if the conversation belongs to a soft-deleted queue
+      if (data && (data as any).queues?.is_deleted === true) return null;
       return data;
     },
     enabled: !!conversationId,
