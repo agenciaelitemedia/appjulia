@@ -1,102 +1,122 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useGlobalSlaStats } from '../hooks/useGlobalSlaStats';
 import { useChurnSignals } from '../hooks/useChurnSignals';
 import { useDispatcherHealth } from '@/pages/configuracoes/hooks/useUazapiHistoryRuns';
+import { useWebhookActivity, useInfraStats } from '../hooks/useInfraStats';
 
-interface TickerEvent {
+interface Tick {
   id: string;
-  ts: Date;
-  emoji: string;
-  text: string;
-  tone: 'good' | 'warn' | 'bad';
+  code: string;             // SLA, DISP, CHURN, WHK, DB
+  value: string;            // "12 ATRASOS", "ONLINE", "42"
+  delta?: number;           // numeric delta vs prev snapshot
+  /** good = positive direction, bad = negative, neutral = informational */
+  trend: 'good' | 'bad' | 'neutral';
 }
 
 /**
- * Ticker rolante (marquee horizontal) com eventos críticos das últimas
- * horas. Combina sinais de SLA, churn e dispatcher.
+ * Ticker estilo bolsa de valores — códigos curtos, setas, deltas e cores
+ * binárias. Visual inspirado em fitas de cotação.
  */
 export function TvTicker() {
   const { data: sla } = useGlobalSlaStats();
   const { data: churn } = useChurnSignals();
   const { data: heartbeat } = useDispatcherHealth();
+  const { data: webhooks } = useWebhookActivity();
+  const { data: infra } = useInfraStats();
 
-  const events: TickerEvent[] = useMemo(() => {
-    const list: TickerEvent[] = [];
+  // snapshot anterior para calcular delta
+  const prevRef = useRef<Record<string, number>>({});
 
-    if (sla?.oldest_breached) {
+  const ticks: Tick[] = useMemo(() => {
+    const list: Tick[] = [];
+    const prev = prevRef.current;
+    const next: Record<string, number> = {};
+
+    const pushNumeric = (
+      code: string,
+      label: string,
+      value: number,
+      opts: { invert?: boolean } = {}
+    ) => {
+      const before = prev[code];
+      const delta = before === undefined ? 0 : value - before;
+      next[code] = value;
+      let trend: Tick['trend'] = 'neutral';
+      if (delta !== 0) {
+        const positive = delta > 0;
+        // se invert=true (ex: SLA atrasos), subir = ruim
+        trend = (opts.invert ? !positive : positive) ? 'good' : 'bad';
+      }
       list.push({
-        id: `sla:${sla.oldest_breached.conversation_id}`,
-        ts: new Date(),
-        emoji: '🔴',
-        text: `SLA: conv. ${sla.oldest_breached.conversation_id.slice(0, 8)} atrasada ${sla.oldest_breached.minutes_overdue}min (cliente ${sla.oldest_breached.client_id})`,
-        tone: 'bad',
+        id: code,
+        code,
+        value: `${value.toLocaleString('pt-BR')} ${label}`,
+        delta,
+        trend,
+      });
+    };
+
+    if (sla) {
+      pushNumeric('SLA', 'ATRASOS', sla.breached ?? 0, { invert: true });
+      pushNumeric('RISCO', 'EM RISCO', sla.at_risk ?? 0, { invert: true });
+    }
+    if (churn) {
+      pushNumeric('CHURN', 'SINAIS', churn.signals?.length ?? 0, { invert: true });
+    }
+    if (webhooks) {
+      pushNumeric('WHK1H', 'WEBHOOKS/H', webhooks.total_1h ?? 0);
+      pushNumeric('WHK24', 'WEBHOOKS/24H', webhooks.total_24h ?? 0);
+    }
+    if (infra) {
+      pushNumeric('DBCONN', 'CONEXÕES', infra.connections_active ?? 0, { invert: true });
+    }
+    if (heartbeat) {
+      const offline = heartbeat.is_offline;
+      const warn = heartbeat.is_warning;
+      list.push({
+        id: 'DISP',
+        code: 'DISP',
+        value: offline ? 'OFFLINE' : warn ? `ATRASO ${heartbeat.seconds_since_heartbeat}s` : `ONLINE ${heartbeat.seconds_since_heartbeat}s`,
+        trend: offline ? 'bad' : warn ? 'bad' : 'good',
       });
     }
-    if ((sla?.breached ?? 0) > 0) {
-      list.push({
-        id: `sla:summary`,
-        ts: new Date(),
-        emoji: '⚠️',
-        text: `${sla!.breached} conversas com SLA violado, ${sla!.at_risk} em risco`,
-        tone: 'bad',
-      });
-    }
 
-    for (const s of (churn?.signals ?? []).slice(0, 8)) {
-      list.push({
-        id: `churn:${s.conversation_id}:${s.reason}`,
-        ts: new Date(s.detected_at),
-        emoji: s.reason === 'sentiment_negative' ? '😟' : s.reason === 'keyword_cancel' ? '🚨' : '⭐',
-        text: `Churn (${s.reason}) cliente ${s.client_id}: "${s.snippet}"`,
-        tone: 'bad',
-      });
-    }
-
-    if (heartbeat?.is_offline) {
-      list.push({
-        id: `dispatcher:offline`,
-        ts: new Date(),
-        emoji: '🔥',
-        text: `Dispatcher OFFLINE há ${heartbeat.seconds_since_heartbeat}s — webhooks em fila`,
-        tone: 'bad',
-      });
-    } else if (heartbeat?.is_warning) {
-      list.push({
-        id: `dispatcher:warn`,
-        ts: new Date(),
-        emoji: '⚠️',
-        text: `Dispatcher com ping atrasado (${heartbeat.seconds_since_heartbeat}s)`,
-        tone: 'warn',
-      });
-    }
+    prevRef.current = next;
 
     if (list.length === 0) {
-      list.push({ id: 'idle', ts: new Date(), emoji: '✅', text: 'Tudo operando normalmente — sem alertas críticos', tone: 'good' });
+      list.push({ id: 'idle', code: 'STATUS', value: 'OPERANDO NORMAL', trend: 'good' });
     }
-
     return list;
-  }, [sla, churn, heartbeat]);
+  }, [sla, churn, heartbeat, webhooks, infra]);
 
-  // Para rolar continuamente, duplicamos a lista de eventos
-  const items = events.length > 0 ? [...events, ...events] : [];
+  // duplicado para marquee contínuo
+  const items = ticks.length > 0 ? [...ticks, ...ticks] : [];
+
+  const arrow = (t: Tick) => {
+    if (t.trend === 'neutral' || t.delta === undefined || t.delta === 0) return '●';
+    return t.delta > 0 ? '▲' : '▼';
+  };
+
+  const colorClass = (t: Tick) =>
+    t.trend === 'bad' ? 'text-rose-400' : t.trend === 'good' ? 'text-emerald-400' : 'text-amber-300';
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/70 py-4 relative">
+    <div className="overflow-hidden bg-black border-y-2 border-amber-500/50 py-2 relative shadow-[inset_0_0_30px_rgba(0,0,0,0.8)]">
       <div
-        className="flex gap-12 whitespace-nowrap animate-[marquee_60s_linear_infinite] hover:[animation-play-state:paused]"
+        className="flex items-center gap-0 whitespace-nowrap animate-[marquee_80s_linear_infinite] hover:[animation-play-state:paused] font-mono"
         style={{ width: 'max-content' }}
       >
-        {items.map((e, i) => (
-          <span key={`${e.id}-${i}`} className={`text-xl font-medium inline-flex items-center gap-3 ${
-            e.tone === 'bad' ? 'text-rose-300' : e.tone === 'warn' ? 'text-amber-300' : 'text-emerald-300'
-          }`}>
-            <span className="text-2xl">{e.emoji}</span>
-            <span>
-              <span className="text-zinc-500 mr-2 tabular-nums">
-                {e.ts.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+        {items.map((t, i) => (
+          <span key={`${t.id}-${i}`} className="inline-flex items-center gap-3 px-6 text-base tracking-wider uppercase">
+            <span className="text-amber-200/90 font-bold">{t.code}</span>
+            <span className={`text-lg ${colorClass(t)}`}>{arrow(t)}</span>
+            <span className="text-zinc-100 tabular-nums">{t.value}</span>
+            {t.delta !== undefined && t.delta !== 0 && (
+              <span className={`text-xs tabular-nums ${colorClass(t)}`}>
+                {t.delta > 0 ? '+' : ''}{t.delta}
               </span>
-              {e.text}
-            </span>
+            )}
+            <span className="text-amber-500/30 ml-3">│</span>
           </span>
         ))}
       </div>
