@@ -8,6 +8,9 @@ import { UazapiInstanceStatus } from './UazapiInstanceStatus';
 import { DisconnectWabaDialog } from './DisconnectWabaDialog';
 import { QueueAccessDialog } from './QueueAccessDialog';
 import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+
+const DELETE_ALLOWED_ROLES = ['admin', 'colaborador', 'user'] as const;
 
 const channelIcons: Record<string, React.ReactNode> = {
   uazapi: <Phone className="w-4 h-4" />,
@@ -40,6 +43,8 @@ interface QueueCardProps {
 export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps) {
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [accessOpen, setAccessOpen] = useState(false);
+  const { user } = useAuth();
+  const canDelete = !!user?.role && (DELETE_ALLOWED_ROLES as readonly string[]).includes(user.role);
   const hasWabaCreds = queue.channel_type === 'waba' && !!queue.waba_token;
 
   const channelBadgeClass =
@@ -82,9 +87,11 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
                   <DropdownMenuItem onClick={() => setAccessOpen(true)}>
                     <ShieldCheck className="mr-2 h-4 w-4" /> Acessos
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onDelete(queue)} className="text-destructive">
-                    <Trash2 className="mr-2 h-4 w-4" /> Excluir
-                  </DropdownMenuItem>
+                  {canDelete && (
+                    <DropdownMenuItem onClick={() => onDelete(queue)} className="text-destructive">
+                      <Trash2 className="mr-2 h-4 w-4" /> Excluir
+                    </DropdownMenuItem>
+                  )}
                 </>
               )}
               {queue.is_deleted && (

@@ -174,16 +174,22 @@ export function useQueueMutations() {
   });
 
   const deleteQueue = useMutation({
-    mutationFn: (params: { queue_id: string; migrate_to_queue_id?: string }) =>
+    mutationFn: (params: { queue_id: string; migrate_to_queue_id?: string; force?: boolean }) =>
       invokeQueueManagement('delete', params),
     onSuccess: () => { toast.success('Fila removida'); invalidate(); },
     onError: (e) => toast.error(e.message),
   });
 
   const restoreQueue = useMutation({
-    mutationFn: (queue_id: string) =>
-      invokeQueueManagement('restore', { queue_id }),
-    onSuccess: () => { toast.success('Fila restaurada'); invalidate(); },
+    mutationFn: (params: string | { queue_id: string; migrate_to_queue_id?: string }) => {
+      const payload = typeof params === 'string' ? { queue_id: params } : params;
+      return invokeQueueManagement('restore', payload);
+    },
+    onSuccess: (_data, vars) => {
+      const migrated = typeof vars === 'object' && vars.migrate_to_queue_id;
+      toast.success(migrated ? 'Dados migrados para a fila destino' : 'Fila restaurada');
+      invalidate();
+    },
     onError: (e) => toast.error(e.message),
   });
 

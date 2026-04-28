@@ -292,7 +292,7 @@ serve(async (req) => {
       // SOFT DELETE a queue (with orphan protection)
       // ==========================================
       case 'delete': {
-        const { queue_id, migrate_to_queue_id } = data;
+        const { queue_id, migrate_to_queue_id, force } = data;
         if (!queue_id) throw new Error('queue_id is required');
 
         // Load queue to check channel_type and credentials before any destructive op
@@ -323,21 +323,25 @@ serve(async (req) => {
           .in('status', ['pending', 'open']);
 
         if (activeConvos && activeConvos.length > 0) {
-          if (!migrate_to_queue_id) {
+          if (!migrate_to_queue_id && !force) {
             return respond({
-              error: 'Queue has active conversations. Provide migrate_to_queue_id or resolve conversations first.',
+              error: 'Queue has active conversations. Provide migrate_to_queue_id, set force=true, or resolve conversations first.',
               active_conversations: activeConvos.length,
             }, 409);
           }
 
-          // Migrate conversations to new queue
-          const { error: migrateError } = await supabase
-            .from('chat_conversations')
-            .update({ queue_id: migrate_to_queue_id })
-            .eq('queue_id', queue_id)
-            .in('status', ['pending', 'open']);
+          if (migrate_to_queue_id) {
+            // Migrate conversations to new queue
+            const { error: migrateError } = await supabase
+              .from('chat_conversations')
+              .update({ queue_id: migrate_to_queue_id })
+              .eq('queue_id', queue_id)
+              .in('status', ['pending', 'open']);
 
-          if (migrateError) throw migrateError;
+            if (migrateError) throw migrateError;
+          }
+          // else: force=true → keep conversations attached to the (soft-deleted) queue
+          // for later recovery via restore-with-migration.
         }
 
         // For UaZapi queues, delete the instance on the UaZapi server BEFORE soft delete.
@@ -392,7 +396,8 @@ serve(async (req) => {
 
         return respond({
           success: true,
-          migrated: activeConvos?.length || 0,
+          migrated: migrate_to_queue_id ? (activeConvos?.length || 0) : 0,
+          forced: !!force && !migrate_to_queue_id,
           ...(instanceWarning ? { instance_warning: instanceWarning } : {}),
         });
       }
@@ -401,9 +406,58 @@ serve(async (req) => {
       // RESTORE a soft-deleted queue
       // ==========================================
       case 'restore': {
-        const { queue_id } = data;
+        const { queue_id, migrate_to_queue_id } = data;
         if (!queue_id) throw new Error('queue_id is required');
 
+        // Mode A: migrate data from a soft-deleted queue into another active queue.
+        if (migrate_to_queue_id) {
+          if (migrate_to_queue_id === queue_id) {
+            return respond({ error: 'migrate_to_queue_id must be different from queue_id' }, 400);
+          }
+
+          const { data: src, error: srcErr } = await supabase
+            .from('queues')
+            .select('id, client_id, is_deleted')
+            .eq('id', queue_id)
+            .maybeSingle();
+          if (srcErr) throw srcErr;
+          if (!src) return respond({ error: 'Source queue not found' }, 404);
+
+          const { data: dst, error: dstErr } = await supabase
+            .from('queues')
+            .select('id, client_id, is_deleted')
+            .eq('id', migrate_to_queue_id)
+            .maybeSingle();
+          if (dstErr) throw dstErr;
+          if (!dst) return respond({ error: 'Destination queue not found' }, 404);
+          if (dst.is_deleted) return respond({ error: 'Destination queue is deleted' }, 400);
+          if (dst.client_id !== src.client_id) {
+            return respond({ error: 'Destination queue belongs to a different client' }, 400);
+          }
+
+          // Move conversations
+          const { count: convMoved, error: cErr } = await supabase
+            .from('chat_conversations')
+            .update({ queue_id: migrate_to_queue_id }, { count: 'exact' })
+            .eq('queue_id', queue_id);
+          if (cErr) throw cErr;
+
+          // Move messages
+          const { count: msgMoved, error: mErr } = await supabase
+            .from('chat_messages')
+            .update({ queue_id: migrate_to_queue_id }, { count: 'exact' })
+            .eq('queue_id', queue_id);
+          if (mErr) throw mErr;
+
+          return respond({
+            success: true,
+            migrated_to: migrate_to_queue_id,
+            conversations_moved: convMoved ?? 0,
+            messages_moved: msgMoved ?? 0,
+          });
+        }
+
+        // Mode B (default): reactivate the original queue.
         const { error } = await supabase
           .from('queues')
           .update({ is_deleted: false, deleted_at: null, is_active: true })

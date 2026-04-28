@@ -8,6 +8,7 @@ import { QueueCard } from './components/QueueCard';
 import { QueueFormDialog } from './components/QueueFormDialog';
 import { QueueWizardDialog } from './components/QueueWizardDialog';
 import { DeleteQueueDialog } from './components/DeleteQueueDialog';
+import { RestoreQueueDialog } from './components/RestoreQueueDialog';
 import { useEnsureFilasModule } from '@/hooks/useEnsureFilasModule';
 import { useAgentQueueLimits } from './hooks/useAgentQueueLimits';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -16,7 +17,6 @@ export default function FilasPage() {
   useEnsureFilasModule();
   const [showDeleted, setShowDeleted] = useState(false);
   const { data: queues = [], isLoading } = useQueues(showDeleted);
-  const { restoreQueue } = useQueueMutations();
   const { data: limits } = useAgentQueueLimits();
   const queueLimit = limits?.queueLimit ?? 1;
 
@@ -24,6 +24,7 @@ export default function FilasPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingQueue, setEditingQueue] = useState<Queue | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Queue | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<Queue | null>(null);
 
   const handleEdit = (queue: Queue) => {
     setEditingQueue(queue);
@@ -90,7 +91,7 @@ export default function FilasPage() {
               queue={queue}
               onEdit={handleEdit}
               onDelete={setDeleteTarget}
-              onRestore={(q) => restoreQueue.mutate(q.id)}
+              onRestore={setRestoreTarget}
             />
           ))}
         </div>
@@ -110,6 +111,15 @@ export default function FilasPage() {
           onOpenChange={(open) => !open && setDeleteTarget(null)}
           queue={deleteTarget}
           otherQueues={activeQueues.filter((q) => q.id !== deleteTarget.id)}
+        />
+      )}
+
+      {restoreTarget && (
+        <RestoreQueueDialog
+          open={!!restoreTarget}
+          onOpenChange={(open) => !open && setRestoreTarget(null)}
+          queue={restoreTarget}
+          activeQueues={activeQueues}
         />
       )}
     </div>
