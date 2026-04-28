@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface InfraStats {
@@ -58,6 +59,7 @@ export interface WebhookActivity {
   total_1h: number;
   forwarded_24h: number;
   per_source: { source: string; count: number }[];
+  raw: { source: string; created_at: string; forwarded: boolean }[];
 }
 
 export function useWebhookActivity() {
@@ -87,6 +89,11 @@ export function useWebhookActivity() {
           .map(([source, count]) => ({ source, count }))
           .sort((a, b) => b.count - a.count)
           .slice(0, 6),
+        raw: list.map(r => ({
+          source: r.source || 'desconhecido',
+          created_at: r.created_at,
+          forwarded: r.forwarded === true,
+        })),
       };
     },
     refetchInterval: 60 * 1000,
@@ -125,4 +132,76 @@ export function useMediaStats() {
     },
     refetchInterval: 60 * 1000,
   });
+}
+
+/**
+ * Buffer in-memory de série temporal: 1 ponto por minuto, máx 60 pontos.
+ * Persistido em sessionStorage para sobreviver à rotação de cenas.
+ */
+export interface TimeSeriesPoint {
+  t: number; // epoch ms
+  connections: number;
+  webhooks_per_min: number;
+  media_per_min: number;
+}
+
+const TS_KEY = 'tv:infra:timeseries';
+const TS_MAX = 60;
+
+function loadBuffer(): TimeSeriesPoint[] {
+  try {
+    const raw = sessionStorage.getItem(TS_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw) as TimeSeriesPoint[];
+    const cutoff = Date.now() - 60 * 60 * 1000;
+    return arr.filter(p => p.t >= cutoff);
+  } catch {
+    return [];
+  }
+}
+
+function saveBuffer(buf: TimeSeriesPoint[]) {
+  try {
+    sessionStorage.setItem(TS_KEY, JSON.stringify(buf));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function useInfraTimeSeries(opts: {
+  connections: number | undefined;
+  webhooksRaw: { created_at: string }[] | undefined;
+  mediaPerHour: number | undefined; // total mídia última hora (aprox)
+}) {
+  const [buffer, setBuffer] = useState<TimeSeriesPoint[]>(() => loadBuffer());
+  const lastTickRef = useRef<number>(0);
+
+  useEffect(() => {
+    const now = Date.now();
+    // 1 ponto por minuto
+    if (now - lastTickRef.current < 55 * 1000) return;
+    if (opts.connections === undefined) return;
+    lastTickRef.current = now;
+
+    const sinceMin = now - 60 * 1000;
+    const wpm = (opts.webhooksRaw ?? []).filter(r => {
+      const t = new Date(r.created_at).getTime();
+      return t >= sinceMin;
+    }).length;
+    // mídia: aproximação (total/hora ÷ 60)
+    const mpm = opts.mediaPerHour !== undefined ? Math.round((opts.mediaPerHour / 60) * 10) / 10 : 0;
+
+    setBuffer(prev => {
+      const next = [...prev, {
+        t: now,
+        connections: opts.connections!,
+        webhooks_per_min: wpm,
+        media_per_min: mpm,
+      }].slice(-TS_MAX);
+      saveBuffer(next);
+      return next;
+    });
+  }, [opts.connections, opts.webhooksRaw, opts.mediaPerHour]);
+
+  return buffer;
 }
