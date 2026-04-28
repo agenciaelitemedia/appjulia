@@ -4,6 +4,7 @@ import { TvTicker } from './components/TvTicker';
 import { SceneAtendimento } from './components/scenes/SceneAtendimento';
 import { SceneSaudeTecnica } from './components/scenes/SceneSaudeTecnica';
 import { SceneClientesCanais } from './components/scenes/SceneClientesCanais';
+import { SceneInfraCloud } from './components/scenes/SceneInfraCloud';
 
 /**
  * Painel master para TV 55" — visão consolidada de todos os clientes.
@@ -17,6 +18,7 @@ export default function TvMasterPage() {
     { key: 'atendimento', title: 'Atendimento — Últimas 24h', node: <SceneAtendimento /> },
     { key: 'saude', title: 'Saúde Técnica — Julia & Webhooks', node: <SceneSaudeTecnica /> },
     { key: 'clientes', title: 'Clientes & Canais', node: <SceneClientesCanais /> },
+    { key: 'infra', title: 'Infraestrutura & Cloud', node: <SceneInfraCloud /> },
   ];
 
   return (
