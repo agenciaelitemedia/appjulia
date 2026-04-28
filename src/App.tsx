@@ -75,6 +75,7 @@ import NotFound from "./pages/NotFound";
 import PromptGeneratorPage from "./pages/admin/prompts/PromptGeneratorPage";
 import EmbedPage from "./pages/embed/EmbedPage";
 import EmbedManagerPage from "./pages/admin/embeds/EmbedManagerPage";
+import TvMasterPage from "./pages/tv/TvMasterPage";
 import LegalCasesPage from "./pages/legal-cases/LegalCasesPage";
 import ContractNotificationsPage from "./pages/contract-notifications/ContractNotificationsPage";
 import ComprarPage from "./pages/comprar/ComprarPage";
@@ -110,6 +111,7 @@ const App = () => (
                 <Route path="/comprar" element={<ComprarPage />} />
                 <Route path="/comprar/sucesso" element={<ComprarSucessoPage />} />
                 <Route path="/call/:roomName" element={<JoinCallPage />} />
+                <Route path="/tv/master" element={<ProtectedRoute><TvMasterPage /></ProtectedRoute>} />
                 <Route element={<MainLayout />}>
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/dashboard" element={<Dashboard />} />
