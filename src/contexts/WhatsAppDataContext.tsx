@@ -1735,14 +1735,23 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           if (payload.eventType === 'INSERT') {
             const newConv = payload.new as ChatConversation;
             if (currentQueueId && newConv.queue_id !== currentQueueId) return;
+            // Hide conversations of soft-deleted queues
+            if (!currentQueueId && newConv.queue_id && !activeQueueIds.includes(newConv.queue_id)) return;
             setConversations(prev => {
               if (prev.some(c => c.id === newConv.id)) return prev;
               return [newConv, ...prev];
             });
             loadConvCounts();
           } else if (payload.eventType === 'UPDATE') {
+            const updConv = payload.new as ChatConversation;
+            if (!currentQueueId && updConv.queue_id && !activeQueueIds.includes(updConv.queue_id)) {
+              // Drop from local state if the queue became deleted
+              setConversations(prev => prev.filter(c => c.id !== updConv.id));
+              loadConvCounts();
+              return;
+            }
             setConversations(prev =>
-              prev.map(c => (c.id === (payload.new as ChatConversation).id ? payload.new as ChatConversation : c))
+              prev.map(c => (c.id === updConv.id ? updConv : c))
             );
             loadConvCounts();
           }
@@ -1755,7 +1764,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       supabase.removeChannel(messagesChannel);
       supabase.removeChannel(conversationsChannel);
     };
-  }, [clientId, currentQueueId, loadConvCounts]);
+  }, [clientId, currentQueueId, loadConvCounts, activeQueueIds]);
 
   // Reload everything and clear selection when queue or client changes
   useEffect(() => {
