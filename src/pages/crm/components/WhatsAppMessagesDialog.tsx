@@ -1887,14 +1887,15 @@ export function WhatsAppMessagesDialog({
     try {
       const { data: existingConv } = await supabase
         .from('chat_conversations')
-        .select('id')
+        .select('id, queue_id, queues:queue_id(is_deleted)')
         .eq('contact_id', dbContactId)
         .eq('client_id', clientIdStr)
         .in('status', ['pending', 'open'])
         .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      conversationId = existingConv?.id ?? null;
+        .limit(5);
+      // Skip conversations whose queue was soft-deleted
+      const usable = (existingConv as any[] | null)?.find((r) => !r?.queues || r.queues.is_deleted !== true) || null;
+      conversationId = usable?.id ?? null;
     } catch {
       conversationId = null;
     }

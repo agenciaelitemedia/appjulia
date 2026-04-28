@@ -27,11 +27,28 @@ export function useChatCRMLinks(conversationId?: string) {
   const list = useQuery({
     queryKey: ['chat-crm-links', clientId, conversationId],
     queryFn: async () => {
-      let q = supabase.from('chat_crm_links').select('*').eq('client_id', clientId);
+      // Join conversation → queue so we can hide links whose queue was soft-deleted.
+      let q = supabase
+        .from('chat_crm_links')
+        .select('*, chat_conversations:conversation_id(queue_id, queues:queue_id(is_deleted))')
+        .eq('client_id', clientId);
       if (conversationId) q = q.eq('conversation_id', conversationId);
       const { data, error } = await q.order('created_at', { ascending: false });
       if (error) throw error;
-      return (data || []) as CRMLink[];
+      const filtered = (data || []).filter((row: any) => {
+        const conv = row?.chat_conversations;
+        if (!conv) return true; // legacy link without conversation — keep
+        const queue = conv.queues;
+        // If the conversation has a queue and that queue is deleted, hide the link
+        if (queue && queue.is_deleted === true) return false;
+        return true;
+      });
+      // Strip the join shape before returning
+      return filtered.map((row: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { chat_conversations: _c, ...rest } = row;
+        return rest;
+      }) as CRMLink[];
     },
     enabled: !!clientId,
   });

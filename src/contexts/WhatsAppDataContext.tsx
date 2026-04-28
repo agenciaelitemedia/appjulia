@@ -165,6 +165,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // Load active queues for this client filtered by user access (queue_members)
   const { data: allQueues = [] } = useAccessibleQueues(false);
 
+  // Set of queue IDs that are still active (not soft-deleted) and accessible to this user.
+  // Used to hide conversations/messages of deleted queues from Chat and CRM links.
+  const activeQueueIds = useMemo(
+    () => (allQueues as Queue[]).map(q => q.id),
+    [allQueues]
+  );
+
   // Resolve effective queue for a given contact — source of truth = the conversation itself.
   // The top-bar selectedQueue filter is for LISTING only; operations always use the contact's real queue.
   // Priority:
@@ -281,6 +288,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         .eq('client_id', clientId)
         .order('updated_at', { ascending: false });
       if (currentQueueId) query = query.eq('queue_id', currentQueueId);
+      else if (activeQueueIds.length > 0) query = query.in('queue_id', activeQueueIds);
+      else { setConversations([]); return; }
       if (convQueryGroup === 'active') {
         query = query.in('status', ['pending', 'open']);
       } else {
@@ -292,7 +301,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     } catch (error) {
       console.error('Error loading conversations:', error);
     }
-  }, [clientId, currentQueueId, convQueryGroup]);
+  }, [clientId, currentQueueId, convQueryGroup, activeQueueIds]);
 
   const loadConvCounts = useCallback(async () => {
     if (!clientId) return;
@@ -303,6 +312,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         .eq('client_id', clientId)
         .in('status', ['pending', 'open']);
       if (currentQueueId) q = q.eq('queue_id', currentQueueId);
+      else if (activeQueueIds.length > 0) q = q.in('queue_id', activeQueueIds);
+      else { setConvCounts({ pending: 0, open: 0 }); return; }
       const { data } = await q;
       const counts = { pending: 0, open: 0 };
       (data || []).forEach((r: { status: string }) => {
@@ -311,7 +322,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       });
       setConvCounts(counts);
     } catch {/* noop */}
-  }, [clientId, currentQueueId]);
+  }, [clientId, currentQueueId, activeQueueIds]);
 
   const getOrCreateConversation = useCallback(async (contactId: string): Promise<ChatConversation | null> => {
     if (!clientId) return null;
@@ -327,7 +338,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         .limit(1)
         .single();
 
-      if (existing) {
+      // If the existing conversation lives in a deleted queue, ignore it and
+      // force creation of a new conversation in an active queue.
+      const existingInActiveQueue = existing && existing.queue_id && activeQueueIds.includes(existing.queue_id);
+      if (existingInActiveQueue) {
         const conv = existing as ChatConversation;
         setConversations(prev => prev.some(c => c.id === conv.id) ? prev : [conv, ...prev]);
         return conv;
@@ -349,7 +363,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (priorConv?.queue_id) {
+      if (priorConv?.queue_id && activeQueueIds.includes(priorConv.queue_id)) {
         resolvedQueueId = priorConv.queue_id;
       }
 
@@ -444,7 +458,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       console.error('Error getting/creating conversation:', error);
       return null;
     }
-  }, [clientId, currentQueueId, selectedQueue?.channel_type, user?.name]);
+  }, [clientId, currentQueueId, selectedQueue?.channel_type, user?.name, activeQueueIds]);
 
   const updateConversationStatus = useCallback(async (
     conversationId: string,
@@ -1721,14 +1735,23 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           if (payload.eventType === 'INSERT') {
             const newConv = payload.new as ChatConversation;
             if (currentQueueId && newConv.queue_id !== currentQueueId) return;
+            // Hide conversations of soft-deleted queues
+            if (!currentQueueId && newConv.queue_id && !activeQueueIds.includes(newConv.queue_id)) return;
             setConversations(prev => {
               if (prev.some(c => c.id === newConv.id)) return prev;
               return [newConv, ...prev];
             });
             loadConvCounts();
           } else if (payload.eventType === 'UPDATE') {
+            const updConv = payload.new as ChatConversation;
+            if (!currentQueueId && updConv.queue_id && !activeQueueIds.includes(updConv.queue_id)) {
+              // Drop from local state if the queue became deleted
+              setConversations(prev => prev.filter(c => c.id !== updConv.id));
+              loadConvCounts();
+              return;
+            }
             setConversations(prev =>
-              prev.map(c => (c.id === (payload.new as ChatConversation).id ? payload.new as ChatConversation : c))
+              prev.map(c => (c.id === updConv.id ? updConv : c))
             );
             loadConvCounts();
           }
@@ -1741,7 +1764,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       supabase.removeChannel(messagesChannel);
       supabase.removeChannel(conversationsChannel);
     };
-  }, [clientId, currentQueueId, loadConvCounts]);
+  }, [clientId, currentQueueId, loadConvCounts, activeQueueIds]);
 
   // Reload everything and clear selection when queue or client changes
   useEffect(() => {
