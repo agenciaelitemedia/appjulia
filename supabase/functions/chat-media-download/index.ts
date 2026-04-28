@@ -339,17 +339,31 @@ Deno.serve(async (req) => {
       method: "POST",
       headers: { "Content-Type": "application/json", token: queue.evo_apikey },
       body: JSON.stringify({ id, return_link: true }),
+      // Hard cap to avoid Edge Function 150s IDLE_TIMEOUT when UaZapi hangs
+      signal: AbortSignal.timeout(60000),
     });
 
-    let dlRes = await callDownload(externalId);
+    let dlRes: Response;
+    try {
+      dlRes = await callDownload(externalId);
 
-    // 404 → try to recover via /message/find once, then retry
-    if (dlRes.status === 404 && !originalMessageId) {
-      const recovered = await tryRecoverExternalId();
-      if (recovered && recovered !== externalId) {
-        externalId = recovered;
-        dlRes = await callDownload(externalId);
+      // 404 → try to recover via /message/find once, then retry
+      if (dlRes.status === 404 && !originalMessageId) {
+        const recovered = await tryRecoverExternalId();
+        if (recovered && recovered !== externalId) {
+          externalId = recovered;
+          dlRes = await callDownload(externalId);
+        }
       }
+    } catch (err) {
+      const isAbort = (err as Error)?.name === "AbortError" || (err as Error)?.name === "TimeoutError";
+      console.error("[chat-media-download] UaZapi fetch failed:", (err as Error)?.message);
+      return respond({
+        error: isAbort ? "UAZAPI_TIMEOUT" : "UAZAPI_FETCH_ERROR",
+        details: (err as Error)?.message ?? "fetch failed",
+        fallback: true,
+        transient: true,
+      }, 200);
     }
 
     if (!dlRes.ok) {
@@ -396,7 +410,7 @@ Deno.serve(async (req) => {
       bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     } else if (fileURL) {
-      const fileRes = await fetch(fileURL);
+      const fileRes = await fetch(fileURL, { signal: AbortSignal.timeout(60000) });
       if (!fileRes.ok) {
         return respond({ error: `Failed to fetch decrypted file: ${fileRes.status}` }, 502);
       }
