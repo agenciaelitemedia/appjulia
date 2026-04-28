@@ -26,20 +26,21 @@ export function useContactConversation(contactId: string | null | undefined) {
       if (!contactId) return null;
       const { data, error } = await supabase
         .from('chat_conversations')
-        .select('id, status, protocol, queue_id')
+        .select('id, status, protocol, queue_id, queues:queue_id(is_deleted)')
         .eq('client_id', clientId)
         .eq('contact_id', contactId)
         .in('status', ['pending', 'open', 'closed'])
         .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(5);
       if (error) return null;
-      if (!data) return null;
+      // Pick the most recent conversation whose queue is NOT soft-deleted
+      const row = (data || []).find((r: any) => !r?.queues || r.queues.is_deleted !== true);
+      if (!row) return null;
       return {
-        conversationId: data.id,
-        status: data.status,
-        protocol: data.protocol ?? null,
-        queueId: data.queue_id ?? null,
+        conversationId: row.id,
+        status: row.status,
+        protocol: row.protocol ?? null,
+        queueId: row.queue_id ?? null,
       };
     },
   });
