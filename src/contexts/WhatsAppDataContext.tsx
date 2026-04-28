@@ -288,6 +288,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         .eq('client_id', clientId)
         .order('updated_at', { ascending: false });
       if (currentQueueId) query = query.eq('queue_id', currentQueueId);
+      else if (activeQueueIds.length > 0) query = query.in('queue_id', activeQueueIds);
+      else { setConversations([]); return; }
       if (convQueryGroup === 'active') {
         query = query.in('status', ['pending', 'open']);
       } else {
@@ -299,7 +301,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     } catch (error) {
       console.error('Error loading conversations:', error);
     }
-  }, [clientId, currentQueueId, convQueryGroup]);
+  }, [clientId, currentQueueId, convQueryGroup, activeQueueIds]);
 
   const loadConvCounts = useCallback(async () => {
     if (!clientId) return;
@@ -310,6 +312,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         .eq('client_id', clientId)
         .in('status', ['pending', 'open']);
       if (currentQueueId) q = q.eq('queue_id', currentQueueId);
+      else if (activeQueueIds.length > 0) q = q.in('queue_id', activeQueueIds);
+      else { setConvCounts({ pending: 0, open: 0 }); return; }
       const { data } = await q;
       const counts = { pending: 0, open: 0 };
       (data || []).forEach((r: { status: string }) => {
@@ -318,7 +322,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       });
       setConvCounts(counts);
     } catch {/* noop */}
-  }, [clientId, currentQueueId]);
+  }, [clientId, currentQueueId, activeQueueIds]);
 
   const getOrCreateConversation = useCallback(async (contactId: string): Promise<ChatConversation | null> => {
     if (!clientId) return null;
