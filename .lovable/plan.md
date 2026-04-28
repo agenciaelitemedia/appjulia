@@ -1,53 +1,57 @@
-## Objetivo
+# Nova cena no painel TV: Infraestrutura & Cloud
 
-Em `/admin/prompts` → aba **Casos Jurídicos**, ampliar a busca para também encontrar casos por dados dos clientes que os utilizam, e adicionar um expand em cada card mostrando todos os clientes vinculados àquele caso.
+Hoje `/tv/master` rotaciona 3 cenas a cada 30s (Atendimento, Saúde Técnica, Clientes). Vou adicionar uma **4ª cena** focada em infra/cloud, que entra automaticamente no rodízio.
 
-## Mudanças
+## O que a cena vai mostrar
 
-### 1. Novo hook `useLegalCaseUsage` (`src/pages/admin/prompts/hooks/useLegalCaseUsage.ts`)
-Carrega, em uma única query, todos os vínculos de casos com agentes:
+Layout grid 12 colunas, mesmo padrão visual das outras cenas (TvCard / BigKpiCard / BarRanking).
 
-```sql
-SELECT pc.case_id, ap.cod_agent, ap.agent_name, ap.business_name
-FROM generation_agent_prompt_cases pc
-JOIN generation_agent_prompts ap ON ap.id = pc.agent_prompt_id
-```
+**Linha 1 — Big KPIs (status do backend Lovable Cloud)**
+- Status da instância Cloud (`ACTIVE_HEALTHY` / `COMING_UP` / `UNHEALTHY` etc.) com semáforo verde/âmbar/vermelho
+- Latência média do banco (ms) — última hora
+- Erros 5xx em Edge Functions — últimas 24h
+- Uptime % nas últimas 24h (derivado de heartbeat do dispatcher + ausência de erros 5xx)
 
-Retorna um `Map<case_id, Array<{ cod_agent, agent_name, business_name }>>` para consulta O(1) por caso.
+**Linha 2 — Edge Functions**
+- TvCard "Top Edge Functions por volume (24h)" — ranking com chamadas, p95 latência e % de erro por função (a partir dos `function_edge_logs`)
+- TvCard "Erros recentes" — últimos 8 eventos de erro de edge functions com timestamp, função e código de status
 
-### 2. Atualizar `LegalCasesTab.tsx`
+**Linha 3 — Banco & Storage**
+- TvCard "Banco de dados" — tamanho total, conexões ativas, slow queries (> 1s) na última hora
+- TvCard "Storage / Mídia" — total de objetos, tamanho usado, uploads nas últimas 24h (tabela `chat_messages` com `media_url` ou bucket de storage)
 
-**Busca ampliada:**
-- Trocar o placeholder do input para: *"Buscar por nome do caso, cód. agente, nome do cliente ou escritório..."*
-- Filtro `filtered` passa a aceitar match em qualquer um destes campos:
-  - `case_name`
-  - Em qualquer cliente vinculado: `cod_agent`, `agent_name` (cliente), `business_name` (escritório)
-- Comparação case-insensitive, com `includes`.
+## Como buscar os dados
 
-**Expand por caso:**
-- Adicionar botão chevron (ChevronDown/ChevronUp) no card, ao lado dos demais ícones.
-- Ao expandir, renderizar abaixo do card a lista de clientes que usam o caso, no formato solicitado:
+Tudo já está disponível via tooling existente do projeto:
 
-```
-# 202603001 - Ana Carolina AS
-Ana Carolina Marques sociedade individual de advocacia
-```
+1. **Status da instância**: nova edge function `tv-cloud-status` que chama internamente o equivalente ao `cloud_status` (ou apenas faz um `SELECT 1` com timing — se falhar/lento, marca `warn`/`bad`).
+2. **Edge function logs / latência / erros**: consulta `function_edge_logs` via RPC SQL existente (mesmo padrão usado por `useDispatcherHealth`). Vou criar um hook `useEdgeFunctionsHealth` que agrega por `function_id` nas últimas 24h.
+3. **Banco**: `pg_stat_activity` (conexões), `pg_stat_statements` (slow queries) via RPC. Se `pg_stat_statements` não estiver habilitado, mostro só conexões + tamanho via `pg_database_size`.
+4. **Storage/Mídia**: count e sum em `chat_messages` filtrando por `media_url IS NOT NULL` nas últimas 24h.
 
-ou seja:
-- Linha 1 (negrito): `# {cod_agent} - {business_name}`
-- Linha 2 (texto secundário): `{agent_name}`
-
-- Mostrar contador "(N clientes)" ao lado do nome do caso.
-- Estado local: `expandedCaseIds: Set<string>`.
-- Se o caso não tem clientes: mostrar "Nenhum cliente usa este caso ainda".
-
-**Comportamento da busca + expand:**
-- Quando a busca casa por dados de cliente (e não pelo nome do caso), auto-expandir o card e destacar (highlight leve) os clientes que casaram.
-
-### 3. Sem mudanças de schema
-Tudo já existe nas tabelas `generation_legal_cases`, `generation_agent_prompt_cases` e `generation_agent_prompts`.
+Tudo com `refetchInterval` de 30–60s, igual às outras cenas.
 
 ## Arquivos
 
-- **Criar**: `src/pages/admin/prompts/hooks/useLegalCaseUsage.ts`
-- **Editar**: `src/pages/admin/prompts/components/LegalCasesTab.tsx`
+**Criar**
+- `src/pages/tv/hooks/useInfraStats.ts` — hooks: `useCloudInstanceStatus`, `useEdgeFunctionsHealth`, `useDatabaseStats`, `useStorageStats`
+- `src/pages/tv/components/scenes/SceneInfraCloud.tsx` — nova cena seguindo padrão das existentes
+- `supabase/functions/tv-infra-stats/index.ts` — edge function que executa as queries SQL administrativas (pg_stat_*, function_edge_logs) com service role e retorna JSON agregado
+
+**Editar**
+- `src/pages/tv/TvMasterPage.tsx` — adicionar a 4ª cena ao array `scenes`:
+  ```ts
+  { key: 'infra', title: 'Infraestrutura & Cloud', node: <SceneInfraCloud /> }
+  ```
+
+## Atualização e rotação
+
+- A cena entra automaticamente no `TvSceneRotator` existente (ciclo 30s, fade entre cenas, dots clicáveis).
+- Cada widget da cena tem seu próprio polling (React Query), independente do rodízio — quando a cena reaparece, mostra dados frescos.
+- Sem mudança no `TvHeaderStrip` nem no `TvTicker` (eles continuam fixos no topo/rodapé).
+
+## Tratamento de falhas
+
+- Se `pg_stat_statements` não existir, oculto o widget de slow queries com fallback "Métrica não disponível".
+- Se a edge function `tv-infra-stats` falhar, cada KPI mostra `—` em cinza (não quebra a cena).
+- Status `INACTIVE` / `PAUSING` é destacado em vermelho com pulse, igual aos outros alertas críticos.
