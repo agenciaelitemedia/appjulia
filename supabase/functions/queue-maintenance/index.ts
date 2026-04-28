@@ -173,7 +173,11 @@ serve(async (req) => {
     }
 
     // ---------- purge_messages_and_media ----------
-    if (action === 'purge_messages_and_media') {
+    // NOTE: name kept for backward compatibility. This purge now removes ONLY
+    // chat data (messages, conversations and their dependents) of the chosen
+    // queue. It does NOT delete contacts and does NOT remove media files
+    // from storage — only the DB rows that reference them.
+    if (action === 'purge_messages_and_media' || action === 'purge_chat_data') {
       const queueId = String(body?.queue_id ?? '');
       const confirmName = String(body?.confirm_name ?? '');
       if (!queueId) throw new Error('queue_id is required');
@@ -200,39 +204,8 @@ serve(async (req) => {
       const messageIds = await fetchAllIds(supabase, 'chat_messages', 'id', { col: 'queue_id', val: queueId });
       console.log(`[queue-maintenance] conversations=${conversationIds.length} messages=${messageIds.length}`);
 
-      // 2. Collect media paths from chat_messages
-      const mediaPaths: string[] = [];
-      const pageSize = 1000;
-      let from = 0;
-      while (true) {
-        const { data, error } = await supabase
-          .from('chat_messages')
-          .select('media_url')
-          .eq('queue_id', queueId)
-          .not('media_url', 'is', null)
-          .range(from, from + pageSize - 1);
-        if (error) { console.warn('[queue-maintenance] media fetch error:', error.message); break; }
-        if (!data || data.length === 0) break;
-        for (const row of data) {
-          const p = extractStoragePath((row as { media_url: string }).media_url);
-          if (p) mediaPaths.push(p);
-        }
-        if (data.length < pageSize) break;
-        from += pageSize;
-      }
-      console.log(`[queue-maintenance] media paths to delete=${mediaPaths.length}`);
-
-      // 3. Delete storage files in batches of 100
-      let filesDeleted = 0;
-      const fileErrors: string[] = [];
-      for (let i = 0; i < mediaPaths.length; i += 100) {
-        const slice = mediaPaths.slice(i, i + 100);
-        const { data, error } = await supabase.storage.from(STORAGE_BUCKET).remove(slice);
-        if (error) fileErrors.push(error.message);
-        else filesDeleted += data?.length ?? 0;
-      }
-
-      // 4. Cascade DELETE — children first
+      // 2. Cascade DELETE — children first.
+      // We DO NOT touch storage files and DO NOT touch chat_contacts.
       const deleted: Record<string, number> = {};
 
       // children of messages
@@ -259,15 +232,17 @@ serve(async (req) => {
       deleted['chat_messages'] = await deleteByEq(supabase, 'chat_messages', 'queue_id', queueId);
       deleted['chat_conversations'] = await deleteByEq(supabase, 'chat_conversations', 'queue_id', queueId);
 
-      console.log(`[queue-maintenance] PURGE done`, { filesDeleted, deleted });
+      console.log(`[queue-maintenance] PURGE done`, { deleted });
 
       const totalRows = Object.values(deleted).reduce((a, b) => a + b, 0);
       return new Response(JSON.stringify({
         success: true,
         queue: { id: queue.id, name: queue.name },
-        files_deleted: filesDeleted,
-        files_total: mediaPaths.length,
-        file_errors: fileErrors,
+        files_deleted: 0,
+        files_total: 0,
+        file_errors: [],
+        contacts_preserved: true,
+        media_files_preserved: true,
         deleted,
         total_rows: totalRows,
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
