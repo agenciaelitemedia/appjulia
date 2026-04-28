@@ -44,9 +44,11 @@ export function useDealConversation(deal: CRMDeal | null) {
       if (conv.queue_id) {
         const { data: q } = await supabase
           .from('queues')
-          .select('name')
+          .select('name, is_deleted')
           .eq('id', conv.queue_id)
           .maybeSingle();
+        // Hide conversations whose queue was soft-deleted
+        if (q?.is_deleted === true) return null;
         queueName = q?.name ?? null;
       }
 
