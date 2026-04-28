@@ -24,6 +24,7 @@ export function DeleteQueueDialog({ open, onOpenChange, queue, otherQueues }: De
   const [migrateToId, setMigrateToId] = useState('');
   const [confirmName, setConfirmName] = useState('');
   const [confirmSwitch, setConfirmSwitch] = useState(false);
+  const [forceWithoutMigration, setForceWithoutMigration] = useState(false);
   const [activeCount, setActiveCount] = useState<number | null>(null);
 
   // Carrega contagem de conversas ativas (não resolvidas/fechadas) na fila
@@ -45,7 +46,7 @@ export function DeleteQueueDialog({ open, onOpenChange, queue, otherQueues }: De
   }, [open, queue.id]);
 
   const hasActive = (activeCount ?? 0) > 0;
-  const migrationRequired = hasActive;
+  const migrationRequired = hasActive && !forceWithoutMigration;
   const migrationOk = !migrationRequired || !!migrateToId;
 
   const nameMatches = confirmName.trim().toLowerCase() === queue.name.trim().toLowerCase();
@@ -54,7 +55,11 @@ export function DeleteQueueDialog({ open, onOpenChange, queue, otherQueues }: De
   const handleDelete = () => {
     if (!canDelete) return;
     deleteQueue.mutate(
-      { queue_id: queue.id, migrate_to_queue_id: migrateToId || undefined },
+      {
+        queue_id: queue.id,
+        migrate_to_queue_id: forceWithoutMigration ? undefined : (migrateToId || undefined),
+        force: forceWithoutMigration || undefined,
+      },
       { onSuccess: () => onOpenChange(false) }
     );
   };
@@ -64,6 +69,7 @@ export function DeleteQueueDialog({ open, onOpenChange, queue, otherQueues }: De
       setConfirmName('');
       setConfirmSwitch(false);
       setMigrateToId('');
+      setForceWithoutMigration(false);
       setActiveCount(null);
     }
     onOpenChange(isOpen);
@@ -97,7 +103,24 @@ export function DeleteQueueDialog({ open, onOpenChange, queue, otherQueues }: De
             </div>
           )}
 
-          {(hasActive || otherQueues.length > 0) && (
+          {hasActive && (
+            <div className="flex items-start gap-3 p-3 border border-border rounded-lg bg-muted/30">
+              <Switch
+                checked={forceWithoutMigration}
+                onCheckedChange={setForceWithoutMigration}
+              />
+              <div className="text-xs">
+                <Label className="text-foreground cursor-pointer">
+                  Excluir sem migrar conversas
+                </Label>
+                <p className="text-muted-foreground mt-1">
+                  As {activeCount} conversa{activeCount === 1 ? '' : 's'} ficará{activeCount === 1 ? '' : 'ão'} preservada{activeCount === 1 ? '' : 's'} na fila excluída. Você poderá recuperá-las depois restaurando esta fila para outra fila ativa.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {(hasActive || otherQueues.length > 0) && !forceWithoutMigration && (
             <div className="space-y-2">
               <Label>
                 Migrar conversas ativas para:
@@ -105,7 +128,7 @@ export function DeleteQueueDialog({ open, onOpenChange, queue, otherQueues }: De
               </Label>
               {otherQueues.length === 0 ? (
                 <p className="text-xs text-destructive">
-                  Nenhuma outra fila disponível para migração. Resolva as conversas ativas antes de excluir.
+                  Nenhuma outra fila disponível para migração. Use a opção "Excluir sem migrar" acima ou resolva as conversas ativas primeiro.
                 </p>
               ) : (
                 <Select value={migrateToId} onValueChange={setMigrateToId}>
