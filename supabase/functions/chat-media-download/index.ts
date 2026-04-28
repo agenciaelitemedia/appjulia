@@ -339,6 +339,8 @@ Deno.serve(async (req) => {
       method: "POST",
       headers: { "Content-Type": "application/json", token: queue.evo_apikey },
       body: JSON.stringify({ id, return_link: true }),
+      // Hard cap to avoid Edge Function 150s IDLE_TIMEOUT when UaZapi hangs
+      signal: AbortSignal.timeout(60000),
     });
 
     let dlRes = await callDownload(externalId);
@@ -396,7 +398,7 @@ Deno.serve(async (req) => {
       bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     } else if (fileURL) {
-      const fileRes = await fetch(fileURL);
+      const fileRes = await fetch(fileURL, { signal: AbortSignal.timeout(60000) });
       if (!fileRes.ok) {
         return respond({ error: `Failed to fetch decrypted file: ${fileRes.status}` }, 502);
       }
