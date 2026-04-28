@@ -32,14 +32,20 @@ export function RestoreQueueDialog({ open, onOpenChange, queue, activeQueues }: 
     let cancelled = false;
     setConvCount(null);
     setMsgCount(null);
-    Promise.all([
-      supabase.from('chat_conversations').select('id', { count: 'exact', head: true }).eq('queue_id', queue.id),
-      supabase.from('chat_messages').select('id', { count: 'exact', head: true }).eq('queue_id', queue.id),
-    ]).then(([c, m]) => {
+    (async () => {
+      const c = await supabase
+        .from('chat_conversations')
+        .select('id', { count: 'exact', head: true })
+        .eq('queue_id', queue.id);
       if (cancelled) return;
       setConvCount(c.count ?? 0);
+      const m = await supabase
+        .from('chat_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('queue_id', queue.id);
+      if (cancelled) return;
       setMsgCount(m.count ?? 0);
-    });
+    })();
     return () => { cancelled = true; };
   }, [open, queue.id]);
 
