@@ -165,6 +165,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // Load active queues for this client filtered by user access (queue_members)
   const { data: allQueues = [] } = useAccessibleQueues(false);
 
+  // Set of queue IDs that are still active (not soft-deleted) and accessible to this user.
+  // Used to hide conversations/messages of deleted queues from Chat and CRM links.
+  const activeQueueIds = useMemo(
+    () => (allQueues as Queue[]).map(q => q.id),
+    [allQueues]
+  );
+
   // Resolve effective queue for a given contact — source of truth = the conversation itself.
   // The top-bar selectedQueue filter is for LISTING only; operations always use the contact's real queue.
   // Priority:
