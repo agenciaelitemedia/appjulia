@@ -250,66 +250,80 @@ export function ChatList() {
     setStageIds(allStagesSelected ? [] : stages.map((s) => s.id));
   };
 
-  const visibleContacts = React.useMemo(() => {
-    let result = filteredContacts;
-    if (ownerFilter !== 'all') {
-      const selectedMember = teamMembers.find((m) => String(m.id) === ownerFilter);
-      result = result.filter((c) => {
-        const assigned = convMetaByContact.get(c.id)?.assignedTo;
-        if (ownerFilter === 'unassigned') return !assigned;
-        if (ownerFilter === 'mine') {
-          if (!assigned) return false;
-          return assigned === String(user?.id) || assigned === user?.name;
-        }
-        if (!assigned) return false;
-        return assigned === ownerFilter || (selectedMember && assigned === selectedMember.name);
-      });
-    }
-    if (periodFilter !== 'all') {
-      const range = getDateRange(periodFilter);
-      if (range) {
+  // Reusable client-side filters (owner, period, stage, sla, mode).
+  // Does NOT include: tab Individual/Grupos, search, or conversationStatusFilter.
+  // Tab + search are applied separately so we can build count bases that
+  // ignore the active status tab (pending/open) but still respect them.
+  const applyClientFilters = React.useCallback(
+    (list: typeof filteredContacts) => {
+      let result = list;
+      if (ownerFilter !== 'all') {
+        const selectedMember = teamMembers.find((m) => String(m.id) === ownerFilter);
         result = result.filter((c) => {
-          const ts = c.last_message_at || (c as any).updated_at;
-          if (!ts) return false;
-          const d = new Date(ts);
-          if (Number.isNaN(d.getTime())) return false;
-          return d >= range.from && d <= range.to;
+          const assigned = convMetaByContact.get(c.id)?.assignedTo;
+          if (ownerFilter === 'unassigned') return !assigned;
+          if (ownerFilter === 'mine') {
+            if (!assigned) return false;
+            return assigned === String(user?.id) || assigned === user?.name;
+          }
+          if (!assigned) return false;
+          return assigned === ownerFilter || (selectedMember && assigned === selectedMember.name);
         });
       }
-    }
-    if (stageIds.length > 0 && stageByPhone) {
-      result = result.filter((c) => {
-        const norm = (c.phone || '').replace(/\D/g, '');
-        const info = stageByPhone.get(norm);
-        return info ? stageIds.includes(info.stageId) : false;
-      });
-    }
-    if (slaFilter !== 'all') {
-      result = result.filter((c) => slaStatusByContact.get(c.id) === slaFilter);
-    }
-    if (modeFilter !== 'all') {
-      result = result.filter((c) => {
-        const meta = convMetaByContact.get(c.id);
-        const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
-        const hasAgent = !!queueLink?.hasAgent;
-        if (hasAgent) {
-          const codAgent = queueLink?.codAgent || meta?.codAgent || c.cod_agent;
-          if (modeFilter === 'human') return false;
-          if (!codAgent || !c.phone) return false;
-          const cached = queryClient.getQueryData<SessionStatus | null>(
-            ['agent-session-status', codAgent, c.phone]
-          );
-          if (cached === undefined) return true; // not loaded — keep visible
-          const active = cached?.active ?? false;
-          return modeFilter === 'ia_active' ? active : !active;
-        } else {
-          // Human-only queue
-          return modeFilter === 'human';
+      if (periodFilter !== 'all') {
+        const range = getDateRange(periodFilter);
+        if (range) {
+          result = result.filter((c) => {
+            const ts = c.last_message_at || (c as any).updated_at;
+            if (!ts) return false;
+            const d = new Date(ts);
+            if (Number.isNaN(d.getTime())) return false;
+            return d >= range.from && d <= range.to;
+          });
         }
-      });
-    }
-    return result;
-  }, [filteredContacts, slaFilter, slaStatusByContact, modeFilter, convMetaByContact, queueAgentMap, queryClient, conversations, ownerFilter, periodFilter, stageIds, stageByPhone, user?.id, user?.name, teamMembers]);
+      }
+      if (stageIds.length > 0 && stageByPhone) {
+        result = result.filter((c) => {
+          const norm = (c.phone || '').replace(/\D/g, '');
+          const info = stageByPhone.get(norm);
+          return info ? stageIds.includes(info.stageId) : false;
+        });
+      }
+      if (slaFilter !== 'all') {
+        result = result.filter((c) => slaStatusByContact.get(c.id) === slaFilter);
+      }
+      if (modeFilter !== 'all') {
+        result = result.filter((c) => {
+          const meta = convMetaByContact.get(c.id);
+          const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
+          const hasAgent = !!queueLink?.hasAgent;
+          if (hasAgent) {
+            const codAgent = queueLink?.codAgent || meta?.codAgent || c.cod_agent;
+            if (modeFilter === 'human') return false;
+            if (!codAgent || !c.phone) return false;
+            const cached = queryClient.getQueryData<SessionStatus | null>(
+              ['agent-session-status', codAgent, c.phone]
+            );
+            if (cached === undefined) return true; // not loaded — keep visible
+            const active = cached?.active ?? false;
+            return modeFilter === 'ia_active' ? active : !active;
+          } else {
+            // Human-only queue
+            return modeFilter === 'human';
+          }
+        });
+      }
+      return result;
+    },
+    [ownerFilter, teamMembers, convMetaByContact, user?.id, user?.name, periodFilter, stageIds, stageByPhone, slaFilter, slaStatusByContact, modeFilter, queueAgentMap, queryClient]
+  );
+
+  // Visible list — uses filteredContacts (which already applies activeTab,
+  // search and conversationStatusFilter from the context).
+  const visibleContacts = React.useMemo(
+    () => applyClientFilters(filteredContacts),
+    [filteredContacts, applyClientFilters]
+  );
 
   // Count conversations by status — scoped to the active tab (Individual / Groups)
   // so badges match what the user actually sees in the list.
@@ -339,32 +353,52 @@ export function ChatList() {
     return map;
   }, [sortedConversations]);
 
-  // Defer search input so that fast typing does not block list/count derivation,
-  // and counts always read the same value the list renders with.
+  // Defer search input so that fast typing does not block list/count derivation.
   const deferredSearch = React.useDeferredValue(searchQuery);
 
-  // Single pass over visibleContacts — applies tab + search filtering and
-  // produces both counts in the same render tick. Guarantees that the badges
-  // reflect exactly what's visible after any rapid filter/tab change.
-  const { pendingConvCount, openConvCount } = React.useMemo(() => {
+  // Base list for tab badges — ignores `conversationStatusFilter` so that both
+  // "Em Abertos" and "Em Atendimento" badges always show their real values
+  // regardless of which tab is currently selected. Applies all OTHER filters
+  // (Individual/Grupos tab, search, owner, period, stage, sla, mode).
+  // Snoozed contacts are hidden to match the context's default behavior.
+  const baseForCounts = React.useMemo(() => {
+    const now = Date.now();
+    const snoozedContactIds = new Set(
+      conversations
+        .filter((c) => {
+          const conv = c as { snoozed_until?: string | null };
+          return conv.snoozed_until && new Date(conv.snoozed_until).getTime() > now;
+        })
+        .map((c) => c.contact_id)
+    );
     const q = deferredSearch.trim().toLowerCase();
-    let pending = 0;
-    let open = 0;
-    for (const c of visibleContacts) {
-      if (!matchesActiveTab(c.id)) continue;
+    const base = contacts.filter((c) => {
+      if (snoozedContactIds.has(c.id)) return false;
+      if (!matchesActiveTab(c.id)) return false;
       if (q) {
         const matches =
           (c.name || '').toLowerCase().includes(q) ||
-          (c.phone || '').toLowerCase().includes(q) ||
-          (c.last_message_text || '').toLowerCase().includes(q);
-        if (!matches) continue;
+          (c.phone || '').toLowerCase().includes(q);
+        if (!matches) return false;
       }
+      return true;
+    });
+    return applyClientFilters(base);
+  }, [contacts, conversations, deferredSearch, matchesActiveTab, applyClientFilters]);
+
+  // Single pass over the count base — produces both counts in the same render
+  // tick. Counts now reflect filters but NOT the active status tab, so each
+  // badge always displays its true value.
+  const { pendingConvCount, openConvCount } = React.useMemo(() => {
+    let pending = 0;
+    let open = 0;
+    for (const c of baseForCounts) {
       const s = statusByContact.get(c.id);
       if (s === 'pending') pending++;
       else if (s === 'open') open++;
     }
     return { pendingConvCount: pending, openConvCount: open };
-  }, [visibleContacts, matchesActiveTab, deferredSearch, statusByContact]);
+  }, [baseForCounts, statusByContact]);
 
   const channelBadge = (type: string) => {
     switch (type) {
