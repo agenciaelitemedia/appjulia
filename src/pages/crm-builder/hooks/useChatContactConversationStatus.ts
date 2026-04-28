@@ -42,15 +42,16 @@ export function useChatContactConversationStatus(phone: string | null | undefine
         return { hasContact: false, hasConversation: false, conversationId: null, status: null, protocol: null, queueId: null };
       }
 
-      const { data: conv } = await supabase
+      const { data: convList } = await supabase
         .from('chat_conversations')
-        .select('id, status, protocol, queue_id')
+        .select('id, status, protocol, queue_id, queues:queue_id(is_deleted)')
         .eq('client_id', clientId)
         .eq('contact_id', contact.id)
         .in('status', ['pending', 'open', 'closed'])
         .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(5);
+      // Ignore conversations whose queue was soft-deleted
+      const conv = (convList || []).find((r: any) => !r?.queues || r.queues.is_deleted !== true) || null;
 
       return {
         hasContact: true,
