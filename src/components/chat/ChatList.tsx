@@ -159,13 +159,22 @@ export function ChatList() {
     [slaStatusByContact]
   );
 
+  // Sort conversations once (newest first) — reused by multiple memos to avoid
+  // re-sorting on every dependency change. Uses Date.parse once per item to
+  // skip Date allocations in the comparator.
+  const sortedConversations = React.useMemo(() => {
+    const withTs = conversations.map((c) => ({
+      c,
+      ts: Date.parse(c.updated_at || c.created_at || '') || 0,
+    }));
+    withTs.sort((a, b) => b.ts - a.ts);
+    return withTs.map((x) => x.c);
+  }, [conversations]);
+
   // Map contact_id -> { codAgent, queueId } from most recent conversation
   const convMetaByContact = React.useMemo(() => {
     const map = new Map<string, { codAgent?: string; queueId?: string; assignedTo?: string | null }>();
-    const sorted = [...conversations].sort(
-      (a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime()
-    );
-    sorted.forEach((conv) => {
+    sortedConversations.forEach((conv) => {
       if (!map.has(conv.contact_id)) {
         map.set(conv.contact_id, {
           codAgent: conv.cod_agent || undefined,
@@ -175,7 +184,7 @@ export function ChatList() {
       }
     });
     return map;
-  }, [conversations]);
+  }, [sortedConversations]);
 
   // Batch-load queue → agent links for all visible queues
   const queueIds = React.useMemo(() => {
@@ -324,37 +333,38 @@ export function ChatList() {
   // Map contact_id -> conversation status (most-recent conversation per contact).
   const statusByContact = React.useMemo(() => {
     const map = new Map<string, string>();
-    const sorted = [...conversations].sort(
-      (a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime()
-    );
-    sorted.forEach((c) => {
+    sortedConversations.forEach((c) => {
       if (!map.has(c.contact_id)) map.set(c.contact_id, c.status);
     });
     return map;
-  }, [conversations]);
+  }, [sortedConversations]);
 
-  // Counts derived from the same filtered/visible list (Individual/Groups + search + all filters)
-  const tabFilteredForCounts = React.useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return visibleContacts.filter((c) => {
-      if (!matchesActiveTab(c.id)) return false;
-      if (!q) return true;
-      return (
-        (c.name || '').toLowerCase().includes(q) ||
-        (c.phone || '').toLowerCase().includes(q) ||
-        (c.last_message_text || '').toLowerCase().includes(q)
-      );
-    });
-  }, [visibleContacts, matchesActiveTab, searchQuery]);
+  // Defer search input so that fast typing does not block list/count derivation,
+  // and counts always read the same value the list renders with.
+  const deferredSearch = React.useDeferredValue(searchQuery);
 
-  const pendingConvCount = React.useMemo(
-    () => tabFilteredForCounts.filter((c) => statusByContact.get(c.id) === 'pending').length,
-    [tabFilteredForCounts, statusByContact]
-  );
-  const openConvCount = React.useMemo(
-    () => tabFilteredForCounts.filter((c) => statusByContact.get(c.id) === 'open').length,
-    [tabFilteredForCounts, statusByContact]
-  );
+  // Single pass over visibleContacts — applies tab + search filtering and
+  // produces both counts in the same render tick. Guarantees that the badges
+  // reflect exactly what's visible after any rapid filter/tab change.
+  const { pendingConvCount, openConvCount } = React.useMemo(() => {
+    const q = deferredSearch.trim().toLowerCase();
+    let pending = 0;
+    let open = 0;
+    for (const c of visibleContacts) {
+      if (!matchesActiveTab(c.id)) continue;
+      if (q) {
+        const matches =
+          (c.name || '').toLowerCase().includes(q) ||
+          (c.phone || '').toLowerCase().includes(q) ||
+          (c.last_message_text || '').toLowerCase().includes(q);
+        if (!matches) continue;
+      }
+      const s = statusByContact.get(c.id);
+      if (s === 'pending') pending++;
+      else if (s === 'open') open++;
+    }
+    return { pendingConvCount: pending, openConvCount: open };
+  }, [visibleContacts, matchesActiveTab, deferredSearch, statusByContact]);
 
   const channelBadge = (type: string) => {
     switch (type) {
