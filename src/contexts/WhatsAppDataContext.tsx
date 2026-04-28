@@ -458,7 +458,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       console.error('Error getting/creating conversation:', error);
       return null;
     }
-  }, [clientId, currentQueueId, selectedQueue?.channel_type, user?.name]);
+  }, [clientId, currentQueueId, selectedQueue?.channel_type, user?.name, activeQueueIds]);
 
   const updateConversationStatus = useCallback(async (
     conversationId: string,
