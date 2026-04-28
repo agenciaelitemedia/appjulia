@@ -260,7 +260,11 @@ serve(async (req) => {
       // main tables
       // chat_messages → no queue_id, delete by conversation_id
       deleted['chat_messages'] = await deleteByIn(supabase, 'chat_messages', 'conversation_id', conversationIds);
-      deleted['chat_conversations'] = await deleteByEq(supabase, 'chat_conversations', 'queue_id', queueId);
+      // Delete conversations in batches by id (eq on queue_id can timeout for large queues)
+      deleted['chat_conversations'] = await deleteByIn(supabase, 'chat_conversations', 'id', conversationIds);
+      // Safety net: catch any conversation that may have been created during purge
+      const tail = await deleteByEq(supabase, 'chat_conversations', 'queue_id', queueId);
+      deleted['chat_conversations'] += tail;
 
       console.log(`[queue-maintenance] PURGE done`, { deleted });
 
