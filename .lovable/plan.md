@@ -1,82 +1,68 @@
-# Plano: Aba "Manutenção de Filas" em /configuracoes
+# Filas: Exclusão sem migração + Restauração para outra fila
 
-## Visão geral
-Adicionar nova aba na página `/configuracoes` com um wizard em 3 passos:
-1. **Buscar fila** (por nome da fila e/ou client_id)
-2. **Selecionar ação** (na primeira versão: "Excluir todas as mensagens e arquivos")
-3. **Confirmar e executar** (com dupla confirmação seguindo o padrão do projeto)
+## Mudanças solicitadas
 
-## UX / Fluxo
+1. **Excluir sem migrar**: hoje a fila com conversas ativas exige migrar antes. Adicionar opção "Excluir sem migrar" — as conversas ficam órfãs no soft-delete da fila e podem ser recuperadas depois.
+2. **Restaurar para outra fila**: ao restaurar uma fila excluída, permitir mover suas conversas (e mensagens) para uma fila ativa de destino, em vez de só reativar a fila original.
+3. **Permissão do botão Excluir**: o item "Excluir" no card da fila só aparece para usuários com role `admin`, `colaborador` ou `user`. Demais roles (`time`, `advogado`, `comercial`) não veem.
 
-```text
-┌──────────────────────────────────────────────────┐
-│ [Provedores] [Chat] [IA's] [History] [Monitor]   │
-│ [Manutenção de Filas]  ← NOVA ABA                │
-├──────────────────────────────────────────────────┤
-│ Passo 1 — Buscar Fila                            │
-│  Cliente: [select com client_ids]                │
-│  Nome:    [input busca: "marcia"]                │
-│  Resultados:                                      │
-│   ○ COMERCIAL MÁRCIA CANUTO  · client #270       │
-│   ○ Agente Principal         · client #30        │
-│   [Avançar →]                                    │
-├──────────────────────────────────────────────────┤
-│ Passo 2 — Ações disponíveis                      │
-│  Fila: COMERCIAL MÁRCIA CANUTO (client #270)     │
-│  ┌──────────────────────────────────────────┐    │
-│  │ 🗑  Excluir todas as mensagens e arquivos │    │
-│  │     Remove conversas, mensagens, mídias,  │    │
-│  │     reações, menções, históricos e arqs   │    │
-│  │     do bucket chat-media desta fila.      │    │
-│  │     [Selecionar]                          │    │
-│  └──────────────────────────────────────────┘    │
-│  (espaço reservado p/ próximas ações)            │
-├──────────────────────────────────────────────────┤
-│ Passo 3 — Confirmação                            │
-│  ⚠ Ação irreversível                             │
-│  Será apagado X conversas, Y mensagens, Z arqs.  │
-│  [Switch: "Confirmo a exclusão definitiva"]      │
-│  Digite o nome da fila p/ confirmar: [____]      │
-│  [Cancelar] [Excluir Tudo]                       │
-└──────────────────────────────────────────────────┘
-```
+---
 
-## Arquivos a criar / editar
+## Backend — `supabase/functions/queue-management/index.ts`
 
-### Frontend
-1. **`src/pages/configuracoes/components/QueueMaintenanceTab.tsx`** (novo)
-   - Wizard com `step` controlado (1/2/3).
-   - Passo 1: combo de clientes (reaproveita `chat-reset` action `list_clients`) + input com debounce; lista filas via supabase client (`queues` filtradas por `client_id` e ILIKE `name`).
-   - Passo 2: cards com ações disponíveis (apenas 1 por enquanto).
-   - Passo 3: chama `queue-maintenance` action `preview` (contagens) e ao confirmar chama action `purge_messages_and_media`.
+### Action `delete` (modificar)
+- Aceitar novo parâmetro `force: boolean` no body.
+- Fluxo atual:
+  - Tem agentes vinculados → 409 (mantém).
+  - Tem conversas ativas e sem `migrate_to_queue_id` → 409 (mantém).
+- Novo: se `force === true` **e** sem `migrate_to_queue_id`:
+  - Pular o passo de migração.
+  - Prosseguir direto com o soft delete (`is_deleted=true`, `is_active=false`).
+  - As conversas/mensagens permanecem com o `queue_id` original (a fila ainda existe, só está marcada como excluída) — isso preserva os dados para uma futura restauração/migração.
+- Resposta inclui `forced: true` quando aplicável.
 
-2. **`src/pages/configuracoes/ConfiguracoesPage.tsx`** (editar)
-   - Adicionar `<TabsTrigger value="maintenance">` com ícone `Wrench` e `<TabsContent>` renderizando `QueueMaintenanceTab`.
+### Action `restore` (modificar)
+- Aceitar novo parâmetro opcional `migrate_to_queue_id: string`.
+- Comportamento padrão (sem `migrate_to_queue_id`): reativa a fila original (igual hoje).
+- Quando `migrate_to_queue_id` é informado:
+  1. Validar que a fila destino existe, é do mesmo `client_id` e não está deletada.
+  2. `UPDATE chat_conversations SET queue_id = <destino> WHERE queue_id = <fila excluída>`.
+  3. `UPDATE chat_messages SET queue_id = <destino> WHERE queue_id = <fila excluída>` (em lotes se necessário).
+  4. **Não** reativar a fila excluída — ela permanece com `is_deleted=true` (já não tem mais dados; serve só de histórico).
+  - Resposta retorna `migrated_to`, `conversations_moved`, `messages_moved`.
 
-### Backend
-3. **`supabase/functions/queue-maintenance/index.ts`** (nova edge function)
-   - Actions:
-     - `search_queues` `{ client_id?, name? }` → lista filas (id, name, client_id, channel_type, is_deleted).
-     - `preview` `{ queue_id }` → conta `chat_conversations`, `chat_messages`, mídias (mensagens com `media_url`).
-     - `purge_messages_and_media` `{ queue_id, confirm_name }` → valida nome, executa exclusão na ordem correta:
-       1. Coleta `conversation_ids` via `chat_conversations.queue_id`.
-       2. Coleta `message_ids` via `chat_messages.queue_id` (e/ou `conversation_id`).
-       3. Coleta `media_url`s das mensagens da fila.
-       4. Remove arquivos do bucket `chat-media` (extrai path da URL pública/assinada, remove em lotes de 100).
-       5. DELETE em cascata: `chat_message_reactions` (por message_id), `chat_mentions`, `chat_conversation_history/tags/participants/presence/summaries` (por conversation_id), `chat_messages` (por queue_id), `chat_conversations` (por queue_id), `chat_csat_responses`, `chat_ai_classifications`, `chat_ai_autoreply_logs`, `chat_automation_logs`, `chat_call_logs`, `chat_crm_links`, `chat_scheduled_messages`, `chat_webhook_deliveries` (filtrados por conv/msg/queue).
-       6. Opcional: `uazapi_history_items` ligados às conversas.
-     - Retorna `{ deleted: { table: count }, files_deleted, total_files }`.
-   - CORS padrão; usa `SUPABASE_SERVICE_ROLE_KEY`.
-   - **Não** apaga a própria `queues` nem `queue_agent_links` (preserva a configuração da fila — só limpa os dados gerados).
+---
 
-## Detalhes técnicos
+## Frontend
 
-- **Busca de filas**: query direta `supabase.from('queues').select(...).ilike('name', \`%${term}%\`)` + filtro opcional `eq('client_id', ...)`. Inclui filas com `is_deleted=true` para permitir limpeza pós-soft-delete.
-- **Extração de path do bucket**: tratar URLs como `…/storage/v1/object/public/chat-media/<path>` ou `…/object/sign/chat-media/<path>?token=…`; pegar tudo após `/chat-media/` antes de `?`.
-- **Padrão de UI**: seguir `secure-deletion-workflow` (switch + digitação do nome) já usado em outras telas críticas.
-- **Permissão**: aba visível apenas para admin (mesma checagem usada em outras abas sensíveis em `ConfiguracoesPage`). Verificar `useAuth().isAdmin` e ocultar `TabsTrigger` se necessário.
-- **Toasts e invalidação**: invalida `['queues']`, `['chat-conversations']`, `['chat-messages']`, `['chat-contacts']` ao concluir.
-- **Logs**: console.log de cada etapa para troubleshooting via edge function logs.
+### `src/pages/agente/filas/components/DeleteQueueDialog.tsx`
+- Adicionar checkbox/switch **"Excluir sem migrar conversas (poderei recuperar depois restaurando para outra fila)"**.
+  - Quando ativado: oculta o `Select` de fila destino e libera o botão Excluir mesmo sem destino selecionado.
+  - Mostra aviso amarelo: "As N conversas ficarão preservadas até você restaurar/migrar."
+- Mantém confirmação por digitação do nome + switch final.
+- Hook `useQueueMutations.deleteQueue` ganha o campo `force?: boolean` e repassa ao edge function.
 
-## Fora do escopo (próximas ações)
-- Ressincronizar fila do zero, exportar conversas antes de apagar, apagar somente período X. Cards extras no Passo 2 ficam preparados para receber essas ações depois.
+### Novo: `RestoreQueueDialog.tsx` (em `src/pages/agente/filas/components/`)
+- Dialog acionado no item "Restaurar" do `QueueCard`.
+- Carrega a contagem de conversas/mensagens ainda atreladas à fila excluída (via `chat_conversations` count e `chat_messages` count, server-side).
+- Duas opções:
+  - **Reativar a fila original** (default): chama `restore` sem `migrate_to_queue_id`.
+  - **Restaurar dados em outra fila**: mostra `Select` com filas ativas do mesmo cliente; ao confirmar, chama `restore` com `migrate_to_queue_id`.
+- Hook `restoreQueue` aceita objeto `{ queue_id, migrate_to_queue_id? }` (substitui assinatura atual de string).
+
+### `QueueCard.tsx`
+- Importar `useAuth` e calcular `canDelete = ['admin','colaborador','user'].includes(user?.role)`.
+- O `DropdownMenuItem` "Excluir" só renderiza quando `canDelete` é true.
+- Item "Restaurar" agora abre o `RestoreQueueDialog` em vez de chamar `restoreQueue.mutate(id)` direto.
+
+### `FilasPage.tsx`
+- Substituir o callback inline `onRestore={(q) => restoreQueue.mutate(q.id)}` por estado `restoreTarget` análogo ao `deleteTarget` e renderizar o `RestoreQueueDialog`.
+
+---
+
+## Notas técnicas
+
+- A coluna `chat_messages.queue_id` é atualizada em batches de até 500 ids para evitar timeouts (padrão já usado no projeto).
+- Não mexemos em `queue_agent_links` — restaurar para outra fila não recria vínculos de agentes, apenas move dados de conversa/mensagem.
+- A fila origem continua com `is_deleted=true` após uma restauração com migração — fica visível em "Mostrar excluídas" mas vazia.
+- Roles: a regra de UI (`admin/colaborador/user`) é só para exibir o botão; o edge function continua validando autenticação como hoje.
