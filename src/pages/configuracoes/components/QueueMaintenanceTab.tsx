@@ -122,7 +122,7 @@ export function QueueMaintenanceTab() {
       if (error) throw error;
       if (data?.success === false) throw new Error(data?.error || 'Falha na exclusão');
       const total = data?.total_rows ?? 0;
-      toast.success(`Fila limpa: ${total} registros e ${data?.files_deleted ?? 0} arquivos removidos`);
+      toast.success(`Fila limpa: ${total} registros de chat removidos (contatos e arquivos preservados)`);
       queryClient.invalidateQueries({ queryKey: ['queues'] });
       queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
       queryClient.invalidateQueries({ queryKey: ['chat-messages'] });
@@ -235,11 +235,12 @@ export function QueueMaintenanceTab() {
           <Card className="p-4 space-y-3 border-destructive/30">
             <div className="flex items-center gap-2">
               <Trash2 className="w-5 h-5 text-destructive" />
-              <h3 className="font-semibold text-foreground">Excluir todas as mensagens e arquivos</h3>
+              <h3 className="font-semibold text-foreground">Excluir todas as mensagens da fila</h3>
             </div>
             <p className="text-sm text-muted-foreground">
-              Remove todas as conversas, mensagens, reações, menções, históricos, logs e os arquivos
-              de mídia armazenados desta fila. A fila em si <strong>não</strong> será apagada.
+              Remove todas as conversas, mensagens, reações, menções, históricos e logs de chat
+              desta fila. <strong>Contatos</strong> e <strong>arquivos de mídia</strong> no
+              storage <strong>são preservados</strong>. A fila em si também não será apagada.
             </p>
             <Button variant="destructive" size="sm" onClick={() => setStep('confirm')}>
               Selecionar
@@ -282,7 +283,7 @@ export function QueueMaintenanceTab() {
               <Loader2 className="w-5 h-5 animate-spin mr-2" /> Calculando prévia...
             </div>
           ) : preview ? (
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div className="rounded-md border p-3">
                 <div className="text-xs text-muted-foreground">Conversas</div>
                 <div className="text-2xl font-bold">{preview.conversations.toLocaleString('pt-BR')}</div>
@@ -291,19 +292,17 @@ export function QueueMaintenanceTab() {
                 <div className="text-xs text-muted-foreground">Mensagens</div>
                 <div className="text-2xl font-bold">{preview.messages.toLocaleString('pt-BR')}</div>
               </div>
-              <div className="rounded-md border p-3">
-                <div className="text-xs text-muted-foreground">Arquivos de mídia</div>
-                <div className="text-2xl font-bold">{preview.media.toLocaleString('pt-BR')}</div>
-              </div>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">Não foi possível obter a prévia.</p>
           )}
 
           <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-            <strong>Ação irreversível.</strong> Todos os dados de chat desta fila e os arquivos
-            no bucket <code className="font-mono">chat-media</code> referenciados pelas mensagens
-            serão removidos. A configuração da fila (e vínculos com agentes) será preservada.
+            <strong>Ação irreversível.</strong> Todos os dados de chat desta fila (conversas,
+            mensagens e dependências) serão removidos. <strong>Contatos</strong> e os
+            <strong> arquivos de mídia</strong> no bucket <code className="font-mono">chat-media</code>
+            <strong> não</strong> serão apagados. A configuração da fila (e vínculos com agentes)
+            também será preservada.
           </div>
 
           <div className="flex items-center gap-2 pt-1">
