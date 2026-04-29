@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Search } from 'lucide-react';
-import { useAgentSearch, type SearchedAgent } from '@/pages/agents/hooks/useAgentSearch';
+import { useClientSearch, type SearchedClient } from '../hooks/useClientSearch';
 import { useTelefoniaAdmin } from '../hooks/useTelefoniaAdmin';
 import { BILLING_PERIOD_LABELS, getPlanPriceByPeriod, type BillingPeriod, type PhonePlan } from '../types';
 
@@ -17,10 +17,10 @@ interface Props {
 }
 
 export function AddTelefoniaDialog({ open, onOpenChange, plans }: Props) {
-  const { searchTerm, setSearchTerm, results, isLoading: searching } = useAgentSearch();
+  const { searchTerm, setSearchTerm, results, isLoading: searching } = useClientSearch();
   const { assignPlan } = useTelefoniaAdmin();
 
-  const [selectedAgent, setSelectedAgent] = useState<SearchedAgent | null>(null);
+  const [selectedClient, setSelectedClient] = useState<SearchedClient | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
   const [extraExtensions, setExtraExtensions] = useState(0);
@@ -33,7 +33,7 @@ export function AddTelefoniaDialog({ open, onOpenChange, plans }: Props) {
   const totalPrice = planPrice + extrasPrice;
 
   const handleReset = () => {
-    setSelectedAgent(null);
+    setSelectedClient(null);
     setSelectedPlanId('');
     setBillingPeriod('monthly');
     setExtraExtensions(0);
@@ -48,14 +48,14 @@ export function AddTelefoniaDialog({ open, onOpenChange, plans }: Props) {
   };
 
   const handleConfirm = () => {
-    if (!selectedAgent || !selectedPlan) return;
+    if (!selectedClient || !selectedPlan) return;
     assignPlan.mutate({
-      codAgent: selectedAgent.cod_agent,
+      clientId: selectedClient.id,
       planId: selectedPlan.id,
       billingPeriod,
       extraExtensions,
-      clientName: selectedAgent.client_name,
-      businessName: selectedAgent.business_name || '',
+      clientName: selectedClient.name,
+      businessName: selectedClient.business_name || '',
       recordingEnabled,
       transcriptionEnabled,
     }, {
@@ -71,15 +71,15 @@ export function AddTelefoniaDialog({ open, onOpenChange, plans }: Props) {
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Agent search */}
-          {!selectedAgent ? (
+          {/* Client search */}
+          {!selectedClient ? (
             <div className="space-y-2">
-              <Label>Buscar Agente</Label>
+              <Label>Buscar Cliente</Label>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   className="pl-9"
-                  placeholder="Código, nome ou escritório..."
+                  placeholder="Nome, escritório ou e-mail..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -91,16 +91,16 @@ export function AddTelefoniaDialog({ open, onOpenChange, plans }: Props) {
               )}
               {results.length > 0 && (
                 <div className="border rounded-md max-h-48 overflow-y-auto">
-                  {results.map((agent) => (
+                  {results.map((c) => (
                     <button
-                      key={agent.id}
+                      key={c.id}
                       className="w-full text-left px-3 py-2 hover:bg-muted/50 border-b last:border-b-0 transition-colors"
-                      onClick={() => setSelectedAgent(agent)}
+                      onClick={() => setSelectedClient(c)}
                     >
-                      <span className="font-mono text-xs text-muted-foreground">{agent.cod_agent}</span>
-                      <span className="block text-sm font-medium">{agent.client_name}</span>
-                      {agent.business_name && (
-                        <span className="block text-xs text-muted-foreground">{agent.business_name}</span>
+                      <span className="font-mono text-xs text-muted-foreground">#{c.id}</span>
+                      <span className="block text-sm font-medium">{c.name}</span>
+                      {c.business_name && (
+                        <span className="block text-xs text-muted-foreground">{c.business_name}</span>
                       )}
                     </button>
                   ))}
@@ -111,19 +111,19 @@ export function AddTelefoniaDialog({ open, onOpenChange, plans }: Props) {
             <div className="p-3 border rounded-md bg-muted/30">
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="font-mono text-xs text-muted-foreground">{selectedAgent.cod_agent}</span>
-                  <span className="block text-sm font-medium">{selectedAgent.client_name}</span>
-                  {selectedAgent.business_name && (
-                    <span className="block text-xs text-muted-foreground">{selectedAgent.business_name}</span>
+                  <span className="font-mono text-xs text-muted-foreground">Cliente #{selectedClient.id}</span>
+                  <span className="block text-sm font-medium">{selectedClient.name}</span>
+                  {selectedClient.business_name && (
+                    <span className="block text-xs text-muted-foreground">{selectedClient.business_name}</span>
                   )}
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedAgent(null)}>Trocar</Button>
+                <Button variant="ghost" size="sm" onClick={() => setSelectedClient(null)}>Trocar</Button>
               </div>
             </div>
           )}
 
           {/* Plan selection */}
-          {selectedAgent && (
+          {selectedClient && (
             <>
               <div>
                 <Label>Plano</Label>
