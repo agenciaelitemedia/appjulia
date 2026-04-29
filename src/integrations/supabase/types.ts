@@ -4810,6 +4810,99 @@ export type Database = {
         }
         Relationships: []
       }
+      telephony_orders: {
+        Row: {
+          billing_period: string
+          checkout_url: string | null
+          client_id: string
+          created_at: string
+          customer_document: string
+          customer_email: string
+          customer_name: string
+          customer_whatsapp: string | null
+          extra_extensions: number
+          extra_extensions_total: number
+          id: string
+          mp_payment_id: string | null
+          mp_preference_id: string | null
+          order_nsu: string | null
+          paid_at: string | null
+          payment_gateway: string
+          plan_id: number
+          plan_name: string
+          plan_price: number
+          provisioned_at: string | null
+          recording_enabled: boolean
+          recording_total: number
+          setup_fee: number
+          status: string
+          total_amount: number
+          transcription_enabled: boolean
+          transcription_total: number
+          updated_at: string
+        }
+        Insert: {
+          billing_period: string
+          checkout_url?: string | null
+          client_id: string
+          created_at?: string
+          customer_document: string
+          customer_email: string
+          customer_name: string
+          customer_whatsapp?: string | null
+          extra_extensions?: number
+          extra_extensions_total?: number
+          id?: string
+          mp_payment_id?: string | null
+          mp_preference_id?: string | null
+          order_nsu?: string | null
+          paid_at?: string | null
+          payment_gateway?: string
+          plan_id: number
+          plan_name: string
+          plan_price?: number
+          provisioned_at?: string | null
+          recording_enabled?: boolean
+          recording_total?: number
+          setup_fee?: number
+          status?: string
+          total_amount?: number
+          transcription_enabled?: boolean
+          transcription_total?: number
+          updated_at?: string
+        }
+        Update: {
+          billing_period?: string
+          checkout_url?: string | null
+          client_id?: string
+          created_at?: string
+          customer_document?: string
+          customer_email?: string
+          customer_name?: string
+          customer_whatsapp?: string | null
+          extra_extensions?: number
+          extra_extensions_total?: number
+          id?: string
+          mp_payment_id?: string | null
+          mp_preference_id?: string | null
+          order_nsu?: string | null
+          paid_at?: string | null
+          payment_gateway?: string
+          plan_id?: number
+          plan_name?: string
+          plan_price?: number
+          provisioned_at?: string | null
+          recording_enabled?: boolean
+          recording_total?: number
+          setup_fee?: number
+          status?: string
+          total_amount?: number
+          transcription_enabled?: boolean
+          transcription_total?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       telephony_providers: {
         Row: {
           api4com_domain: string | null

@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
     const { data: order, error: insErr } = await sb
       .from('telephony_orders')
       .insert({
-        client_id: Number(client_id),
+        client_id: String(client_id),
         customer_name, customer_document, customer_email,
         customer_whatsapp: customer_whatsapp || null,
         plan_id, plan_name: plan.name,
