@@ -9,6 +9,10 @@ export interface PhonePlan {
   price_semiannual: number | null;
   price_annual: number | null;
   extra_extension_price: number | null;
+  setup_fee_monthly: number | null;
+  setup_fee_quarterly: number | null;
+  setup_fee_semiannual: number | null;
+  setup_fee_annual: number | null;
   description: string | null;
   is_active: boolean;
 }
@@ -37,7 +41,6 @@ export const PERIOD_MONTHS: Record<BillingPeriod, number> = {
 };
 
 // Pricing rules (espelha a edge function — só pra display do resumo)
-export const SETUP_FEE_MONTHLY_REAIS = 197;
 export const ADDON_PRICE_MONTHLY_REAIS = 99.9;
 
 export function priceForPeriod(plan: PhonePlan, period: BillingPeriod): number {
@@ -50,6 +53,25 @@ export function priceForPeriod(plan: PhonePlan, period: BillingPeriod): number {
   return Number(plan[map[period]] ?? 0);
 }
 
+/**
+ * Retorna a taxa de setup configurada para o período:
+ * - null  → não há taxa de setup (não exibir)
+ * - 0     → grátis (exibir em destaque)
+ * - > 0   → cobrar
+ */
+export function setupFeeForPeriod(plan: PhonePlan, period: BillingPeriod): number | null {
+  const map: Record<BillingPeriod, keyof PhonePlan> = {
+    monthly: 'setup_fee_monthly',
+    quarterly: 'setup_fee_quarterly',
+    semiannual: 'setup_fee_semiannual',
+    annual: 'setup_fee_annual',
+  };
+  const raw = plan[map[period]];
+  if (raw === null || raw === undefined || raw === '') return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
 export function isAddonsFree(period: BillingPeriod): boolean {
   return period === 'semiannual' || period === 'annual';
 }
@@ -60,7 +82,8 @@ export function calculateTotal(d: ContractDraft): {
   if (!d.plan) return { plan: 0, setup: 0, recording: 0, transcription: 0, extras: 0, total: 0 };
   const months = PERIOD_MONTHS[d.billing_period];
   const planTotal = priceForPeriod(d.plan, d.billing_period);
-  const setup = d.billing_period === 'monthly' ? SETUP_FEE_MONTHLY_REAIS : 0;
+  const setupRaw = setupFeeForPeriod(d.plan, d.billing_period);
+  const setup = setupRaw ?? 0;
   const addonUnit = isAddonsFree(d.billing_period) ? 0 : ADDON_PRICE_MONTHLY_REAIS;
   const recording = d.recording_enabled ? addonUnit * months : 0;
   const transcription = d.transcription_enabled ? addonUnit * months : 0;

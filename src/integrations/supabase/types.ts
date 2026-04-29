@@ -4210,6 +4210,10 @@ export type Database = {
           price_monthly: number
           price_quarterly: number
           price_semiannual: number
+          setup_fee_annual: number | null
+          setup_fee_monthly: number | null
+          setup_fee_quarterly: number | null
+          setup_fee_semiannual: number | null
           updated_at: string
         }
         Insert: {
@@ -4225,6 +4229,10 @@ export type Database = {
           price_monthly?: number
           price_quarterly?: number
           price_semiannual?: number
+          setup_fee_annual?: number | null
+          setup_fee_monthly?: number | null
+          setup_fee_quarterly?: number | null
+          setup_fee_semiannual?: number | null
           updated_at?: string
         }
         Update: {
@@ -4240,6 +4248,10 @@ export type Database = {
           price_monthly?: number
           price_quarterly?: number
           price_semiannual?: number
+          setup_fee_annual?: number | null
+          setup_fee_monthly?: number | null
+          setup_fee_quarterly?: number | null
+          setup_fee_semiannual?: number | null
           updated_at?: string
         }
         Relationships: []

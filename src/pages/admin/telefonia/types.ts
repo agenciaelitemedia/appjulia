@@ -15,6 +15,10 @@ export interface PhonePlan {
   price_semiannual: number;
   price_annual: number;
   extra_extension_price: number;
+  setup_fee_monthly: number | null;
+  setup_fee_quarterly: number | null;
+  setup_fee_semiannual: number | null;
+  setup_fee_annual: number | null;
   description: string | null;
   is_active: boolean;
   created_at: string;
