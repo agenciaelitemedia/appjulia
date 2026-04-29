@@ -60,12 +60,19 @@ export function EditTelefoniaDialog({ open, onOpenChange, plans, userPlan }: Pro
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Agent info (read-only) */}
+          {/* Client info (read-only) */}
           <div className="p-3 border rounded-md bg-muted/30">
-            <span className="font-mono text-xs text-muted-foreground">{userPlan.cod_agent}</span>
+            <span className="font-mono text-xs text-muted-foreground">
+              {userPlan.client_id != null ? `Cliente #${userPlan.client_id}` : '#—'}
+            </span>
             <span className="block text-sm font-medium">{userPlan.client_name || '-'}</span>
             {userPlan.business_name && (
               <span className="block text-xs text-muted-foreground">{userPlan.business_name}</span>
+            )}
+            {userPlan.cod_agent && (
+              <span className="block text-[10px] text-muted-foreground/70 font-mono mt-1">
+                cod_agent: {userPlan.cod_agent}
+              </span>
             )}
           </div>
 
