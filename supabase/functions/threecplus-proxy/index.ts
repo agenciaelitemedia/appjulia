@@ -58,6 +58,14 @@ function isRecoverableDeleteStatus(status: number | null): boolean {
   return status === 400 || status === 403 || status === 404 || status === 405;
 }
 
+function isThreecWebphonePermissionError(error: unknown): boolean {
+  const message = String((error as any)?.message || error || "");
+  return /\/agent\/webphone\/login/i.test(message)
+    && (/3C\+ erro\s*403/i.test(message)
+      || /Você não tem permissão para acessar esse recurso/i.test(message)
+      || /licença\/permissão de Webphone ativa/i.test(message));
+}
+
 function scopePhoneExtensionsQuery(
   query: any,
   codAgent: string | null,
@@ -428,11 +436,25 @@ serve(async (req) => {
         // No official cache — refuse to use stale fallback credentials, since they
         // would cause "Authentication Error" at the PBX. Surface the real cause.
         if (officialLoginError) {
-          throw new Error(
+          const permissionError = new Error(
             `Não foi possível obter credenciais SIP válidas da 3C+ (agent_id ${ext.threecplus_agent_id}). ` +
             `O endpoint /agent/webphone/login retornou: ${officialLoginError}. ` +
             `Verifique no painel 3C+ se este agente tem licença/permissão de Webphone ativa.`,
           );
+
+          if (isThreecWebphonePermissionError(permissionError)) {
+            result = {
+              blocked: true,
+              nonRetryable: true,
+              errorCode: "WEBPHONE_PERMISSION_REQUIRED",
+              error: permissionError.message,
+              provider: "3cplus",
+              agentId: ext.threecplus_agent_id,
+            };
+            break;
+          }
+
+          throw permissionError;
         }
 
         // ============================================================
