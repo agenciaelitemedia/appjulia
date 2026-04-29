@@ -363,7 +363,7 @@ export function ConfigTab() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Cód. Agente</TableHead>
+                  <TableHead>Cliente</TableHead>
                   <TableHead>Provedor</TableHead>
                   <TableHead>Domínio / URL</TableHead>
                   <TableHead>Token</TableHead>
@@ -373,7 +373,26 @@ export function ConfigTab() {
               <TableBody>
                 {configs.map((cfg) => (
                   <TableRow key={cfg.id}>
-                    <TableCell className="font-mono text-xs">{cfg.cod_agent}</TableCell>
+                    <TableCell>
+                      <div>
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {cfg.client_id != null ? `#${cfg.client_id}` : '#—'}
+                        </span>
+                        <span className="block text-sm font-medium">
+                          {(cfg as any).client_name || '(sem nome)'}
+                        </span>
+                        {(cfg as any).business_name && (
+                          <span className="block text-xs text-muted-foreground">
+                            {(cfg as any).business_name}
+                          </span>
+                        )}
+                        {cfg.cod_agent && (
+                          <span className="block text-[10px] text-muted-foreground/70 font-mono">
+                            cod_agent: {cfg.cod_agent}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <Badge variant={cfg.provider === '3cplus' ? 'default' : 'secondary'} className="text-xs">
                         {PROVIDER_LABELS[cfg.provider] || cfg.provider}
@@ -405,7 +424,9 @@ export function ConfigTab() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>Remover configuração?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                A configuração do agente <strong>{cfg.cod_agent}</strong> será removida permanentemente.
+                                A configuração do cliente <strong>
+                                  #{cfg.client_id ?? '—'} {(cfg as any).client_name ?? ''}
+                                </strong> será removida permanentemente.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
