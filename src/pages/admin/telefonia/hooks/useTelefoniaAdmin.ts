@@ -95,6 +95,7 @@ export function useTelefoniaAdmin() {
   const assignPlan = useMutation({
     mutationFn: async (params: {
       codAgent: string;
+      clientId?: number | null;
       planId: number;
       billingPeriod: BillingPeriod;
       extraExtensions: number;
@@ -103,6 +104,26 @@ export function useTelefoniaAdmin() {
       recordingEnabled?: boolean;
       transcriptionEnabled?: boolean;
     }) => {
+      // Resolve client_id (Fase 4): try param → query agents via db-query
+      let clientId: number | null = params.clientId ?? null;
+      if (!clientId && params.codAgent) {
+        try {
+          const { data: r } = await supabase.functions.invoke('db-query', {
+            body: {
+              action: 'raw',
+              data: {
+                query: 'SELECT client_id FROM agents WHERE cod_agent = $1 LIMIT 1',
+                params: [params.codAgent],
+              },
+            },
+          });
+          const cid = (r as any)?.data?.[0]?.client_id ?? (r as any)?.[0]?.client_id;
+          if (cid != null) clientId = Number(cid);
+        } catch (e) {
+          console.warn('[assignPlan] client_id resolve failed:', e);
+        }
+      }
+
       // Deactivate existing plans for this cod_agent
       await supabase
         .from('phone_user_plans')
@@ -116,6 +137,7 @@ export function useTelefoniaAdmin() {
         .from('phone_user_plans')
         .insert({
           cod_agent: params.codAgent,
+          client_id: clientId,
           plan_id: params.planId,
           billing_period: params.billingPeriod,
           extra_extensions: params.extraExtensions,
@@ -216,9 +238,29 @@ export function useTelefoniaAdmin() {
           .eq('id', config.id);
         if (error) throw error;
       } else {
+        // Resolve client_id from cod_agent if not provided (Fase 4)
+        let clientId: number | null = (config as any).client_id ?? null;
+        const codAgent = (config as any).cod_agent;
+        if (!clientId && codAgent) {
+          try {
+            const { data: r } = await supabase.functions.invoke('db-query', {
+              body: {
+                action: 'raw',
+                data: {
+                  query: 'SELECT client_id FROM agents WHERE cod_agent = $1 LIMIT 1',
+                  params: [codAgent],
+                },
+              },
+            });
+            const cid = (r as any)?.data?.[0]?.client_id ?? (r as any)?.[0]?.client_id;
+            if (cid != null) clientId = Number(cid);
+          } catch (e) {
+            console.warn('[saveConfig] client_id resolve failed:', e);
+          }
+        }
         const { error } = await supabase
           .from('phone_config')
-          .insert(config as any);
+          .insert({ ...config, client_id: clientId } as any);
         if (error) throw error;
       }
     },
