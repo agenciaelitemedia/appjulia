@@ -161,7 +161,7 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
         setNoteMode(false);
         setNoteType('info');
       } else {
-        await sendMessage(contactId, messageText, replyToMessage ?? undefined);
+        await sendMessage(contactId, applySignature(messageText), replyToMessage ?? undefined);
         onCancelReply?.();
       }
     } catch (error) {
@@ -249,7 +249,9 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
     const file = new File([blob], `pasted_${Date.now()}.${ext}`, { type: blob.type });
     setIsSending(true);
     try {
-      await sendMedia(contactId, file, 'image', text.trim() || undefined);
+      const captionRaw = text.trim();
+      const caption = captionRaw ? applySignature(captionRaw) : undefined;
+      await sendMedia(contactId, file, 'image', caption);
       setText('');
     } finally {
       setIsSending(false);
