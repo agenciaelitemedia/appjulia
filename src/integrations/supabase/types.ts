@@ -4280,6 +4280,9 @@ export type Database = {
           is_active: boolean
           label: string | null
           provider: string
+          sip_manual_domain: string | null
+          sip_manual_password: string | null
+          sip_manual_username: string | null
           threecplus_agent_id: string | null
           threecplus_extension: string | null
           threecplus_raw: Json | null
@@ -4305,6 +4308,9 @@ export type Database = {
           is_active?: boolean
           label?: string | null
           provider?: string
+          sip_manual_domain?: string | null
+          sip_manual_password?: string | null
+          sip_manual_username?: string | null
           threecplus_agent_id?: string | null
           threecplus_extension?: string | null
           threecplus_raw?: Json | null
@@ -4330,6 +4336,9 @@ export type Database = {
           is_active?: boolean
           label?: string | null
           provider?: string
+          sip_manual_domain?: string | null
+          sip_manual_password?: string | null
+          sip_manual_username?: string | null
           threecplus_agent_id?: string | null
           threecplus_extension?: string | null
           threecplus_raw?: Json | null

@@ -276,7 +276,7 @@ serve(async (req) => {
         const extQuery = supabase
           .from("phone_extensions")
           .select(
-            "threecplus_agent_id, threecplus_sip_username, threecplus_sip_password, threecplus_sip_domain, threecplus_extension, threecplus_raw",
+            "threecplus_agent_id, threecplus_sip_username, threecplus_sip_password, threecplus_sip_domain, threecplus_extension, threecplus_raw, sip_manual_domain, sip_manual_username, sip_manual_password",
           )
           .eq("id", extensionId)
           .limit(1);
@@ -306,6 +306,31 @@ serve(async (req) => {
           ];
           return { wsUrl: candidates[0], wsUrlSource: `auto-discovery (${candidates.length} candidatos, prioridade vox-socket:4443)`, wsUrlCandidates: candidates };
         };
+
+        // ============================================================
+        // PRIORITY 0: Manual SIP credentials (from "Ramal SIP externo" panel)
+        // Highest priority — bypasses /agent/webphone/login entirely.
+        // ============================================================
+        if (
+          (ext as any).sip_manual_domain &&
+          (ext as any).sip_manual_username &&
+          (ext as any).sip_manual_password
+        ) {
+          const manualDomain = (ext as any).sip_manual_domain as string;
+          const ws = resolveWsUrl(manualDomain);
+          result = {
+            domain: manualDomain,
+            domainSource: "credenciais SIP manuais (painel 3C+ → Ramal SIP externo)",
+            username: (ext as any).sip_manual_username,
+            password: (ext as any).sip_manual_password,
+            wsUrl: ws.wsUrl,
+            wsUrlSource: ws.wsUrlSource,
+            wsUrlCandidates: ws.wsUrlCandidates,
+            source: "manual",
+            baseUrl,
+          };
+          break;
+        }
 
         // ============================================================
         // PRIORITY 1: Try official 3C+ webphone login (source of truth)
