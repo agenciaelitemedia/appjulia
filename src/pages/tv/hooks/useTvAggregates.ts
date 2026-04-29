@@ -19,7 +19,7 @@ export function useAttendanceKpis() {
       const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
       const startOfTodayIso = startOfToday.toISOString();
 
-      const [totalRes, pendingRes, openRes, resolvedTodayRes] = await Promise.all([
+      const [totalRes, pendingRes, openRes, resolvedTodayResolvedRes, resolvedTodayClosedRes] = await Promise.all([
         supabase
           .from('chat_conversations')
           .select('id', { count: 'exact', head: true })
@@ -37,22 +37,28 @@ export function useAttendanceKpis() {
         supabase
           .from('chat_conversations')
           .select('id', { count: 'exact', head: true })
-          .in('status', ['resolved', 'closed'])
+          .eq('status', 'resolved')
           .gte('created_at', since24h)
           .gte('resolved_at', startOfTodayIso),
+        supabase
+          .from('chat_conversations')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'closed')
+          .gte('created_at', since24h)
+          .gte('closed_at', startOfTodayIso),
       ]);
 
-      if (totalRes.error || pendingRes.error || openRes.error || resolvedTodayRes.error) {
+      if (totalRes.error || pendingRes.error || openRes.error || resolvedTodayResolvedRes.error || resolvedTodayClosedRes.error) {
         return { tme_seconds: null, tma_seconds: null, sla_pct: 0, total_24h: 0, pending: 0, open: 0, resolved_today: 0 };
       }
 
       const total24h = totalRes.count ?? 0;
       const pending = pendingRes.count ?? 0;
       const open = openRes.count ?? 0;
-      const resolvedToday = resolvedTodayRes.count ?? 0;
+      const resolvedToday = (resolvedTodayResolvedRes.count ?? 0) + (resolvedTodayClosedRes.count ?? 0);
 
       if (total24h === 0) {
-        return { tme_seconds: null, tma_seconds: 0, sla_pct: 0, total_24h: 0, pending: 0, open: 0, resolved_today: 0 };
+        return { tme_seconds: null, tma_seconds: null, sla_pct: 0, total_24h: 0, pending: 0, open: 0, resolved_today: 0 };
       }
 
       const data: Array<{
