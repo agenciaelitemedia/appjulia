@@ -787,7 +787,7 @@ serve(async (req) => {
             provider: "3cplus",
             threecplus_agent_id: agentId,
             threecplus_extension: ext,
-            threecplus_raw: apiResult,
+            threecplus_raw: mergeThreecRaw(null, apiResult),
             is_active: true,
           });
 
@@ -1057,15 +1057,17 @@ serve(async (req) => {
           const ext = agent.extension ? String(agent.extension) : null;
           if (!agentId) continue;
 
-          const { data: existing } = await supabase
-            .from("phone_extensions").select("id")
-            .eq("cod_agent", codAgent).eq("threecplus_agent_id", agentId)
+          const existingQuery = supabase
+            .from("phone_extensions").select("id, threecplus_raw")
+            .eq("threecplus_agent_id", agentId)
+            .limit(1);
+          const { data: existing } = await scopePhoneExtensionsQuery(existingQuery, codAgent, clientId)
             .maybeSingle();
 
           if (existing) {
             await supabase.from("phone_extensions").update({
               threecplus_extension: ext,
-              threecplus_raw: agent,
+              threecplus_raw: mergeThreecRaw((existing as any).threecplus_raw, agent),
               updated_at: new Date().toISOString(),
             }).eq("id", existing.id);
           } else {
@@ -1078,7 +1080,7 @@ serve(async (req) => {
               provider: "3cplus",
               threecplus_agent_id: agentId,
               threecplus_extension: ext,
-              threecplus_raw: agent,
+              threecplus_raw: mergeThreecRaw(null, agent),
               is_active: true,
             });
             if (insertError) {
