@@ -148,7 +148,10 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Dual-key resolution (Fase 3 migration cod_agent → client_id)
-    let clientId: number | null = clientIdRaw ? Number(clientIdRaw) : null;
+    const normalizedClientId = Number(clientIdRaw);
+    let clientId: number | null = Number.isFinite(normalizedClientId) && normalizedClientId > 0
+      ? normalizedClientId
+      : null;
     if (!clientId && codAgent) {
       const { data: anyExt } = await supabase
         .from("phone_extensions")
@@ -497,21 +500,27 @@ serve(async (req) => {
             "",
         ).trim();
 
+        const dbCodAgent = codAgent || (clientId ? `client_${clientId}` : null);
+        if (!dbCodAgent) {
+          throw new Error("Cliente não identificado para criar o ramal.");
+        }
+
         // Validate uniqueness
         if (assignedMemberId) {
-          const { data: existingMember } = await supabase
+          const memberQuery = supabase
             .from("phone_extensions")
             .select("id")
-            .eq("cod_agent", codAgent)
-            .eq("assigned_member_id", assignedMemberId)
-            .maybeSingle();
+            .eq("assigned_member_id", assignedMemberId);
+          const { data: existingMember } = clientId
+            ? await memberQuery.eq("client_id", clientId).maybeSingle()
+            : await memberQuery.eq("cod_agent", dbCodAgent).maybeSingle();
           if (existingMember) {
             throw new Error("Este membro já possui um ramal vinculado.");
           }
         }
 
         const fName = firstName || "Agente";
-        const lName = lastName || String(codAgent);
+        const lName = lastName || dbCodAgent;
         const emailToUse = email || `agente_${Date.now()}@atendejulia.com.br`;
 
         // Generate strong random password (12+ chars, uppercase, number, special)
@@ -533,11 +542,13 @@ serve(async (req) => {
         const usedExtensions = new Set<number>();
 
         // Collect used extension numbers from local DB
-        const { data: existingExts, error: extError } = await supabase
+        const extQuery = supabase
           .from("phone_extensions")
           .select("extension_number")
-          .eq("cod_agent", codAgent)
           .eq("provider", "3cplus");
+        const { data: existingExts, error: extError } = clientId
+          ? await extQuery.eq("client_id", clientId)
+          : await extQuery.eq("cod_agent", dbCodAgent);
 
         if (extError) {
           throw new Error(
@@ -693,7 +704,7 @@ serve(async (req) => {
         // Persist in DB
         const { error: dbError } = await supabase.from("phone_extensions")
           .insert({
-            cod_agent: codAgent,
+            cod_agent: dbCodAgent,
             client_id: clientId,
             extension_number: ext || agentId,
             label: label || fName || null,
