@@ -65,6 +65,7 @@ async function getAgentToken(
   codAgent: string,
   baseUrl: string,
   managerToken: string,
+  forceRefresh = false,
 ): Promise<string | null> {
   const { data: extFull } = await supabase
     .from("phone_extensions")
@@ -76,7 +77,7 @@ async function getAgentToken(
   if (!extFull) return null;
 
   const rawData = (extFull.threecplus_raw as any)?.data ?? extFull.threecplus_raw;
-  let agentApiToken = rawData?.api_token;
+  let agentApiToken = forceRefresh ? null : rawData?.api_token;
 
   // If no cached token, fetch fresh from API using manager token
   if (!agentApiToken && extFull.threecplus_agent_id) {
