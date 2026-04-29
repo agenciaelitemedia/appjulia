@@ -140,7 +140,8 @@ serve(async (req) => {
   }
 
   try {
-    const { action, codAgent, clientId: clientIdRaw, ...params } = await req.json();
+    const { action, codAgent: codAgentRaw, clientId: clientIdRaw, ...params } = await req.json();
+    let codAgent: string | null = codAgentRaw ? String(codAgentRaw) : null;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -158,6 +159,20 @@ serve(async (req) => {
         .maybeSingle();
       if (anyExt?.client_id) clientId = Number(anyExt.client_id);
     }
+
+    // Reverse resolution: if codAgent missing but clientId present, look up from agents
+    if (!codAgent && clientId) {
+      const { data: agentRow } = await supabase
+        .from("agents")
+        .select("cod_agent")
+        .eq("client_id", clientId)
+        .order("id", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (agentRow?.cod_agent) codAgent = String(agentRow.cod_agent);
+    }
+    // Final fallback to satisfy NOT NULL on legacy column
+    if (!codAgent && clientId) codAgent = `client_${clientId}`;
 
     // Get 3C+ config — try agent-specific first, then fallback to global
     let { data: config } = await supabase
