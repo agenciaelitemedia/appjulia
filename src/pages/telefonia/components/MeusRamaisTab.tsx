@@ -6,9 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Plus, Pencil, Trash2, Phone, RefreshCw, CheckCircle, AlertCircle, Ban, CalendarDays, PhoneOff } from 'lucide-react';
+import { Plus, Pencil, Trash2, Phone, RefreshCw, CheckCircle, AlertCircle, Ban, CalendarDays, PhoneOff, KeyRound } from 'lucide-react';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { RamalDialog } from './RamalDialog';
+import { SipManualCredentialsDialog } from './SipManualCredentialsDialog';
 import type { PhoneExtension, ProviderType } from '../types';
 import { PROVIDER_LABELS } from '../types';
 import { supabase } from '@/integrations/supabase/client';
@@ -46,6 +47,8 @@ export function MeusRamaisTab({ codAgent, clientId }: Props) {
   const { extensions, extensionsLoading, maxExtensions, usedExtensions, canCreateExtension, plan, createExtension, updateExtension, deleteExtension, syncExtensions } = useTelefoniaData(codAgent, provider, clientId);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<PhoneExtension | null>(null);
+  const [sipCredsOpen, setSipCredsOpen] = useState(false);
+  const [sipCredsExt, setSipCredsExt] = useState<PhoneExtension | null>(null);
 
   const handleSave = (ext: Partial<PhoneExtension> & { email?: string; memberName?: string }) => {
     if (editing) {
@@ -193,6 +196,17 @@ export function MeusRamaisTab({ codAgent, clientId }: Props) {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
+                          {extProvider === '3cplus' && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title={(ext as any).sip_manual_domain ? 'Credenciais SIP manuais ativas' : 'Definir credenciais SIP manuais'}
+                              onClick={() => { setSipCredsExt(ext); setSipCredsOpen(true); }}
+                            >
+                              <KeyRound className={`h-3.5 w-3.5 ${(ext as any).sip_manual_domain ? 'text-green-600' : ''}`} />
+                            </Button>
+                          )}
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditing(ext); setDialogOpen(true); }}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
@@ -216,6 +230,7 @@ export function MeusRamaisTab({ codAgent, clientId }: Props) {
       </Card>
 
       <RamalDialog open={dialogOpen} onOpenChange={setDialogOpen} extension={editing} onSave={handleSave} codAgent={codAgent} isCreating={createExtension.isPending} existingExtensions={extensions} />
+      <SipManualCredentialsDialog open={sipCredsOpen} onOpenChange={setSipCredsOpen} extension={sipCredsExt} />
     </div>
   );
 }
