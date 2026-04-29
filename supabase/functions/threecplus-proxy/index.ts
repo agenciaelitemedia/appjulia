@@ -265,13 +265,14 @@ serve(async (req) => {
         const { extensionId } = params;
 
         // Fetch extension record from DB
-        const { data: ext } = await supabase
+        const extQuery = supabase
           .from("phone_extensions")
           .select(
             "threecplus_agent_id, threecplus_sip_username, threecplus_sip_password, threecplus_sip_domain, threecplus_extension, threecplus_raw",
           )
           .eq("id", extensionId)
-          .eq("cod_agent", codAgent)
+          .limit(1);
+        const { data: ext } = await scopePhoneExtensionsQuery(extQuery, codAgent, clientId)
           .single();
 
         if (!ext) throw new Error("Ramal não encontrado.");
@@ -304,7 +305,7 @@ serve(async (req) => {
         let loginSucceeded = false;
         let officialLoginError: string | null = null;
         if (ext.threecplus_agent_id) {
-          let agentToken = await getAgentToken(supabase, extensionId, codAgent, baseUrl, token);
+          let agentToken = await getAgentToken(supabase, extensionId, codAgent, clientId, baseUrl, token);
 
           // Try login; if 403 (token cached/invalido), refresh and retry once
           const tryLogin = async (tk: string) => {
@@ -327,7 +328,7 @@ serve(async (req) => {
               } catch (e1: any) {
                 if (/403/.test(e1.message)) {
                   console.warn("Webphone login 403 — refreshing agent token and retrying...");
-                  const fresh = await getAgentToken(supabase, extensionId, codAgent, baseUrl, token, true);
+                  const fresh = await getAgentToken(supabase, extensionId, codAgent, clientId, baseUrl, token, true);
                   if (fresh && fresh !== agentToken) {
                     agentToken = fresh;
                     loginResp = await tryLogin(fresh);
@@ -351,7 +352,7 @@ serve(async (req) => {
                   threecplus_sip_domain: sipDomain,
                   threecplus_sip_username: sipUsername,
                   threecplus_sip_password: sipPassword,
-                  threecplus_raw: { ...(ext.threecplus_raw || {}), last_webphone_login: d },
+                  threecplus_raw: mergeThreecRaw(ext.threecplus_raw, ext.threecplus_raw, { last_webphone_login: d }),
                 }).eq("id", extensionId);
 
                 let preferredDomain = sipDomain;
@@ -395,7 +396,7 @@ serve(async (req) => {
         // PRIORITY 2: Use cached credentials from a previous OFFICIAL login
         // (only if threecplus_raw.last_webphone_login exists — proves cache is official)
         // ============================================================
-        const rawData = (ext.threecplus_raw as any)?.data ?? ext.threecplus_raw;
+        const rawData = unwrapThreecRaw(ext.threecplus_raw);
         const hasOfficialCache = !!(ext.threecplus_raw as any)?.last_webphone_login;
 
         if (hasOfficialCache && ext.threecplus_sip_username && ext.threecplus_sip_password && ext.threecplus_sip_domain) {
