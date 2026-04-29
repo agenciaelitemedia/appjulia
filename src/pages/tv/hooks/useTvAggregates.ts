@@ -171,16 +171,6 @@ export function useChannelHealth() {
     queryKey: ['tv-channel-health'],
     queryFn: async () => {
       const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { data: msgs } = await supabase
-        .from('chat_messages')
-        .select('channel_type')
-        .gte('timestamp', since24h);
-
-      const counts = new Map<string, number>();
-      for (const m of msgs ?? []) {
-        const ch = (m as any).channel_type || 'unknown';
-        counts.set(ch, (counts.get(ch) ?? 0) + 1);
-      }
 
       const labels: Record<string, string> = {
         whatsapp_uazapi: 'WhatsApp UaZapi',
@@ -190,16 +180,50 @@ export function useChannelHealth() {
         unknown: 'Outros',
       };
 
-      // Erro: histórico de runs com error nos últimos 24h
+      // Contagens server-side (head:true => não baixa linhas, sem teto de 1000)
+      const knownChannels = ['whatsapp_uazapi', 'whatsapp_waba', 'webchat', 'instagram'];
+      const counts = new Map<string, number>();
+
+      const [totalRes, ...perChannelRes] = await Promise.all([
+        supabase
+          .from('chat_messages')
+          .select('id', { count: 'exact', head: true })
+          .gte('timestamp', since24h),
+        ...knownChannels.map((ch) =>
+          supabase
+            .from('chat_messages')
+            .select('id', { count: 'exact', head: true })
+            .eq('channel_type', ch)
+            .gte('timestamp', since24h)
+        ),
+      ]);
+
+      let knownSum = 0;
+      knownChannels.forEach((ch, i) => {
+        const n = perChannelRes[i]?.count ?? 0;
+        if (n > 0) counts.set(ch, n);
+        knownSum += n;
+      });
+      const totalAll = totalRes?.count ?? 0;
+      const others = Math.max(0, totalAll - knownSum);
+      if (others > 0) counts.set('unknown', others);
+
+      // error_pct UaZapi: contagem server-side de runs com error not null vs total
       let errorPctByChannel = new Map<string, number>();
       try {
-        const { data: runs } = await supabase
-          .from('uazapi_history_runs' as never)
-          .select('error')
-          .gte('received_at', since24h)
-          .limit(1000) as any;
-        const total = runs?.length ?? 0;
-        const errs = (runs ?? []).filter((r: any) => r.error).length;
+        const [runsTotalRes, runsErrRes] = await Promise.all([
+          supabase
+            .from('uazapi_history_runs' as never)
+            .select('id', { count: 'exact', head: true })
+            .gte('received_at', since24h) as any,
+          supabase
+            .from('uazapi_history_runs' as never)
+            .select('id', { count: 'exact', head: true })
+            .gte('received_at', since24h)
+            .not('error', 'is', null) as any,
+        ]);
+        const total = runsTotalRes?.count ?? 0;
+        const errs = runsErrRes?.count ?? 0;
         if (total > 0) errorPctByChannel.set('whatsapp_uazapi', Math.round((errs / total) * 100));
       } catch { /* noop */ }
 
