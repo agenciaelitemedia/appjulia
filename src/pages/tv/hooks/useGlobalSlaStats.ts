@@ -26,19 +26,36 @@ export function useGlobalSlaStats() {
   return useQuery<GlobalSlaStats>({
     queryKey: ['tv-global-sla-stats'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('chat_conversations')
-        .select('id, client_id, status, priority, opened_at, first_response_at, resolved_at, closed_at')
-        .in('status', ['pending', 'open']);
+      // Paginação por range para superar o teto default de 1000 do PostgREST
+      const PAGE = 1000;
+      const MAX_PAGES = 20; // até 20k conversas abertas
+      const all: any[] = [];
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const from = page * PAGE;
+        const to = from + PAGE - 1;
+        const { data, error } = await supabase
+          .from('chat_conversations')
+          .select('id, client_id, status, priority, opened_at, first_response_at, resolved_at, closed_at')
+          .in('status', ['pending', 'open'])
+          .order('opened_at', { ascending: true })
+          .range(from, to);
+        if (error) break;
+        if (!data || data.length === 0) break;
+        all.push(...data);
+        if (data.length < PAGE) break;
+        if (page === MAX_PAGES - 1) {
+          console.warn('[useGlobalSlaStats] MAX_PAGES atingido — pode haver conversas não contadas');
+        }
+      }
 
-      if (error || !data) {
+      if (all.length === 0) {
         return { total: 0, on_track: 0, at_risk: 0, breached: 0, oldest_breached: null };
       }
 
       let on_track = 0, at_risk = 0, breached = 0;
       let oldest: GlobalSlaStats['oldest_breached'] = null;
 
-      for (const c of data) {
+      for (const c of all) {
         const ev = evaluateSla(c as any, configs ?? []);
         if (ev.status === 'on_track') on_track++;
         else if (ev.status === 'at_risk') at_risk++;
@@ -56,7 +73,7 @@ export function useGlobalSlaStats() {
         }
       }
 
-      return { total: data.length, on_track, at_risk, breached, oldest_breached: oldest };
+      return { total: all.length, on_track, at_risk, breached, oldest_breached: oldest };
     },
     refetchInterval: 30 * 1000, // 30s
     enabled: !!configs,
