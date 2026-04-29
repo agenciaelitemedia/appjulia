@@ -1,19 +1,16 @@
-import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Phone, PhoneCall, History, BarChart3 } from 'lucide-react';
 import { MeusRamaisTab } from './components/MeusRamaisTab';
 import { DiscadorTab } from './components/DiscadorTab';
 import { HistoricoTab } from './components/HistoricoTab';
 import { RelatoriosTab } from './components/RelatoriosTab';
-import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function TelefoniaPage() {
-  const { data: agentsData } = useMyAgents();
-  const allAgents = [...(agentsData?.myAgents || []), ...(agentsData?.monitoredAgents || [])];
-  const [selectedAgent, setSelectedAgent] = useState<string>('');
-
-  const codAgent = selectedAgent || (allAgents.length > 0 ? String(allAgents[0]?.cod_agent || '') : '');
+  const { user } = useAuth();
+  const clientId = user?.client_id ?? null;
+  // codAgent é mantido como fallback de leitura (pode ficar undefined; backfill já cobriu produção)
+  const codAgent: string | undefined = undefined;
 
   return (
     <div className="space-y-6">
@@ -25,25 +22,10 @@ export default function TelefoniaPage() {
             <p className="text-sm text-muted-foreground">Gerencie ramais, faça ligações e acompanhe seu uso</p>
           </div>
         </div>
-
-        {allAgents.length > 1 && (
-          <Select value={codAgent} onValueChange={setSelectedAgent}>
-            <SelectTrigger className="w-[220px]">
-              <SelectValue placeholder="Selecione o agente..." />
-            </SelectTrigger>
-            <SelectContent>
-              {allAgents.map((a) => (
-                <SelectItem key={a.cod_agent} value={String(a.cod_agent)}>
-                  Agente {a.cod_agent}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
       </div>
 
-      {!codAgent ? (
-        <p className="text-sm text-muted-foreground">Nenhum agente vinculado. Solicite acesso ao administrador.</p>
+      {!clientId ? (
+        <p className="text-sm text-muted-foreground">Conta de cliente não identificada. Solicite acesso ao administrador.</p>
       ) : (
         <Tabs defaultValue="extensions" className="space-y-4">
           <TabsList className="grid w-full grid-cols-4">
@@ -65,10 +47,10 @@ export default function TelefoniaPage() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="extensions"><MeusRamaisTab codAgent={codAgent} /></TabsContent>
-          <TabsContent value="dialer"><DiscadorTab codAgent={codAgent} /></TabsContent>
-          <TabsContent value="history"><HistoricoTab codAgent={codAgent} /></TabsContent>
-          <TabsContent value="reports"><RelatoriosTab codAgent={codAgent} /></TabsContent>
+          <TabsContent value="extensions"><MeusRamaisTab codAgent={codAgent} clientId={clientId} /></TabsContent>
+          <TabsContent value="dialer"><DiscadorTab codAgent={codAgent} clientId={clientId} /></TabsContent>
+          <TabsContent value="history"><HistoricoTab codAgent={codAgent} clientId={clientId} /></TabsContent>
+          <TabsContent value="reports"><RelatoriosTab codAgent={codAgent} clientId={clientId} /></TabsContent>
         </Tabs>
       )}
     </div>
