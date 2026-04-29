@@ -18,12 +18,16 @@ interface CallHistoryResult {
 
 export function useCallHistoryQuery(
   codAgent: string | undefined,
-  filters: CallHistoryFilters
+  filters: CallHistoryFilters,
+  clientId?: number | null,
 ) {
+  const useClient = !!clientId;
+  const partitionKey = useClient ? String(clientId) : codAgent;
   return useQuery({
     queryKey: [
       'my-call-history',
-      codAgent,
+      partitionKey,
+      useClient ? 'client' : 'agent',
       filters.dateFrom,
       filters.dateTo,
       filters.direction,
@@ -39,9 +43,11 @@ export function useCallHistoryQuery(
       let query = supabase
         .from('phone_call_logs')
         .select('*', { count: 'exact' })
-        .eq('cod_agent', codAgent!)
         .gte('started_at', fromISO)
         .lte('started_at', toISO);
+      query = useClient
+        ? query.eq('client_id', clientId!)
+        : query.eq('cod_agent', codAgent!);
 
       // Server-side direction filter
       if (filters.direction && filters.direction !== 'all') {
@@ -69,7 +75,7 @@ export function useCallHistoryQuery(
         totalCount: count ?? 0,
       };
     },
-    enabled: !!codAgent && !!filters.dateFrom && !!filters.dateTo,
+    enabled: !!partitionKey && !!filters.dateFrom && !!filters.dateTo,
     placeholderData: (prev) => prev,
   });
 }
