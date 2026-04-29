@@ -57,18 +57,20 @@ serve(async (req) => {
   }
 
   try {
-    const { action, codAgent, ...params } = await req.json();
+    const { action, codAgent, clientId, ...params } = await req.json();
+    const useClient = clientId !== undefined && clientId !== null;
+    // Helper para escopar queries por client_id (preferido) ou cod_agent (fallback)
+    const scopeAgent = <T extends { eq: (...args: any[]) => any }>(q: T): T =>
+      (useClient ? q.eq('client_id', clientId) : q.eq('cod_agent', codAgent)) as T;
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get API4Com config — try agent-specific first, then fallback to global (any active)
-    let { data: config } = await supabase
-      .from('phone_config')
-      .select('*')
-      .eq('cod_agent', codAgent)
-      .eq('is_active', true)
+    // Get API4Com config — prefer client_id, fallback cod_agent, então global ativo
+    let { data: config } = await scopeAgent(
+      supabase.from('phone_config').select('*').eq('is_active', true)
+    )
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -87,6 +89,20 @@ serve(async (req) => {
     if (!config) {
       throw new Error('Configuração não encontrada. Configure o provedor de telefonia.');
     }
+
+    // Resolve client_id efetivo a partir do config quando não veio no payload
+    const effectiveClientId: number | null = useClient
+      ? (clientId as number)
+      : ((config as any)?.client_id ?? null);
+    const effectiveCodAgent: string = codAgent || (config as any)?.cod_agent || '';
+
+    // Helper para escrita: sempre popula ambos os campos
+    const dualScope = () => {
+      const out: Record<string, unknown> = {};
+      if (effectiveClientId !== null) out.client_id = effectiveClientId;
+      if (effectiveCodAgent) out.cod_agent = effectiveCodAgent;
+      return out;
+    };
 
     const baseUrl = `https://${config.api4com_domain}/api/v1`;
     const headers = {
@@ -144,10 +160,11 @@ serve(async (req) => {
 
         // Validate uniqueness: 1 member = 1 extension per agent
         if (assignedMemberId) {
-          const { data: existingMember } = await supabase
-            .from('phone_extensions')
-            .select('id')
-            .eq('cod_agent', codAgent)
+          const { data: existingMember } = await scopeAgent(
+            supabase
+              .from('phone_extensions')
+              .select('id')
+          )
             .eq('assigned_member_id', assignedMemberId)
             .maybeSingle();
           if (existingMember) {
@@ -162,7 +179,7 @@ serve(async (req) => {
 
         const emailToUse = `ramal_${Date.now()}@atendejulia.com.br`;
         const fName = firstName || 'Ramal';
-        const lName = lastName || codAgent;
+        const lName = lastName || effectiveCodAgent || String(effectiveClientId ?? '');
 
         // Determine ramal number
         let ramalNumber = extensionNumber;
@@ -289,7 +306,7 @@ serve(async (req) => {
         const { error: dbError } = await supabase
           .from('phone_extensions')
           .insert({
-            cod_agent: codAgent,
+            ...dualScope(),
             extension_number: ramal, // Same as api4com_ramal — no ambiguity
             label: label || fName || null,
             assigned_member_id: assignedMemberId || null,
@@ -335,12 +352,12 @@ serve(async (req) => {
         const { extensionId } = params;
         
         // 1. Buscar registro no banco para obter api4com_raw.user_id
-        const { data: extRecord } = await supabase
-          .from('phone_extensions')
-          .select('id, api4com_id, api4com_raw')
-          .eq('api4com_id', extensionId)
-          .eq('cod_agent', codAgent)
-          .maybeSingle();
+        const { data: extRecord } = await scopeAgent(
+          supabase
+            .from('phone_extensions')
+            .select('id, api4com_id, api4com_raw')
+            .eq('api4com_id', extensionId)
+        ).maybeSingle();
 
         const deleteResults: Record<string, unknown> = {};
 
@@ -392,11 +409,12 @@ serve(async (req) => {
           deleteResults.database = { success: true };
         } else {
           // Fallback: tentar deletar por api4com_id
-          const { error: dbError } = await supabase
-            .from('phone_extensions')
-            .delete()
-            .eq('api4com_id', extensionId)
-            .eq('cod_agent', codAgent);
+          const { error: dbError } = await scopeAgent(
+            supabase
+              .from('phone_extensions')
+              .delete()
+              .eq('api4com_id', extensionId)
+          );
           if (dbError) throw new Error(`Erro ao deletar do banco: ${dbError.message}`);
           deleteResults.database = { success: true };
         }
