@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap, Calendar, Type, Info, HelpCircle, AlertTriangle } from 'lucide-react';
+import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap, Calendar, Type, Info, HelpCircle, AlertTriangle, PenLine } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -44,6 +44,29 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
   const [showPreview, setShowPreview] = useState(false);
   const [showFormatBar, setShowFormatBar] = useState(false);
   const [team, setTeam] = useState<TeamMember[]>([]);
+  // Signature toggle — prepends "*Nome do Usuário:*\n" to outgoing messages.
+  // Persisted per-user via localStorage; default ON.
+  const signatureKey = user?.id ? `chat:signature:enabled:${user.id}` : null;
+  const [signEnabled, setSignEnabled] = useState<boolean>(() => {
+    if (typeof window === 'undefined' || !signatureKey) return true;
+    const v = window.localStorage.getItem(signatureKey);
+    return v === null ? true : v === '1';
+  });
+  useEffect(() => {
+    if (!signatureKey || typeof window === 'undefined') return;
+    window.localStorage.setItem(signatureKey, signEnabled ? '1' : '0');
+  }, [signEnabled, signatureKey]);
+
+  /**
+   * Prepend the agent signature to outgoing content.
+   * Skips: empty content, internal notes (handled by caller), missing user name.
+   */
+  const applySignature = (content: string): string => {
+    if (!signEnabled) return content;
+    if (!user?.name) return content;
+    if (!content || !content.trim()) return content;
+    return `*${user.name}:*\n${content}`;
+  };
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -138,7 +161,7 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
         setNoteMode(false);
         setNoteType('info');
       } else {
-        await sendMessage(contactId, messageText, replyToMessage ?? undefined);
+        await sendMessage(contactId, applySignature(messageText), replyToMessage ?? undefined);
         onCancelReply?.();
       }
     } catch (error) {
@@ -226,7 +249,9 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
     const file = new File([blob], `pasted_${Date.now()}.${ext}`, { type: blob.type });
     setIsSending(true);
     try {
-      await sendMedia(contactId, file, 'image', text.trim() || undefined);
+      const captionRaw = text.trim();
+      const caption = captionRaw ? applySignature(captionRaw) : undefined;
+      await sendMedia(contactId, file, 'image', caption);
       setText('');
     } finally {
       setIsSending(false);
@@ -450,6 +475,27 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
               title="Formatação WhatsApp"
             >
               <Type className="h-5 w-5 text-muted-foreground" />
+            </Button>
+          )}
+
+          {/* Signature toggle */}
+          {!noteMode && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                'h-9 w-9 flex-shrink-0',
+                signEnabled && 'bg-accent text-accent-foreground'
+              )}
+              onClick={() => setSignEnabled((v) => !v)}
+              title={
+                signEnabled
+                  ? `Assinando como "${user?.name || 'atendente'}" (clique para desativar)`
+                  : 'Assinatura desativada (clique para ativar)'
+              }
+              disabled={!user?.name}
+            >
+              <PenLine className={cn('h-5 w-5', signEnabled ? 'text-foreground' : 'text-muted-foreground')} />
             </Button>
           )}
 

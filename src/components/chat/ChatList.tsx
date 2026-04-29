@@ -318,13 +318,6 @@ export function ChatList() {
     [ownerFilter, teamMembers, convMetaByContact, user?.id, user?.name, periodFilter, stageIds, stageByPhone, slaFilter, slaStatusByContact, modeFilter, queueAgentMap, queryClient]
   );
 
-  // Visible list — uses filteredContacts (which already applies activeTab,
-  // search and conversationStatusFilter from the context).
-  const visibleContacts = React.useMemo(
-    () => applyClientFilters(filteredContacts),
-    [filteredContacts, applyClientFilters]
-  );
-
   // Count conversations by status — scoped to the active tab (Individual / Groups)
   // so badges match what the user actually sees in the list.
   const isGroupByContactId = React.useMemo(() => {
@@ -352,6 +345,32 @@ export function ChatList() {
     });
     return map;
   }, [sortedConversations]);
+
+  // "Em Atendimento" restriction for non-privileged roles:
+  // users that are NOT admin/colaborador/user only see open conversations
+  // assigned to themselves. Pending (Em Aberto) remains visible to everyone
+  // with queue access so they can claim new chats.
+  const PRIVILEGED_ROLES = ['admin', 'colaborador', 'user'];
+  const isPrivileged = isAdmin || PRIVILEGED_ROLES.includes(user?.role || '');
+  const restrictOpenToMine = !isPrivileged;
+  const isVisibleByOpenScope = React.useCallback(
+    (contactId: string) => {
+      if (!restrictOpenToMine) return true;
+      const status = statusByContact.get(contactId);
+      if (status !== 'open') return true;
+      const assigned = convMetaByContact.get(contactId)?.assignedTo;
+      if (!assigned) return false;
+      return assigned === String(user?.id) || assigned === user?.name;
+    },
+    [restrictOpenToMine, statusByContact, convMetaByContact, user?.id, user?.name]
+  );
+
+  // Visible list — uses filteredContacts (which already applies activeTab,
+  // search and conversationStatusFilter from the context).
+  const visibleContacts = React.useMemo(
+    () => applyClientFilters(filteredContacts).filter((c) => isVisibleByOpenScope(c.id)),
+    [filteredContacts, applyClientFilters, isVisibleByOpenScope]
+  );
 
   // Defer search input so that fast typing does not block list/count derivation.
   const deferredSearch = React.useDeferredValue(searchQuery);
@@ -383,8 +402,8 @@ export function ChatList() {
       }
       return true;
     });
-    return applyClientFilters(base);
-  }, [contacts, conversations, deferredSearch, matchesActiveTab, applyClientFilters]);
+    return applyClientFilters(base).filter((c) => isVisibleByOpenScope(c.id));
+  }, [contacts, conversations, deferredSearch, matchesActiveTab, applyClientFilters, isVisibleByOpenScope]);
 
   // Single pass over the count base — produces both counts in the same render
   // tick. Counts now reflect filters but NOT the active status tab, so each

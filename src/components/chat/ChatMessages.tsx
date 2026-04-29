@@ -13,6 +13,7 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import type { ChatMessage, ChatContact } from '@/types/chat';
 import type { ConversationHistoryEntry } from '@/types/conversation';
+import { isEncryptionEnvelope } from '@/lib/chat/envelopeFilter';
 
 interface ChatMessagesProps {
   contactId: string;
@@ -46,6 +47,15 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
   const contactMessages = useMemo(() => {
     const currentConvId = selectedConversation?.id ?? null;
     return allContactMessages.filter((m: ChatMessage) => {
+      // Hide standalone "encryption notification" envelopes — they carry no
+      // useful content for the agent (see src/lib/chat/envelopeFilter.ts).
+      if (
+        (m?.type === 'text' || !m?.type) &&
+        !m?.media_url &&
+        isEncryptionEnvelope(m?.text)
+      ) {
+        return false;
+      }
       const isNote = !!(m?.metadata?.internal_note ?? m?.internal_note);
       if (!isNote) return true;
       const noteConvId = m?.conversation_id ?? m?.metadata?.conversation_id ?? null;

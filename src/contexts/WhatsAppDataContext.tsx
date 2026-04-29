@@ -256,6 +256,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
       if (currentQueueId) {
         query = query.eq('channel_source', currentQueueId);
+      } else if (activeQueueIds.length > 0) {
+        query = query.in('channel_source', activeQueueIds);
+      } else {
+        setContacts([]);
+        return;
       }
 
       const { data, error } = await query;
@@ -268,7 +273,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [clientId, currentQueueId]);
+  }, [clientId, currentQueueId, activeQueueIds]);
 
   // ============================================
   // Conversations (filtered by queue_id)
@@ -1535,11 +1540,22 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             const newContact = payload.new as ChatContact;
             // Only add if matches current queue filter
             if (currentQueueId && newContact.channel_source !== currentQueueId) return;
+            // When viewing "Todas", restrict to queues the user has access to
+            if (!currentQueueId && newContact.channel_source && !activeQueueIds.includes(newContact.channel_source)) return;
             setContacts(prev => {
               if (prev.some(c => c.id === newContact.id)) return prev;
               return [newContact, ...prev];
             });
           } else if (payload.eventType === 'UPDATE') {
+            const updContact = payload.new as ChatContact;
+            if (currentQueueId && updContact.channel_source !== currentQueueId) {
+              setContacts(prev => prev.filter(c => c.id !== updContact.id));
+              return;
+            }
+            if (!currentQueueId && updContact.channel_source && !activeQueueIds.includes(updContact.channel_source)) {
+              setContacts(prev => prev.filter(c => c.id !== updContact.id));
+              return;
+            }
             setContacts(prev => {
               const updated = prev.map(c => (c.id === (payload.new as ChatContact).id ? payload.new as ChatContact : c));
               // Re-sort by last_message_at so new messages bubble up
@@ -1777,7 +1793,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     setMessages({});
     knownMessageIds.current.clear();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQueueId, clientId]);
+  }, [currentQueueId, clientId, activeQueueIds]);
 
   // Reload conversations when query group or queue changes (no selection clear)
   useEffect(() => {
