@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap, Calendar, Type, Info, HelpCircle, AlertTriangle } from 'lucide-react';
+import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap, Calendar, Type, Info, HelpCircle, AlertTriangle, PenLine } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -44,6 +44,29 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
   const [showPreview, setShowPreview] = useState(false);
   const [showFormatBar, setShowFormatBar] = useState(false);
   const [team, setTeam] = useState<TeamMember[]>([]);
+  // Signature toggle — prepends "*Nome do Usuário:*\n" to outgoing messages.
+  // Persisted per-user via localStorage; default ON.
+  const signatureKey = user?.id ? `chat:signature:enabled:${user.id}` : null;
+  const [signEnabled, setSignEnabled] = useState<boolean>(() => {
+    if (typeof window === 'undefined' || !signatureKey) return true;
+    const v = window.localStorage.getItem(signatureKey);
+    return v === null ? true : v === '1';
+  });
+  useEffect(() => {
+    if (!signatureKey || typeof window === 'undefined') return;
+    window.localStorage.setItem(signatureKey, signEnabled ? '1' : '0');
+  }, [signEnabled, signatureKey]);
+
+  /**
+   * Prepend the agent signature to outgoing content.
+   * Skips: empty content, internal notes (handled by caller), missing user name.
+   */
+  const applySignature = (content: string): string => {
+    if (!signEnabled) return content;
+    if (!user?.name) return content;
+    if (!content || !content.trim()) return content;
+    return `*${user.name}:*\n${content}`;
+  };
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
