@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Check, Phone } from 'lucide-react';
-import { type PhonePlan, type BillingPeriod, type ContractDraft, PERIOD_LABELS, calculateTotal, priceForPeriod, isAddonsFree, SETUP_FEE_MONTHLY_REAIS, ADDON_PRICE_MONTHLY_REAIS } from '../types';
+import { type PhonePlan, type BillingPeriod, type ContractDraft, PERIOD_LABELS, calculateTotal, priceForPeriod, setupFeeForPeriod, isAddonsFree, ADDON_PRICE_MONTHLY_REAIS } from '../types';
 
 interface Props {
   draft: ContractDraft;
@@ -66,6 +66,7 @@ export function SelectPlanStep({ draft, onChange, onNext }: Props) {
           {plans.map((p) => {
             const selected = draft.plan?.id === p.id;
             const price = priceForPeriod(p, draft.billing_period);
+            const setupFee = setupFeeForPeriod(p, draft.billing_period);
             return (
               <button
                 key={p.id}
@@ -84,6 +85,17 @@ export function SelectPlanStep({ draft, onChange, onNext }: Props) {
                 </div>
                 <div className="text-2xl font-bold">{fmt(price)}</div>
                 <div className="text-xs text-muted-foreground">no período {PERIOD_LABELS[draft.billing_period].toLowerCase()}</div>
+                {setupFee !== null && (
+                  setupFee === 0 ? (
+                    <Badge className="mt-2 bg-emerald-500 hover:bg-emerald-500 text-white border-0">
+                      Setup grátis
+                    </Badge>
+                  ) : (
+                    <div className="text-xs text-muted-foreground mt-2">
+                      Taxa de setup: {fmt(setupFee)}
+                    </div>
+                  )
+                )}
                 {p.extra_extension_price && (
                   <div className="text-xs text-muted-foreground mt-2">
                     Ramal extra: {fmt(Number(p.extra_extension_price))}/mês
@@ -165,9 +177,17 @@ export function SelectPlanStep({ draft, onChange, onNext }: Props) {
           ) : (
             <>
               <Row label={`${draft.plan.name} (${PERIOD_LABELS[draft.billing_period]})`} value={fmt(totals.plan)} />
-              {draft.billing_period === 'monthly' && (
-                <Row label="Taxa de setup" value={fmt(SETUP_FEE_MONTHLY_REAIS)} />
-              )}
+              {(() => {
+                const fee = setupFeeForPeriod(draft.plan, draft.billing_period);
+                if (fee === null) return null;
+                return (
+                  <Row
+                    label="Taxa de setup"
+                    value={fee === 0 ? 'Grátis' : fmt(fee)}
+                    muted={fee === 0}
+                  />
+                );
+              })()}
               {draft.recording_enabled && (
                 <Row
                   label="Gravação de chamadas"
