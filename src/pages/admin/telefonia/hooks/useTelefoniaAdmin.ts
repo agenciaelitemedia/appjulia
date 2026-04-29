@@ -110,11 +110,14 @@ export function useTelefoniaAdmin() {
         try {
           const { data: r } = await supabase.functions.invoke('db-query', {
             body: {
-              query: 'SELECT client_id FROM agents WHERE cod_agent = $1 LIMIT 1',
-              params: [params.codAgent],
+              action: 'raw',
+              data: {
+                query: 'SELECT client_id FROM agents WHERE cod_agent = $1 LIMIT 1',
+                params: [params.codAgent],
+              },
             },
           });
-          const cid = (r as any)?.data?.[0]?.client_id;
+          const cid = (r as any)?.data?.[0]?.client_id ?? (r as any)?.[0]?.client_id;
           if (cid != null) clientId = Number(cid);
         } catch (e) {
           console.warn('[assignPlan] client_id resolve failed:', e);
@@ -242,11 +245,14 @@ export function useTelefoniaAdmin() {
           try {
             const { data: r } = await supabase.functions.invoke('db-query', {
               body: {
-                query: 'SELECT client_id FROM agents WHERE cod_agent = $1 LIMIT 1',
-                params: [codAgent],
+                action: 'raw',
+                data: {
+                  query: 'SELECT client_id FROM agents WHERE cod_agent = $1 LIMIT 1',
+                  params: [codAgent],
+                },
               },
             });
-            const cid = (r as any)?.data?.[0]?.client_id;
+            const cid = (r as any)?.data?.[0]?.client_id ?? (r as any)?.[0]?.client_id;
             if (cid != null) clientId = Number(cid);
           } catch (e) {
             console.warn('[saveConfig] client_id resolve failed:', e);
