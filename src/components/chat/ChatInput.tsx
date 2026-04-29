@@ -478,6 +478,27 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
             </Button>
           )}
 
+          {/* Signature toggle */}
+          {!noteMode && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                'h-9 w-9 flex-shrink-0',
+                signEnabled && 'bg-accent text-accent-foreground'
+              )}
+              onClick={() => setSignEnabled((v) => !v)}
+              title={
+                signEnabled
+                  ? `Assinando como "${user?.name || 'atendente'}" (clique para desativar)`
+                  : 'Assinatura desativada (clique para ativar)'
+              }
+              disabled={!user?.name}
+            >
+              <PenLine className={cn('h-5 w-5', signEnabled ? 'text-foreground' : 'text-muted-foreground')} />
+            </Button>
+          )}
+
           {/* Note type menu — always available, even when conversation is not claimed */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
