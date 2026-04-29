@@ -26,11 +26,22 @@ export function ConfirmDataStep({ draft, onChange, onNext, onBack, busy }: Props
     (async () => {
       try {
         const rows = await externalDb.raw<{
-          name: string; email: string; whatsapp?: string; cnpj?: string; document?: string;
+          user_name: string;
+          user_email: string;
+          client_name: string | null;
+          client_business_name: string | null;
+          client_email: string | null;
+          client_phone: string | null;
+          client_federal_id: string | null;
         }>({
           query: `
-            SELECT u.name, u.email, c.phone as whatsapp,
-                   c.cnpj, c.document
+            SELECT u.name        AS user_name,
+                   u.email       AS user_email,
+                   c.name        AS client_name,
+                   c.business_name AS client_business_name,
+                   c.email       AS client_email,
+                   c.phone       AS client_phone,
+                   c.federal_id  AS client_federal_id
             FROM users u
             LEFT JOIN clients c ON c.id = u.client_id
             WHERE u.id = $1
@@ -40,12 +51,16 @@ export function ConfirmDataStep({ draft, onChange, onNext, onBack, busy }: Props
         });
         const r = rows?.[0];
         if (r) {
+          const name = r.client_business_name || r.client_name || r.user_name || '';
+          const email = r.client_email || r.user_email || '';
+          const whatsapp = r.client_phone || '';
+          const document = r.client_federal_id || '';
           onChange({
             ...draft,
-            customer_name: draft.customer_name || r.name || '',
-            customer_email: draft.customer_email || r.email || '',
-            customer_whatsapp: draft.customer_whatsapp || r.whatsapp || '',
-            customer_document: draft.customer_document || r.cnpj || r.document || '',
+            customer_name: draft.customer_name || name,
+            customer_email: draft.customer_email || email,
+            customer_whatsapp: draft.customer_whatsapp || whatsapp,
+            customer_document: draft.customer_document || document,
           });
         }
       } catch (err) {
