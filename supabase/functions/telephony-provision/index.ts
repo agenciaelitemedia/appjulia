@@ -124,12 +124,15 @@ Deno.serve(async (req) => {
     }
 
     // 4. Cria phone_config (idempotente: verifica se já existe pra esse cod_agent+provider)
-    const { data: existingCfg } = await sb
+    const clientId = order.client_id ? Number(order.client_id) : null
+    const cfgQuery = sb
       .from('phone_config' as never)
       .select('id')
-      .eq('cod_agent', codAgent)
-      .eq('provider', provider.provider)
-      .maybeSingle() as any
+      .eq('provider', provider.provider) as any
+    const { data: existingCfg } = await (clientId
+      ? cfgQuery.eq('client_id', clientId)
+      : cfgQuery.eq('cod_agent', codAgent)
+    ).maybeSingle() as any
 
     let configId: number
     if (existingCfg?.id) {
@@ -137,6 +140,7 @@ Deno.serve(async (req) => {
     } else {
       const cfgPayload: Record<string, unknown> = {
         cod_agent: codAgent,
+        client_id: clientId,
         provider: provider.provider,
         is_active: true,
       }
@@ -169,16 +173,19 @@ Deno.serve(async (req) => {
     const startDate = new Date().toISOString().slice(0, 10)
     const dueDate = addMonthsIso(months)
 
-    // Desativa planos anteriores do mesmo cod_agent (regra existente)
-    await (sb as any).from('phone_user_plans')
-      .update({ is_active: false })
-      .eq('cod_agent', codAgent)
-      .eq('is_active', true)
+    // Desativa planos anteriores do mesmo cliente (regra existente)
+    {
+      const upd = (sb as any).from('phone_user_plans')
+        .update({ is_active: false })
+        .eq('is_active', true)
+      await (clientId ? upd.eq('client_id', clientId) : upd.eq('cod_agent', codAgent))
+    }
 
     const { data: newPlan, error: planErr } = await (sb as any)
       .from('phone_user_plans')
       .insert({
         cod_agent: codAgent,
+        client_id: clientId,
         plan_id: order.plan_id,
         billing_period: order.billing_period,
         extra_extensions: order.extra_extensions,
