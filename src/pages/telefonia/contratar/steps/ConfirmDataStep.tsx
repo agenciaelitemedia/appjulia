@@ -29,7 +29,7 @@ export function ConfirmDataStep({ draft, onChange, onNext, onBack, busy }: Props
           name: string; email: string; whatsapp?: string; cnpj?: string; document?: string;
         }>({
           query: `
-            SELECT u.name, u.email, COALESCE(u.whatsapp, u.phone) as whatsapp,
+            SELECT u.name, u.email, c.phone as whatsapp,
                    c.cnpj, c.document
             FROM users u
             LEFT JOIN clients c ON c.id = u.client_id
