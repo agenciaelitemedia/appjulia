@@ -35,10 +35,11 @@ export function AgentsTelefoniaTab() {
 
       if (search) {
         const q = search.toLowerCase();
-        const matchCod = up.cod_agent.toLowerCase().includes(q);
+        const matchClientId = String(up.client_id ?? '').includes(q);
+        const matchCod = (up.cod_agent || '').toLowerCase().includes(q);
         const matchName = (up.client_name || '').toLowerCase().includes(q);
         const matchBiz = (up.business_name || '').toLowerCase().includes(q);
-        if (!matchCod && !matchName && !matchBiz) return false;
+        if (!matchClientId && !matchCod && !matchName && !matchBiz) return false;
       }
       return true;
     });
@@ -76,7 +77,7 @@ export function AgentsTelefoniaTab() {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-lg">Agentes com Telefonia</CardTitle>
+        <CardTitle className="text-lg">Clientes com Telefonia</CardTitle>
         <Button size="sm" onClick={() => setDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-1" /> Adicionar Telefonia
         </Button>
@@ -84,7 +85,7 @@ export function AgentsTelefoniaTab() {
       <CardContent className="space-y-4">
         <div className="flex gap-3">
           <Input
-            placeholder="Buscar por código, nome ou escritório..."
+            placeholder="Buscar por ID do cliente, nome ou escritório..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="max-w-sm"
@@ -110,8 +111,7 @@ export function AgentsTelefoniaTab() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Status</TableHead>
-                  <TableHead>Cod Agent</TableHead>
-                  <TableHead>Nome / Escritório</TableHead>
+                  <TableHead>Cliente</TableHead>
                   <TableHead>Plano</TableHead>
                   <TableHead>Ramais</TableHead>
                   <TableHead>Período</TableHead>
@@ -134,12 +134,19 @@ export function AgentsTelefoniaTab() {
                       <TableCell>
                         <Badge variant={statusVariant}>{statusLabel}</Badge>
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{up.cod_agent}</TableCell>
                       <TableCell>
                         <div>
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {up.client_id != null ? `#${up.client_id}` : '#—'}
+                          </span>
                           <span className="font-medium text-sm">{up.client_name || '-'}</span>
                           {up.business_name && (
                             <span className="block text-xs text-muted-foreground">{up.business_name}</span>
+                          )}
+                          {up.cod_agent && (
+                            <span className="block text-[10px] text-muted-foreground/70 font-mono">
+                              cod_agent: {up.cod_agent}
+                            </span>
                           )}
                         </div>
                       </TableCell>
@@ -195,8 +202,8 @@ export function AgentsTelefoniaTab() {
                 })}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground">
-                      Nenhum agente encontrado
+                    <TableCell colSpan={8} className="text-center text-muted-foreground">
+                      Nenhum cliente encontrado
                     </TableCell>
                   </TableRow>
                 )}
@@ -224,7 +231,9 @@ export function AgentsTelefoniaTab() {
           <AlertDialogHeader>
             <AlertDialogTitle>Remover telefonia</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja remover a telefonia do agente <strong>{deleteTarget?.cod_agent}</strong>? Esta ação não pode ser desfeita.
+              Tem certeza que deseja remover a telefonia do cliente <strong>
+                {deleteTarget ? `#${deleteTarget.client_id ?? '—'} ${deleteTarget.client_name ?? ''}` : ''}
+              </strong>? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
