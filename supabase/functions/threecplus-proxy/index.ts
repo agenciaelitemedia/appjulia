@@ -307,6 +307,10 @@ serve(async (req) => {
         if (ext.threecplus_agent_id) {
           let agentToken = await getAgentToken(supabase, extensionId, codAgent, clientId, baseUrl, token);
 
+          if (!agentToken) {
+            officialLoginError = "Token oficial do agente não encontrado na 3C+. Sincronize ou recrie o ramal para renovar o cache.";
+          }
+
           // Try login; if 403 (token cached/invalido), refresh and retry once
           const tryLogin = async (tk: string) => {
             return await threecRequest(
@@ -481,12 +485,13 @@ serve(async (req) => {
         const { extensionId, phone, metadata } = params;
 
         // Resolve extension record
-        const { data: ext } = await supabase
-          .from("phone_extensions")
-          .select("threecplus_agent_id, threecplus_extension, threecplus_raw, threecplus_sip_username, threecplus_sip_password")
-          .eq("id", extensionId)
-          .eq("cod_agent", codAgent)
-          .single();
+          const dialQuery = supabase
+            .from("phone_extensions")
+            .select("threecplus_agent_id, threecplus_extension, threecplus_raw, threecplus_sip_username, threecplus_sip_password")
+            .eq("id", extensionId)
+            .limit(1);
+          const { data: ext } = await scopePhoneExtensionsQuery(dialQuery, codAgent, clientId)
+            .single();
 
         if (!ext?.threecplus_agent_id && !ext?.threecplus_extension) {
           throw new Error("Ramal sem vínculo 3C+. Sincronize ou recrie o ramal.");
@@ -496,7 +501,7 @@ serve(async (req) => {
         const extension = ext.threecplus_extension || null;
 
         // Get agent's own token — required for click2call (agent must be "logged in")
-        const agentToken = await getAgentToken(supabase, extensionId, codAgent, baseUrl, token);
+        const agentToken = await getAgentToken(supabase, extensionId, codAgent, clientId, baseUrl, token);
         if (!agentToken) {
           throw new Error("Token do agente não encontrado. Reconfigure o ramal 3C+.");
         }
