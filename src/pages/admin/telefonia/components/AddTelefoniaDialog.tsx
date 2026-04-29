@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Search } from 'lucide-react';
 import { useAgentSearch, type SearchedAgent } from '@/pages/agents/hooks/useAgentSearch';
@@ -23,6 +24,8 @@ export function AddTelefoniaDialog({ open, onOpenChange, plans }: Props) {
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
   const [extraExtensions, setExtraExtensions] = useState(0);
+  const [recordingEnabled, setRecordingEnabled] = useState(false);
+  const [transcriptionEnabled, setTranscriptionEnabled] = useState(false);
 
   const selectedPlan = plans.find(p => String(p.id) === selectedPlanId);
   const planPrice = selectedPlan ? getPlanPriceByPeriod(selectedPlan, billingPeriod) : 0;
@@ -34,6 +37,8 @@ export function AddTelefoniaDialog({ open, onOpenChange, plans }: Props) {
     setSelectedPlanId('');
     setBillingPeriod('monthly');
     setExtraExtensions(0);
+    setRecordingEnabled(false);
+    setTranscriptionEnabled(false);
     setSearchTerm('');
   };
 
@@ -51,6 +56,8 @@ export function AddTelefoniaDialog({ open, onOpenChange, plans }: Props) {
       extraExtensions,
       clientName: selectedAgent.client_name,
       businessName: selectedAgent.business_name || '',
+      recordingEnabled,
+      transcriptionEnabled,
     }, {
       onSuccess: () => handleClose(false),
     });
@@ -164,6 +171,18 @@ export function AddTelefoniaDialog({ open, onOpenChange, plans }: Props) {
                     R$ {Number(selectedPlan.extra_extension_price).toFixed(2)} por ramal extra
                   </p>
                 )}
+              </div>
+
+              <div className="space-y-2 pt-2 border-t">
+                <Label className="text-sm font-medium">Adicionais</Label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox checked={recordingEnabled} onCheckedChange={(v) => setRecordingEnabled(!!v)} />
+                  <span className="text-sm">Gravar chamadas</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox checked={transcriptionEnabled} onCheckedChange={(v) => setTranscriptionEnabled(!!v)} />
+                  <span className="text-sm">Transcrever &amp; resumir</span>
+                </label>
               </div>
 
               {/* Summary */}

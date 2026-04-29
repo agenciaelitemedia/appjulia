@@ -1,9 +1,11 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Phone, CreditCard, Users, Settings, History } from 'lucide-react';
+import { Phone, CreditCard, Users, Settings, History, Server, ShoppingCart } from 'lucide-react';
 import { PlansTab } from './components/PlansTab';
 import { AgentsTelefoniaTab } from './components/AgentsTelefoniaTab';
 import { ConfigTab } from './components/ConfigTab';
 import { CallHistoryAdminTab } from './components/CallHistoryAdminTab';
+import { ProvidersTab } from './components/ProvidersTab';
+import { OrdersTab } from './components/OrdersTab';
 
 export default function TelefoniaAdminPage() {
   return (
@@ -17,7 +19,7 @@ export default function TelefoniaAdminPage() {
       </div>
 
       <Tabs defaultValue="agents" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="agents" className="gap-1.5">
             <Users className="h-4 w-4" />
             Agentes
@@ -25,6 +27,14 @@ export default function TelefoniaAdminPage() {
           <TabsTrigger value="plans" className="gap-1.5">
             <CreditCard className="h-4 w-4" />
             Planos
+          </TabsTrigger>
+          <TabsTrigger value="orders" className="gap-1.5">
+            <ShoppingCart className="h-4 w-4" />
+            Pedidos
+          </TabsTrigger>
+          <TabsTrigger value="providers" className="gap-1.5">
+            <Server className="h-4 w-4" />
+            Provedores
           </TabsTrigger>
           <TabsTrigger value="config" className="gap-1.5">
             <Settings className="h-4 w-4" />
@@ -38,6 +48,8 @@ export default function TelefoniaAdminPage() {
 
         <TabsContent value="agents"><AgentsTelefoniaTab /></TabsContent>
         <TabsContent value="plans"><PlansTab /></TabsContent>
+        <TabsContent value="orders"><OrdersTab /></TabsContent>
+        <TabsContent value="providers"><ProvidersTab /></TabsContent>
         <TabsContent value="config"><ConfigTab /></TabsContent>
         <TabsContent value="history"><CallHistoryAdminTab /></TabsContent>
       </Tabs>

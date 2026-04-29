@@ -100,6 +100,8 @@ export function useTelefoniaAdmin() {
       extraExtensions: number;
       clientName: string;
       businessName: string;
+      recordingEnabled?: boolean;
+      transcriptionEnabled?: boolean;
     }) => {
       // Deactivate existing plans for this cod_agent
       await supabase
@@ -121,6 +123,8 @@ export function useTelefoniaAdmin() {
           due_date: dueDate,
           client_name: params.clientName,
           business_name: params.businessName,
+          recording_enabled: params.recordingEnabled ?? false,
+          transcription_enabled: params.transcriptionEnabled ?? false,
         } as any);
       if (error) throw error;
     },

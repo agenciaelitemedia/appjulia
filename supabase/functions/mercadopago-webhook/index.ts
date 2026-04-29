@@ -86,6 +86,16 @@ Deno.serve(async (req) => {
 
     console.log('[mercadopago-webhook] Payment status:', payment.status, 'for order:', externalReference)
 
+    // Dispatch dual: descobre se é julia_orders ou telephony_orders
+    const { data: juliaOrder } = await supabase
+      .from('julia_orders')
+      .select('id')
+      .eq('id', externalReference)
+      .maybeSingle()
+
+    const orderTable = juliaOrder ? 'julia_orders' : 'telephony_orders'
+    const isTelephony = orderTable === 'telephony_orders'
+
     if (payment.status === 'approved') {
       const paidAmountCents = Math.round((payment.transaction_amount || 0) * 100)
 
@@ -105,39 +115,56 @@ Deno.serve(async (req) => {
         feeAmountCents = Math.round(totalFees * 100)
       }
 
-      // If we have paid but no net, calculate from fees
       if (netAmountCents == null && feeAmountCents != null) {
         netAmountCents = paidAmountCents - feeAmountCents
       }
-      // If we have net but no fees, calculate fees
       if (feeAmountCents == null && netAmountCents != null) {
         feeAmountCents = paidAmountCents - netAmountCents
       }
 
+      const updatePayload: Record<string, unknown> = {
+        status: 'paid',
+        paid_amount: paidAmountCents,
+        net_amount: netAmountCents,
+        fee_amount: feeAmountCents,
+        paid_at: payment.date_approved || new Date().toISOString(),
+        mp_payment_id: String(paymentId),
+        webhook_payload: payment,
+        updated_at: new Date().toISOString(),
+      }
+      if (!isTelephony) updatePayload.installments = payment.installments || 1
+
       const { error: updateError } = await supabase
-        .from('julia_orders')
-        .update({
-          status: 'paid',
-          paid_amount: paidAmountCents,
-          net_amount: netAmountCents,
-          fee_amount: feeAmountCents,
-          paid_at: payment.date_approved || new Date().toISOString(),
-          mp_payment_id: String(paymentId),
-          installments: payment.installments || 1,
-          webhook_payload: payment,
-          updated_at: new Date().toISOString(),
-        })
+        .from(orderTable)
+        .update(updatePayload)
         .eq('id', externalReference)
 
       if (updateError) {
         console.error('[mercadopago-webhook] Update error:', updateError)
       } else {
-        console.log('[mercadopago-webhook] Order updated to paid:', externalReference, 
-          'net:', netAmountCents, 'fees:', feeAmountCents)
+        console.log('[mercadopago-webhook] Order updated to paid:', externalReference,
+          'table:', orderTable, 'net:', netAmountCents, 'fees:', feeAmountCents)
+      }
+
+      // Auto-provisioning para pedidos de telefonia
+      if (isTelephony && !updateError) {
+        try {
+          // Fire-and-forget: dispara telephony-provision sem aguardar
+          fetch(`${supabaseUrl}/functions/v1/telephony-provision`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseKey}`,
+            },
+            body: JSON.stringify({ order_id: externalReference }),
+          }).catch((err) => console.warn('[mercadopago-webhook] provision dispatch failed:', err))
+        } catch (err) {
+          console.warn('[mercadopago-webhook] provision dispatch error:', err)
+        }
       }
     } else if (payment.status === 'rejected' || payment.status === 'cancelled') {
       await supabase
-        .from('julia_orders')
+        .from(orderTable)
         .update({
           status: 'failed',
           webhook_payload: payment,
