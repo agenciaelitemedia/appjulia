@@ -58,25 +58,64 @@ function isRecoverableDeleteStatus(status: number | null): boolean {
   return status === 400 || status === 403 || status === 404 || status === 405;
 }
 
+function scopePhoneExtensionsQuery(
+  query: any,
+  codAgent: string | null,
+  clientId: number | null,
+) {
+  if (clientId) return query.eq("client_id", clientId);
+  if (codAgent) return query.eq("cod_agent", codAgent);
+  return query;
+}
+
+function unwrapThreecRaw(raw: any) {
+  return raw?.data ?? raw ?? null;
+}
+
+function mergeThreecRaw(existingRaw: any, incomingRaw: any, extra: Record<string, unknown> = {}) {
+  const existingObject = existingRaw && typeof existingRaw === "object" && !Array.isArray(existingRaw)
+    ? existingRaw
+    : {};
+  const incomingObject = incomingRaw && typeof incomingRaw === "object" && !Array.isArray(incomingRaw)
+    ? incomingRaw
+    : {};
+  const existingData = unwrapThreecRaw(existingRaw);
+  const incomingData = unwrapThreecRaw(incomingRaw);
+
+  const mergedData = {
+    ...(existingData && typeof existingData === "object" && !Array.isArray(existingData) ? existingData : {}),
+    ...(incomingData && typeof incomingData === "object" && !Array.isArray(incomingData) ? incomingData : {}),
+  };
+
+  return {
+    ...existingObject,
+    ...incomingObject,
+    data: mergedData,
+    ...extra,
+  };
+}
+
 // Helper: extract agent's own api_token from threecplus_raw or fetch fresh
 async function getAgentToken(
   supabase: any,
   extensionId: number | string,
   codAgent: string,
+  clientId: number | null,
   baseUrl: string,
   managerToken: string,
   forceRefresh = false,
 ): Promise<string | null> {
-  const { data: extFull } = await supabase
+  const extQuery = supabase
     .from("phone_extensions")
     .select("threecplus_raw, threecplus_agent_id")
     .eq("id", extensionId)
-    .eq("cod_agent", codAgent)
+    .limit(1);
+  const { data: extFull } = await scopePhoneExtensionsQuery(extQuery, codAgent, clientId)
     .single();
 
   if (!extFull) return null;
 
-  const rawData = (extFull.threecplus_raw as any)?.data ?? extFull.threecplus_raw;
+  const rawData = unwrapThreecRaw(extFull.threecplus_raw);
   let agentApiToken = forceRefresh ? null : rawData?.api_token;
 
   // If no cached token, fetch fresh from API using manager token
@@ -89,7 +128,7 @@ async function getAgentToken(
       if (agentApiToken) {
         // Update raw cache with fresh data
         await supabase.from("phone_extensions").update({
-          threecplus_raw: freshUser,
+          threecplus_raw: mergeThreecRaw(extFull.threecplus_raw, freshUser),
         }).eq("id", extensionId);
       }
     } catch (e) {
