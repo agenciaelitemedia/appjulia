@@ -4810,6 +4810,54 @@ export type Database = {
         }
         Relationships: []
       }
+      telephony_providers: {
+        Row: {
+          api4com_domain: string | null
+          api4com_token: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          is_default: boolean
+          name: string
+          provider: string
+          sip_domain: string | null
+          threecplus_base_url: string | null
+          threecplus_token: string | null
+          threecplus_ws_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          api4com_domain?: string | null
+          api4com_token?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name: string
+          provider: string
+          sip_domain?: string | null
+          threecplus_base_url?: string | null
+          threecplus_token?: string | null
+          threecplus_ws_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          api4com_domain?: string | null
+          api4com_token?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name?: string
+          provider?: string
+          sip_domain?: string | null
+          threecplus_base_url?: string | null
+          threecplus_token?: string | null
+          threecplus_ws_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       uazapi_history_items: {
         Row: {
           attempts: number
