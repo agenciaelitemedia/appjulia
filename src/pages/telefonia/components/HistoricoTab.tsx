@@ -63,11 +63,12 @@ function getHangupBadgeVariant(cause: string | null): 'default' | 'secondary' | 
 }
 
 interface Props {
-  codAgent: string;
+  codAgent?: string;
+  clientId?: number | null;
 }
 
-export function HistoricoTab({ codAgent }: Props) {
-  const { extensions } = useTelefoniaData(codAgent);
+export function HistoricoTab({ codAgent, clientId }: Props) {
+  const { extensions } = useTelefoniaData(codAgent, 'api4com', clientId);
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
   const navigate = useNavigate();
   const [page, setPage] = useState(0);
@@ -81,8 +82,9 @@ export function HistoricoTab({ codAgent }: Props) {
   // Build agent list from extensions' last_name (cod_agent) + first_name
   const agentsList = useMemo(() => {
     const agentMap = new Map<string, { cod_agent: string; owner_name: string; alias?: string }>();
+    const fallbackCode = codAgent || (clientId ? `client-${clientId}` : '');
     for (const ext of extensions) {
-      const agentCode = ext.api4com_last_name || codAgent;
+      const agentCode = ext.api4com_last_name || ext.cod_agent || fallbackCode;
       if (agentCode && !agentMap.has(agentCode)) {
         const ownerName = ext.api4com_first_name || ext.label || agentCode;
         agentMap.set(agentCode, {
@@ -92,11 +94,11 @@ export function HistoricoTab({ codAgent }: Props) {
         });
       }
     }
-    if (!agentMap.has(codAgent)) {
-      agentMap.set(codAgent, { cod_agent: codAgent, owner_name: codAgent, alias: aliasMap.get(codAgent) });
+    if (fallbackCode && !agentMap.has(fallbackCode)) {
+      agentMap.set(fallbackCode, { cod_agent: fallbackCode, owner_name: fallbackCode, alias: aliasMap.get(fallbackCode) });
     }
     return Array.from(agentMap.values());
-  }, [extensions, codAgent, aliasMap]);
+  }, [extensions, codAgent, clientId, aliasMap]);
 
   // UnifiedFilters state (period + search + agents)
   const today = getTodayInSaoPaulo();
@@ -127,7 +129,7 @@ export function HistoricoTab({ codAgent }: Props) {
     cause: causeFilter,
     page,
     pageSize: PAGE_SIZE,
-  });
+  }, clientId);
 
   const serverData = historyResult?.data || [];
   const totalCount = historyResult?.totalCount || 0;
@@ -146,9 +148,10 @@ export function HistoricoTab({ codAgent }: Props) {
 
   const extensionCodAgentMap = useMemo(() => {
     const map = new Map<string, string>();
+    const fallback = codAgent || '';
     for (const ext of extensions) {
       if (ext.extension_number) {
-        map.set(ext.extension_number, ext.api4com_last_name || codAgent);
+        map.set(ext.extension_number, ext.api4com_last_name || ext.cod_agent || fallback);
       }
     }
     return map;
