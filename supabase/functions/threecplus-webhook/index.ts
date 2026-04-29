@@ -36,15 +36,17 @@ serve(async (req) => {
 
     // Resolve cod_agent via threecplus_agent_id or threecplus_extension
     let codAgent: number | null = null;
+    let clientId: number | null = null;
 
     if (agentId) {
       const { data: extRecord } = await supabase
         .from('phone_extensions')
-        .select('cod_agent')
+        .select('cod_agent, client_id')
         .eq('threecplus_agent_id', agentId)
         .maybeSingle();
       if (extRecord?.cod_agent) {
         codAgent = extRecord.cod_agent;
+        clientId = (extRecord as any).client_id ?? null;
         console.log(`Resolved cod_agent=${codAgent} from threecplus_agent_id=${agentId}`);
       }
     }
@@ -52,11 +54,12 @@ serve(async (req) => {
     if (!codAgent && extensionNumber) {
       const { data: extRecord } = await supabase
         .from('phone_extensions')
-        .select('cod_agent')
+        .select('cod_agent, client_id')
         .eq('threecplus_extension', extensionNumber)
         .maybeSingle();
       if (extRecord?.cod_agent) {
         codAgent = extRecord.cod_agent;
+        clientId = (extRecord as any).client_id ?? null;
         console.log(`Resolved cod_agent=${codAgent} from extension ${extensionNumber}`);
       }
     }
@@ -86,6 +89,7 @@ serve(async (req) => {
       const logData: Record<string, any> = {
         call_id: callId,
         cod_agent: codAgent || null,
+        client_id: clientId,
         extension_number: extensionNumber,
         direction,
         caller,
