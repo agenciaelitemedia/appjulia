@@ -67,6 +67,8 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   const [sipSetupError, setSipSetupError] = useState<string | null>(null);
   const lastDialArgs = useRef<{ phone: string; contactName?: string; origin?: 'CRM' | 'DISCADOR'; whatsappNumber?: string } | null>(null);
   const autoConnected = useRef(false);
+  const sipBlockedRef = useRef(false);
+  const sipConnectInFlightRef = useRef(false);
   const retryCount = useRef(0);
   const maxRetries = 8; // max ~5min backoff (5*2^7 = 640s capped at 300s)
   // Listen for sync-queue-done events to invalidate queries
@@ -139,6 +141,11 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
         setCodAgent(ext.cod_agent);
         setClientId(ext.client_id ?? null);
         setProvider(resolvedProvider);
+        setSipSetupError(null);
+        sipBlockedRef.current = false;
+        sipConnectInFlightRef.current = false;
+        autoConnected.current = false;
+        retryCount.current = 0;
         syncQueueManager.init(ext.cod_agent, resolvedProvider);
         syncQueueManager.setClientId(ext.client_id ?? null);
       }
@@ -149,6 +156,11 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   // Auto-connect SIP when extension is found (with retry)
   const connectSip = useCallback(async () => {
     if (!myExtension || !codAgent) return;
+    if (sipBlockedRef.current || sipConnectInFlightRef.current) return;
+    if (sipSetupError) {
+      setDialError(sipSetupError);
+      return;
+    }
 
     // Provider-aware link check
     const isLinked = provider === '3cplus'
@@ -157,6 +169,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     if (!isLinked) return;
 
     try {
+      sipConnectInFlightRef.current = true;
       const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
         body: { action: 'get_sip_credentials', clientId, codAgent, extensionId: myExtension.id },
       });
@@ -173,20 +186,22 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
 
       const message = err instanceof Error ? err.message : 'Erro ao conectar softphone';
       if (isNonRetryableSipSetupError(message)) {
+        sipBlockedRef.current = true;
         setSipSetupError(message);
         setDialError(message);
         retryCount.current = maxRetries;
-        autoConnected.current = false;
         toast.error('Webphone 3C+ sem licença ou permissão para este agente');
         return;
       }
 
       setDialError(message);
+    } finally {
+      sipConnectInFlightRef.current = false;
     }
-  }, [myExtension, codAgent, clientId, provider, sip]);
+  }, [myExtension, codAgent, clientId, provider, sip, sipSetupError]);
 
   useEffect(() => {
-    if (autoConnected.current || !myExtension || !codAgent) return;
+    if (autoConnected.current || sipBlockedRef.current || sipSetupError || !myExtension || !codAgent) return;
     const isLinked = provider === '3cplus'
       ? !!(myExtension.threecplus_agent_id || myExtension.threecplus_extension)
       : !!myExtension.api4com_ramal;
@@ -198,7 +213,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   // Auto-retry SIP registration with exponential backoff
   useEffect(() => {
     if (!autoConnected.current || !myExtension) return;
-    if (sipSetupError) return;
+    if (sipBlockedRef.current || sipSetupError) return;
     if (sip.status === 'registered' || sip.status === 'in-call' || sip.status === 'calling' || sip.status === 'ringing') {
       retryCount.current = 0;
       return;
