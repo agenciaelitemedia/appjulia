@@ -5,6 +5,8 @@
 // Never returns "[object Object]" or raw media JSON payloads.
 // ============================================
 
+import { isEncryptionEnvelope } from './envelopeFilter';
+
 export interface PreviewInput {
   type?: string | null;
   text?: string | null;
@@ -83,6 +85,11 @@ export function getMessagePreview(input: PreviewInput): string {
   const caption = typeof input.caption === 'string' ? input.caption.trim() : '';
   const fileName = typeof input.file_name === 'string' ? input.file_name.trim() : '';
   const declaredType = (input.type || '').toLowerCase();
+
+  // Encryption-notification envelopes carry no useful preview text.
+  if (isEncryptionEnvelope(rawText)) {
+    return '🔒 Conversa iniciada';
+  }
 
   // 1) Detect & sanitize bad inputs.
   const isObjectStr = rawText === '[object Object]';
