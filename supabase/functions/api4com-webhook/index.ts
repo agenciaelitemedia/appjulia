@@ -35,17 +35,30 @@ serve(async (req) => {
 
     // Resolve cod_agent: metadata > direct field > lookup by extension
     let codAgent = event.metadata?.cod_agent || event.cod_agent || '';
+    let clientId: number | null = event.metadata?.client_id ? Number(event.metadata.client_id) : null;
 
     if (!codAgent && extensionNumber) {
       const { data: extRecord } = await supabase
         .from('phone_extensions')
-        .select('cod_agent')
+        .select('cod_agent, client_id')
         .eq('api4com_ramal', extensionNumber)
         .maybeSingle();
       if (extRecord?.cod_agent) {
         codAgent = extRecord.cod_agent;
+        if (!clientId && (extRecord as any).client_id) clientId = Number((extRecord as any).client_id);
         console.log(`Resolved cod_agent=${codAgent} from extension ${extensionNumber}`);
       }
+    }
+
+    if (!clientId && codAgent) {
+      const { data: anyExt } = await supabase
+        .from('phone_extensions')
+        .select('client_id')
+        .eq('cod_agent', codAgent)
+        .not('client_id', 'is', null)
+        .limit(1)
+        .maybeSingle();
+      if (anyExt?.client_id) clientId = Number(anyExt.client_id);
     }
 
     console.log(`Event: ${eventType}, callId: ${callId}, codAgent: ${codAgent}, ext: ${extensionNumber}`);
@@ -74,6 +87,7 @@ serve(async (req) => {
       const logData: Record<string, any> = {
         call_id: callId ? String(callId) : null,
         cod_agent: codAgent || null,
+        client_id: clientId,
         extension_number: extensionNumber,
         direction,
         caller,

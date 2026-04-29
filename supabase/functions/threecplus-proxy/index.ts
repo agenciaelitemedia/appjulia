@@ -140,11 +140,24 @@ serve(async (req) => {
   }
 
   try {
-    const { action, codAgent, ...params } = await req.json();
+    const { action, codAgent, clientId: clientIdRaw, ...params } = await req.json();
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Dual-key resolution (Fase 3 migration cod_agent → client_id)
+    let clientId: number | null = clientIdRaw ? Number(clientIdRaw) : null;
+    if (!clientId && codAgent) {
+      const { data: anyExt } = await supabase
+        .from("phone_extensions")
+        .select("client_id")
+        .eq("cod_agent", codAgent)
+        .not("client_id", "is", null)
+        .limit(1)
+        .maybeSingle();
+      if (anyExt?.client_id) clientId = Number(anyExt.client_id);
+    }
 
     // Get 3C+ config — try agent-specific first, then fallback to global
     let { data: config } = await supabase
@@ -666,6 +679,7 @@ serve(async (req) => {
         const { error: dbError } = await supabase.from("phone_extensions")
           .insert({
             cod_agent: codAgent,
+            client_id: clientId,
             extension_number: ext || agentId,
             label: label || fName || null,
             assigned_member_id: assignedMemberId || null,
@@ -957,6 +971,7 @@ serve(async (req) => {
               "phone_extensions",
             ).insert({
               cod_agent: codAgent,
+              client_id: clientId,
               extension_number: ext || agentId,
               provider: "3cplus",
               threecplus_agent_id: agentId,
@@ -1049,7 +1064,7 @@ serve(async (req) => {
                 if (cdrId !== String(callId)) continue;
                 found = true;
 
-                const logEntry = buildCallLog(cdr, codAgent, fixTz);
+                const logEntry = buildCallLog(cdr, codAgent, clientId, fixTz);
                 await supabase.from("phone_call_logs")
                   .upsert(logEntry, { onConflict: "call_id" });
                 totalSynced = 1;
@@ -1101,7 +1116,7 @@ serve(async (req) => {
                   continue;
                 }
 
-                const logEntry = buildCallLog(cdr, codAgent, fixTz);
+                const logEntry = buildCallLog(cdr, codAgent, clientId, fixTz);
                 const cdrId = cdr.id ? String(cdr.id) : null;
 
                 if (cdrId) {
@@ -1346,6 +1361,7 @@ serve(async (req) => {
 function buildCallLog(
   cdr: any,
   codAgent: string,
+  clientId: number | null,
   fixTz: (ts: string | null | undefined) => string | null,
 ): Record<string, any> {
   const cdrId = cdr.id ? String(cdr.id) : null;
@@ -1360,6 +1376,7 @@ function buildCallLog(
 
   const log: Record<string, any> = {
     cod_agent: codAgent,
+    client_id: clientId,
     extension_number: caller,
     direction,
     caller,
