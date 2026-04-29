@@ -1361,6 +1361,7 @@ serve(async (req) => {
 function buildCallLog(
   cdr: any,
   codAgent: string,
+  clientId: number | null,
   fixTz: (ts: string | null | undefined) => string | null,
 ): Record<string, any> {
   const cdrId = cdr.id ? String(cdr.id) : null;
