@@ -212,7 +212,7 @@ export function AddTelefoniaDialog({ open, onOpenChange, plans }: Props) {
           <Button variant="outline" onClick={() => handleClose(false)}>Cancelar</Button>
           <Button
             onClick={handleConfirm}
-            disabled={!selectedAgent || !selectedPlan || assignPlan.isPending}
+            disabled={!selectedClient || !selectedPlan || assignPlan.isPending}
           >
             {assignPlan.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
             Confirmar
