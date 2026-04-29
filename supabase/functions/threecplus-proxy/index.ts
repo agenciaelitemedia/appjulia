@@ -1375,11 +1375,12 @@ serve(async (req) => {
           }
         }
 
-        // Determine resolved domain from login first, then cache, then fallback
+        // Determine resolved domain from login first, then cache.
+        // Never invent a generic fallback for 3C+, because it masks the real auth/permission issue.
         const loginSipServer = loginResult?.sip_server || loginResult?.domain || loginResult?.host || loginResult?.data?.sip_server || null;
         const hasOfficialCache = !!(ext.threecplus_raw as any)?.last_webphone_login;
         
-        let resolvedDomain: string;
+        let resolvedDomain: string | null;
         let resolvedSource: string;
         if (config.sip_domain) {
           resolvedDomain = config.sip_domain;
@@ -1394,11 +1395,15 @@ serve(async (req) => {
           resolvedDomain = ext.threecplus_sip_domain;
           resolvedSource = "cache antigo (pode ser incorreto)";
         } else {
-          resolvedDomain = "pbx01.3c.fluxoti.com";
-          resolvedSource = "fallback genérico";
+          resolvedDomain = null;
+          resolvedSource = loginError
+            ? "indisponível (login oficial falhou)"
+            : "indisponível (sem cache oficial)";
         }
 
-        const resolvedWsUrl = config.threecplus_ws_url || `wss://${resolvedDomain}:8089/ws`;
+        const resolvedWsUrl = resolvedDomain
+          ? (config.threecplus_ws_url || `wss://${resolvedDomain}:8089/ws`)
+          : (config.threecplus_ws_url || null);
 
         result = {
           config: {
