@@ -58,25 +58,64 @@ function isRecoverableDeleteStatus(status: number | null): boolean {
   return status === 400 || status === 403 || status === 404 || status === 405;
 }
 
+function scopePhoneExtensionsQuery(
+  query: any,
+  codAgent: string | null,
+  clientId: number | null,
+) {
+  if (clientId) return query.eq("client_id", clientId);
+  if (codAgent) return query.eq("cod_agent", codAgent);
+  return query;
+}
+
+function unwrapThreecRaw(raw: any) {
+  return raw?.data ?? raw ?? null;
+}
+
+function mergeThreecRaw(existingRaw: any, incomingRaw: any, extra: Record<string, unknown> = {}) {
+  const existingObject = existingRaw && typeof existingRaw === "object" && !Array.isArray(existingRaw)
+    ? existingRaw
+    : {};
+  const incomingObject = incomingRaw && typeof incomingRaw === "object" && !Array.isArray(incomingRaw)
+    ? incomingRaw
+    : {};
+  const existingData = unwrapThreecRaw(existingRaw);
+  const incomingData = unwrapThreecRaw(incomingRaw);
+
+  const mergedData = {
+    ...(existingData && typeof existingData === "object" && !Array.isArray(existingData) ? existingData : {}),
+    ...(incomingData && typeof incomingData === "object" && !Array.isArray(incomingData) ? incomingData : {}),
+  };
+
+  return {
+    ...existingObject,
+    ...incomingObject,
+    data: mergedData,
+    ...extra,
+  };
+}
+
 // Helper: extract agent's own api_token from threecplus_raw or fetch fresh
 async function getAgentToken(
   supabase: any,
   extensionId: number | string,
   codAgent: string,
+  clientId: number | null,
   baseUrl: string,
   managerToken: string,
   forceRefresh = false,
 ): Promise<string | null> {
-  const { data: extFull } = await supabase
+  const extQuery = supabase
     .from("phone_extensions")
     .select("threecplus_raw, threecplus_agent_id")
     .eq("id", extensionId)
-    .eq("cod_agent", codAgent)
+    .limit(1);
+  const { data: extFull } = await scopePhoneExtensionsQuery(extQuery, codAgent, clientId)
     .single();
 
   if (!extFull) return null;
 
-  const rawData = (extFull.threecplus_raw as any)?.data ?? extFull.threecplus_raw;
+  const rawData = unwrapThreecRaw(extFull.threecplus_raw);
   let agentApiToken = forceRefresh ? null : rawData?.api_token;
 
   // If no cached token, fetch fresh from API using manager token
@@ -89,7 +128,7 @@ async function getAgentToken(
       if (agentApiToken) {
         // Update raw cache with fresh data
         await supabase.from("phone_extensions").update({
-          threecplus_raw: freshUser,
+          threecplus_raw: mergeThreecRaw(extFull.threecplus_raw, freshUser),
         }).eq("id", extensionId);
       }
     } catch (e) {
@@ -226,13 +265,14 @@ serve(async (req) => {
         const { extensionId } = params;
 
         // Fetch extension record from DB
-        const { data: ext } = await supabase
+        const extQuery = supabase
           .from("phone_extensions")
           .select(
             "threecplus_agent_id, threecplus_sip_username, threecplus_sip_password, threecplus_sip_domain, threecplus_extension, threecplus_raw",
           )
           .eq("id", extensionId)
-          .eq("cod_agent", codAgent)
+          .limit(1);
+        const { data: ext } = await scopePhoneExtensionsQuery(extQuery, codAgent, clientId)
           .single();
 
         if (!ext) throw new Error("Ramal não encontrado.");
@@ -265,7 +305,11 @@ serve(async (req) => {
         let loginSucceeded = false;
         let officialLoginError: string | null = null;
         if (ext.threecplus_agent_id) {
-          let agentToken = await getAgentToken(supabase, extensionId, codAgent, baseUrl, token);
+          let agentToken = await getAgentToken(supabase, extensionId, codAgent, clientId, baseUrl, token);
+
+          if (!agentToken) {
+            officialLoginError = "Token oficial do agente não encontrado na 3C+. Sincronize ou recrie o ramal para renovar o cache.";
+          }
 
           // Try login; if 403 (token cached/invalido), refresh and retry once
           const tryLogin = async (tk: string) => {
@@ -288,7 +332,7 @@ serve(async (req) => {
               } catch (e1: any) {
                 if (/403/.test(e1.message)) {
                   console.warn("Webphone login 403 — refreshing agent token and retrying...");
-                  const fresh = await getAgentToken(supabase, extensionId, codAgent, baseUrl, token, true);
+                  const fresh = await getAgentToken(supabase, extensionId, codAgent, clientId, baseUrl, token, true);
                   if (fresh && fresh !== agentToken) {
                     agentToken = fresh;
                     loginResp = await tryLogin(fresh);
@@ -312,7 +356,7 @@ serve(async (req) => {
                   threecplus_sip_domain: sipDomain,
                   threecplus_sip_username: sipUsername,
                   threecplus_sip_password: sipPassword,
-                  threecplus_raw: { ...(ext.threecplus_raw || {}), last_webphone_login: d },
+                  threecplus_raw: mergeThreecRaw(ext.threecplus_raw, ext.threecplus_raw, { last_webphone_login: d }),
                 }).eq("id", extensionId);
 
                 let preferredDomain = sipDomain;
@@ -356,7 +400,7 @@ serve(async (req) => {
         // PRIORITY 2: Use cached credentials from a previous OFFICIAL login
         // (only if threecplus_raw.last_webphone_login exists — proves cache is official)
         // ============================================================
-        const rawData = (ext.threecplus_raw as any)?.data ?? ext.threecplus_raw;
+        const rawData = unwrapThreecRaw(ext.threecplus_raw);
         const hasOfficialCache = !!(ext.threecplus_raw as any)?.last_webphone_login;
 
         if (hasOfficialCache && ext.threecplus_sip_username && ext.threecplus_sip_password && ext.threecplus_sip_domain) {
@@ -441,12 +485,13 @@ serve(async (req) => {
         const { extensionId, phone, metadata } = params;
 
         // Resolve extension record
-        const { data: ext } = await supabase
-          .from("phone_extensions")
-          .select("threecplus_agent_id, threecplus_extension, threecplus_raw, threecplus_sip_username, threecplus_sip_password")
-          .eq("id", extensionId)
-          .eq("cod_agent", codAgent)
-          .single();
+          const dialQuery = supabase
+            .from("phone_extensions")
+            .select("threecplus_agent_id, threecplus_extension, threecplus_raw, threecplus_sip_username, threecplus_sip_password")
+            .eq("id", extensionId)
+            .limit(1);
+          const { data: ext } = await scopePhoneExtensionsQuery(dialQuery, codAgent, clientId)
+            .single();
 
         if (!ext?.threecplus_agent_id && !ext?.threecplus_extension) {
           throw new Error("Ramal sem vínculo 3C+. Sincronize ou recrie o ramal.");
@@ -456,7 +501,7 @@ serve(async (req) => {
         const extension = ext.threecplus_extension || null;
 
         // Get agent's own token — required for click2call (agent must be "logged in")
-        const agentToken = await getAgentToken(supabase, extensionId, codAgent, baseUrl, token);
+        const agentToken = await getAgentToken(supabase, extensionId, codAgent, clientId, baseUrl, token);
         if (!agentToken) {
           throw new Error("Token do agente não encontrado. Reconfigure o ramal 3C+.");
         }
@@ -747,7 +792,7 @@ serve(async (req) => {
             provider: "3cplus",
             threecplus_agent_id: agentId,
             threecplus_extension: ext,
-            threecplus_raw: apiResult,
+            threecplus_raw: mergeThreecRaw(null, apiResult),
             is_active: true,
           });
 
@@ -777,11 +822,12 @@ serve(async (req) => {
       case "get_extension_url": {
         const { extensionId: extUrlId } = params;
 
-        const { data: extUrl } = await supabase
+        const extUrlQuery = supabase
           .from("phone_extensions")
           .select("threecplus_agent_id, threecplus_raw")
           .eq("id", extUrlId)
-          .eq("cod_agent", codAgent)
+          .limit(1);
+        const { data: extUrl } = await scopePhoneExtensionsQuery(extUrlQuery, codAgent, clientId)
           .single();
 
         if (!extUrl?.threecplus_agent_id) {
@@ -789,7 +835,7 @@ serve(async (req) => {
         }
 
         // Extract agent's own api_token from raw data
-        const rawAgent = (extUrl.threecplus_raw as any)?.data ?? extUrl.threecplus_raw;
+        const rawAgent = unwrapThreecRaw(extUrl.threecplus_raw);
         let agentApiToken = rawAgent?.api_token;
 
         // If no cached token, fetch fresh from API
@@ -801,7 +847,7 @@ serve(async (req) => {
           if (agentApiToken) {
             // Update raw cache
             await supabase.from("phone_extensions").update({
-              threecplus_raw: freshUser,
+              threecplus_raw: mergeThreecRaw(extUrl.threecplus_raw, freshUser),
             }).eq("id", extUrlId);
           }
         }
@@ -1016,15 +1062,17 @@ serve(async (req) => {
           const ext = agent.extension ? String(agent.extension) : null;
           if (!agentId) continue;
 
-          const { data: existing } = await supabase
-            .from("phone_extensions").select("id")
-            .eq("cod_agent", codAgent).eq("threecplus_agent_id", agentId)
+          const existingQuery = supabase
+            .from("phone_extensions").select("id, threecplus_raw")
+            .eq("threecplus_agent_id", agentId)
+            .limit(1);
+          const { data: existing } = await scopePhoneExtensionsQuery(existingQuery, codAgent, clientId)
             .maybeSingle();
 
           if (existing) {
             await supabase.from("phone_extensions").update({
               threecplus_extension: ext,
-              threecplus_raw: agent,
+              threecplus_raw: mergeThreecRaw((existing as any).threecplus_raw, agent),
               updated_at: new Date().toISOString(),
             }).eq("id", existing.id);
           } else {
@@ -1037,7 +1085,7 @@ serve(async (req) => {
               provider: "3cplus",
               threecplus_agent_id: agentId,
               threecplus_extension: ext,
-              threecplus_raw: agent,
+              threecplus_raw: mergeThreecRaw(null, agent),
               is_active: true,
             });
             if (insertError) {
@@ -1288,16 +1336,17 @@ serve(async (req) => {
       case "validate_sip": {
         const { extensionId } = params;
 
-        const { data: ext } = await supabase
+        const validateQuery = supabase
           .from("phone_extensions")
           .select("threecplus_agent_id, threecplus_sip_username, threecplus_sip_password, threecplus_sip_domain, threecplus_extension, threecplus_raw")
           .eq("id", extensionId)
-          .eq("cod_agent", codAgent)
+          .limit(1);
+        const { data: ext } = await scopePhoneExtensionsQuery(validateQuery, codAgent, clientId)
           .single();
 
         if (!ext) throw new Error("Ramal não encontrado.");
 
-        const rawData = (ext.threecplus_raw as any)?.data || ext.threecplus_raw;
+        const rawData = unwrapThreecRaw(ext.threecplus_raw);
 
         // Try webphone login to get fresh SIP info from 3C+ using AGENT token
         let loginResult: any = null;
@@ -1307,7 +1356,7 @@ serve(async (req) => {
 
         if (ext.threecplus_agent_id) {
           // Get agent token
-          const valAgentToken = await getAgentToken(supabase, extensionId, codAgent, baseUrl, token);
+          const valAgentToken = await getAgentToken(supabase, extensionId, codAgent, clientId, baseUrl, token);
           
           // Check webphone status
           try {
