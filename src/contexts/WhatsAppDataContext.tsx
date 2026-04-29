@@ -1793,7 +1793,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     setMessages({});
     knownMessageIds.current.clear();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQueueId, clientId]);
+  }, [currentQueueId, clientId, activeQueueIds]);
 
   // Reload conversations when query group or queue changes (no selection clear)
   useEffect(() => {
