@@ -817,11 +817,12 @@ serve(async (req) => {
       case "get_extension_url": {
         const { extensionId: extUrlId } = params;
 
-        const { data: extUrl } = await supabase
+        const extUrlQuery = supabase
           .from("phone_extensions")
           .select("threecplus_agent_id, threecplus_raw")
           .eq("id", extUrlId)
-          .eq("cod_agent", codAgent)
+          .limit(1);
+        const { data: extUrl } = await scopePhoneExtensionsQuery(extUrlQuery, codAgent, clientId)
           .single();
 
         if (!extUrl?.threecplus_agent_id) {
@@ -829,7 +830,7 @@ serve(async (req) => {
         }
 
         // Extract agent's own api_token from raw data
-        const rawAgent = (extUrl.threecplus_raw as any)?.data ?? extUrl.threecplus_raw;
+        const rawAgent = unwrapThreecRaw(extUrl.threecplus_raw);
         let agentApiToken = rawAgent?.api_token;
 
         // If no cached token, fetch fresh from API
@@ -841,7 +842,7 @@ serve(async (req) => {
           if (agentApiToken) {
             // Update raw cache
             await supabase.from("phone_extensions").update({
-              threecplus_raw: freshUser,
+              threecplus_raw: mergeThreecRaw(extUrl.threecplus_raw, freshUser),
             }).eq("id", extUrlId);
           }
         }
@@ -1328,16 +1329,17 @@ serve(async (req) => {
       case "validate_sip": {
         const { extensionId } = params;
 
-        const { data: ext } = await supabase
+        const validateQuery = supabase
           .from("phone_extensions")
           .select("threecplus_agent_id, threecplus_sip_username, threecplus_sip_password, threecplus_sip_domain, threecplus_extension, threecplus_raw")
           .eq("id", extensionId)
-          .eq("cod_agent", codAgent)
+          .limit(1);
+        const { data: ext } = await scopePhoneExtensionsQuery(validateQuery, codAgent, clientId)
           .single();
 
         if (!ext) throw new Error("Ramal não encontrado.");
 
-        const rawData = (ext.threecplus_raw as any)?.data || ext.threecplus_raw;
+        const rawData = unwrapThreecRaw(ext.threecplus_raw);
 
         // Try webphone login to get fresh SIP info from 3C+ using AGENT token
         let loginResult: any = null;
@@ -1347,7 +1349,7 @@ serve(async (req) => {
 
         if (ext.threecplus_agent_id) {
           // Get agent token
-          const valAgentToken = await getAgentToken(supabase, extensionId, codAgent, baseUrl, token);
+          const valAgentToken = await getAgentToken(supabase, extensionId, codAgent, clientId, baseUrl, token);
           
           // Check webphone status
           try {
