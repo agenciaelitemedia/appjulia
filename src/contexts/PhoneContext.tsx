@@ -162,6 +162,9 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       });
       if (error) throw new Error(error.message || 'Erro ao obter credenciais SIP');
       if (data?.error) throw new Error(data.error);
+      if (data?.data?.blocked && data?.data?.nonRetryable) {
+        throw new Error(data.data.error || 'Webphone 3C+ indisponível para este agente');
+      }
 
       setSipSetupError(null);
       sip.connect(data.data);
@@ -175,7 +178,10 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
         retryCount.current = maxRetries;
         autoConnected.current = false;
         toast.error('Webphone 3C+ sem licença ou permissão para este agente');
+        return;
       }
+
+      setDialError(message);
     }
   }, [myExtension, codAgent, clientId, provider, sip]);
 
