@@ -140,11 +140,24 @@ serve(async (req) => {
   }
 
   try {
-    const { action, codAgent, ...params } = await req.json();
+    const { action, codAgent, clientId: clientIdRaw, ...params } = await req.json();
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Dual-key resolution (Fase 3 migration cod_agent → client_id)
+    let clientId: number | null = clientIdRaw ? Number(clientIdRaw) : null;
+    if (!clientId && codAgent) {
+      const { data: anyExt } = await supabase
+        .from("phone_extensions")
+        .select("client_id")
+        .eq("cod_agent", codAgent)
+        .not("client_id", "is", null)
+        .limit(1)
+        .maybeSingle();
+      if (anyExt?.client_id) clientId = Number(anyExt.client_id);
+    }
 
     // Get 3C+ config — try agent-specific first, then fallback to global
     let { data: config } = await supabase
