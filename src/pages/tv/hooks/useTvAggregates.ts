@@ -19,27 +19,81 @@ export function useAttendanceKpis() {
       const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
       const startOfTodayIso = startOfToday.toISOString();
 
-      const { data, error } = await supabase
-        .from('chat_conversations')
-        .select('id, status, opened_at, first_response_at, resolved_at, closed_at, created_at')
-        .gte('created_at', since24h);
+      const [totalRes, pendingRes, openRes, resolvedTodayRes] = await Promise.all([
+        supabase
+          .from('chat_conversations')
+          .select('id', { count: 'exact', head: true })
+          .gte('created_at', since24h),
+        supabase
+          .from('chat_conversations')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending')
+          .gte('created_at', since24h),
+        supabase
+          .from('chat_conversations')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'open')
+          .gte('created_at', since24h),
+        supabase
+          .from('chat_conversations')
+          .select('id', { count: 'exact', head: true })
+          .in('status', ['resolved', 'closed'])
+          .gte('created_at', since24h)
+          .gte('resolved_at', startOfTodayIso),
+      ]);
 
-      if (error || !data) {
+      if (totalRes.error || pendingRes.error || openRes.error || resolvedTodayRes.error) {
         return { tme_seconds: null, tma_seconds: null, sla_pct: 0, total_24h: 0, pending: 0, open: 0, resolved_today: 0 };
+      }
+
+      const total24h = totalRes.count ?? 0;
+      const pending = pendingRes.count ?? 0;
+      const open = openRes.count ?? 0;
+      const resolvedToday = resolvedTodayRes.count ?? 0;
+
+      if (total24h === 0) {
+        return { tme_seconds: null, tma_seconds: 0, sla_pct: 0, total_24h: 0, pending: 0, open: 0, resolved_today: 0 };
+      }
+
+      const data: Array<{
+        opened_at: string | null;
+        first_response_at: string | null;
+        resolved_at: string | null;
+        closed_at: string | null;
+      }> = [];
+
+      const PAGE_SIZE = 1000;
+      for (let from = 0; from < total24h; from += PAGE_SIZE) {
+        const to = Math.min(from + PAGE_SIZE - 1, total24h - 1);
+        const { data: page, error } = await supabase
+          .from('chat_conversations')
+          .select('opened_at, first_response_at, resolved_at, closed_at')
+          .gte('created_at', since24h)
+          .order('created_at', { ascending: false })
+          .range(from, to);
+
+        if (error || !page) {
+          return {
+            tme_seconds: null,
+            tma_seconds: null,
+            sla_pct: 0,
+            total_24h: total24h,
+            pending,
+            open,
+            resolved_today: resolvedToday,
+          };
+        }
+
+        data.push(...page);
+
+        if (page.length < PAGE_SIZE) break;
       }
 
       let tmeSum = 0, tmeCount = 0;
       let tmaSum = 0, tmaCount = 0;
-      let pending = 0, open = 0, resolvedToday = 0;
       const breachedThreshold = 30 * 60 * 1000; // 30min p/ "no prazo" como heurística simples
 
-      for (const c of data as any[]) {
-        if (c.status === 'pending') pending++;
-        if (c.status === 'open') open++;
-        if ((c.status === 'resolved' || c.status === 'closed') && (c.resolved_at || c.closed_at)) {
-          const finishedAt = c.resolved_at || c.closed_at;
-          if (finishedAt >= startOfTodayIso) resolvedToday++;
-        }
+      for (const c of data) {
         if (c.first_response_at && c.opened_at) {
           tmeSum += new Date(c.first_response_at).getTime() - new Date(c.opened_at).getTime();
           tmeCount++;
@@ -52,7 +106,7 @@ export function useAttendanceKpis() {
 
       // SLA% simplificado: % dos que tiveram first_response em <= 30min
       let onTrack = 0;
-      for (const c of data as any[]) {
+      for (const c of data) {
         if (c.first_response_at && c.opened_at) {
           const delta = new Date(c.first_response_at).getTime() - new Date(c.opened_at).getTime();
           if (delta <= breachedThreshold) onTrack++;
@@ -64,7 +118,7 @@ export function useAttendanceKpis() {
         tme_seconds: tmeCount > 0 ? Math.round(tmeSum / tmeCount / 1000) : null,
         tma_seconds: tmaCount > 0 ? Math.round(tmaSum / tmaCount / 1000) : null,
         sla_pct: slaPct,
-        total_24h: data.length,
+        total_24h: total24h,
         pending,
         open,
         resolved_today: resolvedToday,
