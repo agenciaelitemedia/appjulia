@@ -679,6 +679,7 @@ serve(async (req) => {
         const { error: dbError } = await supabase.from("phone_extensions")
           .insert({
             cod_agent: codAgent,
+            client_id: clientId,
             extension_number: ext || agentId,
             label: label || fName || null,
             assigned_member_id: assignedMemberId || null,
@@ -970,6 +971,7 @@ serve(async (req) => {
               "phone_extensions",
             ).insert({
               cod_agent: codAgent,
+              client_id: clientId,
               extension_number: ext || agentId,
               provider: "3cplus",
               threecplus_agent_id: agentId,
@@ -1373,6 +1375,7 @@ function buildCallLog(
 
   const log: Record<string, any> = {
     cod_agent: codAgent,
+    client_id: clientId,
     extension_number: caller,
     direction,
     caller,
