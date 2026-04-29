@@ -1,96 +1,121 @@
-## Contexto
 
-O painel da 3C+ exibe o "Ramal SIP externo" do agente `218637` com:
+# Ajustes no /chat (revisado após análise do banco)
 
-- Servidor SIP: `assessoria.3c.fluxoti.com` (subdomínio do tenant)
-- Usuário: `B0lse3Z0EV`
-- Senha: `pYWWebrY0f`
+## Descoberta sobre o "prefixo"
 
-Hoje o sistema tenta obter essas credenciais automaticamente via `/agent/webphone/login`, mas a 3C+ retorna **403 (sem licença de Webphone)** para esse agente. O fallback genérico então usa `pbx01.3c.fluxoti.com`, que é o **domínio errado** — por isso o REGISTER falha com "Authentication Error" mesmo com WebSocket conectado.
+Diferente do que o plano anterior assumiu, o texto `⚠️ *NOTIFICAÇÃO DE CRIPTOGRAFIA* ⚠️\n\n*Lead:* <fone>` **não é um prefixo** colocado antes da mensagem real. Investigação no `chat_messages.raw_payload`:
 
-A correção definitiva ideal é habilitar a licença Webphone no painel 3C+. Como isso depende do cliente/comercial 3C+, vamos adicionar um caminho de **credenciais manuais** que funciona imediatamente com os dados do painel.
+- O `raw_payload.content.text` (vindo direto do WhatsApp via UaZapi) **é exatamente esse texto e nada mais** (todos os registros têm 58 chars).
+- Ocorre em `from_me=true` e `from_me=false`, originado do número `553488860163` (Escritório Lopes Bahia) — eles disparam essa "notificação de criptografia" como mensagem real do WhatsApp, provavelmente por automação interna.
+- O nome `Escritorio Lopes Bahia` que aparecia "antes" no relato do usuário **não está no `text`** — vem do header da bolha (sender_name em grupos / metadata.sender_name) renderizado pelo `MessageBubble`.
 
-## O que vai mudar
+Conclusão: não há nada para "remover do começo". O comportamento correto é **filtrar/ocultar a mensagem inteira** quando ela for apenas esse envelope, já que não carrega informação útil para o atendente.
 
-### 1. Banco de dados (migração)
+---
 
-Adicionar 3 colunas opcionais em `phone_extensions` para armazenar as credenciais SIP manuais informadas pelo painel da 3C+:
+## 1. Ocultar mensagens-envelope "NOTIFICAÇÃO DE CRIPTOGRAFIA"
 
-- `sip_manual_domain` (text, null)
-- `sip_manual_username` (text, null)
-- `sip_manual_password` (text, null)
-
-Quando preenchidas, têm **prioridade máxima** sobre login oficial e fallback.
-
-### 2. UI — tela de Telefonia (`/telefonia`)
-
-Adicionar, na linha de cada ramal 3C+, um botão **"Credenciais SIP manuais"** que abre um modal com 3 campos:
-
-- Servidor SIP (ex.: `assessoria.3c.fluxoti.com`)
-- Usuário do ramal (ex.: `B0lse3Z0EV`)
-- Senha do ramal (ex.: `pYWWebrY0f`)
-
-Texto auxiliar explicando: "Use estes campos quando o login automático falhar (403). Copie os valores exatamente como aparecem no painel da 3C+ em 'Ramal SIP externo'."
-
-### 3. Edge Function `threecplus-proxy` — ação `get_sip_credentials`
-
-Nova ordem de prioridade:
-
-1. **PRIORITY 1 (nova)** — se `phone_extensions.sip_manual_*` estiverem preenchidos, retornar essas credenciais direto (com `wsUrl = wss://vox-socket.3c.fluxoti.com:4443/ws`, que é o WS oficial da 3C+).
-2. PRIORITY 2 — login oficial via `/agent/webphone/login` (atual).
-3. Fallback genérico — **continua desabilitado** (já corrigido em mensagens anteriores). Se 1 e 2 falharem, retorna `blocked: true, nonRetryable: true` com mensagem orientando preencher as credenciais manuais OU habilitar licença na 3C+.
-
-### 4. Frontend `PhoneContext.tsx`
-
-Manter o tratamento atual de `blocked: true`, mas atualizar a mensagem do toast para sugerir as duas saídas:
-
-> "Webphone 3C+ sem licença automática. Preencha 'Credenciais SIP manuais' no ramal ou habilite a licença no painel 3C+."
-
-## Detalhes técnicos
-
-**Migração SQL:**
-
-```sql
-ALTER TABLE public.phone_extensions
-  ADD COLUMN IF NOT EXISTS sip_manual_domain text,
-  ADD COLUMN IF NOT EXISTS sip_manual_username text,
-  ADD COLUMN IF NOT EXISTS sip_manual_password text;
-```
-
-RLS atual de `phone_extensions` já cobre — não precisa policy nova.
-
-**`threecplus-proxy/index.ts` (`get_sip_credentials`):**
+### Detector (`src/lib/chat/envelopeFilter.ts` — novo)
 
 ```ts
-// PRIORITY 1: manual credentials from phone_extensions
-const { data: ext } = await supabase
-  .from('phone_extensions')
-  .select('sip_manual_domain, sip_manual_username, sip_manual_password')
-  .eq('id', extensionId)
-  .maybeSingle();
+const ENVELOPE_RE =
+  /^\s*⚠️\s*\*?NOTIFICAÇÃO DE CRIPTOGRAFIA\*?\s*⚠️\s*\n+\s*\*?Lead:\*?\s*[\d+\s]+\s*$/i;
 
-if (ext?.sip_manual_domain && ext?.sip_manual_username && ext?.sip_manual_password) {
-  return {
-    domain: ext.sip_manual_domain,
-    username: ext.sip_manual_username,
-    password: ext.sip_manual_password,
-    wsUrl: 'wss://vox-socket.3c.fluxoti.com:4443/ws',
-    source: 'manual',
-  };
+export function isEncryptionEnvelope(text?: string | null): boolean {
+  if (!text) return false;
+  return ENVELOPE_RE.test(text.trim());
 }
-// PRIORITY 2: official /agent/webphone/login (existing)
-// PRIORITY 3: disabled
 ```
 
-**UI (`src/pages/telefonia/components/...`):** novo `<Dialog>` com `<Input>` x3 + `<Button>` salvar, chamando `updateExtension` mutation já existente em `useTelefoniaData.ts`.
+### Aplicação
 
-**Memória:** atualizar `mem://integrations/telephony/threecplus-infrastructure-v5` registrando que credenciais manuais têm prioridade sobre login oficial.
+- **`src/components/chat/ChatMessages.tsx`**: ao montar a lista renderizada, descartar mensagens onde `isEncryptionEnvelope(message.text) && message.type === 'text' && !message.media_url`. Não exclui do banco — apenas oculta do UI.
+- **`src/lib/chat/messagePreview.ts`** (`getMessagePreview`): se o texto bater no envelope, retornar string vazia para o caller decidir o fallback. No `WhatsAppDataContext.loadConversations` / preview da lista, quando o último texto for envelope, usar o penúltimo evento ou exibir `"Conversa iniciada"` como neutro.
+- Sem migration. Mensagens já gravadas continuam no banco; apenas deixam de aparecer.
 
-## O que NÃO está incluso
+---
 
-- Habilitar licença Webphone no painel 3C+ (ação manual do cliente fora do app).
-- Mudança no fluxo da Api4Com.
+## 2. Assinatura do atendente (formato confirmado)
 
-## Resultado esperado
+Antes do texto digitado, prefixar exatamente:
 
-Após preencher os 3 campos no ramal do agente `218637` com os dados do painel (`assessoria.3c.fluxoti.com` / `B0lse3Z0EV` / `pYWWebrY0f`), o REGISTER SIP passa a usar o realm correto e o softphone fica registrado sem depender do endpoint `/agent/webphone/login`.
+```
+*Nome do Usuário:*
+Mensagem digitada
+```
+
+### UX (`src/components/chat/ChatInput.tsx`)
+
+- Novo botão toggle (ícone `PenLine`) ao lado dos demais, visível apenas quando `!noteMode`.
+- Estado `signEnabled` com persistência em `localStorage` por usuário (`chat:signature:enabled:<userId>`), default `true`.
+- Tooltip: `Assinar como "<nome do usuário>"` / `Assinatura desativada`.
+- No `handleSend`, quando `signEnabled && user?.name && !noteMode`:
+  ```ts
+  const signed = `*${user.name}:*\n${messageText}`;
+  ```
+  Aplica também à `caption` em mídia. **Não** aplica em PTT/áudio nem em notas internas.
+
+---
+
+## 3. Filtro "Todas as filas" deve respeitar permissões
+
+### Bug
+
+Em `src/contexts/WhatsAppDataContext.tsx`:
+- `loadConversations` e `loadConvCounts` já restringem por `activeQueueIds` (de `useAccessibleQueues`).
+- `loadContacts` (linha ~246) e a subscription realtime de `chat_contacts` (linha ~1523) **não restringem** quando `currentQueueId` é `null` — mostram todas as filas do `client_id`.
+
+### Correção
+
+Em `loadContacts`:
+```ts
+if (currentQueueId) {
+  query = query.eq('channel_source', currentQueueId);
+} else if (activeQueueIds.length > 0) {
+  query = query.in('channel_source', activeQueueIds);
+} else {
+  setContacts([]); return;
+}
+```
+Adicionar `activeQueueIds` às deps do `useCallback`.
+
+Na subscription realtime: descartar INSERT/UPDATE com `channel_source` fora de `activeQueueIds` quando `!currentQueueId`.
+
+Resultado: usuário com acesso só a A/D/G vê apenas A/D/G ao escolher "Todas".
+
+---
+
+## 4. Aba "Em Atendimento" — não-admin vê só os seus
+
+### Regra
+
+Quando `conversationStatusFilter === 'open'` **e** `user.role` ∉ {`admin`, `colaborador`, `user`}, mostrar apenas conversas onde `assigned_to === user.name` (fallback `String(user.id)`).
+
+### Onde aplicar
+
+`src/components/chat/ChatList.tsx`, dentro de `applyClientFilters` e `baseForCounts`:
+
+```ts
+const isPrivilegedRole = ['admin','colaborador','user'].includes(user?.role || '');
+const restrictToMine = !isPrivilegedRole && conversationStatusFilter === 'open';
+if (restrictToMine) {
+  result = result.filter(c => {
+    const a = convMetaByContact.get(c.id)?.assignedTo;
+    return !!a && (a === user?.name || a === String(user?.id));
+  });
+}
+```
+
+Aplicar também ao `baseForCounts` para o badge da aba refletir só o que o usuário pode ver. Aba "Em Aberto" (pending) continua mostrando o pool de não-atribuídos.
+
+---
+
+## Sequência de implementação
+
+1. `loadContacts` + realtime respeitando `activeQueueIds` (item 3).
+2. Filtro "só meus atendimentos" em `ChatList` (item 4).
+3. Toggle de assinatura no `ChatInput` no formato `*Nome:*\n…` (item 2).
+4. Filtro de envelope "NOTIFICAÇÃO DE CRIPTOGRAFIA" em `ChatMessages` + `messagePreview` (item 1).
+
+Sem migrations, sem alterações em edge functions, sem mexer em dados gravados.
+
