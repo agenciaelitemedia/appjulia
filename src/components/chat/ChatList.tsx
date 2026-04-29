@@ -321,8 +321,8 @@ export function ChatList() {
   // Visible list — uses filteredContacts (which already applies activeTab,
   // search and conversationStatusFilter from the context).
   const visibleContacts = React.useMemo(
-    () => applyClientFilters(filteredContacts),
-    [filteredContacts, applyClientFilters]
+    () => applyClientFilters(filteredContacts).filter((c) => isVisibleByOpenScope(c.id)),
+    [filteredContacts, applyClientFilters, isVisibleByOpenScope]
   );
 
   // Count conversations by status — scoped to the active tab (Individual / Groups)
@@ -402,8 +402,8 @@ export function ChatList() {
       }
       return true;
     });
-    return applyClientFilters(base);
-  }, [contacts, conversations, deferredSearch, matchesActiveTab, applyClientFilters]);
+    return applyClientFilters(base).filter((c) => isVisibleByOpenScope(c.id));
+  }, [contacts, conversations, deferredSearch, matchesActiveTab, applyClientFilters, isVisibleByOpenScope]);
 
   // Single pass over the count base — produces both counts in the same render
   // tick. Counts now reflect filters but NOT the active status tab, so each
