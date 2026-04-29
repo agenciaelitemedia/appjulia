@@ -47,6 +47,10 @@ interface PhoneContextType {
 
 const PhoneContext = createContext<PhoneContextType | undefined>(undefined);
 
+function isNonRetryableSipSetupError(message: string): boolean {
+  return /Não foi possível obter credenciais SIP válidas da 3C\+|licença\/permissão de Webphone ativa|3C\+ erro 403|Você não tem permissão para acessar esse recurso/i.test(message);
+}
+
 export function PhoneProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -60,6 +64,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   const isDialingRef = useRef(false);
   const [dialContactName, setDialContactName] = useState('');
   const [dialError, setDialError] = useState<string | null>(null);
+  const [sipSetupError, setSipSetupError] = useState<string | null>(null);
   const lastDialArgs = useRef<{ phone: string; contactName?: string; origin?: 'CRM' | 'DISCADOR'; whatsappNumber?: string } | null>(null);
   const autoConnected = useRef(false);
   const retryCount = useRef(0);
@@ -155,10 +160,22 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
         body: { action: 'get_sip_credentials', clientId, codAgent, extensionId: myExtension.id },
       });
-      if (error || data?.error) return;
+      if (error) throw new Error(error.message || 'Erro ao obter credenciais SIP');
+      if (data?.error) throw new Error(data.error);
+
+      setSipSetupError(null);
       sip.connect(data.data);
     } catch (err) {
       console.error('SIP connect failed:', err);
+
+      const message = err instanceof Error ? err.message : 'Erro ao conectar softphone';
+      if (isNonRetryableSipSetupError(message)) {
+        setSipSetupError(message);
+        setDialError(message);
+        retryCount.current = maxRetries;
+        autoConnected.current = false;
+        toast.error('Webphone 3C+ sem licença ou permissão para este agente');
+      }
     }
   }, [myExtension, codAgent, clientId, provider, sip]);
 
@@ -175,6 +192,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   // Auto-retry SIP registration with exponential backoff
   useEffect(() => {
     if (!autoConnected.current || !myExtension) return;
+    if (sipSetupError) return;
     if (sip.status === 'registered' || sip.status === 'in-call' || sip.status === 'calling' || sip.status === 'ringing') {
       retryCount.current = 0;
       return;
@@ -190,7 +208,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       }, delay);
       return () => clearTimeout(retryTimer);
     }
-  }, [sip.status, myExtension, provider, connectSip]);
+  }, [sip.status, myExtension, provider, connectSip, sipSetupError]);
 
   // Cleanup on unmount
   useEffect(() => {
