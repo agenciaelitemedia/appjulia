@@ -161,6 +161,20 @@ Deno.serve(async (req) => {
         } catch (err) {
           console.warn('[mercadopago-webhook] provision dispatch error:', err)
         }
+
+        // Notificação WhatsApp pós-pagamento (fire-and-forget)
+        try {
+          fetch(`${supabaseUrl}/functions/v1/telephony-notify-paid`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseKey}`,
+            },
+            body: JSON.stringify({ order_id: externalReference }),
+          }).catch((err) => console.warn('[mercadopago-webhook] notify dispatch failed:', err))
+        } catch (err) {
+          console.warn('[mercadopago-webhook] notify dispatch error:', err)
+        }
       }
     } else if (payment.status === 'rejected' || payment.status === 'cancelled') {
       await supabase
