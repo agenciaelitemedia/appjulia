@@ -149,6 +149,10 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   // Auto-connect SIP when extension is found (with retry)
   const connectSip = useCallback(async () => {
     if (!myExtension || !codAgent) return;
+    if (sipSetupError) {
+      setDialError(sipSetupError);
+      return;
+    }
 
     // Provider-aware link check
     const isLinked = provider === '3cplus'
@@ -176,17 +180,16 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
         setSipSetupError(message);
         setDialError(message);
         retryCount.current = maxRetries;
-        autoConnected.current = false;
         toast.error('Webphone 3C+ sem licença ou permissão para este agente');
         return;
       }
 
       setDialError(message);
     }
-  }, [myExtension, codAgent, clientId, provider, sip]);
+  }, [myExtension, codAgent, clientId, provider, sip, sipSetupError]);
 
   useEffect(() => {
-    if (autoConnected.current || !myExtension || !codAgent) return;
+    if (autoConnected.current || sipSetupError || !myExtension || !codAgent) return;
     const isLinked = provider === '3cplus'
       ? !!(myExtension.threecplus_agent_id || myExtension.threecplus_extension)
       : !!myExtension.api4com_ramal;
