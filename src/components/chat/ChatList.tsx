@@ -318,13 +318,6 @@ export function ChatList() {
     [ownerFilter, teamMembers, convMetaByContact, user?.id, user?.name, periodFilter, stageIds, stageByPhone, slaFilter, slaStatusByContact, modeFilter, queueAgentMap, queryClient]
   );
 
-  // Visible list — uses filteredContacts (which already applies activeTab,
-  // search and conversationStatusFilter from the context).
-  const visibleContacts = React.useMemo(
-    () => applyClientFilters(filteredContacts).filter((c) => isVisibleByOpenScope(c.id)),
-    [filteredContacts, applyClientFilters, isVisibleByOpenScope]
-  );
-
   // Count conversations by status — scoped to the active tab (Individual / Groups)
   // so badges match what the user actually sees in the list.
   const isGroupByContactId = React.useMemo(() => {
@@ -370,6 +363,13 @@ export function ChatList() {
       return assigned === String(user?.id) || assigned === user?.name;
     },
     [restrictOpenToMine, statusByContact, convMetaByContact, user?.id, user?.name]
+  );
+
+  // Visible list — uses filteredContacts (which already applies activeTab,
+  // search and conversationStatusFilter from the context).
+  const visibleContacts = React.useMemo(
+    () => applyClientFilters(filteredContacts).filter((c) => isVisibleByOpenScope(c.id)),
+    [filteredContacts, applyClientFilters, isVisibleByOpenScope]
   );
 
   // Defer search input so that fast typing does not block list/count derivation.
