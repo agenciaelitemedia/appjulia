@@ -24,6 +24,11 @@ export function PlanDialog({ open, onOpenChange, plan, onSave }: PlanDialogProps
   const [priceSemiannual, setPriceSemiannual] = useState(0);
   const [priceAnnual, setPriceAnnual] = useState(0);
   const [extraExtensionPrice, setExtraExtensionPrice] = useState(0);
+  // Setup fee: '' = sem taxa (NULL), '0' = grátis, '>0' = valor
+  const [setupMonthly, setSetupMonthly] = useState<string>('');
+  const [setupQuarterly, setSetupQuarterly] = useState<string>('');
+  const [setupSemiannual, setSetupSemiannual] = useState<string>('');
+  const [setupAnnual, setSetupAnnual] = useState<string>('');
 
   useEffect(() => {
     if (plan) {
@@ -36,6 +41,12 @@ export function PlanDialog({ open, onOpenChange, plan, onSave }: PlanDialogProps
       setPriceSemiannual(Number(plan.price_semiannual) || 0);
       setPriceAnnual(Number(plan.price_annual) || 0);
       setExtraExtensionPrice(Number(plan.extra_extension_price) || 0);
+      const toStr = (v: number | null | undefined) =>
+        v === null || v === undefined ? '' : String(v);
+      setSetupMonthly(toStr(plan.setup_fee_monthly));
+      setSetupQuarterly(toStr(plan.setup_fee_quarterly));
+      setSetupSemiannual(toStr(plan.setup_fee_semiannual));
+      setSetupAnnual(toStr(plan.setup_fee_annual));
     } else {
       setName('');
       setMaxExtensions(5);
@@ -46,12 +57,23 @@ export function PlanDialog({ open, onOpenChange, plan, onSave }: PlanDialogProps
       setPriceSemiannual(0);
       setPriceAnnual(0);
       setExtraExtensionPrice(0);
+      setSetupMonthly('');
+      setSetupQuarterly('');
+      setSetupSemiannual('');
+      setSetupAnnual('');
     }
   }, [plan, open]);
 
+  const parseSetup = (v: string): number | null => {
+    const s = v.trim();
+    if (s === '') return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{plan ? 'Editar Plano' : 'Novo Plano'}</DialogTitle>
         </DialogHeader>
@@ -88,6 +110,34 @@ export function PlanDialog({ open, onOpenChange, plan, onSave }: PlanDialogProps
               <Input type="number" value={priceAnnual} onChange={(e) => setPriceAnnual(Number(e.target.value))} min={0} step={0.01} />
             </div>
           </div>
+
+          <div className="space-y-2 pt-2 border-t">
+            <div>
+              <Label className="text-base">Taxa de Setup por periodicidade</Label>
+              <p className="text-xs text-muted-foreground">
+                Vazio = sem taxa de setup · <span className="font-medium">0</span> = grátis (destaque) · valor &gt; 0 = cobrar
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Setup Mensal (R$)</Label>
+                <Input type="number" value={setupMonthly} onChange={(e) => setSetupMonthly(e.target.value)} min={0} step={0.01} placeholder="vazio = sem taxa" />
+              </div>
+              <div>
+                <Label>Setup Trimestral (R$)</Label>
+                <Input type="number" value={setupQuarterly} onChange={(e) => setSetupQuarterly(e.target.value)} min={0} step={0.01} placeholder="vazio = sem taxa" />
+              </div>
+              <div>
+                <Label>Setup Semestral (R$)</Label>
+                <Input type="number" value={setupSemiannual} onChange={(e) => setSetupSemiannual(e.target.value)} min={0} step={0.01} placeholder="vazio = sem taxa" />
+              </div>
+              <div>
+                <Label>Setup Anual (R$)</Label>
+                <Input type="number" value={setupAnnual} onChange={(e) => setSetupAnnual(e.target.value)} min={0} step={0.01} placeholder="vazio = sem taxa" />
+              </div>
+            </div>
+          </div>
+
           <div>
             <Label>Descrição</Label>
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descrição do plano..." />
@@ -108,6 +158,10 @@ export function PlanDialog({ open, onOpenChange, plan, onSave }: PlanDialogProps
               price_semiannual: priceSemiannual,
               price_annual: priceAnnual,
               extra_extension_price: extraExtensionPrice,
+              setup_fee_monthly: parseSetup(setupMonthly),
+              setup_fee_quarterly: parseSetup(setupQuarterly),
+              setup_fee_semiannual: parseSetup(setupSemiannual),
+              setup_fee_annual: parseSetup(setupAnnual),
               description: description || null,
               is_active: isActive,
             })}
