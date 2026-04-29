@@ -458,45 +458,15 @@ serve(async (req) => {
         }
 
         // ============================================================
-        // PRIORITY 3: Last-resort fallback from raw creation data
-        // WARNING: domain derived here may be wrong (tenant != PBX)
+        // PRIORITY 3 intentionally disabled for 3C+
+        // Never fall back to generic/raw SIP credentials after official login fails,
+        // because this creates endless PBX auth errors and masks the real cause.
         // ============================================================
-        if (rawData?.telephony_id && rawData?.extension_password) {
-          // Only use config.sip_domain if manually set; NEVER derive from base_url
-          let sipDomainFallback: string;
-          let fallbackDomainSource: string;
-          if (config.sip_domain) {
-            sipDomainFallback = config.sip_domain;
-            fallbackDomainSource = "phone_config.sip_domain (override manual)";
-          } else {
-            // DO NOT derive from threecplus_base_url — that's API tenant, not PBX
-            sipDomainFallback = "pbx01.3c.fluxoti.com";
-            fallbackDomainSource = "fallback genérico (login oficial falhou)";
-          }
-
-          // Cache but mark as fallback
-          await supabase.from("phone_extensions").update({
-            threecplus_sip_domain: sipDomainFallback,
-            threecplus_sip_username: rawData.telephony_id,
-            threecplus_sip_password: rawData.extension_password,
-          }).eq("id", extensionId);
-
-          const ws = resolveWsUrl(sipDomainFallback);
-          result = {
-            domain: sipDomainFallback,
-            domainSource: fallbackDomainSource,
-            username: rawData.telephony_id,
-            password: rawData.extension_password,
-            wsUrl: ws.wsUrl,
-            wsUrlSource: ws.wsUrlSource,
-            wsUrlCandidates: ws.wsUrlCandidates,
-            source: "raw_fallback",
-            baseUrl,
-          };
-          break;
-        }
-
-        throw new Error("Nenhuma credencial SIP disponível. Verifique se o ramal tem agent_id e webphone habilitado na 3C+.");
+        throw new Error(
+          officialLoginError
+            ? `Não foi possível obter credenciais SIP válidas da 3C+ sem login oficial. ${officialLoginError}`
+            : "Nenhuma credencial SIP oficial disponível. Verifique se o ramal tem agent_id e webphone habilitado na 3C+.",
+        );
       }
 
       // ------------------------------------------------------------------
