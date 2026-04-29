@@ -190,7 +190,10 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
         setSipSetupError(message);
         setDialError(message);
         retryCount.current = maxRetries;
-        toast.error('Webphone 3C+ sem licença ou permissão para este agente');
+        toast.error(
+          'Webphone 3C+ sem licença automática. Preencha "Credenciais SIP manuais" no ramal (em Telefonia → Meus Ramais) ou habilite a licença Webphone no painel 3C+.',
+          { duration: 10000 },
+        );
         return;
       }
 
