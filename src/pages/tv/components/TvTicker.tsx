@@ -80,17 +80,40 @@ export function TvTicker() {
   // Para rolar continuamente, duplicamos a lista de eventos
   const items = events.length > 0 ? [...events, ...events] : [];
 
+  // High-alert: ativa quando há ao menos 1 evento "bad" entre os reais (não duplicados)
+  const badCount = events.filter((e) => e.tone === 'bad').length;
+  const highAlert = badCount > 0;
+
   return (
-    <div className="overflow-hidden rounded-2xl border-2 border-rose-600/70 bg-gradient-to-r from-rose-950/80 via-rose-900/60 to-rose-950/80 py-5 relative shadow-[0_0_30px_rgba(244,63,94,0.35)]">
+    <div
+      className={`overflow-hidden rounded-2xl border-2 py-5 relative transition-all duration-500 ${
+        highAlert
+          ? 'border-rose-500 bg-gradient-to-r from-rose-950 via-red-900/90 to-rose-950 shadow-[0_0_50px_rgba(244,63,94,0.65)] animate-[ticker-glow_2.2s_ease-in-out_infinite]'
+          : 'border-rose-600/70 bg-gradient-to-r from-rose-950/80 via-rose-900/60 to-rose-950/80 shadow-[0_0_30px_rgba(244,63,94,0.35)]'
+      }`}
+    >
+      {highAlert && (
+        <div className="absolute top-1 right-3 z-10 flex items-center gap-2 px-3 py-1 rounded-full bg-rose-600 text-white text-xs font-bold tracking-widest uppercase shadow-lg animate-pulse">
+          <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+          High Alert · {badCount}
+        </div>
+      )}
       <div
         className="flex gap-12 whitespace-nowrap animate-[marquee_60s_linear_infinite] hover:[animation-play-state:paused]"
         style={{ width: 'max-content' }}
       >
         {items.map((e, i) => (
-          <span key={`${e.id}-${i}`} className={`text-2xl font-bold inline-flex items-center gap-3 ${
-            e.tone === 'bad' ? 'text-rose-200 drop-shadow-[0_0_8px_rgba(244,63,94,0.7)]' : e.tone === 'warn' ? 'text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.5)]' : 'text-emerald-200 drop-shadow-[0_0_6px_rgba(52,211,153,0.5)]'
-          }`}>
-            <span className="text-3xl">{e.emoji}</span>
+          <span
+            key={`${e.id}-${i}`}
+            className={`text-2xl font-bold inline-flex items-center gap-3 ${
+              e.tone === 'bad'
+                ? `text-rose-100 drop-shadow-[0_0_10px_rgba(244,63,94,0.9)] ${highAlert ? 'animate-[bad-pulse_1.6s_ease-in-out_infinite]' : ''}`
+                : e.tone === 'warn'
+                ? 'text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.5)]'
+                : 'text-emerald-200 drop-shadow-[0_0_6px_rgba(52,211,153,0.5)]'
+            }`}
+          >
+            <span className={`text-3xl ${e.tone === 'bad' && highAlert ? 'animate-[bad-pulse_1.6s_ease-in-out_infinite]' : ''}`}>{e.emoji}</span>
             <span>
               <span className="text-rose-300/70 mr-2 tabular-nums font-mono text-lg">
                 {e.ts.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
@@ -104,6 +127,14 @@ export function TvTicker() {
         @keyframes marquee {
           0% { transform: translateX(0); }
           100% { transform: translateX(-50%); }
+        }
+        @keyframes ticker-glow {
+          0%, 100% { box-shadow: 0 0 35px rgba(244,63,94,0.55), inset 0 0 0 0 rgba(244,63,94,0); }
+          50% { box-shadow: 0 0 70px rgba(244,63,94,0.85), inset 0 0 25px rgba(244,63,94,0.25); }
+        }
+        @keyframes bad-pulse {
+          0%, 100% { opacity: 1; transform: translateY(0); text-shadow: 0 0 10px rgba(244,63,94,0.8); }
+          50% { opacity: 0.85; transform: translateY(-1px); text-shadow: 0 0 18px rgba(244,63,94,1); }
         }
       `}</style>
     </div>
