@@ -4353,7 +4353,9 @@ export type Database = {
           id: number
           is_active: boolean
           plan_id: number
+          recording_enabled: boolean
           start_date: string
+          transcription_enabled: boolean
         }
         Insert: {
           assigned_at?: string
@@ -4367,7 +4369,9 @@ export type Database = {
           id?: number
           is_active?: boolean
           plan_id: number
+          recording_enabled?: boolean
           start_date?: string
+          transcription_enabled?: boolean
         }
         Update: {
           assigned_at?: string
@@ -4381,7 +4385,9 @@ export type Database = {
           id?: number
           is_active?: boolean
           plan_id?: number
+          recording_enabled?: boolean
           start_date?: string
+          transcription_enabled?: boolean
         }
         Relationships: [
           {
