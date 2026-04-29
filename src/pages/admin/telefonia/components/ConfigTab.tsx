@@ -4,11 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Copy, Eye, EyeOff, Plus, Save, Trash2, Pencil, Webhook, X } from 'lucide-react';
+import { Copy, Eye, EyeOff, Loader2, Plus, Save, Search, Trash2, Pencil, Webhook, X } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useTelefoniaAdmin } from '../hooks/useTelefoniaAdmin';
+import { useClientSearch, type SearchedClient } from '../hooks/useClientSearch';
 import { toast } from 'sonner';
 import type { PhoneConfig, ProviderType } from '../types';
 import { PROVIDER_LABELS } from '../types';
@@ -23,12 +24,13 @@ function getWebhookUrl(provider: ProviderType) {
 
 export function ConfigTab() {
   const { configs, configsLoading, saveConfig, deleteConfig } = useTelefoniaAdmin();
+  const { searchTerm, setSearchTerm, results: clientResults, isLoading: clientSearching } = useClientSearch();
 
   const [editing, setEditing] = useState<PhoneConfig | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
   // Form state
-  const [codAgent, setCodAgent] = useState('');
+  const [selectedClient, setSelectedClient] = useState<SearchedClient | null>(null);
   const [provider, setProvider] = useState<ProviderType>('api4com');
   // api4com fields
   const [domain, setDomain] = useState('');
@@ -50,7 +52,8 @@ export function ConfigTab() {
   };
 
   const resetForm = () => {
-    setCodAgent('');
+    setSelectedClient(null);
+    setSearchTerm('');
     setProvider('api4com');
     setDomain('');
     setSipDomain('');
@@ -69,7 +72,18 @@ export function ConfigTab() {
   };
 
   const openEdit = (cfg: PhoneConfig) => {
-    setCodAgent(cfg.cod_agent);
+    // For editing, build a synthetic client from the config row
+    if (cfg.client_id != null) {
+      setSelectedClient({
+        id: Number(cfg.client_id),
+        name: (cfg as any).client_name || '',
+        business_name: (cfg as any).business_name ?? null,
+        email: null,
+        phone: null,
+      });
+    } else {
+      setSelectedClient(null);
+    }
     setProvider(cfg.provider || 'api4com');
     setDomain(cfg.api4com_domain || '');
     setSipDomain(cfg.sip_domain || '');
@@ -83,16 +97,16 @@ export function ConfigTab() {
   };
 
   const isFormValid = () => {
-    if (!codAgent) return false;
+    if (!selectedClient) return false;
     if (provider === '3cplus') return !!threecToken;
     return !!(domain && token);
   };
 
   const handleSave = () => {
-    if (!isFormValid()) return;
+    if (!isFormValid() || !selectedClient) return;
     const payload: any = {
       ...(editing ? { id: editing.id } : {}),
-      cod_agent: codAgent,
+      client_id: selectedClient.id,
       provider,
     };
     if (provider === '3cplus') {
@@ -174,7 +188,7 @@ export function ConfigTab() {
       {/* Configs per agent */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg">Configurações por Agente</CardTitle>
+          <CardTitle className="text-lg">Configurações por Cliente</CardTitle>
           {!isAdding && (
             <Button size="sm" onClick={openAdd}>
               <Plus className="h-4 w-4 mr-1" /> Nova Configuração
@@ -191,13 +205,74 @@ export function ConfigTab() {
                   <Button variant="ghost" size="icon" onClick={resetForm}><X className="h-4 w-4" /></Button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Cód. Agente</Label>
-                    <Input value={codAgent} onChange={(e) => setCodAgent(e.target.value)} placeholder="202601001" disabled={!!editing} />
+                {/* Client picker (or display when editing) */}
+                {editing ? (
+                  <div className="p-3 border rounded-md bg-muted/30">
+                    <Label className="text-xs">Cliente</Label>
+                    <div>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        #{selectedClient?.id ?? '—'}
+                      </span>
+                      <span className="block text-sm font-medium">
+                        {selectedClient?.name || '(sem nome)'}
+                      </span>
+                      {selectedClient?.business_name && (
+                        <span className="block text-xs text-muted-foreground">
+                          {selectedClient.business_name}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <Label>Provedor</Label>
+                ) : !selectedClient ? (
+                  <div className="space-y-2">
+                    <Label>Buscar Cliente</Label>
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        className="pl-9"
+                        placeholder="Nome, escritório ou e-mail..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                    </div>
+                    {clientSearching && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Buscando...
+                      </div>
+                    )}
+                    {clientResults.length > 0 && (
+                      <div className="border rounded-md max-h-48 overflow-y-auto">
+                        {clientResults.map((c) => (
+                          <button
+                            key={c.id}
+                            className="w-full text-left px-3 py-2 hover:bg-muted/50 border-b last:border-b-0 transition-colors"
+                            onClick={() => setSelectedClient(c)}
+                          >
+                            <span className="font-mono text-xs text-muted-foreground">#{c.id}</span>
+                            <span className="block text-sm font-medium">{c.name}</span>
+                            {c.business_name && (
+                              <span className="block text-xs text-muted-foreground">{c.business_name}</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-3 border rounded-md bg-muted/30 flex items-center justify-between">
+                    <div>
+                      <span className="font-mono text-xs text-muted-foreground">Cliente #{selectedClient.id}</span>
+                      <span className="block text-sm font-medium">{selectedClient.name}</span>
+                      {selectedClient.business_name && (
+                        <span className="block text-xs text-muted-foreground">{selectedClient.business_name}</span>
+                      )}
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedClient(null)}>Trocar</Button>
+                  </div>
+                )}
+
+                <div>
+                  <Label>Provedor</Label>
                     <Select value={provider} onValueChange={(v) => setProvider(v as ProviderType)}>
                       <SelectTrigger>
                         <SelectValue />
@@ -207,7 +282,6 @@ export function ConfigTab() {
                         <SelectItem value="3cplus">3C+</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
                 </div>
 
                 {/* Api4Com fields */}
@@ -289,7 +363,7 @@ export function ConfigTab() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Cód. Agente</TableHead>
+                  <TableHead>Cliente</TableHead>
                   <TableHead>Provedor</TableHead>
                   <TableHead>Domínio / URL</TableHead>
                   <TableHead>Token</TableHead>
@@ -299,7 +373,26 @@ export function ConfigTab() {
               <TableBody>
                 {configs.map((cfg) => (
                   <TableRow key={cfg.id}>
-                    <TableCell className="font-mono text-xs">{cfg.cod_agent}</TableCell>
+                    <TableCell>
+                      <div>
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {cfg.client_id != null ? `#${cfg.client_id}` : '#—'}
+                        </span>
+                        <span className="block text-sm font-medium">
+                          {(cfg as any).client_name || '(sem nome)'}
+                        </span>
+                        {(cfg as any).business_name && (
+                          <span className="block text-xs text-muted-foreground">
+                            {(cfg as any).business_name}
+                          </span>
+                        )}
+                        {cfg.cod_agent && (
+                          <span className="block text-[10px] text-muted-foreground/70 font-mono">
+                            cod_agent: {cfg.cod_agent}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <Badge variant={cfg.provider === '3cplus' ? 'default' : 'secondary'} className="text-xs">
                         {PROVIDER_LABELS[cfg.provider] || cfg.provider}
@@ -331,7 +424,9 @@ export function ConfigTab() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>Remover configuração?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                A configuração do agente <strong>{cfg.cod_agent}</strong> será removida permanentemente.
+                                A configuração do cliente <strong>
+                                  #{cfg.client_id ?? '—'} {(cfg as any).client_name ?? ''}
+                                </strong> será removida permanentemente.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>

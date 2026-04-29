@@ -1,13 +1,60 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import type { PhonePlan, PhoneUserPlan, PhoneConfig, PhoneCallLog, BillingPeriod } from '../types';
+import type { PhonePlan, PhoneUserPlan, PhoneConfig, BillingPeriod } from '../types';
 import { BILLING_PERIOD_MONTHS } from '../types';
 import { addMonths, format } from 'date-fns';
 
 function calcDueDate(startDate: string, period: BillingPeriod): string {
   const months = BILLING_PERIOD_MONTHS[period];
   return format(addMonths(new Date(startDate), months), 'yyyy-MM-dd');
+}
+
+// Resolve cod_agent given a client_id (legacy dual-write support)
+async function resolveCodAgentFromClient(clientId: number): Promise<string | null> {
+  try {
+    const { data: r } = await supabase.functions.invoke('db-query', {
+      body: {
+        action: 'raw',
+        data: {
+          query: 'SELECT cod_agent::text AS cod_agent FROM agents WHERE client_id = $1 ORDER BY id ASC LIMIT 1',
+          params: [clientId],
+        },
+      },
+    });
+    const cod = (r as any)?.data?.[0]?.cod_agent ?? (r as any)?.[0]?.cod_agent;
+    return cod ? String(cod) : null;
+  } catch (e) {
+    console.warn('[resolveCodAgentFromClient] failed:', e);
+    return null;
+  }
+}
+
+// Batch lookup of client names by IDs
+async function fetchClientNames(
+  ids: number[],
+): Promise<Record<number, { name: string; business_name: string | null }>> {
+  if (ids.length === 0) return {};
+  try {
+    const { data: r } = await supabase.functions.invoke('db-query', {
+      body: {
+        action: 'raw',
+        data: {
+          query: `SELECT id, name, business_name FROM clients WHERE id = ANY($1::int[])`,
+          params: [ids],
+        },
+      },
+    });
+    const rows = (r as any)?.data ?? (r as any) ?? [];
+    const map: Record<number, { name: string; business_name: string | null }> = {};
+    for (const row of rows as any[]) {
+      map[Number(row.id)] = { name: row.name, business_name: row.business_name ?? null };
+    }
+    return map;
+  } catch (e) {
+    console.warn('[fetchClientNames] failed:', e);
+    return {};
+  }
 }
 
 export function useTelefoniaAdmin() {
@@ -28,9 +75,7 @@ export function useTelefoniaAdmin() {
 
   const createPlan = useMutation({
     mutationFn: async (plan: Partial<PhonePlan>) => {
-      const { error } = await supabase
-        .from('phone_extension_plans')
-        .insert(plan as any);
+      const { error } = await supabase.from('phone_extension_plans').insert(plan as any);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -57,10 +102,7 @@ export function useTelefoniaAdmin() {
 
   const deletePlan = useMutation({
     mutationFn: async (id: number) => {
-      const { error } = await supabase
-        .from('phone_extension_plans')
-        .delete()
-        .eq('id', id);
+      const { error } = await supabase.from('phone_extension_plans').delete().eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -70,13 +112,15 @@ export function useTelefoniaAdmin() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // === User Plans (agents) ===
+  // === User Plans (clients) ===
   const userPlansQuery = useQuery({
     queryKey: ['phone-user-plans'],
     queryFn: async (): Promise<PhoneUserPlan[]> => {
       const { data, error } = await supabase
         .from('phone_user_plans')
-        .select('*, phone_extension_plans(name, max_extensions, price_monthly, price_quarterly, price_semiannual, price_annual, extra_extension_price)')
+        .select(
+          '*, phone_extension_plans(name, max_extensions, price_monthly, price_quarterly, price_semiannual, price_annual, extra_extension_price)',
+        )
         .order('assigned_at', { ascending: false });
       if (error) throw error;
       return (data || []).map((d: any) => ({
@@ -94,65 +138,48 @@ export function useTelefoniaAdmin() {
 
   const assignPlan = useMutation({
     mutationFn: async (params: {
-      codAgent: string;
-      clientId?: number | null;
+      clientId: number;
       planId: number;
       billingPeriod: BillingPeriod;
       extraExtensions: number;
       clientName: string;
       businessName: string;
+      codAgent?: string | null;
       recordingEnabled?: boolean;
       transcriptionEnabled?: boolean;
     }) => {
-      // Resolve client_id (Fase 4): try param → query agents via db-query
-      let clientId: number | null = params.clientId ?? null;
-      if (!clientId && params.codAgent) {
-        try {
-          const { data: r } = await supabase.functions.invoke('db-query', {
-            body: {
-              action: 'raw',
-              data: {
-                query: 'SELECT client_id FROM agents WHERE cod_agent = $1 LIMIT 1',
-                params: [params.codAgent],
-              },
-            },
-          });
-          const cid = (r as any)?.data?.[0]?.client_id ?? (r as any)?.[0]?.client_id;
-          if (cid != null) clientId = Number(cid);
-        } catch (e) {
-          console.warn('[assignPlan] client_id resolve failed:', e);
-        }
-      }
+      const clientId = Number(params.clientId);
+      // Dual-write: derive cod_agent from client_id for legacy compatibility
+      let codAgent: string | null = params.codAgent ?? null;
+      if (!codAgent) codAgent = await resolveCodAgentFromClient(clientId);
 
-      // Deactivate existing plans for this cod_agent
+      // Deactivate existing plans for this client
       await supabase
         .from('phone_user_plans')
         .update({ is_active: false } as any)
-        .eq('cod_agent', params.codAgent);
+        .eq('client_id', clientId);
 
       const startDate = format(new Date(), 'yyyy-MM-dd');
       const dueDate = calcDueDate(startDate, params.billingPeriod);
 
-      const { error } = await supabase
-        .from('phone_user_plans')
-        .insert({
-          cod_agent: params.codAgent,
-          client_id: clientId,
-          plan_id: params.planId,
-          billing_period: params.billingPeriod,
-          extra_extensions: params.extraExtensions,
-          start_date: startDate,
-          due_date: dueDate,
-          client_name: params.clientName,
-          business_name: params.businessName,
-          recording_enabled: params.recordingEnabled ?? false,
-          transcription_enabled: params.transcriptionEnabled ?? false,
-        } as any);
+      const { error } = await supabase.from('phone_user_plans').insert({
+        cod_agent: codAgent || '',
+        client_id: clientId,
+        plan_id: params.planId,
+        billing_period: params.billingPeriod,
+        extra_extensions: params.extraExtensions,
+        start_date: startDate,
+        due_date: dueDate,
+        client_name: params.clientName,
+        business_name: params.businessName,
+        recording_enabled: params.recordingEnabled ?? false,
+        transcription_enabled: params.transcriptionEnabled ?? false,
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['phone-user-plans'] });
-      toast.success('Telefonia vinculada ao agente');
+      toast.success('Telefonia vinculada ao cliente');
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -166,7 +193,6 @@ export function useTelefoniaAdmin() {
       startDate: string;
     }) => {
       const dueDate = calcDueDate(params.startDate, params.billingPeriod);
-
       const { error } = await supabase
         .from('phone_user_plans')
         .update({
@@ -203,10 +229,7 @@ export function useTelefoniaAdmin() {
 
   const deleteUserPlan = useMutation({
     mutationFn: async (id: number) => {
-      const { error } = await supabase
-        .from('phone_user_plans')
-        .delete()
-        .eq('id', id);
+      const { error } = await supabase.from('phone_user_plans').delete().eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -216,7 +239,7 @@ export function useTelefoniaAdmin() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // === Config (per agent) ===
+  // === Config (per client) ===
   const configQuery = useQuery({
     queryKey: ['phone-configs-all'],
     queryFn: async (): Promise<PhoneConfig[]> => {
@@ -225,7 +248,18 @@ export function useTelefoniaAdmin() {
         .select('*')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return (data || []) as unknown as PhoneConfig[];
+      const rows = (data || []) as any[];
+      const ids = Array.from(
+        new Set(rows.map((r) => r.client_id).filter((x): x is number => x != null)),
+      );
+      const names = await fetchClientNames(ids);
+      return rows.map((r) => ({
+        ...r,
+        client_name:
+          r.client_id != null ? names[Number(r.client_id)]?.name ?? null : null,
+        business_name:
+          r.client_id != null ? names[Number(r.client_id)]?.business_name ?? null : null,
+      })) as unknown as PhoneConfig[];
     },
   });
 
@@ -238,29 +272,14 @@ export function useTelefoniaAdmin() {
           .eq('id', config.id);
         if (error) throw error;
       } else {
-        // Resolve client_id from cod_agent if not provided (Fase 4)
-        let clientId: number | null = (config as any).client_id ?? null;
-        const codAgent = (config as any).cod_agent;
-        if (!clientId && codAgent) {
-          try {
-            const { data: r } = await supabase.functions.invoke('db-query', {
-              body: {
-                action: 'raw',
-                data: {
-                  query: 'SELECT client_id FROM agents WHERE cod_agent = $1 LIMIT 1',
-                  params: [codAgent],
-                },
-              },
-            });
-            const cid = (r as any)?.data?.[0]?.client_id ?? (r as any)?.[0]?.client_id;
-            if (cid != null) clientId = Number(cid);
-          } catch (e) {
-            console.warn('[saveConfig] client_id resolve failed:', e);
-          }
+        const clientId: number | null = (config as any).client_id ?? null;
+        let codAgent: string | null = (config as any).cod_agent ?? null;
+        if (!codAgent && clientId) {
+          codAgent = await resolveCodAgentFromClient(Number(clientId));
         }
         const { error } = await supabase
           .from('phone_config')
-          .insert({ ...config, client_id: clientId } as any);
+          .insert({ ...config, client_id: clientId, cod_agent: codAgent || '' } as any);
         if (error) throw error;
       }
     },
@@ -273,10 +292,7 @@ export function useTelefoniaAdmin() {
 
   const deleteConfig = useMutation({
     mutationFn: async (id: number) => {
-      const { error } = await supabase
-        .from('phone_config')
-        .delete()
-        .eq('id', id);
+      const { error } = await supabase.from('phone_config').delete().eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
