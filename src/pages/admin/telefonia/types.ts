@@ -54,6 +54,7 @@ export function getPlanPriceByPeriod(plan: PhonePlan, period: BillingPeriod): nu
 export interface PhoneUserPlan {
   id: number;
   cod_agent: string;
+  client_id: number | null;
   plan_id: number;
   is_active: boolean;
   assigned_at: string;
@@ -76,6 +77,7 @@ export interface PhoneUserPlan {
 export interface PhoneConfig {
   id: number;
   cod_agent: string;
+  client_id: number | null;
   provider: ProviderType;
   // Api4Com fields
   api4com_domain: string;
@@ -94,6 +96,7 @@ export interface PhoneCallLog {
   id: number;
   call_id: string | null;
   cod_agent: string | null;
+  client_id: number | null;
   extension_number: string | null;
   direction: string | null;
   caller: string | null;
@@ -112,6 +115,7 @@ export interface PhoneCallLog {
 export interface PhoneExtension {
   id: number;
   cod_agent: string;
+  client_id: number | null;
   extension_number: string;
   assigned_member_id: number | null;
   label: string | null;

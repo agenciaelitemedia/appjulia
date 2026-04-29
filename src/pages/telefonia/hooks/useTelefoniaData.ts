@@ -4,19 +4,26 @@ import { toast } from 'sonner';
 import { getPhoneProxy } from '@/lib/phoneProxy';
 import type { PhoneExtension, PhoneCallLog, ProviderType } from '../types';
 
-export function useTelefoniaData(codAgent: string | undefined, provider: ProviderType = 'api4com') {
+export function useTelefoniaData(
+  codAgent: string | undefined,
+  provider: ProviderType = 'api4com',
+  clientId?: number | null,
+) {
   const queryClient = useQueryClient();
+  const useClient = !!clientId;
+  const partitionKey = useClient ? String(clientId) : codAgent;
 
   // Get agent's plan
   const planQuery = useQuery({
-    queryKey: ['my-phone-plan', codAgent],
+    queryKey: ['my-phone-plan', partitionKey, useClient ? 'client' : 'agent'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const base = supabase
         .from('phone_user_plans')
         .select('*, phone_extension_plans(name, max_extensions, price, extra_extension_price)')
-        .eq('cod_agent', codAgent!)
-        .eq('is_active', true)
-        .maybeSingle();
+        .eq('is_active', true);
+      const { data, error } = useClient
+        ? await base.eq('client_id', clientId!).maybeSingle()
+        : await base.eq('cod_agent', codAgent!).maybeSingle();
       if (error) throw error;
       if (!data) return null;
       const plan = (data as any).phone_extension_plans;
@@ -32,22 +39,24 @@ export function useTelefoniaData(codAgent: string | undefined, provider: Provide
         due_date: data.due_date,
       };
     },
-    enabled: !!codAgent,
+    enabled: !!partitionKey,
   });
 
   // Get agent's extensions
   const extensionsQuery = useQuery({
-    queryKey: ['my-extensions', codAgent],
+    queryKey: ['my-extensions', partitionKey, useClient ? 'client' : 'agent'],
     queryFn: async (): Promise<PhoneExtension[]> => {
-      const { data, error } = await supabase
+      const base = supabase
         .from('phone_extensions')
         .select('*')
-        .eq('cod_agent', codAgent!)
         .order('created_at', { ascending: false });
+      const { data, error } = useClient
+        ? await base.eq('client_id', clientId!)
+        : await base.eq('cod_agent', codAgent!);
       if (error) throw error;
       return data as unknown as PhoneExtension[];
     },
-    enabled: !!codAgent,
+    enabled: !!partitionKey,
   });
 
   // Create extension via Api4Com API (backend handles DB insert + rollback)
@@ -56,6 +65,7 @@ export function useTelefoniaData(codAgent: string | undefined, provider: Provide
       const { data: apiResult, error: apiError } = await supabase.functions.invoke(getPhoneProxy(provider), {
         body: {
           action: 'create_extension',
+          clientId,
           codAgent,
           firstName: ext.memberName || ext.label || 'Ramal',
           lastName: codAgent,
@@ -106,7 +116,7 @@ export function useTelefoniaData(codAgent: string | undefined, provider: Provide
       }
       // Backend faz tudo: provedor + banco
       const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
-        body: { action: 'delete_extension', codAgent, extensionId: id },
+        body: { action: 'delete_extension', clientId, codAgent, extensionId: id },
       });
       if (error) throw new Error(error.message || 'Erro ao deletar ramal');
       if (data?.error) throw new Error(data.error);
@@ -122,7 +132,7 @@ export function useTelefoniaData(codAgent: string | undefined, provider: Provide
   const syncExtensions = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
-        body: { action: 'sync_extensions', codAgent },
+        body: { action: 'sync_extensions', clientId, codAgent },
       });
       if (error) throw new Error(error.message || 'Erro ao sincronizar');
       if (data?.error) throw new Error(data.error);
@@ -141,7 +151,7 @@ export function useTelefoniaData(codAgent: string | undefined, provider: Provide
   const dial = useMutation({
     mutationFn: async ({ extensionId, phone }: { extensionId: number; phone: string }) => {
       const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
-        body: { action: 'dial', codAgent, extensionId, phone },
+        body: { action: 'dial', clientId, codAgent, extensionId, phone },
       });
       if (error) throw new Error(error.message || 'Erro ao discar');
       if (data?.error) throw new Error(data.error);
@@ -154,7 +164,7 @@ export function useTelefoniaData(codAgent: string | undefined, provider: Provide
   // Get SIP credentials for an extension
   const getSipCredentials = async (extensionId: number) => {
     const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
-      body: { action: 'get_sip_credentials', codAgent, extensionId },
+      body: { action: 'get_sip_credentials', clientId, codAgent, extensionId },
     });
     if (error) throw new Error(error.message || 'Erro ao buscar credenciais SIP');
     if (data?.error) throw new Error(data.error);
@@ -167,6 +177,7 @@ export function useTelefoniaData(codAgent: string | undefined, provider: Provide
       const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
         body: {
           action: 'sync_call_history',
+          clientId,
           codAgent,
           callId: params?.callId,
           since: params?.since,

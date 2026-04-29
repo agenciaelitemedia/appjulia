@@ -21,6 +21,7 @@ interface PhoneExtensionInfo {
   threecplus_agent_id: string | null;
   threecplus_extension: string | null;
   cod_agent: string;
+  client_id: number | null;
   assigned_member_id: number | null;
 }
 
@@ -28,6 +29,7 @@ interface PhoneContextType {
   sip: ReturnType<typeof useSipPhone>;
   myExtension: PhoneExtensionInfo | null;
   codAgent: string | null;
+  clientId: number | null;
   provider: ProviderType;
   isAvailable: boolean;
   showSoftphone: boolean;
@@ -50,6 +52,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [myExtension, setMyExtension] = useState<PhoneExtensionInfo | null>(null);
   const [codAgent, setCodAgent] = useState<string | null>(null);
+  const [clientId, setClientId] = useState<number | null>(null);
   const [provider, setProvider] = useState<ProviderType>('api4com');
   const [showSoftphone, setShowSoftphone] = useState(false);
   const [softphoneCentered, setSoftphoneCentered] = useState(false);
@@ -71,14 +74,14 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const handleCallEnded = useCallback((_info: CallEndedInfo) => {
-    if (!codAgent) return;
+    if (!codAgent && !clientId) return;
     const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     supabase.functions.invoke(getPhoneProxy(provider), {
-      body: { action: 'sync_call_history', codAgent, since },
+      body: { action: 'sync_call_history', clientId, codAgent, since },
     }).then(() => {
       queryClient.invalidateQueries({ queryKey: ['my-call-history'] });
     }).catch(console.error);
-  }, [codAgent, provider, queryClient]);
+  }, [codAgent, clientId, provider, queryClient]);
 
   const handleCallFailed = useCallback((cause: string) => {
     const friendlyMsg = cause === 'Canceled'
@@ -103,34 +106,36 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
         .limit(1);
       if (data && data.length > 0) {
         const ext = data[0] as unknown as PhoneExtensionInfo;
-        // Check if the agent's telephony plan is active
-        const { data: planData } = await supabase
+        // Check if the client's telephony plan is active (prefer client_id, fallback cod_agent)
+        const planQuery = supabase
           .from('phone_user_plans')
           .select('is_active')
-          .eq('cod_agent', ext.cod_agent)
           .eq('is_active', true)
           .limit(1);
+        const { data: planData } = ext.client_id
+          ? await planQuery.eq('client_id', ext.client_id)
+          : await planQuery.eq('cod_agent', ext.cod_agent);
         if (!planData || planData.length === 0) {
           // Agent plan is deactivated — don't enable telephony
           setMyExtension(null);
           setCodAgent(null);
+          setClientId(null);
           return;
         }
 
-        // Fetch provider from phone_config for this agent
-        const { data: configData } = await supabase
-          .from('phone_config')
-          .select('*')
-          .eq('cod_agent', ext.cod_agent)
-          .eq('is_active', true)
-          .limit(1)
-          .maybeSingle();
+        // Fetch provider from phone_config (prefer client_id)
+        const cfgBase = supabase.from('phone_config').select('*').eq('is_active', true);
+        const { data: configData } = ext.client_id
+          ? await cfgBase.eq('client_id', ext.client_id).limit(1).maybeSingle()
+          : await cfgBase.eq('cod_agent', ext.cod_agent).limit(1).maybeSingle();
         const resolvedProvider: ProviderType = ((configData as any)?.provider as ProviderType) || 'api4com';
 
         setMyExtension(ext);
         setCodAgent(ext.cod_agent);
+        setClientId(ext.client_id ?? null);
         setProvider(resolvedProvider);
         syncQueueManager.init(ext.cod_agent, resolvedProvider);
+        syncQueueManager.setClientId(ext.client_id ?? null);
       }
     };
     fetchExtension();
@@ -148,14 +153,14 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
 
     try {
       const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
-        body: { action: 'get_sip_credentials', codAgent, extensionId: myExtension.id },
+        body: { action: 'get_sip_credentials', clientId, codAgent, extensionId: myExtension.id },
       });
       if (error || data?.error) return;
       sip.connect(data.data);
     } catch (err) {
       console.error('SIP connect failed:', err);
     }
-  }, [myExtension, codAgent, provider, sip]);
+  }, [myExtension, codAgent, clientId, provider, sip]);
 
   useEffect(() => {
     if (autoConnected.current || !myExtension || !codAgent) return;
@@ -231,7 +236,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
 
     try {
       const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
-        body: { action: 'dial', codAgent, extensionId: myExtension.id, phone: formatted, metadata },
+        body: { action: 'dial', clientId, codAgent, extensionId: myExtension.id, phone: formatted, metadata },
       });
       if (error) throw new Error(error.message || 'Erro ao discar');
       if (data?.error) throw new Error(data.error);
@@ -247,7 +252,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       setIsDialing(false);
       isDialingRef.current = false;
     }
-  }, [myExtension, codAgent, provider, sip.status, connectSip]);
+  }, [myExtension, codAgent, clientId, provider, sip.status, connectSip]);
 
   const isAvailable = !!myExtension && (
     provider === '3cplus'
@@ -281,6 +286,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     sip,
     myExtension,
     codAgent,
+    clientId,
     provider,
     isAvailable,
     showSoftphone,
@@ -294,7 +300,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     clearDialError,
     retryDial,
     cancelDial,
-  }), [sip, myExtension, codAgent, provider, isAvailable, showSoftphone, softphoneCentered, dialNumber, isDialing, dialContactName, dialError, clearDialError, retryDial, cancelDial]);
+  }), [sip, myExtension, codAgent, clientId, provider, isAvailable, showSoftphone, softphoneCentered, dialNumber, isDialing, dialContactName, dialError, clearDialError, retryDial, cancelDial]);
 
   return (
     <PhoneContext.Provider value={value}>

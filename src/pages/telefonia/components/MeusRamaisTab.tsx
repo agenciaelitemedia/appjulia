@@ -22,28 +22,28 @@ const PERIOD_LABELS: Record<string, string> = {
 };
 
 interface Props {
-  codAgent: string;
+  codAgent?: string;
+  clientId?: number | null;
 }
 
-export function MeusRamaisTab({ codAgent }: Props) {
+export function MeusRamaisTab({ codAgent, clientId }: Props) {
+  const useClient = !!clientId;
+  const partitionKey = useClient ? `c:${clientId}` : `a:${codAgent || ''}`;
   // Fetch provider from phone_config so we can route mutations correctly
   const { data: configData } = useQuery({
-    queryKey: ['phone-config-provider', codAgent],
+    queryKey: ['phone-config-provider', partitionKey],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('phone_config')
-        .select('*')
-        .eq('cod_agent', codAgent)
-        .eq('is_active', true)
-        .limit(1)
-        .maybeSingle();
+      const base = supabase.from('phone_config').select('*').eq('is_active', true);
+      const { data } = useClient
+        ? await base.eq('client_id', clientId!).limit(1).maybeSingle()
+        : await base.eq('cod_agent', codAgent!).limit(1).maybeSingle();
       return data;
     },
-    enabled: !!codAgent,
+    enabled: useClient || !!codAgent,
   });
   const provider: ProviderType = ((configData as any)?.provider as ProviderType) || 'api4com';
 
-  const { extensions, extensionsLoading, maxExtensions, usedExtensions, canCreateExtension, plan, createExtension, updateExtension, deleteExtension, syncExtensions } = useTelefoniaData(codAgent, provider);
+  const { extensions, extensionsLoading, maxExtensions, usedExtensions, canCreateExtension, plan, createExtension, updateExtension, deleteExtension, syncExtensions } = useTelefoniaData(codAgent, provider, clientId);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<PhoneExtension | null>(null);
 

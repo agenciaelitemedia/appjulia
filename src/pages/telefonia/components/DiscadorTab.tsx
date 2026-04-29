@@ -10,7 +10,8 @@ import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { formatPhoneForDialing } from '@/lib/phoneFormat';
 
 interface Props {
-  codAgent: string;
+  codAgent?: string;
+  clientId?: number | null;
 }
 
 const statusColors: Record<string, string> = {
@@ -23,9 +24,9 @@ const statusColors: Record<string, string> = {
   error: 'bg-destructive/10 text-destructive',
 };
 
-export function DiscadorTab({ codAgent }: Props) {
+export function DiscadorTab({ codAgent, clientId }: Props) {
   const { sip, myExtension, provider, isAvailable, dialNumber, isDialing, setSoftphoneCentered } = usePhone();
-  const { plan, planLoading } = useTelefoniaData(codAgent);
+  const { plan, planLoading } = useTelefoniaData(codAgent, 'api4com', clientId);
   const [number, setNumber] = useState('');
   const planDeactivated = !plan && !planLoading;
 

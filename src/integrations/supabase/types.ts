@@ -4097,6 +4097,7 @@ export type Database = {
           call_id: string | null
           called: string | null
           caller: string | null
+          client_id: number | null
           cod_agent: string | null
           cost: number | null
           created_at: string
@@ -4116,6 +4117,7 @@ export type Database = {
           call_id?: string | null
           called?: string | null
           caller?: string | null
+          client_id?: number | null
           cod_agent?: string | null
           cost?: number | null
           created_at?: string
@@ -4135,6 +4137,7 @@ export type Database = {
           call_id?: string | null
           called?: string | null
           caller?: string | null
+          client_id?: number | null
           cod_agent?: string | null
           cost?: number | null
           created_at?: string
@@ -4155,6 +4158,7 @@ export type Database = {
         Row: {
           api4com_domain: string
           api4com_token: string
+          client_id: number | null
           cod_agent: string
           created_at: string
           id: number
@@ -4169,6 +4173,7 @@ export type Database = {
         Insert: {
           api4com_domain: string
           api4com_token: string
+          client_id?: number | null
           cod_agent: string
           created_at?: string
           id?: number
@@ -4183,6 +4188,7 @@ export type Database = {
         Update: {
           api4com_domain?: string
           api4com_token?: string
+          client_id?: number | null
           cod_agent?: string
           created_at?: string
           id?: number
@@ -4266,6 +4272,7 @@ export type Database = {
           api4com_ramal: string | null
           api4com_raw: Json | null
           assigned_member_id: number | null
+          client_id: number | null
           cod_agent: string
           created_at: string
           extension_number: string
@@ -4290,6 +4297,7 @@ export type Database = {
           api4com_ramal?: string | null
           api4com_raw?: Json | null
           assigned_member_id?: number | null
+          client_id?: number | null
           cod_agent: string
           created_at?: string
           extension_number: string
@@ -4314,6 +4322,7 @@ export type Database = {
           api4com_ramal?: string | null
           api4com_raw?: Json | null
           assigned_member_id?: number | null
+          client_id?: number | null
           cod_agent?: string
           created_at?: string
           extension_number?: string
@@ -4336,6 +4345,7 @@ export type Database = {
           assigned_at: string
           billing_period: string
           business_name: string | null
+          client_id: number | null
           client_name: string | null
           cod_agent: string
           due_date: string | null
@@ -4349,6 +4359,7 @@ export type Database = {
           assigned_at?: string
           billing_period?: string
           business_name?: string | null
+          client_id?: number | null
           client_name?: string | null
           cod_agent: string
           due_date?: string | null
@@ -4362,6 +4373,7 @@ export type Database = {
           assigned_at?: string
           billing_period?: string
           business_name?: string | null
+          client_id?: number | null
           client_name?: string | null
           cod_agent?: string
           due_date?: string | null

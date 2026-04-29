@@ -5,10 +5,11 @@ import { useCallHistoryQuery } from '../hooks/useCallHistoryQuery';
 import { getTodayInSaoPaulo, get30DaysAgoInSaoPaulo } from '@/lib/dateUtils';
 
 interface Props {
-  codAgent: string;
+  codAgent?: string;
+  clientId?: number | null;
 }
 
-export function RelatoriosTab({ codAgent }: Props) {
+export function RelatoriosTab({ codAgent, clientId }: Props) {
   const today = getTodayInSaoPaulo();
   const thirtyDaysAgo = get30DaysAgoInSaoPaulo();
 
@@ -17,7 +18,7 @@ export function RelatoriosTab({ codAgent }: Props) {
     dateTo: today,
     page: 0,
     pageSize: 1000,
-  });
+  }, clientId);
 
   const callHistory = historyResult?.data || [];
 

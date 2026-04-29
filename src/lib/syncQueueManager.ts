@@ -18,6 +18,7 @@ class SyncQueueManager {
   private processing = false;
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private codAgent: string | null = null;
+  private clientId: number | null = null;
   private provider: ProviderType = 'api4com';
 
   init(codAgent: string, provider: ProviderType = 'api4com') {
@@ -28,6 +29,10 @@ class SyncQueueManager {
     this.intervalId = setInterval(() => this.processNext(), POLL_INTERVAL);
   }
 
+  setClientId(clientId: number | null) {
+    this.clientId = clientId;
+  }
+
   destroy() {
     if (this.intervalId) {
       clearInterval(this.intervalId);
@@ -36,6 +41,7 @@ class SyncQueueManager {
     this.queue = [];
     this.processing = false;
     this.codAgent = null;
+    this.clientId = null;
     this.provider = 'api4com';
   }
 
@@ -56,7 +62,7 @@ class SyncQueueManager {
 
     try {
       const { data, error } = await supabase.functions.invoke(getPhoneProxy(this.provider), {
-        body: { action: 'sync_call_history', codAgent: this.codAgent, callId: item.callId },
+        body: { action: 'sync_call_history', clientId: this.clientId, codAgent: this.codAgent, callId: item.callId },
       });
 
       if (error || data?.error) {
