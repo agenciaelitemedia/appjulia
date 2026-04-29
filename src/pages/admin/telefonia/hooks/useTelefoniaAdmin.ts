@@ -235,9 +235,26 @@ export function useTelefoniaAdmin() {
           .eq('id', config.id);
         if (error) throw error;
       } else {
+        // Resolve client_id from cod_agent if not provided (Fase 4)
+        let clientId: number | null = (config as any).client_id ?? null;
+        const codAgent = (config as any).cod_agent;
+        if (!clientId && codAgent) {
+          try {
+            const { data: r } = await supabase.functions.invoke('db-query', {
+              body: {
+                query: 'SELECT client_id FROM agents WHERE cod_agent = $1 LIMIT 1',
+                params: [codAgent],
+              },
+            });
+            const cid = (r as any)?.data?.[0]?.client_id;
+            if (cid != null) clientId = Number(cid);
+          } catch (e) {
+            console.warn('[saveConfig] client_id resolve failed:', e);
+          }
+        }
         const { error } = await supabase
           .from('phone_config')
-          .insert(config as any);
+          .insert({ ...config, client_id: clientId } as any);
         if (error) throw error;
       }
     },
