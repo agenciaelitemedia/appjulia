@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, RefreshCw, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
 import { useTelephonyOrders, useRetryProvisioning } from '../hooks/useTelephonyOrders';
+import { PaymentSettingsDialog } from '@/pages/admin/pedidos/components/PaymentSettingsDialog';
 
 const PERIOD_LABELS: Record<string, string> = {
   monthly: 'Mensal', quarterly: 'Trimestral', semiannual: 'Semestral', annual: 'Anual',
@@ -45,8 +46,9 @@ export function OrdersTab() {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Pedidos de Telefonia</CardTitle>
+          <PaymentSettingsDialog />
         </CardHeader>
         <CardContent>
           {isLoading ? (
