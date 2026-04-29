@@ -65,6 +65,7 @@ async function getAgentToken(
   codAgent: string,
   baseUrl: string,
   managerToken: string,
+  forceRefresh = false,
 ): Promise<string | null> {
   const { data: extFull } = await supabase
     .from("phone_extensions")
@@ -76,7 +77,7 @@ async function getAgentToken(
   if (!extFull) return null;
 
   const rawData = (extFull.threecplus_raw as any)?.data ?? extFull.threecplus_raw;
-  let agentApiToken = rawData?.api_token;
+  let agentApiToken = forceRefresh ? null : rawData?.api_token;
 
   // If no cached token, fetch fresh from API using manager token
   if (!agentApiToken && extFull.threecplus_agent_id) {
@@ -262,20 +263,42 @@ serve(async (req) => {
         // PRIORITY 1: Try official 3C+ webphone login (source of truth)
         // ============================================================
         let loginSucceeded = false;
+        let officialLoginError: string | null = null;
         if (ext.threecplus_agent_id) {
-          const agentToken = await getAgentToken(supabase, extensionId, codAgent, baseUrl, token);
-          
+          let agentToken = await getAgentToken(supabase, extensionId, codAgent, baseUrl, token);
+
+          // Try login; if 403 (token cached/invalido), refresh and retry once
+          const tryLogin = async (tk: string) => {
+            return await threecRequest(
+              baseUrl,
+              tk,
+              "/agent/webphone/login",
+              { method: "POST", body: {} },
+            );
+          };
+
           if (agentToken) {
             // Ensure webphone is enabled
             await ensureWebphoneEnabled(baseUrl, token, agentToken, ext.threecplus_agent_id);
 
             try {
-              const loginResp = await threecRequest(
-                baseUrl,
-                agentToken,
-                "/agent/webphone/login",
-                { method: "POST", body: {} },
-              );
+              let loginResp: any;
+              try {
+                loginResp = await tryLogin(agentToken);
+              } catch (e1: any) {
+                if (/403/.test(e1.message)) {
+                  console.warn("Webphone login 403 — refreshing agent token and retrying...");
+                  const fresh = await getAgentToken(supabase, extensionId, codAgent, baseUrl, token, true);
+                  if (fresh && fresh !== agentToken) {
+                    agentToken = fresh;
+                    loginResp = await tryLogin(fresh);
+                  } else {
+                    throw e1;
+                  }
+                } else {
+                  throw e1;
+                }
+              }
 
               const d = loginResp?.data ?? loginResp;
               const sipDomain = d.sip_server || d.domain || d.host;
@@ -318,9 +341,11 @@ serve(async (req) => {
                 loginSucceeded = true;
               } else {
                 console.warn("3C+ webphone login returned incomplete SIP data:", JSON.stringify(loginResp));
+                officialLoginError = "Login oficial retornou dados SIP incompletos";
               }
             } catch (e: any) {
               console.warn(`3C+ webphone login failed: ${e.message}`);
+              officialLoginError = e.message;
             }
           }
         }
@@ -354,6 +379,16 @@ serve(async (req) => {
             baseUrl,
           };
           break;
+        }
+
+        // No official cache — refuse to use stale fallback credentials, since they
+        // would cause "Authentication Error" at the PBX. Surface the real cause.
+        if (officialLoginError) {
+          throw new Error(
+            `Não foi possível obter credenciais SIP válidas da 3C+ (agent_id ${ext.threecplus_agent_id}). ` +
+            `O endpoint /agent/webphone/login retornou: ${officialLoginError}. ` +
+            `Verifique no painel 3C+ se este agente tem licença/permissão de Webphone ativa.`,
+          );
         }
 
         // ============================================================
