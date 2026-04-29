@@ -16,28 +16,54 @@ export function CheckoutStep({ orderId, checkoutUrl, onProvisioned }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    const poll = async () => {
-      while (!cancelled) {
-        try {
-          const { data } = await supabase
-            .from('telephony_orders' as never)
-            .select('status, provisioning_error')
-            .eq('id', orderId)
-            .maybeSingle() as any;
-          if (cancelled) return;
-          if (data?.status) setStatus(data.status);
-          if (data?.provisioning_error) setError(data.provisioning_error);
-          if (data?.status === 'provisioned') {
-            onProvisioned();
-            return;
-          }
-          if (data?.status === 'failed') return;
-        } catch {/* noop */}
-        await new Promise((r) => setTimeout(r, 5000));
-      }
+
+    const apply = (row: any) => {
+      if (cancelled || !row) return;
+      if (row.status) setStatus(row.status);
+      if (row.provisioning_error) setError(row.provisioning_error);
+      if (row.status === 'provisioned') onProvisioned();
     };
-    poll();
-    return () => { cancelled = true; };
+
+    // Snapshot inicial
+    (async () => {
+      const { data } = await supabase
+        .from('telephony_orders' as never)
+        .select('status, provisioning_error')
+        .eq('id', orderId)
+        .maybeSingle() as any;
+      apply(data);
+    })();
+
+    // Realtime: escuta UPDATE deste pedido
+    const channel = supabase
+      .channel(`telephony-order-${orderId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'telephony_orders',
+          filter: `id=eq.${orderId}`,
+        },
+        (payload) => apply(payload.new),
+      )
+      .subscribe();
+
+    // Fallback: refetch a cada 15s caso o realtime caia
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from('telephony_orders' as never)
+        .select('status, provisioning_error')
+        .eq('id', orderId)
+        .maybeSingle() as any;
+      apply(data);
+    }, 15000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
   }, [orderId, onProvisioned]);
 
   return (
