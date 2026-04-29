@@ -124,15 +124,10 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
         }
 
         // Fetch provider from phone_config (prefer client_id)
-        const cfgQuery = supabase
-          .from('phone_config')
-          .select('*')
-          .eq('is_active', true)
-          .limit(1)
-          .maybeSingle();
+        const cfgBase = supabase.from('phone_config').select('*').eq('is_active', true);
         const { data: configData } = ext.client_id
-          ? await supabase.from('phone_config').select('*').eq('client_id', ext.client_id).eq('is_active', true).limit(1).maybeSingle()
-          : await cfgQuery.eq('cod_agent', ext.cod_agent);
+          ? await cfgBase.eq('client_id', ext.client_id).limit(1).maybeSingle()
+          : await cfgBase.eq('cod_agent', ext.cod_agent).limit(1).maybeSingle();
         const resolvedProvider: ProviderType = ((configData as any)?.provider as ProviderType) || 'api4com';
 
         setMyExtension(ext);
