@@ -4356,7 +4356,7 @@ export type Database = {
           business_name: string | null
           client_id: number | null
           client_name: string | null
-          cod_agent: string
+          cod_agent: string | null
           due_date: string | null
           extra_extensions: number
           id: number
@@ -4373,7 +4373,7 @@ export type Database = {
           business_name?: string | null
           client_id?: number | null
           client_name?: string | null
-          cod_agent: string
+          cod_agent?: string | null
           due_date?: string | null
           extra_extensions?: number
           id?: number
@@ -4390,7 +4390,7 @@ export type Database = {
           business_name?: string | null
           client_id?: number | null
           client_name?: string | null
-          cod_agent?: string
+          cod_agent?: string | null
           due_date?: string | null
           extra_extensions?: number
           id?: number

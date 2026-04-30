@@ -1,0 +1,1 @@
+ALTER TABLE public.phone_user_plans ALTER COLUMN cod_agent DROP NOT NULL;
