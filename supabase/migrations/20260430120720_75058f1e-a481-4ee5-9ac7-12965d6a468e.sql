@@ -1,0 +1,1 @@
+ALTER TABLE public.phone_extensions ALTER COLUMN cod_agent DROP NOT NULL;

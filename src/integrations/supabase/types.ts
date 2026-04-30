@@ -4273,7 +4273,7 @@ export type Database = {
           api4com_raw: Json | null
           assigned_member_id: number | null
           client_id: number | null
-          cod_agent: string
+          cod_agent: string | null
           created_at: string
           extension_number: string
           id: number
@@ -4301,7 +4301,7 @@ export type Database = {
           api4com_raw?: Json | null
           assigned_member_id?: number | null
           client_id?: number | null
-          cod_agent: string
+          cod_agent?: string | null
           created_at?: string
           extension_number: string
           id?: number
@@ -4329,7 +4329,7 @@ export type Database = {
           api4com_raw?: Json | null
           assigned_member_id?: number | null
           client_id?: number | null
-          cod_agent?: string
+          cod_agent?: string | null
           created_at?: string
           extension_number?: string
           id?: number
