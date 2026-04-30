@@ -62,8 +62,16 @@ Deno.serve(async (req) => {
       await sb.from('telephony_orders').update({ provisioning_error: errMsg, updated_at: new Date().toISOString() }).eq('id', order_id)
       return json({ error: errMsg }, 400)
     }
-    // cod_agent é apenas opcional/legado: usa o que já estiver no pedido, sem buscar.
-    const codAgent = (order.cod_agent as string | null) ?? null
+    // cod_agent é opcional/legado. Reaproveita o do pedido e, se ausente,
+    // tenta herdar de registros já existentes do mesmo cliente.
+    let codAgent = (order.cod_agent as string | null) ?? null
+    if (!codAgent) {
+      const [{ data: existingCfg }, { data: existingPlan }] = await Promise.all([
+        (sb.from('phone_config' as never).select('cod_agent').eq('client_id', clientId).not('cod_agent', 'is', null).order('id', { ascending: false }).limit(1) as any).maybeSingle(),
+        (sb.from('phone_user_plans' as never).select('cod_agent').eq('client_id', clientId).not('cod_agent', 'is', null).order('id', { ascending: false }).limit(1) as any).maybeSingle(),
+      ])
+      codAgent = existingCfg?.cod_agent ?? existingPlan?.cod_agent ?? null
+    }
 
     // 3. Seleciona provider default
     const { data: provider, error: provErr } = await sb

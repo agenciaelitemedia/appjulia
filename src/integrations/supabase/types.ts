@@ -4159,7 +4159,7 @@ export type Database = {
           api4com_domain: string
           api4com_token: string
           client_id: number | null
-          cod_agent: string
+          cod_agent: string | null
           created_at: string
           id: number
           is_active: boolean
@@ -4174,7 +4174,7 @@ export type Database = {
           api4com_domain: string
           api4com_token: string
           client_id?: number | null
-          cod_agent: string
+          cod_agent?: string | null
           created_at?: string
           id?: number
           is_active?: boolean
@@ -4189,7 +4189,7 @@ export type Database = {
           api4com_domain?: string
           api4com_token?: string
           client_id?: number | null
-          cod_agent?: string
+          cod_agent?: string | null
           created_at?: string
           id?: number
           is_active?: boolean
