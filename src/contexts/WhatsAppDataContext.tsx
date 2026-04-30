@@ -139,6 +139,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const { user } = useAuth();
 
   // State
+  const [effectiveClientId, setEffectiveClientId] = useState('');
   const [contacts, setContacts] = useState<ChatContact[]>([]);
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
@@ -159,8 +160,40 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
   const knownMessageIds = useRef<Set<string>>(new Set());
 
-  const clientId = user?.client_id ? String(user.client_id) : '';
+  const clientId = effectiveClientId;
   const currentQueueId = selectedQueue?.id;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveEffectiveClientId = async () => {
+      if (!user?.id) {
+        if (!cancelled) setEffectiveClientId('');
+        return;
+      }
+
+      if (user.client_id) {
+        if (!cancelled) setEffectiveClientId(String(user.client_id));
+        return;
+      }
+
+      try {
+        const inherited = await externalDb.getEffectiveClientId(Number(user.id));
+        if (!cancelled) {
+          setEffectiveClientId(inherited ? String(inherited) : '');
+        }
+      } catch (error) {
+        console.warn('[WhatsAppDataContext] Failed to resolve effective client_id', error);
+        if (!cancelled) setEffectiveClientId('');
+      }
+    };
+
+    resolveEffectiveClientId();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.client_id]);
 
   // Load active queues for this client filtered by user access (queue_members)
   const { data: allQueues = [] } = useAccessibleQueues(false);
