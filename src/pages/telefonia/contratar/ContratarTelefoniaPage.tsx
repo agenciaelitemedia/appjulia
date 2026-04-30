@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { SelectPlanStep } from './steps/SelectPlanStep';
 import { ConfirmDataStep } from './steps/ConfirmDataStep';
 import { CheckoutStep } from './steps/CheckoutStep';
-import type { ContractDraft } from './types';
+import { calculateTotal, type ContractDraft } from './types';
 
 const initialDraft: ContractDraft = {
   plan: null,
@@ -39,6 +39,18 @@ export default function ContratarTelefoniaPage() {
     if (!draft.plan) return;
     setBusy(true);
     try {
+      // Calcula o breakdown no client (em centavos) para validação cruzada no backend.
+      const t = calculateTotal(draft);
+      const toCents = (v: number) => Math.round(v * 100);
+      const client_breakdown_cents = {
+        plan: toCents(t.plan),
+        setup: toCents(t.setup),
+        recording: toCents(t.recording),
+        transcription: toCents(t.transcription),
+        extras: toCents(t.extras),
+        total: toCents(t.total),
+      };
+
       const { data, error } = await supabase.functions.invoke('telephony-order-create', {
         body: {
           client_id: user.id,
@@ -51,6 +63,8 @@ export default function ContratarTelefoniaPage() {
           customer_document: draft.customer_document,
           customer_email: draft.customer_email,
           customer_whatsapp: draft.customer_whatsapp,
+          client_breakdown_cents,
+          expected_total_cents: client_breakdown_cents.total,
         },
       });
       if (error || !data?.order_id) {
@@ -58,6 +72,21 @@ export default function ContratarTelefoniaPage() {
       }
       const oid = data.order_id;
       setOrderId(oid);
+
+      // Loga e avisa caso o backend tenha detectado divergência entre o resumo
+      // exibido para o usuário e o total realmente cobrado.
+      const validation = data?.price_validation;
+      if (validation && validation.ok === false) {
+        console.warn('[ContratarTelefonia] Divergência de preço cliente x servidor', {
+          order_id: oid,
+          client_breakdown_cents,
+          server_breakdown_cents: validation.server_breakdown_cents,
+          divergences: validation.divergences,
+        });
+        toast.warning(
+          'Atenção: o valor exibido difere do valor cobrado. Confira o total no pagamento antes de prosseguir.'
+        );
+      }
 
       // Gera checkout
       const { data: ck, error: ckErr } = await supabase.functions.invoke('telephony-order-checkout', {
