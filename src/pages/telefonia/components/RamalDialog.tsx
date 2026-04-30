@@ -1,14 +1,12 @@
-import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
-import { externalDb } from '@/lib/externalDb';
+import { useTeamByClient } from '@/hooks/useTeamByClient';
+import { TeamMemberSelect, type TeamMemberOption } from '@/components/TeamMemberSelect';
 import type { PhoneExtension } from '../types';
 
 interface RamalDialogProps {
@@ -21,52 +19,64 @@ interface RamalDialogProps {
   existingExtensions?: PhoneExtension[];
 }
 
-interface TeamMemberOption {
-  id: number;
-  name: string;
-  email: string;
-  isSelf?: boolean;
-}
-
 export function RamalDialog({ open, onOpenChange, extension, onSave, isCreating, codAgent, existingExtensions = [] }: RamalDialogProps) {
   const { user } = useAuth();
   const [label, setLabel] = useState('');
-  const [selectedMemberId, setSelectedMemberId] = useState<string>('');
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [isActive, setIsActive] = useState(true);
 
-  // Fetch team members
-  const { data: teamMembers = [] } = useQuery({
-    queryKey: ['team-members-for-ramal', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      return externalDb.getTeamMembers(user.id, user.role === 'admin');
-    },
-    enabled: !!user?.id && open,
-  });
+  // Carrega membros da equipe do mesmo client_id (mesmo padrão do TransferDialog/CRM)
+  const { data: team = [] } = useTeamByClient();
 
-  // IDs of members already assigned to an extension (exclude current extension when editing)
-  const assignedMemberIds = new Set(
+  // IDs já atribuídos a outros ramais (exclui o ramal em edição)
+  const assignedMemberIds = useMemo(() => new Set(
     existingExtensions
       .filter(e => e.assigned_member_id != null && (!extension || e.id !== extension.id))
       .map(e => Number(e.assigned_member_id))
-  );
+  ), [existingExtensions, extension]);
 
-  // Build options: self first, then team members — filter out already assigned (Number() normalization)
-  const memberOptions: TeamMemberOption[] = [
-    ...(user && !assignedMemberIds.has(Number(user.id)) ? [{ id: Number(user.id), name: user.name, email: user.email, isSelf: true }] : []),
-    ...teamMembers
-      .filter((m: any) => Number(m.id) !== Number(user?.id) && !assignedMemberIds.has(Number(m.id)))
-      .map((m: any) => ({ id: Number(m.id), name: m.name, email: m.email, isSelf: false })),
-  ];
+  // Monta opções: garante que o próprio usuário esteja presente, remove já atribuídos
+  const memberOptions: TeamMemberOption[] = useMemo(() => {
+    const map = new Map<number, TeamMemberOption>();
+    // Próprio usuário primeiro
+    if (user?.id != null) {
+      map.set(Number(user.id), {
+        id: Number(user.id),
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        photo: (user as any).photo ?? null,
+      });
+    }
+    for (const m of team) {
+      const idNum = Number(m.id);
+      if (!map.has(idNum)) {
+        map.set(idNum, {
+          id: idNum,
+          name: m.name,
+          email: m.email,
+          role: m.role,
+          photo: m.photo,
+        });
+      }
+    }
+    // Ao editar, manter o membro vinculado mesmo se "já atribuído"
+    const editingId = extension?.assigned_member_id != null ? Number(extension.assigned_member_id) : null;
+    return Array.from(map.values()).filter(m => {
+      const idNum = Number(m.id);
+      if (editingId != null && idNum === editingId) return true;
+      return !assignedMemberIds.has(idNum);
+    });
+  }, [team, user, assignedMemberIds, extension]);
 
   useEffect(() => {
     if (extension) {
       setLabel(extension.label || '');
-      setSelectedMemberId(extension.assigned_member_id ? String(extension.assigned_member_id) : '');
+      setSelectedMemberId(extension.assigned_member_id ? String(extension.assigned_member_id) : null);
       setIsActive(extension.is_active);
     } else {
       setLabel('');
-      setSelectedMemberId(user ? String(user.id) : '');
+      setSelectedMemberId(user ? String(user.id) : null);
       setIsActive(true);
     }
   }, [extension, open, user]);
@@ -76,13 +86,11 @@ export function RamalDialog({ open, onOpenChange, extension, onSave, isCreating,
   const selectedMember = memberOptions.find(m => String(m.id) === selectedMemberId);
 
   // Auto-fill label when selecting a member (only on create)
-  const handleMemberChange = (value: string) => {
+  const handleMemberChange = (value: string | null) => {
     setSelectedMemberId(value);
-    if (!isEditing) {
+    if (!isEditing && value) {
       const member = memberOptions.find(m => String(m.id) === value);
-      if (member) {
-        setLabel(member.name);
-      }
+      if (member) setLabel(member.name);
     }
   };
 
@@ -113,26 +121,17 @@ export function RamalDialog({ open, onOpenChange, extension, onSave, isCreating,
             </p>
           )}
 
-          <div>
+          <div className="space-y-2">
             <Label>Vincular a</Label>
-            <Select value={selectedMemberId} onValueChange={handleMemberChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um membro" />
-              </SelectTrigger>
-              <SelectContent>
-                {memberOptions.map((m) => (
-                  <SelectItem key={m.id} value={String(m.id)}>
-                    <div className="flex items-center gap-2">
-                      <span>{m.name}</span>
-                      {m.isSelf && (
-                        <Badge variant="secondary" className="text-[10px] px-1 py-0">Você</Badge>
-                      )}
-                      <span className="text-xs text-muted-foreground">{m.email}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <TeamMemberSelect
+              members={memberOptions}
+              value={selectedMemberId}
+              onValueChange={handleMemberChange}
+              valueKey="id"
+              allowUnassigned={false}
+              placeholder="Selecione um membro da equipe…"
+              className="w-full"
+            />
           </div>
 
           <div>
