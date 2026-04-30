@@ -511,8 +511,13 @@ serve(async (req) => {
 
           if (!api4comId && !ramal) continue;
 
-          // Check if we already have this extension
-          let query = supabase.from('phone_extensions').select('id').eq('cod_agent', codAgent);
+          // Check if we already have this extension (escopa por client_id quando disponível, senão por cod_agent)
+          let query = supabase.from('phone_extensions').select('id');
+          if (effectiveClientId !== null) {
+            query = query.eq('client_id', effectiveClientId);
+          } else if (effectiveCodAgent) {
+            query = query.eq('cod_agent', effectiveCodAgent);
+          }
           if (api4comId) {
             query = query.eq('api4com_id', api4comId);
           } else {
@@ -533,7 +538,7 @@ serve(async (req) => {
           } else {
             // Insert new extension
             const { error: insertError } = await supabase.from('phone_extensions').insert({
-              cod_agent: codAgent,
+              ...dualScope(),
               extension_number: ramal || `ext-${api4comId}`,
               label: apiExt.first_name ? `${apiExt.first_name} ${apiExt.last_name || ''}`.trim() : null,
               api4com_id: api4comId,
