@@ -105,6 +105,60 @@ Deno.serve(async (req) => {
 
     const total_amount = planPrice + setupFee + recording_total + transcription_total + extras_total
 
+    // 2.1 Validação cliente x servidor (breakdown opcional enviado pelo frontend, em centavos)
+    // Permite tolerância de 1 centavo por componente para diferenças de arredondamento.
+    const TOLERANCE_CENTS = 1
+    const clientBreakdown = (body.client_breakdown_cents ?? null) as null | {
+      plan?: number
+      setup?: number
+      recording?: number
+      transcription?: number
+      extras?: number
+      total?: number
+    }
+    const expectedTotalCents = body.expected_total_cents != null
+      ? Math.round(Number(body.expected_total_cents))
+      : (clientBreakdown?.total != null ? Math.round(Number(clientBreakdown.total)) : null)
+
+    const divergences: Array<{ field: string; client: number; server: number; diff: number }> = []
+    function check(field: string, clientVal: number | undefined | null, serverVal: number) {
+      if (clientVal === undefined || clientVal === null) return
+      const c = Math.round(Number(clientVal))
+      const diff = Math.abs(c - serverVal)
+      if (diff > TOLERANCE_CENTS) {
+        divergences.push({ field, client: c, server: serverVal, diff })
+      }
+    }
+    if (clientBreakdown) {
+      check('plan', clientBreakdown.plan, planPrice)
+      check('setup', clientBreakdown.setup, setupFee)
+      check('recording', clientBreakdown.recording, recording_total)
+      check('transcription', clientBreakdown.transcription, transcription_total)
+      check('extras', clientBreakdown.extras, extras_total)
+    }
+    if (expectedTotalCents !== null) {
+      check('total', expectedTotalCents, total_amount)
+    }
+
+    if (divergences.length > 0) {
+      console.warn('[telephony-order-create] PRICE_DIVERGENCE detected', JSON.stringify({
+        plan_id, billing_period, extra_extensions,
+        recording_enabled, transcription_enabled,
+        server_breakdown_cents: {
+          plan: planPrice, setup: setupFee,
+          recording: recording_total, transcription: transcription_total,
+          extras: extras_total, total: total_amount,
+        },
+        client_breakdown_cents: clientBreakdown,
+        expected_total_cents: expectedTotalCents,
+        divergences,
+      }))
+    } else if (clientBreakdown || expectedTotalCents !== null) {
+      console.log('[telephony-order-create] price validation OK', JSON.stringify({
+        plan_id, billing_period, total_cents: total_amount,
+      }))
+    }
+
     // 3. Cria order
     const { data: order, error: insErr } = await sb
       .from('telephony_orders')
@@ -124,6 +178,21 @@ Deno.serve(async (req) => {
         total_amount,
         status: 'draft',
         payment_gateway: 'mercadopago',
+        metadata: divergences.length > 0
+          ? {
+              price_divergence: {
+                detected_at: new Date().toISOString(),
+                client_breakdown_cents: clientBreakdown,
+                expected_total_cents: expectedTotalCents,
+                server_breakdown_cents: {
+                  plan: planPrice, setup: setupFee,
+                  recording: recording_total, transcription: transcription_total,
+                  extras: extras_total, total: total_amount,
+                },
+                divergences,
+              },
+            }
+          : null,
       })
       .select('id, total_amount')
       .single()
@@ -133,7 +202,19 @@ Deno.serve(async (req) => {
       return json({ error: 'Falha ao criar pedido: ' + (insErr?.message ?? 'unknown') }, 500)
     }
 
-    return json({ order_id: order.id, total_amount: order.total_amount })
+    return json({
+      order_id: order.id,
+      total_amount: order.total_amount,
+      price_validation: {
+        ok: divergences.length === 0,
+        divergences,
+        server_breakdown_cents: {
+          plan: planPrice, setup: setupFee,
+          recording: recording_total, transcription: transcription_total,
+          extras: extras_total, total: total_amount,
+        },
+      },
+    })
   } catch (err) {
     console.error('[telephony-order-create] Error:', err)
     return json({ error: (err as Error).message }, 500)
