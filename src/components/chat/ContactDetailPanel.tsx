@@ -14,6 +14,7 @@ import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ConversationParticipants } from './ConversationParticipants';
+import { PriorityBadge } from './PriorityBadge';
 import { ConversationSummaries } from './ConversationSummaries';
 import type { ChatContact } from '@/types/chat';
 import type { ChatConversation, ConversationHistoryEntry, ChatTag } from '@/types/conversation';
@@ -439,6 +440,31 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                           <span className="text-xs text-muted-foreground">N/A</span>
                         )}
                       </div>
+                      {(() => {
+                        const PRIORITY_LABELS: Record<string, { label: string; color: string }> = {
+                          low:    { label: 'Baixa',   color: 'text-muted-foreground' },
+                          normal: { label: 'Normal',  color: 'text-blue-500' },
+                          high:   { label: 'Alta',    color: 'text-amber-500' },
+                          urgent: { label: 'Urgente', color: 'text-red-500' },
+                        };
+                        const p = (selectedConversation.priority as string) || 'normal';
+                        const info = PRIORITY_LABELS[p] || PRIORITY_LABELS.normal;
+                        return (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground flex items-center gap-1.5">
+                              <Tag className="h-3 w-3" /> Prioridade
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <PriorityBadge
+                                conversationId={selectedConversation.id}
+                                currentPriority={p}
+                                compact
+                              />
+                              <span className={cn('text-xs font-medium', info.color)}>{info.label}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground flex items-center gap-1.5">
                           <Clock className="h-3 w-3" /> Aberta em
