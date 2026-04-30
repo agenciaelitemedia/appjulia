@@ -196,7 +196,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   }, [user?.id, user?.client_id]);
 
   // Load active queues for this client filtered by user access (queue_members)
-  const { data: allQueues = [] } = useAccessibleQueues(false);
+  const { data: allQueues = [], isLoading: queuesLoading } = useAccessibleQueues(false);
 
   // Set of queue IDs that are still active (not soft-deleted) and accessible to this user.
   // Used to hide conversations/messages of deleted queues from Chat and CRM links.
@@ -277,7 +277,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // Load Contacts from Supabase (filtered by queue via channel_source)
   // ============================================
   const loadContacts = useCallback(async () => {
-    if (!clientId) return;
+    if (!clientId || queuesLoading) return;
 
     setIsLoading(true);
     try {
@@ -306,7 +306,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [clientId, currentQueueId, activeQueueIds]);
+  }, [clientId, currentQueueId, activeQueueIds, queuesLoading]);
 
   // ============================================
   // Conversations (filtered by queue_id)
