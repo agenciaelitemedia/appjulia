@@ -1,0 +1,1 @@
+DELETE FROM public.telephony_orders;
