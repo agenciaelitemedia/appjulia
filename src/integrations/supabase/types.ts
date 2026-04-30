@@ -4862,6 +4862,7 @@ export type Database = {
           extra_extensions: number
           extra_extensions_total: number
           id: string
+          metadata: Json | null
           mp_payment_id: string | null
           mp_preference_id: string | null
           order_nsu: string | null
@@ -4892,6 +4893,7 @@ export type Database = {
           extra_extensions?: number
           extra_extensions_total?: number
           id?: string
+          metadata?: Json | null
           mp_payment_id?: string | null
           mp_preference_id?: string | null
           order_nsu?: string | null
@@ -4922,6 +4924,7 @@ export type Database = {
           extra_extensions?: number
           extra_extensions_total?: number
           id?: string
+          metadata?: Json | null
           mp_payment_id?: string | null
           mp_preference_id?: string | null
           order_nsu?: string | null
