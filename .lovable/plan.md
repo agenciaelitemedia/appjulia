@@ -1,71 +1,71 @@
-## Objetivo
+## Diagnóstico
 
-Garantir que **todo o fluxo de pedido de telefonia** (criação → checkout → pagamento → provisionamento → exibição admin) use `client_id` como chave principal, mantendo `cod_agent` como campo opcional/legado para não quebrar nada que já depende dele (proxies Api4Com/3C+, telas existentes).
+Você comprou telefonia logado como **Mario Castro** (`users.id = 2`, `clients.id = 30`, `business_name = "Escritorio Mario Testes"`).
 
-## Diagnóstico atual
+O pedido foi gravado com `client_id = 2` (e a `phone_config` resultante também). Mas **2 é o ID do usuário, não do cliente** — o ID do cliente "Escritorio Mario Testes" na tabela `clients` é **30**.
 
-Mapeei o uso de `cod_agent` no fluxo:
+Por coincidência, existe um cliente real com `id = 2` (`Alexandre Ferreira`), então a configuração de telefonia que você acabou de pagar foi vinculada por engano ao cliente errado.
 
-| Etapa | Estado atual | Ação necessária |
-|---|---|---|
-| `telephony-order-create` | Já não exige `cod_agent` | Nenhuma |
-| `telephony-order-checkout` / `mercadopago-webhook` | Não tocam `cod_agent` | Nenhuma |
-| `telephony-provision` | Já trata `cod_agent` como opcional + tenta herdar | Reforçar (ver abaixo) |
-| `phone_config.cod_agent` | **Já é nullable** (migração anterior) | Nenhuma |
-| `phone_user_plans.cod_agent` | Já é nullable | Nenhuma |
-| `phone_extensions.cod_agent` | **NOT NULL** ainda | Tornar nullable (próximo gargalo natural ao criar ramal) |
-| `telephony_orders.cod_agent` | Coluna existe, é opcional | Nenhuma |
-| `api4com-proxy` / `threecplus-proxy` | Usam `client_id` quando vem; senão fallback `cod_agent` | Manter como está (compatibilidade) |
-| Telas admin (`ConfigTab`, `EditTelefoniaDialog`, `AgentsTelefoniaTab`, `CallHistoryAdminTab`) | Apenas **exibem** `cod_agent` quando existe (com `&&`) | Nenhuma — já tolera `null` |
-| `useTelefoniaAdmin` (dual-write) | Tenta resolver `cod_agent` via `agents.client_id`; se vazio, salva string `''` | Ajustar para salvar `null` em vez de `''` |
+### Causa raiz
 
-Nota importante: `useTelefoniaData` e os proxies usam `cod_agent` como fallback de escopo quando `client_id` não está disponível no contexto chamador. Não vou remover esse fallback — apenas garantir que `client_id` seja preferido quando presente, o que já é o comportamento atual.
+Em `src/pages/telefonia/contratar/ContratarTelefoniaPage.tsx` (linha 56):
 
-## Mudanças
-
-### 1. Migração de schema (mínima, segura)
-
-```sql
--- Remove o último NOT NULL do trio principal do fluxo de pedido.
--- Permite que ramais criados pelo provisionamento client_id-first não falhem.
-ALTER TABLE public.phone_extensions ALTER COLUMN cod_agent DROP NOT NULL;
-```
-
-Sem impacto: linhas existentes continuam preenchidas; o frontend já checa `cod_agent &&` antes de exibir.
-
-### 2. `supabase/functions/telephony-provision/index.ts`
-
-Pequeno hardening:
-- Trocar `(cfgPayload.cod_agent = codAgent)` para enviar `null` explícito quando ausente (em vez de omitir do payload), garantindo que o INSERT não quebre se algum default antigo tentar exigir o campo.
-- Adicionar log claro: `console.log('[telephony-provision] cod_agent ausente — provisionando puramente por client_id', clientId)` quando aplicável.
-
-### 3. `src/pages/admin/telefonia/hooks/useTelefoniaAdmin.ts`
-
-- Trocar `cod_agent: codAgent || ''` por `cod_agent: codAgent ?? null` nos dois pontos de INSERT (`createConfig` e `provisionConfig`), para refletir corretamente o estado "sem agente vinculado" e evitar que strings vazias contaminem queries posteriores (`.eq('cod_agent', '')`).
-
-### 4. `src/pages/admin/telefonia/types.ts`
-
-Tornar opcionais nas interfaces para refletir realidade do banco:
 ```ts
-PhoneConfig.cod_agent: string | null
-PhoneUserPlan.cod_agent: string | null  // (já está)
-PhoneExtension.cod_agent: string | null
-TelephonyOrder.cod_agent: string | null  // (já está)
+const { data, error } = await supabase.functions.invoke('telephony-order-create', {
+  body: {
+    client_id: user.id,   // ❌ user.id é o ID do usuário (2), não do cliente (30)
+    ...
+  }
+});
 ```
 
-Telas que renderizam `{cfg.cod_agent && (...)}` continuam funcionando.
+O `AuthContext` expõe dois campos distintos:
+- `user.id` — ID do registro em `users` (no seu caso, `2`)
+- `user.client_id` — ID do registro em `clients` ao qual o usuário pertence (no seu caso, `30`, hidratado automaticamente para sub-usuários)
 
-## O que NÃO vou mexer (para evitar impactos)
+A página de contratação está enviando o campo errado.
 
-- `api4com-proxy` e `threecplus-proxy`: continuam aceitando `cod_agent` como fallback. Migração total para `client_id` puro será uma fase futura.
-- `phone_extensions` UI de criação manual: continua passando `cod_agent` quando disponível (não-breaking).
-- `db-query` e funções não-telefônicas que usam `cod_agent` (agents, user_agents, leads): fora do escopo deste pedido.
-- Não vou alterar `phone_config` / `phone_user_plans` (já corrigidos).
+## Correção
 
-## Resultado esperado
+### 1. `src/pages/telefonia/contratar/ContratarTelefoniaPage.tsx`
 
-Após a aprovação:
-- Pedido → checkout → pagamento → provisionamento funciona puramente com `client_id`, mesmo para clientes sem nenhum `cod_agent` cadastrado.
-- Configuração aparece em `admin/telefonia → Configurações` mesmo sem `cod_agent`.
-- Criação posterior de ramais não vai mais bater no NOT NULL de `phone_extensions.cod_agent`.
-- Tudo que já usa `cod_agent` continua funcionando inalterado.
+Trocar `user.id` por `user.client_id` (com fallback explícito + erro claro se ausente):
+
+```ts
+const clientId = user?.client_id ?? null;
+if (!clientId) {
+  toast.error('Não foi possível identificar o cliente vinculado ao seu usuário.');
+  return;
+}
+// ...
+body: {
+  client_id: clientId,
+  ...
+}
+```
+
+### 2. `supabase/functions/telephony-order-create/index.ts`
+
+Hardening de validação no backend para impedir que esse tipo de mistake aconteça de novo:
+- Validar que o `client_id` recebido **existe na tabela `clients`** (via `db-query` interno) antes de criar o pedido. Se não existir, retornar erro 400 claro.
+- Manter o campo como numérico (`Number(client_id)`) em vez de `String(client_id)` no insert, para refletir corretamente o tipo da coluna.
+
+### 3. Limpeza dos dados incorretos
+
+A configuração `phone_config id=13` (vinculada por engano ao `client_id=2 / Alexandre Ferreira`) e o pedido `telephony_orders id=deea3a64...` ficaram órfãos/incorretos. Vou:
+- Remover a `phone_config` errada (id=13).
+- Remover o `phone_user_plans` correspondente (se foi criado).
+- Marcar o pedido como `provisioning_error` ou removê-lo (a definir contigo: prefere **apagar o pedido** ou **reprovisionar** apontando para o `client_id=30` correto?).
+
+## O que NÃO vou mexer
+
+- Estrutura do schema (tudo já está correto: `phone_config.client_id` é `bigint`).
+- Outros pontos do fluxo (`telephony-provision`, hooks admin) — eles já tratam `client_id` corretamente; o bug está apenas no envio inicial do frontend.
+
+## Decisão necessária
+
+Sobre o pedido bagunçado (Mario / Escritorio Mario Testes, valor R$ 5,00, já pago):
+- (a) Apagar o pedido + a config errada e você cria um novo pedido limpo.
+- (b) Reaproveitar o pedido existente: corrigir o `client_id` para `30` no pedido + reprovisionar a config no cliente certo, removendo a config errada do `client_id=2`.
+
+Me confirma qual prefere e eu executo junto com a correção do bug.
