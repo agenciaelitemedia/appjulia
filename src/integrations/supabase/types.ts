@@ -4156,8 +4156,8 @@ export type Database = {
       }
       phone_config: {
         Row: {
-          api4com_domain: string
-          api4com_token: string
+          api4com_domain: string | null
+          api4com_token: string | null
           client_id: number | null
           cod_agent: string | null
           created_at: string
@@ -4171,8 +4171,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          api4com_domain: string
-          api4com_token: string
+          api4com_domain?: string | null
+          api4com_token?: string | null
           client_id?: number | null
           cod_agent?: string | null
           created_at?: string
@@ -4186,8 +4186,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          api4com_domain?: string
-          api4com_token?: string
+          api4com_domain?: string | null
+          api4com_token?: string | null
           client_id?: number | null
           cod_agent?: string | null
           created_at?: string
