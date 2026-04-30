@@ -13,6 +13,7 @@ import type { SessionStatus } from '@/lib/externalDb';
 import { useContractInfo } from '@/pages/crm/hooks/useContractInfo';
 import { useCRMCardByWhatsapp, useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { useQueueAgentLink } from '@/hooks/useQueueAgentLink';
+import { useQuery } from '@tanstack/react-query';
 import { usePhone } from '@/contexts/PhoneContext';
 import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
 import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialog';
@@ -251,6 +252,21 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const [showPhoneCall, setShowPhoneCall] = useState(false);
 
   const { data: queueLink } = useQueueAgentLink(selectedConversation?.queue_id);
+  const queueId = selectedConversation?.queue_id || null;
+  const { data: queueName } = useQuery({
+    queryKey: ['chat-header-queue-name', queueId],
+    enabled: !!queueId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('queues')
+        .select('name')
+        .eq('id', queueId!)
+        .maybeSingle();
+      if (error) throw error;
+      return (data?.name as string) || null;
+    },
+  });
   const { sip } = usePhone();
   const callActive = sip.status === 'in-call';
   const phoneReady = ['registered', 'in-call', 'calling', 'ringing'].includes(sip.status);
@@ -386,6 +402,16 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
+            {queueName && (
+              <Badge
+                variant="outline"
+                className="text-[10px] px-1.5 py-0 h-5 gap-1 border bg-muted/40 text-muted-foreground"
+                title={`Fila: ${queueName}`}
+              >
+                <Users className="h-3 w-3" />
+                {queueName}
+              </Badge>
+            )}
             <JuliaStatusBadge
               whatsappNumber={contact.phone}
               codAgent={selectedConversation?.cod_agent || contact.cod_agent}
