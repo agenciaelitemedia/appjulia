@@ -10,6 +10,9 @@ import { Plus, Pencil, Trash2, Phone, RefreshCw, CheckCircle, AlertCircle, Ban, 
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { RamalDialog } from './RamalDialog';
 import { SipManualCredentialsDialog } from './SipManualCredentialsDialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import type { PhoneExtension, ProviderType } from '../types';
 import { PROVIDER_LABELS } from '../types';
 import { supabase } from '@/integrations/supabase/client';
@@ -49,6 +52,9 @@ export function MeusRamaisTab({ codAgent, clientId }: Props) {
   const [editing, setEditing] = useState<PhoneExtension | null>(null);
   const [sipCredsOpen, setSipCredsOpen] = useState(false);
   const [sipCredsExt, setSipCredsExt] = useState<PhoneExtension | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PhoneExtension | null>(null);
+  const [confirmA, setConfirmA] = useState(false);
+  const [confirmB, setConfirmB] = useState(false);
 
   const handleSave = (ext: Partial<PhoneExtension> & { email?: string; memberName?: string }) => {
     if (editing) {
@@ -210,7 +216,7 @@ export function MeusRamaisTab({ codAgent, clientId }: Props) {
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditing(ext); setDialogOpen(true); }}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteExtension.mutate(ext.id)}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { setDeleteTarget(ext); setConfirmA(false); setConfirmB(false); }}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -231,6 +237,45 @@ export function MeusRamaisTab({ codAgent, clientId }: Props) {
 
       <RamalDialog open={dialogOpen} onOpenChange={setDialogOpen} extension={editing} onSave={handleSave} codAgent={codAgent} isCreating={createExtension.isPending} existingExtensions={extensions} />
       <SipManualCredentialsDialog open={sipCredsOpen} onOpenChange={setSipCredsOpen} extension={sipCredsExt} />
+
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setConfirmA(false); setConfirmB(false); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" /> Remover ramal {deleteTarget?.extension_number}
+            </DialogTitle>
+            <DialogDescription>
+              Esta ação é <strong>irreversível</strong>. O ramal será removido do provedor e do sistema.
+              Para confirmar, ative as duas chaves abaixo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="flex items-center gap-3 p-3 rounded-md border">
+              <Switch checked={confirmA} onCheckedChange={setConfirmA} />
+              <Label className="text-sm">Entendo que o ramal será desvinculado e excluído.</Label>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-md border">
+              <Switch checked={confirmB} onCheckedChange={setConfirmB} />
+              <Label className="text-sm">Confirmo a exclusão definitiva deste ramal.</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancelar</Button>
+            <Button
+              variant="destructive"
+              disabled={!confirmA || !confirmB || deleteExtension.isPending}
+              onClick={() => {
+                if (!deleteTarget) return;
+                deleteExtension.mutate(deleteTarget.id, {
+                  onSuccess: () => { setDeleteTarget(null); setConfirmA(false); setConfirmB(false); },
+                });
+              }}
+            >
+              {deleteExtension.isPending ? 'Removendo...' : 'Remover ramal'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
