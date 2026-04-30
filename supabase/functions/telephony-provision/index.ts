@@ -104,8 +104,11 @@ Deno.serve(async (req) => {
         client_id: clientId,
         provider: provider.provider,
         is_active: true,
+        cod_agent: codAgent,
       }
-      if (codAgent) cfgPayload.cod_agent = codAgent
+      if (!codAgent) {
+        console.log('[telephony-provision] cod_agent ausente — provisionando puramente por client_id', clientId)
+      }
       if (provider.provider === 'api4com') {
         cfgPayload.api4com_domain = provider.api4com_domain
         cfgPayload.api4com_token = provider.api4com_token
@@ -153,8 +156,8 @@ Deno.serve(async (req) => {
       is_active: true,
       client_name: order.customer_name,
       source_order_id: order_id,
+      cod_agent: codAgent,
     }
-    if (codAgent) planPayload.cod_agent = codAgent
 
     const { data: newPlan, error: planErr } = await (sb as any)
       .from('phone_user_plans')
