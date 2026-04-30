@@ -4363,6 +4363,7 @@ export type Database = {
           is_active: boolean
           plan_id: number
           recording_enabled: boolean
+          source_order_id: string | null
           start_date: string
           transcription_enabled: boolean
         }
@@ -4379,6 +4380,7 @@ export type Database = {
           is_active?: boolean
           plan_id: number
           recording_enabled?: boolean
+          source_order_id?: string | null
           start_date?: string
           transcription_enabled?: boolean
         }
@@ -4395,6 +4397,7 @@ export type Database = {
           is_active?: boolean
           plan_id?: number
           recording_enabled?: boolean
+          source_order_id?: string | null
           start_date?: string
           transcription_enabled?: boolean
         }
