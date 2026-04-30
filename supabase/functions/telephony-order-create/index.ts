@@ -16,7 +16,6 @@ const BILLING_PERIOD_MONTHS: Record<string, number> = {
 }
 
 // Pricing rules (centavos)
-const SETUP_FEE_MONTHLY = 19700           // R$ 197,00
 const ADDON_PRICE_MONTHLY_CENTS = 9990    // R$ 99,90/mês
 // Para semestral/anual addons são grátis. Trimestral cobra normal.
 
@@ -31,6 +30,22 @@ function priceFromPlan(plan: any, period: string): number {
   const col = map[period]
   const value = Number(plan[col] ?? plan.price ?? 0)
   return Math.round(value * 100)  // converte para centavos
+}
+
+function setupFeeFromPlan(plan: any, period: string): number {
+  // Espelha src/pages/telefonia/contratar/types.ts → setupFeeForPeriod()
+  // Lê o setup fee real cadastrado no plano por período. null/undefined = sem taxa.
+  const map: Record<string, string> = {
+    monthly: 'setup_fee_monthly',
+    quarterly: 'setup_fee_quarterly',
+    semiannual: 'setup_fee_semiannual',
+    annual: 'setup_fee_annual',
+  }
+  const raw = plan[map[period]]
+  if (raw === null || raw === undefined || raw === '') return 0
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n <= 0) return 0
+  return Math.round(n * 100) // R$ → centavos
 }
 
 function calcAddonsTotal(period: string, recording: boolean, transcription: boolean) {
@@ -79,7 +94,7 @@ Deno.serve(async (req) => {
 
     // 2. Calcula totais
     const planPrice = priceFromPlan(plan, billing_period)
-    const setupFee = billing_period === 'monthly' ? SETUP_FEE_MONTHLY : 0
+    const setupFee = setupFeeFromPlan(plan, billing_period)
     const { recording_total, transcription_total } = calcAddonsTotal(
       billing_period, recording_enabled, transcription_enabled
     )
