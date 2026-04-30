@@ -196,7 +196,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   }, [user?.id, user?.client_id]);
 
   // Load active queues for this client filtered by user access (queue_members)
-  const { data: allQueues = [] } = useAccessibleQueues(false);
+  const { data: allQueues = [], isLoading: queuesLoading } = useAccessibleQueues(false);
 
   // Set of queue IDs that are still active (not soft-deleted) and accessible to this user.
   // Used to hide conversations/messages of deleted queues from Chat and CRM links.
@@ -277,7 +277,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // Load Contacts from Supabase (filtered by queue via channel_source)
   // ============================================
   const loadContacts = useCallback(async () => {
-    if (!clientId) return;
+    if (!clientId || queuesLoading) return;
 
     setIsLoading(true);
     try {
@@ -306,7 +306,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [clientId, currentQueueId, activeQueueIds]);
+  }, [clientId, currentQueueId, activeQueueIds, queuesLoading]);
 
   // ============================================
   // Conversations (filtered by queue_id)
@@ -318,7 +318,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     : 'active';
 
   const loadConversations = useCallback(async () => {
-    if (!clientId) return;
+    if (!clientId || queuesLoading) return;
     try {
       let query = supabase
         .from('chat_conversations')
@@ -339,10 +339,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     } catch (error) {
       console.error('Error loading conversations:', error);
     }
-  }, [clientId, currentQueueId, convQueryGroup, activeQueueIds]);
+  }, [clientId, currentQueueId, convQueryGroup, activeQueueIds, queuesLoading]);
 
   const loadConvCounts = useCallback(async () => {
-    if (!clientId) return;
+    if (!clientId || queuesLoading) return;
     try {
       let q = supabase
         .from('chat_conversations')
@@ -360,7 +360,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       });
       setConvCounts(counts);
     } catch {/* noop */}
-  }, [clientId, currentQueueId, activeQueueIds]);
+  }, [clientId, currentQueueId, activeQueueIds, queuesLoading]);
 
   const getOrCreateConversation = useCallback(async (contactId: string): Promise<ChatConversation | null> => {
     if (!clientId) return null;

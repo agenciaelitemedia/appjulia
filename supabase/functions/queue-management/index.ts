@@ -339,6 +339,29 @@ serve(async (req) => {
               .in('status', ['pending', 'open']);
 
             if (migrateError) throw migrateError;
+
+            // Migrate queue_members from old queue to new queue (best-effort)
+            try {
+              const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+              const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+              const membersRes = await fetch(`${supabaseUrl}/functions/v1/db-query`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
+                body: JSON.stringify({
+                  action: 'raw',
+                  data: {
+                    query: `INSERT INTO queue_members (queue_id, user_id, role)
+                      SELECT $1, user_id, role FROM queue_members WHERE queue_id = $2
+                      ON CONFLICT (queue_id, user_id) DO NOTHING`,
+                    params: [migrate_to_queue_id, queue_id],
+                  },
+                }),
+              });
+              const membersData = await membersRes.json();
+              console.log('[queue-management] queue_members migrated:', JSON.stringify(membersData));
+            } catch (err) {
+              console.warn('[queue-management] failed to migrate queue_members:', err);
+            }
           }
           // else: force=true → keep conversations attached to the (soft-deleted) queue
           // for later recovery via restore-with-migration.
@@ -448,6 +471,27 @@ serve(async (req) => {
             .update({ queue_id: migrate_to_queue_id }, { count: 'exact' })
             .eq('queue_id', queue_id);
           if (mErr) throw mErr;
+
+          // Migrate queue_members from old queue to new queue (best-effort)
+          try {
+            const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+            const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+            await fetch(`${supabaseUrl}/functions/v1/db-query`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
+              body: JSON.stringify({
+                action: 'raw',
+                data: {
+                  query: `INSERT INTO queue_members (queue_id, user_id, role)
+                    SELECT $1, user_id, role FROM queue_members WHERE queue_id = $2
+                    ON CONFLICT (queue_id, user_id) DO NOTHING`,
+                  params: [migrate_to_queue_id, queue_id],
+                },
+              }),
+            });
+          } catch (err) {
+            console.warn('[queue-management] failed to migrate queue_members on restore:', err);
+          }
 
           return respond({
             success: true,
