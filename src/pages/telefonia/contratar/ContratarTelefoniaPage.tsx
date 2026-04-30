@@ -37,6 +37,12 @@ export default function ContratarTelefoniaPage() {
   async function handleCreateOrder() {
     if (!user?.id) { toast.error('Usuário não autenticado'); return; }
     if (!draft.plan) return;
+    // IMPORTANTE: client_id ≠ user.id. Pedido é vinculado ao CLIENTE, não ao usuário.
+    const clientId = user?.client_id ? Number(user.client_id) : null;
+    if (!clientId || !Number.isFinite(clientId)) {
+      toast.error('Não foi possível identificar o cliente vinculado ao seu usuário. Contate o suporte.');
+      return;
+    }
     setBusy(true);
     try {
       // Calcula o breakdown no client (em centavos) para validação cruzada no backend.
@@ -53,7 +59,7 @@ export default function ContratarTelefoniaPage() {
 
       const { data, error } = await supabase.functions.invoke('telephony-order-create', {
         body: {
-          client_id: user.id,
+          client_id: clientId,
           plan_id: draft.plan.id,
           billing_period: draft.billing_period,
           extra_extensions: draft.extra_extensions,
