@@ -19,13 +19,6 @@ interface RamalDialogProps {
   existingExtensions?: PhoneExtension[];
 }
 
-interface TeamMemberOption {
-  id: number;
-  name: string;
-  email: string;
-  isSelf?: boolean;
-}
-
 export function RamalDialog({ open, onOpenChange, extension, onSave, isCreating, codAgent, existingExtensions = [] }: RamalDialogProps) {
   const { user } = useAuth();
   const [label, setLabel] = useState('');
