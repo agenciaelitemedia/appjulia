@@ -105,7 +105,7 @@ export function ChatList() {
   const [modeFilter, setModeFilter] = useState<ConversationModeFilter>('all');
   const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('all');
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('last7days');
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
   const [stageIds, setStageIds] = useState<number[]>([]);
   const [stagePopoverOpen, setStagePopoverOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
