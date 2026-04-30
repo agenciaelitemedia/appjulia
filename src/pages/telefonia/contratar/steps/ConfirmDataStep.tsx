@@ -19,9 +19,11 @@ interface Props {
 export function ConfirmDataStep({ draft, onChange, onNext, onBack, busy }: Props) {
   const { user } = useAuth();
   const [autofilled, setAutofilled] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (autofilled || !user?.id) return;
+    setLoading(true);
 
     (async () => {
       try {
@@ -67,6 +69,7 @@ export function ConfirmDataStep({ draft, onChange, onNext, onBack, busy }: Props
         console.warn('[ConfirmDataStep] autofill failed', err);
       } finally {
         setAutofilled(true);
+        setLoading(false);
       }
     })();
   }, [user?.id, autofilled, draft, onChange]);
@@ -81,7 +84,13 @@ export function ConfirmDataStep({ draft, onChange, onNext, onBack, busy }: Props
           Esses dados serão usados para a nota fiscal e contato com o cliente.
         </p>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 relative min-h-[280px]">
+        {loading && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-background/80 backdrop-blur-sm rounded-md">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Carregando seus dados...</p>
+          </div>
+        )}
         <div className="space-y-1.5">
           <Label htmlFor="name">Nome / Razão Social *</Label>
           <Input
