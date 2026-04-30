@@ -20,7 +20,7 @@ interface PhoneExtensionInfo {
   // 3cplus
   threecplus_agent_id: string | null;
   threecplus_extension: string | null;
-  cod_agent: string;
+  cod_agent: string | null;
   client_id: number | null;
   assigned_member_id: number | null;
 }
@@ -71,6 +71,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   const sipConnectInFlightRef = useRef(false);
   const retryCount = useRef(0);
   const maxRetries = 8; // max ~5min backoff (5*2^7 = 640s capped at 300s)
+  const hasTelephonyScope = !!codAgent || !!clientId;
   // Listen for sync-queue-done events to invalidate queries
   useEffect(() => {
     const handler = () => {
@@ -81,14 +82,14 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const handleCallEnded = useCallback((_info: CallEndedInfo) => {
-    if (!codAgent && !clientId) return;
+    if (!hasTelephonyScope) return;
     const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     supabase.functions.invoke(getPhoneProxy(provider), {
       body: { action: 'sync_call_history', clientId, codAgent, since },
     }).then(() => {
       queryClient.invalidateQueries({ queryKey: ['my-call-history'] });
     }).catch(console.error);
-  }, [codAgent, clientId, provider, queryClient]);
+  }, [hasTelephonyScope, clientId, codAgent, provider, queryClient]);
 
   const handleCallFailed = useCallback((cause: string) => {
     const friendlyMsg = cause === 'Canceled'
@@ -155,7 +156,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
 
   // Auto-connect SIP when extension is found (with retry)
   const connectSip = useCallback(async () => {
-    if (!myExtension || !codAgent) return;
+    if (!myExtension || !hasTelephonyScope) return;
     if (sipBlockedRef.current || sipConnectInFlightRef.current) return;
     if (sipSetupError) {
       setDialError(sipSetupError);
@@ -201,17 +202,17 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     } finally {
       sipConnectInFlightRef.current = false;
     }
-  }, [myExtension, codAgent, clientId, provider, sip, sipSetupError]);
+  }, [myExtension, hasTelephonyScope, codAgent, clientId, provider, sip, sipSetupError]);
 
   useEffect(() => {
-    if (autoConnected.current || sipBlockedRef.current || sipSetupError || !myExtension || !codAgent) return;
+    if (autoConnected.current || sipBlockedRef.current || sipSetupError || !myExtension || !hasTelephonyScope) return;
     const isLinked = provider === '3cplus'
       ? !!(myExtension.threecplus_agent_id || myExtension.threecplus_extension)
       : !!myExtension.api4com_ramal;
     if (!isLinked) return;
     autoConnected.current = true;
     connectSip();
-  }, [myExtension, codAgent, provider, connectSip]);
+  }, [myExtension, hasTelephonyScope, provider, connectSip]);
 
   // Auto-retry SIP registration with exponential backoff
   useEffect(() => {
@@ -242,7 +243,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const dialNumber = useCallback(async (phone: string, contactName?: string, origin?: 'CRM' | 'DISCADOR', whatsappNumber?: string) => {
-    if (!myExtension || !codAgent) {
+    if (!myExtension || !hasTelephonyScope) {
       toast.error('Nenhum ramal disponível');
       return;
     }
@@ -294,7 +295,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       setIsDialing(false);
       isDialingRef.current = false;
     }
-  }, [myExtension, codAgent, clientId, provider, sip.status, connectSip]);
+  }, [myExtension, hasTelephonyScope, codAgent, clientId, provider, sip.status, connectSip]);
 
   const isAvailable = !!myExtension && (
     provider === '3cplus'
