@@ -5,10 +5,10 @@
 //
 // Steps:
 // 1. Lê telephony_orders WHERE id=order_id AND status='paid' AND provisioned_at IS NULL
-// 2. Resolve cod_agent (via db-query → users.cod_agent ou user_agents)
+// 2. Usa client_id do pedido como chave principal de provisionamento
 // 3. Seleciona provedor default
-// 4. INSERT phone_config (Configurações por Agente)
-// 5. INSERT phone_user_plans (Agentes Telefonia)
+// 4. INSERT phone_config (chaveado por client_id)
+// 5. INSERT phone_user_plans (chaveado por client_id)
 // 6. UPDATE order: status='provisioned', referencias preenchidas
 // =====================================================
 
@@ -27,48 +27,6 @@ function addMonthsIso(months: number): string {
   const d = new Date()
   d.setMonth(d.getMonth() + months)
   return d.toISOString().slice(0, 10) // YYYY-MM-DD
-}
-
-async function resolveCodAgent(supabaseUrl: string, serviceKey: string, clientId: number): Promise<string | null> {
-  // Chama db-query (external DB) para obter cod_agent
-  try {
-    const r = await fetch(`${supabaseUrl}/functions/v1/db-query`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
-      body: JSON.stringify({
-        action: 'raw',
-        data: {
-          query: `SELECT cod_agent FROM users WHERE id = $1 AND cod_agent IS NOT NULL LIMIT 1`,
-          params: [clientId],
-        },
-      }),
-    })
-    const j = await r.json()
-    const cod = j?.data?.[0]?.cod_agent
-    if (cod) return String(cod)
-  } catch (err) {
-    console.warn('[telephony-provision] resolveCodAgent failed via users:', err)
-  }
-  // Fallback: user_agents (primeiro vinculado)
-  try {
-    const r = await fetch(`${supabaseUrl}/functions/v1/db-query`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
-      body: JSON.stringify({
-        action: 'raw',
-        data: {
-          query: `SELECT cod_agent FROM user_agents WHERE user_id = $1 ORDER BY id ASC LIMIT 1`,
-          params: [clientId],
-        },
-      }),
-    })
-    const j = await r.json()
-    const cod = j?.data?.[0]?.cod_agent
-    if (cod) return String(cod)
-  } catch (err) {
-    console.warn('[telephony-provision] resolveCodAgent failed via user_agents:', err)
-  }
-  return null
 }
 
 Deno.serve(async (req) => {
@@ -97,16 +55,15 @@ Deno.serve(async (req) => {
       return json({ error: `Status inválido: ${order.status} (esperado 'paid')` }, 400)
     }
 
-    // 2. Resolve cod_agent
-    let codAgent = order.cod_agent as string | null
-    if (!codAgent) {
-      codAgent = await resolveCodAgent(supabaseUrl, serviceKey, Number(order.client_id))
-    }
-    if (!codAgent) {
-      const errMsg = `cod_agent não encontrado para client_id=${order.client_id}`
+    // 2. Valida client_id (chave principal do provisionamento)
+    const clientId = order.client_id ? Number(order.client_id) : null
+    if (!clientId || !Number.isFinite(clientId)) {
+      const errMsg = `client_id inválido no pedido: ${order.client_id}`
       await sb.from('telephony_orders').update({ provisioning_error: errMsg, updated_at: new Date().toISOString() }).eq('id', order_id)
       return json({ error: errMsg }, 400)
     }
+    // cod_agent é apenas opcional/legado: usa o que já estiver no pedido, sem buscar.
+    const codAgent = (order.cod_agent as string | null) ?? null
 
     // 3. Seleciona provider default
     const { data: provider, error: provErr } = await sb
@@ -123,27 +80,24 @@ Deno.serve(async (req) => {
       return json({ error: errMsg }, 400)
     }
 
-    // 4. Cria phone_config (idempotente: verifica se já existe pra esse cod_agent+provider)
-    const clientId = order.client_id ? Number(order.client_id) : null
-    const cfgQuery = sb
+    // 4. Cria phone_config (idempotente: verifica se já existe pra esse client_id+provider)
+    const { data: existingCfg } = await (sb
       .from('phone_config' as never)
       .select('id')
-      .eq('provider', provider.provider) as any
-    const { data: existingCfg } = await (clientId
-      ? cfgQuery.eq('client_id', clientId)
-      : cfgQuery.eq('cod_agent', codAgent)
-    ).maybeSingle() as any
+      .eq('provider', provider.provider)
+      .eq('client_id', clientId) as any)
+      .maybeSingle()
 
     let configId: number
     if (existingCfg?.id) {
       configId = existingCfg.id
     } else {
       const cfgPayload: Record<string, unknown> = {
-        cod_agent: codAgent,
         client_id: clientId,
         provider: provider.provider,
         is_active: true,
       }
+      if (codAgent) cfgPayload.cod_agent = codAgent
       if (provider.provider === 'api4com') {
         cfgPayload.api4com_domain = provider.api4com_domain
         cfgPayload.api4com_token = provider.api4com_token
@@ -173,30 +127,30 @@ Deno.serve(async (req) => {
     const startDate = new Date().toISOString().slice(0, 10)
     const dueDate = addMonthsIso(months)
 
-    // Desativa planos anteriores do mesmo cliente (regra existente)
-    {
-      const upd = (sb as any).from('phone_user_plans')
-        .update({ is_active: false })
-        .eq('is_active', true)
-      await (clientId ? upd.eq('client_id', clientId) : upd.eq('cod_agent', codAgent))
+    // Desativa planos anteriores do mesmo cliente
+    await (sb as any).from('phone_user_plans')
+      .update({ is_active: false })
+      .eq('is_active', true)
+      .eq('client_id', clientId)
+
+    const planPayload: Record<string, unknown> = {
+      client_id: clientId,
+      plan_id: order.plan_id,
+      billing_period: order.billing_period,
+      extra_extensions: order.extra_extensions,
+      recording_enabled: order.recording_enabled,
+      transcription_enabled: order.transcription_enabled,
+      start_date: startDate,
+      due_date: dueDate,
+      is_active: true,
+      client_name: order.customer_name,
+      source_order_id: order_id,
     }
+    if (codAgent) planPayload.cod_agent = codAgent
 
     const { data: newPlan, error: planErr } = await (sb as any)
       .from('phone_user_plans')
-      .insert({
-        cod_agent: codAgent,
-        client_id: clientId,
-        plan_id: order.plan_id,
-        billing_period: order.billing_period,
-        extra_extensions: order.extra_extensions,
-        recording_enabled: order.recording_enabled,
-        transcription_enabled: order.transcription_enabled,
-        start_date: startDate,
-        due_date: dueDate,
-        is_active: true,
-        client_name: order.customer_name,
-        source_order_id: order_id,
-      })
+      .insert(planPayload)
       .select('id')
       .single()
     if (planErr || !newPlan) {
@@ -206,19 +160,20 @@ Deno.serve(async (req) => {
     }
 
     // 6. Marca order como provisioned
-    await sb.from('telephony_orders').update({
+    const orderUpdate: Record<string, unknown> = {
       status: 'provisioned',
       provisioned_at: new Date().toISOString(),
       provider_id: provider.id,
       user_plan_id: newPlan.id,
       config_id: configId,
-      cod_agent: codAgent,
       provisioning_error: null,
       updated_at: new Date().toISOString(),
-    }).eq('id', order_id)
+    }
+    if (codAgent) orderUpdate.cod_agent = codAgent
+    await sb.from('telephony_orders').update(orderUpdate).eq('id', order_id)
 
-    console.log('[telephony-provision] OK order=', order_id, 'cod_agent=', codAgent)
-    return json({ status: 'provisioned', order_id, cod_agent: codAgent, plan_id: newPlan.id, config_id: configId })
+    console.log('[telephony-provision] OK order=', order_id, 'client_id=', clientId)
+    return json({ status: 'provisioned', order_id, client_id: clientId, plan_id: newPlan.id, config_id: configId })
   } catch (err) {
     console.error('[telephony-provision] Error:', err)
     return json({ error: (err as Error).message }, 500)
