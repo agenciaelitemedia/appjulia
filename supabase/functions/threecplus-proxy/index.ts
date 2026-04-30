@@ -947,18 +947,50 @@ serve(async (req) => {
       case "delete_extension": {
         const { extensionId } = params;
         const incomingId = String(extensionId || "").trim();
+        const internalId = Number(incomingId);
 
-        // Fetch DB record
-        const { data: extRecord } = await supabase
-          .from("phone_extensions")
-          .select(
-            "id, threecplus_agent_id, threecplus_extension, extension_number, threecplus_raw",
-          )
-          .or(
-            `threecplus_agent_id.eq.${incomingId},threecplus_extension.eq.${incomingId},extension_number.eq.${incomingId}`,
-          )
-          .eq("cod_agent", codAgent)
-          .maybeSingle();
+        // Fetch DB record — prefer internal DB id from frontend, then fallback to provider identifiers
+        let extRecord: any = null;
+
+        if (Number.isFinite(internalId) && internalId > 0) {
+          const internalLookup = scopePhoneExtensionsQuery(
+            supabase
+              .from("phone_extensions")
+              .select(
+                "id, threecplus_agent_id, threecplus_extension, extension_number, threecplus_raw",
+              )
+              .eq("id", internalId),
+            codAgent,
+            clientId,
+          );
+
+          const { data: internalRecord, error: internalLookupError } = await internalLookup.maybeSingle();
+          if (internalLookupError) {
+            throw new Error(`Erro ao buscar ramal: ${internalLookupError.message}`);
+          }
+          extRecord = internalRecord;
+        }
+
+        if (!extRecord) {
+          const providerLookup = scopePhoneExtensionsQuery(
+            supabase
+              .from("phone_extensions")
+              .select(
+                "id, threecplus_agent_id, threecplus_extension, extension_number, threecplus_raw",
+              )
+              .or(
+                `threecplus_agent_id.eq.${incomingId},threecplus_extension.eq.${incomingId},extension_number.eq.${incomingId}`,
+              ),
+            codAgent,
+            clientId,
+          );
+
+          const { data: providerRecord, error: providerLookupError } = await providerLookup.maybeSingle();
+          if (providerLookupError) {
+            throw new Error(`Erro ao buscar ramal: ${providerLookupError.message}`);
+          }
+          extRecord = providerRecord;
+        }
 
         const deleteResults: Record<string, unknown> = {};
 
@@ -1044,19 +1076,37 @@ serve(async (req) => {
 
         // Delete from DB
         if (extRecord?.id) {
-          const { error: dbError } = await supabase
-            .from("phone_extensions").delete().eq("id", extRecord.id);
+          const { error: dbError, count } = await supabase
+            .from("phone_extensions")
+            .delete({ count: "exact" })
+            .eq("id", extRecord.id);
           if (dbError) {
             throw new Error(`Erro ao deletar do banco: ${dbError.message}`);
           }
+          if (!count) {
+            throw new Error("O ramal não foi removido do sistema. Atualize a página e tente novamente.");
+          }
+          deleteResults.database = { success: true, rowsDeleted: count };
         } else {
-          await supabase.from("phone_extensions").delete()
-            .or(
-              `threecplus_agent_id.eq.${incomingId},threecplus_extension.eq.${incomingId},extension_number.eq.${incomingId}`,
-            )
-            .eq("cod_agent", codAgent);
+          const scopedDelete = scopePhoneExtensionsQuery(
+            supabase
+              .from("phone_extensions")
+              .delete({ count: "exact" })
+              .or(
+                `threecplus_agent_id.eq.${incomingId},threecplus_extension.eq.${incomingId},extension_number.eq.${incomingId}`,
+              ),
+            codAgent,
+            clientId,
+          );
+          const { error: dbError, count } = await scopedDelete;
+          if (dbError) {
+            throw new Error(`Erro ao deletar do banco: ${dbError.message}`);
+          }
+          if (!count) {
+            throw new Error("O ramal não foi removido do sistema. Atualize a página e tente novamente.");
+          }
+          deleteResults.database = { success: true, rowsDeleted: count };
         }
-        deleteResults.database = { success: true };
         result = deleteResults;
         break;
       }
