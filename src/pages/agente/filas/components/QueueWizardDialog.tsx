@@ -270,7 +270,7 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
                         <p className="font-medium text-foreground">{ch.label}</p>
                         {isDisabled ? (
                           <Badge variant="outline" className="text-xs mt-0.5">
-                            Apenas admin
+                            Em breve
                           </Badge>
                         ) : !isWebchat && (
                           <Badge variant={isWaba || hasProvider ? 'default' : 'outline'} className="text-xs mt-0.5">
