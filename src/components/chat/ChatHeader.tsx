@@ -402,16 +402,6 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            {queueName && (
-              <Badge
-                variant="outline"
-                className="text-[10px] px-1.5 py-0 h-5 gap-1 border bg-muted/40 text-muted-foreground"
-                title={`Fila: ${queueName}`}
-              >
-                <Users className="h-3 w-3" />
-                {queueName}
-              </Badge>
-            )}
             <JuliaStatusBadge
               whatsappNumber={contact.phone}
               codAgent={selectedConversation?.cod_agent || contact.cod_agent}
@@ -442,7 +432,6 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                 {statusInfo.label}
               </Badge>
             )}
-            {slaEvaluation && <SlaBadge evaluation={slaEvaluation} />}
           </div>
           <div className="flex items-center gap-2">
             <p className="text-xs text-muted-foreground truncate">
@@ -452,9 +441,6 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
               <span className="text-[10px] text-muted-foreground font-mono">
                 {selectedConversation.protocol}
               </span>
-            )}
-            {selectedConversation && (
-              <ChannelBadge channel={selectedConversation.channel} />
             )}
             {selectedConversation && (conversationTagsMap?.[selectedConversation.id] || []).slice(0, 3).map(tag => (
               <span
@@ -468,6 +454,28 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
             ))}
             <PresenceIndicator users={presenceUsers} meId={user?.id ? String(user.id) : null} />
           </div>
+          {(queueName || slaEvaluation) && (
+            <div className="flex items-stretch gap-0 mt-1">
+              {queueName && (
+                <span
+                  className={cn(
+                    'inline-flex items-center justify-center h-5 px-1.5 text-[9px] font-bold leading-none overflow-hidden whitespace-nowrap text-center bg-blue-600 text-white rounded-l',
+                    !slaEvaluation && 'rounded-r'
+                  )}
+                  title={`Fila: ${queueName}`}
+                >
+                  <span className="truncate max-w-[160px]">{queueName}</span>
+                </span>
+              )}
+              {slaEvaluation && (
+                <SlaBadge
+                  evaluation={slaEvaluation}
+                  compact
+                  className={cn(!queueName && 'rounded-l', 'rounded-r')}
+                />
+              )}
+            </div>
+          )}
         </div>
         
         <div className="flex items-center gap-1 flex-wrap justify-end">
