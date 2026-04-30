@@ -36,6 +36,7 @@ import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 import { ChatCrmButton } from './ChatCrmButton';
 import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
 import { SlaBadge } from './SlaBadge';
+import { PriorityBadge } from './PriorityBadge';
 import { JuliaStatusBadge } from './JuliaStatusBadge';
 
 interface ChatHeaderProps {
