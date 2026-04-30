@@ -401,6 +401,46 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground flex items-center gap-1.5">
+                          <Users className="h-3 w-3" /> Fila
+                        </span>
+                        <span className="text-xs font-medium">{queueName || 'N/A'}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground flex items-center gap-1.5">
+                          <UserCheck className="h-3 w-3" /> Atribuído
+                        </span>
+                        <span className={cn('text-xs', selectedConversation.assigned_to ? 'font-medium' : 'text-muted-foreground')}>
+                          {selectedConversation.assigned_to || 'Não atribuído'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground flex items-center gap-1.5">
+                          <Clock className="h-3 w-3" /> SLA
+                        </span>
+                        {slaEvaluation ? (
+                          <SlaBadge evaluation={slaEvaluation} />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">N/A</span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground flex items-center gap-1.5">
+                          <Layers className="h-3 w-3" /> Etapa da Julia
+                        </span>
+                        {juliaStage?.stageName ? (
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold text-white"
+                            style={{ backgroundColor: juliaStage.stageColor || '#3b82f6' }}
+                            title={juliaStage.stageName}
+                          >
+                            {juliaStage.stageName}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">N/A</span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground flex items-center gap-1.5">
                           <Clock className="h-3 w-3" /> Aberta em
                         </span>
                         <span className="text-xs">{format(new Date(selectedConversation.opened_at), "dd/MM/yy HH:mm", { locale: ptBR })}</span>
@@ -409,12 +449,6 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                         <div className="flex items-center justify-between">
                           <span className="text-muted-foreground text-xs">1ª resposta</span>
                           <span className="text-xs">{format(new Date(selectedConversation.first_response_at), "dd/MM/yy HH:mm", { locale: ptBR })}</span>
-                        </div>
-                      )}
-                      {selectedConversation.assigned_to && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground text-xs">Atribuído a</span>
-                          <span className="text-xs font-medium">{selectedConversation.assigned_to}</span>
                         </div>
                       )}
                       {selectedConversation.department && (
