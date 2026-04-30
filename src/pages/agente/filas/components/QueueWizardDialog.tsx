@@ -37,7 +37,7 @@ type WabaPhoneNumber = {
 };
 
 export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [step, setStep] = useState(1);
   const [selectedType, setSelectedType] = useState('');
   const [selectedProviderId, setSelectedProviderId] = useState('');
@@ -242,15 +242,24 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
               const Icon = ch.icon;
               const isWaba = ch.value === 'waba';
               const isWebchat = ch.value === 'webchat';
+              const isInstagram = ch.value === 'instagram';
               const hasProvider = allProviders.some((p) => p.provider_type === ch.value && p.is_active);
+              const adminOnly = isWaba || isWebchat || isInstagram;
+              const isDisabled = adminOnly && !isAdmin;
 
               return (
                 <Card
                   key={ch.value}
-                  className={`cursor-pointer transition-all hover:shadow-md ${
-                    selectedType === ch.value ? 'ring-2 ring-primary' : ''
-                  }`}
-                  onClick={() => setSelectedType(ch.value)}
+                  className={`transition-all ${
+                    isDisabled
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'cursor-pointer hover:shadow-md'
+                  } ${selectedType === ch.value ? 'ring-2 ring-primary' : ''}`}
+                  onClick={() => {
+                    if (isDisabled) return;
+                    setSelectedType(ch.value);
+                  }}
+                  title={isDisabled ? 'Disponível apenas para administradores' : undefined}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center gap-3 mb-2">
@@ -259,7 +268,11 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
                       </div>
                       <div>
                         <p className="font-medium text-foreground">{ch.label}</p>
-                        {!isWebchat && (
+                        {isDisabled ? (
+                          <Badge variant="outline" className="text-xs mt-0.5">
+                            Apenas admin
+                          </Badge>
+                        ) : !isWebchat && (
                           <Badge variant={isWaba || hasProvider ? 'default' : 'outline'} className="text-xs mt-0.5">
                             {isWaba ? 'Conecte ao criar' : hasProvider ? 'Provedor configurado' : 'Sem provedor'}
                           </Badge>
