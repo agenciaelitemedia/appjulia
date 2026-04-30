@@ -350,38 +350,46 @@ serve(async (req) => {
       case 'delete_extension': {
         const { extensionId } = params;
         
-        // 1. Buscar registro no banco para obter api4com_raw.user_id
-        const { data: extRecord } = await scopeAgent(
-          supabase
-            .from('phone_extensions')
-            .select('id, api4com_id, api4com_raw')
-            .eq('api4com_id', extensionId)
-        ).maybeSingle();
+        // 1. Buscar registro no banco pelo ID interno (extensionId vem do frontend = phone_extensions.id)
+        const { data: extRecord, error: lookupError } = await supabase
+          .from('phone_extensions')
+          .select('id, api4com_id, api4com_raw')
+          .eq('id', extensionId)
+          .maybeSingle();
+
+        if (lookupError) throw new Error(`Erro ao buscar ramal: ${lookupError.message}`);
+        if (!extRecord) throw new Error(`Ramal ${extensionId} não encontrado no banco`);
+
+        const providerExtId = extRecord.api4com_id;
 
         const deleteResults: Record<string, unknown> = {};
 
-        // 2. Deletar extensão na Api4Com
-        try {
-          const extResponse = await fetch(`${baseUrl}/extensions/${extensionId}`, {
-            method: 'DELETE',
-            headers,
-          });
-          deleteResults.extension = { success: extResponse.ok, status: extResponse.status };
-          if (!extResponse.ok) {
-            const errText = await extResponse.text();
-            console.log('Failed to delete extension from Api4Com:', errText);
-            // 404 = already gone, continue; otherwise fail
-            if (extResponse.status !== 404) {
-              throw new Error(`Erro ao deletar ramal na Api4Com: ${errText}`);
+        // 2. Deletar extensão na Api4Com (usa o api4com_id, não o id interno)
+        if (providerExtId) {
+          try {
+            const extResponse = await fetch(`${baseUrl}/extensions/${providerExtId}`, {
+              method: 'DELETE',
+              headers,
+            });
+            deleteResults.extension = { success: extResponse.ok, status: extResponse.status };
+            if (!extResponse.ok) {
+              const errText = await extResponse.text();
+              console.log('Failed to delete extension from Api4Com:', errText);
+              if (extResponse.status !== 404) {
+                throw new Error(`Erro ao deletar ramal na Api4Com: ${errText}`);
+              }
             }
+          } catch (e: any) {
+            if (e.message?.includes('Erro ao deletar ramal')) throw e;
+            console.log('Extension delete network error:', e.message);
+            deleteResults.extension = { success: false, error: e.message };
           }
-        } catch (e: any) {
-          if (e.message?.includes('Erro ao deletar ramal')) throw e;
-          console.log('Extension delete network error:', e.message);
+        } else {
+          deleteResults.extension = { success: true, skipped: 'no_provider_id' };
         }
 
         // 3. Deletar usuário organizacional na Api4Com (se existir)
-        const api4comUserId = extRecord?.api4com_raw?.user_id || extRecord?.api4com_raw?.userId;
+        const api4comUserId = (extRecord.api4com_raw as any)?.user_id || (extRecord.api4com_raw as any)?.userId;
         if (api4comUserId) {
           try {
             const userResponse = await fetch(`${baseUrl}/users/${api4comUserId}`, {
@@ -398,25 +406,13 @@ serve(async (req) => {
           }
         }
 
-        // 4. Deletar do banco
-        if (extRecord?.id) {
-          const { error: dbError } = await supabase
-            .from('phone_extensions')
-            .delete()
-            .eq('id', extRecord.id);
-          if (dbError) throw new Error(`Erro ao deletar do banco: ${dbError.message}`);
-          deleteResults.database = { success: true };
-        } else {
-          // Fallback: tentar deletar por api4com_id
-          const { error: dbError } = await scopeAgent(
-            supabase
-              .from('phone_extensions')
-              .delete()
-              .eq('api4com_id', extensionId)
-          );
-          if (dbError) throw new Error(`Erro ao deletar do banco: ${dbError.message}`);
-          deleteResults.database = { success: true };
-        }
+        // 4. Deletar do banco pelo id interno
+        const { error: dbError, count } = await supabase
+          .from('phone_extensions')
+          .delete({ count: 'exact' })
+          .eq('id', extRecord.id);
+        if (dbError) throw new Error(`Erro ao deletar do banco: ${dbError.message}`);
+        deleteResults.database = { success: (count ?? 0) > 0, rowsDeleted: count ?? 0 };
 
         result = deleteResults;
         break;
