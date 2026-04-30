@@ -36,6 +36,7 @@ import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 import { ChatCrmButton } from './ChatCrmButton';
 import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
 import { SlaBadge } from './SlaBadge';
+import { PriorityBadge } from './PriorityBadge';
 import { JuliaStatusBadge } from './JuliaStatusBadge';
 
 interface ChatHeaderProps {
@@ -485,6 +486,15 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                   compact
                   className={cn(!queueName && !selectedConversation && 'rounded-l', 'rounded-r w-[64px]')}
                 />
+              )}
+              {selectedConversation && (
+                <span className="ml-1 inline-flex items-center">
+                  <PriorityBadge
+                    conversationId={selectedConversation.id}
+                    currentPriority={selectedConversation.priority}
+                    compact
+                  />
+                </span>
               )}
             </div>
           )}
