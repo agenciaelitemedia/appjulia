@@ -93,12 +93,14 @@ Deno.serve(async (req) => {
       .from('phone_config' as never)
       .select('id')
       .eq('provider', provider.provider)
-      .eq('client_id', clientId) as any)
+      .eq('client_id', clientId)
+      .eq('is_active', true) as any)
       .maybeSingle()
 
     let configId: number
     if (existingCfg?.id) {
       configId = existingCfg.id
+      console.log('[telephony-provision] reusando phone_config existente', { configId, clientId })
     } else {
       const cfgPayload: Record<string, unknown> = {
         client_id: clientId,
@@ -126,11 +128,33 @@ Deno.serve(async (req) => {
         .select('id')
         .single()
       if (cfgErr || !newCfg) {
-        const errMsg = `Falha ao criar phone_config: ${cfgErr?.message ?? 'unknown'}`
-        await sb.from('telephony_orders').update({ provisioning_error: errMsg, updated_at: new Date().toISOString() }).eq('id', order_id)
-        return json({ error: errMsg }, 500)
+        // Trata duplicata: a constraint uq_phone_config_client_provider_active garante 1 ativa
+        // por (client_id, provider). Em race condition, recupera a existente.
+        const isDup = (cfgErr?.code === '23505') || /duplicate key|uq_phone_config_client_provider_active/i.test(cfgErr?.message ?? '')
+        if (isDup) {
+          const { data: dupCfg } = await (sb
+            .from('phone_config' as never)
+            .select('id')
+            .eq('provider', provider.provider)
+            .eq('client_id', clientId)
+            .eq('is_active', true) as any)
+            .maybeSingle()
+          if (dupCfg?.id) {
+            configId = dupCfg.id
+            console.log('[telephony-provision] phone_config duplicada — reusando id existente', { configId, clientId })
+          } else {
+            const errMsg = `Falha ao recuperar phone_config após duplicata para client_id=${clientId}`
+            await sb.from('telephony_orders').update({ provisioning_error: errMsg, updated_at: new Date().toISOString() }).eq('id', order_id)
+            return json({ error: errMsg }, 500)
+          }
+        } else {
+          const errMsg = `Falha ao criar phone_config: ${cfgErr?.message ?? 'unknown'}`
+          await sb.from('telephony_orders').update({ provisioning_error: errMsg, updated_at: new Date().toISOString() }).eq('id', order_id)
+          return json({ error: errMsg }, 500)
+        }
+      } else {
+        configId = newCfg.id
       }
-      configId = newCfg.id
     }
 
     // 5. Cria phone_user_plans
