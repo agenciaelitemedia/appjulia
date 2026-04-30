@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -37,6 +37,15 @@ export function CSATDialog({
   const [sendSurvey, setSendSurvey] = useState(true);
   const [surveyText, setSurveyText] = useState(SURVEY_TEMPLATE());
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Reset state every time the dialog opens
+  useEffect(() => {
+    if (open) {
+      setCloseNote('');
+      setSendSurvey(true);
+      setSurveyText(SURVEY_TEMPLATE());
+    }
+  }, [open]);
 
   const handleConfirm = async () => {
     setIsSubmitting(true);
