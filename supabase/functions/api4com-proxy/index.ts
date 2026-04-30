@@ -123,7 +123,6 @@ serve(async (req) => {
             .from('phone_extensions')
             .select('api4com_ramal, extension_number')
             .eq('id', extensionId)
-            .eq('cod_agent', codAgent)
             .single();
 
           if (!ext?.api4com_ramal) {
@@ -439,7 +438,6 @@ serve(async (req) => {
           .from('phone_extensions')
           .select('api4com_ramal, api4com_password, api4com_id')
           .eq('id', extensionId)
-          .eq('cod_agent', codAgent)
           .single();
 
         let username = ext?.api4com_ramal;
