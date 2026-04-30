@@ -1,51 +1,71 @@
-## Problema identificado
+## Objetivo
 
-No fluxo `/telefonia/contratar`, o valor exibido no resumo do pedido (frontend) **diverge** do valor enviado para o pagamento (Mercado Pago).
+Garantir que **todo o fluxo de pedido de telefonia** (criação → checkout → pagamento → provisionamento → exibição admin) use `client_id` como chave principal, mantendo `cod_agent` como campo opcional/legado para não quebrar nada que já depende dele (proxies Api4Com/3C+, telas existentes).
 
-### Causa raiz
+## Diagnóstico atual
 
-A edge function `supabase/functions/telephony-order-create/index.ts` calcula a taxa de setup com uma constante hardcoded:
+Mapeei o uso de `cod_agent` no fluxo:
 
-```ts
-const SETUP_FEE_MONTHLY = 19700  // R$ 197,00
-...
-const setupFee = billing_period === 'monthly' ? SETUP_FEE_MONTHLY : 0
+| Etapa | Estado atual | Ação necessária |
+|---|---|---|
+| `telephony-order-create` | Já não exige `cod_agent` | Nenhuma |
+| `telephony-order-checkout` / `mercadopago-webhook` | Não tocam `cod_agent` | Nenhuma |
+| `telephony-provision` | Já trata `cod_agent` como opcional + tenta herdar | Reforçar (ver abaixo) |
+| `phone_config.cod_agent` | **Já é nullable** (migração anterior) | Nenhuma |
+| `phone_user_plans.cod_agent` | Já é nullable | Nenhuma |
+| `phone_extensions.cod_agent` | **NOT NULL** ainda | Tornar nullable (próximo gargalo natural ao criar ramal) |
+| `telephony_orders.cod_agent` | Coluna existe, é opcional | Nenhuma |
+| `api4com-proxy` / `threecplus-proxy` | Usam `client_id` quando vem; senão fallback `cod_agent` | Manter como está (compatibilidade) |
+| Telas admin (`ConfigTab`, `EditTelefoniaDialog`, `AgentsTelefoniaTab`, `CallHistoryAdminTab`) | Apenas **exibem** `cod_agent` quando existe (com `&&`) | Nenhuma — já tolera `null` |
+| `useTelefoniaAdmin` (dual-write) | Tenta resolver `cod_agent` via `agents.client_id`; se vazio, salva string `''` | Ajustar para salvar `null` em vez de `''` |
+
+Nota importante: `useTelefoniaData` e os proxies usam `cod_agent` como fallback de escopo quando `client_id` não está disponível no contexto chamador. Não vou remover esse fallback — apenas garantir que `client_id` seja preferido quando presente, o que já é o comportamento atual.
+
+## Mudanças
+
+### 1. Migração de schema (mínima, segura)
+
+```sql
+-- Remove o último NOT NULL do trio principal do fluxo de pedido.
+-- Permite que ramais criados pelo provisionamento client_id-first não falhem.
+ALTER TABLE public.phone_extensions ALTER COLUMN cod_agent DROP NOT NULL;
 ```
 
-Ou seja:
-- Sempre cobra **R$ 197,00 fixo** em planos mensais — independente do que está cadastrado no plano.
-- Sempre cobra **R$ 0,00** em trimestral/semestral/anual — ignorando os valores do plano.
+Sem impacto: linhas existentes continuam preenchidas; o frontend já checa `cod_agent &&` antes de exibir.
 
-Já o frontend (`SelectPlanStep.tsx` + `types.ts → setupFeeForPeriod`) lê corretamente as 4 colunas reais da tabela `phone_extension_plans`:
-- `setup_fee_monthly`
-- `setup_fee_quarterly`
-- `setup_fee_semiannual`
-- `setup_fee_annual`
+### 2. `supabase/functions/telephony-provision/index.ts`
 
-Por isso o resumo mostra um valor (do plano) e o checkout cobra outro (constante).
+Pequeno hardening:
+- Trocar `(cfgPayload.cod_agent = codAgent)` para enviar `null` explícito quando ausente (em vez de omitir do payload), garantindo que o INSERT não quebre se algum default antigo tentar exigir o campo.
+- Adicionar log claro: `console.log('[telephony-provision] cod_agent ausente — provisionando puramente por client_id', clientId)` quando aplicável.
 
-## Correção
+### 3. `src/pages/admin/telefonia/hooks/useTelefoniaAdmin.ts`
 
-Atualizar `supabase/functions/telephony-order-create/index.ts` para:
+- Trocar `cod_agent: codAgent || ''` por `cod_agent: codAgent ?? null` nos dois pontos de INSERT (`createConfig` e `provisionConfig`), para refletir corretamente o estado "sem agente vinculado" e evitar que strings vazias contaminem queries posteriores (`.eq('cod_agent', '')`).
 
-1. Remover a constante `SETUP_FEE_MONTHLY`.
-2. Adicionar uma função `setupFeeFromPlan(plan, period)` espelhando exatamente a lógica do frontend:
-   - Mapeia o período para a coluna correspondente (`setup_fee_monthly/quarterly/semiannual/annual`).
-   - Retorna `0` quando o valor é `null/undefined` (sem cobrança).
-   - Converte o valor de Reais (numeric) para centavos com `Math.round(value * 100)`.
-3. Substituir o cálculo atual por:
-   ```ts
-   const setupFee = setupFeeFromPlan(plan, billing_period)
-   ```
+### 4. `src/pages/admin/telefonia/types.ts`
 
-Os demais cálculos (preço do plano, addons de gravação/transcrição, ramais extras e total) já estão corretos e espelham o frontend — não precisam de alteração.
+Tornar opcionais nas interfaces para refletir realidade do banco:
+```ts
+PhoneConfig.cod_agent: string | null
+PhoneUserPlan.cod_agent: string | null  // (já está)
+PhoneExtension.cod_agent: string | null
+TelephonyOrder.cod_agent: string | null  // (já está)
+```
+
+Telas que renderizam `{cfg.cod_agent && (...)}` continuam funcionando.
+
+## O que NÃO vou mexer (para evitar impactos)
+
+- `api4com-proxy` e `threecplus-proxy`: continuam aceitando `cod_agent` como fallback. Migração total para `client_id` puro será uma fase futura.
+- `phone_extensions` UI de criação manual: continua passando `cod_agent` quando disponível (não-breaking).
+- `db-query` e funções não-telefônicas que usam `cod_agent` (agents, user_agents, leads): fora do escopo deste pedido.
+- Não vou alterar `phone_config` / `phone_user_plans` (já corrigidos).
 
 ## Resultado esperado
 
-- O `total_amount` salvo em `telephony_orders` e enviado ao Mercado Pago passará a refletir exatamente o que o usuário viu no resumo.
-- Planos sem setup fee cadastrado não cobrarão setup.
-- Planos com setup configurado em qualquer período (incluindo trimestral/semestral/anual) cobrarão o valor correto.
-
-## Arquivos alterados
-
-- `supabase/functions/telephony-order-create/index.ts` — única alteração necessária.
+Após a aprovação:
+- Pedido → checkout → pagamento → provisionamento funciona puramente com `client_id`, mesmo para clientes sem nenhum `cod_agent` cadastrado.
+- Configuração aparece em `admin/telefonia → Configurações` mesmo sem `cod_agent`.
+- Criação posterior de ramais não vai mais bater no NOT NULL de `phone_extensions.cod_agent`.
+- Tudo que já usa `cod_agent` continua funcionando inalterado.

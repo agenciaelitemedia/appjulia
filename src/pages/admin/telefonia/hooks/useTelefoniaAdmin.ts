@@ -163,7 +163,7 @@ export function useTelefoniaAdmin() {
       const dueDate = calcDueDate(startDate, params.billingPeriod);
 
       const { error } = await supabase.from('phone_user_plans').insert({
-        cod_agent: codAgent || '',
+        cod_agent: codAgent ?? null,
         client_id: clientId,
         plan_id: params.planId,
         billing_period: params.billingPeriod,
@@ -281,7 +281,7 @@ export function useTelefoniaAdmin() {
         }
         const { error } = await supabase
           .from('phone_config')
-          .insert({ ...config, client_id: clientId, cod_agent: codAgent || '' } as any);
+          .insert({ ...config, client_id: clientId, cod_agent: codAgent ?? null } as any);
         if (error) throw error;
       }
     },
