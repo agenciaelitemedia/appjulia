@@ -551,7 +551,11 @@ serve(async (req) => {
       case 'get_effective_client_id': {
         const { userId } = data;
         result = await sql.unsafe(
-          `SELECT COALESCE(u.client_id, parent.client_id)::text AS client_id
+          `SELECT COALESCE(
+              u.client_id,
+              parent.client_id,
+              (SELECT a.client_id FROM user_agents ua JOIN agents a ON a.id = ua.agent_id WHERE ua.user_id = u.id AND a.client_id IS NOT NULL LIMIT 1)
+            )::text AS client_id
              FROM users u
              LEFT JOIN users parent ON parent.id = u.user_id
             WHERE u.id = $1
