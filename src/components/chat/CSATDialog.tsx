@@ -34,7 +34,7 @@ export function CSATDialog({
   onConfirm,
 }: CSATDialogProps) {
   const [closeNote, setCloseNote] = useState('');
-  const [sendSurvey, setSendSurvey] = useState(true);
+  const [sendSurvey, setSendSurvey] = useState(false);
   const [surveyText, setSurveyText] = useState(SURVEY_TEMPLATE());
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -42,7 +42,7 @@ export function CSATDialog({
   useEffect(() => {
     if (open) {
       setCloseNote('');
-      setSendSurvey(true);
+      setSendSurvey(false);
       setSurveyText(SURVEY_TEMPLATE());
     }
   }, [open]);
