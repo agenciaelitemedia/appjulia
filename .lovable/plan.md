@@ -1,71 +1,30 @@
-## Diagnóstico
+## Objetivo
 
-Você comprou telefonia logado como **Mario Castro** (`users.id = 2`, `clients.id = 30`, `business_name = "Escritorio Mario Testes"`).
+Em `/telefonia`, ao criar/editar um ramal, o seletor "Vincular a" deve usar o componente padrão da aplicação (`TeamMemberSelect`) carregando os membros via `useTeamByClient`, incluindo o próprio usuário logado — substituindo o `Select` simples atual.
 
-O pedido foi gravado com `client_id = 2` (e a `phone_config` resultante também). Mas **2 é o ID do usuário, não do cliente** — o ID do cliente "Escritorio Mario Testes" na tabela `clients` é **30**.
+## Mudança
 
-Por coincidência, existe um cliente real com `id = 2` (`Alexandre Ferreira`), então a configuração de telefonia que você acabou de pagar foi vinculada por engano ao cliente errado.
+Refatorar `src/pages/telefonia/components/RamalDialog.tsx`:
 
-### Causa raiz
+1. Trocar a busca atual (`externalDb.getTeamMembers`) por `useTeamByClient()`, que já resolve o `client_id` do usuário logado e retorna todos os membros (mesmo padrão usado em `TransferDialog` e `CRMLeadDetailsDialog`).
+2. Substituir o componente `<Select>` atual por `<TeamMemberSelect>` com:
+   - `valueKey="id"` (o backend exige `assigned_member_id` numérico)
+   - `showCurrentUserShortcut={false}` (o próprio usuário já aparece naturalmente na lista da equipe; injetá-lo manualmente apenas se ele não estiver no resultado de `useTeamByClient`)
+   - `allowUnassigned={false}` (ramal precisa estar vinculado a alguém)
+   - placeholder "Selecione um membro"
+3. Manter o filtro atual que exclui membros já atribuídos a outros ramais (`assignedMemberIds`), aplicado sobre a lista de `useTeamByClient` antes de passar para o componente.
+4. Garantir que o usuário logado apareça primeiro: se ele não vier em `useTeamByClient` (caso edge), injetá-lo no topo da lista com seus dados (`id`, `name`, `email`, `photo`).
+5. Manter o auto-preenchimento do campo "Nome/Apelido" com o nome do membro selecionado ao criar.
+6. Manter o `email`/`memberName` enviados no `onSave` (resolvidos a partir do membro selecionado pelo `id`).
 
-Em `src/pages/telefonia/contratar/ContratarTelefoniaPage.tsx` (linha 56):
+## Detalhes técnicos
 
-```ts
-const { data, error } = await supabase.functions.invoke('telephony-order-create', {
-  body: {
-    client_id: user.id,   // ❌ user.id é o ID do usuário (2), não do cliente (30)
-    ...
-  }
-});
-```
+- Hook a usar: `useTeamByClient()` de `src/hooks/useTeamByClient.ts` (retorna `{ id, name, email, role, client_id, photo }[]`).
+- Componente: `TeamMemberSelect` de `src/components/TeamMemberSelect.tsx`, modo `valueKey="id"`.
+- Estado interno `selectedMemberId` muda de `string` para `string | null` (compatível com a API do componente).
+- Remover a query `team-members-for-ramal` (não é mais necessária).
+- Nenhuma mudança em backend, hooks de telefonia ou tipos.
 
-O `AuthContext` expõe dois campos distintos:
-- `user.id` — ID do registro em `users` (no seu caso, `2`)
-- `user.client_id` — ID do registro em `clients` ao qual o usuário pertence (no seu caso, `30`, hidratado automaticamente para sub-usuários)
+## Arquivos afetados
 
-A página de contratação está enviando o campo errado.
-
-## Correção
-
-### 1. `src/pages/telefonia/contratar/ContratarTelefoniaPage.tsx`
-
-Trocar `user.id` por `user.client_id` (com fallback explícito + erro claro se ausente):
-
-```ts
-const clientId = user?.client_id ?? null;
-if (!clientId) {
-  toast.error('Não foi possível identificar o cliente vinculado ao seu usuário.');
-  return;
-}
-// ...
-body: {
-  client_id: clientId,
-  ...
-}
-```
-
-### 2. `supabase/functions/telephony-order-create/index.ts`
-
-Hardening de validação no backend para impedir que esse tipo de mistake aconteça de novo:
-- Validar que o `client_id` recebido **existe na tabela `clients`** (via `db-query` interno) antes de criar o pedido. Se não existir, retornar erro 400 claro.
-- Manter o campo como numérico (`Number(client_id)`) em vez de `String(client_id)` no insert, para refletir corretamente o tipo da coluna.
-
-### 3. Limpeza dos dados incorretos
-
-A configuração `phone_config id=13` (vinculada por engano ao `client_id=2 / Alexandre Ferreira`) e o pedido `telephony_orders id=deea3a64...` ficaram órfãos/incorretos. Vou:
-- Remover a `phone_config` errada (id=13).
-- Remover o `phone_user_plans` correspondente (se foi criado).
-- Marcar o pedido como `provisioning_error` ou removê-lo (a definir contigo: prefere **apagar o pedido** ou **reprovisionar** apontando para o `client_id=30` correto?).
-
-## O que NÃO vou mexer
-
-- Estrutura do schema (tudo já está correto: `phone_config.client_id` é `bigint`).
-- Outros pontos do fluxo (`telephony-provision`, hooks admin) — eles já tratam `client_id` corretamente; o bug está apenas no envio inicial do frontend.
-
-## Decisão necessária
-
-Sobre o pedido bagunçado (Mario / Escritorio Mario Testes, valor R$ 5,00, já pago):
-- (a) Apagar o pedido + a config errada e você cria um novo pedido limpo.
-- (b) Reaproveitar o pedido existente: corrigir o `client_id` para `30` no pedido + reprovisionar a config no cliente certo, removendo a config errada do `client_id=2`.
-
-Me confirma qual prefere e eu executo junto com a correção do bug.
+- `src/pages/telefonia/components/RamalDialog.tsx` (única alteração)
