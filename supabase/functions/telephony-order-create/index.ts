@@ -74,6 +74,10 @@ Deno.serve(async (req) => {
     if (!client_id || !plan_id || !billing_period) {
       return json({ error: 'client_id, plan_id e billing_period são obrigatórios' }, 400)
     }
+    const clientIdNum = Number(client_id)
+    if (!Number.isFinite(clientIdNum) || clientIdNum <= 0) {
+      return json({ error: `client_id inválido: ${client_id}` }, 400)
+    }
     if (!BILLING_PERIOD_MONTHS[billing_period]) {
       return json({ error: 'billing_period inválido' }, 400)
     }
@@ -82,6 +86,28 @@ Deno.serve(async (req) => {
     }
 
     const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+
+    // 0. Valida que client_id existe na tabela externa de clientes (evita pedidos órfãos
+    //    e o bug histórico de quem mandava user.id em vez de client_id).
+    try {
+      const { data: vr } = await sb.functions.invoke('db-query', {
+        body: {
+          action: 'raw',
+          data: {
+            query: 'SELECT id, name, business_name FROM clients WHERE id = $1 LIMIT 1',
+            params: [clientIdNum],
+          },
+        },
+      })
+      const row = (vr as any)?.data?.[0] ?? (vr as any)?.[0] ?? null
+      if (!row) {
+        return json({ error: `Cliente com id=${clientIdNum} não foi encontrado.` }, 400)
+      }
+      console.log('[telephony-order-create] client validated', { client_id: clientIdNum, name: row.name, business_name: row.business_name })
+    } catch (e) {
+      console.warn('[telephony-order-create] client validation skipped (db-query failure)', (e as Error).message)
+      // Não bloqueia em caso de falha do db-query — apenas loga.
+    }
 
     // 1. Busca plano
     const { data: plan, error: planErr } = await sb
