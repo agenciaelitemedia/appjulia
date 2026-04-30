@@ -242,6 +242,8 @@ export function useTelefoniaAdmin() {
   // === Config (per client) ===
   const configQuery = useQuery({
     queryKey: ['phone-configs-all'],
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
     queryFn: async (): Promise<PhoneConfig[]> => {
       const { data, error } = await supabase
         .from('phone_config')
