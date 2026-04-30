@@ -454,24 +454,36 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
             ))}
             <PresenceIndicator users={presenceUsers} meId={user?.id ? String(user.id) : null} />
           </div>
-          {(queueName || slaEvaluation) && (
+          {(queueName || slaEvaluation || selectedConversation) && (
             <div className="flex items-stretch gap-0 mt-1">
               {queueName && (
                 <span
-                  className={cn(
-                    'inline-flex items-center justify-center h-5 px-1.5 text-[9px] font-bold leading-none overflow-hidden whitespace-nowrap text-center bg-blue-600 text-white rounded-l',
-                    !slaEvaluation && 'rounded-r'
-                  )}
+                  className="inline-flex items-center justify-center h-5 px-1.5 text-[9px] font-bold leading-none overflow-hidden whitespace-nowrap text-center bg-blue-600 text-white rounded-l w-[110px]"
                   title={`Fila: ${queueName}`}
                 >
-                  <span className="truncate max-w-[160px]">{queueName}</span>
+                  <span className="truncate">{queueName}</span>
+                </span>
+              )}
+              {selectedConversation && (
+                <span
+                  className={cn(
+                    'inline-flex items-center justify-center h-5 px-1.5 text-[9px] leading-none overflow-hidden whitespace-nowrap text-center bg-slate-100 text-slate-900 w-[110px]',
+                    !queueName && 'rounded-l',
+                    !slaEvaluation && 'rounded-r',
+                    selectedConversation.assigned_to ? 'font-bold' : 'font-normal'
+                  )}
+                  title={selectedConversation.assigned_to || 'Não Atribuído'}
+                >
+                  <span className="truncate">
+                    {selectedConversation.assigned_to || 'Não Atribuído'}
+                  </span>
                 </span>
               )}
               {slaEvaluation && (
                 <SlaBadge
                   evaluation={slaEvaluation}
                   compact
-                  className={cn(!queueName && 'rounded-l', 'rounded-r')}
+                  className={cn(!queueName && !selectedConversation && 'rounded-l', 'rounded-r w-[64px]')}
                 />
               )}
             </div>
