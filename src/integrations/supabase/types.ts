@@ -4861,17 +4861,21 @@ export type Database = {
           customer_whatsapp: string | null
           extra_extensions: number
           extra_extensions_total: number
+          fee_amount: number | null
           id: string
           metadata: Json | null
           mp_payment_id: string | null
           mp_preference_id: string | null
+          net_amount: number | null
           order_nsu: string | null
+          paid_amount: number | null
           paid_at: string | null
           payment_gateway: string
           plan_id: number
           plan_name: string
           plan_price: number
           provisioned_at: string | null
+          provisioning_error: string | null
           recording_enabled: boolean
           recording_total: number
           setup_fee: number
@@ -4880,6 +4884,7 @@ export type Database = {
           transcription_enabled: boolean
           transcription_total: number
           updated_at: string
+          webhook_payload: Json | null
         }
         Insert: {
           billing_period: string
@@ -4892,17 +4897,21 @@ export type Database = {
           customer_whatsapp?: string | null
           extra_extensions?: number
           extra_extensions_total?: number
+          fee_amount?: number | null
           id?: string
           metadata?: Json | null
           mp_payment_id?: string | null
           mp_preference_id?: string | null
+          net_amount?: number | null
           order_nsu?: string | null
+          paid_amount?: number | null
           paid_at?: string | null
           payment_gateway?: string
           plan_id: number
           plan_name: string
           plan_price?: number
           provisioned_at?: string | null
+          provisioning_error?: string | null
           recording_enabled?: boolean
           recording_total?: number
           setup_fee?: number
@@ -4911,6 +4920,7 @@ export type Database = {
           transcription_enabled?: boolean
           transcription_total?: number
           updated_at?: string
+          webhook_payload?: Json | null
         }
         Update: {
           billing_period?: string
@@ -4923,17 +4933,21 @@ export type Database = {
           customer_whatsapp?: string | null
           extra_extensions?: number
           extra_extensions_total?: number
+          fee_amount?: number | null
           id?: string
           metadata?: Json | null
           mp_payment_id?: string | null
           mp_preference_id?: string | null
+          net_amount?: number | null
           order_nsu?: string | null
+          paid_amount?: number | null
           paid_at?: string | null
           payment_gateway?: string
           plan_id?: number
           plan_name?: string
           plan_price?: number
           provisioned_at?: string | null
+          provisioning_error?: string | null
           recording_enabled?: boolean
           recording_total?: number
           setup_fee?: number
@@ -4942,6 +4956,7 @@ export type Database = {
           transcription_enabled?: boolean
           transcription_total?: number
           updated_at?: string
+          webhook_payload?: Json | null
         }
         Relationships: []
       }
