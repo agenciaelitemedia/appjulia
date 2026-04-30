@@ -21,7 +21,7 @@ class SyncQueueManager {
   private clientId: number | null = null;
   private provider: ProviderType = 'api4com';
 
-  init(codAgent: string, provider: ProviderType = 'api4com') {
+  init(codAgent: string | null, provider: ProviderType = 'api4com') {
     if (this.codAgent === codAgent && this.provider === provider && this.intervalId) return;
     this.destroy();
     this.codAgent = codAgent;
@@ -51,7 +51,7 @@ class SyncQueueManager {
   }
 
   private async processNext() {
-    if (this.processing || !this.codAgent) return;
+    if (this.processing || (!this.codAgent && !this.clientId)) return;
 
     const now = Date.now();
     const readyIndex = this.queue.findIndex(item => item.scheduledAt <= now);
