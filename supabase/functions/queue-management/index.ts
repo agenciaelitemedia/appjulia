@@ -472,6 +472,27 @@ serve(async (req) => {
             .eq('queue_id', queue_id);
           if (mErr) throw mErr;
 
+          // Migrate queue_members from old queue to new queue (best-effort)
+          try {
+            const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+            const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+            await fetch(`${supabaseUrl}/functions/v1/db-query`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
+              body: JSON.stringify({
+                action: 'raw',
+                data: {
+                  query: `INSERT INTO queue_members (queue_id, user_id, role)
+                    SELECT $1, user_id, role FROM queue_members WHERE queue_id = $2
+                    ON CONFLICT (queue_id, user_id) DO NOTHING`,
+                  params: [migrate_to_queue_id, queue_id],
+                },
+              }),
+            });
+          } catch (err) {
+            console.warn('[queue-management] failed to migrate queue_members on restore:', err);
+          }
+
           return respond({
             success: true,
             migrated_to: migrate_to_queue_id,
