@@ -168,6 +168,48 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(contact.name);
 
+  const { configs: slaConfigs } = useChatSlaConfigs();
+
+  const slaEvaluation = React.useMemo(() => {
+    if (!selectedConversation) return null;
+    if (['closed', 'resolved'].includes(selectedConversation.status)) return null;
+    return evaluateSla(
+      {
+        status: selectedConversation.status,
+        priority: selectedConversation.priority,
+        opened_at: selectedConversation.opened_at,
+        first_response_at: selectedConversation.first_response_at || null,
+        resolved_at: selectedConversation.resolved_at || null,
+        closed_at: selectedConversation.closed_at || null,
+      },
+      slaConfigs
+    );
+  }, [selectedConversation, slaConfigs]);
+
+  const queueId = selectedConversation?.queue_id || null;
+  const { data: queueName } = useQuery({
+    queryKey: ['contact-detail-queue-name', queueId],
+    enabled: !!queueId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('queues')
+        .select('name')
+        .eq('id', queueId!)
+        .maybeSingle();
+      if (error) throw error;
+      return (data?.name as string) || null;
+    },
+  });
+
+  const phoneList = React.useMemo(() => (contact.phone ? [contact.phone] : []), [contact.phone]);
+  const { data: stageMap } = useCRMStageByPhone(phoneList);
+  const juliaStage = React.useMemo(() => {
+    if (!stageMap || !contact.phone) return null;
+    const norm = contact.phone.replace(/\D/g, '');
+    return stageMap.get(norm) || null;
+  }, [stageMap, contact.phone]);
+
   const initials = contact.name
     .split(' ')
     .slice(0, 2)
