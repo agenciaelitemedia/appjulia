@@ -110,9 +110,13 @@ export function useTelefoniaData(
       const externalId = provider === '3cplus' ? ext?.threecplus_agent_id : ext?.api4com_id;
       if (!externalId) {
         // Sem vínculo com provedor, deletar só do banco
-        const { error } = await supabase.from('phone_extensions').delete().eq('id', id);
+        const { error, count } = await supabase
+          .from('phone_extensions')
+          .delete({ count: 'exact' })
+          .eq('id', id);
         if (error) throw error;
-        return;
+        if (!count) throw new Error('O ramal não foi removido do sistema.');
+        return { id, rowsDeleted: count };
       }
       // Backend faz tudo: provedor + banco
       const { data, error } = await supabase.functions.invoke(getPhoneProxy(provider), {
@@ -120,9 +124,19 @@ export function useTelefoniaData(
       });
       if (error) throw new Error(error.message || 'Erro ao deletar ramal');
       if (data?.error) throw new Error(data.error);
+      const result = data?.data ?? data;
+      const databaseResult = result?.database;
+      if (!databaseResult?.success || !databaseResult?.rowsDeleted) {
+        throw new Error('O ramal não foi removido do sistema. Atualize a página e tente novamente.');
+      }
+      return { id, rowsDeleted: databaseResult.rowsDeleted };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-extensions'] });
+    onSuccess: async ({ id }) => {
+      queryClient.setQueriesData({ queryKey: ['my-extensions'] }, (old: PhoneExtension[] | undefined) =>
+        Array.isArray(old) ? old.filter((extension) => extension.id !== id) : old
+      );
+      await queryClient.invalidateQueries({ queryKey: ['my-extensions'] });
+      await queryClient.refetchQueries({ queryKey: ['my-extensions'], type: 'active' });
       toast.success('Ramal removido com sucesso');
     },
     onError: (e: Error) => toast.error(e.message),
