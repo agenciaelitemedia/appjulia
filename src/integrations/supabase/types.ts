@@ -4857,6 +4857,7 @@ export type Database = {
           billing_period: string
           checkout_url: string | null
           client_id: string
+          config_id: number | null
           created_at: string
           customer_document: string
           customer_email: string
@@ -4877,6 +4878,7 @@ export type Database = {
           plan_id: number
           plan_name: string
           plan_price: number
+          provider_id: number | null
           provisioned_at: string | null
           provisioning_error: string | null
           recording_enabled: boolean
@@ -4887,12 +4889,14 @@ export type Database = {
           transcription_enabled: boolean
           transcription_total: number
           updated_at: string
+          user_plan_id: number | null
           webhook_payload: Json | null
         }
         Insert: {
           billing_period: string
           checkout_url?: string | null
           client_id: string
+          config_id?: number | null
           created_at?: string
           customer_document: string
           customer_email: string
@@ -4913,6 +4917,7 @@ export type Database = {
           plan_id: number
           plan_name: string
           plan_price?: number
+          provider_id?: number | null
           provisioned_at?: string | null
           provisioning_error?: string | null
           recording_enabled?: boolean
@@ -4923,12 +4928,14 @@ export type Database = {
           transcription_enabled?: boolean
           transcription_total?: number
           updated_at?: string
+          user_plan_id?: number | null
           webhook_payload?: Json | null
         }
         Update: {
           billing_period?: string
           checkout_url?: string | null
           client_id?: string
+          config_id?: number | null
           created_at?: string
           customer_document?: string
           customer_email?: string
@@ -4949,6 +4956,7 @@ export type Database = {
           plan_id?: number
           plan_name?: string
           plan_price?: number
+          provider_id?: number | null
           provisioned_at?: string | null
           provisioning_error?: string | null
           recording_enabled?: boolean
@@ -4959,6 +4967,7 @@ export type Database = {
           transcription_enabled?: boolean
           transcription_total?: number
           updated_at?: string
+          user_plan_id?: number | null
           webhook_payload?: Json | null
         }
         Relationships: []

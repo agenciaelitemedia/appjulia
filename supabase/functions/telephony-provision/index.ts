@@ -205,7 +205,19 @@ Deno.serve(async (req) => {
       updated_at: new Date().toISOString(),
     }
     if (codAgent) orderUpdate.cod_agent = codAgent
-    await sb.from('telephony_orders').update(orderUpdate).eq('id', order_id)
+    const { error: updErr } = await sb.from('telephony_orders').update(orderUpdate).eq('id', order_id)
+    if (updErr) {
+      console.error('[telephony-provision] FALHA AO ATUALIZAR ORDER', updErr)
+      // Tenta novamente sem as colunas novas (caso o schema cache esteja defasado)
+      const fallback: Record<string, unknown> = {
+        status: 'provisioned',
+        provisioned_at: new Date().toISOString(),
+        provisioning_error: null,
+        updated_at: new Date().toISOString(),
+      }
+      const { error: updErr2 } = await sb.from('telephony_orders').update(fallback).eq('id', order_id)
+      if (updErr2) console.error('[telephony-provision] FALHA NO FALLBACK UPDATE', updErr2)
+    }
 
     console.log('[telephony-provision] OK order=', order_id, 'client_id=', clientId)
     return json({ status: 'provisioned', order_id, client_id: clientId, plan_id: newPlan.id, config_id: configId })
