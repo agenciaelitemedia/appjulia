@@ -123,7 +123,6 @@ serve(async (req) => {
             .from('phone_extensions')
             .select('api4com_ramal, extension_number')
             .eq('id', extensionId)
-            .eq('cod_agent', codAgent)
             .single();
 
           if (!ext?.api4com_ramal) {
@@ -439,7 +438,6 @@ serve(async (req) => {
           .from('phone_extensions')
           .select('api4com_ramal, api4com_password, api4com_id')
           .eq('id', extensionId)
-          .eq('cod_agent', codAgent)
           .single();
 
         let username = ext?.api4com_ramal;
@@ -513,8 +511,13 @@ serve(async (req) => {
 
           if (!api4comId && !ramal) continue;
 
-          // Check if we already have this extension
-          let query = supabase.from('phone_extensions').select('id').eq('cod_agent', codAgent);
+          // Check if we already have this extension (escopa por client_id quando disponível, senão por cod_agent)
+          let query = supabase.from('phone_extensions').select('id');
+          if (effectiveClientId !== null) {
+            query = query.eq('client_id', effectiveClientId);
+          } else if (effectiveCodAgent) {
+            query = query.eq('cod_agent', effectiveCodAgent);
+          }
           if (api4comId) {
             query = query.eq('api4com_id', api4comId);
           } else {
@@ -535,7 +538,7 @@ serve(async (req) => {
           } else {
             // Insert new extension
             const { error: insertError } = await supabase.from('phone_extensions').insert({
-              cod_agent: codAgent,
+              ...dualScope(),
               extension_number: ramal || `ext-${api4comId}`,
               label: apiExt.first_name ? `${apiExt.first_name} ${apiExt.last_name || ''}`.trim() : null,
               api4com_id: api4comId,
@@ -635,7 +638,8 @@ serve(async (req) => {
 
                 const logEntry = {
                   call_id: String(callId),
-                  cod_agent: codAgent,
+                  cod_agent: effectiveCodAgent || null,
+                  ...(effectiveClientId !== null ? { client_id: effectiveClientId } : {}),
                   extension_number: caller,
                   direction, caller, called,
                   started_at: fixTz(cdr.started_at),
@@ -674,10 +678,15 @@ serve(async (req) => {
             // MODE 2: Incremental sync by date
             let sinceDate = since;
             if (!sinceDate) {
-              const { data: lastLog } = await supabase
+              let lastLogQ = supabase
                 .from('phone_call_logs')
-                .select('started_at')
-                .eq('cod_agent', codAgent)
+                .select('started_at');
+              if (effectiveClientId !== null) {
+                lastLogQ = lastLogQ.eq('client_id', effectiveClientId);
+              } else if (effectiveCodAgent) {
+                lastLogQ = lastLogQ.eq('cod_agent', effectiveCodAgent);
+              }
+              const { data: lastLog } = await lastLogQ
                 .order('started_at', { ascending: false })
                 .limit(1)
                 .maybeSingle();
@@ -723,7 +732,8 @@ serve(async (req) => {
                 if (cdr.domain) cdrMetadata.domain = cdr.domain;
 
                 const logEntry: any = {
-                  cod_agent: codAgent,
+                  cod_agent: effectiveCodAgent || null,
+                  ...(effectiveClientId !== null ? { client_id: effectiveClientId } : {}),
                   extension_number: caller,
                   direction, caller, called,
                   started_at: fixTz(cdrStarted),
@@ -745,11 +755,16 @@ serve(async (req) => {
                     .upsert(logEntry, { onConflict: 'call_id' });
                   if (upsertErr) console.error('Upsert error:', upsertErr);
                 } else {
-                  const { data: dup } = await supabase
-                    .from('phone_call_logs').select('id')
-                    .eq('cod_agent', codAgent).eq('extension_number', caller)
-                    .eq('called', called || '').eq('started_at', fixTz(cdrStarted) || '')
-                    .maybeSingle();
+                  let dupQ = supabase.from('phone_call_logs').select('id')
+                    .eq('extension_number', caller)
+                    .eq('called', called || '')
+                    .eq('started_at', fixTz(cdrStarted) || '');
+                  if (effectiveClientId !== null) {
+                    dupQ = dupQ.eq('client_id', effectiveClientId);
+                  } else if (effectiveCodAgent) {
+                    dupQ = dupQ.eq('cod_agent', effectiveCodAgent);
+                  }
+                  const { data: dup } = await dupQ.maybeSingle();
                   if (!dup) await supabase.from('phone_call_logs').insert(logEntry);
                 }
                 totalSynced++;
