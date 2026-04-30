@@ -6,7 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { X, Phone, MessageSquare, Clock, Tag, History, Plus, Hash, Check, Pencil, Info, FileText, Search } from 'lucide-react';
+import { X, Phone, MessageSquare, Clock, Tag, History, Plus, Hash, Check, Pencil, Info, FileText, Search, Users, UserCheck, Layers } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -17,6 +17,10 @@ import { ConversationParticipants } from './ConversationParticipants';
 import { ConversationSummaries } from './ConversationSummaries';
 import type { ChatContact } from '@/types/chat';
 import type { ChatConversation, ConversationHistoryEntry, ChatTag } from '@/types/conversation';
+import { useQuery } from '@tanstack/react-query';
+import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
+import { SlaBadge } from './SlaBadge';
+import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
 
 // ─── TagSelector ─────────────────────────────────────────────────────────────
 interface TagSelectorProps {
@@ -163,6 +167,48 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(contact.name);
+
+  const { configs: slaConfigs } = useChatSlaConfigs();
+
+  const slaEvaluation = React.useMemo(() => {
+    if (!selectedConversation) return null;
+    if (['closed', 'resolved'].includes(selectedConversation.status)) return null;
+    return evaluateSla(
+      {
+        status: selectedConversation.status,
+        priority: selectedConversation.priority,
+        opened_at: selectedConversation.opened_at,
+        first_response_at: selectedConversation.first_response_at || null,
+        resolved_at: selectedConversation.resolved_at || null,
+        closed_at: selectedConversation.closed_at || null,
+      },
+      slaConfigs
+    );
+  }, [selectedConversation, slaConfigs]);
+
+  const queueId = selectedConversation?.queue_id || null;
+  const { data: queueName } = useQuery({
+    queryKey: ['contact-detail-queue-name', queueId],
+    enabled: !!queueId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('queues')
+        .select('name')
+        .eq('id', queueId!)
+        .maybeSingle();
+      if (error) throw error;
+      return (data?.name as string) || null;
+    },
+  });
+
+  const phoneList = React.useMemo(() => (contact.phone ? [contact.phone] : []), [contact.phone]);
+  const { data: stageMap } = useCRMStageByPhone(phoneList);
+  const juliaStage = React.useMemo(() => {
+    if (!stageMap || !contact.phone) return null;
+    const norm = contact.phone.replace(/\D/g, '');
+    return stageMap.get(norm) || null;
+  }, [stageMap, contact.phone]);
 
   const initials = contact.name
     .split(' ')
@@ -355,6 +401,46 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground flex items-center gap-1.5">
+                          <Users className="h-3 w-3" /> Fila
+                        </span>
+                        <span className="text-xs font-medium">{queueName || 'N/A'}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground flex items-center gap-1.5">
+                          <UserCheck className="h-3 w-3" /> Atribuído
+                        </span>
+                        <span className={cn('text-xs', selectedConversation.assigned_to ? 'font-medium' : 'text-muted-foreground')}>
+                          {selectedConversation.assigned_to || 'Não atribuído'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground flex items-center gap-1.5">
+                          <Clock className="h-3 w-3" /> SLA
+                        </span>
+                        {slaEvaluation ? (
+                          <SlaBadge evaluation={slaEvaluation} />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">N/A</span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground flex items-center gap-1.5">
+                          <Layers className="h-3 w-3" /> Etapa da Julia
+                        </span>
+                        {juliaStage?.stageName ? (
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold text-white"
+                            style={{ backgroundColor: juliaStage.stageColor || '#3b82f6' }}
+                            title={juliaStage.stageName}
+                          >
+                            {juliaStage.stageName}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">N/A</span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground flex items-center gap-1.5">
                           <Clock className="h-3 w-3" /> Aberta em
                         </span>
                         <span className="text-xs">{format(new Date(selectedConversation.opened_at), "dd/MM/yy HH:mm", { locale: ptBR })}</span>
@@ -363,12 +449,6 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                         <div className="flex items-center justify-between">
                           <span className="text-muted-foreground text-xs">1ª resposta</span>
                           <span className="text-xs">{format(new Date(selectedConversation.first_response_at), "dd/MM/yy HH:mm", { locale: ptBR })}</span>
-                        </div>
-                      )}
-                      {selectedConversation.assigned_to && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground text-xs">Atribuído a</span>
-                          <span className="text-xs font-medium">{selectedConversation.assigned_to}</span>
                         </div>
                       )}
                       {selectedConversation.department && (
