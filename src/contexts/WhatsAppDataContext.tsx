@@ -318,7 +318,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     : 'active';
 
   const loadConversations = useCallback(async () => {
-    if (!clientId) return;
+    if (!clientId || queuesLoading) return;
     try {
       let query = supabase
         .from('chat_conversations')
@@ -339,10 +339,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     } catch (error) {
       console.error('Error loading conversations:', error);
     }
-  }, [clientId, currentQueueId, convQueryGroup, activeQueueIds]);
+  }, [clientId, currentQueueId, convQueryGroup, activeQueueIds, queuesLoading]);
 
   const loadConvCounts = useCallback(async () => {
-    if (!clientId) return;
+    if (!clientId || queuesLoading) return;
     try {
       let q = supabase
         .from('chat_conversations')
@@ -360,7 +360,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       });
       setConvCounts(counts);
     } catch {/* noop */}
-  }, [clientId, currentQueueId, activeQueueIds]);
+  }, [clientId, currentQueueId, activeQueueIds, queuesLoading]);
 
   const getOrCreateConversation = useCallback(async (contactId: string): Promise<ChatConversation | null> => {
     if (!clientId) return null;
