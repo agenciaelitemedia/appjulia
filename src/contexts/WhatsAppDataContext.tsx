@@ -418,26 +418,19 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     }
   }, [clientId, currentQueueId, convQueryGroup, activeQueueIds, queuesLoading]);
 
-  const loadConvCounts = useCallback(async () => {
-    if (!clientId || queuesLoading) return;
-    try {
-      let q = supabase
-        .from('chat_conversations')
-        .select('status')
-        .eq('client_id', clientId)
-        .in('status', ['pending', 'open']);
-      if (currentQueueId) q = q.eq('queue_id', currentQueueId);
-      else if (activeQueueIds.length > 0) q = q.in('queue_id', activeQueueIds);
-      else { setConvCounts({ pending: 0, open: 0 }); return; }
-      const { data } = await q;
-      const counts = { pending: 0, open: 0 };
-      (data || []).forEach((r: { status: string }) => {
-        if (r.status === 'pending') counts.pending++;
-        else if (r.status === 'open') counts.open++;
-      });
-      setConvCounts(counts);
-    } catch {/* noop */}
-  }, [clientId, currentQueueId, activeQueueIds, queuesLoading]);
+  // Derived counts straight from in-memory `conversations` — no extra DB
+  // round-trip. The realtime channel keeps `conversations` fresh, so these
+  // counts react instantly to inserts/updates without re-querying.
+  // NOTE: ChatList recomputes its own filtered counts; these are the
+  // unfiltered totals exposed via context for backwards compatibility.
+  const convCounts = useMemo(() => {
+    let pending = 0, open = 0;
+    for (const c of conversations) {
+      if (c.status === 'pending') pending++;
+      else if (c.status === 'open') open++;
+    }
+    return { pending, open };
+  }, [conversations]);
 
   const getOrCreateConversation = useCallback(async (contactId: string): Promise<ChatConversation | null> => {
     if (!clientId) return null;
