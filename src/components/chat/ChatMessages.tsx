@@ -26,7 +26,7 @@ type TimelineItem =
   | { kind: 'event'; data: ConversationHistoryEntry; ts: number };
 
 export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
-  const { messages, loadMessages, conversationHistory, loadConversationHistory, selectedConversation, downloadMedia, selectedQueue, contacts } = useWhatsAppData();
+  const { messages, loadMessages, conversationHistory, loadConversationHistory, selectedConversation, downloadMedia, selectedQueue, contacts, isReady } = useWhatsAppData();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -83,9 +83,24 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
     }
   }, [selectedConversation?.id, loadConversationHistory]);
 
-  // Initial load — depends ONLY on contactId. The loadMessages ref is
-  // stable so we don't re-trigger when the context recreates the callback.
+  // Initial load — depends on contactId AND on the parent context being
+  // bootstrapped (`isReady`). Without the readiness gate, the fetch could
+  // fire while the provider is still resolving client_id / queues /
+  // conversations and finish in a state that is later wiped silently,
+  // leaving the panel empty until the user navigates away and back.
   useEffect(() => {
+    if (!contactId) return;
+    if (!isReady) {
+      // Stay in loading state — do not mark first page as loaded yet,
+      // so the resilience effect below will fire as soon as the context
+      // becomes ready.
+      setIsLoading(true);
+      setHasLoadedFirstPage(false);
+      setLoadedCount(0);
+      setHasMore(true);
+      setLoadFailed(false);
+      return;
+    }
     isInitialLoad.current = true;
     setIsLoading(true);
     setHasMore(true);
@@ -125,7 +140,7 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [contactId]);
+  }, [contactId, isReady]);
 
   // Resilience: if the parent context wipes the message cache for the
   // current contact (e.g. a silent refresh after a queue scope change) but
