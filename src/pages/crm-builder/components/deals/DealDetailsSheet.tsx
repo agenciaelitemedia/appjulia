@@ -338,14 +338,7 @@ export function DealDetailsSheet({
 
           <div>
             <TabsContent value="details" className="p-6 pt-4 m-0 space-y-6">
-              {/* 1. Vínculos */}
-              <DealLinksSection deal={deal} />
-
-              {/* 1b. Vínculo Jul.IA (detectado pela fila vinculada ao agente) */}
-              <DealJuliaPanel deal={deal} />
-
-              {/* 2. Contato */}
-              <Separator />
+              {/* 1. Contato */}
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-medium">Contato</h4>
