@@ -496,7 +496,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       const { data, error } = await query;
       if (error) throw error;
 
-      const page = (data || []) as ChatConversation[];
+      const page = ((data || []) as unknown) as ChatConversation[];
       setHasMoreConversations(page.length === CONVERSATIONS_PAGE_SIZE);
 
       if (append) {
