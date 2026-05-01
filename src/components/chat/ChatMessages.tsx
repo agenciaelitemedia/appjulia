@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { Loader2, ChevronDown } from 'lucide-react';
+import { Loader2, ChevronDown, RefreshCw } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { MessageBubble } from './MessageBubble';
@@ -32,12 +33,17 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
   const [hasMore, setHasMore] = useState(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [forwardMessage, setForwardMessage] = useState<ChatMessage | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
   const prevScrollHeight = useRef(0);
+  // Keep a stable reference to loadMessages without re-running the
+  // initial-load effect every time the context recreates the callback.
+  const loadMessagesRef = useRef(loadMessages);
+  useEffect(() => { loadMessagesRef.current = loadMessages; }, [loadMessages]);
   
   const allContactMessages = messages[contactId] || [];
 
@@ -71,21 +77,45 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
     }
   }, [selectedConversation?.id, loadConversationHistory]);
 
-  // Initial load
+  // Initial load — depends ONLY on contactId. The loadMessages ref is
+  // stable so we don't re-trigger when the context recreates the callback.
   useEffect(() => {
     isInitialLoad.current = true;
     setIsLoading(true);
     setHasMore(true);
-    loadMessages(contactId, 50, 0)
+    setLoadFailed(false);
+    let cancelled = false;
+    // Safety timeout: if the load doesn't complete in 8s, surface a retry.
+    const timeoutId = window.setTimeout(() => {
+      if (cancelled) return;
+      setLoadFailed(true);
+      setIsLoading(false);
+    }, 8000);
+    loadMessagesRef.current(contactId, 50, 0)
       .then(({ hasMore: more }) => {
+        if (cancelled) return;
         setHasMore(more);
-        setTimeout(() => {
-          bottomRef.current?.scrollIntoView({ behavior: 'auto' });
-          isInitialLoad.current = false;
-        }, 150);
+        // Two RAFs to ensure DOM (incl. images/audio placeholders) is laid out.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+            isInitialLoad.current = false;
+          });
+        });
       })
-      .finally(() => setIsLoading(false));
-  }, [contactId, loadMessages]);
+      .catch(() => {
+        if (!cancelled) setLoadFailed(true);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        window.clearTimeout(timeoutId);
+        setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [contactId]);
 
   // Auto-scroll to bottom on new messages (if near bottom)
   useEffect(() => {
@@ -106,34 +136,57 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
     prevScrollHeight.current = el.scrollHeight;
     setIsLoadingMore(true);
     try {
-      const { hasMore: more } = await loadMessages(contactId, 50, contactMessages.length);
+      const { hasMore: more } = await loadMessagesRef.current(contactId, 50, contactMessages.length);
       setHasMore(more);
-      // Preserve scroll position after prepending older messages
+      // Preserve scroll position after prepending older messages.
+      // Two RAFs handle late layout (images / media placeholders).
       requestAnimationFrame(() => {
-        if (el) {
-          const newScrollHeight = el.scrollHeight;
-          el.scrollTop = newScrollHeight - prevScrollHeight.current;
-        }
+        requestAnimationFrame(() => {
+          if (el) {
+            const newScrollHeight = el.scrollHeight;
+            el.scrollTop = newScrollHeight - prevScrollHeight.current;
+          }
+        });
       });
     } finally {
       setIsLoadingMore(false);
     }
-  }, [contactId, contactMessages.length, hasMore, isLoadingMore, loadMessages]);
+  }, [contactId, contactMessages.length, hasMore, isLoadingMore]);
 
-  // IntersectionObserver for infinite scroll (top sentinel)
+  // IntersectionObserver for infinite scroll (top sentinel).
+  // Only attach AFTER the initial load completed and there are messages;
+  // avoids accidental triggers on the empty placeholder list.
   useEffect(() => {
     if (!topSentinelRef.current) return;
+    if (isLoading) return;
+    if (contactMessages.length === 0) return;
+    if (!hasMore) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && hasMore && !isLoadingMore && !isInitialLoad.current) {
+        if (
+          entry.isIntersecting &&
+          hasMore &&
+          !isLoadingMore &&
+          !isInitialLoad.current &&
+          contactMessages.length > 0
+        ) {
           handleLoadMore();
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1, rootMargin: '200px 0px 0px 0px' }
     );
     observer.observe(topSentinelRef.current);
     return () => observer.disconnect();
-  }, [hasMore, isLoadingMore, handleLoadMore]);
+  }, [hasMore, isLoadingMore, isLoading, contactMessages.length, handleLoadMore]);
+
+  const handleRetry = useCallback(() => {
+    setLoadFailed(false);
+    setIsLoading(true);
+    loadMessagesRef.current(contactId, 50, 0)
+      .then(({ hasMore: more }) => setHasMore(more))
+      .catch(() => setLoadFailed(true))
+      .finally(() => setIsLoading(false));
+  }, [contactId]);
 
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -237,8 +290,29 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
 
           {/* Loading state */}
           {isLoading && contactMessages.length === 0 && (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="space-y-3 py-2" aria-label="Carregando mensagens">
+              {[
+                { side: 'left',  w: 'w-3/5' },
+                { side: 'right', w: 'w-2/5' },
+                { side: 'left',  w: 'w-1/2' },
+                { side: 'right', w: 'w-3/4' },
+                { side: 'left',  w: 'w-2/5' },
+              ].map((s, i) => (
+                <div key={i} className={`flex ${s.side === 'right' ? 'justify-end' : 'justify-start'}`}>
+                  <Skeleton className={`h-10 ${s.w} rounded-2xl`} />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Failed-load retry */}
+          {loadFailed && contactMessages.length === 0 && !isLoading && (
+            <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground gap-3">
+              <p className="font-medium">Não foi possível carregar as mensagens</p>
+              <Button variant="outline" size="sm" onClick={handleRetry}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Tentar novamente
+              </Button>
             </div>
           )}
 

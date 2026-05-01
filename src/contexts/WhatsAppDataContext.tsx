@@ -351,8 +351,19 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     else setIsLoading(true);
 
     try {
-      // Compute current offset from existing list when appending
-      const offset = append ? contacts.length : 0;
+      // Compute current offset from existing list when appending.
+      // Read from a ref-snapshot via setContacts callback to avoid
+      // depending on `contacts.length` (which would invalidate this
+      // callback on every list update and thrash the reset effect).
+      let offset = 0;
+      if (append) {
+        offset = await new Promise<number>((resolve) => {
+          setContacts(prev => {
+            resolve(prev.length);
+            return prev;
+          });
+        });
+      }
 
       let query = supabase
         .from('chat_contacts')
@@ -401,7 +412,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       if (append) setIsLoadingMoreContacts(false);
       else setIsLoading(false);
     }
-  }, [clientId, currentQueueId, activeQueueIds, queuesLoading, periodFilter, contacts.length]);
+  }, [clientId, currentQueueId, activeQueueIds, queuesLoading, periodFilter]);
 
   const loadMoreContacts = useCallback(async () => {
     if (isLoadingMoreContacts || !hasMoreContacts) return;
@@ -928,23 +939,37 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
         chatMessages.forEach(m => knownMessageIds.current.add(m.id));
 
-        setMessages(prev => ({
-          ...prev,
-          [contactId]: offset === 0
-            ? chatMessages.reverse()
-            : [...chatMessages.reverse(), ...(prev[contactId] || [])],
-        }));
+        const ordered = chatMessages.reverse();
+        setMessages(prev => {
+          const existing = prev[contactId] || [];
+          if (offset === 0) {
+            // Merge dedupe by id — preserves any realtime messages that
+            // arrived before the initial fetch finished.
+            const seen = new Set(ordered.map(m => m.id));
+            const realtimeOnly = existing.filter(m => !seen.has(m.id));
+            return { ...prev, [contactId]: [...ordered, ...realtimeOnly] };
+          }
+          // Append older page above existing list, with dedupe.
+          const existingIds = new Set(existing.map(m => m.id));
+          const newOlder = ordered.filter(m => !existingIds.has(m.id));
+          return { ...prev, [contactId]: [...newOlder, ...existing] };
+        });
 
         return { messages: chatMessages, hasMore: cachedMessages.length === limit };
       }
 
+      // Empty result — make sure the bucket exists so the UI exits the
+      // loading state with a deterministic empty list (instead of `undefined`).
+      if (offset === 0) {
+        setMessages(prev => (prev[contactId] ? prev : { ...prev, [contactId]: [] }));
+      }
       return { messages: [], hasMore: false };
     } catch (error) {
       console.error('Error loading messages:', error);
       toast.error('Erro ao carregar mensagens');
       return { messages: [], hasMore: false };
     }
-  }, [clientId]);
+  }, []);
 
   // ============================================
   // Send Message via Edge Function (server-side proxy)
@@ -1488,20 +1513,28 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     if (!contactId) return;
     (async () => {
       try {
-        // If a resolved/closed conversation already exists in memory, don't create a new one
+        // Resolve existing conversation in memory first.
         const existingConv = conversations.find(c => c.contact_id === contactId);
         if (existingConv && ['resolved', 'closed'].includes(existingConv.status)) {
-          // Just load messages — do not reopen
+          // Read-only view — do not reopen / create.
           return;
         }
-
-        await getOrCreateConversation(contactId);
+        if (existingConv && ['pending', 'open'].includes(existingConv.status)) {
+          // Already have an active conversation — skip the DB round-trip.
+          // The realtime subscription keeps it fresh.
+        } else {
+          // No active conversation yet — create one in the background.
+          // Don't block UI on this; messages already load in parallel.
+          getOrCreateConversation(contactId).catch((err) =>
+            console.warn('[selectContact] getOrCreateConversation', err)
+          );
+        }
 
         const contact = contacts.find(c => c.id === contactId);
         if (!contact || contact.unread_count === 0) return;
 
         // Mark as read on click for all conversations
-        await markAsRead(contactId);
+        markAsRead(contactId).catch(() => { /* best-effort */ });
       } catch (e) {
         console.warn('[selectContact] error', e);
       }
@@ -1927,6 +1960,40 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   useEffect(() => {
     if (clientId) loadConversations();
   }, [clientId, currentQueueId, convQueryGroup, loadConversations]);
+
+  // ============================================
+  // Visibility refetch — resilience for suspended tabs
+  // ============================================
+  // When the tab becomes visible again after >30s in background, silently
+  // revalidate the contacts list and the currently-selected conversation's
+  // messages. Avoids stale views when the realtime websocket dropped while
+  // the user was on another tab.
+  const lastHiddenAtRef = useRef<number | null>(null);
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        lastHiddenAtRef.current = Date.now();
+        return;
+      }
+      // visible
+      const hiddenAt = lastHiddenAtRef.current;
+      lastHiddenAtRef.current = null;
+      if (!hiddenAt) return;
+      const awayMs = Date.now() - hiddenAt;
+      if (awayMs < 30_000) return;
+      // Silent refresh — no setIsLoading(true) so the list does not flash.
+      if (clientId) {
+        loadContacts({ reset: true }).catch(() => { /* silent */ });
+        loadConversations().catch(() => { /* silent */ });
+      }
+      const cid = selectedContactId;
+      if (cid) {
+        loadMessages(cid, 50, 0).catch(() => { /* silent */ });
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [clientId, selectedContactId, loadContacts, loadConversations, loadMessages]);
 
   // ============================================
   // Context Value
