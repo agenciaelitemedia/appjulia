@@ -572,7 +572,7 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
               )}
             >
               {/* Sender name (groups) */}
-              {!message.from_me && message.metadata?.sender_name && (
+              {!message.from_me && isGroup && message.metadata?.sender_name && (
                 <p className="text-xs font-medium text-primary mb-1">
                   {message.metadata.sender_name}
                 </p>
