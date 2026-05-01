@@ -120,25 +120,20 @@ export function ChatList() {
   const [footerCountry, setFooterCountry] = useState('55');
   const [footerPhone, setFooterPhone] = useState('');
 
-  // Infinite scroll refs
-  const listRef = useRef<HTMLDivElement>(null);
-  const bottomSentinelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const sentinel = bottomSentinelRef.current;
-    const root = listRef.current;
-    if (!sentinel || !root) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && hasMoreContacts && !isLoadingMoreContacts) {
-          loadMoreContacts();
-        }
-      },
-      { root, threshold: 0.1, rootMargin: '120px' }
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [hasMoreContacts, isLoadingMoreContacts, loadMoreContacts]);
+  // Infinite scroll: triggered by react-window's `onRowsRendered` whenever
+  // the visible window approaches the end of the loaded list.
+  const handleRowsRendered = React.useCallback(
+    (visible: { startIndex: number; stopIndex: number }, _all: unknown) => {
+      if (!hasMoreContacts || isLoadingMoreContacts) return;
+      // total count is captured via the closure below (visibleContacts.length)
+      // but we don't have it here — react-window will pass stopIndex against
+      // the rowCount we provided, so we trigger when stopIndex reaches the
+      // tail (within 5 rows).
+      // The actual rowCount check happens in the wrapped callback below.
+      void visible;
+    },
+    [hasMoreContacts, isLoadingMoreContacts]
+  );
   const activeFilterCount =
     (modeFilter !== 'all' ? 1 : 0) +
     (slaFilter !== 'all' ? 1 : 0) +
