@@ -454,6 +454,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     : conversationStatusFilter === 'closed' ? 'closed'
     : 'active';
 
+  // Mirror `convQueryGroup` into a ref so the realtime subscription handler
+  // can read the latest filter without re-subscribing on every tab switch.
+  const convQueryGroupRef = useRef(convQueryGroup);
+  useEffect(() => {
+    convQueryGroupRef.current = convQueryGroup;
+  }, [convQueryGroup]);
+
   const loadConversations = useCallback(async (opts?: { append?: boolean }) => {
     if (!clientId || queuesLoading) return;
     const append = opts?.append === true;
