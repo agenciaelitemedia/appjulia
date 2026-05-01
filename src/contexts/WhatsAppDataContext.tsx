@@ -34,6 +34,21 @@ export type ChatPeriodFilter =
 
 const CONTACTS_PAGE_SIZE = 50;
 
+// Reposition an existing contact in a list ordered by `last_message_at DESC`
+// without re-sorting the entire array. O(n) instead of O(n log n).
+function repositionContact(list: ChatContact[], updated: ChatContact): ChatContact[] {
+  const idx = list.findIndex(c => c.id === updated.id);
+  const next = idx >= 0 ? list.slice(0, idx).concat(list.slice(idx + 1)) : list.slice();
+  const updatedTs = updated.last_message_at ? new Date(updated.last_message_at).getTime() : 0;
+  let insertAt = next.length;
+  for (let i = 0; i < next.length; i++) {
+    const t = next[i].last_message_at ? new Date(next[i].last_message_at).getTime() : 0;
+    if (updatedTs >= t) { insertAt = i; break; }
+  }
+  next.splice(insertAt, 0, updated);
+  return next;
+}
+
 function getPeriodCutoffISO(p: ChatPeriodFilter): string | null {
   if (p === 'all') return null;
   const now = new Date();
