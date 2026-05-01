@@ -116,6 +116,17 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
     }
   }, [contactMessages.length]);
 
+  // Cold-open fallback: if the first page still leaves the top sentinel visible,
+  // ask for older messages immediately instead of waiting for a new intersection
+  // event that may never happen on the first render cycle.
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el || isLoading || isInitialLoad.current || !hasMore) return;
+    if (el.scrollTop <= 120) {
+      handleLoadMore();
+    }
+  }, [contactMessages.length, hasMore, isLoading, handleLoadMore]);
+
   // Load more messages with scroll position preservation.
   // Deps are intentionally minimal (contactId, loadMessages) — hasMore/isLoadingMore/length
   // are read from refs to avoid recreating this callback on every new message, which would
