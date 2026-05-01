@@ -351,8 +351,19 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     else setIsLoading(true);
 
     try {
-      // Compute current offset from existing list when appending
-      const offset = append ? contacts.length : 0;
+      // Compute current offset from existing list when appending.
+      // Read from a ref-snapshot via setContacts callback to avoid
+      // depending on `contacts.length` (which would invalidate this
+      // callback on every list update and thrash the reset effect).
+      let offset = 0;
+      if (append) {
+        offset = await new Promise<number>((resolve) => {
+          setContacts(prev => {
+            resolve(prev.length);
+            return prev;
+          });
+        });
+      }
 
       let query = supabase
         .from('chat_contacts')
@@ -401,7 +412,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       if (append) setIsLoadingMoreContacts(false);
       else setIsLoading(false);
     }
-  }, [clientId, currentQueueId, activeQueueIds, queuesLoading, periodFilter, contacts.length]);
+  }, [clientId, currentQueueId, activeQueueIds, queuesLoading, periodFilter]);
 
   const loadMoreContacts = useCallback(async () => {
     if (isLoadingMoreContacts || !hasMoreContacts) return;
