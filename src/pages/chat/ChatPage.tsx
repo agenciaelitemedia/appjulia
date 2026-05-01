@@ -1,25 +1,21 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { WhatsAppDataProvider, useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { ChatContainer } from '@/components/chat';
 import { ChatCommandPalette } from '@/components/chat/ChatCommandPalette';
 
 function ChatPageContent() {
-  const { selectContact } = useWhatsAppData();
+  const { selectContact, isReady, contacts } = useWhatsAppData();
   const [paletteOpen, setPaletteOpen] = useState(false);
 
-  const selectContactRef = useRef(selectContact);
-  useEffect(() => { selectContactRef.current = selectContact; }, [selectContact]);
-
+  // Process deep-link pending contact once bootstrap is ready and contacts are loaded
   useEffect(() => {
-    // The provider already triggers loadContacts on mount via its effects
-    // (clientId / queue / period). Here we just honor a deep-link request
-    // to open a specific contact stored in sessionStorage.
+    if (!isReady || contacts.length === 0) return;
     const pending = sessionStorage.getItem('chat_pending_contact_id');
     if (pending) {
       sessionStorage.removeItem('chat_pending_contact_id');
-      selectContactRef.current(pending);
+      selectContact(pending);
     }
-  }, []);
+  }, [isReady, contacts.length, selectContact]);
 
   // Cmd+K / Ctrl+K para abrir Command Palette
   useEffect(() => {

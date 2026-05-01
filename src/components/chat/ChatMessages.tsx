@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { Loader2, ChevronDown, RefreshCw } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Loader2, ChevronDown } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { MessageBubble } from './MessageBubble';
@@ -26,30 +25,24 @@ type TimelineItem =
   | { kind: 'event'; data: ConversationHistoryEntry; ts: number };
 
 export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
-  const { messages, loadMessages, conversationHistory, loadConversationHistory, selectedConversation, downloadMedia, selectedQueue, contacts, isReady } = useWhatsAppData();
+  const { messages, loadMessages, conversationHistory, loadConversationHistory, selectedConversation, downloadMedia, selectedQueue, contacts } = useWhatsAppData();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [forwardMessage, setForwardMessage] = useState<ChatMessage | null>(null);
-  const [loadFailed, setLoadFailed] = useState(false);
-  // Raw count of messages already fetched from the server for THIS contact,
-  // used as the next-page offset. Decoupled from `contactMessages.length`
-  // (which is filtered) so pagination stays correct even when notes /
-  // envelopes are hidden from the timeline.
-  const [loadedCount, setLoadedCount] = useState(0);
-  const [hasLoadedFirstPage, setHasLoadedFirstPage] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
   const prevScrollHeight = useRef(0);
-  // Keep a stable reference to loadMessages without re-running the
-  // initial-load effect every time the context recreates the callback.
-  const loadMessagesRef = useRef(loadMessages);
-  useEffect(() => { loadMessagesRef.current = loadMessages; }, [loadMessages]);
+
+  // Mutable refs to avoid stale closures in stable callbacks
+  const hasMoreRef = useRef(hasMore);
+  const isLoadingMoreRef = useRef(isLoadingMore);
+  const contactMessagesLengthRef = useRef(0);
   
   const allContactMessages = messages[contactId] || [];
 
@@ -76,6 +69,11 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
     });
   }, [allContactMessages, selectedConversation?.id]);
 
+  // Keep refs in sync with state
+  useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
+  useEffect(() => { isLoadingMoreRef.current = isLoadingMore; }, [isLoadingMore]);
+  useEffect(() => { contactMessagesLengthRef.current = contactMessages.length; }, [contactMessages.length]);
+
   // Load conversation history when conversation changes
   useEffect(() => {
     if (selectedConversation) {
@@ -83,44 +81,15 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
     }
   }, [selectedConversation?.id, loadConversationHistory]);
 
-  // Initial load — depends on contactId AND on the parent context being
-  // bootstrapped (`isReady`). Without the readiness gate, the fetch could
-  // fire while the provider is still resolving client_id / queues /
-  // conversations and finish in a state that is later wiped silently,
-  // leaving the panel empty until the user navigates away and back.
+  // Initial load
   useEffect(() => {
-    if (!contactId) return;
-    if (!isReady) {
-      // Stay in loading state — do not mark first page as loaded yet,
-      // so the resilience effect below will fire as soon as the context
-      // becomes ready.
-      setIsLoading(true);
-      setHasLoadedFirstPage(false);
-      setLoadedCount(0);
-      setHasMore(true);
-      setLoadFailed(false);
-      return;
-    }
     isInitialLoad.current = true;
     setIsLoading(true);
     setHasMore(true);
-    setLoadFailed(false);
-    setLoadedCount(0);
-    setHasLoadedFirstPage(false);
-    let cancelled = false;
-    // Safety timeout: if the load doesn't complete in 8s, surface a retry.
-    const timeoutId = window.setTimeout(() => {
-      if (cancelled) return;
-      setLoadFailed(true);
-      setIsLoading(false);
-    }, 8000);
-    loadMessagesRef.current(contactId, 50, 0)
-      .then(({ messages: fetched, hasMore: more }) => {
-        if (cancelled) return;
+    loadMessages(contactId, 50, 0)
+      .then(({ hasMore: more }) => {
         setHasMore(more);
-        setLoadedCount(fetched.length);
-        setHasLoadedFirstPage(true);
-        // Two RAFs to ensure DOM (incl. images/audio placeholders) is laid out.
+        // Double RAF ensures we wait for actual browser paint before scrolling
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             bottomRef.current?.scrollIntoView({ behavior: 'auto' });
@@ -128,57 +97,8 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
           });
         });
       })
-      .catch(() => {
-        if (!cancelled) setLoadFailed(true);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        window.clearTimeout(timeoutId);
-        setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeoutId);
-    };
-  }, [contactId, isReady]);
-
-  // Resilience: if the parent context wipes the message cache for the
-  // current contact (e.g. a silent refresh after a queue scope change) but
-  // we already finished the initial load, refire it instead of waiting for
-  // the user to leave/return to the route.
-  useEffect(() => {
-    if (!contactId) return;
-    if (!isReady) return;
-    if (isLoading) return;
-    const bucket = messages[contactId];
-    if (bucket && bucket.length > 0) return;
-    // If the first page was never marked loaded (e.g. context was not
-    // ready when the contact was first selected), force a fetch now that
-    // the context is ready and the bucket is still empty.
-    // If the first page WAS loaded but the bucket got wiped (silent
-    // refresh, scope change resettle), also re-hydrate.
-    // Bucket missing/empty — re-hydrate.
-    let cancelled = false;
-    setIsLoading(true);
-    isInitialLoad.current = true;
-    loadMessagesRef.current(contactId, 50, 0)
-      .then(({ messages: fetched, hasMore: more }) => {
-        if (cancelled) return;
-        setHasMore(more);
-        setLoadedCount(fetched.length);
-        setHasLoadedFirstPage(true);
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            bottomRef.current?.scrollIntoView({ behavior: 'auto' });
-            isInitialLoad.current = false;
-          });
-        });
-      })
-      .catch(() => { if (!cancelled) setLoadFailed(true); })
-      .finally(() => { if (!cancelled) setIsLoading(false); });
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contactId, messages[contactId], hasLoadedFirstPage, isReady]);
+      .finally(() => setIsLoading(false));
+  }, [contactId, loadMessages]);
 
   // Auto-scroll to bottom on new messages (if near bottom)
   useEffect(() => {
@@ -186,86 +106,51 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
     const el = scrollContainerRef.current;
     const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
     if (isNearBottom) {
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+      requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }));
     }
   }, [contactMessages.length]);
 
-  // Load more messages with scroll position preservation
+  // Load more messages with scroll position preservation.
+  // Deps are intentionally minimal (contactId, loadMessages) — hasMore/isLoadingMore/length
+  // are read from refs to avoid recreating this callback on every new message, which would
+  // otherwise tear down and re-attach the IntersectionObserver constantly.
   const handleLoadMore = useCallback(async () => {
-    if (isLoadingMore || !hasMore) return;
+    if (isLoadingMoreRef.current || !hasMoreRef.current) return;
     const el = scrollContainerRef.current;
     if (!el) return;
 
     prevScrollHeight.current = el.scrollHeight;
     setIsLoadingMore(true);
     try {
-      // Use the RAW server-side loaded count as the offset, not the filtered
-      // timeline length — otherwise hidden notes / envelopes would shift the
-      // page window and skip or duplicate older messages.
-      const { messages: fetched, hasMore: more } = await loadMessagesRef.current(contactId, 50, loadedCount);
+      const { hasMore: more } = await loadMessages(contactId, 50, contactMessagesLengthRef.current);
       setHasMore(more);
-      setLoadedCount((c) => c + fetched.length);
-      // Preserve scroll position after prepending older messages.
-      // Two RAFs handle late layout (images / media placeholders).
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (el) {
-            const newScrollHeight = el.scrollHeight;
-            el.scrollTop = newScrollHeight - prevScrollHeight.current;
-          }
-        });
+        if (el) {
+          el.scrollTop = el.scrollHeight - prevScrollHeight.current;
+        }
       });
     } finally {
       setIsLoadingMore(false);
     }
-  }, [contactId, loadedCount, hasMore, isLoadingMore]);
+  }, [contactId, loadMessages]);
 
   // IntersectionObserver for infinite scroll (top sentinel).
-  // Only attach AFTER the initial load completed and there are messages;
-  // avoids accidental triggers on the empty placeholder list.
-  // Use the scroll container itself as the observer root so the sentinel
-  // is evaluated against the message viewport (not the page viewport).
+  // handleLoadMore is now stable (no length/hasMore/isLoadingMore in deps),
+  // so this observer is only recreated when contactId changes.
   useEffect(() => {
-    if (!topSentinelRef.current) return;
-    if (!scrollContainerRef.current) return;
-    if (isLoading) return;
-    if (!hasLoadedFirstPage) return;
-    if (contactMessages.length === 0) return;
-    if (!hasMore) return;
+    const sentinel = topSentinelRef.current;
+    if (!sentinel) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (
-          entry.isIntersecting &&
-          hasMore &&
-          !isLoadingMore &&
-          !isInitialLoad.current &&
-          contactMessages.length > 0
-        ) {
+        if (entry.isIntersecting && !isInitialLoad.current) {
           handleLoadMore();
         }
       },
-      {
-        root: scrollContainerRef.current,
-        threshold: 0.1,
-        rootMargin: '200px 0px 0px 0px',
-      }
+      { threshold: 0.1 }
     );
-    observer.observe(topSentinelRef.current);
+    observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, isLoadingMore, isLoading, hasLoadedFirstPage, contactMessages.length, handleLoadMore]);
-
-  const handleRetry = useCallback(() => {
-    setLoadFailed(false);
-    setIsLoading(true);
-    loadMessagesRef.current(contactId, 50, 0)
-      .then(({ messages: fetched, hasMore: more }) => {
-        setHasMore(more);
-        setLoadedCount(fetched.length);
-        setHasLoadedFirstPage(true);
-      })
-      .catch(() => setLoadFailed(true))
-      .finally(() => setIsLoading(false));
-  }, [contactId]);
+  }, [handleLoadMore]);
 
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -367,42 +252,10 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
             </div>
           )}
 
-          {/* Manual fallback to load older messages (always works even when
-              the IntersectionObserver does not fire — e.g. very tall first
-              page or unusual scroll containers). */}
-          {!isLoadingMore && hasMore && hasLoadedFirstPage && contactMessages.length > 0 && (
-            <div className="flex justify-center py-2">
-              <Button variant="ghost" size="sm" onClick={handleLoadMore}>
-                Carregar mensagens anteriores
-              </Button>
-            </div>
-          )}
-
           {/* Loading state */}
           {isLoading && contactMessages.length === 0 && (
-            <div className="space-y-3 py-2" aria-label="Carregando mensagens">
-              {[
-                { side: 'left',  w: 'w-3/5' },
-                { side: 'right', w: 'w-2/5' },
-                { side: 'left',  w: 'w-1/2' },
-                { side: 'right', w: 'w-3/4' },
-                { side: 'left',  w: 'w-2/5' },
-              ].map((s, i) => (
-                <div key={i} className={`flex ${s.side === 'right' ? 'justify-end' : 'justify-start'}`}>
-                  <Skeleton className={`h-10 ${s.w} rounded-2xl`} />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Failed-load retry */}
-          {loadFailed && contactMessages.length === 0 && !isLoading && (
-            <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground gap-3">
-              <p className="font-medium">Não foi possível carregar as mensagens</p>
-              <Button variant="outline" size="sm" onClick={handleRetry}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Tentar novamente
-              </Button>
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           )}
 

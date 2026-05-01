@@ -389,6 +389,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         query = query.eq('channel_source', currentQueueId);
       } else if (activeQueueIds.length > 0) {
         query = query.in('channel_source', activeQueueIds);
+      } else if (queuesLoading) {
+        return; // filas ainda carregando; não limpar a lista
       } else {
         if (!append) setContacts([]);
         setHasMoreContacts(false);
@@ -1964,7 +1966,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   //   contents instead of relying on referential identity.
   const bootstrapKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!clientId) return;
+    if (!clientId || queuesLoading) return;
     const key = JSON.stringify({
       clientId,
       queueId: currentQueueId || null,
@@ -1987,7 +1989,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       knownMessageIds.current.clear();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQueueId, clientId, activeQueueIds, periodFilter]);
+  }, [currentQueueId, clientId, activeQueueIds, periodFilter, queuesLoading]);
 
   // Reload conversations when query group or queue changes (no selection clear)
   useEffect(() => {
