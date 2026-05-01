@@ -34,6 +34,21 @@ export type ChatPeriodFilter =
 
 const CONTACTS_PAGE_SIZE = 50;
 
+// Reposition an existing contact in a list ordered by `last_message_at DESC`
+// without re-sorting the entire array. O(n) instead of O(n log n).
+function repositionContact(list: ChatContact[], updated: ChatContact): ChatContact[] {
+  const idx = list.findIndex(c => c.id === updated.id);
+  const next = idx >= 0 ? list.slice(0, idx).concat(list.slice(idx + 1)) : list.slice();
+  const updatedTs = updated.last_message_at ? new Date(updated.last_message_at).getTime() : 0;
+  let insertAt = next.length;
+  for (let i = 0; i < next.length; i++) {
+    const t = next[i].last_message_at ? new Date(next[i].last_message_at).getTime() : 0;
+    if (updatedTs >= t) { insertAt = i; break; }
+  }
+  next.splice(insertAt, 0, updated);
+  return next;
+}
+
 function getPeriodCutoffISO(p: ChatPeriodFilter): string | null {
   if (p === 'all') return null;
   const now = new Date();
@@ -180,14 +195,16 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ChatTab>('individual');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  // Start as loading so the chat list shows skeleton from the very first
+  // render until `loadContacts({ reset: true })` finishes (or there is no
+  // data to load). Avoids the flash of "Nenhuma conversa" on cold open.
+  const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [selectedQueue, setSelectedQueue] = useState<SelectedQueue | null>(null);
 
   // Conversation state
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [conversationStatusFilter, setConversationStatusFilter] = useState<ConversationFilterStatus>('pending');
-  const [convCounts, setConvCounts] = useState<{ pending: number; open: number }>({ pending: 0, open: 0 });
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [tags, setTags] = useState<ChatTag[]>([]);
   const [conversationTagsMap, setConversationTagsMap] = useState<Record<string, ChatTag[]>>({});
@@ -321,7 +338,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // Paginated loader. When `reset` is true (or omitted), the list is
   // replaced from offset 0; otherwise we append the next page.
   const loadContacts = useCallback(async (opts?: { reset?: boolean; append?: boolean }) => {
-    if (!clientId || queuesLoading) return;
+    // While the context is still resolving (no clientId yet, or queues
+    // still loading), KEEP `isLoading=true` so the chat list keeps showing
+    // skeletons instead of an empty state.
+    if (!clientId || queuesLoading) {
+      if (!opts?.append) setIsLoading(true);
+      return;
+    }
     const append = opts?.append === true;
 
     if (append) setIsLoadingMoreContacts(true);
@@ -333,7 +356,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
       let query = supabase
         .from('chat_contacts')
-        .select('*')
+        // Lean column list — everything ChatContactItem and filters need.
+        // Avoids fetching heavy/unused columns on every list refresh.
+        .select('id,client_id,cod_agent,channel_source,channel_type,remote_jid,phone,name,avatar,is_group,is_archived,is_muted,unread_count,last_message_at,last_message_text,created_at,updated_at')
         .eq('client_id', clientId)
         .order('last_message_at', { ascending: false, nullsFirst: false })
         .range(offset, offset + CONTACTS_PAGE_SIZE - 1);
@@ -416,26 +441,19 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     }
   }, [clientId, currentQueueId, convQueryGroup, activeQueueIds, queuesLoading]);
 
-  const loadConvCounts = useCallback(async () => {
-    if (!clientId || queuesLoading) return;
-    try {
-      let q = supabase
-        .from('chat_conversations')
-        .select('status')
-        .eq('client_id', clientId)
-        .in('status', ['pending', 'open']);
-      if (currentQueueId) q = q.eq('queue_id', currentQueueId);
-      else if (activeQueueIds.length > 0) q = q.in('queue_id', activeQueueIds);
-      else { setConvCounts({ pending: 0, open: 0 }); return; }
-      const { data } = await q;
-      const counts = { pending: 0, open: 0 };
-      (data || []).forEach((r: { status: string }) => {
-        if (r.status === 'pending') counts.pending++;
-        else if (r.status === 'open') counts.open++;
-      });
-      setConvCounts(counts);
-    } catch {/* noop */}
-  }, [clientId, currentQueueId, activeQueueIds, queuesLoading]);
+  // Derived counts straight from in-memory `conversations` — no extra DB
+  // round-trip. The realtime channel keeps `conversations` fresh, so these
+  // counts react instantly to inserts/updates without re-querying.
+  // NOTE: ChatList recomputes its own filtered counts; these are the
+  // unfiltered totals exposed via context for backwards compatibility.
+  const convCounts = useMemo(() => {
+    let pending = 0, open = 0;
+    for (const c of conversations) {
+      if (c.status === 'pending') pending++;
+      else if (c.status === 'open') open++;
+    }
+    return { pending, open };
+  }, [conversations]);
 
   const getOrCreateConversation = useCallback(async (contactId: string): Promise<ChatConversation | null> => {
     if (!clientId) return null;
@@ -1665,13 +1683,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               return;
             }
             setContacts(prev => {
-              const updated = prev.map(c => (c.id === (payload.new as ChatContact).id ? payload.new as ChatContact : c));
-              // Re-sort by last_message_at so new messages bubble up
-              return updated.sort((a, b) => {
-                const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
-                const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
-                return bTime - aTime;
-              });
+              // Reposition the single updated contact in O(n) instead of
+              // re-sorting the whole list on every realtime UPDATE.
+              if (!prev.some(c => c.id === updContact.id)) return prev;
+              return repositionContact(prev, updContact);
             });
           } else if (payload.eventType === 'DELETE') {
             setContacts(prev => prev.filter(c => c.id !== (payload.old as ChatContact).id));
@@ -1741,11 +1756,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
                     last_message_at: newMessage.timestamp || newMessage.created_at || c.last_message_at,
                   }
                 : c
-            ).sort((a, b) => {
-              const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
-              const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
-              return bTime - aTime;
-            }));
+            ));
+            setContacts(prev => {
+              const target = prev.find(c => c.id === newMessage.contact_id);
+              return target ? repositionContact(prev, target) : prev;
+            });
           }
 
           // For inbound (not from me, not internal note): bump unread_count locally
@@ -1768,11 +1783,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
                     last_message_at: newMessage.timestamp || newMessage.created_at || c.last_message_at,
                   }
                 : c
-            ).sort((a, b) => {
-              const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
-              const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
-              return bTime - aTime;
-            }));
+            ));
+            setContacts(prev => {
+              const target = prev.find(c => c.id === newMessage.contact_id);
+              return target ? repositionContact(prev, target) : prev;
+            });
 
             // Persist to DB (best-effort) so other clients/refresh see the badge
             (async () => {
@@ -1865,19 +1880,16 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               if (prev.some(c => c.id === newConv.id)) return prev;
               return [newConv, ...prev];
             });
-            loadConvCounts();
           } else if (payload.eventType === 'UPDATE') {
             const updConv = payload.new as ChatConversation;
             if (!currentQueueId && updConv.queue_id && !activeQueueIds.includes(updConv.queue_id)) {
               // Drop from local state if the queue became deleted
               setConversations(prev => prev.filter(c => c.id !== updConv.id));
-              loadConvCounts();
               return;
             }
             setConversations(prev =>
               prev.map(c => (c.id === updConv.id ? updConv : c))
             );
-            loadConvCounts();
           }
         }
       )
@@ -1888,14 +1900,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       supabase.removeChannel(messagesChannel);
       supabase.removeChannel(conversationsChannel);
     };
-  }, [clientId, currentQueueId, loadConvCounts, activeQueueIds]);
+  }, [clientId, currentQueueId, activeQueueIds]);
 
   // Reload everything and clear selection when queue or client changes
   useEffect(() => {
     if (!clientId) return;
     setHasMoreContacts(true);
     loadContacts({ reset: true });
-    loadConvCounts();
     loadTags();
     refreshConversationTags();
     setSelectedContactId(null);
