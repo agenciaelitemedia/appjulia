@@ -118,6 +118,26 @@ export function ChatList() {
   const [newConvOpen, setNewConvOpen] = useState(false);
   const [footerCountry, setFooterCountry] = useState('55');
   const [footerPhone, setFooterPhone] = useState('');
+
+  // Infinite scroll refs
+  const listRef = useRef<HTMLDivElement>(null);
+  const bottomSentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const sentinel = bottomSentinelRef.current;
+    const root = listRef.current;
+    if (!sentinel || !root) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && hasMoreContacts && !isLoadingMoreContacts) {
+          loadMoreContacts();
+        }
+      },
+      { root, threshold: 0.1, rootMargin: '120px' }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMoreContacts, isLoadingMoreContacts, loadMoreContacts]);
   const activeFilterCount =
     (modeFilter !== 'all' ? 1 : 0) +
     (slaFilter !== 'all' ? 1 : 0) +
