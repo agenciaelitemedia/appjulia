@@ -4,23 +4,21 @@ import { ChatContainer } from '@/components/chat';
 import { ChatCommandPalette } from '@/components/chat/ChatCommandPalette';
 
 function ChatPageContent() {
-  const { loadContacts, selectContact } = useWhatsAppData();
+  const { selectContact } = useWhatsAppData();
   const [paletteOpen, setPaletteOpen] = useState(false);
 
-  const loadContactsRef = useRef(loadContacts);
   const selectContactRef = useRef(selectContact);
-  useEffect(() => { loadContactsRef.current = loadContacts; }, [loadContacts]);
   useEffect(() => { selectContactRef.current = selectContact; }, [selectContact]);
 
   useEffect(() => {
-    (async () => {
-      await loadContactsRef.current();
-      const pending = sessionStorage.getItem('chat_pending_contact_id');
-      if (pending) {
-        sessionStorage.removeItem('chat_pending_contact_id');
-        selectContactRef.current(pending);
-      }
-    })();
+    // The provider already triggers loadContacts on mount via its effects
+    // (clientId / queue / period). Here we just honor a deep-link request
+    // to open a specific contact stored in sessionStorage.
+    const pending = sessionStorage.getItem('chat_pending_contact_id');
+    if (pending) {
+      sessionStorage.removeItem('chat_pending_contact_id');
+      selectContactRef.current(pending);
+    }
   }, []);
 
   // Cmd+K / Ctrl+K para abrir Command Palette
