@@ -323,7 +323,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // Paginated loader. When `reset` is true (or omitted), the list is
   // replaced from offset 0; otherwise we append the next page.
   const loadContacts = useCallback(async (opts?: { reset?: boolean; append?: boolean }) => {
-    if (!clientId || queuesLoading) return;
+    // While the context is still resolving (no clientId yet, or queues
+    // still loading), KEEP `isLoading=true` so the chat list keeps showing
+    // skeletons instead of an empty state.
+    if (!clientId || queuesLoading) {
+      if (!opts?.append) setIsLoading(true);
+      return;
+    }
     const append = opts?.append === true;
 
     if (append) setIsLoadingMoreContacts(true);
@@ -335,7 +341,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
       let query = supabase
         .from('chat_contacts')
-        .select('*')
+        // Lean column list — everything ChatContactItem and filters need.
+        // Avoids fetching heavy/unused columns on every list refresh.
+        .select('id,client_id,cod_agent,channel_source,channel_type,remote_jid,phone,name,avatar,is_group,is_archived,is_muted,unread_count,last_message_at,last_message_text,created_at,updated_at')
         .eq('client_id', clientId)
         .order('last_message_at', { ascending: false, nullsFirst: false })
         .range(offset, offset + CONTACTS_PAGE_SIZE - 1);
