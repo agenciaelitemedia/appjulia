@@ -142,18 +142,20 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
   }, [contactId, isReady, loadMessages]);
 
   // IntersectionObserver for infinite scroll (top sentinel).
-  // handleLoadMore is now stable (no length/hasMore/isLoadingMore in deps),
-  // so this observer is only recreated when contactId changes.
+  // Important: use the chat scroll container as the observer root; otherwise
+  // the first cold load can miss intersections because only the inner panel
+  // scrolls, not the browser viewport.
   useEffect(() => {
     const sentinel = topSentinelRef.current;
-    if (!sentinel) return;
+    const root = scrollContainerRef.current;
+    if (!sentinel || !root) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting && !isInitialLoad.current) {
           handleLoadMore();
         }
       },
-      { threshold: 0.1 }
+      { root, threshold: 0, rootMargin: '120px 0px 0px 0px' }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
@@ -163,12 +165,15 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleScroll = () => {
+  const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
     const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
     setShowScrollButton(!isNearBottom);
-  };
+    if (!isInitialLoad.current && el.scrollTop <= 120) {
+      handleLoadMore();
+    }
+  }, [handleLoadMore]);
 
   // Merge messages and events into a unified timeline
   const timeline = useMemo<TimelineItem[]>(() => {
