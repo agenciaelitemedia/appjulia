@@ -1962,6 +1962,40 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   }, [clientId, currentQueueId, convQueryGroup, loadConversations]);
 
   // ============================================
+  // Visibility refetch — resilience for suspended tabs
+  // ============================================
+  // When the tab becomes visible again after >30s in background, silently
+  // revalidate the contacts list and the currently-selected conversation's
+  // messages. Avoids stale views when the realtime websocket dropped while
+  // the user was on another tab.
+  const lastHiddenAtRef = useRef<number | null>(null);
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        lastHiddenAtRef.current = Date.now();
+        return;
+      }
+      // visible
+      const hiddenAt = lastHiddenAtRef.current;
+      lastHiddenAtRef.current = null;
+      if (!hiddenAt) return;
+      const awayMs = Date.now() - hiddenAt;
+      if (awayMs < 30_000) return;
+      // Silent refresh — no setIsLoading(true) so the list does not flash.
+      if (clientId) {
+        loadContacts({ reset: true }).catch(() => { /* silent */ });
+        loadConversations().catch(() => { /* silent */ });
+      }
+      const cid = selectedContactId;
+      if (cid) {
+        loadMessages(cid, 50, 0).catch(() => { /* silent */ });
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [clientId, selectedContactId, loadContacts, loadConversations, loadMessages]);
+
+  // ============================================
   // Context Value
   // ============================================
   const value = useMemo<ExtendedContextValue>(() => ({
