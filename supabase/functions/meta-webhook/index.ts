@@ -280,8 +280,22 @@ async function persistToChat(
               actor_name: 'Sistema (webhook)',
               to_value: 'pending',
             });
+          } else {
+            // Conflito do índice único parcial: outro worker criou em paralelo
+            const { data: raceConv } = await supabase
+              .from('chat_conversations')
+              .select('id')
+              .eq('contact_id', contactId)
+              .eq('client_id', effectiveClientId)
+              .eq('queue_id', queueInfo.id)
+              .eq('channel', 'whatsapp_waba')
+              .in('status', ['pending', 'open'])
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (raceConv?.id) conversationId = raceConv.id;
           }
-          conversationId = created?.id ?? null;
+          conversationId = conversationId ?? created?.id ?? null;
         }
       } else if (!openConv.queue_id) {
         await supabase
