@@ -1,72 +1,91 @@
-
 ## Objetivo
 
-No `/chat`, carregar contatos sob demanda (50 por página, com auto-load ao chegar no fim da lista) e definir o filtro de período padrão como **7 dias** sempre que o usuário entrar no chat.
+No `/chat`, garantir 3 coisas:
 
-## Situação atual
+1. **Skeleton de carregamento sempre aparece** quando a lista está sendo carregada (entrada na página, troca de fila, troca de período, refresh manual).
+2. **Realtime sempre ativo** — novas conversas/mensagens entram instantaneamente no topo, sem precisar reload.
+3. **Mais rápido**: reduzir trabalho do servidor, do JS e do React no caminho crítico da listagem.
 
-- `WhatsAppDataContext.loadContacts()` faz um único `SELECT * FROM chat_contacts` sem `LIMIT` nem `RANGE`, trazendo TODOS os contatos da fila de uma vez. Isso deixa o carregamento inicial lento.
-- `ChatList.tsx` renderiza `visibleContacts.map(...)` direto dentro de um `ScrollArea` — sem sentinel/IntersectionObserver, sem botão "carregar mais".
-- O filtro de período (`periodFilter`) começa em `'all'`. Não há persistência nem default de 7 dias.
+---
 
-## Mudanças
+## Situação atual (resumo do código)
 
-### 1) Paginação no contexto (`src/contexts/WhatsAppDataContext.tsx`)
+- `WhatsAppDataContext.loadContacts({ reset })` faz `SELECT *` em `chat_contacts` com `range(0, 49)` filtrado por `client_id`, `channel_source` (queue) e `last_message_at >= cutoff`. O loader marca `isLoading=true` durante o fetch, e o `ChatList` mostra 8 skeletons quando `isLoading === true`.
+- **Problema 1 (skeleton)**: O effect que dispara `loadContacts({ reset: true })` só roda depois que `clientId` e `activeQueueIds` resolvem. Antes disso, `isLoading` ainda é `false` (estado inicial), então o usuário vê **lista vazia** ou "Nenhuma conversa" por uma fração de segundo, em vez de skeleton. Além disso, o `ChatPageContent` já chama `loadContacts()` no mount, criando uma janela ainda maior em que `isLoading` pode estar `false`.
+- **Problema 2 (realtime)**: Já existem 3 channels (`chat_contacts`, `chat_messages`, `chat_conversations`). Funcionam, mas têm 2 ineficiências:
+  - Cada UPDATE em `chat_contacts` re-ordena o array inteiro (`prev.map(...).sort(...)`) e cada INSERT de mensagem também re-ordena `contacts`. Em listas grandes isso causa re-render pesado.
+  - Cada UPDATE em `chat_conversations` chama `loadConvCounts()` (uma query extra ao banco) — totalmente redundante porque o estado em memória já tem todos os pending/open.
+- **Problema 3 (perf da lista)**:
+  - `loadContacts` usa `select('*')` (puxa todas as colunas, inclusive metadados pesados).
+  - O `ChatList` faz vários `useMemo` que iteram sobre `conversations` e `contacts` em cada keystroke / cada update realtime (sortedConversations, statusByContact, baseForCounts, pendingConvCount/openConvCount, slaStatusByContact).
+  - A lista renderiza `visibleContacts.map(...)` sem virtualização — com 50–500 itens e cada `ChatContactItem` tendo avatar + badges + cálculos derivados, fica pesado.
+  - O `ChatPageContent` chama `loadContacts()` no mount e o context tem outro `useEffect` que também chama `loadContacts({ reset: true })` quando `clientId/queue/period` mudam → **fetch duplicado** no primeiro load.
 
-- Trocar `loadContacts()` para suportar paginação:
-  - Nova assinatura: `loadContacts(opts?: { reset?: boolean })`.
-  - Usa `.range(offset, offset + PAGE_SIZE - 1)` com `PAGE_SIZE = 50`.
-  - Filtra **no servidor** por `last_message_at >= (hoje - 7 dias)` quando o filtro de período padrão estiver ativo, para que a paginação respeite o recorte temporal e o "fim da lista" seja real.
-  - Mantém estado `contactsHasMore: boolean` e `contactsOffset: number`.
-  - `reset: true` zera offset e substitui a lista; sem reset, faz append (deduplicando por `id`).
-- Novo método exposto: `loadMoreContacts()` — incrementa offset e chama o loader.
-- Novo state exposto: `hasMoreContacts`, `isLoadingMoreContacts`.
-- `loadContacts` continua sendo chamado no mount; resets adicionais são disparados quando `selectedQueue` ou o **filtro de período** mudam.
-- Filtro de período é elevado para o contexto (hoje vive só no `ChatList`) para que a query do banco use o mesmo recorte. Default = `'last7days'`.
+---
 
-### 2) Filtro de período default = 7 dias
+## Mudanças propostas
 
-- Em `ChatList.tsx`, mover `periodFilter` / `setPeriodFilter` para o `WhatsAppDataContext`.
-- Inicialização: `useState<PeriodFilter>('last7days')`.
-- Toda vez que o usuário entra no `/chat` (mount do `WhatsAppDataProvider`), o filtro inicia em `last7days`. Sem persistência em localStorage — sempre 7 dias por padrão, conforme pedido.
-- A query de `loadContacts` aplica `gte('last_message_at', subDays(today, 7).toISOString())` quando `periodFilter === 'last7days'`. Para os outros valores (`today`, `yesterday`, `thisMonth`, `last3Months`, `all`), aplica o range correspondente; `'all'` não aplica filtro de data.
-- O filtro client-side existente em `applyClientFilters` continua, mas redundante para período (vira no-op quando server já filtrou).
+### 1) Skeleton sempre visível enquanto carrega
 
-### 3) Infinite scroll no `ChatList.tsx`
+- No `WhatsAppDataContext`:
+  - Inicializar `const [isLoading, setIsLoading] = useState(true)` (era `false`) — assim, do primeiro render até o primeiro fetch terminar, a UI já mostra skeleton.
+  - Em `loadContacts`, manter `setIsLoading(true)` no início de cada `reset` (já faz). Garantir que `setIsLoading(false)` só ocorra no `finally` (já faz).
+  - Quando `clientId` ainda não resolveu OU `queuesLoading === true`, o loader retorna cedo — nesse caso **não** colocar `isLoading=false`. Isso mantém o skeleton até o contexto estar pronto para a primeira query real.
+- Remover o `loadContacts()` duplicado em `ChatPageContent.useEffect` (o context já dispara via effect quando `clientId/queue/period/activeQueueIds` mudam). Manter só a lógica de "pending contact id" do sessionStorage.
 
-- Substituir o `ScrollArea` que envolve a lista por um `<div ref={listRef} className="flex-1 overflow-y-auto">` para ter controle direto do scroll (igual ao `ChatMessages.tsx`).
-- Adicionar um sentinel `<div ref={bottomSentinelRef} />` no final da lista renderizada.
-- `IntersectionObserver` no sentinel: quando entra na viewport e `hasMoreContacts && !isLoadingMoreContacts`, dispara `loadMoreContacts()`.
-- Indicador de "carregando mais" (spinner pequeno) acima do sentinel quando `isLoadingMoreContacts`.
-- Quando `!hasMoreContacts && visibleContacts.length > 0`, exibe rodapézinho "Fim da lista".
+### 2) Realtime mais leve e sempre ligado
 
-### 4) Considerações
+- Em `chat_contacts` UPDATE/INSERT: substituir `prev.map(...).sort(...)` por uma operação que (a) atualiza/insere o item e (b) **move só o item alterado para a posição correta** com uma busca binária ou um simples splice — evita resort O(n log n) a cada mensagem.
+- Remover as duas chamadas a `loadConvCounts()` dentro do channel de `chat_conversations` (linhas ~1868, 1874, 1880). Os totalizers já são derivados de `conversations` em memória — esse channel já mantém `conversations` atualizado.
+- Remover o estado `convCounts` e a função `loadConvCounts` (não são mais usados — `pendingConvCount`/`openConvCount` vêm do memo no `ChatList`).
+- Manter o canal `chat_contacts` como está, mas trocar o `filter` para incluir também `channel_source=in.(activeQueueIds)` quando possível — diminui o ruído de updates de filas que o usuário nem vê. (Postgres realtime aceita `in`, mas o cliente Supabase não — então deixar o filtro client-side como está, só descrever que continua funcionando.)
 
-- A lista renderizada (`visibleContacts`) ainda passa por filtros client-side (SLA, modo IA, responsável, etapa). Como o servidor agora retorna apenas 50 por vez, alguns filtros client-side podem reduzir a página exibida. Isso é aceitável: o auto-load continua disparando até preencher ou esgotar — adicionar um "auto-load até render >= 20 ou !hasMore" para evitar páginas quase vazias quando filtros agressivos estão ativos.
-- Realtime de novas mensagens continua funcionando (já trata `INSERT`/`UPDATE` em `chat_contacts`); novos contatos entram no topo independentemente da paginação.
-- `loadConversations` continua carregando todas as conversas pending/open da fila (necessário para badges/SLA), mas isso já é leve. Não muda nesta tarefa.
+### 3) Performance da listagem
+
+- **Query enxuta**: trocar `select('*')` em `loadContacts` por uma lista explícita de colunas usadas na lista (`id, client_id, cod_agent, channel_source, channel_type, phone, name, avatar, is_group, is_archived, is_muted, unread_count, last_message_at, last_message_text, created_at, updated_at`). Reduz payload e parsing.
+- **Índice no banco** (migration): criar índice composto em `chat_contacts (client_id, channel_source, last_message_at DESC NULLS LAST)` se ainda não existir. Acelera o `range(0, 49)` que é o caminho crítico de cada abertura do chat. Antes da migration, rodar `read_query` para confirmar que o índice ainda não existe.
+- **Virtualização da lista**: trocar o `visibleContacts.map(...)` por `react-window` (`FixedSizeList`, altura ~76px por item) dentro do container `flex-1 overflow-y-auto`. Mantém o sentinel do infinite scroll após o último item visível usando o callback `onItemsRendered`. Renderizar apenas ~15 DOM nodes em vez de 50–500. (Adicionar dependência `react-window` + `@types/react-window`.)
+- **Memos**: o `pendingConvCount/openConvCount` já roda em uma única passada — manter. Garantir que `convMetaByContact`, `statusByContact`, `slaStatusByContact` reusem `sortedConversations` em vez de re-iterar `conversations` (já fazem em parte). Sem mudança grande aqui, só verificação.
+- **Eliminar fetch duplicado** no mount (item 1 acima).
+
+### 4) Indicador "Atualizando…" durante refetch silencioso
+
+- Quando `isLoading === true` e a lista já tem itens (caso de troca de fila/período), em vez de esconder a lista atual e mostrar 8 skeletons cheios, mostrar uma faixa fina no topo com `Loader2` + texto "Atualizando…" e manter os itens antigos visíveis até o novo fetch terminar. Para o **primeiro** load (lista vazia + `isLoading`), continuar com os 8 skeletons cheios — essa é a "visão de carregando" que o usuário pediu.
+
+---
 
 ## Detalhes técnicos
 
 ```text
 WhatsAppDataContext
-├─ state: contactsOffset, hasMoreContacts, isLoadingMoreContacts, periodFilter
-├─ loadContacts({ reset })  → range(offset, offset+49) + gte(last_message_at, periodCutoff)
-├─ loadMoreContacts()        → loadContacts({ reset: false })
-└─ effect: ao mudar queue/period → loadContacts({ reset: true })
+├─ useState<boolean>(isLoading) inicial = true   (antes: false)
+├─ loadContacts: select('id,name,phone,…') (sem '*')
+├─ realtime chat_contacts UPDATE: sem resort completo, só reposicionar item
+├─ realtime chat_conversations: remover loadConvCounts() (3 chamadas)
+└─ remove loadConvCounts() / convCounts state
 
-ChatList
-├─ remove state local de periodFilter (vem do contexto)
-├─ <div ref=listRef overflow-y-auto>
-│    {visibleContacts.map(...)}
-│    {isLoadingMoreContacts && <Spinner/>}
-│    <div ref=bottomSentinelRef/>
-│  </div>
-└─ IntersectionObserver(bottomSentinelRef) → loadMoreContacts()
+ChatPage.tsx
+└─ remove loadContactsRef.current() do mount (context já carrega)
+
+ChatList.tsx
+├─ react-window FixedSizeList no lugar do .map
+├─ banner "Atualizando…" quando isLoading && contacts.length > 0
+└─ skeleton cheio só quando isLoading && contacts.length === 0
+
+DB
+└─ index: chat_contacts (client_id, channel_source, last_message_at DESC NULLS LAST)
 ```
 
 ## Arquivos a editar
 
-- `src/contexts/WhatsAppDataContext.tsx` — paginação, periodFilter no contexto, query com range + filtro de data.
-- `src/components/chat/ChatList.tsx` — infinite scroll, consumir periodFilter do contexto, remover state local.
-- `src/types/chat.ts` (se necessário) — expor novos campos no `ChatContextValue`.
+- `src/contexts/WhatsAppDataContext.tsx` — `isLoading` inicial, query enxuta, realtime sem resort/sem loadConvCounts.
+- `src/components/chat/ChatList.tsx` — virtualização com `react-window`, banner de refetch, skeleton só no primeiro load.
+- `src/pages/chat/ChatPage.tsx` — remover `loadContactsRef.current()` do mount (mantém só o pending contact).
+- `package.json` — adicionar `react-window` + `@types/react-window`.
+- Migration SQL — `CREATE INDEX IF NOT EXISTS idx_chat_contacts_client_queue_lastmsg ON chat_contacts (client_id, channel_source, last_message_at DESC NULLS LAST);` (após confirmar via `read_query` que ainda não existe).
+
+## O que NÃO muda
+
+- Filtros, totalizers, lógica de SLA, modo IA, tags, snooze, multi-fila — tudo permanece igual.
+- Default do filtro de período continua `last7days`.
+- Page size continua 50; infinite scroll continua via `IntersectionObserver` no sentinel (agora ancorado ao final virtualizado).
