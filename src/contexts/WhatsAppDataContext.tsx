@@ -173,6 +173,11 @@ interface ExtendedContextValue extends ChatContextValue {
   // Period filter (server-side cutoff for last_message_at)
   periodFilter: ChatPeriodFilter;
   setPeriodFilter: (p: ChatPeriodFilter) => void;
+
+  // Bootstrap readiness — true once client_id + queues + first conversations
+  // page have all resolved at least once, so children can safely fetch
+  // contact-scoped data (messages, history) without racing the bootstrap.
+  isReady: boolean;
 }
 
 const WhatsAppDataContext = createContext<ExtendedContextValue | undefined>(undefined);
