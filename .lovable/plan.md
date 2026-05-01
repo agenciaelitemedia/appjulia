@@ -1,75 +1,72 @@
-Objetivo: corrigir o caso em que as mensagens estão sendo gravadas/recebidas corretamente no backend, mas não aparecem na lista de conversas nem no painel do chat para alguns usuários.
 
-O que identifiquei
+## Objetivo
 
-1. O backend está persistindo as mensagens.
-- Para o cliente 272, encontrei mensagens novas gravadas em `chat_messages` e contatos atualizados em `chat_contacts`.
-- Exemplo real: o contato “Mário Castro” recebeu/teve envios hoje, com `last_message_at` atualizado e mensagens salvas.
-- O webhook de entrada também está funcionando e gravando registros.
+No `/chat`, carregar contatos sob demanda (50 por página, com auto-load ao chegar no fim da lista) e definir o filtro de período padrão como **7 dias** sempre que o usuário entrar no chat.
 
-2. A migração de contatos/conversas foi feita, mas existe um segundo problema de visibilidade.
-- `chat_contacts`: 430 contatos no `channel_source` da fila ativa `04eee74a-79ca-4d0b-9b01-58b0253578e1`.
-- `chat_conversations`: 435 conversas na fila ativa.
-- Não sobrou nada preso na fila deletada.
+## Situação atual
 
-3. A hipótese mais forte é perda de acesso à fila após a troca/migração da fila.
-- O chat carrega contatos apenas das filas retornadas por `useAccessibleQueues()`.
-- Quando o usuário tem acesso restrito (`queue_access = 'specific'`), a lista depende de `queue_members` no banco externo.
-- No fluxo atual de exclusão/migração de fila, o sistema limpa `queue_members` da fila antiga, mas não move esses membros para a fila nova.
-- Eu confirmei que hoje não há `queue_members` nem na fila antiga nem na nova.
-- Resultado prático: para usuários restritos, `activeQueueIds` fica vazio, `loadContacts()` retorna lista vazia, `loadConversations()` também, e o realtime deixa de abastecer a UI de forma útil.
+- `WhatsAppDataContext.loadContacts()` faz um único `SELECT * FROM chat_contacts` sem `LIMIT` nem `RANGE`, trazendo TODOS os contatos da fila de uma vez. Isso deixa o carregamento inicial lento.
+- `ChatList.tsx` renderiza `visibleContacts.map(...)` direto dentro de um `ScrollArea` — sem sentinel/IntersectionObserver, sem botão "carregar mais".
+- O filtro de período (`periodFilter`) começa em `'all'`. Não há persistência nem default de 7 dias.
 
-4. Existe um segundo fator que mascara o problema: filtro padrão de período.
-- A lista do chat nasce com `periodFilter = 'last7days'`.
-- Isso sozinho já esconderia contatos antigos como Anísio, mesmo com os dados corretos no banco.
-- Então há dois efeitos combinados:
-  - usuários restritos podem perder a fila inteira;
-  - contatos antigos continuam ocultos pelo filtro de 7 dias.
+## Mudanças
 
-5. Envio/recebimento “funciona no banco”, mas não “sobe” para a interface.
-- O fluxo de envio grava em `chat_messages` e atualiza `chat_contacts`.
-- O problema está na camada de seleção/filtragem das filas e da lista, não no armazenamento das mensagens.
+### 1) Paginação no contexto (`src/contexts/WhatsAppDataContext.tsx`)
 
-Plano de correção
+- Trocar `loadContacts()` para suportar paginação:
+  - Nova assinatura: `loadContacts(opts?: { reset?: boolean })`.
+  - Usa `.range(offset, offset + PAGE_SIZE - 1)` com `PAGE_SIZE = 50`.
+  - Filtra **no servidor** por `last_message_at >= (hoje - 7 dias)` quando o filtro de período padrão estiver ativo, para que a paginação respeite o recorte temporal e o "fim da lista" seja real.
+  - Mantém estado `contactsHasMore: boolean` e `contactsOffset: number`.
+  - `reset: true` zera offset e substitui a lista; sem reset, faz append (deduplicando por `id`).
+- Novo método exposto: `loadMoreContacts()` — incrementa offset e chama o loader.
+- Novo state exposto: `hasMoreContacts`, `isLoadingMoreContacts`.
+- `loadContacts` continua sendo chamado no mount; resets adicionais são disparados quando `selectedQueue` ou o **filtro de período** mudam.
+- Filtro de período é elevado para o contexto (hoje vive só no `ChatList`) para que a query do banco use o mesmo recorte. Default = `'last7days'`.
 
-1. Reparar o acesso da fila para o usuário afetado
-- Verificar o usuário logado que está com o problema e o `queue_access` dele.
-- Se for `specific`, recriar os vínculos em `queue_members` para a fila ativa `04eee74a-79ca-4d0b-9b01-58b0253578e1`.
-- Validar depois se `useAccessibleQueues()` volta a retornar a fila ativa para esse login.
+### 2) Filtro de período default = 7 dias
 
-2. Corrigir definitivamente a migração de permissões entre filas
-- Ajustar `supabase/functions/queue-management/index.ts` para que, ao migrar/excluir/restaurar fila com destino, o sistema também mova/cop ie os membros restritos da fila antiga para a fila destino.
-- Isso evita repetir o apagão de visibilidade em futuras migrações.
-- Não vou abrir acesso global por fallback; vou preservar a regra de segurança por fila.
+- Em `ChatList.tsx`, mover `periodFilter` / `setPeriodFilter` para o `WhatsAppDataContext`.
+- Inicialização: `useState<PeriodFilter>('last7days')`.
+- Toda vez que o usuário entra no `/chat` (mount do `WhatsAppDataProvider`), o filtro inicia em `last7days`. Sem persistência em localStorage — sempre 7 dias por padrão, conforme pedido.
+- A query de `loadContacts` aplica `gte('last_message_at', subDays(today, 7).toISOString())` quando `periodFilter === 'last7days'`. Para os outros valores (`today`, `yesterday`, `thisMonth`, `last3Months`, `all`), aplica o range correspondente; `'all'` não aplica filtro de data.
+- O filtro client-side existente em `applyClientFilters` continua, mas redundante para período (vira no-op quando server já filtrou).
 
-3. Melhorar a inicialização do chat quando as filas ainda estão carregando
-- Ajustar `src/contexts/WhatsAppDataContext.tsx` para não limpar contatos/mensagens prematuramente enquanto `useAccessibleQueues()` ainda está resolvendo.
-- Quando não houver nenhuma fila acessível de fato, mostrar estado explícito de “sem acesso a filas” em vez de parecer que não existem mensagens.
-- Isso elimina o falso “chat vazio” por race condition ou permissão ausente.
+### 3) Infinite scroll no `ChatList.tsx`
 
-4. Corrigir o filtro que esconde históricos antigos
-- Ajustar `src/components/chat/ChatList.tsx` para não iniciar preso em `last7days` no chat operacional, ou tornar isso claramente visível/resetável.
-- Assim, contatos antigos como Anísio voltam a aparecer depois que o acesso à fila estiver correto.
+- Substituir o `ScrollArea` que envolve a lista por um `<div ref={listRef} className="flex-1 overflow-y-auto">` para ter controle direto do scroll (igual ao `ChatMessages.tsx`).
+- Adicionar um sentinel `<div ref={bottomSentinelRef} />` no final da lista renderizada.
+- `IntersectionObserver` no sentinel: quando entra na viewport e `hasMoreContacts && !isLoadingMoreContacts`, dispara `loadMoreContacts()`.
+- Indicador de "carregando mais" (spinner pequeno) acima do sentinel quando `isLoadingMoreContacts`.
+- Quando `!hasMoreContacts && visibleContacts.length > 0`, exibe rodapézinho "Fim da lista".
 
-5. Validar ponta a ponta
-- Testar com o login afetado:
-  - lista de conversas carregando após refresh;
-  - Anísio visível novamente;
-  - mensagem recebida aparecendo na lista e no painel;
-  - mensagem enviada aparecendo imediatamente no chat;
-  - realtime funcionando sem depender de recarregar.
+### 4) Considerações
 
-Detalhes técnicos
+- A lista renderizada (`visibleContacts`) ainda passa por filtros client-side (SLA, modo IA, responsável, etapa). Como o servidor agora retorna apenas 50 por vez, alguns filtros client-side podem reduzir a página exibida. Isso é aceitável: o auto-load continua disparando até preencher ou esgotar — adicionar um "auto-load até render >= 20 ou !hasMore" para evitar páginas quase vazias quando filtros agressivos estão ativos.
+- Realtime de novas mensagens continua funcionando (já trata `INSERT`/`UPDATE` em `chat_contacts`); novos contatos entram no topo independentemente da paginação.
+- `loadConversations` continua carregando todas as conversas pending/open da fila (necessário para badges/SLA), mas isso já é leve. Não muda nesta tarefa.
 
-Arquivos principais a alterar
-- `src/contexts/WhatsAppDataContext.tsx`
-- `src/components/chat/ChatList.tsx`
-- `supabase/functions/queue-management/index.ts`
+## Detalhes técnicos
 
-Ação de dados necessária
-- Reassociar usuários restritos à fila ativa no banco externo (`queue_members`), porque hoje os vínculos estão vazios.
+```text
+WhatsAppDataContext
+├─ state: contactsOffset, hasMoreContacts, isLoadingMoreContacts, periodFilter
+├─ loadContacts({ reset })  → range(offset, offset+49) + gte(last_message_at, periodCutoff)
+├─ loadMoreContacts()        → loadContacts({ reset: false })
+└─ effect: ao mudar queue/period → loadContacts({ reset: true })
 
-Risco principal
-- O único cuidado é não criar fallback que ignore restrição de fila e exponha conversas de outras filas. A correção será feita mantendo o controle de acesso.
+ChatList
+├─ remove state local de periodFilter (vem do contexto)
+├─ <div ref=listRef overflow-y-auto>
+│    {visibleContacts.map(...)}
+│    {isLoadingMoreContacts && <Spinner/>}
+│    <div ref=bottomSentinelRef/>
+│  </div>
+└─ IntersectionObserver(bottomSentinelRef) → loadMoreContacts()
+```
 
-Se você aprovar, eu executo esse plano em duas frentes: primeiro reparo os vínculos da fila ativa para o usuário afetado, depois aplico o endurecimento no código para o problema não voltar.
+## Arquivos a editar
+
+- `src/contexts/WhatsAppDataContext.tsx` — paginação, periodFilter no contexto, query com range + filtro de data.
+- `src/components/chat/ChatList.tsx` — infinite scroll, consumir periodFilter do contexto, remover state local.
+- `src/types/chat.ts` (se necessário) — expor novos campos no `ChatContextValue`.
