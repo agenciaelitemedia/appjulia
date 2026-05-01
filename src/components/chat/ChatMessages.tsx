@@ -42,7 +42,6 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
   // Mutable refs to avoid stale closures in stable callbacks
   const hasMoreRef = useRef(hasMore);
   const isLoadingMoreRef = useRef(isLoadingMore);
-  const contactMessagesLengthRef = useRef(0);
   const loadedMessagesLengthRef = useRef(0);
   
   const allContactMessages = messages[contactId] || [];
@@ -73,7 +72,6 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
   // Keep refs in sync with state
   useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
   useEffect(() => { isLoadingMoreRef.current = isLoadingMore; }, [isLoadingMore]);
-  useEffect(() => { contactMessagesLengthRef.current = contactMessages.length; }, [contactMessages.length]);
   useEffect(() => { loadedMessagesLengthRef.current = allContactMessages.length; }, [allContactMessages.length]);
 
   // Load conversation history when conversation changes
