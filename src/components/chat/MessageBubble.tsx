@@ -18,6 +18,7 @@ interface MessageBubbleProps {
   onReact?: (message: ChatMessage, emoji: string) => void;
   onForward?: (message: ChatMessage) => void;
   onReply?: (message: ChatMessage) => void;
+  isGroup?: boolean;
 }
 
 // WhatsApp text formatting - fixed regex bug (no global flag in test)
