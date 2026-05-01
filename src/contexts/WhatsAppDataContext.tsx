@@ -1513,20 +1513,28 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     if (!contactId) return;
     (async () => {
       try {
-        // If a resolved/closed conversation already exists in memory, don't create a new one
+        // Resolve existing conversation in memory first.
         const existingConv = conversations.find(c => c.contact_id === contactId);
         if (existingConv && ['resolved', 'closed'].includes(existingConv.status)) {
-          // Just load messages — do not reopen
+          // Read-only view — do not reopen / create.
           return;
         }
-
-        await getOrCreateConversation(contactId);
+        if (existingConv && ['pending', 'open'].includes(existingConv.status)) {
+          // Already have an active conversation — skip the DB round-trip.
+          // The realtime subscription keeps it fresh.
+        } else {
+          // No active conversation yet — create one in the background.
+          // Don't block UI on this; messages already load in parallel.
+          getOrCreateConversation(contactId).catch((err) =>
+            console.warn('[selectContact] getOrCreateConversation', err)
+          );
+        }
 
         const contact = contacts.find(c => c.id === contactId);
         if (!contact || contact.unread_count === 0) return;
 
         // Mark as read on click for all conversations
-        await markAsRead(contactId);
+        markAsRead(contactId).catch(() => { /* best-effort */ });
       } catch (e) {
         console.warn('[selectContact] error', e);
       }
