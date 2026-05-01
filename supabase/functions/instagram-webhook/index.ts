@@ -123,25 +123,63 @@ async function insertMessage(
     .from('chat_conversations')
     .select('id')
     .eq('contact_id', contactId)
+    .eq('client_id', agentInfo.client_id)
+    .eq('channel', 'instagram')
     .in('status', ['pending', 'open'])
     .order('created_at', { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (!conv) {
-    const { data: newConv } = await supabase
+    // Try to reopen a previously resolved conversation (mantém atribuição existente).
+    const { data: resolvedConv } = await supabase
       .from('chat_conversations')
-      .insert({
-        contact_id: contactId,
-        client_id: agentInfo.client_id,
-        cod_agent: agentInfo.cod_agent,
-        channel: 'instagram',
-        status: 'pending',
-        queue_id: queueId,
-      })
       .select('id')
-      .single();
-    conv = newConv;
+      .eq('contact_id', contactId)
+      .eq('client_id', agentInfo.client_id)
+      .eq('channel', 'instagram')
+      .eq('status', 'resolved')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (resolvedConv) {
+      await supabase
+        .from('chat_conversations')
+        .update({ status: 'open', resolved_at: null, updated_at: new Date().toISOString() })
+        .eq('id', resolvedConv.id);
+      await supabase.from('chat_conversation_history').insert({
+        conversation_id: resolvedConv.id,
+        action: 'reopened',
+        actor_name: 'Sistema (webhook)',
+        notes: 'Cliente respondeu após resolução — atribuição mantida',
+      });
+      conv = { id: resolvedConv.id };
+    } else {
+      // Closed ou nenhuma → nova conversa SEM atribuição
+      const { data: newConv } = await supabase
+        .from('chat_conversations')
+        .insert({
+          contact_id: contactId,
+          client_id: agentInfo.client_id,
+          cod_agent: agentInfo.cod_agent,
+          channel: 'instagram',
+          status: 'pending',
+          queue_id: queueId,
+          assigned_to: null,
+        })
+        .select('id')
+        .single();
+      if (newConv?.id) {
+        await supabase.from('chat_conversation_history').insert({
+          conversation_id: newConv.id,
+          action: 'opened',
+          actor_name: 'Sistema (webhook)',
+          to_value: 'pending',
+        });
+      }
+      conv = newConv;
+    }
   }
 
   await supabase.from('chat_messages').insert({
