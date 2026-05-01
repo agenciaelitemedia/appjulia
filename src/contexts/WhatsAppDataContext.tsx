@@ -939,23 +939,37 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
         chatMessages.forEach(m => knownMessageIds.current.add(m.id));
 
-        setMessages(prev => ({
-          ...prev,
-          [contactId]: offset === 0
-            ? chatMessages.reverse()
-            : [...chatMessages.reverse(), ...(prev[contactId] || [])],
-        }));
+        const ordered = chatMessages.reverse();
+        setMessages(prev => {
+          const existing = prev[contactId] || [];
+          if (offset === 0) {
+            // Merge dedupe by id — preserves any realtime messages that
+            // arrived before the initial fetch finished.
+            const seen = new Set(ordered.map(m => m.id));
+            const realtimeOnly = existing.filter(m => !seen.has(m.id));
+            return { ...prev, [contactId]: [...ordered, ...realtimeOnly] };
+          }
+          // Append older page above existing list, with dedupe.
+          const existingIds = new Set(existing.map(m => m.id));
+          const newOlder = ordered.filter(m => !existingIds.has(m.id));
+          return { ...prev, [contactId]: [...newOlder, ...existing] };
+        });
 
         return { messages: chatMessages, hasMore: cachedMessages.length === limit };
       }
 
+      // Empty result — make sure the bucket exists so the UI exits the
+      // loading state with a deterministic empty list (instead of `undefined`).
+      if (offset === 0) {
+        setMessages(prev => (prev[contactId] ? prev : { ...prev, [contactId]: [] }));
+      }
       return { messages: [], hasMore: false };
     } catch (error) {
       console.error('Error loading messages:', error);
       toast.error('Erro ao carregar mensagens');
       return { messages: [], hasMore: false };
     }
-  }, [clientId]);
+  }, []);
 
   // ============================================
   // Send Message via Edge Function (server-side proxy)
