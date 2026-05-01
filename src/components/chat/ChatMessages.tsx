@@ -326,6 +326,7 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
                       onForward={handleForward}
                       onReply={onReply}
                       onDownloadMedia={downloadMedia}
+                      isGroup={contacts.find(c => c.id === contactId)?.is_group}
                     />
                   );
                 })}
