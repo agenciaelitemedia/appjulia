@@ -1683,13 +1683,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               return;
             }
             setContacts(prev => {
-              const updated = prev.map(c => (c.id === (payload.new as ChatContact).id ? payload.new as ChatContact : c));
-              // Re-sort by last_message_at so new messages bubble up
-              return updated.sort((a, b) => {
-                const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
-                const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
-                return bTime - aTime;
-              });
+              // Reposition the single updated contact in O(n) instead of
+              // re-sorting the whole list on every realtime UPDATE.
+              if (!prev.some(c => c.id === updContact.id)) return prev;
+              return repositionContact(prev, updContact);
             });
           } else if (payload.eventType === 'DELETE') {
             setContacts(prev => prev.filter(c => c.id !== (payload.old as ChatContact).id));
@@ -1759,11 +1756,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
                     last_message_at: newMessage.timestamp || newMessage.created_at || c.last_message_at,
                   }
                 : c
-            ).sort((a, b) => {
-              const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
-              const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
-              return bTime - aTime;
-            }));
+            ));
+            setContacts(prev => {
+              const target = prev.find(c => c.id === newMessage.contact_id);
+              return target ? repositionContact(prev, target) : prev;
+            });
           }
 
           // For inbound (not from me, not internal note): bump unread_count locally
@@ -1786,11 +1783,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
                     last_message_at: newMessage.timestamp || newMessage.created_at || c.last_message_at,
                   }
                 : c
-            ).sort((a, b) => {
-              const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
-              const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
-              return bTime - aTime;
-            }));
+            ));
+            setContacts(prev => {
+              const target = prev.find(c => c.id === newMessage.contact_id);
+              return target ? repositionContact(prev, target) : prev;
+            });
 
             // Persist to DB (best-effort) so other clients/refresh see the badge
             (async () => {
