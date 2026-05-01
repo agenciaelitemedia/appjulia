@@ -29,3 +29,6 @@ Mensagens **outbound** (ecos `fromMe = true`) apenas anexam à conversa ativa; n
 - `supabase/functions/instagram-webhook/index.ts` (~linha 121)
 
 `webchat-api` está fora deste padrão: cada sessão de visitante cria uma conversa nova por design.
+
+**UI / Realtime (frontend):**
+O handler do canal realtime `chat_conversations_changes` em `src/contexts/WhatsAppDataContext.tsx` faz **upsert/remove conforme o filtro de status ativo** (`active` = pending+open, `resolved`, `closed`), lendo o filtro via `convQueryGroupRef`. Sem isso, conversas reabertas (resolved → open) não apareceriam na aba "Em aberto" sem reload, porque elas não foram carregadas inicialmente naquele grupo. **NÃO voltar para `prev.map(...)` puro.**
