@@ -7,10 +7,12 @@ type: feature
 Quando uma nova mensagem **inbound** (`fromMe = false`) chega via webhook de canal:
 
 1. Existe conversa `pending` ou `open` para (contact + client + queue + channel) → anexa.
-2. Existe conversa `resolved` (mais recente) → **reabre** essa mesma conversa:
+2. Existe conversa `resolved` (mais recente, mesmo `contact_id` + `client_id` + `channel`) → **reabre**:
    - `status = 'open'`, `resolved_at = null`, `updated_at = now()`.
    - **NÃO altera `assigned_to`** — mesmo agente que resolveu permanece responsável.
+   - Se a `queue_id` da nova mensagem for diferente da antiga, atualiza `queue_id` (mensagem chegou em outra fila do mesmo canal).
    - Insere `chat_conversation_history` com `action = 'reopened'`.
+   - **Importante**: o lookup do `resolved` IGNORA `queue_id` (só amarra por canal). Isso evita duplicar ticket quando a fila do contato muda.
 3. Não há ativa nem resolved (somente `closed` ou nenhuma) → **cria nova**:
    - `status = 'pending'`, `assigned_to = null` (volta para a fila pendente sem dono).
    - Insere `chat_conversation_history` com `action = 'opened'`.
