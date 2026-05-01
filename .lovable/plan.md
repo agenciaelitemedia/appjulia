@@ -1,91 +1,66 @@
-## Objetivo
 
-No `/chat`, garantir 3 coisas:
+## Diagnóstico do lead 5548988170905 (Ana carolina Trilha)
 
-1. **Skeleton de carregamento sempre aparece** quando a lista está sendo carregada (entrada na página, troca de fila, troca de período, refresh manual).
-2. **Realtime sempre ativo** — novas conversas/mensagens entram instantaneamente no topo, sem precisar reload.
-3. **Mais rápido**: reduzir trabalho do servidor, do JS e do React no caminho crítico da listagem.
+Confirmei no banco:
+- `contact_id`: `06083c26-9377-4238-b8d3-bd89f7937f62`
+- `conversation_id`: `d151578c-261e-4e60-b6e5-72a08e124a87`
+- `assigned_to`: **Ana Luiza** (tem responsável)
+- `status`: **`pending`**
+- `first_response_at`: **`NULL`** (atendente nunca enviou mensagem)
+- `queue_id`: `ec46239f-...`, criada em 25/04, última atualização 30/04
 
----
+### Por que está em "Em Abertos" e não em "Em Atendimento"
 
-## Situação atual (resumo do código)
+Hoje as abas no `/chat` são definidas **apenas pelo campo `status`** da `chat_conversations`:
+- `Em Abertos` = `status = 'pending'`
+- `Em Atendimento` = `status = 'open'`
 
-- `WhatsAppDataContext.loadContacts({ reset })` faz `SELECT *` em `chat_contacts` com `range(0, 49)` filtrado por `client_id`, `channel_source` (queue) e `last_message_at >= cutoff`. O loader marca `isLoading=true` durante o fetch, e o `ChatList` mostra 8 skeletons quando `isLoading === true`.
-- **Problema 1 (skeleton)**: O effect que dispara `loadContacts({ reset: true })` só roda depois que `clientId` e `activeQueueIds` resolvem. Antes disso, `isLoading` ainda é `false` (estado inicial), então o usuário vê **lista vazia** ou "Nenhuma conversa" por uma fração de segundo, em vez de skeleton. Além disso, o `ChatPageContent` já chama `loadContacts()` no mount, criando uma janela ainda maior em que `isLoading` pode estar `false`.
-- **Problema 2 (realtime)**: Já existem 3 channels (`chat_contacts`, `chat_messages`, `chat_conversations`). Funcionam, mas têm 2 ineficiências:
-  - Cada UPDATE em `chat_contacts` re-ordena o array inteiro (`prev.map(...).sort(...)`) e cada INSERT de mensagem também re-ordena `contacts`. Em listas grandes isso causa re-render pesado.
-  - Cada UPDATE em `chat_conversations` chama `loadConvCounts()` (uma query extra ao banco) — totalmente redundante porque o estado em memória já tem todos os pending/open.
-- **Problema 3 (perf da lista)**:
-  - `loadContacts` usa `select('*')` (puxa todas as colunas, inclusive metadados pesados).
-  - O `ChatList` faz vários `useMemo` que iteram sobre `conversations` e `contacts` em cada keystroke / cada update realtime (sortedConversations, statusByContact, baseForCounts, pendingConvCount/openConvCount, slaStatusByContact).
-  - A lista renderiza `visibleContacts.map(...)` sem virtualização — com 50–500 itens e cada `ChatContactItem` tendo avatar + badges + cálculos derivados, fica pesado.
-  - O `ChatPageContent` chama `loadContacts()` no mount e o context tem outro `useEffect` que também chama `loadContacts({ reset: true })` quando `clientId/queue/period` mudam → **fetch duplicado** no primeiro load.
+E o status só muda de `pending → open` em **um único ponto** do código (`WhatsAppDataContext.tsx` linha 1067-1075): quando o atendente **envia a primeira mensagem**, o sistema seta `first_response_at = now()` e `status = 'open'`.
 
----
+Atribuir um responsável (`assigned_to`) **não altera o status**. Por isso o lead da Ana Luiza, que foi designado mas ainda não respondido, continua em `pending` há 5 dias.
 
-## Mudanças propostas
-
-### 1) Skeleton sempre visível enquanto carrega
-
-- No `WhatsAppDataContext`:
-  - Inicializar `const [isLoading, setIsLoading] = useState(true)` (era `false`) — assim, do primeiro render até o primeiro fetch terminar, a UI já mostra skeleton.
-  - Em `loadContacts`, manter `setIsLoading(true)` no início de cada `reset` (já faz). Garantir que `setIsLoading(false)` só ocorra no `finally` (já faz).
-  - Quando `clientId` ainda não resolveu OU `queuesLoading === true`, o loader retorna cedo — nesse caso **não** colocar `isLoading=false`. Isso mantém o skeleton até o contexto estar pronto para a primeira query real.
-- Remover o `loadContacts()` duplicado em `ChatPageContent.useEffect` (o context já dispara via effect quando `clientId/queue/period/activeQueueIds` mudam). Manter só a lógica de "pending contact id" do sessionStorage.
-
-### 2) Realtime mais leve e sempre ligado
-
-- Em `chat_contacts` UPDATE/INSERT: substituir `prev.map(...).sort(...)` por uma operação que (a) atualiza/insere o item e (b) **move só o item alterado para a posição correta** com uma busca binária ou um simples splice — evita resort O(n log n) a cada mensagem.
-- Remover as duas chamadas a `loadConvCounts()` dentro do channel de `chat_conversations` (linhas ~1868, 1874, 1880). Os totalizers já são derivados de `conversations` em memória — esse channel já mantém `conversations` atualizado.
-- Remover o estado `convCounts` e a função `loadConvCounts` (não são mais usados — `pendingConvCount`/`openConvCount` vêm do memo no `ChatList`).
-- Manter o canal `chat_contacts` como está, mas trocar o `filter` para incluir também `channel_source=in.(activeQueueIds)` quando possível — diminui o ruído de updates de filas que o usuário nem vê. (Postgres realtime aceita `in`, mas o cliente Supabase não — então deixar o filtro client-side como está, só descrever que continua funcionando.)
-
-### 3) Performance da listagem
-
-- **Query enxuta**: trocar `select('*')` em `loadContacts` por uma lista explícita de colunas usadas na lista (`id, client_id, cod_agent, channel_source, channel_type, phone, name, avatar, is_group, is_archived, is_muted, unread_count, last_message_at, last_message_text, created_at, updated_at`). Reduz payload e parsing.
-- **Índice no banco** (migration): criar índice composto em `chat_contacts (client_id, channel_source, last_message_at DESC NULLS LAST)` se ainda não existir. Acelera o `range(0, 49)` que é o caminho crítico de cada abertura do chat. Antes da migration, rodar `read_query` para confirmar que o índice ainda não existe.
-- **Virtualização da lista**: trocar o `visibleContacts.map(...)` por `react-window` (`FixedSizeList`, altura ~76px por item) dentro do container `flex-1 overflow-y-auto`. Mantém o sentinel do infinite scroll após o último item visível usando o callback `onItemsRendered`. Renderizar apenas ~15 DOM nodes em vez de 50–500. (Adicionar dependência `react-window` + `@types/react-window`.)
-- **Memos**: o `pendingConvCount/openConvCount` já roda em uma única passada — manter. Garantir que `convMetaByContact`, `statusByContact`, `slaStatusByContact` reusem `sortedConversations` em vez de re-iterar `conversations` (já fazem em parte). Sem mudança grande aqui, só verificação.
-- **Eliminar fetch duplicado** no mount (item 1 acima).
-
-### 4) Indicador "Atualizando…" durante refetch silencioso
-
-- Quando `isLoading === true` e a lista já tem itens (caso de troca de fila/período), em vez de esconder a lista atual e mostrar 8 skeletons cheios, mostrar uma faixa fina no topo com `Loader2` + texto "Atualizando…" e manter os itens antigos visíveis até o novo fetch terminar. Para o **primeiro** load (lista vazia + `isLoading`), continuar com os 8 skeletons cheios — essa é a "visão de carregando" que o usuário pediu.
+A regra atual ignora a sua expectativa: "todo lead com responsável deve estar em Em Atendimento".
 
 ---
 
-## Detalhes técnicos
+## Proposta de correção
 
-```text
-WhatsAppDataContext
-├─ useState<boolean>(isLoading) inicial = true   (antes: false)
-├─ loadContacts: select('id,name,phone,…') (sem '*')
-├─ realtime chat_contacts UPDATE: sem resort completo, só reposicionar item
-├─ realtime chat_conversations: remover loadConvCounts() (3 chamadas)
-└─ remove loadConvCounts() / convCounts state
+Mudar a regra para: **conversa entra em "Em Atendimento" quando tem responsável OU quando já houve primeira resposta**.
 
-ChatPage.tsx
-└─ remove loadContactsRef.current() do mount (context já carrega)
+### Mudanças
 
-ChatList.tsx
-├─ react-window FixedSizeList no lugar do .map
-├─ banner "Atualizando…" quando isLoading && contacts.length > 0
-└─ skeleton cheio só quando isLoading && contacts.length === 0
+**1. Backend — atualizar status ao atribuir responsável**
+Sempre que `assigned_to` for definido (de `NULL` para um valor) em `chat_conversations` com `status = 'pending'`, promover automaticamente para `status = 'open'`.
 
-DB
-└─ index: chat_contacts (client_id, channel_source, last_message_at DESC NULLS LAST)
+Implementação: trigger `BEFORE UPDATE` em `chat_conversations`:
+```sql
+IF NEW.assigned_to IS NOT NULL
+   AND (OLD.assigned_to IS NULL OR OLD.assigned_to = '')
+   AND NEW.status = 'pending'
+THEN
+  NEW.status := 'open';
+END IF;
 ```
+Mais um backfill único para reclassificar conversas já atribuídas e ainda `pending` (caso da Ana Luiza).
 
-## Arquivos a editar
+**2. Frontend — refletir a nova semântica nos contadores**
+Em `src/components/chat/ChatList.tsx` (linhas ~456-548) e `src/contexts/WhatsAppDataContext.tsx` (linhas ~450-455), os contadores `pendingConvCount` / `openConvCount` hoje lêem direto de `conv.status`. Após o trigger, isso já funciona sozinho, mas como camada de segurança (caso o realtime atrase), também classificar no cliente:
+- `Em Atendimento` se `status === 'open' || (status === 'pending' && assigned_to)`
+- `Em Abertos` apenas se `status === 'pending' && !assigned_to`
 
-- `src/contexts/WhatsAppDataContext.tsx` — `isLoading` inicial, query enxuta, realtime sem resort/sem loadConvCounts.
-- `src/components/chat/ChatList.tsx` — virtualização com `react-window`, banner de refetch, skeleton só no primeiro load.
-- `src/pages/chat/ChatPage.tsx` — remover `loadContactsRef.current()` do mount (mantém só o pending contact).
-- `package.json` — adicionar `react-window` + `@types/react-window`.
-- Migration SQL — `CREATE INDEX IF NOT EXISTS idx_chat_contacts_client_queue_lastmsg ON chat_contacts (client_id, channel_source, last_message_at DESC NULLS LAST);` (após confirmar via `read_query` que ainda não existe).
+Essa lógica vale para: o filtro da lista (linha 1606), os contadores das abas, e o lookup `selectedConversation` (linha 1582).
 
-## O que NÃO muda
+**3. Pontos de atribuição cobertos**
+A atualização de `assigned_to` acontece em vários fluxos (atribuição manual via UI, roteamento automático em `chat-route-conversation`, sincronização CRM ↔ chat via trigger `sync_deal_to_conversation`). O trigger no banco cobre todos automaticamente, sem precisar tocar em cada caller.
 
-- Filtros, totalizers, lógica de SLA, modo IA, tags, snooze, multi-fila — tudo permanece igual.
-- Default do filtro de período continua `last7days`.
-- Page size continua 50; infinite scroll continua via `IntersectionObserver` no sentinel (agora ancorado ao final virtualizado).
+### Arquivos a editar
+- nova migration SQL (trigger + backfill)
+- `src/contexts/WhatsAppDataContext.tsx` (classificação no cliente)
+- `src/components/chat/ChatList.tsx` (contadores + filtro da lista)
+
+### Resultado esperado
+- Lead 5548988170905 (Ana Luiza) passa imediatamente para a aba **Em Atendimento**.
+- Toda conversa futura, ao receber responsável, sai de "Em Abertos" e entra em "Em Atendimento" — mesmo antes da primeira resposta.
+- Conversas sem responsável continuam em "Em Abertos".
+
+Aprova para eu implementar?
