@@ -1,49 +1,69 @@
-## Objetivo
-Eliminar o caso em que o chat entra com a lista/contadores carregados, mas a conversa fica sem mensagens até sair e voltar da página. Também vou tornar o carregamento inicial e o “carregar mensagens anteriores” mais previsíveis e resilientes.
+# Regra unificada de reabertura de conversas
 
-## O que vou corrigir
-1. Introduzir um estado explícito de prontidão do contexto do chat para separar:
-   - bootstrap da página
-   - lista de conversas pronta
-   - conversa selecionada pronta para hidratar mensagens
-2. Ajustar a hidratação inicial de `ChatMessages` para não depender só de `contactId`.
-   - o carregamento inicial vai reexecutar quando o contexto terminar de resolver cliente/filas/conversas
-   - não vai marcar “primeira carga concluída” cedo demais quando a fonte ainda não estiver pronta
-3. Proteger a seleção da conversa durante o bootstrap.
-   - evitar montagem do painel de mensagens em estado intermediário
-   - manter a seleção estável enquanto a lista e as conversas terminam de sincronizar
-4. Corrigir a recuperação automática do cache de mensagens.
-   - hoje ela tenta reidratar só em parte dos cenários
-   - vou cobrir também quando existe contato selecionado, mas o bucket local ainda está vazio ou foi sobrescrito por refresh silencioso
-5. Reforçar a UX de carregamento no painel de conversa.
-   - skeleton consistente enquanto a conversa ainda está “hidratando”
-   - estado vazio só quando realmente não existirem mensagens
-   - fallback manual de recarga mais confiável
-6. Revisar o gatilho do histórico/paginação antiga para não depender de um estado inicial inconsistente.
+## Regra de negócio (final)
 
-## Arquivos que serão alterados
-- `src/contexts/WhatsAppDataContext.tsx`
-- `src/components/chat/ChatMessages.tsx`
-- `src/components/chat/ChatContainer.tsx`
-- `src/pages/chat/ChatPage.tsx`
+Ao chegar uma **nova mensagem inbound** (`fromMe = false`) de um contato:
 
-## Resultado esperado
-- Ao entrar em `/chat`, a conversa abre com as mensagens corretamente na primeira vez.
-- O usuário não precisa sair e voltar da tela para ver o conteúdo.
-- O histórico antigo volta a carregar já na primeira abertura.
-- A experiência fica mais estável mesmo com carregamento assíncrono de filas, permissões e conversas.
+1. **Existe conversa ativa** (`pending` ou `open`) para o mesmo contato + fila + canal → anexa a mensagem nela (comportamento atual mantido).
+2. **Existe conversa `resolved`** (mais recente) → **reabre essa mesma conversa**:
+   - `status` volta para `open`
+   - `resolved_at` zerado
+   - **`assigned_to` permanece** (mesmo agente que resolveu continua dono)
+   - registra evento `reopened` no histórico
+3. **Não há ativa nem resolved** (só existem `closed`, ou nenhuma) → **cria uma nova conversa**:
+   - `status = 'pending'`
+   - `assigned_to = null` (sem dono — vai para a fila de pendentes)
+   - registra evento `opened`
+
+Mensagens **outbound** (`fromMe = true`, ecos do operador/IA) continuam apenas se anexando à conversa ativa, sem nunca reabrir uma `resolved` nem criar nova após `closed` (evita ruído quando agente envia mensagem fora do ticket).
+
+## Estado atual no código
+
+- `uazapi-chat-webhook` (WhatsApp UaZapi): **já tem reabertura para `resolved`** (linhas 1140-1196), mas precisa de pequenos ajustes de robustez. Closed já cai no fluxo correto (cria nova sem `assigned_to`).
+- `meta-webhook` (WhatsApp WABA, linhas 222-257): **não busca `resolved`** — sempre cria nova conversa quando não há ativa. Precisa adicionar a etapa de reabertura.
+- `instagram-webhook` (linhas 121-145): mesma falha do WABA + não filtra por `queue_id`/`channel`. Precisa adicionar reabertura.
+- `webchat-api`: verificar e alinhar se aplicável.
+
+## Mudanças
+
+### 1. `supabase/functions/uazapi-chat-webhook/index.ts` (ajustes)
+- Garantir que o update de reabertura **não toca em `assigned_to`** (já é o caso — confirmar).
+- Atualizar `updated_at` explicitamente no reopen.
+- Já está correto no essencial; apenas pequenos polimentos.
+
+### 2. `supabase/functions/meta-webhook/index.ts`
+Inserir, entre o lookup de `openConv` e o `insert` de nova conversa, uma busca por `status = 'resolved'`:
+- Se existe → `update { status: 'open', resolved_at: null }` e usar esse `id`.
+- Senão → segue criando nova `pending` (sem `assigned_to`).
+- Apenas para mensagens inbound (não para ecos do `messages` outbound do próprio agente via API).
+- Inserir registro em `chat_conversation_history` (`reopened` ou `opened`).
+
+### 3. `supabase/functions/instagram-webhook/index.ts`
+- Adicionar filtro por `client_id`, `channel = 'instagram'` e `queue_id` na busca de conversa ativa.
+- Adicionar etapa de reabertura de `resolved` (mesmo padrão do WABA).
+- Nova conversa criada sem `assigned_to` (remover `cod_agent` do insert se ele estiver atuando como dono — manter apenas para roteamento de fila).
+
+### 4. `supabase/functions/webchat-api/index.ts`
+- Verificar lógica de associação a conversa e aplicar o mesmo padrão (resolved → reopen, closed/none → nova sem dono).
 
 ## Detalhes técnicos
-- O problema principal está no sincronismo entre o bootstrap do `WhatsAppDataContext` e o efeito inicial de `ChatMessages`.
-- Hoje o painel de mensagens pode disparar fetch cedo demais, enquanto cliente/filas/conversas ainda estão estabilizando, e como o efeito depende basicamente de `contactId`, ele não necessariamente reexecuta quando o contexto finalmente fica pronto.
-- Também existe risco de o painel assumir “primeira página carregada” num momento em que o bucket local ainda não representa o estado final da conversa.
-- Vou alinhar a montagem do painel e o fetch inicial a uma condição de prontidão real do contexto, além de tornar a reidratação idempotente e segura contra resets silenciosos.
 
-## Validação
-Vou validar estes cenários após implementar:
-1. Entrar direto em `/chat` com conversa selecionada.
-2. Abrir uma conversa na aba “Em Abertos”.
-3. Trocar para “Em Atendimento” e voltar.
-4. Confirmar que as mensagens aparecem sem navegar para outra página.
-5. Confirmar que “Carregar mensagens anteriores” funciona já na primeira abertura.
-6. Confirmar que refresh silencioso do contexto não apaga a conversa visível.
+- **Diferença `resolved` vs `closed`**: o enum `ConversationStatus` já distingue (`'pending' | 'open' | 'closed' | 'resolved'`). `resolved` = "encerramento leve" (cliente pode voltar e a conversa volta atribuída ao mesmo dono). `closed` = "encerramento definitivo" (próximo contato é um ticket novo, vai para a fila sem dono).
+- **`assigned_to` preservado**: é suficiente **não incluí-lo no `update`** do reopen — o valor anterior permanece intacto no banco.
+- **Idempotência**: o reopen só ocorre quando `status = 'resolved'`. Se já estiver `open`, cai no caminho 1 (anexa).
+- **Histórico**: cada reopen e cada nova abertura geram entrada em `chat_conversation_history` para rastreabilidade.
+- **Echos (`fromMe=true`)**: anexam à conversa ativa se houver; não disparam reopen nem criação.
+
+## Arquivos a editar
+
+- `supabase/functions/uazapi-chat-webhook/index.ts` (revisão pequena)
+- `supabase/functions/meta-webhook/index.ts`
+- `supabase/functions/instagram-webhook/index.ts`
+- `supabase/functions/webchat-api/index.ts` (se aplicável após revisão)
+
+## Memória
+
+Salvar em `mem://features/chat/conversation-reopen-rules.md`:
+- `resolved` reabre mesma conversa, mantém `assigned_to`.
+- `closed` força nova conversa sem `assigned_to`.
+- Reopen só em mensagens inbound; outbound apenas anexa.
