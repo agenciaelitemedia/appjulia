@@ -177,8 +177,21 @@ async function insertMessage(
           actor_name: 'Sistema (webhook)',
           to_value: 'pending',
         });
+        conv = newConv;
+      } else {
+        // Conflito do índice único parcial: outro worker criou em paralelo
+        const { data: raceConv } = await supabase
+          .from('chat_conversations')
+          .select('id')
+          .eq('contact_id', contactId)
+          .eq('client_id', agentInfo.client_id)
+          .eq('channel', 'instagram')
+          .in('status', ['pending', 'open'])
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        conv = raceConv ?? null;
       }
-      conv = newConv;
     }
   }
 
