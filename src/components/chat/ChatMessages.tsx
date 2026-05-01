@@ -346,6 +346,17 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
             </div>
           )}
 
+          {/* Manual fallback to load older messages (always works even when
+              the IntersectionObserver does not fire — e.g. very tall first
+              page or unusual scroll containers). */}
+          {!isLoadingMore && hasMore && hasLoadedFirstPage && contactMessages.length > 0 && (
+            <div className="flex justify-center py-2">
+              <Button variant="ghost" size="sm" onClick={handleLoadMore}>
+                Carregar mensagens anteriores
+              </Button>
+            </div>
+          )}
+
           {/* Loading state */}
           {isLoading && contactMessages.length === 0 && (
             <div className="space-y-3 py-2" aria-label="Carregando mensagens">
