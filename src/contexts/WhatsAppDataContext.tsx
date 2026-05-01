@@ -2005,9 +2005,33 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               setConversations(prev => prev.filter(c => c.id !== updConv.id));
               return;
             }
-            setConversations(prev =>
-              prev.map(c => (c.id === updConv.id ? updConv : c))
-            );
+            // Queue scope check
+            if (currentQueueId && updConv.queue_id !== currentQueueId) {
+              setConversations(prev => prev.filter(c => c.id !== updConv.id));
+              return;
+            }
+            // Status scope check vs the currently loaded group (active / resolved / closed).
+            // This is what makes a "resolved → open" reopen show up immediately in the
+            // "Em aberto" tab, and a "open → resolved" disappear from it without reload.
+            const group = convQueryGroupRef.current;
+            const matchesGroup =
+              group === 'active'
+                ? (updConv.status === 'pending' || updConv.status === 'open')
+                : updConv.status === group;
+            if (!matchesGroup) {
+              setConversations(prev => prev.filter(c => c.id !== updConv.id));
+              return;
+            }
+            // Upsert: replace if present, otherwise insert at the top (sorted by updated_at desc).
+            setConversations(prev => {
+              const idx = prev.findIndex(c => c.id === updConv.id);
+              if (idx >= 0) {
+                const next = prev.slice();
+                next[idx] = updConv;
+                return next;
+              }
+              return [updConv, ...prev];
+            });
           }
         }
       )
