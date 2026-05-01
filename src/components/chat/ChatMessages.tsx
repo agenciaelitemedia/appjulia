@@ -148,10 +148,15 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
   // the user to leave/return to the route.
   useEffect(() => {
     if (!contactId) return;
+    if (!isReady) return;
     if (isLoading) return;
-    if (!hasLoadedFirstPage) return;
     const bucket = messages[contactId];
     if (bucket && bucket.length > 0) return;
+    // If the first page was never marked loaded (e.g. context was not
+    // ready when the contact was first selected), force a fetch now that
+    // the context is ready and the bucket is still empty.
+    // If the first page WAS loaded but the bucket got wiped (silent
+    // refresh, scope change resettle), also re-hydrate.
     // Bucket missing/empty — re-hydrate.
     let cancelled = false;
     setIsLoading(true);
@@ -161,6 +166,7 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
         if (cancelled) return;
         setHasMore(more);
         setLoadedCount(fetched.length);
+        setHasLoadedFirstPage(true);
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             bottomRef.current?.scrollIntoView({ behavior: 'auto' });
@@ -172,7 +178,7 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
       .finally(() => { if (!cancelled) setIsLoading(false); });
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contactId, messages[contactId], hasLoadedFirstPage]);
+  }, [contactId, messages[contactId], hasLoadedFirstPage, isReady]);
 
   // Auto-scroll to bottom on new messages (if near bottom)
   useEffect(() => {
