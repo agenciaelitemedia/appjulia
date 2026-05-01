@@ -180,14 +180,16 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ChatTab>('individual');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  // Start as loading so the chat list shows skeleton from the very first
+  // render until `loadContacts({ reset: true })` finishes (or there is no
+  // data to load). Avoids the flash of "Nenhuma conversa" on cold open.
+  const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [selectedQueue, setSelectedQueue] = useState<SelectedQueue | null>(null);
 
   // Conversation state
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [conversationStatusFilter, setConversationStatusFilter] = useState<ConversationFilterStatus>('pending');
-  const [convCounts, setConvCounts] = useState<{ pending: number; open: number }>({ pending: 0, open: 0 });
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [tags, setTags] = useState<ChatTag[]>([]);
   const [conversationTagsMap, setConversationTagsMap] = useState<Record<string, ChatTag[]>>({});
