@@ -224,6 +224,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
   const knownMessageIds = useRef<Set<string>>(new Set());
 
+  // Tracks whether the chat context has finished its initial bootstrap
+  // (client id resolved, queues fetched, first conversations page loaded).
+  // Children use this to avoid firing contact-scoped queries during the
+  // brief window where the provider is still hydrating its scope.
+  const [hasLoadedConversationsOnce, setHasLoadedConversationsOnce] = useState(false);
+
   const clientId = effectiveClientId;
   const currentQueueId = selectedQueue?.id;
 
