@@ -638,7 +638,11 @@ export function DealDetailsSheet({
                 )}
               </div>
 
-              {/* 7. Valor (editável) */}
+              {/* Vínculos: Chat e Jul.IA (antes do valor) */}
+              <DealLinksSection deal={deal} />
+              <DealJuliaPanel deal={deal} />
+
+              {/* Valor (editável) */}
               <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
