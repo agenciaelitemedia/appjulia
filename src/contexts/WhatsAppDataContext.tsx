@@ -2114,6 +2114,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     // Period filter
     periodFilter,
     setPeriodFilter,
+
+    // Bootstrap readiness — used by children to avoid racing context hydration
+    isReady: !!clientId && !queuesLoading && hasLoadedConversationsOnce,
   }), [
     contacts, messages, selectedContactId, activeTab, searchQuery, isLoading, isSyncing,
     loadContacts, loadMessages, sendMessage, sendMedia, downloadMedia, markAsRead, syncContacts, selectContact,
@@ -2124,6 +2127,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     conversationTagsMap, refreshConversationTags,
     sendInternalNote, showDetailPanel, conversationHistory, loadConversationHistory,
     hasMoreContacts, isLoadingMoreContacts, loadMoreContacts, periodFilter,
+    clientId, queuesLoading, hasLoadedConversationsOnce,
   ]);
 
   return (
