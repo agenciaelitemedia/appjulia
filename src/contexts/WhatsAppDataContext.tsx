@@ -449,8 +449,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const convCounts = useMemo(() => {
     let pending = 0, open = 0;
     for (const c of conversations) {
-      if (c.status === 'pending') pending++;
-      else if (c.status === 'open') open++;
+      // Conversa com responsável é classificada como "Em Atendimento" (open),
+      // mesmo que o status físico ainda seja 'pending'.
+      const hasAssignee = !!(c.assigned_to && String(c.assigned_to).trim() !== '');
+      const effective = c.status === 'pending' && hasAssignee ? 'open' : c.status;
+      if (effective === 'pending') pending++;
+      else if (effective === 'open') open++;
     }
     return { pending, open };
   }, [conversations]);
@@ -1603,7 +1607,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
     if (conversationStatusFilter !== 'all') {
       const contactIdsWithStatus = conversations
-        .filter(c => c.status === conversationStatusFilter)
+        .filter(c => {
+          const hasAssignee = !!(c.assigned_to && String(c.assigned_to).trim() !== '');
+          const effective = c.status === 'pending' && hasAssignee ? 'open' : c.status;
+          return effective === conversationStatusFilter;
+        })
         .map(c => c.contact_id);
       filtered = filtered.filter(c => contactIdsWithStatus.includes(c.id));
     } else {

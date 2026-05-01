@@ -541,7 +541,12 @@ export function ChatList() {
         if (!name.includes(q) && !phone.includes(q)) continue;
       }
 
-      if (conv.status === 'pending') pending++;
+      // Classificação efetiva: conversa com responsável conta como "Em Atendimento"
+      // mesmo quando o status físico ainda for 'pending' (camada de segurança
+      // contra atrasos do trigger/realtime).
+      const hasAssignee = !!(conv.assigned_to && String(conv.assigned_to).trim() !== '');
+      const effectiveStatus = conv.status === 'pending' && hasAssignee ? 'open' : conv.status;
+      if (effectiveStatus === 'pending') pending++;
       else open++;
     }
 
