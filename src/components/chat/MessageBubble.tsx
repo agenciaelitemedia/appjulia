@@ -18,6 +18,7 @@ interface MessageBubbleProps {
   onReact?: (message: ChatMessage, emoji: string) => void;
   onForward?: (message: ChatMessage) => void;
   onReply?: (message: ChatMessage) => void;
+  isGroup?: boolean;
 }
 
 // WhatsApp text formatting - fixed regex bug (no global flag in test)
@@ -439,7 +440,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
 
 
 export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
-  function MessageBubble({ message, reactions, onDownloadMedia, onReact, onForward, onReply }, ref) {
+  function MessageBubble({ message, reactions, onDownloadMedia, onReact, onForward, onReply, isGroup }, ref) {
     const isMedia = ['image', 'video', 'audio', 'ptt', 'document', 'sticker', 'location', 'contact'].includes(message.type);
     const hasQuote = message.metadata?.quoted_message;
     const isInternalNote = !!message.metadata?.internal_note;
@@ -571,7 +572,7 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
               )}
             >
               {/* Sender name (groups) */}
-              {!message.from_me && message.metadata?.sender_name && (
+              {!message.from_me && isGroup && message.metadata?.sender_name && (
                 <p className="text-xs font-medium text-primary mb-1">
                   {message.metadata.sender_name}
                 </p>
