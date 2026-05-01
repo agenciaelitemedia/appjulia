@@ -1138,13 +1138,14 @@ Deno.serve(async (req) => {
         if (activeConv) {
           conversationId = activeConv.id;
         } else {
-          // 2) Check for a resolved conversation to reopen (resolved = soft close, reopens on reply)
+          // 2) Check for a resolved conversation to reopen (resolved = soft close).
+          //    Lookup mais permissivo: ignora queue_id (caso a fila tenha sido trocada),
+          //    mantém isolamento por canal.
           const { data: resolvedConv } = await supabase
             .from('chat_conversations')
-            .select('id')
+            .select('id, queue_id, assigned_to')
             .eq('contact_id', contact.id)
             .eq('client_id', queue.client_id)
-            .eq('queue_id', queueId)
             .eq('channel', 'whatsapp_uazapi')
             .eq('status', 'resolved')
             .order('updated_at', { ascending: false })
@@ -1152,18 +1153,23 @@ Deno.serve(async (req) => {
             .maybeSingle();
 
           if (resolvedConv) {
-            // Reopen the resolved conversation (only on inbound reply; echoes just attach)
             if (!fromMe) {
-            await supabase
-              .from('chat_conversations')
-              .update({ status: 'open', resolved_at: null, updated_at: new Date().toISOString() })
-              .eq('id', resolvedConv.id);
-            await supabase.from('chat_conversation_history').insert({
-              conversation_id: resolvedConv.id,
-              action: 'reopened',
-              actor_name: 'Sistema (webhook)',
-              notes: 'Cliente respondeu após resolução — atribuição mantida',
-            });
+              const update: Record<string, unknown> = {
+                status: 'open',
+                resolved_at: null,
+                updated_at: new Date().toISOString(),
+              };
+              const queueChanged = resolvedConv.queue_id !== queueId;
+              if (queueChanged) update.queue_id = queueId;
+              await supabase.from('chat_conversations').update(update).eq('id', resolvedConv.id);
+              await supabase.from('chat_conversation_history').insert({
+                conversation_id: resolvedConv.id,
+                action: 'reopened',
+                actor_name: 'Sistema (webhook)',
+                notes: queueChanged
+                  ? 'Cliente respondeu após resolução — atribuição mantida; fila atualizada'
+                  : 'Cliente respondeu após resolução — atribuição mantida',
+              });
             }
             conversationId = resolvedConv.id;
           } else {
