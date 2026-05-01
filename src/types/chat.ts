@@ -237,7 +237,7 @@ export interface ChatState {
 
 export interface ChatContextValue extends ChatState {
   // Actions
-  loadContacts: (codAgent?: string) => Promise<void>;
+  loadContacts: (opts?: { reset?: boolean; append?: boolean }) => Promise<void>;
   loadMessages: (contactId: string, limit?: number, offset?: number) => Promise<{ messages: ChatMessage[]; hasMore: boolean }>;
   sendMessage: (contactId: string, text: string, replyToMessage?: ChatMessage) => Promise<void>;
   sendMedia: (contactId: string, file: File, type: MessageType, caption?: string) => Promise<void>;
