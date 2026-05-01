@@ -460,6 +460,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       setConversations((data || []) as ChatConversation[]);
     } catch (error) {
       console.error('Error loading conversations:', error);
+    } finally {
+      setHasLoadedConversationsOnce(true);
     }
   }, [clientId, currentQueueId, convQueryGroup, activeQueueIds, queuesLoading]);
 
