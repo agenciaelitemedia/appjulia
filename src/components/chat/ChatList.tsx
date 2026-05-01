@@ -433,16 +433,110 @@ export function ChatList() {
   // Single pass over the count base — produces both counts in the same render
   // tick. Counts now reflect filters but NOT the active status tab, so each
   // badge always displays its true value.
+  // ─────────────────────────────────────────────────────────────────────
+  // Totalizers — counted directly over the FULL `conversations` universe
+  // (loaded server-side without contact pagination), so badges reflect the
+  // real total of pending/open tickets matching the active filters,
+  // regardless of how many contacts were already paginated into the list.
+  // ─────────────────────────────────────────────────────────────────────
   const { pendingConvCount, openConvCount } = React.useMemo(() => {
     let pending = 0;
     let open = 0;
-    for (const c of baseForCounts) {
-      const s = statusByContact.get(c.id);
-      if (s === 'pending') pending++;
-      else if (s === 'open') open++;
+
+    // Pre-build helpers
+    const contactById = new Map<string, typeof contacts[number]>();
+    contacts.forEach((c) => contactById.set(c.id, c));
+
+    const q = deferredSearch.trim().toLowerCase();
+    const range = getDateRange(periodFilter);
+    const selectedMember =
+      ownerFilter !== 'all' && ownerFilter !== 'mine' && ownerFilter !== 'unassigned'
+        ? teamMembers.find((m) => String(m.id) === ownerFilter)
+        : undefined;
+    const now = Date.now();
+
+    for (const conv of conversations) {
+      // Status must be pending/open
+      if (conv.status !== 'pending' && conv.status !== 'open') continue;
+
+      // Snooze filter (always hidden by default in the list)
+      const snoozedUntil = (conv as { snoozed_until?: string | null }).snoozed_until;
+      if (snoozedUntil && new Date(snoozedUntil).getTime() > now) continue;
+
+      // Tab Individual / Grupos
+      if (!matchesActiveTab(conv.contact_id)) continue;
+
+      // Open-scope restriction (non-privileged users only see their own open)
+      if (!isVisibleByOpenScope(conv.contact_id)) continue;
+
+      // Period filter — use conversation.updated_at as activity proxy
+      if (range) {
+        const ts = conv.updated_at || conv.created_at;
+        if (!ts) continue;
+        const d = new Date(ts);
+        if (Number.isNaN(d.getTime()) || d < range.from || d > range.to) continue;
+      }
+
+      // Owner filter
+      if (ownerFilter !== 'all') {
+        const assigned = conv.assigned_to;
+        if (ownerFilter === 'unassigned') {
+          if (assigned) continue;
+        } else if (ownerFilter === 'mine') {
+          if (!assigned) continue;
+          if (assigned !== String(user?.id) && assigned !== user?.name) continue;
+        } else {
+          if (!assigned) continue;
+          if (assigned !== ownerFilter && (!selectedMember || assigned !== selectedMember.name)) continue;
+        }
+      }
+
+      // Stage filter (by contact phone)
+      if (stageIds.length > 0 && stageByPhone) {
+        const contact = contactById.get(conv.contact_id);
+        const norm = (contact?.phone || '').replace(/\D/g, '');
+        const info = norm ? stageByPhone.get(norm) : undefined;
+        if (!info || !stageIds.includes(info.stageId)) continue;
+      }
+
+      // SLA filter
+      if (slaFilter !== 'all') {
+        if (slaStatusByContact.get(conv.contact_id) !== slaFilter) continue;
+      }
+
+      // Mode filter (IA/human) — based on queue link + cached session status
+      if (modeFilter !== 'all') {
+        const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
+        const hasAgent = !!queueLink?.hasAgent;
+        if (hasAgent) {
+          if (modeFilter === 'human') continue;
+          const contact = contactById.get(conv.contact_id);
+          const codAgent = queueLink?.codAgent || conv.cod_agent || contact?.cod_agent;
+          if (!codAgent || !contact?.phone) continue;
+          // Without a cached session we keep the row visible (matches list behavior)
+        } else {
+          if (modeFilter !== 'human') continue;
+        }
+      }
+
+      // Search filter — match against the contact's name/phone if loaded
+      if (q) {
+        const contact = contactById.get(conv.contact_id);
+        const name = (contact?.name || '').toLowerCase();
+        const phone = (contact?.phone || '').toLowerCase();
+        if (!name.includes(q) && !phone.includes(q)) continue;
+      }
+
+      if (conv.status === 'pending') pending++;
+      else open++;
     }
+
     return { pendingConvCount: pending, openConvCount: open };
-  }, [baseForCounts, statusByContact]);
+  }, [
+    conversations, contacts, deferredSearch, periodFilter, ownerFilter, teamMembers,
+    user?.id, user?.name, stageIds, stageByPhone, slaFilter, slaStatusByContact,
+    modeFilter, queueAgentMap, matchesActiveTab, isVisibleByOpenScope,
+  ]);
 
   const channelBadge = (type: string) => {
     switch (type) {
