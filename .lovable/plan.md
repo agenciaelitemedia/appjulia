@@ -1,63 +1,78 @@
-## Diagnóstico
-Verifiquei o caso do número `5534991633679` no banco.
+## Problema
 
-- Existe uma conversa `resolved` para esse contato:
-  - protocolo: `#2026-008604`
-  - atribuída a: `Mario Castro`
-- As mensagens mais recentes continuaram sendo gravadas nessa mesma conversa.
-- Porém, elas foram persistidas como `from_me = true`.
-- No webhook `uazapi-chat-webhook`, a regra de reabertura só executa quando a mensagem é tratada como recebida do cliente (`!fromMe`).
-- Resultado: a mensagem entra na conversa antiga, mas a conversa não muda de `resolved` para `open`, e também não é criada uma nova conversa.
+Quando o webhook reabre uma conversa que estava `resolved` (passa para `status = 'open'`, mantém `assigned_to`), ela **não aparece imediatamente** na aba "Em aberto" do atendente. O usuário precisa trocar de filtro / dar refresh para vê-la.
 
-Em outras palavras: o problema não está na listagem; está na decisão do webhook sobre direção da mensagem e na aplicação da regra de reabertura.
+## Causa raiz
 
-## Plano
-1. Ajustar a identificação de direção no `uazapi-chat-webhook`
-   - Parar de depender apenas do campo bruto `fromMe`.
-   - Consolidar a leitura de `chatid`, `sender_pn`, `owner`, `source` e o telefone normalizado para distinguir corretamente:
-     - mensagem do cliente
-     - mensagem do atendente/instância
-   - Cobrir casos com número em formato antigo/novo (8º/9º dígito) e JIDs alternativos.
+Em `src/contexts/WhatsAppDataContext.tsx`:
 
-2. Reaplicar a regra de negócio após a direção correta
-   - Se a última conversa do contato estiver `resolved` e a nova mensagem for do cliente:
-     - reabrir a mesma conversa
-     - manter `assigned_to`
-     - manter o mesmo protocolo
-     - voltar para `open`
-   - Se a última conversa estiver `closed` e a nova mensagem for do cliente:
-     - criar nova conversa
-     - `assigned_to = null`
-     - `status = pending`
-     - gerar novo protocolo
-   - Se já houver conversa `pending/open`, apenas anexar a mensagem nela.
+1. `loadConversations` busca **apenas** `status IN ('pending','open')` quando o filtro é "Em aberto" (`convQueryGroup === 'active'`). Conversas `resolved` **não estão no estado local**.
+2. O canal realtime `chat_conversations_changes` trata `UPDATE` assim:
+   ```ts
+   setConversations(prev => prev.map(c => (c.id === updConv.id ? updConv : c)));
+   ```
+   Como a conversa `resolved` reaberta **nunca foi carregada** (não está em `prev`), o `.map` é no-op — nada entra na lista. Só acontece a alteração se o usuário estiver na aba "Resolvidas" no momento da reabertura.
+3. O mesmo problema afeta o caminho inverso (sair de "Em aberto" para `resolved`/`closed` enquanto o usuário está na aba ativa — ela continua visível indevidamente até reload).
 
-3. Adicionar trilha de auditoria e logs mais explícitos
-   - Registrar no histórico da conversa quando houver:
-     - reabertura por nova mensagem
-     - criação de nova conversa após `closed`
-   - Melhorar logs do webhook com:
-     - telefone resolvido
-     - direção final da mensagem
-     - status anterior
-     - ação tomada
-   Isso facilita identificar rapidamente novos casos parecidos.
+## Correção
 
-4. Criar testes de regressão para o webhook UaZapi
-   - Caso `resolved` + mensagem do cliente => reabre mantendo responsável.
-   - Caso `closed` + mensagem do cliente => nova conversa sem responsável.
-   - Caso mensagem do atendente => não disparar regra de reabertura por engano.
-   - Caso com variação de número normalizado (`553491...` vs `5534991...`) => continuar encontrando o mesmo contato corretamente.
+Tornar o handler de `UPDATE` **consciente do filtro atual** (`convQueryGroupRef`) e dos `activeQueueIds`, com semântica "upsert / remove":
 
-5. Validar o caso do número `5534991633679` após a correção
-   - Reprocessar mentalmente/tecnicamente o fluxo com o payload real.
-   - Se a mensagem realmente era do cliente, corrigir o estado da conversa afetada.
-   - Se o payload realmente era do atendente, manter o estado atual e deixar a regra protegida para os próximos recebimentos reais.
+```text
+ao receber UPDATE de chat_conversations:
+  decidir se a conversa "pertence" ao grupo atualmente carregado:
+    grupo 'active'   → status IN ('pending','open')
+    grupo 'resolved' → status = 'resolved'
+    grupo 'closed'   → status = 'closed'
+  + respeitar currentQueueId / activeQueueIds (queue não deletada)
 
-## Arquivos previstos
+  se pertence:
+    se já está em prev → substituir (comportamento atual)
+    se NÃO está em prev → INSERIR no topo (reposicionar por updated_at)
+  se NÃO pertence:
+    remover de prev (caso esteja lá — ex: foi resolvida em outra aba)
+```
+
+Isso resolve os dois lados: reabertura aparece na hora; encerramento some na hora.
+
+## Mudanças
+
+### 1. `src/contexts/WhatsAppDataContext.tsx`
+
+- Criar um `convQueryGroupRef = useRef(convQueryGroup)` mantido sincronizado por um `useEffect`, para o handler realtime ler o valor mais recente sem precisar resubscrever.
+- No handler do canal `chat_conversations_changes`:
+  - Extrair helper `belongsToCurrentGroup(conv)` que valida status + queue.
+  - No branch `UPDATE` (e tratar `INSERT` de forma consistente):
+    - Se `belongsToCurrentGroup` → upsert (substitui se existe, senão insere ordenado por `updated_at desc`).
+    - Caso contrário → `prev.filter(c => c.id !== updConv.id)`.
+- Manter o comportamento de remover quando a queue ficou soft-deleted.
+- Garantir que o `useEffect` que cria o canal **não** dependa de `convQueryGroup` (evita derrubar/recriar a subscription a cada troca de aba) — usar a `ref`.
+
+### 2. Webhooks (defesa em profundidade)
+
+Já estão corretos hoje (reopen seta `status='open'`, `resolved_at=null`, `updated_at=now()`), mas garantir explicitamente que o `UPDATE` toque `updated_at = now()` em todos os três webhooks:
 - `supabase/functions/uazapi-chat-webhook/index.ts`
-- possivelmente um helper compartilhado em `supabase/functions/_shared/*` para resolver direção/telefone
-- novo teste para o webhook UaZapi
+- `supabase/functions/meta-webhook/index.ts`
+- `supabase/functions/instagram-webhook/index.ts`
 
-## Observação técnica
-Hoje a evidência armazenada aponta que a última mensagem desse contato foi classificada como saída (`from_me = true`). Então a correção principal é tornar essa classificação robusta antes de aplicar a regra de reabertura. Depois disso, o comportamento esperado volta a ser consistente no chat.
+Isso garante a posição correta no topo após a reabertura.
+
+### 3. Memória
+
+Atualizar `mem/features/chat/conversation-reopen-rules.md` com nota:
+> A lista do chat só reflete a reabertura em tempo real porque o handler de realtime faz upsert/remove conforme o filtro de status ativo (não apenas map). Não voltar para `prev.map(...)` puro.
+
+## Arquivos editados
+
+- `src/contexts/WhatsAppDataContext.tsx` (handler realtime + ref)
+- `supabase/functions/uazapi-chat-webhook/index.ts` (garantir `updated_at`)
+- `supabase/functions/meta-webhook/index.ts` (garantir `updated_at`)
+- `supabase/functions/instagram-webhook/index.ts` (garantir `updated_at`)
+- `mem/features/chat/conversation-reopen-rules.md`
+
+## Validação
+
+1. Resolver conversa do contato X (atribuída ao usuário A).
+2. Estando logado como A, na aba "Em aberto", pedir ao contato X que envie nova mensagem.
+3. **Esperado**: a conversa aparece no topo da lista "Em aberto", já atribuída a A, sem reload e sem trocar de filtro.
+4. Caso oposto: conversa "Em aberto" sendo movida para `resolved` por outro operador → some da lista de A em tempo real.
