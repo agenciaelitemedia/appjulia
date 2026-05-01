@@ -141,7 +141,7 @@ export function DashboardFunnelChart({ data, isLoading }: DashboardFunnelChartPr
               {data.map((entry) => (
                 <Cell key={entry.id} fill={entry.color} />
               ))}
-              <LabelList content={renderLabel} />
+              <LabelList content={(props: any) => renderLabel(props)} />
             </Bar>
           </BarChart>
         </ResponsiveContainer>
