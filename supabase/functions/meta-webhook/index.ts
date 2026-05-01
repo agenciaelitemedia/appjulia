@@ -235,16 +235,54 @@ async function persistToChat(
         .maybeSingle();
 
       if (!openConv) {
-        const { data: created } = await supabase.from('chat_conversations').insert({
-          contact_id: contactId,
-          client_id: effectiveClientId,
-          queue_id: queueInfo.id,
-          channel: 'whatsapp_waba',
-          status: 'pending',
-          priority: 'normal',
-          protocol: '',
-        }).select('id').maybeSingle();
-        conversationId = created?.id ?? null;
+        // Try to reopen a previously resolved conversation (same contact/queue/channel).
+        // Resolved = soft close → cliente respondeu, retoma o mesmo ticket mantendo o atribuído.
+        const { data: resolvedConv } = await supabase
+          .from('chat_conversations')
+          .select('id')
+          .eq('contact_id', contactId)
+          .eq('client_id', effectiveClientId)
+          .eq('queue_id', queueInfo.id)
+          .eq('channel', 'whatsapp_waba')
+          .eq('status', 'resolved')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (resolvedConv) {
+          await supabase
+            .from('chat_conversations')
+            .update({ status: 'open', resolved_at: null, updated_at: new Date().toISOString() })
+            .eq('id', resolvedConv.id);
+          await supabase.from('chat_conversation_history').insert({
+            conversation_id: resolvedConv.id,
+            action: 'reopened',
+            actor_name: 'Sistema (webhook)',
+            notes: 'Cliente respondeu após resolução — atribuição mantida',
+          });
+          conversationId = resolvedConv.id;
+        } else {
+          // Closed ou nenhuma → nova conversa SEM atribuição (volta para a fila pendente)
+          const { data: created } = await supabase.from('chat_conversations').insert({
+            contact_id: contactId,
+            client_id: effectiveClientId,
+            queue_id: queueInfo.id,
+            channel: 'whatsapp_waba',
+            status: 'pending',
+            priority: 'normal',
+            protocol: '',
+            assigned_to: null,
+          }).select('id').maybeSingle();
+          if (created?.id) {
+            await supabase.from('chat_conversation_history').insert({
+              conversation_id: created.id,
+              action: 'opened',
+              actor_name: 'Sistema (webhook)',
+              to_value: 'pending',
+            });
+          }
+          conversationId = created?.id ?? null;
+        }
       } else if (!openConv.queue_id) {
         await supabase
           .from('chat_conversations')
