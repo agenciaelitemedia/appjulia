@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import { TagsManagerDialog } from './TagsManagerDialog';
 import { NewConversationDialog } from './NewConversationDialog';
 import { MessageSquarePlus } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ChatContactItem } from './ChatContactItem';
 import { Badge } from '@/components/ui/badge';
@@ -86,6 +87,11 @@ export function ChatList() {
     conversations,
     conversationTagsMap,
     contacts,
+    hasMoreContacts,
+    isLoadingMoreContacts,
+    loadMoreContacts,
+    periodFilter,
+    setPeriodFilter,
   } = useWhatsAppData();
   const { data: queueLimits } = useAgentQueueLimits();
   const showGroupsTab = !!(queueLimits?.allowGroups && queueLimits?.showGroupsTab);
@@ -105,7 +111,6 @@ export function ChatList() {
   const [modeFilter, setModeFilter] = useState<ConversationModeFilter>('all');
   const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('all');
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
   const [stageIds, setStageIds] = useState<number[]>([]);
   const [stagePopoverOpen, setStagePopoverOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -812,7 +817,7 @@ export function ChatList() {
       </div>
 
       {/* Contact List */}
-      <ScrollArea className="flex-1">
+      <div ref={listRef} className="flex-1 overflow-y-auto">
         <div className="py-1">
           {isLoading ? (
             Array.from({ length: 8 }).map((_, i) => (
@@ -875,8 +880,23 @@ export function ChatList() {
               );
             })
           )}
+
+          {/* Infinite scroll loader / sentinel */}
+          {isLoadingMoreContacts && (
+            <div className="flex justify-center py-3">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          )}
+          {!isLoading && visibleContacts.length > 0 && (
+            <div ref={bottomSentinelRef} className="h-1" />
+          )}
+          {!isLoading && !hasMoreContacts && visibleContacts.length > 0 && (
+            <div className="text-center text-[10px] text-muted-foreground py-3">
+              Fim da lista
+            </div>
+          )}
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Footer: iniciar nova conversa */}
       <div className="px-3 py-2 border-t bg-muted/30 shrink-0">
