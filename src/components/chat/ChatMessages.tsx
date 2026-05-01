@@ -25,7 +25,7 @@ type TimelineItem =
   | { kind: 'event'; data: ConversationHistoryEntry; ts: number };
 
 export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
-  const { messages, loadMessages, conversationHistory, loadConversationHistory, selectedConversation, downloadMedia, selectedQueue, contacts } = useWhatsAppData();
+  const { messages, loadMessages, conversationHistory, loadConversationHistory, selectedConversation, downloadMedia, selectedQueue, contacts, isReady } = useWhatsAppData();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -43,6 +43,7 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
   const hasMoreRef = useRef(hasMore);
   const isLoadingMoreRef = useRef(isLoadingMore);
   const contactMessagesLengthRef = useRef(0);
+  const loadedMessagesLengthRef = useRef(0);
   
   const allContactMessages = messages[contactId] || [];
 
@@ -73,6 +74,7 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
   useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
   useEffect(() => { isLoadingMoreRef.current = isLoadingMore; }, [isLoadingMore]);
   useEffect(() => { contactMessagesLengthRef.current = contactMessages.length; }, [contactMessages.length]);
+  useEffect(() => { loadedMessagesLengthRef.current = allContactMessages.length; }, [allContactMessages.length]);
 
   // Load conversation history when conversation changes
   useEffect(() => {
@@ -84,6 +86,12 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
   // Initial load
   useEffect(() => {
     isInitialLoad.current = true;
+    if (!contactId || !isReady) {
+      setIsLoading(!!contactId);
+      setHasMore(true);
+      return;
+    }
+
     setIsLoading(true);
     setHasMore(true);
     loadMessages(contactId, 50, 0)
@@ -98,7 +106,7 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
         });
       })
       .finally(() => setIsLoading(false));
-  }, [contactId, loadMessages]);
+  }, [contactId, isReady, loadMessages]);
 
   // Auto-scroll to bottom on new messages (if near bottom)
   useEffect(() => {
@@ -115,14 +123,15 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
   // are read from refs to avoid recreating this callback on every new message, which would
   // otherwise tear down and re-attach the IntersectionObserver constantly.
   const handleLoadMore = useCallback(async () => {
-    if (isLoadingMoreRef.current || !hasMoreRef.current) return;
+    if (!isReady || isLoadingMoreRef.current || !hasMoreRef.current) return;
     const el = scrollContainerRef.current;
     if (!el) return;
 
     prevScrollHeight.current = el.scrollHeight;
     setIsLoadingMore(true);
     try {
-      const { hasMore: more } = await loadMessages(contactId, 50, contactMessagesLengthRef.current);
+      const nextOffset = loadedMessagesLengthRef.current;
+      const { hasMore: more } = await loadMessages(contactId, 50, nextOffset);
       setHasMore(more);
       requestAnimationFrame(() => {
         if (el) {
@@ -132,7 +141,7 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
     } finally {
       setIsLoadingMore(false);
     }
-  }, [contactId, loadMessages]);
+  }, [contactId, isReady, loadMessages]);
 
   // IntersectionObserver for infinite scroll (top sentinel).
   // handleLoadMore is now stable (no length/hasMore/isLoadingMore in deps),
