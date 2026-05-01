@@ -440,7 +440,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
 
 
 export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
-  function MessageBubble({ message, reactions, onDownloadMedia, onReact, onForward, onReply }, ref) {
+  function MessageBubble({ message, reactions, onDownloadMedia, onReact, onForward, onReply, isGroup }, ref) {
     const isMedia = ['image', 'video', 'audio', 'ptt', 'document', 'sticker', 'location', 'contact'].includes(message.type);
     const hasQuote = message.metadata?.quoted_message;
     const isInternalNote = !!message.metadata?.internal_note;
