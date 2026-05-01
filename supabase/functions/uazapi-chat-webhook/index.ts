@@ -1156,13 +1156,13 @@ Deno.serve(async (req) => {
             if (!fromMe) {
             await supabase
               .from('chat_conversations')
-              .update({ status: 'open', resolved_at: null })
+              .update({ status: 'open', resolved_at: null, updated_at: new Date().toISOString() })
               .eq('id', resolvedConv.id);
             await supabase.from('chat_conversation_history').insert({
               conversation_id: resolvedConv.id,
               action: 'reopened',
               actor_name: 'Sistema (webhook)',
-              notes: 'Cliente respondeu após resolução',
+              notes: 'Cliente respondeu após resolução — atribuição mantida',
             });
             }
             conversationId = resolvedConv.id;
@@ -1179,6 +1179,7 @@ Deno.serve(async (req) => {
                 status: 'pending',
                 priority: 'normal',
                 protocol: '',
+                assigned_to: null,
               })
               .select('id')
               .single();
