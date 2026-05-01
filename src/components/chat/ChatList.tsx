@@ -946,8 +946,16 @@ export function ChatList() {
 
       {/* Contact List */}
       <div ref={listRef} className="flex-1 overflow-y-auto">
+        {/* Silent-refetch banner — shown when reloading but the list is
+            already populated, so the user doesn't lose the current view. */}
+        {isLoading && contacts.length > 0 && (
+          <div className="flex items-center justify-center gap-2 py-1.5 text-[10px] text-muted-foreground bg-muted/30 border-b">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Atualizando…
+          </div>
+        )}
         <div className="py-1">
-          {isLoading ? (
+          {isLoading && contacts.length === 0 ? (
             Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-3">
                 <Skeleton className="h-10 w-10 rounded-full" />
@@ -973,10 +981,10 @@ export function ChatList() {
             </div>
           ) : (
             visibleContacts.map((contact, idx) => {
-              // Pick most recent conversation (any status) so queue/team stay visible
-              const contactConvs = conversations
-                .filter(c => c.contact_id === contact.id)
-                .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
+              // Pick most recent conversation (any status) so queue/team stay visible.
+              // Uses pre-grouped, pre-sorted Map → O(1) per row instead of
+              // O(N log N) filter+sort on every render.
+              const contactConvs = convsByContact.get(contact.id) || [];
               const conv = contactConvs[0];
               // Fallback: if current conversation has no queue, look for the most recent prior conversation that has one
               const queueIdToShow = conv?.queue_id || contactConvs.find(c => c.queue_id)?.queue_id;
@@ -1010,12 +1018,12 @@ export function ChatList() {
           )}
 
           {/* Infinite scroll loader / sentinel */}
-          {isLoadingMoreContacts && (
+          {isLoadingMoreContacts && contacts.length > 0 && (
             <div className="flex justify-center py-3">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             </div>
           )}
-          {!isLoading && visibleContacts.length > 0 && (
+          {visibleContacts.length > 0 && (
             <div ref={bottomSentinelRef} className="h-1" />
           )}
           {!isLoading && !hasMoreContacts && visibleContacts.length > 0 && (
