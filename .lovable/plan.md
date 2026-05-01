@@ -1,47 +1,49 @@
-Objetivo: eliminar o estado em que o usuário entra em /chat, vê loading infinito ou lista vazia de mensagens, e só consegue recuperar saindo/voltando ou trocando filtros.
+## Objetivo
+Eliminar o caso em que o chat entra com a lista/contadores carregados, mas a conversa fica sem mensagens até sair e voltar da página. Também vou tornar o carregamento inicial e o “carregar mensagens anteriores” mais previsíveis e resilientes.
 
-Plano
+## O que vou corrigir
+1. Introduzir um estado explícito de prontidão do contexto do chat para separar:
+   - bootstrap da página
+   - lista de conversas pronta
+   - conversa selecionada pronta para hidratar mensagens
+2. Ajustar a hidratação inicial de `ChatMessages` para não depender só de `contactId`.
+   - o carregamento inicial vai reexecutar quando o contexto terminar de resolver cliente/filas/conversas
+   - não vai marcar “primeira carga concluída” cedo demais quando a fonte ainda não estiver pronta
+3. Proteger a seleção da conversa durante o bootstrap.
+   - evitar montagem do painel de mensagens em estado intermediário
+   - manter a seleção estável enquanto a lista e as conversas terminam de sincronizar
+4. Corrigir a recuperação automática do cache de mensagens.
+   - hoje ela tenta reidratar só em parte dos cenários
+   - vou cobrir também quando existe contato selecionado, mas o bucket local ainda está vazio ou foi sobrescrito por refresh silencioso
+5. Reforçar a UX de carregamento no painel de conversa.
+   - skeleton consistente enquanto a conversa ainda está “hidratando”
+   - estado vazio só quando realmente não existirem mensagens
+   - fallback manual de recarga mais confiável
+6. Revisar o gatilho do histórico/paginação antiga para não depender de um estado inicial inconsistente.
 
-1. Estabilizar o bootstrap do chat no contexto
-- Ajustar `src/contexts/WhatsAppDataContext.tsx` para não limpar `selectedContactId` e `messages` durante a primeira hidratação só porque as filas acessíveis (`activeQueueIds`) terminaram de carregar.
-- Separar “carregamento inicial” de “troca real de escopo” (fila, período, cliente), usando guards de prontidão para evitar reset prematuro.
-- Manter a conversa selecionada enquanto ela continuar válida no escopo atual; só limpar se ela realmente sair da fila/período visível.
-- Garantir que a restauração de conversa pendente ao abrir `/chat` só rode depois que contatos/filas estiverem prontos.
-
-2. Tornar o carregamento inicial das mensagens resiliente
-- Refatorar `src/components/chat/ChatMessages.tsx` para reexecutar o load inicial quando o contato estiver selecionado mas o bucket `messages[contactId]` ainda não existir após o bootstrap.
-- Diferenciar claramente os estados: `isHydratingInitial`, `isLoadingMore`, `hasLoadedFirstPage`, `loadFailed`.
-- Evitar que o componente fique preso em um estado “sem mensagens” ou “carregando” quando o contexto fizer refresh silencioso.
-- Fazer o scroll para o fim apenas depois da primeira página realmente consolidada.
-
-3. Corrigir a paginação/autoload de “carregar mais mensagens”
-- Parar de usar `contactMessages.length` como offset da próxima página, porque essa lista já é filtrada (ex.: notas internas de outra conversa e envelopes ocultos), o que pode quebrar a paginação.
-- Passar a controlar um offset bruto por contato ou um contador de mensagens carregadas sem filtro.
-- Reconfigurar o `IntersectionObserver` para usar explicitamente `scrollContainerRef.current` como `root`, com ativação apenas após a primeira página estar pronta.
-- Adicionar fallback manual confiável para “Carregar mais”/“Tentar novamente” quando a interseção não disparar.
-
-4. Ajustar restauração e navegação para conversa ativa
-- Revisar `src/pages/chat/ChatPage.tsx` para restaurar a conversa pendente somente quando o contexto estiver pronto.
-- Endurecer a lógica para aceitar corretamente a identificação pendente vinda de outros módulos, evitando abrir `/chat` em estado inconsistente.
-- Se necessário, complementar com seleção segura da primeira conversa visível apenas após a lista estar pronta (sem auto-reset posterior).
-
-5. Validar UX e performance do fluxo completo
-- Testar os cenários: primeira entrada em `/chat`, retorno à aba, troca de filtros, troca de fila e scroll até carregar histórico antigo.
-- Confirmar que a lista continua rápida, com skeleton na lista e mensagens aparecendo na primeira abertura sem exigir reentrada.
-- Verificar que o realtime não perde mensagens novas durante refresh silencioso.
-
-Arquivos previstos
+## Arquivos que serão alterados
 - `src/contexts/WhatsAppDataContext.tsx`
 - `src/components/chat/ChatMessages.tsx`
+- `src/components/chat/ChatContainer.tsx`
 - `src/pages/chat/ChatPage.tsx`
-- Possivelmente um ponto de origem do deep-link do chat, se a restauração pendente estiver vindo com identificador inconsistente.
 
-Detalhes técnicos
-- Hoje existe um forte candidato à causa raiz: o efeito de reload do contexto limpa seleção e cache de mensagens quando dependências de bootstrap mudam (`currentQueueId`, `clientId`, `activeQueueIds`, `periodFilter`). Na primeira entrada, isso pode acontecer logo após as filas acessíveis terminarem de carregar.
-- A paginação atual também está vulnerável porque usa o tamanho da lista já filtrada como offset do banco. Isso pode gerar páginas incorretas, autoload falhando e necessidade de sair/voltar para “destravar”.
-- Há mensagens no banco; o problema aparenta ser de ciclo de vida e sincronização do frontend, não ausência de dados.
+## Resultado esperado
+- Ao entrar em `/chat`, a conversa abre com as mensagens corretamente na primeira vez.
+- O usuário não precisa sair e voltar da tela para ver o conteúdo.
+- O histórico antigo volta a carregar já na primeira abertura.
+- A experiência fica mais estável mesmo com carregamento assíncrono de filas, permissões e conversas.
 
-Resultado esperado
-- Entrar em `/chat` e ver mensagens na primeira vez, sem precisar sair e voltar.
-- “Carregar mais mensagens” funcionando de forma consistente.
-- Lista e painel mais estáveis, rápidos e previsíveis mesmo com realtime e filtros ativos.
+## Detalhes técnicos
+- O problema principal está no sincronismo entre o bootstrap do `WhatsAppDataContext` e o efeito inicial de `ChatMessages`.
+- Hoje o painel de mensagens pode disparar fetch cedo demais, enquanto cliente/filas/conversas ainda estão estabilizando, e como o efeito depende basicamente de `contactId`, ele não necessariamente reexecuta quando o contexto finalmente fica pronto.
+- Também existe risco de o painel assumir “primeira página carregada” num momento em que o bucket local ainda não representa o estado final da conversa.
+- Vou alinhar a montagem do painel e o fetch inicial a uma condição de prontidão real do contexto, além de tornar a reidratação idempotente e segura contra resets silenciosos.
+
+## Validação
+Vou validar estes cenários após implementar:
+1. Entrar direto em `/chat` com conversa selecionada.
+2. Abrir uma conversa na aba “Em Abertos”.
+3. Trocar para “Em Atendimento” e voltar.
+4. Confirmar que as mensagens aparecem sem navegar para outra página.
+5. Confirmar que “Carregar mensagens anteriores” funciona já na primeira abertura.
+6. Confirmar que refresh silencioso do contexto não apaga a conversa visível.

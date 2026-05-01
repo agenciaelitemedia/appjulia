@@ -173,6 +173,11 @@ interface ExtendedContextValue extends ChatContextValue {
   // Period filter (server-side cutoff for last_message_at)
   periodFilter: ChatPeriodFilter;
   setPeriodFilter: (p: ChatPeriodFilter) => void;
+
+  // Bootstrap readiness — true once client_id + queues + first conversations
+  // page have all resolved at least once, so children can safely fetch
+  // contact-scoped data (messages, history) without racing the bootstrap.
+  isReady: boolean;
 }
 
 const WhatsAppDataContext = createContext<ExtendedContextValue | undefined>(undefined);
@@ -218,6 +223,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const [periodFilter, setPeriodFilter] = useState<ChatPeriodFilter>('last7days');
 
   const knownMessageIds = useRef<Set<string>>(new Set());
+
+  // Tracks whether the chat context has finished its initial bootstrap
+  // (client id resolved, queues fetched, first conversations page loaded).
+  // Children use this to avoid firing contact-scoped queries during the
+  // brief window where the provider is still hydrating its scope.
+  const [hasLoadedConversationsOnce, setHasLoadedConversationsOnce] = useState(false);
 
   const clientId = effectiveClientId;
   const currentQueueId = selectedQueue?.id;
@@ -449,6 +460,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       setConversations((data || []) as ChatConversation[]);
     } catch (error) {
       console.error('Error loading conversations:', error);
+    } finally {
+      setHasLoadedConversationsOnce(true);
     }
   }, [clientId, currentQueueId, convQueryGroup, activeQueueIds, queuesLoading]);
 
@@ -2101,6 +2114,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     // Period filter
     periodFilter,
     setPeriodFilter,
+
+    // Bootstrap readiness — used by children to avoid racing context hydration
+    isReady: !!clientId && !queuesLoading && hasLoadedConversationsOnce,
   }), [
     contacts, messages, selectedContactId, activeTab, searchQuery, isLoading, isSyncing,
     loadContacts, loadMessages, sendMessage, sendMedia, downloadMedia, markAsRead, syncContacts, selectContact,
@@ -2111,6 +2127,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     conversationTagsMap, refreshConversationTags,
     sendInternalNote, showDetailPanel, conversationHistory, loadConversationHistory,
     hasMoreContacts, isLoadingMoreContacts, loadMoreContacts, periodFilter,
+    clientId, queuesLoading, hasLoadedConversationsOnce,
   ]);
 
   return (
