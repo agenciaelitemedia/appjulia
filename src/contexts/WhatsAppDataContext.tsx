@@ -1944,15 +1944,35 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   }, [clientId, currentQueueId, activeQueueIds]);
 
   // Reload everything and clear selection when queue or client changes
+  // - Initial bootstrap: just load — never wipe selection.
+  // - Real scope change (queue / client / period): wipe selection + cache.
+  // - `activeQueueIds` reference change alone (e.g. queues list re-fetch with
+  //   the same set) must NOT clear the selected conversation. We compare its
+  //   contents instead of relying on referential identity.
+  const bootstrapKeyRef = useRef<string | null>(null);
   useEffect(() => {
     if (!clientId) return;
+    const key = JSON.stringify({
+      clientId,
+      queueId: currentQueueId || null,
+      period: periodFilter,
+      // Sorted active queues so reorderings don't trigger a reset.
+      queues: [...activeQueueIds].sort(),
+    });
+    const prev = bootstrapKeyRef.current;
+    bootstrapKeyRef.current = key;
     setHasMoreContacts(true);
     loadContacts({ reset: true });
     loadTags();
     refreshConversationTags();
-    setSelectedContactId(null);
-    setMessages({});
-    knownMessageIds.current.clear();
+    // Only clear selection / message cache on a REAL scope change.
+    // The very first effect run (prev === null) is the initial mount —
+    // keep any pending selection (e.g. from sessionStorage deep-link).
+    if (prev !== null && prev !== key) {
+      setSelectedContactId(null);
+      setMessages({});
+      knownMessageIds.current.clear();
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentQueueId, clientId, activeQueueIds, periodFilter]);
 
