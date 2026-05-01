@@ -21,6 +21,32 @@ import type {
   ChatTag,
 } from '@/types/conversation';
 import { useAccessibleQueues, type Queue } from '@/pages/agente/filas/hooks/useQueues';
+import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
+
+// Period filter (mirrors options shown in ChatList)
+export type ChatPeriodFilter =
+  | 'all'
+  | 'today'
+  | 'yesterday'
+  | 'last7days'
+  | 'thisMonth'
+  | 'last3Months';
+
+const CONTACTS_PAGE_SIZE = 50;
+
+function getPeriodCutoffISO(p: ChatPeriodFilter): string | null {
+  if (p === 'all') return null;
+  const now = new Date();
+  const todayStart = startOfDay(now);
+  switch (p) {
+    case 'today': return todayStart.toISOString();
+    case 'yesterday': return subDays(todayStart, 1).toISOString();
+    case 'last7days': return subDays(todayStart, 7).toISOString();
+    case 'thisMonth': return startOfMonth(now).toISOString();
+    case 'last3Months': return subMonths(todayStart, 3).toISOString();
+    default: return null;
+  }
+}
 
 
 // ============================================
@@ -123,6 +149,15 @@ interface ExtendedContextValue extends ChatContextValue {
 
   // Media
   downloadMedia: (messageId: string) => Promise<DownloadMediaResult>;
+
+  // Pagination of contacts list
+  hasMoreContacts: boolean;
+  isLoadingMoreContacts: boolean;
+  loadMoreContacts: () => Promise<void>;
+
+  // Period filter (server-side cutoff for last_message_at)
+  periodFilter: ChatPeriodFilter;
+  setPeriodFilter: (p: ChatPeriodFilter) => void;
 }
 
 const WhatsAppDataContext = createContext<ExtendedContextValue | undefined>(undefined);
@@ -157,6 +192,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const [tags, setTags] = useState<ChatTag[]>([]);
   const [conversationTagsMap, setConversationTagsMap] = useState<Record<string, ChatTag[]>>({});
   const [conversationHistory, setConversationHistory] = useState<ConversationHistoryEntry[]>([]);
+
+  // Contacts pagination
+  const [hasMoreContacts, setHasMoreContacts] = useState(true);
+  const [isLoadingMoreContacts, setIsLoadingMoreContacts] = useState(false);
+
+  // Period filter — defaults to last 7 days every time the chat is opened
+  const [periodFilter, setPeriodFilter] = useState<ChatPeriodFilter>('last7days');
 
   const knownMessageIds = useRef<Set<string>>(new Set());
 
@@ -276,37 +318,70 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // ============================================
   // Load Contacts from Supabase (filtered by queue via channel_source)
   // ============================================
-  const loadContacts = useCallback(async () => {
+  // Paginated loader. When `reset` is true (or omitted), the list is
+  // replaced from offset 0; otherwise we append the next page.
+  const loadContacts = useCallback(async (opts?: { reset?: boolean; append?: boolean }) => {
     if (!clientId || queuesLoading) return;
+    const append = opts?.append === true;
 
-    setIsLoading(true);
+    if (append) setIsLoadingMoreContacts(true);
+    else setIsLoading(true);
+
     try {
+      // Compute current offset from existing list when appending
+      const offset = append ? contacts.length : 0;
+
       let query = supabase
         .from('chat_contacts')
         .select('*')
         .eq('client_id', clientId)
-        .order('last_message_at', { ascending: false, nullsFirst: false });
+        .order('last_message_at', { ascending: false, nullsFirst: false })
+        .range(offset, offset + CONTACTS_PAGE_SIZE - 1);
 
       if (currentQueueId) {
         query = query.eq('channel_source', currentQueueId);
       } else if (activeQueueIds.length > 0) {
         query = query.in('channel_source', activeQueueIds);
       } else {
-        setContacts([]);
+        if (!append) setContacts([]);
+        setHasMoreContacts(false);
         return;
+      }
+
+      const cutoff = getPeriodCutoffISO(periodFilter);
+      if (cutoff) {
+        query = query.gte('last_message_at', cutoff);
       }
 
       const { data, error } = await query;
       if (error) throw error;
 
-      setContacts((data || []) as ChatContact[]);
+      const page = (data || []) as ChatContact[];
+      setHasMoreContacts(page.length === CONTACTS_PAGE_SIZE);
+
+      if (append) {
+        setContacts(prev => {
+          const seen = new Set(prev.map(c => c.id));
+          const merged = [...prev];
+          for (const c of page) if (!seen.has(c.id)) merged.push(c);
+          return merged;
+        });
+      } else {
+        setContacts(page);
+      }
     } catch (error) {
       console.error('Error loading contacts:', error);
       toast.error('Erro ao carregar contatos');
     } finally {
-      setIsLoading(false);
+      if (append) setIsLoadingMoreContacts(false);
+      else setIsLoading(false);
     }
-  }, [clientId, currentQueueId, activeQueueIds, queuesLoading]);
+  }, [clientId, currentQueueId, activeQueueIds, queuesLoading, periodFilter, contacts.length]);
+
+  const loadMoreContacts = useCallback(async () => {
+    if (isLoadingMoreContacts || !hasMoreContacts) return;
+    await loadContacts({ append: true });
+  }, [loadContacts, isLoadingMoreContacts, hasMoreContacts]);
 
   // ============================================
   // Conversations (filtered by queue_id)
@@ -1818,7 +1893,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // Reload everything and clear selection when queue or client changes
   useEffect(() => {
     if (!clientId) return;
-    loadContacts();
+    setHasMoreContacts(true);
+    loadContacts({ reset: true });
     loadConvCounts();
     loadTags();
     refreshConversationTags();
@@ -1826,7 +1902,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     setMessages({});
     knownMessageIds.current.clear();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQueueId, clientId, activeQueueIds]);
+  }, [currentQueueId, clientId, activeQueueIds, periodFilter]);
 
   // Reload conversations when query group or queue changes (no selection clear)
   useEffect(() => {
@@ -1910,6 +1986,15 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     // Conversation history
     conversationHistory,
     loadConversationHistory,
+
+    // Contacts pagination
+    hasMoreContacts,
+    isLoadingMoreContacts,
+    loadMoreContacts,
+
+    // Period filter
+    periodFilter,
+    setPeriodFilter,
   }), [
     contacts, messages, selectedContactId, activeTab, searchQuery, isLoading, isSyncing,
     loadContacts, loadMessages, sendMessage, sendMedia, downloadMedia, markAsRead, syncContacts, selectContact,
@@ -1919,6 +2004,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     tags, loadTags, updateTag, deleteTag, addTagToConversation, removeTagFromConversation, createTag,
     conversationTagsMap, refreshConversationTags,
     sendInternalNote, showDetailPanel, conversationHistory, loadConversationHistory,
+    hasMoreContacts, isLoadingMoreContacts, loadMoreContacts, periodFilter,
   ]);
 
   return (
