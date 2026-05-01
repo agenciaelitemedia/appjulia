@@ -1192,6 +1192,21 @@ Deno.serve(async (req) => {
                 actor_name: 'Sistema (webhook)',
                 to_value: 'pending',
               });
+            } else {
+              // INSERT bloqueado pelo índice único parcial (race: outro worker
+              // criou em paralelo). Recupera a conversa ativa que já existe.
+              const { data: raceConv } = await supabase
+                .from('chat_conversations')
+                .select('id')
+                .eq('contact_id', contact.id)
+                .eq('client_id', queue.client_id)
+                .eq('queue_id', queueId)
+                .eq('channel', 'whatsapp_uazapi')
+                .in('status', ['pending', 'open'])
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (raceConv) conversationId = raceConv.id;
             }
           }
         }
