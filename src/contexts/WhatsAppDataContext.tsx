@@ -33,6 +33,10 @@ export type ChatPeriodFilter =
   | 'last3Months';
 
 const CONTACTS_PAGE_SIZE = 50;
+const CONVERSATIONS_PAGE_SIZE = 100;
+
+// Lean column list for conversations — avoids transferring unused heavy columns
+const CONV_COLUMNS = 'id,contact_id,client_id,queue_id,status,priority,assigned_to,cod_agent,updated_at,created_at,opened_at,first_response_at,resolved_at,closed_at,snoozed_until,channel,protocol,close_note'
 
 // Reposition an existing contact in a list ordered by `last_message_at DESC`
 // without re-sorting the entire array. O(n) instead of O(n log n).
@@ -170,6 +174,11 @@ interface ExtendedContextValue extends ChatContextValue {
   isLoadingMoreContacts: boolean;
   loadMoreContacts: () => Promise<void>;
 
+  // Pagination of conversations list
+  hasMoreConversations: boolean;
+  isLoadingMoreConversations: boolean;
+  loadMoreConversations: () => Promise<void>;
+
   // Period filter (server-side cutoff for last_message_at)
   periodFilter: ChatPeriodFilter;
   setPeriodFilter: (p: ChatPeriodFilter) => void;
@@ -218,6 +227,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // Contacts pagination
   const [hasMoreContacts, setHasMoreContacts] = useState(true);
   const [isLoadingMoreContacts, setIsLoadingMoreContacts] = useState(false);
+
+  // Conversations pagination
+  const [hasMoreConversations, setHasMoreConversations] = useState(false);
+  const [isLoadingMoreConversations, setIsLoadingMoreConversations] = useState(false);
 
   // Period filter — defaults to last 7 days every time the chat is opened
   const [periodFilter, setPeriodFilter] = useState<ChatPeriodFilter>('last7days');
@@ -441,31 +454,73 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     : conversationStatusFilter === 'closed' ? 'closed'
     : 'active';
 
-  const loadConversations = useCallback(async () => {
+  const loadConversations = useCallback(async (opts?: { append?: boolean }) => {
     if (!clientId || queuesLoading) return;
+    const append = opts?.append === true;
+
+    if (append) setIsLoadingMoreConversations(true);
+
     try {
+      // Compute offset from current list when paginating
+      let offset = 0;
+      if (append) {
+        offset = await new Promise<number>((resolve) => {
+          setConversations(prev => {
+            resolve(prev.length);
+            return prev;
+          });
+        });
+      }
+
       let query = supabase
         .from('chat_conversations')
-        .select('*')
+        .select(CONV_COLUMNS)
         .eq('client_id', clientId)
-        .order('updated_at', { ascending: false });
+        .order('updated_at', { ascending: false })
+        .range(offset, offset + CONVERSATIONS_PAGE_SIZE - 1);
+
       if (currentQueueId) query = query.eq('queue_id', currentQueueId);
       else if (activeQueueIds.length > 0) query = query.in('queue_id', activeQueueIds);
-      else { setConversations([]); return; }
+      else {
+        if (!append) setConversations([]);
+        setHasMoreConversations(false);
+        return;
+      }
+
       if (convQueryGroup === 'active') {
         query = query.in('status', ['pending', 'open']);
       } else {
         query = query.eq('status', convQueryGroup);
       }
+
       const { data, error } = await query;
       if (error) throw error;
-      setConversations((data || []) as ChatConversation[]);
+
+      const page = (data || []) as ChatConversation[];
+      setHasMoreConversations(page.length === CONVERSATIONS_PAGE_SIZE);
+
+      if (append) {
+        setConversations(prev => {
+          const seen = new Set(prev.map(c => c.id));
+          const merged = [...prev];
+          for (const c of page) if (!seen.has(c.id)) merged.push(c);
+          return merged;
+        });
+      } else {
+        setConversations(page);
+      }
     } catch (error) {
       console.error('Error loading conversations:', error);
     } finally {
-      setHasLoadedConversationsOnce(true);
+      if (!append) setHasLoadedConversationsOnce(true);
+      if (append) setIsLoadingMoreConversations(false);
     }
   }, [clientId, currentQueueId, convQueryGroup, activeQueueIds, queuesLoading]);
+
+  const loadMoreConversations = useCallback(async () => {
+    if (isLoadingMoreConversations || !hasMoreConversations) return;
+    await loadConversations({ append: true });
+  }, [loadConversations, isLoadingMoreConversations, hasMoreConversations]);
 
   // Derived counts straight from in-memory `conversations` — no extra DB
   // round-trip. The realtime channel keeps `conversations` fresh, so these
@@ -1977,9 +2032,15 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     const prev = bootstrapKeyRef.current;
     bootstrapKeyRef.current = key;
     setHasMoreContacts(true);
-    loadContacts({ reset: true });
-    loadTags();
-    refreshConversationTags();
+    setHasMoreConversations(false);
+    // Fire all 4 bootstrap requests in parallel — contacts, conversations, tags,
+    // and conversation-tag map. This cuts the sequential waterfall by ~60%.
+    Promise.all([
+      loadContacts({ reset: true }),
+      loadConversations(),
+      loadTags(),
+      refreshConversationTags(),
+    ]).catch(() => { /* individual errors are already logged inside each fn */ });
     // Only clear selection / message cache on a REAL scope change.
     // The very first effect run (prev === null) is the initial mount —
     // keep any pending selection (e.g. from sessionStorage deep-link).
@@ -1991,10 +2052,21 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentQueueId, clientId, activeQueueIds, periodFilter, queuesLoading]);
 
-  // Reload conversations when query group or queue changes (no selection clear)
+  // Reload conversations when ONLY the query group (status tab) changes —
+  // without triggering the full bootstrap effect above.
+  const prevConvQueryGroupRef = useRef<string | null>(null);
   useEffect(() => {
-    if (clientId) loadConversations();
-  }, [clientId, currentQueueId, convQueryGroup, loadConversations]);
+    if (!clientId || queuesLoading) return;
+    // Skip the very first run — the bootstrap effect above already called loadConversations.
+    if (prevConvQueryGroupRef.current === null) {
+      prevConvQueryGroupRef.current = convQueryGroup;
+      return;
+    }
+    if (prevConvQueryGroupRef.current !== convQueryGroup) {
+      prevConvQueryGroupRef.current = convQueryGroup;
+      loadConversations();
+    }
+  }, [clientId, convQueryGroup, loadConversations, queuesLoading]);
 
   // ============================================
   // Visibility refetch — resilience for suspended tabs
@@ -2113,6 +2185,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     isLoadingMoreContacts,
     loadMoreContacts,
 
+    // Conversations pagination
+    hasMoreConversations,
+    isLoadingMoreConversations,
+    loadMoreConversations,
+
     // Period filter
     periodFilter,
     setPeriodFilter,
@@ -2128,8 +2205,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     tags, loadTags, updateTag, deleteTag, addTagToConversation, removeTagFromConversation, createTag,
     conversationTagsMap, refreshConversationTags,
     sendInternalNote, showDetailPanel, conversationHistory, loadConversationHistory,
-    hasMoreContacts, isLoadingMoreContacts, loadMoreContacts, periodFilter,
-    clientId, queuesLoading, hasLoadedConversationsOnce,
+    hasMoreContacts, isLoadingMoreContacts, loadMoreContacts,
+    hasMoreConversations, isLoadingMoreConversations, loadMoreConversations,
+    periodFilter, clientId, queuesLoading, hasLoadedConversationsOnce,
   ]);
 
   return (

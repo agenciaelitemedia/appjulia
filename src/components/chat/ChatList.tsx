@@ -95,6 +95,7 @@ export function ChatList() {
   } = useWhatsAppData();
   const { data: queueLimits } = useAgentQueueLimits();
   const showGroupsTab = !!(queueLimits?.allowGroups && queueLimits?.showGroupsTab);
+  const { hasMoreConversations, loadMoreConversations } = useWhatsAppData();
 
   useEffect(() => {
     if (!showGroupsTab && activeTab === 'groups') {
@@ -123,6 +124,8 @@ export function ChatList() {
   // loadMoreContacts when it enters the viewport.
   const listRef = useRef<HTMLDivElement>(null);
   const bottomSentinelRef = useRef<HTMLDivElement>(null);
+  // Sentinel for auto-loading more conversations (badges stay in sync)
+  const convSentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const sentinel = bottomSentinelRef.current;
@@ -139,6 +142,22 @@ export function ChatList() {
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [hasMoreContacts, isLoadingMoreContacts, loadMoreContacts]);
+
+  // Auto-load more conversations when the list sentinel is visible
+  useEffect(() => {
+    const sentinel = convSentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && hasMoreConversations) {
+          loadMoreConversations();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMoreConversations, loadMoreConversations]);
   const activeFilterCount =
     (modeFilter !== 'all' ? 1 : 0) +
     (slaFilter !== 'all' ? 1 : 0) +
@@ -924,7 +943,7 @@ export function ChatList() {
       <div className="flex border-b shrink-0">
         {([
           { value: 'pending', label: 'Em Abertos', count: pendingConvCount },
-          { value: 'open',    label: 'Em Atendimento',         count: openConvCount },
+          { value: 'open',    label: 'Em Atendimento', count: openConvCount },
         ] as const).map(tab => (
           <button
             key={tab.value}
@@ -943,11 +962,13 @@ export function ChatList() {
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground'
             )}>
-              {tab.count}
+              {tab.count >= 99 ? '99+' : tab.count}
             </span>
           </button>
         ))}
       </div>
+      {/* Invisible sentinel — triggers loadMoreConversations to keep counts accurate */}
+      <div ref={convSentinelRef} className="h-0 w-full" />
 
       {/* Contact List */}
       <div ref={listRef} className="flex-1 overflow-y-auto">
