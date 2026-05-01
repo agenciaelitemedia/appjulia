@@ -235,14 +235,12 @@ async function persistToChat(
         .maybeSingle();
 
       if (!openConv) {
-        // Try to reopen a previously resolved conversation (same contact/queue/channel).
-        // Resolved = soft close → cliente respondeu, retoma o mesmo ticket mantendo o atribuído.
+        // Reabertura: ignora queue_id (caso fila tenha mudado), mantém canal.
         const { data: resolvedConv } = await supabase
           .from('chat_conversations')
-          .select('id')
+          .select('id, queue_id')
           .eq('contact_id', contactId)
           .eq('client_id', effectiveClientId)
-          .eq('queue_id', queueInfo.id)
           .eq('channel', 'whatsapp_waba')
           .eq('status', 'resolved')
           .order('updated_at', { ascending: false })
@@ -250,15 +248,21 @@ async function persistToChat(
           .maybeSingle();
 
         if (resolvedConv) {
-          await supabase
-            .from('chat_conversations')
-            .update({ status: 'open', resolved_at: null, updated_at: new Date().toISOString() })
-            .eq('id', resolvedConv.id);
+          const update: Record<string, unknown> = {
+            status: 'open',
+            resolved_at: null,
+            updated_at: new Date().toISOString(),
+          };
+          const queueChanged = resolvedConv.queue_id !== queueInfo.id;
+          if (queueChanged) update.queue_id = queueInfo.id;
+          await supabase.from('chat_conversations').update(update).eq('id', resolvedConv.id);
           await supabase.from('chat_conversation_history').insert({
             conversation_id: resolvedConv.id,
             action: 'reopened',
             actor_name: 'Sistema (webhook)',
-            notes: 'Cliente respondeu após resolução — atribuição mantida',
+            notes: queueChanged
+              ? 'Cliente respondeu após resolução — atribuição mantida; fila atualizada'
+              : 'Cliente respondeu após resolução — atribuição mantida',
           });
           conversationId = resolvedConv.id;
         } else {
