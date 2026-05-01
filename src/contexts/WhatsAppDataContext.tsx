@@ -1860,19 +1860,16 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               if (prev.some(c => c.id === newConv.id)) return prev;
               return [newConv, ...prev];
             });
-            loadConvCounts();
           } else if (payload.eventType === 'UPDATE') {
             const updConv = payload.new as ChatConversation;
             if (!currentQueueId && updConv.queue_id && !activeQueueIds.includes(updConv.queue_id)) {
               // Drop from local state if the queue became deleted
               setConversations(prev => prev.filter(c => c.id !== updConv.id));
-              loadConvCounts();
               return;
             }
             setConversations(prev =>
               prev.map(c => (c.id === updConv.id ? updConv : c))
             );
-            loadConvCounts();
           }
         }
       )
@@ -1883,14 +1880,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       supabase.removeChannel(messagesChannel);
       supabase.removeChannel(conversationsChannel);
     };
-  }, [clientId, currentQueueId, loadConvCounts, activeQueueIds]);
+  }, [clientId, currentQueueId, activeQueueIds]);
 
   // Reload everything and clear selection when queue or client changes
   useEffect(() => {
     if (!clientId) return;
     setHasMoreContacts(true);
     loadContacts({ reset: true });
-    loadConvCounts();
     loadTags();
     refreshConversationTags();
     setSelectedContactId(null);
