@@ -212,6 +212,19 @@ export function ChatList() {
     return map;
   }, [sortedConversations]);
 
+  // Pre-group all conversations by contact (already sorted DESC by date) so
+  // the row renderer can pick the most recent + first-with-queue in O(1)
+  // instead of doing `conversations.filter(...).sort(...)` per row.
+  const convsByContact = React.useMemo(() => {
+    const map = new Map<string, typeof sortedConversations>();
+    for (const conv of sortedConversations) {
+      const arr = map.get(conv.contact_id);
+      if (arr) arr.push(conv);
+      else map.set(conv.contact_id, [conv]);
+    }
+    return map;
+  }, [sortedConversations]);
+
   // Batch-load queue → agent links for all visible queues
   const queueIds = React.useMemo(() => {
     const set = new Set<string>();
