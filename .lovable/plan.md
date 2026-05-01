@@ -1,96 +1,47 @@
-## Problema observado
+Objetivo: eliminar o estado em que o usuário entra em /chat, vê loading infinito ou lista vazia de mensagens, e só consegue recuperar saindo/voltando ou trocando filtros.
 
-Ao entrar no `/chat`, em alguns casos:
-1. A área de mensagens não carrega — fica vazia ou em loading "infinito" e só aparece se sair e voltar.
-2. O "autoload" (carregar mais ao rolar para o topo) às vezes não dispara.
-3. A lista de conversas pode demorar a aparecer e/ou piscar entre estados vazios.
+Plano
 
-## Causas identificadas (após análise dos arquivos)
+1. Estabilizar o bootstrap do chat no contexto
+- Ajustar `src/contexts/WhatsAppDataContext.tsx` para não limpar `selectedContactId` e `messages` durante a primeira hidratação só porque as filas acessíveis (`activeQueueIds`) terminaram de carregar.
+- Separar “carregamento inicial” de “troca real de escopo” (fila, período, cliente), usando guards de prontidão para evitar reset prematuro.
+- Manter a conversa selecionada enquanto ela continuar válida no escopo atual; só limpar se ela realmente sair da fila/período visível.
+- Garantir que a restauração de conversa pendente ao abrir `/chat` só rode depois que contatos/filas estiverem prontos.
 
-### 1. `loadMessages` é instável e refaz fetch desnecessariamente
-Em `WhatsAppDataContext.tsx`, `loadMessages` está em `useCallback([clientId])` (linha 947). Toda vez que `clientId` muda (e ele muda na resolução assíncrona do `effectiveClientId` no boot), a referência muda → o `useEffect` de inicial-load do `ChatMessages.tsx` (`[contactId, loadMessages]`) re-dispara, podendo cancelar o setTimeout do scroll inicial e travar o `isInitialLoad.current` em `false` cedo demais, antes do `IntersectionObserver` iniciar — o `topSentinelRef` já está visível na tela vazia e dispara `handleLoadMore` em loop ou nem dispara dependendo do timing.
+2. Tornar o carregamento inicial das mensagens resiliente
+- Refatorar `src/components/chat/ChatMessages.tsx` para reexecutar o load inicial quando o contato estiver selecionado mas o bucket `messages[contactId]` ainda não existir após o bootstrap.
+- Diferenciar claramente os estados: `isHydratingInitial`, `isLoadingMore`, `hasLoadedFirstPage`, `loadFailed`.
+- Evitar que o componente fique preso em um estado “sem mensagens” ou “carregando” quando o contexto fizer refresh silencioso.
+- Fazer o scroll para o fim apenas depois da primeira página realmente consolidada.
 
-### 2. Race condition entre `loadMessages` e o `IntersectionObserver`
-O `topSentinel` (`<div className="h-1" />`) começa visível desde o primeiro render. O observer é criado no `useEffect` separado, e como `isInitialLoad.current` é setado para `false` dentro de um `setTimeout(150ms)`, há janelas em que:
-- O observer pode disparar `handleLoadMore` antes do load inicial terminar (mesmo com a flag, há corrida).
-- Ou nunca dispara porque o sentinel saiu de view enquanto `isInitialLoad` ainda era `true`.
+3. Corrigir a paginação/autoload de “carregar mais mensagens”
+- Parar de usar `contactMessages.length` como offset da próxima página, porque essa lista já é filtrada (ex.: notas internas de outra conversa e envelopes ocultos), o que pode quebrar a paginação.
+- Passar a controlar um offset bruto por contato ou um contador de mensagens carregadas sem filtro.
+- Reconfigurar o `IntersectionObserver` para usar explicitamente `scrollContainerRef.current` como `root`, com ativação apenas após a primeira página estar pronta.
+- Adicionar fallback manual confiável para “Carregar mais”/“Tentar novamente” quando a interseção não disparar.
 
-### 3. Quando `loadMessages` retorna `[]`, ele NÃO atualiza o estado
-Linhas 941-946 retornam `{ messages: [], hasMore: false }` mas **não chamam `setMessages`**. Se houver uma falha intermitente de rede/RLS, o componente fica preso achando que há "mais" para carregar (`hasMore` virou `false` corretamente), mas o `isLoading` é desligado e o usuário vê tela em branco sem retry. Pior: se o componente re-monta com `contactMessages` vazio, mas existir realtime já tendo populado algumas mensagens, o `setMessages` no `loadMessages` quando há `cachedMessages.length > 0` faz `prev[contactId]` = `chatMessages.reverse()` (offset === 0) — sobrescrevendo qualquer mensagem realtime já recebida.
+4. Ajustar restauração e navegação para conversa ativa
+- Revisar `src/pages/chat/ChatPage.tsx` para restaurar a conversa pendente somente quando o contexto estiver pronto.
+- Endurecer a lógica para aceitar corretamente a identificação pendente vinda de outros módulos, evitando abrir `/chat` em estado inconsistente.
+- Se necessário, complementar com seleção segura da primeira conversa visível apenas após a lista estar pronta (sem auto-reset posterior).
 
-### 4. Realtime de mensagens fica "preso" se a aba do navegador foi suspensa
-Não há reconexão / refetch ao voltar o foco (`visibilitychange`). Se o WebSocket cair durante o uso em background, ao voltar para a aba o usuário vê dados antigos até forçar um refresh.
+5. Validar UX e performance do fluxo completo
+- Testar os cenários: primeira entrada em `/chat`, retorno à aba, troca de filtros, troca de fila e scroll até carregar histórico antigo.
+- Confirmar que a lista continua rápida, com skeleton na lista e mensagens aparecendo na primeira abertura sem exigir reentrada.
+- Verificar que o realtime não perde mensagens novas durante refresh silencioso.
 
-### 5. Lista de conversas refaz query quando muda só o filtro/aba
-- `loadContacts` está em `useCallback([..., contacts.length])` (linha 404) — a referência muda a cada novo contato carregado, causando reexecução do `useEffect` de reset (linha 1924) em alguns cenários. O `contacts.length` na dep é só para calcular offset em append, mas vaza para o reset.
-- Tabs (`pending`/`open`/`all`) já não refazem query em `chat_conversations` (cache local), bom — mas `loadContacts` é re-chamado pela mudança de período mesmo quando não é necessário.
-
-### 6. `selectContact` chama `getOrCreateConversation` SEMPRE
-Mesmo quando já existe uma conversa ativa em memória — só pula para `resolved/closed`. Para `pending/open` faz uma query desnecessária no DB (`select * from chat_conversations`) toda vez que o usuário clica num contato. Atrasa a abertura da conversa em 200-500ms.
-
-## Plano de correção
-
-### A. Estabilizar `loadMessages` (causa principal do autoload quebrado)
-- Remover `clientId` das deps de `loadMessages` (não é usado dentro). Usar `useCallback([])` para que a função tenha referência **estável**.
-- Em `ChatMessages.tsx`, remover `loadMessages` das deps do effect inicial — manter só `[contactId]`. Usar `useRef` se precisar invocar.
-- Quando `loadMessages` retornar `[]` no offset 0 e o estado para esse contato não existir, **inicializar `messages[contactId] = []`** explicitamente para que o componente saia do `isLoading` com estado consistente.
-
-### B. Corrigir o `IntersectionObserver` (autoload)
-Em `ChatMessages.tsx`:
-- Substituir o sentinel de `h-1` por `h-px` com `data-loaded={!isInitialLoad}` e só **observar** o sentinel após o load inicial concluir (recriar observer no effect com dep `[hasMore, isLoadingMore, contactMessages.length > 0]`).
-- Garantir que o observer só dispare `handleLoadMore` se `contactMessages.length > 0` (evita loop em conversas vazias).
-- Adicionar `rootMargin: "200px 0px 0px 0px"` para pré-carregar antes de chegar no topo.
-- Corrigir preservação de scroll no append: usar `el.scrollHeight - prevScrollHeight.current` mas ancorar no `requestAnimationFrame` duplo (2 frames) — necessário em listas com imagens/áudio.
-
-### C. Não sobrescrever mensagens realtime no load inicial
-Em `loadMessages` (offset === 0), em vez de `chatMessages.reverse()` puro, fazer **merge dedup por id**:
-```ts
-const incoming = chatMessages.reverse();
-const existing = prev[contactId] || [];
-const seen = new Set(incoming.map(m => m.id));
-const realtimeOnly = existing.filter(m => !seen.has(m.id));
-return { ...prev, [contactId]: [...incoming, ...realtimeOnly] };
-```
-
-### D. Refetch ao voltar foco (resiliência realtime)
-Adicionar listener `visibilitychange` no `WhatsAppDataProvider` para, quando a aba voltar a ficar visível após >30s ocultos:
-- Refetch leve da página atual de contatos (sem `setIsLoading(true)` para não piscar — usar o banner "Atualizando…" já existente).
-- Refetch das mensagens do contato atualmente selecionado (se houver).
-- Re-subscribe nos canais realtime (Supabase já tenta reconectar sozinho, mas garantir um `removeChannel` + recreate evita estado "morto").
-
-### E. `selectContact` instantâneo
-- Se já existe conversa `pending`/`open` em memória para o contato, **não fazer await** em `getOrCreateConversation`. Disparar fire-and-forget só para garantir cobertura de cenários edge (criação se não houver).
-- Mover o `markAsRead` para fora do try principal (já é, mas garantir que não bloqueia o setSelectedContactId).
-
-### F. Estabilizar `loadContacts` 
-- Remover `contacts.length` das deps. Calcular offset via `setContacts(prev => ...)` callback ou via state separado `contactsOffset`.
-- Resultado: `loadContacts` vira referência estável; o effect de reset (linha 1914) só dispara quando realmente muda `currentQueueId`, `clientId`, `activeQueueIds` ou `periodFilter`.
-
-### G. Skeleton/loading consistente em `ChatMessages`
-- Mostrar skeleton de mensagens (3-4 bubbles) enquanto `isLoading && contactMessages.length === 0` em vez do spinner pequeno atual. Dá a sensação de carregamento mais rápido.
-- Adicionar timeout de segurança: se após 8s ainda estiver `isLoading`, mostrar botão "Tentar novamente" que re-invoca `loadMessages`.
-
-### H. Pequena otimização no Realtime
-- Filtrar mensagens recebidas por `client_id` (já feito) e dropar atualizações para `contact_id` que não estão na lista atual de contatos visíveis (no UPDATE de `chat_messages`). Reduz CPU em clientes com muitas conversas.
-
-## Arquivos a serem alterados
-
+Arquivos previstos
 - `src/contexts/WhatsAppDataContext.tsx`
-  - `loadMessages` deps + merge dedup
-  - `loadContacts` deps (remover `contacts.length`)
-  - `selectContact` (não-bloqueante)
-  - novo `useEffect` para `visibilitychange`
 - `src/components/chat/ChatMessages.tsx`
-  - effect de load inicial com deps corretas
-  - IntersectionObserver com `rootMargin` e dependências saudáveis
-  - skeleton de bubbles em vez de spinner
-  - botão "Tentar novamente" com timeout de 8s
-- (sem novas migrations / sem mudanças de DB)
+- `src/pages/chat/ChatPage.tsx`
+- Possivelmente um ponto de origem do deep-link do chat, se a restauração pendente estiver vindo com identificador inconsistente.
 
-## Resultado esperado
+Detalhes técnicos
+- Hoje existe um forte candidato à causa raiz: o efeito de reload do contexto limpa seleção e cache de mensagens quando dependências de bootstrap mudam (`currentQueueId`, `clientId`, `activeQueueIds`, `periodFilter`). Na primeira entrada, isso pode acontecer logo após as filas acessíveis terminarem de carregar.
+- A paginação atual também está vulnerável porque usa o tamanho da lista já filtrada como offset do banco. Isso pode gerar páginas incorretas, autoload falhando e necessidade de sair/voltar para “destravar”.
+- Há mensagens no banco; o problema aparenta ser de ciclo de vida e sincronização do frontend, não ausência de dados.
 
-- Entrar no `/chat` sempre carrega as mensagens da conversa selecionada na primeira tentativa.
-- Autoload (rolar para cima) sempre dispara ao chegar perto do topo, sem loops.
-- Mensagens enviadas por outro device aparecem em tempo real e não somem ao re-abrir a conversa.
-- Voltar a aba após estar em background revalida silenciosamente os dados sem piscar a tela.
-- Lista de conversas mantém posição/scroll quando muda só de aba (Em Aberto / Em Atendimento).
+Resultado esperado
+- Entrar em `/chat` e ver mensagens na primeira vez, sem precisar sair e voltar.
+- “Carregar mais mensagens” funcionando de forma consistente.
+- Lista e painel mais estáveis, rápidos e previsíveis mesmo com realtime e filtros ativos.
