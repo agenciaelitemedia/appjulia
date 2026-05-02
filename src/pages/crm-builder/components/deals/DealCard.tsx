@@ -37,6 +37,7 @@ import {
   Flag,
   Inbox,
   CalendarClock,
+  CheckSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -63,6 +64,8 @@ interface DealCardProps {
   onClick?: () => void;
   onOpenChat?: (deal: CRMDeal) => void;
   onChangePriority?: (deal: CRMDeal, priority: 'low' | 'medium' | 'high' | 'urgent') => void;
+  taskTotal?: number;
+  taskDone?: number;
 }
 
 export function DealCard({
@@ -75,6 +78,8 @@ export function DealCard({
   onClick,
   onOpenChat,
   onChangePriority,
+  taskTotal = 0,
+  taskDone = 0,
 }: DealCardProps) {
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [phoneCallOpen, setPhoneCallOpen] = useState(false);
@@ -361,6 +366,22 @@ export function DealCard({
               </span>
             );
           })()}
+
+          {taskTotal > 0 && (
+            <Badge
+              variant="outline"
+              className={cn(
+                'text-[10px] px-1.5 py-0 gap-1',
+                taskDone === taskTotal
+                  ? 'bg-green-500/10 text-green-700 border-green-500/30'
+                  : 'bg-muted/80 text-muted-foreground border-border'
+              )}
+              title={`${taskDone} de ${taskTotal} tarefas concluídas`}
+            >
+              <CheckSquare className="h-2.5 w-2.5 flex-shrink-0" />
+              {taskDone}/{taskTotal}
+            </Badge>
+          )}
 
           {isJuliaCard && juliaCtx.codAgent && (
             <Badge

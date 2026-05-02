@@ -45,6 +45,7 @@ import { useCRMDeals } from './hooks/useCRMDeals';
 import { useCRMCustomFields } from './hooks/useCRMCustomFields';
 import { useCRMBoards } from './hooks/useCRMBoards';
 import { useMoveDealToBoard } from './hooks/useMoveDealToBoard';
+import { useCRMBoardTaskCounts } from './hooks/useCRMBoardTaskCounts';
 import { toast } from 'sonner';
 import type { CRMBoard, CRMPipeline, CRMDeal, CRMPipelineFormData, CRMDealFormData } from './types';
 import { CRMScrollNavigation } from '@/pages/crm/components/CRMScrollNavigation';
@@ -136,6 +137,10 @@ export default function BoardPage() {
 
   // Scroll ref for custom navigation
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Task counts for badge on each card
+  const dealIds = useMemo(() => deals.map((d) => d.id), [deals]);
+  const taskCounts = useCRMBoardTaskCounts(dealIds);
 
   // Unique assignees for filter dropdown
   const assignees = useMemo(() => {
@@ -642,6 +647,8 @@ export default function BoardPage() {
                                 onLost={() => setDealStatus(deal.id, 'lost')}
                                 onOpenChat={(d) => setChatPanelDeal(d)}
                                 onChangePriority={(d, p) => updateDeal(d.id, { priority: p })}
+                                taskTotal={taskCounts[deal.id]?.total}
+                                taskDone={taskCounts[deal.id]?.done}
                               />
                             ))}
                           </SortableContext>

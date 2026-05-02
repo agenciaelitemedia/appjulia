@@ -114,6 +114,27 @@ export interface CRMDealHistory {
   to_pipeline_color?: string;
 }
 
+// Checklist Types
+export interface CRMChecklist {
+  id: string;
+  deal_id: string;
+  title: string;
+  position: number;
+  created_at: string;
+  items?: CRMChecklistItem[];
+}
+
+export interface CRMChecklistItem {
+  id: string;
+  checklist_id: string;
+  deal_id: string;
+  title: string;
+  is_completed: boolean;
+  position: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // Drag and Drop Types
 export interface DragItem {
   type: 'deal' | 'pipeline';

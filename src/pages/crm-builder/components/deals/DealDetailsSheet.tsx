@@ -38,6 +38,7 @@ import {
 import {
   Calendar,
   CalendarClock,
+  CheckSquare,
   Clock,
   DollarSign,
   Mail,
@@ -63,6 +64,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useCRMDealHistory } from '../../hooks/useCRMDealHistory';
 import { DealActivityTimeline } from './DealActivityTimeline';
 import { DealNotesPanel } from './DealNotesPanel';
+import { DealTasksPanel } from './DealTasksPanel';
 import { DealLinksSection } from './DealLinksSection';
 import { DealJuliaPanel } from './DealJuliaPanel';
 import { getChatLink, getJuliaLink } from '../../hooks/useCardLinks';
@@ -530,16 +532,20 @@ export function DealDetailsSheet({
         {/* Tabs + conteúdo */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col">
           <div className="px-6 pt-4">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="details" className="gap-1.5 text-xs">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="details" className="gap-1 text-xs px-1">
                 <FileText className="h-3.5 w-3.5" />
                 Detalhes
               </TabsTrigger>
-              <TabsTrigger value="notes" className="gap-1.5 text-xs">
+              <TabsTrigger value="tasks" className="gap-1 text-xs px-1">
+                <CheckSquare className="h-3.5 w-3.5" />
+                Tarefas
+              </TabsTrigger>
+              <TabsTrigger value="notes" className="gap-1 text-xs px-1">
                 <StickyNote className="h-3.5 w-3.5" />
                 Anotações
               </TabsTrigger>
-              <TabsTrigger value="history" className="gap-1.5 text-xs">
+              <TabsTrigger value="history" className="gap-1 text-xs px-1">
                 <History className="h-3.5 w-3.5" />
                 Histórico
               </TabsTrigger>
@@ -993,6 +999,10 @@ export function DealDetailsSheet({
                   Atualizado em: {format(new Date(deal.updated_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                 </div>
               </div>
+            </TabsContent>
+
+            <TabsContent value="tasks" className="p-6 pt-4 m-0">
+              <DealTasksPanel dealId={deal.id} />
             </TabsContent>
 
             <TabsContent value="notes" className="p-6 pt-4 m-0">
