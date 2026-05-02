@@ -2683,6 +2683,86 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_checklist_items: {
+        Row: {
+          checklist_id: string
+          created_at: string
+          deal_id: string
+          id: string
+          is_completed: boolean
+          position: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          checklist_id: string
+          created_at?: string
+          deal_id: string
+          id?: string
+          is_completed?: boolean
+          position?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          checklist_id?: string
+          created_at?: string
+          deal_id?: string
+          id?: string
+          is_completed?: boolean
+          position?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_checklist_items_checklist_id_fkey"
+            columns: ["checklist_id"]
+            isOneToOne: false
+            referencedRelation: "crm_checklists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_checklist_items_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "crm_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_checklists: {
+        Row: {
+          created_at: string
+          deal_id: string
+          id: string
+          position: number
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          deal_id: string
+          id?: string
+          position?: number
+          title: string
+        }
+        Update: {
+          created_at?: string
+          deal_id?: string
+          id?: string
+          position?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_checklists_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "crm_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_comercial_cards: {
         Row: {
           assigned_to: number | null
@@ -3017,86 +3097,6 @@ export type Database = {
             columns: ["board_id"]
             isOneToOne: false
             referencedRelation: "crm_boards"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      crm_checklist_items: {
-        Row: {
-          checklist_id: string
-          created_at: string
-          deal_id: string
-          id: string
-          is_completed: boolean
-          position: number
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          checklist_id: string
-          created_at?: string
-          deal_id: string
-          id?: string
-          is_completed?: boolean
-          position?: number
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          checklist_id?: string
-          created_at?: string
-          deal_id?: string
-          id?: string
-          is_completed?: boolean
-          position?: number
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "crm_checklist_items_checklist_id_fkey"
-            columns: ["checklist_id"]
-            isOneToOne: false
-            referencedRelation: "crm_checklists"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "crm_checklist_items_deal_id_fkey"
-            columns: ["deal_id"]
-            isOneToOne: false
-            referencedRelation: "crm_deals"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      crm_checklists: {
-        Row: {
-          created_at: string
-          deal_id: string
-          id: string
-          position: number
-          title: string
-        }
-        Insert: {
-          created_at?: string
-          deal_id: string
-          id?: string
-          position?: number
-          title: string
-        }
-        Update: {
-          created_at?: string
-          deal_id?: string
-          id?: string
-          position?: number
-          title?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "crm_checklists_deal_id_fkey"
-            columns: ["deal_id"]
-            isOneToOne: false
-            referencedRelation: "crm_deals"
             referencedColumns: ["id"]
           },
         ]
