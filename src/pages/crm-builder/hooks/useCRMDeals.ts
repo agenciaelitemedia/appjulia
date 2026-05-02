@@ -8,9 +8,10 @@ interface UseCRMDealsOptions {
   boardId: string | null;
   clientId: string;
   codAgent: string;
+  userName?: string;
 }
 
-export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions) {
+export function useCRMDeals({ boardId, clientId, codAgent, userName }: UseCRMDealsOptions) {
   const { toast } = useToast();
   const [deals, setDeals] = useState<CRMDeal[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -388,7 +389,7 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
         from_pipeline_id: fromPipelineId,
         to_pipeline_id: toPipelineId,
         changes: changes || {},
-        changed_by: codAgent,
+        changed_by: userName || codAgent,
       }).select();
     } catch {
       // Silent fail for history - not critical

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -112,6 +113,7 @@ export function DealDetailsSheet({
   boards,
   onMoveToBoard,
 }: DealDetailsSheetProps) {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('details');
   const [editingAssignee, setEditingAssignee] = useState(false);
   const [assigneeDraft, setAssigneeDraft] = useState('');
@@ -144,7 +146,7 @@ export function DealDetailsSheet({
 
   const { history, isLoading: isLoadingHistory, addNote } = useCRMDealHistory({
     dealId: open && deal ? deal.id : null,
-    codAgent: deal?.cod_agent,
+    userName: user?.name,
   });
 
   const priorityConfig = deal ? PRIORITY_CONFIG[deal.priority] : null;

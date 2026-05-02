@@ -83,7 +83,7 @@ export default function BoardPage() {
     setDealStatus,
     archiveDeal,
     fetchDeals,
-  } = useCRMDeals({ boardId: boardId || null, clientId, codAgent });
+  } = useCRMDeals({ boardId: boardId || null, clientId, codAgent, userName: user?.name });
 
   // Custom Fields
   const { fields: customFields } = useCRMCustomFields({ boardId: boardId || null, clientId, codAgent, canManage });
