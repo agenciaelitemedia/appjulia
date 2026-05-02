@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Plus, Search, Pencil, Trash2, Eye, History, Copy, Check, Upload, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -24,12 +24,30 @@ import { AgentPromptVersion } from '../hooks/useAgentPromptVersions';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+type RoleFilter = 'all' | 'sdr' | 'closer';
+
 export function PromptsTab() {
   const { user } = useAuth();
   const { prompts, isLoading, fetchPrompts, fetchCases, deletePrompt, updatePrompt, markAsPublished } = useAgentPrompts();
   const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
+  const [isCloserMap, setIsCloserMap] = useState<Record<string, boolean>>({});
   const [showWizard, setShowWizard] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Batch-fetch is_closer from external DB for all unique cod_agents
+  useEffect(() => {
+    if (prompts.length === 0) return;
+    const codAgents = [...new Set(prompts.map(p => p.cod_agent))];
+    externalDb.raw<{ cod_agent: string; is_closer: boolean }>({
+      query: `SELECT cod_agent::text AS cod_agent, is_closer FROM agents WHERE cod_agent::text = ANY($1)`,
+      params: [codAgents],
+    }).then(rows => {
+      const map: Record<string, boolean> = {};
+      for (const r of rows ?? []) map[String(r.cod_agent)] = !!r.is_closer;
+      setIsCloserMap(map);
+    }).catch(() => {/* non-critical */});
+  }, [prompts]);
 
   // Publish
   const [confirmPublish, setConfirmPublish] = useState(false);
@@ -52,9 +70,13 @@ export function PromptsTab() {
   // History
   const [historyPrompt, setHistoryPrompt] = useState<AgentPrompt | null>(null);
 
-  const filtered = prompts.filter(p =>
-    `${p.cod_agent} ${p.agent_name} ${p.business_name}`.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = prompts.filter(p => {
+    const matchText = `${p.cod_agent} ${p.agent_name} ${p.business_name}`.toLowerCase().includes(search.toLowerCase());
+    if (!matchText) return false;
+    if (roleFilter === 'all') return true;
+    const isCloser = isCloserMap[p.cod_agent] ?? false;
+    return roleFilter === 'closer' ? isCloser : !isCloser;
+  });
 
   const openView = async (p: AgentPrompt) => {
     setViewing(p);
@@ -186,9 +208,30 @@ export function PromptsTab() {
             <Plus className="h-4 w-4 mr-2" /> Novo Prompt
           </Button>
         </div>
-        <div className="relative mt-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar por código ou nome..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+        <div className="flex gap-2 mt-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Buscar por código ou nome..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+          </div>
+          <div className="flex rounded-md border overflow-hidden text-xs font-medium">
+            {(['all', 'sdr', 'closer'] as RoleFilter[]).map(role => (
+              <button
+                key={role}
+                onClick={() => setRoleFilter(role)}
+                className={`px-3 py-2 transition-colors ${
+                  roleFilter === role
+                    ? role === 'closer'
+                      ? 'bg-purple-600 text-white'
+                      : role === 'sdr'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-primary text-primary-foreground'
+                    : 'bg-background text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                {role === 'all' ? 'TODOS' : role.toUpperCase()}
+              </button>
+            ))}
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -225,7 +268,14 @@ export function PromptsTab() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <p className="text-xs text-muted-foreground">IA: {p.ai_name || 'Julia'}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">IA: {p.ai_name || 'Julia'}</p>
+                    {p.cod_agent in isCloserMap && (
+                      isCloserMap[p.cod_agent]
+                        ? <Badge className="text-[10px] px-1.5 py-0 bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900/30 dark:text-purple-400">CLOSER</Badge>
+                        : <Badge className="text-[10px] px-1.5 py-0 bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400">SDR</Badge>
+                    )}
+                  </div>
                   <div className="mt-2 space-y-0.5">
                     <p className="text-[11px] text-muted-foreground/70">
                       Criado em {format(new Date(p.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
