@@ -219,7 +219,7 @@ export function DealDetailsSheet({
     // Revalida no momento da confirmação para pegar mudanças recentes
     const known = boardActiveStageCount[pendingTargetBoardId];
     if (known === 0) {
-      toast.error('O quadro de destino não possui etapas ativas. Crie ao menos uma etapa antes de mover.');
+      toast.error('O CRM de destino não possui etapas ativas. Crie ao menos uma etapa antes de mover.');
       setPendingTargetBoardId(null);
       return;
     }
