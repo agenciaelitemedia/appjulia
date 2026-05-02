@@ -60,7 +60,7 @@ import { DealActivityTimeline } from './DealActivityTimeline';
 import { DealLinksSection } from './DealLinksSection';
 import { DealJuliaPanel } from './DealJuliaPanel';
 import { getChatLink, getJuliaLink } from '../../hooks/useCardLinks';
-import type { CRMDeal, CRMDealFormData, CRMPipeline } from '../../types';
+import type { CRMBoard, CRMDeal, CRMDealFormData, CRMPipeline } from '../../types';
 import { PRIORITY_CONFIG, STATUS_CONFIG } from '../../types';
 
 interface DealDetailsSheetProps {
@@ -83,6 +83,10 @@ interface DealDetailsSheetProps {
   stages?: CRMPipeline[];
   /** Callback chamado quando o usuário escolhe mover o deal para outra etapa */
   onMoveToStage?: (stageId: string) => Promise<boolean | void> | boolean | void;
+  /** Lista de quadros disponíveis para mover o card (exclui o atual). */
+  boards?: CRMBoard[];
+  /** Callback ao mover o card para outro quadro. Deve criar cópia no destino e arquivar o original. */
+  onMoveToBoard?: (targetBoardId: string) => Promise<{ newDealId: string; newBoardId: string } | null | void>;
 }
 
 export function DealDetailsSheet({
@@ -100,6 +104,8 @@ export function DealDetailsSheet({
   footerExtra,
   stages,
   onMoveToStage,
+  boards,
+  onMoveToBoard,
 }: DealDetailsSheetProps) {
   const [activeTab, setActiveTab] = useState('details');
   const [editingAssignee, setEditingAssignee] = useState(false);
@@ -119,6 +125,9 @@ export function DealDetailsSheet({
   const [movingToStage, setMovingToStage] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [savingPriority, setSavingPriority] = useState<CRMDealFormData['priority'] | null>(null);
+  const [boardsExpanded, setBoardsExpanded] = useState(false);
+  const [pendingTargetBoardId, setPendingTargetBoardId] = useState<string | null>(null);
+  const [movingToBoard, setMovingToBoard] = useState(false);
   
   // Mesma fonte usada na página Equipe (vw_equipe filtrada por client_id),
   // que inclui o dono/responsável principal e todos os membros do mesmo cliente.
@@ -140,6 +149,13 @@ export function DealDetailsSheet({
     : [];
   const currentStage = sortedStages.find((s) => s.id === deal.pipeline_id) || pipeline || null;
 
+  const otherBoards = (boards || []).filter((b) => b.id !== deal.board_id && !b.is_archived);
+  const showBoardsBlock = !!onMoveToBoard && otherBoards.length > 0;
+  const currentBoard = (boards || []).find((b) => b.id === deal.board_id) || null;
+  const targetBoard = pendingTargetBoardId
+    ? otherBoards.find((b) => b.id === pendingTargetBoardId) || null
+    : null;
+
   const handleStageClick = async (stageId: string) => {
     if (!onMoveToStage || stageId === deal.pipeline_id || movingToStage) return;
     setMovingToStage(stageId);
@@ -148,6 +164,19 @@ export function DealDetailsSheet({
       setStagesExpanded(false);
     } finally {
       setMovingToStage(null);
+    }
+  };
+
+  const confirmMoveToBoard = async () => {
+    if (!pendingTargetBoardId || !onMoveToBoard) return;
+    setMovingToBoard(true);
+    try {
+      await onMoveToBoard(pendingTargetBoardId);
+      setPendingTargetBoardId(null);
+      setBoardsExpanded(false);
+      onOpenChange(false);
+    } finally {
+      setMovingToBoard(false);
     }
   };
 
@@ -252,6 +281,70 @@ export function DealDetailsSheet({
 
         {/* Bloco Etapas (acima das abas) — só renderiza quando há stages + onMoveToStage */}
         {showStagesBlock && (
+        <>
+          {/* Bloco Quadro — só aparece quando há boards alternativos disponíveis */}
+          {showBoardsBlock && (
+            <div className="px-6 py-3 border-b bg-muted/20">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Quadro
+                  </span>
+                  {currentBoard && (
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span
+                        className="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: currentBoard.color || '#6b7280' }}
+                      />
+                      <span className="text-sm font-medium truncate">{currentBoard.name}</span>
+                    </div>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 flex-shrink-0"
+                  onClick={() => setBoardsExpanded((v) => !v)}
+                  title={boardsExpanded ? 'Fechar' : 'Mover para outro quadro'}
+                  aria-label={boardsExpanded ? 'Fechar' : 'Mover para outro quadro'}
+                >
+                  {boardsExpanded ? (
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  ) : (
+                    <Pencil className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </div>
+
+              {boardsExpanded && (
+                <div className="space-y-1.5 mt-3">
+                  <p className="text-xs text-muted-foreground px-1 mb-1">
+                    Ao escolher outro quadro, o card atual é arquivado e uma cópia é criada na primeira etapa do destino.
+                  </p>
+                  {otherBoards.map((b) => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => setPendingTargetBoardId(b.id)}
+                      disabled={movingToBoard}
+                      className={cn(
+                        'w-full flex items-center gap-2 px-3 py-2 rounded-md border text-left transition-colors',
+                        'cursor-pointer hover:bg-muted/50 hover:border-foreground/20',
+                        movingToBoard && 'opacity-60'
+                      )}
+                    >
+                      <span
+                        className="inline-block h-3 w-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: b.color || '#6b7280' }}
+                      />
+                      <span className="text-sm flex-1 truncate">{b.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="px-6 py-3 border-b bg-muted/20">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 min-w-0">
@@ -319,6 +412,7 @@ export function DealDetailsSheet({
               </div>
             )}
           </div>
+        </>
         )}
 
         {/* Tabs + conteúdo */}
@@ -507,6 +601,56 @@ export function DealDetailsSheet({
                 )}
               </div>
 
+              {/* 3b. Descrição (editável) — movida para acima de Prioridade/Tempo */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-medium">Descrição</h4>
+                  {!editingDescription && deal.description && onUpdate && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                      onClick={startEditDescription}
+                      title="Editar descrição"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+                {editingDescription ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={descriptionDraft}
+                      onChange={(e) => setDescriptionDraft(e.target.value)}
+                      placeholder="Descrição do card"
+                      autoFocus
+                      className="min-h-[100px]"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') setEditingDescription(false);
+                      }}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => setEditingDescription(false)}>
+                        <XIcon className="h-4 w-4 mr-1" /> Cancelar
+                      </Button>
+                      <Button size="sm" onClick={saveDescription} disabled={savingField === 'description'}>
+                        <Check className="h-4 w-4 mr-1" /> Salvar
+                      </Button>
+                    </div>
+                  </div>
+                ) : deal.description ? (
+                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                    {deal.description}
+                  </p>
+                ) : onUpdate ? (
+                  <Button variant="outline" size="sm" onClick={startEditDescription} className="gap-1.5">
+                    <Plus className="h-3.5 w-3.5" /> Adicionar descrição
+                  </Button>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">Sem descrição</p>
+                )}
+              </div>
+
               {/* 4. Prioridade + Tempo na fase (linha própria, full-width via grid) */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-3 rounded-lg border">
@@ -587,56 +731,6 @@ export function DealDetailsSheet({
                   </div>
                 </div>
               )}
-
-              {/* 6. Descrição (editável) */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-medium">Descrição</h4>
-                  {!editingDescription && deal.description && onUpdate && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                      onClick={startEditDescription}
-                      title="Editar descrição"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </div>
-                {editingDescription ? (
-                  <div className="space-y-2">
-                    <Textarea
-                      value={descriptionDraft}
-                      onChange={(e) => setDescriptionDraft(e.target.value)}
-                      placeholder="Descrição do card"
-                      autoFocus
-                      className="min-h-[100px]"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') setEditingDescription(false);
-                      }}
-                    />
-                    <div className="flex justify-end gap-2">
-                      <Button size="sm" variant="ghost" onClick={() => setEditingDescription(false)}>
-                        <XIcon className="h-4 w-4 mr-1" /> Cancelar
-                      </Button>
-                      <Button size="sm" onClick={saveDescription} disabled={savingField === 'description'}>
-                        <Check className="h-4 w-4 mr-1" /> Salvar
-                      </Button>
-                    </div>
-                  </div>
-                ) : deal.description ? (
-                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                    {deal.description}
-                  </p>
-                ) : onUpdate ? (
-                  <Button variant="outline" size="sm" onClick={startEditDescription} className="gap-1.5">
-                    <Plus className="h-3.5 w-3.5" /> Adicionar descrição
-                  </Button>
-                ) : (
-                  <p className="text-sm text-muted-foreground italic">Sem descrição</p>
-                )}
-              </div>
 
               {/* Vínculos: Chat e Jul.IA (antes do valor) */}
               <DealLinksSection deal={deal} />
@@ -800,6 +894,40 @@ export function DealDetailsSheet({
                 }}
               >
                 Arquivar Card
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Confirmação: mover para outro quadro */}
+        <AlertDialog
+          open={!!pendingTargetBoardId}
+          onOpenChange={(o) => { if (!o && !movingToBoard) setPendingTargetBoardId(null); }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Mover para o quadro "{targetBoard?.name}"?</AlertDialogTitle>
+              <AlertDialogDescription>
+                O card atual será arquivado e uma cópia será criada na primeira etapa do quadro de destino.
+                {isLinked
+                  ? ' O vínculo com a conversa será transferido para a cópia.'
+                  : ''}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={movingToBoard}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={movingToBoard}
+                onClick={(e) => { e.preventDefault(); confirmMoveToBoard(); }}
+              >
+                {movingToBoard ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Movendo...
+                  </>
+                ) : (
+                  'Mover card'
+                )}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

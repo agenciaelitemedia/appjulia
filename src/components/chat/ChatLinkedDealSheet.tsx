@@ -6,7 +6,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { DealDetailsSheet } from '@/pages/crm-builder/components/deals/DealDetailsSheet';
-import type { CRMDeal, CRMDealFormData, CRMPipeline } from '@/pages/crm-builder/types';
+import type { CRMBoard, CRMDeal, CRMDealFormData, CRMPipeline } from '@/pages/crm-builder/types';
+import { useMoveDealToBoard } from '@/pages/crm-builder/hooks/useMoveDealToBoard';
 import type { ChatLinkedDeal } from '@/hooks/useChatDealLink';
 
 interface Props {
@@ -33,6 +34,7 @@ export function ChatLinkedDealSheet({ open, onOpenChange, deal, onMoved }: Props
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const clientId = user?.client_id ? String(user.client_id) : '';
+  const moveDealToBoard = useMoveDealToBoard();
 
   // Carrega todas as etapas (pipelines) ativas do board do deal para permitir
   // mover diretamente a partir do sheet do chat.
@@ -49,6 +51,23 @@ export function ChatLinkedDealSheet({ open, onOpenChange, deal, onMoved }: Props
         .order('position', { ascending: true });
       if (error) throw error;
       return (data || []) as CRMPipeline[];
+    },
+  });
+
+  // Carrega lista de quadros do client para permitir mover o card entre quadros
+  const { data: boards = [] } = useQuery({
+    queryKey: ['crm-builder-boards-min', clientId],
+    enabled: open && !!clientId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('crm_boards')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('is_archived', false)
+        .order('position', { ascending: true });
+      if (error) throw error;
+      return (data || []) as CRMBoard[];
     },
   });
 
@@ -171,6 +190,31 @@ export function ChatLinkedDealSheet({ open, onOpenChange, deal, onMoved }: Props
       onUpdate={handleUpdate}
       stages={stages}
       onMoveToStage={handleMoveToStage}
+      boards={boards}
+      onMoveToBoard={async (targetBoardId) => {
+        const targetBoard = boards.find((b) => b.id === targetBoardId);
+        const sourceBoard = boards.find((b) => b.id === deal.board_id);
+        const result = await moveDealToBoard(
+          dealForSheet,
+          targetBoardId,
+          targetBoard?.name,
+          sourceBoard?.name,
+        );
+        if (result) {
+          toast.success(`Card movido para "${targetBoard?.name}"`, {
+            action: {
+              label: 'Abrir cópia',
+              onClick: () => navigate(`/crm-builder/${result.newBoardId}?deal=${result.newDealId}`),
+            },
+          });
+          await queryClient.invalidateQueries({ queryKey: ['chat-deal-link'] });
+          await queryClient.invalidateQueries({ queryKey: ['crm-builder-linked-conversations', clientId] });
+          await queryClient.invalidateQueries({ queryKey: ['crm-deals', deal.board_id] });
+          await queryClient.invalidateQueries({ queryKey: ['crm-deals', result.newBoardId] });
+          onMoved?.();
+        }
+        return result;
+      }}
       hideStatusActions
       hideArchiveAction
       footerExtra={
