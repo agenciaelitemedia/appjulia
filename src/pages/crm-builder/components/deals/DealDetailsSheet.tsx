@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -128,6 +130,8 @@ export function DealDetailsSheet({
   const [boardsExpanded, setBoardsExpanded] = useState(false);
   const [pendingTargetBoardId, setPendingTargetBoardId] = useState<string | null>(null);
   const [movingToBoard, setMovingToBoard] = useState(false);
+  const [boardActiveStageCount, setBoardActiveStageCount] = useState<Record<string, number>>({});
+  const [loadingBoardStages, setLoadingBoardStages] = useState(false);
   
   // Mesma fonte usada na página Equipe (vw_equipe filtrada por client_id),
   // que inclui o dono/responsável principal e todos os membros do mesmo cliente.
@@ -156,6 +160,40 @@ export function DealDetailsSheet({
     ? otherBoards.find((b) => b.id === pendingTargetBoardId) || null
     : null;
 
+  // Pré-carrega contagem de etapas ativas por board para sinalizar/desabilitar
+  // boards inválidos antes de tentar mover.
+  const otherBoardIds = useMemo(() => otherBoards.map((b) => b.id).sort().join(','), [otherBoards]);
+  useEffect(() => {
+    if (!boardsExpanded || !showBoardsBlock) return;
+    const ids = otherBoards.map((b) => b.id);
+    if (ids.length === 0) return;
+    let cancelled = false;
+    setLoadingBoardStages(true);
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('crm_pipelines')
+          .select('board_id')
+          .in('board_id', ids)
+          .eq('is_active', true);
+        if (error) throw error;
+        const counts: Record<string, number> = {};
+        for (const row of (data || []) as Array<{ board_id: string }>) {
+          counts[row.board_id] = (counts[row.board_id] || 0) + 1;
+        }
+        if (!cancelled) setBoardActiveStageCount(counts);
+      } catch (err) {
+        if (!cancelled) {
+          console.warn('[DealDetailsSheet] erro ao carregar etapas dos quadros', err);
+        }
+      } finally {
+        if (!cancelled) setLoadingBoardStages(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [boardsExpanded, showBoardsBlock, otherBoardIds]);
+
+
   const handleStageClick = async (stageId: string) => {
     if (!onMoveToStage || stageId === deal.pipeline_id || movingToStage) return;
     setMovingToStage(stageId);
@@ -169,12 +207,25 @@ export function DealDetailsSheet({
 
   const confirmMoveToBoard = async () => {
     if (!pendingTargetBoardId || !onMoveToBoard) return;
+    // Revalida no momento da confirmação para pegar mudanças recentes
+    const known = boardActiveStageCount[pendingTargetBoardId];
+    if (known === 0) {
+      toast.error('O quadro de destino não possui etapas ativas. Crie ao menos uma etapa antes de mover.');
+      setPendingTargetBoardId(null);
+      return;
+    }
     setMovingToBoard(true);
     try {
-      await onMoveToBoard(pendingTargetBoardId);
-      setPendingTargetBoardId(null);
-      setBoardsExpanded(false);
-      onOpenChange(false);
+      const result = await onMoveToBoard(pendingTargetBoardId);
+      // Só fecha o sheet se a operação foi bem-sucedida (helper retorna null em erro)
+      if (result) {
+        setPendingTargetBoardId(null);
+        setBoardsExpanded(false);
+        onOpenChange(false);
+      } else {
+        // erro já notificado pelo helper; mantém o dialog aberto para retry/cancel
+        setPendingTargetBoardId(null);
+      }
     } finally {
       setMovingToBoard(false);
     }
@@ -321,25 +372,46 @@ export function DealDetailsSheet({
                   <p className="text-xs text-muted-foreground px-1 mb-1">
                     Ao escolher outro quadro, o card atual é arquivado e uma cópia é criada na primeira etapa do destino.
                   </p>
-                  {otherBoards.map((b) => (
-                    <button
-                      key={b.id}
-                      type="button"
-                      onClick={() => setPendingTargetBoardId(b.id)}
-                      disabled={movingToBoard}
-                      className={cn(
-                        'w-full flex items-center gap-2 px-3 py-2 rounded-md border text-left transition-colors',
-                        'cursor-pointer hover:bg-muted/50 hover:border-foreground/20',
-                        movingToBoard && 'opacity-60'
-                      )}
-                    >
-                      <span
-                        className="inline-block h-3 w-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: b.color || '#6b7280' }}
-                      />
-                      <span className="text-sm flex-1 truncate">{b.name}</span>
-                    </button>
-                  ))}
+                  {otherBoards.map((b) => {
+                    const stageCount = boardActiveStageCount[b.id];
+                    const noStages = stageCount === 0;
+                    const isDisabled = movingToBoard || noStages;
+                    return (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => {
+                          if (noStages) {
+                            toast.error(`O quadro "${b.name}" não possui etapas ativas. Crie ao menos uma etapa antes de mover o card.`);
+                            return;
+                          }
+                          setPendingTargetBoardId(b.id);
+                        }}
+                        disabled={isDisabled}
+                        title={noStages ? 'Sem etapas ativas — não é possível mover para este quadro' : undefined}
+                        className={cn(
+                          'w-full flex items-center gap-2 px-3 py-2 rounded-md border text-left transition-colors',
+                          noStages
+                            ? 'cursor-not-allowed opacity-60 border-dashed'
+                            : 'cursor-pointer hover:bg-muted/50 hover:border-foreground/20',
+                          movingToBoard && !noStages && 'opacity-60'
+                        )}
+                      >
+                        <span
+                          className="inline-block h-3 w-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: b.color || '#6b7280' }}
+                        />
+                        <span className="text-sm flex-1 truncate">{b.name}</span>
+                        {loadingBoardStages && stageCount === undefined ? (
+                          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground flex-shrink-0" />
+                        ) : noStages ? (
+                          <span className="text-[10px] uppercase tracking-wide text-muted-foreground flex-shrink-0">
+                            sem etapas
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
