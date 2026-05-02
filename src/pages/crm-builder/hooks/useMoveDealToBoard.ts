@@ -51,7 +51,7 @@ export function useMoveDealToBoard() {
       const nextPosition = (existing?.[0]?.position ?? -1) + 1;
 
       // 3. INSERT cópia no destino (mantém custom_fields/links)
-      const insertPayload: Record<string, unknown> = {
+      const insertPayload = {
         pipeline_id: firstPipeline.id,
         board_id: targetBoardId,
         client_id: deal.client_id,
@@ -69,8 +69,8 @@ export function useMoveDealToBoard() {
         tags: deal.tags ?? [],
         assigned_to: deal.assigned_to ?? null,
         position: nextPosition,
-        custom_fields: deal.custom_fields ?? {},
-      };
+        custom_fields: JSON.parse(JSON.stringify(deal.custom_fields ?? {})),
+      } as never;
 
       const { data: newDeal, error: insertError } = await supabase
         .from('crm_deals')
@@ -99,7 +99,7 @@ export function useMoveDealToBoard() {
         .from('crm_deals')
         .update({
           status: 'archived',
-          custom_fields: cleanedCustomFields,
+          custom_fields: JSON.parse(JSON.stringify(cleanedCustomFields)),
         })
         .eq('id', deal.id);
 
