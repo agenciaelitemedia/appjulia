@@ -99,6 +99,7 @@ export default function BoardPage() {
     priorities: [],
     statuses: [],
     pipelineIds: [],
+    assignedTo: [],
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -136,6 +137,14 @@ export default function BoardPage() {
   // Scroll ref for custom navigation
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Unique assignees for filter dropdown
+  const assignees = useMemo(() => {
+    const names = deals
+      .map((d) => d.assigned_to)
+      .filter((n): n is string => !!n);
+    return [...new Set(names)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [deals]);
+
   // Filter deals
   const filteredDeals = useMemo(() => {
     return deals.filter(deal => {
@@ -162,6 +171,11 @@ export default function BoardPage() {
 
       // Pipeline filter
       if (filters.pipelineIds.length > 0 && !filters.pipelineIds.includes(deal.pipeline_id)) {
+        return false;
+      }
+
+      // Assignee filter
+      if (filters.assignedTo.length > 0 && !filters.assignedTo.includes(deal.assigned_to ?? '')) {
         return false;
       }
 
@@ -568,6 +582,7 @@ export default function BoardPage() {
             filters={filters}
             onFiltersChange={setFilters}
             pipelines={pipelines.map(p => ({ id: p.id, name: p.name, color: p.color }))}
+            assignees={assignees}
             totalDeals={deals.length}
             filteredDeals={filteredDeals.length}
             userName={user?.name}

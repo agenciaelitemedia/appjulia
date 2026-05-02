@@ -30,6 +30,7 @@ export interface BoardFiltersState {
   priorities: DealPriority[];
   statuses: DealStatus[];
   pipelineIds: string[];
+  assignedTo: string[];
   myCards: boolean;
 }
 
@@ -37,6 +38,7 @@ interface BoardFiltersProps {
   filters: BoardFiltersState;
   onFiltersChange: (filters: BoardFiltersState) => void;
   pipelines: { id: string; name: string; color: string }[];
+  assignees: string[];
   totalDeals: number;
   filteredDeals: number;
   userName?: string;
@@ -46,6 +48,7 @@ export function BoardFilters({
   filters,
   onFiltersChange,
   pipelines,
+  assignees,
   totalDeals,
   filteredDeals,
   userName,
@@ -56,6 +59,7 @@ export function BoardFilters({
     filters.priorities.length +
     filters.statuses.length +
     filters.pipelineIds.length +
+    filters.assignedTo.length +
     (filters.myCards ? 1 : 0);
 
   const handleSearchChange = (value: string) => {
@@ -89,8 +93,16 @@ export function BoardFilters({
       priorities: [],
       statuses: [],
       pipelineIds: [],
+      assignedTo: [],
       myCards: false,
     });
+  };
+
+  const handleAssigneeToggle = (name: string) => {
+    const next = filters.assignedTo.includes(name)
+      ? filters.assignedTo.filter((a) => a !== name)
+      : [...filters.assignedTo, name];
+    onFiltersChange({ ...filters, assignedTo: next });
   };
 
   const handleMyCardsToggle = () => {
@@ -219,6 +231,32 @@ export function BoardFilters({
                         style={{ backgroundColor: pipeline.color }}
                       />
                       <span className="text-sm">{pipeline.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Assignee Filter */}
+            {assignees.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Responsável</Label>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                  {assignees.map((name) => (
+                    <label
+                      key={name}
+                      className="flex items-center gap-2 cursor-pointer py-1"
+                    >
+                      <Checkbox
+                        checked={filters.assignedTo.includes(name)}
+                        onCheckedChange={() => handleAssigneeToggle(name)}
+                      />
+                      <div className="flex items-center gap-1.5">
+                        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground">
+                          {name.charAt(0).toUpperCase()}
+                        </span>
+                        <span className="text-sm">{name}</span>
+                      </div>
                     </label>
                   ))}
                 </div>
