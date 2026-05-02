@@ -339,21 +339,26 @@ export function DealCard({
             const isOverdue = deal.due_date < today;
             const isToday = deal.due_date === today;
             return (
-              <Badge
-                variant="outline"
-                className={cn(
-                  'text-[10px] px-1.5 py-0 gap-1',
-                  isOverdue
-                    ? 'bg-red-500/10 text-red-700 border-red-500/30'
-                    : isToday
-                    ? 'bg-yellow-500/10 text-yellow-700 border-yellow-500/30'
-                    : 'bg-green-500/10 text-green-700 border-green-500/30'
+              <span className={cn('relative inline-flex', isOverdue && 'items-center')}>
+                {isOverdue && (
+                  <span className="absolute inset-0 rounded-full animate-ping bg-red-500 opacity-30 pointer-events-none" />
                 )}
-                title={isOverdue ? 'Em atraso' : isToday ? 'Vence hoje' : 'No prazo'}
-              >
-                <CalendarClock className="h-2.5 w-2.5 flex-shrink-0" />
-                {format(new Date(deal.due_date + 'T00:00:00'), 'dd/MM/yy', { locale: ptBR })}
-              </Badge>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    'relative text-[10px] px-1.5 py-0 gap-1',
+                    isOverdue
+                      ? 'bg-red-500 text-white border-red-600 font-semibold shadow-sm shadow-red-500/50 animate-pulse'
+                      : isToday
+                      ? 'bg-yellow-500/10 text-yellow-700 border-yellow-500/30'
+                      : 'bg-green-500/10 text-green-700 border-green-500/30'
+                  )}
+                  title={isOverdue ? 'Em atraso' : isToday ? 'Vence hoje' : 'No prazo'}
+                >
+                  <CalendarClock className="h-2.5 w-2.5 flex-shrink-0" />
+                  {format(new Date(deal.due_date + 'T00:00:00'), 'dd/MM/yy', { locale: ptBR })}
+                </Badge>
+              </span>
             );
           })()}
 
