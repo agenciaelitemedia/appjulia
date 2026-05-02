@@ -21,9 +21,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { 
-  MoreHorizontal, 
-  Pencil, 
+import {
+  MoreHorizontal,
+  Pencil,
   Archive,
   Trophy,
   XCircle,
@@ -36,9 +36,10 @@ import {
   MessageCircle,
   Flag,
   Inbox,
+  CalendarClock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { CRMDeal } from '../../types';
 import { PRIORITY_CONFIG } from '../../types';
@@ -346,6 +347,29 @@ export function DealCard({
               </span>
             </Badge>
           )}
+
+          {deal.due_date && (() => {
+            const today = new Date().toISOString().slice(0, 10);
+            const isOverdue = deal.due_date < today;
+            const isToday = deal.due_date === today;
+            return (
+              <Badge
+                variant="outline"
+                className={cn(
+                  'text-[10px] px-1.5 py-0 gap-1',
+                  isOverdue
+                    ? 'bg-red-500/10 text-red-700 border-red-500/30'
+                    : isToday
+                    ? 'bg-yellow-500/10 text-yellow-700 border-yellow-500/30'
+                    : 'bg-green-500/10 text-green-700 border-green-500/30'
+                )}
+                title={isOverdue ? 'Em atraso' : isToday ? 'Vence hoje' : 'No prazo'}
+              >
+                <CalendarClock className="h-2.5 w-2.5 flex-shrink-0" />
+                {format(new Date(deal.due_date + 'T00:00:00'), 'dd/MM/yy', { locale: ptBR })}
+              </Badge>
+            );
+          })()}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

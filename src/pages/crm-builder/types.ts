@@ -72,6 +72,7 @@ export interface CRMDeal {
   status: DealStatus;
   position: number;
   expected_close_date?: string;
+  due_date?: string;
   custom_fields: Record<string, unknown>;
   tags: string[];
   assigned_to?: string;
@@ -90,6 +91,7 @@ export interface CRMDealFormData {
   contact_email?: string;
   priority?: DealPriority;
   expected_close_date?: string;
+  due_date?: string;
   tags?: string[];
   assigned_to?: string;
 }

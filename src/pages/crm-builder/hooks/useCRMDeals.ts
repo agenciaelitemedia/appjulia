@@ -142,6 +142,7 @@ export function useCRMDeals({ boardId, clientId, codAgent }: UseCRMDealsOptions)
         contact_email: data.contact_email,
         priority: data.priority,
         expected_close_date: data.expected_close_date,
+        due_date: data.due_date,
         tags: data.tags,
         assigned_to: data.assigned_to,
       };
