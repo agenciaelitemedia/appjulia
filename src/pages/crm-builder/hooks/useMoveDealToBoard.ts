@@ -23,6 +23,7 @@ export function useMoveDealToBoard() {
     targetBoardId: string,
     targetBoardName?: string,
     sourceBoardName?: string,
+    userName?: string,
   ): Promise<MoveDealToBoardResult | null> => {
     try {
       // 1. Pega a primeira pipeline ativa do board destino
@@ -126,6 +127,7 @@ export function useMoveDealToBoard() {
         action: 'moved',
         to_pipeline_id: firstPipeline.id,
         notes: `Movido do CRM "${sourceBoardName ?? 'outro CRM'}"`,
+        ...(userName ? { changed_by: userName } : {}),
       });
 
       // 5. Arquiva o original e remove links de chat (para não duplicar vínculo ativo)
@@ -162,6 +164,7 @@ export function useMoveDealToBoard() {
         deal_id: deal.id,
         action: 'updated',
         notes: `Card movido para o CRM "${targetBoardName ?? 'outro CRM'}"`,
+        ...(userName ? { changed_by: userName } : {}),
       });
 
       return {

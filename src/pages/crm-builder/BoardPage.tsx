@@ -741,6 +741,7 @@ export default function BoardPage() {
             targetBoardId,
             targetBoard?.name,
             board?.name,
+            user?.name,
           );
           if (result) {
             toast.success(`Card movido para "${targetBoard?.name}"`, {
