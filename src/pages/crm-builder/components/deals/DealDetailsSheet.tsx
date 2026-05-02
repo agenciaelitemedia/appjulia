@@ -60,7 +60,7 @@ import { DealActivityTimeline } from './DealActivityTimeline';
 import { DealLinksSection } from './DealLinksSection';
 import { DealJuliaPanel } from './DealJuliaPanel';
 import { getChatLink, getJuliaLink } from '../../hooks/useCardLinks';
-import type { CRMDeal, CRMDealFormData, CRMPipeline } from '../../types';
+import type { CRMBoard, CRMDeal, CRMDealFormData, CRMPipeline } from '../../types';
 import { PRIORITY_CONFIG, STATUS_CONFIG } from '../../types';
 
 interface DealDetailsSheetProps {
@@ -83,6 +83,10 @@ interface DealDetailsSheetProps {
   stages?: CRMPipeline[];
   /** Callback chamado quando o usuário escolhe mover o deal para outra etapa */
   onMoveToStage?: (stageId: string) => Promise<boolean | void> | boolean | void;
+  /** Lista de quadros disponíveis para mover o card (exclui o atual). */
+  boards?: CRMBoard[];
+  /** Callback ao mover o card para outro quadro. Deve criar cópia no destino e arquivar o original. */
+  onMoveToBoard?: (targetBoardId: string) => Promise<{ newDealId: string; newBoardId: string } | null | void>;
 }
 
 export function DealDetailsSheet({
@@ -100,6 +104,8 @@ export function DealDetailsSheet({
   footerExtra,
   stages,
   onMoveToStage,
+  boards,
+  onMoveToBoard,
 }: DealDetailsSheetProps) {
   const [activeTab, setActiveTab] = useState('details');
   const [editingAssignee, setEditingAssignee] = useState(false);
@@ -119,6 +125,9 @@ export function DealDetailsSheet({
   const [movingToStage, setMovingToStage] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [savingPriority, setSavingPriority] = useState<CRMDealFormData['priority'] | null>(null);
+  const [boardsExpanded, setBoardsExpanded] = useState(false);
+  const [pendingTargetBoardId, setPendingTargetBoardId] = useState<string | null>(null);
+  const [movingToBoard, setMovingToBoard] = useState(false);
   
   // Mesma fonte usada na página Equipe (vw_equipe filtrada por client_id),
   // que inclui o dono/responsável principal e todos os membros do mesmo cliente.
