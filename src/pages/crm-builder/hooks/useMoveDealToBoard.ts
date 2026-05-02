@@ -70,6 +70,9 @@ export function useMoveDealToBoard() {
         assigned_to: deal.assigned_to ?? null,
         position: nextPosition,
         custom_fields: JSON.parse(JSON.stringify(deal.custom_fields ?? {})),
+        // Preserva data original de criação para que o card "movido" mantenha
+        // sua identidade temporal — UI exibe a mesma data do card de origem.
+        created_at: deal.created_at,
       } as never;
 
       const { data: newDeal, error: insertError } = await supabase
@@ -80,10 +83,46 @@ export function useMoveDealToBoard() {
 
       if (insertError) throw insertError;
 
-      // 4. Histórico do novo deal (cópia)
+      // 4. Copia todo o histórico do card original para o novo, preservando
+      //    timestamps e ações. Pipelines do board antigo não existem no destino,
+      //    então zeramos from/to_pipeline_id para não violar a FK; mantemos o
+      //    nome da etapa antiga em `notes` para contexto quando aplicável.
+      try {
+        const { data: originalHistory, error: histFetchErr } = await supabase
+          .from('crm_deal_history')
+          .select('action, from_pipeline_id, to_pipeline_id, changed_by, changed_at, changes, notes')
+          .eq('deal_id', deal.id)
+          .order('changed_at', { ascending: true });
+
+        if (histFetchErr) throw histFetchErr;
+
+        if (originalHistory && originalHistory.length > 0) {
+          const rowsToCopy = originalHistory.map((h) => ({
+            deal_id: newDeal.id,
+            action: h.action,
+            // Pipelines antigos não existem no novo board → null
+            from_pipeline_id: null as string | null,
+            to_pipeline_id: null as string | null,
+            changed_by: h.changed_by ?? null,
+            changed_at: h.changed_at, // preserva timeline original
+            changes: h.changes ?? {},
+            notes: h.notes ?? null,
+          }));
+
+          const { error: histInsertErr } = await supabase
+            .from('crm_deal_history')
+            .insert(rowsToCopy);
+
+          if (histInsertErr) throw histInsertErr;
+        }
+      } catch (historyCopyErr) {
+        console.warn('[useMoveDealToBoard] falha ao copiar histórico', historyCopyErr);
+      }
+
+      // 4b. Adiciona o evento da movimentação como entrada nova no novo deal
       await supabase.from('crm_deal_history').insert({
         deal_id: newDeal.id,
-        action: 'created',
+        action: 'moved',
         to_pipeline_id: firstPipeline.id,
         notes: `Movido do CRM "${sourceBoardName ?? 'outro CRM'}"`,
       });
