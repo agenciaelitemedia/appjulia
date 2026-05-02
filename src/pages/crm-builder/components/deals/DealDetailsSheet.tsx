@@ -346,7 +346,7 @@ export function DealDetailsSheet({
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 min-w-0">
                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    CRM (Quadro CRM da Júlia)
+                    CRM
                   </span>
                   {currentBoard && (
                     <div className="flex items-center gap-1.5 min-w-0">
