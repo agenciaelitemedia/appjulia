@@ -141,25 +141,27 @@ export function DealDetailsSheet({
     dealId: open && deal ? deal.id : null,
   });
 
-  if (!deal) return null;
+  const priorityConfig = deal ? PRIORITY_CONFIG[deal.priority] : null;
+  const statusConfig = deal ? STATUS_CONFIG[deal.status] : null;
+  const isLinked = deal ? (!!getChatLink(deal) || !!getJuliaLink(deal)) : false;
 
-  const priorityConfig = PRIORITY_CONFIG[deal.priority];
-  const statusConfig = STATUS_CONFIG[deal.status];
-  const isLinked = !!getChatLink(deal) || !!getJuliaLink(deal);
-
-  const showStagesBlock = !!stages && stages.length > 0 && !!onMoveToStage;
+  const showStagesBlock = !!deal && !!stages && stages.length > 0 && !!onMoveToStage;
   const sortedStages = showStagesBlock
     ? [...stages!].sort((a, b) => a.position - b.position)
     : [];
-  const currentStage = sortedStages.find((s) => s.id === deal.pipeline_id) || pipeline || null;
+  const currentStage = deal
+    ? (sortedStages.find((s) => s.id === deal.pipeline_id) || pipeline || null)
+    : null;
 
-  const otherBoards = (boards || []).filter((b) => b.id !== deal.board_id && !b.is_archived);
+  const otherBoards = deal
+    ? (boards || []).filter((b) => b.id !== deal.board_id && !b.is_archived)
+    : [];
   // Mostra o bloco sempre que o callback existir, mesmo sem outros boards —
   // assim o usuário entende por que a ação não está disponível em vez de
   // achar que a feature sumiu.
-  const showBoardsBlock = !!onMoveToBoard;
+  const showBoardsBlock = !!deal && !!onMoveToBoard;
   const hasOtherBoards = otherBoards.length > 0;
-  const currentBoard = (boards || []).find((b) => b.id === deal.board_id) || null;
+  const currentBoard = deal ? ((boards || []).find((b) => b.id === deal.board_id) || null) : null;
   const targetBoard = pendingTargetBoardId
     ? otherBoards.find((b) => b.id === pendingTargetBoardId) || null
     : null;
@@ -196,6 +198,9 @@ export function DealDetailsSheet({
     })();
     return () => { cancelled = true; };
   }, [boardsExpanded, showBoardsBlock, otherBoardIds]);
+
+  // Early return APÓS todos os hooks para respeitar a Regra dos Hooks do React.
+  if (!deal) return null;
 
 
   const handleStageClick = async (stageId: string) => {
