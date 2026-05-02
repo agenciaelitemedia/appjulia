@@ -1,39 +1,53 @@
-# Corrigir opção "Mover para outro Quadro" no detalhe do card
+# Corrigir erro "Rendered more hooks than during the previous render"
 
-## Diagnóstico
+## Problema
 
-Ao inspecionar `DealDetailsSheet.tsx` identifiquei dois problemas que fazem a opção desaparecer:
+O componente `DealDetailsSheet` está quebrando com:
+> Rendered more hooks than during the previous render.
 
-1. **Aninhamento incorreto**: o bloco "Quadro" foi colocado **dentro** do bloco condicional `{showStagesBlock && (...)}` (linha 334). Se o board não carregar `stages` (ou o callback `onMoveToStage` não for fornecido), o bloco "Quadro" some junto, mesmo quando `boards` e `onMoveToBoard` foram passados corretamente.
+### Causa raiz
 
-2. **Cliente com apenas 1 quadro**: a condição `showBoardsBlock = !!onMoveToBoard && otherBoards.length > 0` esconde **completamente** o bloco quando o cliente só tem 1 board cadastrado. Sem nenhuma indicação visual, o usuário acha que a feature sumiu.
+Em `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx`, há um **early return** na linha 144:
 
-A integração no `ChatLinkedDealSheet.tsx` está correta — `boards`, `onMoveToBoard`, `stages` e `onMoveToStage` estão sendo passados via React Query. O problema é puramente de renderização.
+```ts
+if (!deal) return null;
+```
 
-## Mudanças propostas
+Esse return acontece **antes** de hooks declarados mais abaixo no componente:
+- `useMemo(...)` em torno da linha 169 (`otherBoardIds`)
+- `useEffect(...)` em torno da linha 170 (pré-carrega contagem de etapas dos boards)
+- e provavelmente outros hooks abaixo no arquivo (1023 linhas)
 
-### 1. `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx`
+Quando `deal` alterna entre `null` e um objeto válido (ex.: ao abrir/fechar o sheet, ou ao trocar de card), o React conta números diferentes de hooks entre renders e dispara o crash.
 
-- **Mover o bloco "Quadro" para fora** do `{showStagesBlock && ...}`, tornando-o um bloco independente controlado apenas por `!!onMoveToBoard`.
-- **Mudar a condição de visibilidade**: passar a renderizar o bloco "Quadro" sempre que `onMoveToBoard` estiver definido (mesmo quando há só 1 board), exibindo:
-  - O quadro atual (read-only, como hoje).
-  - Se `otherBoards.length === 0`, mostrar texto auxiliar discreto: *"Nenhum outro quadro disponível para mover este card."* — assim o usuário entende por que não há ação.
-  - Se `otherBoards.length > 0`, manter o botão de expandir e a lista atual (já com validação de etapas vazias implementada).
-- Garantir que a ordem visual continue: **Quadro → Etapa → Abas**.
+Isso viola a **Regra dos Hooks** do React: todos os hooks devem ser chamados na mesma ordem em todo render, sem `return`/`if` antes deles.
 
-### 2. (Opcional, pequeno) garantir que o bloco apareça em ambos os pontos de uso
+## Solução
 
-Verificar que `BoardPage.tsx` e `DealJuliaPanel.tsx` também recebem `boards` + `onMoveToBoard`. Se algum não receber, a opção continuará oculta nessas telas. Já confirmei que `ChatLinkedDealSheet.tsx` está correto; vou validar os outros dois consumidores na implementação e completar se faltar.
+Mover o early return de `deal` para **depois** de todos os hooks do componente.
+
+### Passos
+
+1. Em `DealDetailsSheet.tsx`:
+   - Remover `if (!deal) return null;` da linha 144.
+   - Tornar todos os derivados de `deal` (priorityConfig, statusConfig, sortedStages, otherBoards, etc.) seguros para `deal === null` usando optional chaining / fallback (`deal?.priority`, `deal?.id`, `deal?.board_id`, etc.).
+   - Ajustar os hooks que dependem de `deal` para tratar o caso nulo (já é o caso de `useCRMDealHistory({ dealId: open && deal ? deal.id : null })`).
+   - Após o último hook do componente, adicionar:
+     ```ts
+     if (!deal) return null;
+     ```
+2. Verificar (com leitura do restante do arquivo) que nenhum outro `return` antecipado, `if`, `&&` ou loop esteja envolvendo chamadas a hooks. Mover qualquer hook restante para o topo.
+
+3. Smoke test no preview:
+   - Abrir um card no CRM Builder.
+   - Fechar e reabrir.
+   - Trocar entre cards diferentes.
+   - Expandir o bloco "Quadro" para garantir que `useEffect` de contagem de etapas roda sem erro.
 
 ## Arquivos afetados
 
-- `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx` (mover JSX do bloco Quadro + ajustar condição)
-- `src/pages/crm-builder/BoardPage.tsx` (validar wiring — ajuste só se necessário)
-- `src/pages/crm-builder/components/deals/DealJuliaPanel.tsx` (validar wiring — ajuste só se necessário)
+- `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx` (única alteração necessária)
 
-## Resultado esperado
+## Risco
 
-- O bloco "Quadro" aparece sempre nos detalhes do card (independente de `stages`).
-- Quando o cliente tem outros quadros: lápis para expandir e mover.
-- Quando o cliente só tem 1 quadro: aviso amigável explicando que não há destinos disponíveis.
-- Comportamento de cópia + arquivamento + validação de etapas ativas permanece igual.
+Baixo. É uma correção pontual de ordenação de hooks, sem mudança de UX nem de lógica de negócio.
