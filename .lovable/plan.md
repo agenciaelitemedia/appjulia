@@ -1,53 +1,45 @@
-# Corrigir erro "Rendered more hooks than during the previous render"
+## Objetivo
 
-## Problema
+Padronizar a terminologia "Quadro" → "CRM" no bloco de migração entre quadros do detalhe do card, simplificar o texto explicativo, deixar a confirmação mais direta e atualizar as entradas de histórico do card original e da cópia.
 
-O componente `DealDetailsSheet` está quebrando com:
-> Rendered more hooks than during the previous render.
+## Mudanças
 
-### Causa raiz
+### 1. `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx`
 
-Em `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx`, há um **early return** na linha 144:
+**Bloco "Quadro" no header do sheet (linhas ~342–432):**
+- Trocar o label `Quadro` por `CRM (Quadro CRM da Júlia)`.
+- Substituir o texto explicativo:
+  - De: `Ao escolher outro quadro, o card atual é arquivado e uma cópia é criada na primeira etapa do destino.`
+  - Para: `Escolha o CRM que deseja mover o card.`
+- Atualizar tooltips do botão de expandir: `Mover para outro CRM` (e mensagem "Nenhum outro CRM disponível para mover este card.").
+- Toast de quadro sem etapas: trocar `quadro` por `CRM`.
 
-```ts
-if (!deal) return null;
-```
+**Diálogo de confirmação de mover (linhas ~992–1024):**
+- Título: `Tem certeza que deseja mover o card do CRM "{currentBoard?.name}" para o CRM "{targetBoard?.name}"?`
+- Descrição enxuta: `O card será movido e sumirá do CRM atual.` (remover o trecho sobre arquivar/cópia/primeira etapa; manter apenas a nota sobre vínculo de conversa quando `isLinked` for true: `O vínculo com a conversa será transferido para a cópia.`)
+- Manter botões `Cancelar` e `Mover card`.
 
-Esse return acontece **antes** de hooks declarados mais abaixo no componente:
-- `useMemo(...)` em torno da linha 169 (`otherBoardIds`)
-- `useEffect(...)` em torno da linha 170 (pré-carrega contagem de etapas dos boards)
-- e provavelmente outros hooks abaixo no arquivo (1023 linhas)
+### 2. `src/pages/crm-builder/hooks/useMoveDealToBoard.ts`
 
-Quando `deal` alterna entre `null` e um objeto válido (ex.: ao abrir/fechar o sheet, ou ao trocar de card), o React conta números diferentes de hooks entre renders e dispara o crash.
+Ajustar as duas notas inseridas em `crm_deal_history`:
 
-Isso viola a **Regra dos Hooks** do React: todos os hooks devem ser chamados na mesma ordem em todo render, sem `return`/`if` antes deles.
+- **No card original** (deal arquivado): trocar
+  `Movido para o quadro "{targetBoardName}" (cópia: {newDealId})`
+  por
+  `Card movido para o CRM "{targetBoardName}"` (sem expor IDs).
 
-## Solução
+- **No card cópia** (novo deal criado): trocar
+  `Cópia do card {deal.id} (quadro {sourceBoardName})`
+  por
+  `Movido do CRM "{sourceBoardName}"`.
 
-Mover o early return de `deal` para **depois** de todos os hooks do componente.
-
-### Passos
-
-1. Em `DealDetailsSheet.tsx`:
-   - Remover `if (!deal) return null;` da linha 144.
-   - Tornar todos os derivados de `deal` (priorityConfig, statusConfig, sortedStages, otherBoards, etc.) seguros para `deal === null` usando optional chaining / fallback (`deal?.priority`, `deal?.id`, `deal?.board_id`, etc.).
-   - Ajustar os hooks que dependem de `deal` para tratar o caso nulo (já é o caso de `useCRMDealHistory({ dealId: open && deal ? deal.id : null })`).
-   - Após o último hook do componente, adicionar:
-     ```ts
-     if (!deal) return null;
-     ```
-2. Verificar (com leitura do restante do arquivo) que nenhum outro `return` antecipado, `if`, `&&` ou loop esteja envolvendo chamadas a hooks. Mover qualquer hook restante para o topo.
-
-3. Smoke test no preview:
-   - Abrir um card no CRM Builder.
-   - Fechar e reabrir.
-   - Trocar entre cards diferentes.
-   - Expandir o bloco "Quadro" para garantir que `useEffect` de contagem de etapas roda sem erro.
+Quando `targetBoardName` ou `sourceBoardName` não estiverem disponíveis, usar fallback genérico (`outro CRM`).
 
 ## Arquivos afetados
 
-- `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx` (única alteração necessária)
+- `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx`
+- `src/pages/crm-builder/hooks/useMoveDealToBoard.ts`
 
 ## Risco
 
-Baixo. É uma correção pontual de ordenação de hooks, sem mudança de UX nem de lógica de negócio.
+Baixo — apenas texto de UI e conteúdo das notas de histórico. Sem mudança de comportamento, schema ou fluxo de dados.
