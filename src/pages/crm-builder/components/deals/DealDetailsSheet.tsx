@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -128,6 +130,8 @@ export function DealDetailsSheet({
   const [boardsExpanded, setBoardsExpanded] = useState(false);
   const [pendingTargetBoardId, setPendingTargetBoardId] = useState<string | null>(null);
   const [movingToBoard, setMovingToBoard] = useState(false);
+  const [boardActiveStageCount, setBoardActiveStageCount] = useState<Record<string, number>>({});
+  const [loadingBoardStages, setLoadingBoardStages] = useState(false);
   
   // Mesma fonte usada na página Equipe (vw_equipe filtrada por client_id),
   // que inclui o dono/responsável principal e todos os membros do mesmo cliente.
