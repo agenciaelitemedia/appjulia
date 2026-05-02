@@ -149,6 +149,13 @@ export function DealDetailsSheet({
     : [];
   const currentStage = sortedStages.find((s) => s.id === deal.pipeline_id) || pipeline || null;
 
+  const otherBoards = (boards || []).filter((b) => b.id !== deal.board_id && !b.is_archived);
+  const showBoardsBlock = !!onMoveToBoard && otherBoards.length > 0;
+  const currentBoard = (boards || []).find((b) => b.id === deal.board_id) || null;
+  const targetBoard = pendingTargetBoardId
+    ? otherBoards.find((b) => b.id === pendingTargetBoardId) || null
+    : null;
+
   const handleStageClick = async (stageId: string) => {
     if (!onMoveToStage || stageId === deal.pipeline_id || movingToStage) return;
     setMovingToStage(stageId);
@@ -157,6 +164,19 @@ export function DealDetailsSheet({
       setStagesExpanded(false);
     } finally {
       setMovingToStage(null);
+    }
+  };
+
+  const confirmMoveToBoard = async () => {
+    if (!pendingTargetBoardId || !onMoveToBoard) return;
+    setMovingToBoard(true);
+    try {
+      await onMoveToBoard(pendingTargetBoardId);
+      setPendingTargetBoardId(null);
+      setBoardsExpanded(false);
+      onOpenChange(false);
+    } finally {
+      setMovingToBoard(false);
     }
   };
 
