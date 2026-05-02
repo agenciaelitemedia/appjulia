@@ -160,6 +160,40 @@ export function DealDetailsSheet({
     ? otherBoards.find((b) => b.id === pendingTargetBoardId) || null
     : null;
 
+  // Pré-carrega contagem de etapas ativas por board para sinalizar/desabilitar
+  // boards inválidos antes de tentar mover.
+  const otherBoardIds = useMemo(() => otherBoards.map((b) => b.id).sort().join(','), [otherBoards]);
+  useEffect(() => {
+    if (!boardsExpanded || !showBoardsBlock) return;
+    const ids = otherBoards.map((b) => b.id);
+    if (ids.length === 0) return;
+    let cancelled = false;
+    setLoadingBoardStages(true);
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('crm_pipelines')
+          .select('board_id')
+          .in('board_id', ids)
+          .eq('is_active', true);
+        if (error) throw error;
+        const counts: Record<string, number> = {};
+        for (const row of (data || []) as Array<{ board_id: string }>) {
+          counts[row.board_id] = (counts[row.board_id] || 0) + 1;
+        }
+        if (!cancelled) setBoardActiveStageCount(counts);
+      } catch (err) {
+        if (!cancelled) {
+          console.warn('[DealDetailsSheet] erro ao carregar etapas dos quadros', err);
+        }
+      } finally {
+        if (!cancelled) setLoadingBoardStages(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [boardsExpanded, showBoardsBlock, otherBoardIds]);
+
+
   const handleStageClick = async (stageId: string) => {
     if (!onMoveToStage || stageId === deal.pipeline_id || movingToStage) return;
     setMovingToStage(stageId);
