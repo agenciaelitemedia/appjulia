@@ -898,6 +898,40 @@ export function DealDetailsSheet({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Confirmação: mover para outro quadro */}
+        <AlertDialog
+          open={!!pendingTargetBoardId}
+          onOpenChange={(o) => { if (!o && !movingToBoard) setPendingTargetBoardId(null); }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Mover para o quadro "{targetBoard?.name}"?</AlertDialogTitle>
+              <AlertDialogDescription>
+                O card atual será arquivado e uma cópia será criada na primeira etapa do quadro de destino.
+                {isLinked
+                  ? ' O vínculo com a conversa será transferido para a cópia.'
+                  : ''}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={movingToBoard}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={movingToBoard}
+                onClick={(e) => { e.preventDefault(); confirmMoveToBoard(); }}
+              >
+                {movingToBoard ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Movendo...
+                  </>
+                ) : (
+                  'Mover card'
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SheetContent>
     </Sheet>
   );
