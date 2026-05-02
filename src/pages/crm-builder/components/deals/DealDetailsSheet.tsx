@@ -154,7 +154,11 @@ export function DealDetailsSheet({
   const currentStage = sortedStages.find((s) => s.id === deal.pipeline_id) || pipeline || null;
 
   const otherBoards = (boards || []).filter((b) => b.id !== deal.board_id && !b.is_archived);
-  const showBoardsBlock = !!onMoveToBoard && otherBoards.length > 0;
+  // Mostra o bloco sempre que o callback existir, mesmo sem outros boards —
+  // assim o usuário entende por que a ação não está disponível em vez de
+  // achar que a feature sumiu.
+  const showBoardsBlock = !!onMoveToBoard;
+  const hasOtherBoards = otherBoards.length > 0;
   const currentBoard = (boards || []).find((b) => b.id === deal.board_id) || null;
   const targetBoard = pendingTargetBoardId
     ? otherBoards.find((b) => b.id === pendingTargetBoardId) || null
