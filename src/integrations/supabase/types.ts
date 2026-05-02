@@ -3093,6 +3093,7 @@ export type Database = {
           currency: string | null
           custom_fields: Json | null
           description: string | null
+          due_date: string | null
           expected_close_date: string | null
           id: string
           pipeline_id: string
@@ -3118,6 +3119,7 @@ export type Database = {
           currency?: string | null
           custom_fields?: Json | null
           description?: string | null
+          due_date?: string | null
           expected_close_date?: string | null
           id?: string
           pipeline_id: string
@@ -3143,6 +3145,7 @@ export type Database = {
           currency?: string | null
           custom_fields?: Json | null
           description?: string | null
+          due_date?: string | null
           expected_close_date?: string | null
           id?: string
           pipeline_id?: string
