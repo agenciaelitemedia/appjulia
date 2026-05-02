@@ -708,6 +708,74 @@ export function DealDetailsSheet({
                 )}
               </div>
 
+              {/* 3a. Data de Entrega (logo abaixo do Responsável) */}
+              {onUpdate && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <CalendarClock className="h-5 w-5 text-muted-foreground" />
+                      <h4 className="text-sm font-medium">Data de Entrega</h4>
+                    </div>
+                    {!editingDueDate && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                        onClick={startEditDueDate}
+                        title="Editar data de entrega"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                  {editingDueDate ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="date"
+                        value={dueDateDraft}
+                        onChange={(e) => setDueDateDraft(e.target.value)}
+                        autoFocus
+                        className="h-9 flex-1"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') saveDueDate();
+                          if (e.key === 'Escape') setEditingDueDate(false);
+                        }}
+                      />
+                      <Button size="icon" className="h-9 w-9 flex-shrink-0" onClick={saveDueDate} disabled={savingField === 'due_date'}>
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-9 w-9 flex-shrink-0" onClick={() => setEditingDueDate(false)}>
+                        <XIcon className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : deal.due_date ? (() => {
+                    const today = new Date().toISOString().slice(0, 10);
+                    const isOverdue = deal.due_date < today;
+                    const isToday = deal.due_date === today;
+                    return (
+                      <div className={cn(
+                        'flex items-center gap-2 px-3 py-2 rounded-md border text-sm font-medium',
+                        isOverdue
+                          ? 'bg-red-500/10 text-red-700 border-red-500/30'
+                          : isToday
+                          ? 'bg-yellow-500/10 text-yellow-700 border-yellow-500/30'
+                          : 'bg-green-500/10 text-green-700 border-green-500/30'
+                      )}>
+                        <CalendarClock className="h-4 w-4 flex-shrink-0" />
+                        {format(new Date(deal.due_date + 'T00:00:00'), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                        <span className="ml-auto text-xs font-normal">
+                          {isOverdue ? 'Em atraso' : isToday ? 'Vence hoje' : 'No prazo'}
+                        </span>
+                      </div>
+                    );
+                  })() : (
+                    <Button variant="outline" size="sm" onClick={startEditDueDate} className="gap-1.5">
+                      <Plus className="h-3.5 w-3.5" /> Definir data de entrega
+                    </Button>
+                  )}
+                </div>
+              )}
+
               {/* 3b. Descrição (editável) — movida para acima de Prioridade/Tempo */}
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -903,74 +971,6 @@ export function DealDetailsSheet({
                       {format(new Date(deal.expected_close_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                     </div>
                   </div>
-                </div>
-              )}
-
-              {/* Data de Entrega (editável) */}
-              {onUpdate && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <CalendarClock className="h-5 w-5 text-muted-foreground" />
-                      <h4 className="text-sm font-medium">Data de Entrega</h4>
-                    </div>
-                    {!editingDueDate && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                        onClick={startEditDueDate}
-                        title="Editar data de entrega"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                  {editingDueDate ? (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="date"
-                        value={dueDateDraft}
-                        onChange={(e) => setDueDateDraft(e.target.value)}
-                        autoFocus
-                        className="h-9 flex-1"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') saveDueDate();
-                          if (e.key === 'Escape') setEditingDueDate(false);
-                        }}
-                      />
-                      <Button size="icon" className="h-9 w-9 flex-shrink-0" onClick={saveDueDate} disabled={savingField === 'due_date'}>
-                        <Check className="h-4 w-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" className="h-9 w-9 flex-shrink-0" onClick={() => setEditingDueDate(false)}>
-                        <XIcon className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : deal.due_date ? (() => {
-                    const today = new Date().toISOString().slice(0, 10);
-                    const isOverdue = deal.due_date < today;
-                    const isToday = deal.due_date === today;
-                    return (
-                      <div className={cn(
-                        'flex items-center gap-2 px-3 py-2 rounded-md border text-sm font-medium',
-                        isOverdue
-                          ? 'bg-red-500/10 text-red-700 border-red-500/30'
-                          : isToday
-                          ? 'bg-yellow-500/10 text-yellow-700 border-yellow-500/30'
-                          : 'bg-green-500/10 text-green-700 border-green-500/30'
-                      )}>
-                        <CalendarClock className="h-4 w-4 flex-shrink-0" />
-                        {format(new Date(deal.due_date + 'T00:00:00'), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                        <span className="ml-auto text-xs font-normal">
-                          {isOverdue ? 'Em atraso' : isToday ? 'Vence hoje' : 'No prazo'}
-                        </span>
-                      </div>
-                    );
-                  })() : (
-                    <Button variant="outline" size="sm" onClick={startEditDueDate} className="gap-1.5">
-                      <Plus className="h-3.5 w-3.5" /> Definir data de entrega
-                    </Button>
-                  )}
                 </div>
               )}
 
