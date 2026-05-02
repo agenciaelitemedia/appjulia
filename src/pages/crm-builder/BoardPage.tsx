@@ -43,6 +43,9 @@ import { BoardSettingsSheet } from './components/settings/BoardSettingsSheet';
 import { useCRMPipelines } from './hooks/useCRMPipelines';
 import { useCRMDeals } from './hooks/useCRMDeals';
 import { useCRMCustomFields } from './hooks/useCRMCustomFields';
+import { useCRMBoards } from './hooks/useCRMBoards';
+import { useMoveDealToBoard } from './hooks/useMoveDealToBoard';
+import { toast } from 'sonner';
 import type { CRMBoard, CRMPipeline, CRMDeal, CRMPipelineFormData, CRMDealFormData } from './types';
 import { CRMScrollNavigation } from '@/pages/crm/components/CRMScrollNavigation';
 
@@ -84,6 +87,10 @@ export default function BoardPage() {
 
   // Custom Fields
   const { fields: customFields } = useCRMCustomFields({ boardId: boardId || null, clientId, codAgent, canManage });
+
+  // Lista de quadros disponíveis (para mover card entre quadros)
+  const { boards: allBoards } = useCRMBoards({ clientId, codAgent, canManage });
+  const moveDealToBoard = useMoveDealToBoard();
 
   // Filters state
   const [filters, setFilters] = useState<BoardFiltersState>({
