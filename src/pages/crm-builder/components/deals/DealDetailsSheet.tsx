@@ -281,6 +281,70 @@ export function DealDetailsSheet({
 
         {/* Bloco Etapas (acima das abas) — só renderiza quando há stages + onMoveToStage */}
         {showStagesBlock && (
+        <>
+          {/* Bloco Quadro — só aparece quando há boards alternativos disponíveis */}
+          {showBoardsBlock && (
+            <div className="px-6 py-3 border-b bg-muted/20">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Quadro
+                  </span>
+                  {currentBoard && (
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span
+                        className="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: currentBoard.color || '#6b7280' }}
+                      />
+                      <span className="text-sm font-medium truncate">{currentBoard.name}</span>
+                    </div>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 flex-shrink-0"
+                  onClick={() => setBoardsExpanded((v) => !v)}
+                  title={boardsExpanded ? 'Fechar' : 'Mover para outro quadro'}
+                  aria-label={boardsExpanded ? 'Fechar' : 'Mover para outro quadro'}
+                >
+                  {boardsExpanded ? (
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  ) : (
+                    <Pencil className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </div>
+
+              {boardsExpanded && (
+                <div className="space-y-1.5 mt-3">
+                  <p className="text-xs text-muted-foreground px-1 mb-1">
+                    Ao escolher outro quadro, o card atual é arquivado e uma cópia é criada na primeira etapa do destino.
+                  </p>
+                  {otherBoards.map((b) => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => setPendingTargetBoardId(b.id)}
+                      disabled={movingToBoard}
+                      className={cn(
+                        'w-full flex items-center gap-2 px-3 py-2 rounded-md border text-left transition-colors',
+                        'cursor-pointer hover:bg-muted/50 hover:border-foreground/20',
+                        movingToBoard && 'opacity-60'
+                      )}
+                    >
+                      <span
+                        className="inline-block h-3 w-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: b.color || '#6b7280' }}
+                      />
+                      <span className="text-sm flex-1 truncate">{b.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="px-6 py-3 border-b bg-muted/20">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 min-w-0">
@@ -348,6 +412,7 @@ export function DealDetailsSheet({
               </div>
             )}
           </div>
+        </>
         )}
 
         {/* Tabs + conteúdo */}
