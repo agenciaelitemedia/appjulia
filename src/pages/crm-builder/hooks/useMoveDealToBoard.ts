@@ -80,12 +80,12 @@ export function useMoveDealToBoard() {
 
       if (insertError) throw insertError;
 
-      // 4. Histórico do novo deal
+      // 4. Histórico do novo deal (cópia)
       await supabase.from('crm_deal_history').insert({
         deal_id: newDeal.id,
         action: 'created',
         to_pipeline_id: firstPipeline.id,
-        notes: `Cópia do card ${deal.id}${sourceBoardName ? ` (quadro ${sourceBoardName})` : ''}`,
+        notes: `Movido do CRM "${sourceBoardName ?? 'outro CRM'}"`,
       });
 
       // 5. Arquiva o original e remove links de chat (para não duplicar vínculo ativo)
@@ -117,11 +117,11 @@ export function useMoveDealToBoard() {
         };
       }
 
-      // 6. Histórico do original
+      // 6. Histórico do original (arquivado)
       await supabase.from('crm_deal_history').insert({
         deal_id: deal.id,
         action: 'updated',
-        notes: `Movido para o quadro${targetBoardName ? ` "${targetBoardName}"` : ''} (cópia: ${newDeal.id})`,
+        notes: `Card movido para o CRM "${targetBoardName ?? 'outro CRM'}"`,
       });
 
       return {
