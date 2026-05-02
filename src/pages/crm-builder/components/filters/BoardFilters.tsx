@@ -251,7 +251,7 @@ export function BoardFilters({
       {/* Results count */}
       {hasActiveFilters && (
         <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {filteredDeals} de {totalDeals} deals
+          {filteredDeals} de {totalDeals} {totalDeals === 1 ? 'negócio' : 'negócios'}
         </span>
       )}
     </div>
