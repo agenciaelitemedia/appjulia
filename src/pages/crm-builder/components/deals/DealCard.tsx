@@ -334,20 +334,6 @@ export function DealCard({
             <span className="truncate">{deal.assigned_to || 'Não atribuído'}</span>
           </Badge>
 
-          {isJuliaCard && juliaCtx.codAgent && (
-            <Badge
-              variant="outline"
-              className="text-[10px] px-1.5 py-0 gap-1 bg-purple-500/10 text-purple-700 border-purple-500/30 max-w-[160px]"
-              title={`Agente Jul.IA #${juliaCtx.codAgent}${juliaCtx.agentAlias ? ' - ' + juliaCtx.agentAlias : ''}`}
-            >
-              <Scale className="h-2.5 w-2.5 flex-shrink-0" />
-              <span className="truncate">
-                #{juliaCtx.codAgent}
-                {juliaCtx.agentAlias ? ` - ${juliaCtx.agentAlias}` : ''}
-              </span>
-            </Badge>
-          )}
-
           {deal.due_date && (() => {
             const today = new Date().toISOString().slice(0, 10);
             const isOverdue = deal.due_date < today;
@@ -370,6 +356,20 @@ export function DealCard({
               </Badge>
             );
           })()}
+
+          {isJuliaCard && juliaCtx.codAgent && (
+            <Badge
+              variant="outline"
+              className="text-[10px] px-1.5 py-0 gap-1 bg-purple-500/10 text-purple-700 border-purple-500/30 max-w-[160px]"
+              title={`Agente Jul.IA #${juliaCtx.codAgent}${juliaCtx.agentAlias ? ' - ' + juliaCtx.agentAlias : ''}`}
+            >
+              <Scale className="h-2.5 w-2.5 flex-shrink-0" />
+              <span className="truncate">
+                #{juliaCtx.codAgent}
+                {juliaCtx.agentAlias ? ` - ${juliaCtx.agentAlias}` : ''}
+              </span>
+            </Badge>
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
