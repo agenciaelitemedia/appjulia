@@ -154,7 +154,11 @@ export function DealDetailsSheet({
   const currentStage = sortedStages.find((s) => s.id === deal.pipeline_id) || pipeline || null;
 
   const otherBoards = (boards || []).filter((b) => b.id !== deal.board_id && !b.is_archived);
-  const showBoardsBlock = !!onMoveToBoard && otherBoards.length > 0;
+  // Mostra o bloco sempre que o callback existir, mesmo sem outros boards —
+  // assim o usuário entende por que a ação não está disponível em vez de
+  // achar que a feature sumiu.
+  const showBoardsBlock = !!onMoveToBoard;
+  const hasOtherBoards = otherBoards.length > 0;
   const currentBoard = (boards || []).find((b) => b.id === deal.board_id) || null;
   const targetBoard = pendingTargetBoardId
     ? otherBoards.find((b) => b.id === pendingTargetBoardId) || null
@@ -330,11 +334,9 @@ export function DealDetailsSheet({
           </div>
         </SheetHeader>
 
-        {/* Bloco Etapas (acima das abas) — só renderiza quando há stages + onMoveToStage */}
-        {showStagesBlock && (
-        <>
-          {/* Bloco Quadro — só aparece quando há boards alternativos disponíveis */}
-          {showBoardsBlock && (
+        {/* Bloco Quadro — independente do bloco Etapas. Aparece sempre que o
+            callback onMoveToBoard estiver disponível. */}
+        {showBoardsBlock && (
             <div className="px-6 py-3 border-b bg-muted/20">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 min-w-0">
@@ -351,6 +353,7 @@ export function DealDetailsSheet({
                     </div>
                   )}
                 </div>
+                {hasOtherBoards && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -365,9 +368,16 @@ export function DealDetailsSheet({
                     <Pencil className="h-3.5 w-3.5" />
                   )}
                 </Button>
+                )}
               </div>
 
-              {boardsExpanded && (
+              {!hasOtherBoards && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Nenhum outro quadro disponível para mover este card.
+                </p>
+              )}
+
+              {hasOtherBoards && boardsExpanded && (
                 <div className="space-y-1.5 mt-3">
                   <p className="text-xs text-muted-foreground px-1 mb-1">
                     Ao escolher outro quadro, o card atual é arquivado e uma cópia é criada na primeira etapa do destino.
@@ -415,8 +425,11 @@ export function DealDetailsSheet({
                 </div>
               )}
             </div>
-          )}
+        )}
 
+        {/* Bloco Etapas (acima das abas) — só renderiza quando há stages + onMoveToStage */}
+        {showStagesBlock && (
+        <>
           <div className="px-6 py-3 border-b bg-muted/20">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 min-w-0">
