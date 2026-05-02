@@ -66,6 +66,7 @@ export function useMoveDealToBoard() {
         priority: deal.priority || 'medium',
         status: 'open',
         expected_close_date: deal.expected_close_date ?? null,
+        due_date: deal.due_date ?? null,
         tags: deal.tags ?? [],
         assigned_to: deal.assigned_to ?? null,
         position: nextPosition,
