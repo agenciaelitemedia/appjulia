@@ -95,6 +95,7 @@ export default function BoardPage() {
   // Filters state
   const [filters, setFilters] = useState<BoardFiltersState>({
     search: '',
+    myCards: false,
     priorities: [],
     statuses: [],
     pipelineIds: [],
@@ -164,9 +165,14 @@ export default function BoardPage() {
         return false;
       }
 
+      // My cards filter
+      if (filters.myCards && user?.name && deal.assigned_to !== user.name) {
+        return false;
+      }
+
       return true;
     });
-  }, [deals, filters]);
+  }, [deals, filters, user?.name]);
 
   // Get filtered deals by pipeline
   const getFilteredDealsByPipeline = useCallback((pipelineId: string) => {
@@ -564,6 +570,7 @@ export default function BoardPage() {
             pipelines={pipelines.map(p => ({ id: p.id, name: p.name, color: p.color }))}
             totalDeals={deals.length}
             filteredDeals={filteredDeals.length}
+            userName={user?.name}
           />
       </div>
 

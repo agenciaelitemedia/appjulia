@@ -30,6 +30,7 @@ export interface BoardFiltersState {
   priorities: DealPriority[];
   statuses: DealStatus[];
   pipelineIds: string[];
+  myCards: boolean;
 }
 
 interface BoardFiltersProps {
@@ -38,6 +39,7 @@ interface BoardFiltersProps {
   pipelines: { id: string; name: string; color: string }[];
   totalDeals: number;
   filteredDeals: number;
+  userName?: string;
 }
 
 export function BoardFilters({
@@ -46,13 +48,15 @@ export function BoardFilters({
   pipelines,
   totalDeals,
   filteredDeals,
+  userName,
 }: BoardFiltersProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const activeFiltersCount = 
-    filters.priorities.length + 
-    filters.statuses.length + 
-    filters.pipelineIds.length;
+  const activeFiltersCount =
+    filters.priorities.length +
+    filters.statuses.length +
+    filters.pipelineIds.length +
+    (filters.myCards ? 1 : 0);
 
   const handleSearchChange = (value: string) => {
     onFiltersChange({ ...filters, search: value });
@@ -85,7 +89,12 @@ export function BoardFilters({
       priorities: [],
       statuses: [],
       pipelineIds: [],
+      myCards: false,
     });
+  };
+
+  const handleMyCardsToggle = () => {
+    onFiltersChange({ ...filters, myCards: !filters.myCards });
   };
 
   const hasActiveFilters = filters.search || activeFiltersCount > 0;
@@ -112,6 +121,26 @@ export function BoardFilters({
           </Button>
         )}
       </div>
+
+      {/* My Cards Button */}
+      {userName && (
+        <button
+          type="button"
+          onClick={handleMyCardsToggle}
+          title={filters.myCards ? 'Mostrar todos os cards' : 'Ver apenas meus cards'}
+          className={cn(
+            'relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-all',
+            filters.myCards
+              ? 'bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 shadow-md'
+              : 'bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary hover:ring-2 hover:ring-primary/40 hover:ring-offset-1'
+          )}
+        >
+          {userName.charAt(0).toUpperCase()}
+          {filters.myCards && (
+            <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-primary border-2 border-background" />
+          )}
+        </button>
+      )}
 
       {/* Filters Popover */}
       <Popover open={isOpen} onOpenChange={setIsOpen}>
