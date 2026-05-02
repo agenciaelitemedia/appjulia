@@ -601,6 +601,56 @@ export function DealDetailsSheet({
                 )}
               </div>
 
+              {/* 3b. Descrição (editável) — movida para acima de Prioridade/Tempo */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-medium">Descrição</h4>
+                  {!editingDescription && deal.description && onUpdate && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                      onClick={startEditDescription}
+                      title="Editar descrição"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+                {editingDescription ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={descriptionDraft}
+                      onChange={(e) => setDescriptionDraft(e.target.value)}
+                      placeholder="Descrição do card"
+                      autoFocus
+                      className="min-h-[100px]"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') setEditingDescription(false);
+                      }}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => setEditingDescription(false)}>
+                        <XIcon className="h-4 w-4 mr-1" /> Cancelar
+                      </Button>
+                      <Button size="sm" onClick={saveDescription} disabled={savingField === 'description'}>
+                        <Check className="h-4 w-4 mr-1" /> Salvar
+                      </Button>
+                    </div>
+                  </div>
+                ) : deal.description ? (
+                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                    {deal.description}
+                  </p>
+                ) : onUpdate ? (
+                  <Button variant="outline" size="sm" onClick={startEditDescription} className="gap-1.5">
+                    <Plus className="h-3.5 w-3.5" /> Adicionar descrição
+                  </Button>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">Sem descrição</p>
+                )}
+              </div>
+
               {/* 4. Prioridade + Tempo na fase (linha própria, full-width via grid) */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-3 rounded-lg border">
@@ -681,56 +731,6 @@ export function DealDetailsSheet({
                   </div>
                 </div>
               )}
-
-              {/* 6. Descrição (editável) */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-medium">Descrição</h4>
-                  {!editingDescription && deal.description && onUpdate && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                      onClick={startEditDescription}
-                      title="Editar descrição"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </div>
-                {editingDescription ? (
-                  <div className="space-y-2">
-                    <Textarea
-                      value={descriptionDraft}
-                      onChange={(e) => setDescriptionDraft(e.target.value)}
-                      placeholder="Descrição do card"
-                      autoFocus
-                      className="min-h-[100px]"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') setEditingDescription(false);
-                      }}
-                    />
-                    <div className="flex justify-end gap-2">
-                      <Button size="sm" variant="ghost" onClick={() => setEditingDescription(false)}>
-                        <XIcon className="h-4 w-4 mr-1" /> Cancelar
-                      </Button>
-                      <Button size="sm" onClick={saveDescription} disabled={savingField === 'description'}>
-                        <Check className="h-4 w-4 mr-1" /> Salvar
-                      </Button>
-                    </div>
-                  </div>
-                ) : deal.description ? (
-                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                    {deal.description}
-                  </p>
-                ) : onUpdate ? (
-                  <Button variant="outline" size="sm" onClick={startEditDescription} className="gap-1.5">
-                    <Plus className="h-3.5 w-3.5" /> Adicionar descrição
-                  </Button>
-                ) : (
-                  <p className="text-sm text-muted-foreground italic">Sem descrição</p>
-                )}
-              </div>
 
               {/* Vínculos: Chat e Jul.IA (antes do valor) */}
               <DealLinksSection deal={deal} />
