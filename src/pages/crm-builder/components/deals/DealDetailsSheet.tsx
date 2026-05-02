@@ -345,8 +345,8 @@ export function DealDetailsSheet({
             <div className="px-6 py-3 border-b bg-muted/20">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Quadro
+                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    CRM (Quadro CRM da Júlia)
                   </span>
                   {currentBoard && (
                     <div className="flex items-center gap-1.5 min-w-0">
@@ -364,8 +364,8 @@ export function DealDetailsSheet({
                   size="icon"
                   className="h-7 w-7 flex-shrink-0"
                   onClick={() => setBoardsExpanded((v) => !v)}
-                  title={boardsExpanded ? 'Fechar' : 'Mover para outro quadro'}
-                  aria-label={boardsExpanded ? 'Fechar' : 'Mover para outro quadro'}
+                  title={boardsExpanded ? 'Fechar' : 'Mover para outro CRM'}
+                  aria-label={boardsExpanded ? 'Fechar' : 'Mover para outro CRM'}
                 >
                   {boardsExpanded ? (
                     <ChevronUp className="h-3.5 w-3.5" />
@@ -378,14 +378,14 @@ export function DealDetailsSheet({
 
               {!hasOtherBoards && (
                 <p className="text-xs text-muted-foreground mt-2">
-                  Nenhum outro quadro disponível para mover este card.
+                  Nenhum outro CRM disponível para mover este card.
                 </p>
               )}
 
               {hasOtherBoards && boardsExpanded && (
                 <div className="space-y-1.5 mt-3">
                   <p className="text-xs text-muted-foreground px-1 mb-1">
-                    Ao escolher outro quadro, o card atual é arquivado e uma cópia é criada na primeira etapa do destino.
+                    Escolha o CRM que deseja mover o card.
                   </p>
                   {otherBoards.map((b) => {
                     const stageCount = boardActiveStageCount[b.id];
@@ -397,13 +397,13 @@ export function DealDetailsSheet({
                         type="button"
                         onClick={() => {
                           if (noStages) {
-                            toast.error(`O quadro "${b.name}" não possui etapas ativas. Crie ao menos uma etapa antes de mover o card.`);
+                            toast.error(`O CRM "${b.name}" não possui etapas ativas. Crie ao menos uma etapa antes de mover o card.`);
                             return;
                           }
                           setPendingTargetBoardId(b.id);
                         }}
                         disabled={isDisabled}
-                        title={noStages ? 'Sem etapas ativas — não é possível mover para este quadro' : undefined}
+                        title={noStages ? 'Sem etapas ativas — não é possível mover para este CRM' : undefined}
                         className={cn(
                           'w-full flex items-center gap-2 px-3 py-2 rounded-md border text-left transition-colors',
                           noStages
@@ -996,9 +996,11 @@ export function DealDetailsSheet({
         >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Mover para o quadro "{targetBoard?.name}"?</AlertDialogTitle>
+              <AlertDialogTitle>
+                Tem certeza que deseja mover o card do CRM "{currentBoard?.name ?? 'atual'}" para o CRM "{targetBoard?.name}"?
+              </AlertDialogTitle>
               <AlertDialogDescription>
-                O card atual será arquivado e uma cópia será criada na primeira etapa do quadro de destino.
+                O card será movido e sumirá do CRM atual.
                 {isLinked
                   ? ' O vínculo com a conversa será transferido para a cópia.'
                   : ''}
