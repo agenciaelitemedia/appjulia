@@ -732,6 +732,27 @@ export default function BoardPage() {
             newPosition: 0,
           });
         }}
+        boards={allBoards}
+        onMoveToBoard={async (targetBoardId) => {
+          if (!viewingDeal) return null;
+          const targetBoard = allBoards.find((b) => b.id === targetBoardId);
+          const result = await moveDealToBoard(
+            viewingDeal,
+            targetBoardId,
+            targetBoard?.name,
+            board?.name,
+          );
+          if (result) {
+            toast.success(`Card movido para "${targetBoard?.name}"`, {
+              action: {
+                label: 'Abrir cópia',
+                onClick: () => navigate(`/crm-builder/${result.newBoardId}`),
+              },
+            });
+            await fetchDeals();
+          }
+          return result;
+        }}
       />
 
       {/* Settings Sheet */}
