@@ -19,6 +19,10 @@ CREATE TABLE IF NOT EXISTS public.crm_checklist_items (
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS crm_checklists_deal_id_idx         ON public.crm_checklists(deal_id);
+CREATE INDEX IF NOT EXISTS crm_checklists_deal_id_idx           ON public.crm_checklists(deal_id);
 CREATE INDEX IF NOT EXISTS crm_checklist_items_checklist_id_idx ON public.crm_checklist_items(checklist_id);
-CREATE INDEX IF NOT EXISTS crm_checklist_items_deal_id_idx    ON public.crm_checklist_items(deal_id);
+CREATE INDEX IF NOT EXISTS crm_checklist_items_deal_id_idx      ON public.crm_checklist_items(deal_id);
+
+-- Habilita Realtime nas tabelas para atualizações em tempo real na UI
+ALTER PUBLICATION supabase_realtime ADD TABLE public.crm_checklists;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.crm_checklist_items;
