@@ -46,6 +46,7 @@ import {
   XCircle,
   History,
   FileText,
+  StickyNote,
   Pencil,
   Check,
   X as XIcon,
@@ -60,6 +61,7 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { useCRMDealHistory } from '../../hooks/useCRMDealHistory';
 import { DealActivityTimeline } from './DealActivityTimeline';
+import { DealNotesPanel } from './DealNotesPanel';
 import { DealLinksSection } from './DealLinksSection';
 import { DealJuliaPanel } from './DealJuliaPanel';
 import { getChatLink, getJuliaLink } from '../../hooks/useCardLinks';
@@ -142,6 +144,7 @@ export function DealDetailsSheet({
 
   const { history, isLoading: isLoadingHistory, addNote } = useCRMDealHistory({
     dealId: open && deal ? deal.id : null,
+    codAgent: deal?.cod_agent,
   });
 
   const priorityConfig = deal ? PRIORITY_CONFIG[deal.priority] : null;
@@ -525,14 +528,18 @@ export function DealDetailsSheet({
         {/* Tabs + conteúdo */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col">
           <div className="px-6 pt-4">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="details" className="gap-2">
-                <FileText className="h-4 w-4" />
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="details" className="gap-1.5 text-xs">
+                <FileText className="h-3.5 w-3.5" />
                 Detalhes
               </TabsTrigger>
-              <TabsTrigger value="activity" className="gap-2">
-                <History className="h-4 w-4" />
-                Atividade
+              <TabsTrigger value="notes" className="gap-1.5 text-xs">
+                <StickyNote className="h-3.5 w-3.5" />
+                Anotações
+              </TabsTrigger>
+              <TabsTrigger value="history" className="gap-1.5 text-xs">
+                <History className="h-3.5 w-3.5" />
+                Histórico
               </TabsTrigger>
             </TabsList>
           </div>
@@ -986,11 +993,18 @@ export function DealDetailsSheet({
               </div>
             </TabsContent>
 
-            <TabsContent value="activity" className="p-6 pt-4 m-0">
+            <TabsContent value="notes" className="p-6 pt-4 m-0">
+              <DealNotesPanel
+                notes={history.filter((h) => h.action === 'note_added')}
+                isLoading={isLoadingHistory}
+                onAddNote={addNote}
+              />
+            </TabsContent>
+
+            <TabsContent value="history" className="p-6 pt-4 m-0">
               <DealActivityTimeline
                 history={history}
                 isLoading={isLoadingHistory}
-                onAddNote={addNote}
               />
             </TabsContent>
           </div>

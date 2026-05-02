@@ -4,9 +4,10 @@ import type { CRMDealHistory, DealHistoryAction } from '../types';
 
 interface UseCRMDealHistoryOptions {
   dealId: string | null;
+  codAgent?: string;
 }
 
-export function useCRMDealHistory({ dealId }: UseCRMDealHistoryOptions) {
+export function useCRMDealHistory({ dealId, codAgent }: UseCRMDealHistoryOptions) {
   const [history, setHistory] = useState<CRMDealHistory[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +73,7 @@ export function useCRMDealHistory({ dealId }: UseCRMDealHistoryOptions) {
           deal_id: dealId,
           action: 'note_added',
           notes: note.trim(),
+          ...(codAgent ? { changed_by: codAgent } : {}),
         });
 
       if (insertError) throw insertError;
