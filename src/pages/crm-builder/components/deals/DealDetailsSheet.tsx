@@ -207,12 +207,25 @@ export function DealDetailsSheet({
 
   const confirmMoveToBoard = async () => {
     if (!pendingTargetBoardId || !onMoveToBoard) return;
+    // Revalida no momento da confirmação para pegar mudanças recentes
+    const known = boardActiveStageCount[pendingTargetBoardId];
+    if (known === 0) {
+      toast.error('O quadro de destino não possui etapas ativas. Crie ao menos uma etapa antes de mover.');
+      setPendingTargetBoardId(null);
+      return;
+    }
     setMovingToBoard(true);
     try {
-      await onMoveToBoard(pendingTargetBoardId);
-      setPendingTargetBoardId(null);
-      setBoardsExpanded(false);
-      onOpenChange(false);
+      const result = await onMoveToBoard(pendingTargetBoardId);
+      // Só fecha o sheet se a operação foi bem-sucedida (helper retorna null em erro)
+      if (result) {
+        setPendingTargetBoardId(null);
+        setBoardsExpanded(false);
+        onOpenChange(false);
+      } else {
+        // erro já notificado pelo helper; mantém o dialog aberto para retry/cancel
+        setPendingTargetBoardId(null);
+      }
     } finally {
       setMovingToBoard(false);
     }
@@ -359,25 +372,46 @@ export function DealDetailsSheet({
                   <p className="text-xs text-muted-foreground px-1 mb-1">
                     Ao escolher outro quadro, o card atual é arquivado e uma cópia é criada na primeira etapa do destino.
                   </p>
-                  {otherBoards.map((b) => (
-                    <button
-                      key={b.id}
-                      type="button"
-                      onClick={() => setPendingTargetBoardId(b.id)}
-                      disabled={movingToBoard}
-                      className={cn(
-                        'w-full flex items-center gap-2 px-3 py-2 rounded-md border text-left transition-colors',
-                        'cursor-pointer hover:bg-muted/50 hover:border-foreground/20',
-                        movingToBoard && 'opacity-60'
-                      )}
-                    >
-                      <span
-                        className="inline-block h-3 w-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: b.color || '#6b7280' }}
-                      />
-                      <span className="text-sm flex-1 truncate">{b.name}</span>
-                    </button>
-                  ))}
+                  {otherBoards.map((b) => {
+                    const stageCount = boardActiveStageCount[b.id];
+                    const noStages = stageCount === 0;
+                    const isDisabled = movingToBoard || noStages;
+                    return (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => {
+                          if (noStages) {
+                            toast.error(`O quadro "${b.name}" não possui etapas ativas. Crie ao menos uma etapa antes de mover o card.`);
+                            return;
+                          }
+                          setPendingTargetBoardId(b.id);
+                        }}
+                        disabled={isDisabled}
+                        title={noStages ? 'Sem etapas ativas — não é possível mover para este quadro' : undefined}
+                        className={cn(
+                          'w-full flex items-center gap-2 px-3 py-2 rounded-md border text-left transition-colors',
+                          noStages
+                            ? 'cursor-not-allowed opacity-60 border-dashed'
+                            : 'cursor-pointer hover:bg-muted/50 hover:border-foreground/20',
+                          movingToBoard && !noStages && 'opacity-60'
+                        )}
+                      >
+                        <span
+                          className="inline-block h-3 w-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: b.color || '#6b7280' }}
+                        />
+                        <span className="text-sm flex-1 truncate">{b.name}</span>
+                        {loadingBoardStages && stageCount === undefined ? (
+                          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground flex-shrink-0" />
+                        ) : noStages ? (
+                          <span className="text-[10px] uppercase tracking-wide text-muted-foreground flex-shrink-0">
+                            sem etapas
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
