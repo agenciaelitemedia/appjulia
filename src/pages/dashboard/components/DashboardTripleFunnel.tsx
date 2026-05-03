@@ -127,16 +127,19 @@ interface DashboardTripleFunnelProps {
   campaignLoading: boolean;
 }
 
-const STAGE_NAMES = ['Atendimentos', 'Em Qualificação', 'Qualificados', 'Contratos Gerados', 'Contratos Assinados'];
-const STAGE_COLORS = ['#22c55e', '#eab308', '#f97316', '#3b82f6', '#8b5cf6'];
+const STAGE_NAMES = ['Atendimentos', 'Em Qualificação', 'Qualificados', 'Contratos Gerados'];
+const STAGE_COLORS = ['#22c55e', '#eab308', '#f97316', '#3b82f6'];
 
 export function DashboardTripleFunnel({ juliaData, campaignData, juliaLoading, campaignLoading }: DashboardTripleFunnelProps) {
+  const juliaTrimmed = useMemo(() => juliaData.filter(s => s.stage_name !== 'Contratos Assinados'), [juliaData]);
+  const campaignTrimmed = useMemo(() => campaignData.filter(s => s.stage_name !== 'Contratos Assinados'), [campaignData]);
+
   const organicData = useMemo<DashboardFunnelStage[]>(() => {
-    if (!juliaData.length || !campaignData.length) return [];
+    if (!juliaTrimmed.length || !campaignTrimmed.length) return [];
 
     const stages = STAGE_NAMES.map((name, i) => {
-      const juliaCount = juliaData[i]?.count ?? 0;
-      const campaignCount = campaignData[i]?.count ?? 0;
+      const juliaCount = juliaTrimmed[i]?.count ?? 0;
+      const campaignCount = campaignTrimmed[i]?.count ?? 0;
       const count = Math.max(0, juliaCount - campaignCount);
       return { stage_name: name, stage_color: STAGE_COLORS[i], position: i, count };
     });
@@ -147,20 +150,20 @@ export function DashboardTripleFunnel({ juliaData, campaignData, juliaLoading, c
       percentage: first > 0 ? (s.count / first) * 100 : 0,
       conversionRate: i === 0 ? 100 : stages[i - 1].count > 0 ? (s.count / stages[i - 1].count) * 100 : 0,
     }));
-  }, [juliaData, campaignData]);
+  }, [juliaTrimmed, campaignTrimmed]);
 
   return (
     <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
       <FunnelCard
         title="Funil Total Julia"
         icon={<Bot className="h-5 w-5 text-primary" />}
-        stages={juliaData}
+        stages={juliaTrimmed}
         isLoading={juliaLoading}
       />
       <FunnelCard
         title="Funil Campanhas"
         icon={<Megaphone className="h-5 w-5 text-primary" />}
-        stages={campaignData}
+        stages={campaignTrimmed}
         isLoading={campaignLoading}
       />
       <FunnelCard
