@@ -127,8 +127,8 @@ interface DashboardTripleFunnelProps {
   campaignLoading: boolean;
 }
 
-const STAGE_NAMES = ['Atendimentos', 'Em Qualificação', 'Qualificados', 'Contratos Gerados', 'Contratos Assinados'];
-const STAGE_COLORS = ['#22c55e', '#eab308', '#f97316', '#3b82f6', '#8b5cf6'];
+const STAGE_NAMES = ['Atendimentos', 'Em Qualificação', 'Qualificados', 'Contratos Gerados'];
+const STAGE_COLORS = ['#22c55e', '#eab308', '#f97316', '#3b82f6'];
 
 export function DashboardTripleFunnel({ juliaData, campaignData, juliaLoading, campaignLoading }: DashboardTripleFunnelProps) {
   const organicData = useMemo<DashboardFunnelStage[]>(() => {
