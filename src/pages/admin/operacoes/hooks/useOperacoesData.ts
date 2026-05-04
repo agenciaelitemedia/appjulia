@@ -222,3 +222,82 @@ export function useQueueStatuses() {
     connected: results.filter(r => r.data?.status === 'connected').length,
   };
 }
+
+// ─── Banco Externo (Locacar) ─────────────────────────────────────────────────
+
+export interface ExternalDbStats {
+  online: boolean;
+  db_size_bytes: number;
+  db_size_pretty: string;
+  connections_active: number;
+  connections_idle: number;
+  connections_total: number;
+  uptime_seconds: number;
+  uptime_pretty: string;
+  oldest_active_query_seconds: number;
+  latency_ms: number | null;
+  error: string | null;
+}
+
+function formatBytes(b: number): string {
+  if (!b || b < 1024) return `${b ?? 0} B`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let v = b / 1024;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(v >= 100 ? 0 : 1)} ${units[i]}`;
+}
+
+function formatUptime(s: number): string {
+  if (!s) return '—';
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+export function useExternalDbStats() {
+  return useQuery<ExternalDbStats>({
+    queryKey: ['ops-external-db-stats'],
+    queryFn: async () => {
+      const t0 = Date.now();
+      const { data, error } = await supabase.functions.invoke('db-query', {
+        body: { action: 'get_external_infra_stats' },
+      });
+      const latency = Date.now() - t0;
+      const empty: ExternalDbStats = {
+        online: false,
+        db_size_bytes: 0, db_size_pretty: '—',
+        connections_active: 0, connections_idle: 0, connections_total: 0,
+        uptime_seconds: 0, uptime_pretty: '—',
+        oldest_active_query_seconds: 0,
+        latency_ms: null,
+        error: null,
+      };
+      if (error) return { ...empty, error: error.message };
+      const payload = data as { data?: any[]; error?: string | null } | null;
+      if (!payload || payload.error) return { ...empty, error: payload?.error ?? 'sem resposta', latency_ms: latency };
+      const row = (payload.data ?? [])[0];
+      if (!row) return { ...empty, error: 'sem dados', latency_ms: latency };
+      const bytes = Number(row.db_size_bytes ?? 0);
+      const uptime = Number(row.uptime_seconds ?? 0);
+      return {
+        online: true,
+        db_size_bytes: bytes,
+        db_size_pretty: formatBytes(bytes),
+        connections_active: Number(row.connections_active ?? 0),
+        connections_idle: Number(row.connections_idle ?? 0),
+        connections_total: Number(row.connections_total ?? 0),
+        uptime_seconds: uptime,
+        uptime_pretty: formatUptime(uptime),
+        oldest_active_query_seconds: Number(row.oldest_active_query_seconds ?? 0),
+        latency_ms: latency,
+        error: null,
+      };
+    },
+    refetchInterval: 30 * 1000,
+    retry: 1,
+  });
+}
