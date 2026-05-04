@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Activity, AlertTriangle, Bot, CheckCircle2, Clock, Cpu,
   MessageSquare, Server, Wifi, WifiOff, Zap, X, AlertCircle,
-  Maximize2, TrendingUp,
+  Maximize2, TrendingUp, Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -11,6 +11,7 @@ import {
   useAIStats,
   useBotFlowStats,
   useQueueStatuses,
+  useExternalDbStats,
 } from './hooks/useOperacoesData';
 import { useInfraStats } from '@/pages/tv/hooks/useInfraStats';
 import { useDispatcherHealth } from '@/pages/configuracoes/hooks/useUazapiHistoryRuns';
