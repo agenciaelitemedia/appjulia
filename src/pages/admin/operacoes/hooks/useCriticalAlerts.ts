@@ -4,6 +4,7 @@ import {
   useAutomationStats,
   useAIStats,
   useQueueStatuses,
+  useExternalDbStats,
 } from './useOperacoesData';
 import { useInfraStats } from '@/pages/tv/hooks/useInfraStats';
 import { useDispatcherHealth } from '@/pages/configuracoes/hooks/useUazapiHistoryRuns';
@@ -27,6 +28,7 @@ export function useCriticalAlerts(): CriticalAlert[] {
   const { data: kpis } = useAttendanceKpis();
   const { data: agents = [] } = useAgentLoads();
   const { statuses, disconnected } = useQueueStatuses();
+  const { data: ext } = useExternalDbStats();
 
   return useMemo(() => {
     const out: CriticalAlert[] = [];
@@ -44,6 +46,30 @@ export function useCriticalAlerts(): CriticalAlert[] {
         severity: 'warn',
         title: 'Dispatcher lento',
         detail: `${disp.seconds_since_heartbeat}s sem heartbeat`,
+      });
+    }
+
+    if (ext && !ext.online) {
+      out.push({
+        id: 'ext-db-off',
+        severity: 'critical',
+        title: 'Banco Locacar OFFLINE',
+        detail: ext.error ?? 'sem resposta',
+      });
+    } else if (ext && ext.latency_ms !== null && ext.latency_ms > 2000) {
+      out.push({
+        id: 'ext-db-slow',
+        severity: 'warn',
+        title: 'Banco Locacar lento',
+        detail: `${ext.latency_ms}ms de latência`,
+      });
+    }
+    if (ext?.online && ext.oldest_active_query_seconds > 60) {
+      out.push({
+        id: 'ext-db-query',
+        severity: ext.oldest_active_query_seconds > 180 ? 'critical' : 'warn',
+        title: 'Query lenta no Locacar',
+        detail: `${Math.round(ext.oldest_active_query_seconds)}s sem finalizar`,
       });
     }
 
@@ -138,5 +164,5 @@ export function useCriticalAlerts(): CriticalAlert[] {
 
     out.sort((a, b) => (a.severity === 'critical' ? -1 : 1) - (b.severity === 'critical' ? -1 : 1));
     return out;
-  }, [wq, auto, ai, infra, disp, kpis, agents, statuses, disconnected]);
+  }, [wq, auto, ai, infra, disp, kpis, agents, statuses, disconnected, ext]);
 }

@@ -505,6 +505,26 @@ serve(async (req) => {
         break;
       }
 
+      case 'get_external_infra_stats': {
+        // Stats do banco PostgreSQL externo (espelha get_infra_stats do Supabase)
+        const rows = await sql`
+          SELECT
+            pg_database_size(current_database())::bigint AS db_size_bytes,
+            (SELECT count(*) FROM pg_stat_activity WHERE state = 'active' AND datname = current_database())::int AS connections_active,
+            (SELECT count(*) FROM pg_stat_activity WHERE state = 'idle'   AND datname = current_database())::int AS connections_idle,
+            (SELECT count(*) FROM pg_stat_activity WHERE datname = current_database())::int AS connections_total,
+            EXTRACT(EPOCH FROM (now() - pg_postmaster_start_time()))::bigint AS uptime_seconds,
+            COALESCE((
+              SELECT MAX(EXTRACT(EPOCH FROM (now() - query_start)))::numeric
+              FROM pg_stat_activity
+              WHERE state = 'active' AND query_start IS NOT NULL AND datname = current_database()
+            ), 0) AS oldest_active_query_seconds,
+            now() AS measured_at
+        `;
+        result = rows as unknown as Record<string, unknown>[];
+        break;
+      }
+
       case 'get_user_agents': {
         const { userId } = data;
         result = await sql.unsafe(
