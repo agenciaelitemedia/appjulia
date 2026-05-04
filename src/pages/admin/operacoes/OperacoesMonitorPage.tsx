@@ -524,9 +524,10 @@ export default function OperacoesMonitorPage() {
         <div className="col-span-4 row-span-1 min-h-0"><IAPanel /></div>
 
         {/* Bottom row */}
-        <div className="col-span-4 row-span-1 min-h-0"><InfraPanel /></div>
-        <div className="col-span-4 row-span-1 min-h-0"><WebhookPanel /></div>
-        <div className="col-span-4 row-span-1 min-h-0"><AutomacoesPanel /></div>
+        <div className="col-span-3 row-span-1 min-h-0"><InfraPanel /></div>
+        <div className="col-span-3 row-span-1 min-h-0"><ExternalDbPanel /></div>
+        <div className="col-span-3 row-span-1 min-h-0"><WebhookPanel /></div>
+        <div className="col-span-3 row-span-1 min-h-0"><AutomacoesPanel /></div>
       </main>
 
       {/* Capacity strip + ticker */}
