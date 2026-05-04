@@ -1,45 +1,31 @@
-## Objetivo
+## Contexto
 
-Padronizar a terminologia "Quadro" → "CRM" no bloco de migração entre quadros do detalhe do card, simplificar o texto explicativo, deixar a confirmação mais direta e atualizar as entradas de histórico do card original e da cópia.
+A rota `/admin/operacoes` já existe em `src/App.tsx` (linha 183), renderizando `OperacoesMonitorPage`, e está protegida por `ProtectedRoute module="admin_agents"` — ou seja, qualquer admin já tem acesso direto via URL. O que falta é apenas o item no menu lateral.
 
-## Mudanças
+A tabela `modules` fica no banco externo (não no Supabase), e o padrão do projeto para registrar módulos é criar um hook `useEnsure...Module` que insere o registro automaticamente quando um admin loga, e chamá-lo no `Sidebar.tsx`. Esse padrão já é usado por ~16 módulos (Contatos, Webhook Monitor, etc.).
 
-### 1. `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx`
+## Implementação
 
-**Bloco "Quadro" no header do sheet (linhas ~342–432):**
-- Trocar o label `Quadro` por `CRM (Quadro CRM da Júlia)`.
-- Substituir o texto explicativo:
-  - De: `Ao escolher outro quadro, o card atual é arquivado e uma cópia é criada na primeira etapa do destino.`
-  - Para: `Escolha o CRM que deseja mover o card.`
-- Atualizar tooltips do botão de expandir: `Mover para outro CRM` (e mensagem "Nenhum outro CRM disponível para mover este card.").
-- Toast de quadro sem etapas: trocar `quadro` por `CRM`.
+### 1. Criar `src/hooks/useEnsureOperacoesModule.ts`
+Seguindo exatamente o padrão de `useEnsureContactsModule.ts`:
+- Buscar módulos existentes via `externalDb.getModules()`
+- Se já existir `code === 'admin_operacoes'`: garantir `route='/admin/operacoes'`, `is_menu_visible=true`, `menu_group='ADMINISTRATIVO'`
+- Se não existir: criar com:
+  - `code: 'admin_operacoes'`
+  - `name: 'Operações'`
+  - `route: '/admin/operacoes'`
+  - `icon: 'Activity'` (já disponível em `iconMap.ts`)
+  - `menu_group: 'ADMINISTRATIVO'`
+  - `display_order: 60`
+  - `is_active: true`, `is_menu_visible: true`
+  - `category: 'admin'`
 
-**Diálogo de confirmação de mover (linhas ~992–1024):**
-- Título: `Tem certeza que deseja mover o card do CRM "{currentBoard?.name}" para o CRM "{targetBoard?.name}"?`
-- Descrição enxuta: `O card será movido e sumirá do CRM atual.` (remover o trecho sobre arquivar/cópia/primeira etapa; manter apenas a nota sobre vínculo de conversa quando `isLinked` for true: `O vínculo com a conversa será transferido para a cópia.`)
-- Manter botões `Cancelar` e `Mover card`.
+### 2. Registrar o hook em `src/components/layout/Sidebar.tsx`
+Adicionar `import { useEnsureOperacoesModule }` e chamada `useEnsureOperacoesModule()` junto com os outros `useEnsure*Module()`.
 
-### 2. `src/pages/crm-builder/hooks/useMoveDealToBoard.ts`
+### 3. Acessibilidade
+Como a rota usa `module="admin_agents"` no `ProtectedRoute`, e `AdminRoute`/`ProtectedRoute` liberam tudo para admin, o item aparecerá e funcionará para admins assim que o registro for criado (no próximo login/refresh do admin atual o hook insere e invalida `menu-modules`). Nenhum ajuste extra de permissões necessário.
 
-Ajustar as duas notas inseridas em `crm_deal_history`:
-
-- **No card original** (deal arquivado): trocar
-  `Movido para o quadro "{targetBoardName}" (cópia: {newDealId})`
-  por
-  `Card movido para o CRM "{targetBoardName}"` (sem expor IDs).
-
-- **No card cópia** (novo deal criado): trocar
-  `Cópia do card {deal.id} (quadro {sourceBoardName})`
-  por
-  `Movido do CRM "{sourceBoardName}"`.
-
-Quando `targetBoardName` ou `sourceBoardName` não estiverem disponíveis, usar fallback genérico (`outro CRM`).
-
-## Arquivos afetados
-
-- `src/pages/crm-builder/components/deals/DealDetailsSheet.tsx`
-- `src/pages/crm-builder/hooks/useMoveDealToBoard.ts`
-
-## Risco
-
-Baixo — apenas texto de UI e conteúdo das notas de histórico. Sem mudança de comportamento, schema ou fluxo de dados.
+## Arquivos alterados
+- `src/hooks/useEnsureOperacoesModule.ts` (novo)
+- `src/components/layout/Sidebar.tsx` (1 import + 1 chamada)

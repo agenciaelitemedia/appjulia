@@ -24,6 +24,7 @@ import { useEnsureQuickMessagesModule } from "@/hooks/useEnsureQuickMessagesModu
 import { useEnsureHumanSupportModule } from "@/hooks/useEnsureHumanSupportModule";
 import { useEnsurePushNotificationsModule } from "@/hooks/useEnsurePushNotificationsModule";
 import { useEnsureContactsModule } from "@/hooks/useEnsureContactsModule";
+import { useEnsureOperacoesModule } from "@/hooks/useEnsureOperacoesModule";
 import {
   Tooltip,
   TooltipContent,
@@ -60,6 +61,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   useEnsureHumanSupportModule();
   useEnsurePushNotificationsModule();
   useEnsureContactsModule();
+  useEnsureOperacoesModule();
 
   const isTimeUser = user?.role === "time";
   
