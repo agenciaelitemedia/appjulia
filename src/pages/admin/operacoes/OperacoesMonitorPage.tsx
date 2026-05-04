@@ -330,6 +330,54 @@ function WebhookPanel() {
   );
 }
 
+function ExternalDbPanel() {
+  const { data: ext, isLoading } = useExternalDbStats();
+  const offTone: Tone = !ext || isLoading ? 'mute' : !ext.online ? 'crit' : 'ok';
+  const latTone: Tone = !ext?.online || ext.latency_ms == null ? 'mute'
+    : ext.latency_ms > 2000 ? 'crit' : ext.latency_ms > 800 ? 'warn' : 'ok';
+  const slowTone: Tone = !ext?.online ? 'mute'
+    : ext.oldest_active_query_seconds > 180 ? 'crit'
+    : ext.oldest_active_query_seconds > 60 ? 'warn' : 'ok';
+  const overall: Tone = [offTone, latTone, slowTone].includes('crit') ? 'crit'
+    : [offTone, latTone, slowTone].includes('warn') ? 'warn' : 'ok';
+  const connTone: Tone = !ext?.online ? 'mute'
+    : ext.connections_active > 80 ? 'crit'
+    : ext.connections_active > 50 ? 'warn' : 'ok';
+
+  return (
+    <Panel
+      title="Banco Locacar"
+      icon={Database}
+      tone={overall}
+      badge={!ext?.online && !isLoading ? 'OFFLINE' : ext?.online ? 'ONLINE' : undefined}
+    >
+      <div className="flex flex-col h-full justify-between gap-4">
+        <div className="grid grid-cols-2 gap-6">
+          <Big
+            value={ext?.online ? `${ext.latency_ms ?? '—'}ms` : 'OFF'}
+            label="latência"
+            tone={ext?.online ? latTone : 'crit'}
+          />
+          <Big
+            value={ext?.online ? ext.connections_active : '—'}
+            label="conexões ativas"
+            tone={connTone}
+          />
+        </div>
+        <div className="grid grid-cols-3 gap-4 pt-3 border-t border-zinc-800/60">
+          <Mid value={ext?.db_size_pretty ?? '—'} label="tamanho" />
+          <Mid value={ext?.uptime_pretty ?? '—'} label="uptime" tone="ok" />
+          <Mid
+            value={ext?.online ? `${Math.round(ext.oldest_active_query_seconds)}s` : '—'}
+            label="query + lenta"
+            tone={slowTone}
+          />
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 function AutomacoesPanel() {
   const { data: auto } = useAutomationStats();
   const { data: bots } = useBotFlowStats();
