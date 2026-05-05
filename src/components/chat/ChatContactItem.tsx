@@ -1,5 +1,6 @@
 import React from 'react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { SmartAvatarImage } from '@/components/chat/SmartAvatarImage';
 import { Badge } from '@/components/ui/badge';
 import { Users, MessageCircle, Globe, Instagram, Kanban } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -156,7 +157,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
       {/* Avatar with channel overlay */}
       <div className="relative flex-shrink-0 mt-0.5">
         <Avatar className="h-12 w-12">
-          <AvatarImage src={contact.avatar} alt={contact.name} />
+          <SmartAvatarImage src={contact.avatar} alt={contact.name} contactId={contact.id} />
           <AvatarFallback className="bg-muted text-muted-foreground text-sm font-semibold">
             {contact.is_group ? <Users className="h-4 w-4" /> : initials}
           </AvatarFallback>
