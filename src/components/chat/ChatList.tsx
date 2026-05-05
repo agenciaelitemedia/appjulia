@@ -528,16 +528,9 @@ export function ChatList() {
         if (slaStatusByContact.get(conv.contact_id) !== slaFilter) continue;
       }
 
-      // Mode filter (IA/human) — based on queue link + cached session status
+      // Mode filter (Julia/humano)
       if (modeFilter !== 'all') {
-        const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
-        const hasAgent = !!queueLink?.hasAgent;
-        if (hasAgent) {
-          if (modeFilter === 'human') continue;
-          // Without a cached session we keep the row visible (matches list behavior)
-        } else {
-          if (modeFilter !== 'human') continue;
-        }
+        if (getConversationMode(conv) !== modeFilter) continue;
       }
 
       // Search filter — match against the contact's name/phone if loaded
@@ -561,14 +554,14 @@ export function ChatList() {
   }, [
     conversations, contacts, deferredSearch, periodFilter, ownerFilter, teamMembers,
     user?.id, user?.name, stageIds, stageByPhone, slaFilter, slaStatusByContact,
-    modeFilter, queueAgentMap, matchesActiveTab, isVisibleByOpenScope,
+    modeFilter, getConversationMode, matchesActiveTab, isVisibleByOpenScope,
   ]);
 
   // Mode counts (Todos / Julia / Atendimento Humano) — apply ALL other
   // filters (including the active status tab pending/open) but ignore the
   // active modeFilter, so each toggle shows what would appear if selected.
   const modeCounts = React.useMemo(() => {
-    const result = { all: 0, ia_active: 0, ia_inactive: 0 };
+    const result = { all: 0, julia: 0, human: 0 };
     const contactById = new Map<string, typeof contacts[number]>();
     contacts.forEach((c) => contactById.set(c.id, c));
 
@@ -630,17 +623,15 @@ export function ChatList() {
       }
 
       // Classify mode for this conversation
-      const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
-      const hasAgent = !!queueLink?.hasAgent;
+      const mode = getConversationMode(conv);
       result.all += 1;
-      if (hasAgent) result.ia_active += 1;
-      else result.ia_inactive += 1;
+      result[mode] += 1;
     }
     return result;
   }, [
     conversations, contacts, deferredSearch, periodFilter, ownerFilter, teamMembers,
     user?.id, user?.name, stageIds, stageByPhone, slaFilter, slaStatusByContact,
-    queueAgentMap, matchesActiveTab, isVisibleByOpenScope, conversationStatusFilter,
+    getConversationMode, matchesActiveTab, isVisibleByOpenScope, conversationStatusFilter,
   ]);
 
   // ─────────────────────────────────────────────────────────────────────
@@ -730,16 +721,9 @@ export function ChatList() {
         if (slaStatusByContact.get(conv.contact_id) !== slaFilter) continue;
       }
 
-      // Mode (IA / human)
+      // Mode (Julia / humano)
       if (modeFilter !== 'all') {
-        const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
-        const hasAgent = !!queueLink?.hasAgent;
-        if (hasAgent) {
-          if (modeFilter === 'human') continue;
-          // Keep visible even if contact details aren't loaded yet (will be fetched)
-        } else {
-          if (modeFilter !== 'human') continue;
-        }
+        if (getConversationMode(conv) !== modeFilter) continue;
       }
 
       // Search
@@ -762,7 +746,7 @@ export function ChatList() {
     conversationStatusFilter, sortedConversations, contacts, deferredSearch,
     periodFilter, ownerFilter, teamMembers, user?.id, user?.name,
     stageIds, stageByPhone, slaFilter, slaStatusByContact, modeFilter,
-    queueAgentMap, matchesActiveTab, isVisibleByOpenScope,
+    getConversationMode, matchesActiveTab, isVisibleByOpenScope,
     applyClientFilters, filteredContacts,
   ]);
 
