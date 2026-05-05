@@ -1004,7 +1004,7 @@ export function ChatList() {
               Todos
             </ToggleGroupItem>
             <ToggleGroupItem
-              value="ia_active"
+              value="julia"
               className="flex-1 text-[10px] font-medium px-2 py-1 h-auto gap-1 rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-green-500/15 data-[state=on]:text-green-600 dark:data-[state=on]:text-green-400 data-[state=on]:border-green-500/30"
               title="Filas com Julia IA ativa"
             >
@@ -1012,7 +1012,7 @@ export function ChatList() {
               Julia
             </ToggleGroupItem>
             <ToggleGroupItem
-              value="ia_inactive"
+              value="human"
               className="flex-1 text-[10px] font-medium px-2 py-1 h-auto gap-1 rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-amber-500/20 data-[state=on]:text-amber-600 dark:data-[state=on]:text-amber-400 data-[state=on]:border-amber-500/30"
               title="Filas com Julia IA inativa (atendimento humano)"
             >
