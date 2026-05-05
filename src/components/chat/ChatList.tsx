@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -33,11 +33,10 @@ import { externalDb } from '@/lib/externalDb';
 import { useChatContactsByIds } from '@/hooks/useChatContactsByIds';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
 import type { ConversationFilterStatus } from '@/types/conversation';
-import type { SessionStatus } from '@/lib/externalDb';
 import { cn } from '@/lib/utils';
 
 type SlaFilter = 'all' | 'breached' | 'at_risk';
-type ConversationModeFilter = 'all' | 'ia_active' | 'ia_inactive' | 'human';
+type ConversationModeFilter = 'all' | 'julia' | 'human';
 type AssigneeFilter = 'all' | 'mine' | 'unassigned';
 type PeriodFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'last3Months';
 
@@ -105,7 +104,6 @@ export function ChatList() {
   }, [showGroupsTab, activeTab, setActiveTab]);
 
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { user, isAdmin } = useAuth();
   const { data: queues = [] } = useAccessibleQueues();
   const { configs: slaConfigs } = useChatSlaConfigs();
@@ -309,6 +307,23 @@ export function ChatList() {
     setStageIds(allStagesSelected ? [] : stages.map((s) => s.id));
   };
 
+  const getContactMode = React.useCallback(
+    (contactId: string): Exclude<ConversationModeFilter, 'all'> => {
+      const meta = convMetaByContact.get(contactId);
+      const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
+      return queueLink?.hasAgent ? 'julia' : 'human';
+    },
+    [convMetaByContact, queueAgentMap]
+  );
+
+  const getConversationMode = React.useCallback(
+    (conv: typeof conversations[number]): Exclude<ConversationModeFilter, 'all'> => {
+      const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
+      return queueLink?.hasAgent ? 'julia' : 'human';
+    },
+    [conversations, queueAgentMap]
+  );
+
   // Reusable client-side filters (owner, period, stage, sla, mode).
   // Does NOT include: tab Individual/Grupos, search, or conversationStatusFilter.
   // Tab + search are applied separately so we can build count bases that
@@ -352,29 +367,11 @@ export function ChatList() {
         result = result.filter((c) => slaStatusByContact.get(c.id) === slaFilter);
       }
       if (modeFilter !== 'all') {
-        result = result.filter((c) => {
-          const meta = convMetaByContact.get(c.id);
-          const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
-          const hasAgent = !!queueLink?.hasAgent;
-          if (hasAgent) {
-            if (modeFilter === 'human') return false;
-            const codAgent = queueLink?.codAgent || meta?.codAgent || c.cod_agent;
-            if (!codAgent || !c.phone) return false;
-            const cached = queryClient.getQueryData<SessionStatus | null>(
-              ['agent-session-status', codAgent, c.phone]
-            );
-            if (cached === undefined) return true; // not loaded — keep visible
-            const active = cached?.active ?? false;
-            return modeFilter === 'ia_active' ? active : !active;
-          } else {
-            // Human-only queue
-            return modeFilter === 'human';
-          }
-        });
+        result = result.filter((c) => getContactMode(c.id) === modeFilter);
       }
       return result;
     },
-    [ownerFilter, teamMembers, convMetaByContact, user?.id, user?.name, periodFilter, stageIds, stageByPhone, slaFilter, slaStatusByContact, modeFilter, queueAgentMap, queryClient]
+    [ownerFilter, teamMembers, convMetaByContact, user?.id, user?.name, periodFilter, stageIds, stageByPhone, slaFilter, slaStatusByContact, modeFilter, getContactMode]
   );
 
   // Count conversations by status — scoped to the active tab (Individual / Groups)
