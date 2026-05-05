@@ -30,6 +30,7 @@ import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
 import { useCRMBuilderLinkedConversations } from '@/hooks/useCRMBuilderLinkedConversations';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { externalDb } from '@/lib/externalDb';
+import { useChatContactsByIds } from '@/hooks/useChatContactsByIds';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
 import type { ConversationFilterStatus } from '@/types/conversation';
 import type { SessionStatus } from '@/lib/externalDb';
@@ -423,13 +424,6 @@ export function ChatList() {
     [restrictOpenToMine, statusByContact, convMetaByContact, user?.id, user?.name]
   );
 
-  // Visible list — uses filteredContacts (which already applies activeTab,
-  // search and conversationStatusFilter from the context).
-  const visibleContacts = React.useMemo(
-    () => applyClientFilters(filteredContacts).filter((c) => isVisibleByOpenScope(c.id)),
-    [filteredContacts, applyClientFilters, isVisibleByOpenScope]
-  );
-
   // Defer search input so that fast typing does not block list/count derivation.
   const deferredSearch = React.useDeferredValue(searchQuery);
 
@@ -575,6 +569,147 @@ export function ChatList() {
     user?.id, user?.name, stageIds, stageByPhone, slaFilter, slaStatusByContact,
     modeFilter, queueAgentMap, matchesActiveTab, isVisibleByOpenScope,
   ]);
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Visible list — derived from the SAME `conversations` universe and
+  // SAME predicates used by the badges above. Guarantees that whatever
+  // the badges count is exactly what the user sees in the list.
+  //
+  // Strategy:
+  //  • For pending/open status filters: walk sortedConversations, keep
+  //    only those whose effective status matches the active tab AND that
+  //    pass every filter, then dedupe by contact_id.
+  //  • For 'all' / resolved / closed: fall back to the legacy contact
+  //    based filter (filteredContacts already restricts by status).
+  // ─────────────────────────────────────────────────────────────────────
+  const { visibleContacts, missingContactIds } = React.useMemo(() => {
+    if (conversationStatusFilter !== 'pending' && conversationStatusFilter !== 'open') {
+      return {
+        visibleContacts: applyClientFilters(filteredContacts).filter((c) => isVisibleByOpenScope(c.id)),
+        missingContactIds: [] as string[],
+      };
+    }
+
+    const contactById = new Map<string, typeof contacts[number]>();
+    contacts.forEach((c) => contactById.set(c.id, c));
+
+    const q = deferredSearch.trim().toLowerCase();
+    const range = getDateRange(periodFilter);
+    const selectedMember =
+      ownerFilter !== 'all' && ownerFilter !== 'mine' && ownerFilter !== 'unassigned'
+        ? teamMembers.find((m) => String(m.id) === ownerFilter)
+        : undefined;
+    const now = Date.now();
+
+    const seen = new Set<string>();
+    const list: typeof contacts = [];
+    const missing: string[] = [];
+
+    for (const conv of sortedConversations) {
+      if (conv.status !== 'pending' && conv.status !== 'open') continue;
+      if (seen.has(conv.contact_id)) continue;
+
+      // Effective status (pending+assignee → open)
+      const hasAssignee = !!(conv.assigned_to && String(conv.assigned_to).trim() !== '');
+      const effectiveStatus = conv.status === 'pending' && hasAssignee ? 'open' : conv.status;
+      if (effectiveStatus !== conversationStatusFilter) continue;
+
+      // Snooze
+      const snoozedUntil = (conv as { snoozed_until?: string | null }).snoozed_until;
+      if (snoozedUntil && new Date(snoozedUntil).getTime() > now) continue;
+
+      if (!matchesActiveTab(conv.contact_id)) continue;
+      if (!isVisibleByOpenScope(conv.contact_id)) continue;
+
+      // Period
+      if (range) {
+        const ts = conv.updated_at || conv.created_at;
+        if (!ts) continue;
+        const d = new Date(ts);
+        if (Number.isNaN(d.getTime()) || d < range.from || d > range.to) continue;
+      }
+
+      // Owner
+      if (ownerFilter !== 'all') {
+        const assigned = conv.assigned_to;
+        if (ownerFilter === 'unassigned') {
+          if (assigned) continue;
+        } else if (ownerFilter === 'mine') {
+          if (!assigned) continue;
+          if (assigned !== String(user?.id) && assigned !== user?.name) continue;
+        } else {
+          if (!assigned) continue;
+          if (assigned !== ownerFilter && (!selectedMember || assigned !== selectedMember.name)) continue;
+        }
+      }
+
+      const contact = contactById.get(conv.contact_id);
+
+      // Stage
+      if (stageIds.length > 0 && stageByPhone) {
+        const norm = (contact?.phone || '').replace(/\D/g, '');
+        const info = norm ? stageByPhone.get(norm) : undefined;
+        if (!info || !stageIds.includes(info.stageId)) continue;
+      }
+
+      // SLA
+      if (slaFilter !== 'all') {
+        if (slaStatusByContact.get(conv.contact_id) !== slaFilter) continue;
+      }
+
+      // Mode (IA / human)
+      if (modeFilter !== 'all') {
+        const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
+        const hasAgent = !!queueLink?.hasAgent;
+        if (hasAgent) {
+          if (modeFilter === 'human') continue;
+          const codAgent = queueLink?.codAgent || conv.cod_agent || contact?.cod_agent;
+          if (!codAgent || !contact?.phone) continue;
+        } else {
+          if (modeFilter !== 'human') continue;
+        }
+      }
+
+      // Search
+      if (q) {
+        const name = (contact?.name || '').toLowerCase();
+        const phone = (contact?.phone || '').toLowerCase();
+        if (!name.includes(q) && !phone.includes(q)) continue;
+      }
+
+      seen.add(conv.contact_id);
+      if (contact) {
+        list.push(contact);
+      } else {
+        missing.push(conv.contact_id);
+      }
+    }
+
+    return { visibleContacts: list, missingContactIds: missing };
+  }, [
+    conversationStatusFilter, sortedConversations, contacts, deferredSearch,
+    periodFilter, ownerFilter, teamMembers, user?.id, user?.name,
+    stageIds, stageByPhone, slaFilter, slaStatusByContact, modeFilter,
+    queueAgentMap, matchesActiveTab, isVisibleByOpenScope,
+    applyClientFilters, filteredContacts,
+  ]);
+
+  // Fetch contacts not yet in the local cache (matched the filters but
+  // were beyond the current contact pagination window).
+  const { data: fetchedMissing = [] } = useChatContactsByIds(missingContactIds);
+
+  const finalVisibleContacts = React.useMemo(() => {
+    if (fetchedMissing.length === 0) return visibleContacts;
+    const byId = new Map(visibleContacts.map((c) => [c.id, c]));
+    fetchedMissing.forEach((c) => { if (!byId.has(c.id)) byId.set(c.id, c); });
+    // Preserve original order (sortedConversations order) — re-sort by
+    // the convsByContact map order which already follows desc updated_at.
+    return Array.from(byId.values()).sort((a, b) => {
+      const aTs = Date.parse(a.last_message_at || a.updated_at || '') || 0;
+      const bTs = Date.parse(b.last_message_at || b.updated_at || '') || 0;
+      return bTs - aTs;
+    });
+  }, [visibleContacts, fetchedMissing]);
 
   const channelBadge = (type: string) => {
     switch (type) {
@@ -991,7 +1126,7 @@ export function ChatList() {
                 </div>
               </div>
             ))
-          ) : visibleContacts.length === 0 ? (
+          ) : finalVisibleContacts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
               <MessageCircle className="h-12 w-12 mb-4 opacity-50" />
               <p className="font-medium">Nenhuma conversa</p>
@@ -1006,7 +1141,7 @@ export function ChatList() {
               </p>
             </div>
           ) : (
-            visibleContacts.map((contact, idx) => {
+            finalVisibleContacts.map((contact, idx) => {
               // Pick most recent conversation (any status) so queue/team stay visible.
               // Uses pre-grouped, pre-sorted Map → O(1) per row instead of
               // O(N log N) filter+sort on every render.
@@ -1049,10 +1184,10 @@ export function ChatList() {
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             </div>
           )}
-          {visibleContacts.length > 0 && (
+          {finalVisibleContacts.length > 0 && (
             <div ref={bottomSentinelRef} className="h-1" />
           )}
-          {!isLoading && !hasMoreContacts && visibleContacts.length > 0 && (
+          {!isLoading && !hasMoreContacts && finalVisibleContacts.length > 0 && (
             <div className="text-center text-[10px] text-muted-foreground py-3">
               Fim da lista
             </div>
