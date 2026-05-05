@@ -1102,6 +1102,9 @@ export function ChatList() {
               className="flex-1 text-[10px] font-medium px-2 py-1 h-auto rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-foreground/10 data-[state=on]:text-foreground data-[state=on]:border-foreground/20"
             >
               Todos
+              <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-4 px-1 rounded-full bg-foreground/10 text-foreground text-[9px] font-bold">
+                {modeCounts.all >= 99 ? '99+' : modeCounts.all}
+              </span>
             </ToggleGroupItem>
             <ToggleGroupItem
               value="ia_active"
@@ -1110,6 +1113,9 @@ export function ChatList() {
             >
               <Bot className="h-3 w-3" />
               Julia
+              <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-4 px-1 rounded-full bg-green-500/20 text-green-700 dark:text-green-400 text-[9px] font-bold">
+                {modeCounts.ia_active >= 99 ? '99+' : modeCounts.ia_active}
+              </span>
             </ToggleGroupItem>
             <ToggleGroupItem
               value="ia_inactive"
@@ -1118,6 +1124,9 @@ export function ChatList() {
             >
               <User className="h-3 w-3" />
               Atendimento Humano
+              <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-4 px-1 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400 text-[9px] font-bold">
+                {modeCounts.ia_inactive >= 99 ? '99+' : modeCounts.ia_inactive}
+              </span>
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
