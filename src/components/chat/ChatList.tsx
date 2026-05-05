@@ -570,6 +570,147 @@ export function ChatList() {
     modeFilter, queueAgentMap, matchesActiveTab, isVisibleByOpenScope,
   ]);
 
+  // ─────────────────────────────────────────────────────────────────────
+  // Visible list — derived from the SAME `conversations` universe and
+  // SAME predicates used by the badges above. Guarantees that whatever
+  // the badges count is exactly what the user sees in the list.
+  //
+  // Strategy:
+  //  • For pending/open status filters: walk sortedConversations, keep
+  //    only those whose effective status matches the active tab AND that
+  //    pass every filter, then dedupe by contact_id.
+  //  • For 'all' / resolved / closed: fall back to the legacy contact
+  //    based filter (filteredContacts already restricts by status).
+  // ─────────────────────────────────────────────────────────────────────
+  const { visibleContacts, missingContactIds } = React.useMemo(() => {
+    if (conversationStatusFilter !== 'pending' && conversationStatusFilter !== 'open') {
+      return {
+        visibleContacts: applyClientFilters(filteredContacts).filter((c) => isVisibleByOpenScope(c.id)),
+        missingContactIds: [] as string[],
+      };
+    }
+
+    const contactById = new Map<string, typeof contacts[number]>();
+    contacts.forEach((c) => contactById.set(c.id, c));
+
+    const q = deferredSearch.trim().toLowerCase();
+    const range = getDateRange(periodFilter);
+    const selectedMember =
+      ownerFilter !== 'all' && ownerFilter !== 'mine' && ownerFilter !== 'unassigned'
+        ? teamMembers.find((m) => String(m.id) === ownerFilter)
+        : undefined;
+    const now = Date.now();
+
+    const seen = new Set<string>();
+    const list: typeof contacts = [];
+    const missing: string[] = [];
+
+    for (const conv of sortedConversations) {
+      if (conv.status !== 'pending' && conv.status !== 'open') continue;
+      if (seen.has(conv.contact_id)) continue;
+
+      // Effective status (pending+assignee → open)
+      const hasAssignee = !!(conv.assigned_to && String(conv.assigned_to).trim() !== '');
+      const effectiveStatus = conv.status === 'pending' && hasAssignee ? 'open' : conv.status;
+      if (effectiveStatus !== conversationStatusFilter) continue;
+
+      // Snooze
+      const snoozedUntil = (conv as { snoozed_until?: string | null }).snoozed_until;
+      if (snoozedUntil && new Date(snoozedUntil).getTime() > now) continue;
+
+      if (!matchesActiveTab(conv.contact_id)) continue;
+      if (!isVisibleByOpenScope(conv.contact_id)) continue;
+
+      // Period
+      if (range) {
+        const ts = conv.updated_at || conv.created_at;
+        if (!ts) continue;
+        const d = new Date(ts);
+        if (Number.isNaN(d.getTime()) || d < range.from || d > range.to) continue;
+      }
+
+      // Owner
+      if (ownerFilter !== 'all') {
+        const assigned = conv.assigned_to;
+        if (ownerFilter === 'unassigned') {
+          if (assigned) continue;
+        } else if (ownerFilter === 'mine') {
+          if (!assigned) continue;
+          if (assigned !== String(user?.id) && assigned !== user?.name) continue;
+        } else {
+          if (!assigned) continue;
+          if (assigned !== ownerFilter && (!selectedMember || assigned !== selectedMember.name)) continue;
+        }
+      }
+
+      const contact = contactById.get(conv.contact_id);
+
+      // Stage
+      if (stageIds.length > 0 && stageByPhone) {
+        const norm = (contact?.phone || '').replace(/\D/g, '');
+        const info = norm ? stageByPhone.get(norm) : undefined;
+        if (!info || !stageIds.includes(info.stageId)) continue;
+      }
+
+      // SLA
+      if (slaFilter !== 'all') {
+        if (slaStatusByContact.get(conv.contact_id) !== slaFilter) continue;
+      }
+
+      // Mode (IA / human)
+      if (modeFilter !== 'all') {
+        const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
+        const hasAgent = !!queueLink?.hasAgent;
+        if (hasAgent) {
+          if (modeFilter === 'human') continue;
+          const codAgent = queueLink?.codAgent || conv.cod_agent || contact?.cod_agent;
+          if (!codAgent || !contact?.phone) continue;
+        } else {
+          if (modeFilter !== 'human') continue;
+        }
+      }
+
+      // Search
+      if (q) {
+        const name = (contact?.name || '').toLowerCase();
+        const phone = (contact?.phone || '').toLowerCase();
+        if (!name.includes(q) && !phone.includes(q)) continue;
+      }
+
+      seen.add(conv.contact_id);
+      if (contact) {
+        list.push(contact);
+      } else {
+        missing.push(conv.contact_id);
+      }
+    }
+
+    return { visibleContacts: list, missingContactIds: missing };
+  }, [
+    conversationStatusFilter, sortedConversations, contacts, deferredSearch,
+    periodFilter, ownerFilter, teamMembers, user?.id, user?.name,
+    stageIds, stageByPhone, slaFilter, slaStatusByContact, modeFilter,
+    queueAgentMap, matchesActiveTab, isVisibleByOpenScope,
+    applyClientFilters, filteredContacts,
+  ]);
+
+  // Fetch contacts not yet in the local cache (matched the filters but
+  // were beyond the current contact pagination window).
+  const { data: fetchedMissing = [] } = useChatContactsByIds(missingContactIds);
+
+  const finalVisibleContacts = React.useMemo(() => {
+    if (fetchedMissing.length === 0) return visibleContacts;
+    const byId = new Map(visibleContacts.map((c) => [c.id, c]));
+    fetchedMissing.forEach((c) => { if (!byId.has(c.id)) byId.set(c.id, c); });
+    // Preserve original order (sortedConversations order) — re-sort by
+    // the convsByContact map order which already follows desc updated_at.
+    return Array.from(byId.values()).sort((a, b) => {
+      const aTs = Date.parse(a.last_message_at || a.updated_at || '') || 0;
+      const bTs = Date.parse(b.last_message_at || b.updated_at || '') || 0;
+      return bTs - aTs;
+    });
+  }, [visibleContacts, fetchedMissing]);
+
   const channelBadge = (type: string) => {
     switch (type) {
       case 'uazapi': return <Badge variant="outline" className="text-[10px] px-1 text-emerald-600 border-emerald-300">WhatsApp</Badge>;
