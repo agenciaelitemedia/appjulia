@@ -32,10 +32,7 @@ export function useAgentSessionStatusesBatch(pairs: SessionPair[]) {
     queryFn: async (): Promise<Map<string, boolean>> => {
       const map = new Map<string, boolean>();
       if (cleaned.length === 0) return map;
-      const rows = await (externalDb as any).invoke({
-        action: 'get_session_statuses_batch',
-        data: { pairs: cleaned },
-      });
+      const rows = await externalDb.getSessionStatusesBatch(cleaned);
       (rows || []).forEach((r: any) => {
         const key = `${String(r.whatsapp_number).replace(/\D/g, '')}:${String(r.cod_agent)}`;
         map.set(key, !!r.active);
