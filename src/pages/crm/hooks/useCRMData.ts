@@ -3,6 +3,7 @@ import { externalDb } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
 import { CRMCard, CRMStage, CRMHistory, CRMAgent, CRMFiltersState } from '../types';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
+import { getBrPhoneVariants } from '@/lib/phoneVariants';
 
 // Hook to get all Julia conversations count (vw_painelv2_desempenho_julia_all)
 export function useCRMJuliaConversations(filters: CRMFiltersState) {
