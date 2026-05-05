@@ -3,6 +3,7 @@ import { externalDb } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
 import { CRMCard, CRMStage, CRMHistory, CRMAgent, CRMFiltersState } from '../types';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
+import { getBrPhoneVariants } from '@/lib/phoneVariants';
 
 // Hook to get all Julia conversations count (vw_painelv2_desempenho_julia_all)
 export function useCRMJuliaConversations(filters: CRMFiltersState) {
@@ -189,10 +190,13 @@ export function useCRMCardHistory(cardId: number | null) {
 }
 
 export function useCRMCardByWhatsapp(whatsapp: string | null) {
+  const variants = whatsapp
+    ? Array.from(new Set(getBrPhoneVariants(whatsapp))).sort()
+    : [];
   return useQuery({
-    queryKey: ['crm-card-by-whatsapp', whatsapp],
+    queryKey: ['crm-card-by-whatsapp', variants],
     queryFn: async () => {
-      if (!whatsapp) return null;
+      if (variants.length === 0) return null;
       const result = await externalDb.raw<CRMCard>({
         query: `
           SELECT 
@@ -210,15 +214,15 @@ export function useCRMCardByWhatsapp(whatsapp: string | null) {
           FROM crm_atendimento_cards c
           LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
           LEFT JOIN "vw_list_client-agents-users" a ON c.cod_agent = a.cod_agent::text
-          WHERE c.whatsapp_number = $1
+          WHERE c.whatsapp_number = ANY($1::varchar[])
           ORDER BY c.stage_entered_at DESC
           LIMIT 1
         `,
-        params: [whatsapp],
+        params: [variants],
       });
       return result[0] || null;
     },
-    enabled: !!whatsapp,
+    enabled: variants.length > 0,
   });
 }
 
