@@ -23,6 +23,7 @@ import { useAccessibleQueues } from '@/pages/agente/filas/hooks/useQueues';
 import { useAgentQueueLimits } from '@/pages/agente/filas/hooks/useAgentQueueLimits';
 import { useChatSlaConfigs, evaluateSla, type SlaStatus } from '@/hooks/useChatSlaConfigs';
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
+import { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
 import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
@@ -251,6 +252,45 @@ export function ChatList() {
   }, [convMetaByContact]);
   const { data: queueAgentMap } = useQueueAgentLinks(queueIds);
 
+  // For every contact whose conversation runs through a Julia-enabled queue,
+  // build (whatsapp, codAgent) pairs and batch-load their session.active flag.
+  // A "Julia" conversation is only counted as Julia when active=true; if the
+  // session is paused (active=false), it is treated as "Atendimento Humano".
+  const sessionPairs = React.useMemo(() => {
+    const pairs: { whatsappNumber: string; codAgent: string; key: string }[] = [];
+    const seen = new Set<string>();
+    contacts.forEach((c) => {
+      const meta = convMetaByContact.get(c.id);
+      if (!meta?.queueId || !c.phone) return;
+      const link = queueAgentMap?.get(meta.queueId);
+      if (!link?.hasAgent || !link.codAgent) return;
+      const phone = c.phone.replace(/\D/g, '');
+      if (!phone) return;
+      const key = `${phone}:${link.codAgent}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      pairs.push({ whatsappNumber: phone, codAgent: link.codAgent, key });
+    });
+    return pairs;
+  }, [contacts, convMetaByContact, queueAgentMap]);
+
+  const { data: sessionActiveMap } = useAgentSessionStatusesBatch(
+    sessionPairs.map(({ whatsappNumber, codAgent }) => ({ whatsappNumber, codAgent }))
+  );
+
+  // Resolve session.active for a (contactId, queueLink) pair. Returns:
+  //  - true: Julia ativa
+  //  - false: Julia inativa (humano assumiu)
+  //  - undefined: unknown / no session loaded yet
+  const getSessionActive = React.useCallback(
+    (phone: string | null | undefined, codAgent: string | null | undefined): boolean | undefined => {
+      if (!phone || !codAgent) return undefined;
+      const key = `${phone.replace(/\D/g, '')}:${codAgent}`;
+      return sessionActiveMap?.get(key);
+    },
+    [sessionActiveMap]
+  );
+
   // Derive primary cod_agent for team-members fetch
   const { data: userAgents = [] } = useQuery({
     queryKey: ['chat-user-agents', user?.id],
@@ -311,17 +351,24 @@ export function ChatList() {
     (contactId: string): Exclude<ConversationModeFilter, 'all'> => {
       const meta = convMetaByContact.get(contactId);
       const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
-      return queueLink?.hasAgent ? 'julia' : 'human';
+      if (!queueLink?.hasAgent) return 'human';
+      // Queue has Julia, but if her session is paused, classify as humano.
+      const contact = contacts.find((c) => c.id === contactId);
+      const active = getSessionActive(contact?.phone, queueLink.codAgent);
+      return active === false ? 'human' : 'julia';
     },
-    [convMetaByContact, queueAgentMap]
+    [convMetaByContact, queueAgentMap, contacts, getSessionActive]
   );
 
   const getConversationMode = React.useCallback(
     (conv: typeof conversations[number]): Exclude<ConversationModeFilter, 'all'> => {
       const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
-      return queueLink?.hasAgent ? 'julia' : 'human';
+      if (!queueLink?.hasAgent) return 'human';
+      const contact = contacts.find((c) => c.id === conv.contact_id);
+      const active = getSessionActive(contact?.phone, queueLink.codAgent);
+      return active === false ? 'human' : 'julia';
     },
-    [conversations, queueAgentMap]
+    [conversations, queueAgentMap, contacts, getSessionActive]
   );
 
   // Reusable client-side filters (owner, period, stage, sla, mode).
