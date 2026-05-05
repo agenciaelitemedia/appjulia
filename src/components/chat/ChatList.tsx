@@ -30,6 +30,7 @@ import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
 import { useCRMBuilderLinkedConversations } from '@/hooks/useCRMBuilderLinkedConversations';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { externalDb } from '@/lib/externalDb';
+import { useChatContactsByIds } from '@/hooks/useChatContactsByIds';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
 import type { ConversationFilterStatus } from '@/types/conversation';
 import type { SessionStatus } from '@/lib/externalDb';
@@ -421,13 +422,6 @@ export function ChatList() {
       return assigned === String(user?.id) || assigned === user?.name;
     },
     [restrictOpenToMine, statusByContact, convMetaByContact, user?.id, user?.name]
-  );
-
-  // Visible list — uses filteredContacts (which already applies activeTab,
-  // search and conversationStatusFilter from the context).
-  const visibleContacts = React.useMemo(
-    () => applyClientFilters(filteredContacts).filter((c) => isVisibleByOpenScope(c.id)),
-    [filteredContacts, applyClientFilters, isVisibleByOpenScope]
   );
 
   // Defer search input so that fast typing does not block list/count derivation.
