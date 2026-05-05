@@ -2145,9 +2145,19 @@ serve(async (req) => {
         // Fetch session status for a WhatsApp number and agent
         const { whatsappNumber, codAgent } = data;
         
-        // Remove non-digits from whatsapp
-        const cleanNumber = whatsappNumber.replace(/\D/g, '');
-        
+        // Remove non-digits and build BR phone variants (with/without 9th digit)
+        const cleanNumber = String(whatsappNumber || '').replace(/\D/g, '');
+        const variants = new Set<string>([cleanNumber]);
+        if (cleanNumber.startsWith('55')) {
+          const ddd = cleanNumber.slice(2, 4);
+          if (cleanNumber.length === 13 && cleanNumber[4] === '9' && /[6-9]/.test(cleanNumber[5] ?? '')) {
+            variants.add(`55${ddd}${cleanNumber.slice(5)}`);
+          } else if (cleanNumber.length === 12 && /[6-9]/.test(cleanNumber[4] ?? '')) {
+            variants.add(`55${ddd}9${cleanNumber.slice(4)}`);
+          }
+        }
+        const numberVariants = Array.from(variants).filter(Boolean);
+
         const rows = await sql.unsafe(
           `SELECT 
             s.id,
@@ -2158,11 +2168,11 @@ serve(async (req) => {
             a.cod_agent::text
           FROM sessions s
           JOIN agents a ON a.id = s.agent_id
-          WHERE s.whatsapp_number::text = $1
+          WHERE s.whatsapp_number::text = ANY($1)
             AND a.cod_agent::text = $2
           ORDER BY s.created_at DESC
           LIMIT 1`,
-          [cleanNumber, codAgent]
+          [numberVariants, codAgent]
         );
         result = rows;
         break;
