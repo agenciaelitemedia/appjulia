@@ -1126,7 +1126,7 @@ export function ChatList() {
                 </div>
               </div>
             ))
-          ) : visibleContacts.length === 0 ? (
+          ) : finalVisibleContacts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
               <MessageCircle className="h-12 w-12 mb-4 opacity-50" />
               <p className="font-medium">Nenhuma conversa</p>
@@ -1141,7 +1141,7 @@ export function ChatList() {
               </p>
             </div>
           ) : (
-            visibleContacts.map((contact, idx) => {
+            finalVisibleContacts.map((contact, idx) => {
               // Pick most recent conversation (any status) so queue/team stay visible.
               // Uses pre-grouped, pre-sorted Map → O(1) per row instead of
               // O(N log N) filter+sort on every render.
@@ -1184,7 +1184,7 @@ export function ChatList() {
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             </div>
           )}
-          {visibleContacts.length > 0 && (
+          {finalVisibleContacts.length > 0 && (
             <div ref={bottomSentinelRef} className="h-1" />
           )}
           {!isLoading && !hasMoreContacts && visibleContacts.length > 0 && (
