@@ -3,7 +3,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { SmartAvatarImage } from '@/components/chat/SmartAvatarImage';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Forward, Search, Loader2 } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
@@ -123,7 +124,7 @@ export function ForwardDialog({ open, onOpenChange, message }: ForwardDialogProp
                 >
                   <Checkbox checked={isSelected} onCheckedChange={() => toggle(c.id)} />
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={c.avatar} alt={c.name} />
+                    <SmartAvatarImage src={c.avatar} alt={c.name} contactId={c.id} />
                     <AvatarFallback className="text-xs bg-primary/10 text-primary">{initials}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
