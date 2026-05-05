@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -33,11 +33,10 @@ import { externalDb } from '@/lib/externalDb';
 import { useChatContactsByIds } from '@/hooks/useChatContactsByIds';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
 import type { ConversationFilterStatus } from '@/types/conversation';
-import type { SessionStatus } from '@/lib/externalDb';
 import { cn } from '@/lib/utils';
 
 type SlaFilter = 'all' | 'breached' | 'at_risk';
-type ConversationModeFilter = 'all' | 'ia_active' | 'ia_inactive' | 'human';
+type ConversationModeFilter = 'all' | 'julia' | 'human';
 type AssigneeFilter = 'all' | 'mine' | 'unassigned';
 type PeriodFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'last3Months';
 
@@ -105,7 +104,6 @@ export function ChatList() {
   }, [showGroupsTab, activeTab, setActiveTab]);
 
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { user, isAdmin } = useAuth();
   const { data: queues = [] } = useAccessibleQueues();
   const { configs: slaConfigs } = useChatSlaConfigs();
@@ -309,6 +307,23 @@ export function ChatList() {
     setStageIds(allStagesSelected ? [] : stages.map((s) => s.id));
   };
 
+  const getContactMode = React.useCallback(
+    (contactId: string): Exclude<ConversationModeFilter, 'all'> => {
+      const meta = convMetaByContact.get(contactId);
+      const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
+      return queueLink?.hasAgent ? 'julia' : 'human';
+    },
+    [convMetaByContact, queueAgentMap]
+  );
+
+  const getConversationMode = React.useCallback(
+    (conv: typeof conversations[number]): Exclude<ConversationModeFilter, 'all'> => {
+      const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
+      return queueLink?.hasAgent ? 'julia' : 'human';
+    },
+    [conversations, queueAgentMap]
+  );
+
   // Reusable client-side filters (owner, period, stage, sla, mode).
   // Does NOT include: tab Individual/Grupos, search, or conversationStatusFilter.
   // Tab + search are applied separately so we can build count bases that
@@ -352,29 +367,11 @@ export function ChatList() {
         result = result.filter((c) => slaStatusByContact.get(c.id) === slaFilter);
       }
       if (modeFilter !== 'all') {
-        result = result.filter((c) => {
-          const meta = convMetaByContact.get(c.id);
-          const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
-          const hasAgent = !!queueLink?.hasAgent;
-          if (hasAgent) {
-            if (modeFilter === 'human') return false;
-            const codAgent = queueLink?.codAgent || meta?.codAgent || c.cod_agent;
-            if (!codAgent || !c.phone) return false;
-            const cached = queryClient.getQueryData<SessionStatus | null>(
-              ['agent-session-status', codAgent, c.phone]
-            );
-            if (cached === undefined) return true; // not loaded — keep visible
-            const active = cached?.active ?? false;
-            return modeFilter === 'ia_active' ? active : !active;
-          } else {
-            // Human-only queue
-            return modeFilter === 'human';
-          }
-        });
+        result = result.filter((c) => getContactMode(c.id) === modeFilter);
       }
       return result;
     },
-    [ownerFilter, teamMembers, convMetaByContact, user?.id, user?.name, periodFilter, stageIds, stageByPhone, slaFilter, slaStatusByContact, modeFilter, queueAgentMap, queryClient]
+    [ownerFilter, teamMembers, convMetaByContact, user?.id, user?.name, periodFilter, stageIds, stageByPhone, slaFilter, slaStatusByContact, modeFilter, getContactMode]
   );
 
   // Count conversations by status — scoped to the active tab (Individual / Groups)
@@ -531,16 +528,9 @@ export function ChatList() {
         if (slaStatusByContact.get(conv.contact_id) !== slaFilter) continue;
       }
 
-      // Mode filter (IA/human) — based on queue link + cached session status
+      // Mode filter (Julia/humano)
       if (modeFilter !== 'all') {
-        const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
-        const hasAgent = !!queueLink?.hasAgent;
-        if (hasAgent) {
-          if (modeFilter === 'human') continue;
-          // Without a cached session we keep the row visible (matches list behavior)
-        } else {
-          if (modeFilter !== 'human') continue;
-        }
+        if (getConversationMode(conv) !== modeFilter) continue;
       }
 
       // Search filter — match against the contact's name/phone if loaded
@@ -564,86 +554,7 @@ export function ChatList() {
   }, [
     conversations, contacts, deferredSearch, periodFilter, ownerFilter, teamMembers,
     user?.id, user?.name, stageIds, stageByPhone, slaFilter, slaStatusByContact,
-    modeFilter, queueAgentMap, matchesActiveTab, isVisibleByOpenScope,
-  ]);
-
-  // Mode counts (Todos / Julia / Atendimento Humano) — apply ALL other
-  // filters (including the active status tab pending/open) but ignore the
-  // active modeFilter, so each toggle shows what would appear if selected.
-  const modeCounts = React.useMemo(() => {
-    const result = { all: 0, ia_active: 0, ia_inactive: 0 };
-    const contactById = new Map<string, typeof contacts[number]>();
-    contacts.forEach((c) => contactById.set(c.id, c));
-
-    const q = deferredSearch.trim().toLowerCase();
-    const range = getDateRange(periodFilter);
-    const selectedMember =
-      ownerFilter !== 'all' && ownerFilter !== 'mine' && ownerFilter !== 'unassigned'
-        ? teamMembers.find((m) => String(m.id) === ownerFilter)
-        : undefined;
-    const now = Date.now();
-
-    for (const conv of conversations) {
-      if (conv.status !== 'pending' && conv.status !== 'open') continue;
-
-      const hasAssignee = !!(conv.assigned_to && String(conv.assigned_to).trim() !== '');
-      const effectiveStatus = conv.status === 'pending' && hasAssignee ? 'open' : conv.status;
-      if (effectiveStatus !== conversationStatusFilter) continue;
-
-      const snoozedUntil = (conv as { snoozed_until?: string | null }).snoozed_until;
-      if (snoozedUntil && new Date(snoozedUntil).getTime() > now) continue;
-      if (!matchesActiveTab(conv.contact_id)) continue;
-      if (!isVisibleByOpenScope(conv.contact_id)) continue;
-
-      if (range) {
-        const ts = conv.updated_at || conv.created_at;
-        if (!ts) continue;
-        const d = new Date(ts);
-        if (Number.isNaN(d.getTime()) || d < range.from || d > range.to) continue;
-      }
-
-      if (ownerFilter !== 'all') {
-        const assigned = conv.assigned_to;
-        if (ownerFilter === 'unassigned') { if (assigned) continue; }
-        else if (ownerFilter === 'mine') {
-          if (!assigned) continue;
-          if (assigned !== String(user?.id) && assigned !== user?.name) continue;
-        } else {
-          if (!assigned) continue;
-          if (assigned !== ownerFilter && (!selectedMember || assigned !== selectedMember.name)) continue;
-        }
-      }
-
-      const contact = contactById.get(conv.contact_id);
-
-      if (stageIds.length > 0 && stageByPhone) {
-        const norm = (contact?.phone || '').replace(/\D/g, '');
-        const info = norm ? stageByPhone.get(norm) : undefined;
-        if (!info || !stageIds.includes(info.stageId)) continue;
-      }
-
-      if (slaFilter !== 'all') {
-        if (slaStatusByContact.get(conv.contact_id) !== slaFilter) continue;
-      }
-
-      if (q) {
-        const name = (contact?.name || '').toLowerCase();
-        const phone = (contact?.phone || '').toLowerCase();
-        if (!name.includes(q) && !phone.includes(q)) continue;
-      }
-
-      // Classify mode for this conversation
-      const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
-      const hasAgent = !!queueLink?.hasAgent;
-      result.all += 1;
-      if (hasAgent) result.ia_active += 1;
-      else result.ia_inactive += 1;
-    }
-    return result;
-  }, [
-    conversations, contacts, deferredSearch, periodFilter, ownerFilter, teamMembers,
-    user?.id, user?.name, stageIds, stageByPhone, slaFilter, slaStatusByContact,
-    queueAgentMap, matchesActiveTab, isVisibleByOpenScope, conversationStatusFilter,
+    modeFilter, getConversationMode, matchesActiveTab, isVisibleByOpenScope,
   ]);
 
   // ─────────────────────────────────────────────────────────────────────
@@ -733,16 +644,9 @@ export function ChatList() {
         if (slaStatusByContact.get(conv.contact_id) !== slaFilter) continue;
       }
 
-      // Mode (IA / human)
+      // Mode (Julia / humano)
       if (modeFilter !== 'all') {
-        const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
-        const hasAgent = !!queueLink?.hasAgent;
-        if (hasAgent) {
-          if (modeFilter === 'human') continue;
-          // Keep visible even if contact details aren't loaded yet (will be fetched)
-        } else {
-          if (modeFilter !== 'human') continue;
-        }
+        if (getConversationMode(conv) !== modeFilter) continue;
       }
 
       // Search
@@ -765,7 +669,7 @@ export function ChatList() {
     conversationStatusFilter, sortedConversations, contacts, deferredSearch,
     periodFilter, ownerFilter, teamMembers, user?.id, user?.name,
     stageIds, stageByPhone, slaFilter, slaStatusByContact, modeFilter,
-    queueAgentMap, matchesActiveTab, isVisibleByOpenScope,
+    getConversationMode, matchesActiveTab, isVisibleByOpenScope,
     applyClientFilters, filteredContacts,
   ]);
 
@@ -1100,7 +1004,7 @@ export function ChatList() {
               Todos
             </ToggleGroupItem>
             <ToggleGroupItem
-              value="ia_active"
+              value="julia"
               className="flex-1 text-[10px] font-medium px-2 py-1 h-auto gap-1 rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-green-500/15 data-[state=on]:text-green-600 dark:data-[state=on]:text-green-400 data-[state=on]:border-green-500/30"
               title="Filas com Julia IA ativa"
             >
@@ -1108,7 +1012,7 @@ export function ChatList() {
               Julia
             </ToggleGroupItem>
             <ToggleGroupItem
-              value="ia_inactive"
+              value="human"
               className="flex-1 text-[10px] font-medium px-2 py-1 h-auto gap-1 rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-amber-500/20 data-[state=on]:text-amber-600 dark:data-[state=on]:text-amber-400 data-[state=on]:border-amber-500/30"
               title="Filas com Julia IA inativa (atendimento humano)"
             >
