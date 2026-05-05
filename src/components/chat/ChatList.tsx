@@ -570,6 +570,85 @@ export function ChatList() {
     modeFilter, queueAgentMap, matchesActiveTab, isVisibleByOpenScope,
   ]);
 
+  // Mode counts (Todos / Julia / Atendimento Humano) — apply ALL other
+  // filters (including the active status tab pending/open) but ignore the
+  // active modeFilter, so each toggle shows what would appear if selected.
+  const modeCounts = React.useMemo(() => {
+    const result = { all: 0, ia_active: 0, ia_inactive: 0 };
+    const contactById = new Map<string, typeof contacts[number]>();
+    contacts.forEach((c) => contactById.set(c.id, c));
+
+    const q = deferredSearch.trim().toLowerCase();
+    const range = getDateRange(periodFilter);
+    const selectedMember =
+      ownerFilter !== 'all' && ownerFilter !== 'mine' && ownerFilter !== 'unassigned'
+        ? teamMembers.find((m) => String(m.id) === ownerFilter)
+        : undefined;
+    const now = Date.now();
+
+    for (const conv of conversations) {
+      if (conv.status !== 'pending' && conv.status !== 'open') continue;
+
+      const hasAssignee = !!(conv.assigned_to && String(conv.assigned_to).trim() !== '');
+      const effectiveStatus = conv.status === 'pending' && hasAssignee ? 'open' : conv.status;
+      if (effectiveStatus !== conversationStatusFilter) continue;
+
+      const snoozedUntil = (conv as { snoozed_until?: string | null }).snoozed_until;
+      if (snoozedUntil && new Date(snoozedUntil).getTime() > now) continue;
+      if (!matchesActiveTab(conv.contact_id)) continue;
+      if (!isVisibleByOpenScope(conv.contact_id)) continue;
+
+      if (range) {
+        const ts = conv.updated_at || conv.created_at;
+        if (!ts) continue;
+        const d = new Date(ts);
+        if (Number.isNaN(d.getTime()) || d < range.from || d > range.to) continue;
+      }
+
+      if (ownerFilter !== 'all') {
+        const assigned = conv.assigned_to;
+        if (ownerFilter === 'unassigned') { if (assigned) continue; }
+        else if (ownerFilter === 'mine') {
+          if (!assigned) continue;
+          if (assigned !== String(user?.id) && assigned !== user?.name) continue;
+        } else {
+          if (!assigned) continue;
+          if (assigned !== ownerFilter && (!selectedMember || assigned !== selectedMember.name)) continue;
+        }
+      }
+
+      const contact = contactById.get(conv.contact_id);
+
+      if (stageIds.length > 0 && stageByPhone) {
+        const norm = (contact?.phone || '').replace(/\D/g, '');
+        const info = norm ? stageByPhone.get(norm) : undefined;
+        if (!info || !stageIds.includes(info.stageId)) continue;
+      }
+
+      if (slaFilter !== 'all') {
+        if (slaStatusByContact.get(conv.contact_id) !== slaFilter) continue;
+      }
+
+      if (q) {
+        const name = (contact?.name || '').toLowerCase();
+        const phone = (contact?.phone || '').toLowerCase();
+        if (!name.includes(q) && !phone.includes(q)) continue;
+      }
+
+      // Classify mode for this conversation
+      const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
+      const hasAgent = !!queueLink?.hasAgent;
+      result.all += 1;
+      if (hasAgent) result.ia_active += 1;
+      else result.ia_inactive += 1;
+    }
+    return result;
+  }, [
+    conversations, contacts, deferredSearch, periodFilter, ownerFilter, teamMembers,
+    user?.id, user?.name, stageIds, stageByPhone, slaFilter, slaStatusByContact,
+    queueAgentMap, matchesActiveTab, isVisibleByOpenScope, conversationStatusFilter,
+  ]);
+
   // ─────────────────────────────────────────────────────────────────────
   // Visible list — derived from the SAME `conversations` universe and
   // SAME predicates used by the badges above. Guarantees that whatever
