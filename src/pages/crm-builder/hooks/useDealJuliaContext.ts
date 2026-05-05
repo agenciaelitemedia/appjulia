@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { externalDb } from '@/lib/externalDb';
+import { getBrPhoneVariants } from '@/lib/phoneVariants';
 import { useDealConversation } from './useDealConversation';
 import { useQueueAgentLink } from '@/hooks/useQueueAgentLink';
 import { useAgentAliases } from '@/hooks/useAgentAliases';
@@ -56,6 +57,7 @@ export function useDealJuliaContext(deal: CRMDeal | null): DealJuliaContext {
     enabled: !!codAgent && !!phone && isJulia,
     staleTime: 30_000,
     queryFn: async () => {
+      const phoneVariants = getBrPhoneVariants(phone);
       const rows = await externalDb.raw<{
         id: number;
         stage_id: number;
@@ -68,11 +70,11 @@ export function useDealJuliaContext(deal: CRMDeal | null): DealJuliaContext {
                  s.name as stage_name, s.color as stage_color
           FROM crm_atendimento_cards c
           LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
-          WHERE c.whatsapp_number = $1 AND c.cod_agent = $2
+          WHERE c.whatsapp_number = ANY($1::varchar[]) AND c.cod_agent = $2
           ORDER BY c.updated_at DESC NULLS LAST
           LIMIT 1
         `,
-        params: [phone, String(codAgent)],
+        params: [phoneVariants, String(codAgent)],
       });
       return rows[0] ?? null;
     },
@@ -85,6 +87,7 @@ export function useDealJuliaContext(deal: CRMDeal | null): DealJuliaContext {
     staleTime: 60_000,
     queryFn: async (): Promise<JuliaContractInfo> => {
       try {
+        const phoneVariants = getBrPhoneVariants(phone);
         const rows = await externalDb.raw<{
           cod_document: string | null;
           status_document: string | null;
@@ -93,11 +96,11 @@ export function useDealJuliaContext(deal: CRMDeal | null): DealJuliaContext {
           query: `
             SELECT cod_document, status_document, data_assinatura
             FROM vw_painelv2_desempenho_julia_contratos
-            WHERE whatsapp = $1 AND cod_agent::text = $2
+            WHERE whatsapp = ANY($1::varchar[]) AND cod_agent::text = $2
             ORDER BY data_contrato DESC NULLS LAST
             LIMIT 1
           `,
-          params: [phone, String(codAgent)],
+          params: [phoneVariants, String(codAgent)],
         });
         const row = rows[0];
         if (!row) return { cod_document: null, status: 'none' };

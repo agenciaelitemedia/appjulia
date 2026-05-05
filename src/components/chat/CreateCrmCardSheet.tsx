@@ -96,6 +96,8 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
     queryKey: ['julia-card-lookup', normalizedPhone, effectiveCodAgent],
     queryFn: async () => {
       if (!normalizedPhone || !effectiveCodAgent) return null;
+      const { getBrPhoneVariants } = await import('@/lib/phoneVariants');
+      const phoneVariants = getBrPhoneVariants(normalizedPhone);
       const rows = await externalDb.raw<{
         id: number;
         contact_name: string | null;
@@ -107,11 +109,11 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
           SELECT c.id, c.contact_name, c.stage_id, s.name as stage_name, s.color as stage_color
           FROM crm_atendimento_cards c
           LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
-          WHERE c.whatsapp_number = $1 AND c.cod_agent = $2
+          WHERE c.whatsapp_number = ANY($1::varchar[]) AND c.cod_agent = $2
           ORDER BY c.updated_at DESC NULLS LAST
           LIMIT 1
         `,
-        params: [normalizedPhone, effectiveCodAgent],
+        params: [phoneVariants, effectiveCodAgent],
       });
       return rows[0] ?? null;
     },
