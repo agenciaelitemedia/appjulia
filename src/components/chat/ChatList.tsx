@@ -537,9 +537,6 @@ export function ChatList() {
         const hasAgent = !!queueLink?.hasAgent;
         if (hasAgent) {
           if (modeFilter === 'human') continue;
-          const contact = contactById.get(conv.contact_id);
-          const codAgent = queueLink?.codAgent || conv.cod_agent || contact?.cod_agent;
-          if (!codAgent || !contact?.phone) continue;
           // Without a cached session we keep the row visible (matches list behavior)
         } else {
           if (modeFilter !== 'human') continue;
@@ -742,8 +739,7 @@ export function ChatList() {
         const hasAgent = !!queueLink?.hasAgent;
         if (hasAgent) {
           if (modeFilter === 'human') continue;
-          const codAgent = queueLink?.codAgent || conv.cod_agent || contact?.cod_agent;
-          if (!codAgent || !contact?.phone) continue;
+          // Keep visible even if contact details aren't loaded yet (will be fetched)
         } else {
           if (modeFilter !== 'human') continue;
         }
