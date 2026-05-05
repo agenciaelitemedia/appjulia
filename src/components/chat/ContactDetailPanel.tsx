@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { SmartAvatarImage } from '@/components/chat/SmartAvatarImage';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -327,7 +328,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
       {/* Contact identity (always visible) */}
       <div className="flex flex-col items-center text-center p-4 pb-3 border-b">
         <Avatar className="h-14 w-14 mb-2">
-          <AvatarImage src={contact.avatar} alt={contact.name} />
+          <SmartAvatarImage src={contact.avatar} alt={contact.name} contactId={contact.id} />
           <AvatarFallback className="bg-primary/10 text-primary text-lg font-medium">
             {initials}
           </AvatarFallback>
