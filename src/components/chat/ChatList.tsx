@@ -1187,7 +1187,7 @@ export function ChatList() {
           {finalVisibleContacts.length > 0 && (
             <div ref={bottomSentinelRef} className="h-1" />
           )}
-          {!isLoading && !hasMoreContacts && visibleContacts.length > 0 && (
+          {!isLoading && !hasMoreContacts && finalVisibleContacts.length > 0 && (
             <div className="text-center text-[10px] text-muted-foreground py-3">
               Fim da lista
             </div>
