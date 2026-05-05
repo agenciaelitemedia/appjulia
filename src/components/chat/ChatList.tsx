@@ -358,10 +358,11 @@ export function ChatList() {
       const meta = convMetaByContact.get(contactId);
       const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
       if (!queueLink?.hasAgent) return 'human';
-      // Queue has Julia, but if her session is paused, classify as humano.
+      // Só classifica como 'julia' quando há sessão ATIVA confirmada.
+      // Sessão pausada (active === false) ou inexistente => humano.
       const phone = contactPhoneById.get(contactId);
       const active = getSessionActive(phone, queueLink.codAgent);
-      return active === false ? 'human' : 'julia';
+      return active === true ? 'julia' : 'human';
     },
     [convMetaByContact, queueAgentMap, contactPhoneById, getSessionActive]
   );
@@ -372,7 +373,7 @@ export function ChatList() {
       if (!queueLink?.hasAgent) return 'human';
       const phone = contactPhoneById.get(conv.contact_id);
       const active = getSessionActive(phone, queueLink.codAgent);
-      return active === false ? 'human' : 'julia';
+      return active === true ? 'julia' : 'human';
     },
     [conversations, queueAgentMap, contactPhoneById, getSessionActive]
   );
