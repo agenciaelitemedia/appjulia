@@ -787,6 +787,16 @@ class ExternalDatabase {
       data: { whatsappNumber, codAgent },
     });
   }
+
+  async getSessionStatusesBatch(
+    pairs: { whatsappNumber: string; codAgent: string }[]
+  ): Promise<{ whatsapp_number: string; cod_agent: string; active: boolean }[]> {
+    if (!pairs || pairs.length === 0) return [];
+    return this.invoke({
+      action: 'get_session_statuses_batch',
+      data: { pairs },
+    });
+  }
 }
 
 export interface AgentInsertData {

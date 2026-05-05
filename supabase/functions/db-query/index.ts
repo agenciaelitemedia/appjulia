@@ -2182,6 +2182,32 @@ serve(async (req) => {
         break;
       }
 
+      case 'get_session_statuses_batch': {
+        // Fetch session active flags for multiple (whatsappNumber, codAgent) pairs.
+        // Returns rows with whatsapp_number, cod_agent, active.
+        const { pairs } = data || {};
+        if (!pairs || !Array.isArray(pairs) || pairs.length === 0) {
+          result = [];
+          break;
+        }
+        const numbers = pairs.map((p: any) => String(p.whatsappNumber || '').replace(/\D/g, ''));
+        const codes = pairs.map((p: any) => String(p.codAgent || ''));
+        const rows = await sql.unsafe(
+          `SELECT DISTINCT ON (s.whatsapp_number::text, a.cod_agent::text)
+             s.whatsapp_number::text AS whatsapp_number,
+             a.cod_agent::text AS cod_agent,
+             s.active
+           FROM sessions s
+           JOIN agents a ON a.id = s.agent_id
+           WHERE s.whatsapp_number::text = ANY($1)
+             AND a.cod_agent::text = ANY($2)
+           ORDER BY s.whatsapp_number::text, a.cod_agent::text, s.created_at DESC`,
+          [numbers, codes]
+        );
+        result = rows;
+        break;
+      }
+
       // ================== ADVBOX INTEGRATION ACTIONS ==================
 
       case 'advbox_get_integration': {
