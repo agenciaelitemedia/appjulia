@@ -357,8 +357,8 @@ export function ChatList() {
           const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
           const hasAgent = !!queueLink?.hasAgent;
           if (hasAgent) {
-            const codAgent = queueLink?.codAgent || meta?.codAgent || c.cod_agent;
             if (modeFilter === 'human') return false;
+            const codAgent = queueLink?.codAgent || meta?.codAgent || c.cod_agent;
             if (!codAgent || !c.phone) return false;
             const cached = queryClient.getQueryData<SessionStatus | null>(
               ['agent-session-status', codAgent, c.phone]
