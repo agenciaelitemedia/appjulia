@@ -278,6 +278,12 @@ export function ChatList() {
     sessionPairs.map(({ whatsappNumber, codAgent }) => ({ whatsappNumber, codAgent }))
   );
 
+  const contactPhoneById = React.useMemo(() => {
+    const map = new Map<string, string | null>();
+    contacts.forEach((c) => map.set(c.id, c.phone || null));
+    return map;
+  }, [contacts]);
+
   // Resolve session.active for a (contactId, queueLink) pair. Returns:
   //  - true: Julia ativa
   //  - false: Julia inativa (humano assumiu)
@@ -353,22 +359,22 @@ export function ChatList() {
       const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
       if (!queueLink?.hasAgent) return 'human';
       // Queue has Julia, but if her session is paused, classify as humano.
-      const contact = contacts.find((c) => c.id === contactId);
-      const active = getSessionActive(contact?.phone, queueLink.codAgent);
+      const phone = contactPhoneById.get(contactId);
+      const active = getSessionActive(phone, queueLink.codAgent);
       return active === false ? 'human' : 'julia';
     },
-    [convMetaByContact, queueAgentMap, contacts, getSessionActive]
+    [convMetaByContact, queueAgentMap, contactPhoneById, getSessionActive]
   );
 
   const getConversationMode = React.useCallback(
     (conv: typeof conversations[number]): Exclude<ConversationModeFilter, 'all'> => {
       const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
       if (!queueLink?.hasAgent) return 'human';
-      const contact = contacts.find((c) => c.id === conv.contact_id);
-      const active = getSessionActive(contact?.phone, queueLink.codAgent);
+      const phone = contactPhoneById.get(conv.contact_id);
+      const active = getSessionActive(phone, queueLink.codAgent);
       return active === false ? 'human' : 'julia';
     },
-    [conversations, queueAgentMap, contacts, getSessionActive]
+    [conversations, queueAgentMap, contactPhoneById, getSessionActive]
   );
 
   // Reusable client-side filters (owner, period, stage, sla, mode).
