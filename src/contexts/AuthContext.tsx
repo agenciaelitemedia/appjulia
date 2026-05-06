@@ -119,11 +119,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(authenticatedUser);
       localStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(authenticatedUser));
       
-      // Ensure adv_dashboard module exists for advogado users before loading permissions
-      if (authenticatedUser.role === 'advogado') {
-        try { await externalDb.ensureAdvModule(); } catch (e) { console.error('ensureAdvModule error:', e); }
-      }
-      
       // Load permissions after login
       await loadPermissions(authenticatedUser.id);
       
@@ -146,9 +141,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasPermission = useCallback((moduleCode: ModuleCode, action: 'view' | 'create' | 'edit' | 'delete' = 'view'): boolean => {
     // Admin always has access
     if (isAdmin) return true;
-    
-    // Advogado always has access to adv_dashboard
-    if (user?.role === 'advogado' && moduleCode === 'adv_dashboard') return true;
     
     // No permissions loaded
     if (!permissions) return false;
