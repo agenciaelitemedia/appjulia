@@ -21,8 +21,7 @@ export default function Login() {
   const { toast } = useToast();
 
   if (isAuthenticated) {
-    const target = user?.role === 'advogado' ? '/adv/dashboard' : '/dashboard';
-    return <Navigate to={target} replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,10 +46,7 @@ export default function Login() {
         title: 'Bem-vindo!',
         description: 'Login realizado com sucesso',
       });
-      // Check role from stored user to redirect advogados
-      const stored = localStorage.getItem('julia_user');
-      const role = stored ? JSON.parse(stored)?.role : null;
-      navigate(role === 'advogado' ? '/adv/dashboard' : '/dashboard');
+      navigate('/dashboard');
     } else {
       toast({
         variant: 'destructive',
