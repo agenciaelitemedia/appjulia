@@ -9,7 +9,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { UaZapiProvider } from "@/contexts/UaZapiContext";
 import { DebugProvider } from "@/contexts/DebugContext";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { AdvLayout } from "@/components/layout/AdvLayout";
+
 import { ProtectedRoute } from "@/components/guards/ProtectedRoute";
 import { DebugBar } from "@/components/debug/DebugBar";
 import Login from "./pages/Login";
@@ -85,7 +85,7 @@ import ComprarSucessoPage from "./pages/comprar/ComprarSucessoPage";
 import PedidosPage from "./pages/admin/pedidos/PedidosPage";
 import PlanosPage from "./pages/admin/planos/PlanosPage";
 import ContratoTemplatePage from "./pages/admin/contrato/ContratoTemplatePage";
-import AdvDashboardPage from "./pages/adv/AdvDashboardPage";
+
 import CRMComercialPage from "./pages/comercial/crm/CRMComercialPage";
 import SupportAssistantPage from "./pages/suporte-assistente/SupportAssistantPage";
 import QuickMessagesPage from "./pages/mensagens-rapidas/QuickMessagesPage";
@@ -192,10 +192,6 @@ const App = () => (
                   <Route path="/admin/embeds" element={<ProtectedRoute module="admin_embeds"><EmbedManagerPage /></ProtectedRoute>} />
                   <Route path="/sys/:code" element={<ProtectedRoute><EmbedPage /></ProtectedRoute>} />
                   <Route path="/telefonia/contratar" element={<ProtectedRoute><ContratarTelefoniaPage /></ProtectedRoute>} />
-                </Route>
-                {/* Advogado routes - mobile layout */}
-                <Route element={<AdvLayout />}>
-                  <Route path="/adv/dashboard" element={<ProtectedRoute module="adv_dashboard" fallbackPath="/login"><AdvDashboardPage /></ProtectedRoute>} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>
