@@ -142,10 +142,18 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   const visibleTags = (convTags || []).slice(0, 2);
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       className={cn(
-        'w-full max-w-full flex items-start gap-3 px-3 py-3 text-left transition-all border-l-[4px] min-w-0 overflow-hidden',
+        'w-full max-w-full flex items-start gap-3 px-3 py-3 text-left transition-all border-l-[4px] min-w-0 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         isSelected
           ? 'bg-primary/15 border-l-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.3)] ring-1 ring-primary/20'
           : cn(
@@ -307,6 +315,6 @@ export const ChatContactItem = React.memo(function ChatContactItem({
           </div>
         )}
       </div>
-    </button>
+    </div>
   );
 });
