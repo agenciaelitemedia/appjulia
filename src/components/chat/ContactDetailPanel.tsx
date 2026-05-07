@@ -21,6 +21,7 @@ import type { ChatContact } from '@/types/chat';
 import type { ChatConversation, ConversationHistoryEntry, ChatTag } from '@/types/conversation';
 import { useQuery } from '@tanstack/react-query';
 import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
+import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { SlaBadge } from './SlaBadge';
 import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
 
@@ -172,10 +173,14 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
   const [editName, setEditName] = useState(contact.name);
 
   const { configs: slaConfigs } = useChatSlaConfigs();
+  const { getMeta: getLastMsgMeta } = useConversationsLastMessageMeta(
+    selectedConversation?.id ? [selectedConversation.id] : [],
+  );
 
   const slaEvaluation = React.useMemo(() => {
     if (!selectedConversation) return null;
     if (['closed', 'resolved'].includes(selectedConversation.status)) return null;
+    const meta = getLastMsgMeta(selectedConversation.id);
     return evaluateSla(
       {
         status: selectedConversation.status,
@@ -184,12 +189,12 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
         first_response_at: selectedConversation.first_response_at || null,
         resolved_at: selectedConversation.resolved_at || null,
         closed_at: selectedConversation.closed_at || null,
-        last_customer_message_at: (selectedConversation as any).last_customer_message_at ?? null,
-        last_message_from_me: (selectedConversation as any).last_message_from_me ?? null,
+        last_customer_message_at: meta.last_customer_message_at,
+        last_message_from_me: meta.last_message_from_me,
       },
       slaConfigs
     );
-  }, [selectedConversation, slaConfigs]);
+  }, [selectedConversation, slaConfigs, getLastMsgMeta]);
 
   const queueId = selectedConversation?.queue_id || null;
   const { data: queueName } = useQuery({
