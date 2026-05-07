@@ -1590,6 +1590,33 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     if (!contactId) return;
     (async () => {
       try {
+        let contact = contacts.find(c => c.id === contactId) || null;
+
+        // A lista pode renderizar contatos buscados fora da página atual
+        // (`useChatContactsByIds`) sem inseri-los no cache local `contacts`.
+        // Ao clicar neles, o painel central dependia de `selectedContact`
+        // vindo só desse cache e acabava ficando no estado vazio.
+        if (!contact) {
+          const { data: fetchedContact, error } = await supabase
+            .from('chat_contacts')
+            .select('id,client_id,cod_agent,channel_source,channel_type,remote_jid,phone,name,avatar,is_group,is_archived,is_muted,unread_count,last_message_at,last_message_text,created_at,updated_at')
+            .eq('id', contactId)
+            .maybeSingle();
+
+          if (error) throw error;
+
+          if (fetchedContact) {
+            contact = fetchedContact as ChatContact;
+            setContacts(prev => {
+              const alreadyExists = prev.some(c => c.id === contactId);
+              if (alreadyExists) {
+                return prev.map(c => (c.id === contactId ? contact! : c));
+              }
+              return repositionContact(prev, contact!);
+            });
+          }
+        }
+
         // Resolve existing conversation in memory first.
         const existingConv = conversations.find(c => c.contact_id === contactId);
         if (existingConv && ['resolved', 'closed'].includes(existingConv.status)) {
@@ -1607,7 +1634,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           );
         }
 
-        const contact = contacts.find(c => c.id === contactId);
         if (!contact || contact.unread_count === 0) return;
 
         // Mark as read on click for all conversations
