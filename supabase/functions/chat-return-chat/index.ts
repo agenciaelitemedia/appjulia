@@ -13,7 +13,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const BATCH_LIMIT = 50;
+const BATCH_LIMIT = 100;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -24,19 +24,19 @@ Deno.serve(async (req) => {
   );
 
   try {
-    // Find conversations where NRT + tolerance has been exceeded
-    const { data: conversations, error: queryError } = await supabase.rpc(
+    const { data: conversations, error } = await supabase.rpc(
       'get_return_chat_candidates',
       { batch_limit: BATCH_LIMIT },
     );
+    if (error) throw error;
 
-    // If RPC doesn't exist yet, fall back to raw query
-    if (queryError) {
-      console.error('RPC error, trying raw query:', queryError.message);
-      return await processViaRawQuery(supabase);
-    }
+    const results = await processConversations(supabase, conversations ?? []);
+    console.log(`chat-return-chat: processed ${results.length} conversations`);
 
-    return await processConversations(supabase, conversations ?? []);
+    return new Response(
+      JSON.stringify({ processed: results.length, results }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
   } catch (err) {
     console.error('chat-return-chat error:', err);
     return new Response(JSON.stringify({ error: String(err) }), {
@@ -46,67 +46,6 @@ Deno.serve(async (req) => {
   }
 });
 
-async function processViaRawQuery(supabase: ReturnType<typeof createClient>) {
-  const { data: conversations, error } = await supabase
-    .from('chat_conversations')
-    .select(`
-      id,
-      assigned_to,
-      client_id,
-      priority,
-      contact_id,
-      last_customer_message_at,
-      chat_sla_configs!inner(nrt_response_minutes),
-      chat_client_settings!inner(settings)
-    `)
-    .in('status', ['open', 'pending'])
-    .not('assigned_to', 'is', null)
-    .eq('last_message_from_me', false)
-    .not('last_customer_message_at', 'is', null)
-    .limit(BATCH_LIMIT);
-
-  if (error) throw error;
-
-  // Filter in JS for those whose NRT + tolerance has elapsed
-  // and return_chat_enabled = true, and no prior auto_returned in history
-  const now = Date.now();
-  const eligible: any[] = [];
-
-  for (const conv of conversations ?? []) {
-    const slaConfig = Array.isArray(conv.chat_sla_configs)
-      ? conv.chat_sla_configs[0]
-      : conv.chat_sla_configs;
-    const clientSettings = Array.isArray(conv.chat_client_settings)
-      ? conv.chat_client_settings[0]
-      : conv.chat_client_settings;
-
-    const settings = clientSettings?.settings as Record<string, unknown> | null;
-    if (!settings?.return_chat_enabled) continue;
-
-    const nrtMinutes = Number(slaConfig?.nrt_response_minutes ?? 60);
-    const toleranceMinutes = Number(settings?.return_chat_tolerance_minutes ?? 0);
-    const totalMinutes = nrtMinutes + toleranceMinutes;
-
-    const lastCustomerAt = new Date(conv.last_customer_message_at).getTime();
-    const deadlineMs = lastCustomerAt + totalMinutes * 60 * 1000;
-    if (now < deadlineMs) continue;
-
-    // Check idempotency: no auto_returned after last_customer_message_at
-    const { count } = await supabase
-      .from('chat_conversation_history')
-      .select('id', { count: 'exact', head: true })
-      .eq('conversation_id', conv.id)
-      .eq('action', 'auto_returned')
-      .gte('created_at', conv.last_customer_message_at);
-
-    if ((count ?? 0) > 0) continue;
-
-    eligible.push(conv);
-  }
-
-  return await processConversations(supabase, eligible);
-}
-
 async function processConversations(
   supabase: ReturnType<typeof createClient>,
   conversations: any[],
@@ -115,17 +54,20 @@ async function processConversations(
 
   for (const conv of conversations) {
     try {
-      const removedAgent: string = conv.assigned_to ?? 'desconhecido';
+      // assigned_to é o nome do responsável (ex.: "Raquel Souza"). Se vier
+      // numérico (fallback antigo de user.id), mantemos o valor cru — não há
+      // tabela team_members no schema deste projeto.
+      const removedAgent: string = (conv.assigned_to ?? '').toString().trim() || 'desconhecido';
 
       // 1. Unassign and set pending
       const { error: updateError } = await supabase
         .from('chat_conversations')
         .update({ assigned_to: null, status: 'pending' })
         .eq('id', conv.id);
-
       if (updateError) throw updateError;
 
       const now = new Date().toISOString();
+      const channelType: string = conv.channel ?? 'whatsapp_uazapi';
 
       // 2. Internal note
       const { error: msgError } = await supabase
@@ -134,17 +76,17 @@ async function processConversations(
           contact_id: conv.contact_id,
           conversation_id: conv.id,
           client_id: conv.client_id,
-          text: `⚠️ Devido ao tempo de inatividade na conversa, o responsável ${removedAgent} foi removido e o atendimento retornado à lista Em Aberto.`,
+          text: `⚠️ Tempo de inatividade excedido. O responsável **${removedAgent}** foi removido e o atendimento retornou à lista Em Aberto.`,
           from_me: true,
           type: 'text',
           status: 'sent',
           internal_note: true,
           note_type: 'info',
           sender_name: 'Sistema',
+          channel_type: channelType,
           timestamp: now,
           created_at: now,
         });
-
       if (msgError) throw msgError;
 
       // 3. History entry
@@ -156,10 +98,9 @@ async function processConversations(
           actor_name: 'Sistema',
           from_value: removedAgent,
           to_value: 'pending',
-          notes: 'NRT vencido. Responsável removido automaticamente.',
+          notes: `NRT vencido (${conv.nrt_minutes}min + ${conv.tolerance_minutes}min tolerância). Responsável removido automaticamente.`,
           created_at: now,
         });
-
       if (histError) throw histError;
 
       results.push({ id: conv.id, ok: true });
@@ -169,10 +110,5 @@ async function processConversations(
     }
   }
 
-  console.log(`chat-return-chat: processed ${results.length} conversations`);
-
-  return new Response(
-    JSON.stringify({ processed: results.length, results }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-  );
+  return results;
 }
