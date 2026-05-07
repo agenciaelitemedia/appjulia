@@ -1,39 +1,49 @@
-## Objetivo
+## Problema
 
-Remover todas as restrições e tratamentos especiais do perfil **advogado**, fazendo com que ele se comporte exatamente como o perfil **time**: usa o `MainLayout` padrão, é redirecionado para `/dashboard` no login, e tem menus/permissões controlados exclusivamente pelos módulos atribuídos no admin (sem auto-add de `adv_dashboard`, sem bypass de permissão, sem layout próprio).
+O softphone está iniciando ligações sem o usuário clicar em "Ligar". Após análise do código, identifiquei **2 caminhos possíveis** que causam o disparo:
 
-## Mudanças
+### Causa 1 — Auto-answer global de chamadas entrantes (mais provável)
 
-### 1. `src/pages/Login.tsx`
-- Remover redirecionamento condicional para `/adv/dashboard`.
-- Sempre navegar para `/dashboard` após login (linhas 23-26 e 50-53). O `ProtectedRoute` cuidará do redirecionamento se o usuário não tiver acesso ao dashboard.
+Em `src/pages/telefonia/hooks/useSipPhone.ts` (linhas 391-412), toda chamada SIP **entrante** é atendida automaticamente quando:
 
-### 2. `src/contexts/AuthContext.tsx`
-- Remover bloco que chama `externalDb.ensureAdvModule()` para advogados (linhas 122-125).
-- Remover regra `if (user?.role === 'advogado' && moduleCode === 'adv_dashboard') return true;` em `hasPermission` (linhas 150-151). Permissão passa a vir somente do mapa de permissões padrão.
+- `isDialingRef.current === true` (callback do PBX), **OU**
+- O header SIP `X-Api4comintegratedcall: true` está presente
 
-### 3. `src/App.tsx`
-- Remover import e bloco de rota `<Route element={<AdvLayout />}>` com `/adv/dashboard` (linhas 12, 88, 197-198 e fechamento correspondente).
-- Remover import `AdvDashboardPage` se não usado em outro lugar.
+Como o usuário está em `/chat` (sem ter clicado em ligar) e o SIP fica registrado em background, qualquer chamada que chegue ao ramal com esse header — inclusive de campanhas, fila ou teste do PBX — atende sozinha. Para o usuário, parece que "disparou ligação sem clicar".
 
-### 4. `src/pages/equipe/components/EquipeMemberDialog.tsx`
-- Remover lógica de auto-adicionar `adv_dashboard` ao selecionar perfil advogado (linhas 377-380).
-- Remover mensagem informativa "O módulo Painel do Advogado será adicionado automaticamente" (linhas 392-396).
-- Manter a opção `<SelectItem value="advogado">` no select — perfil continua existindo, apenas sem comportamento especial.
+### Causa 2 — `retryDial` exposto no contexto
 
-### 5. Arquivos a deletar
-- `src/components/layout/AdvLayout.tsx`
-- `src/pages/adv/AdvDashboardPage.tsx`
-- `src/pages/adv/components/AdvContratosCards.tsx` (se usado apenas pela página acima — verificar)
+`PhoneContext` mantém `lastDialArgs` em ref e expõe `retryDial()`, que re-executa a última discagem. Se houver re-render/efeito que dispare `retryDial`, o sistema disca sozinho. Hoje só é chamado pelo botão "Tentar novamente" do `SoftphoneWidget`, mas se `dialError` reaparecer e o widget re-renderizar com `autoFocus`/effect, pode disparar.
 
-### 6. Manter inalterado
-- `AppRole` continua incluindo `'advogado'` (label "Advogado" preservado em selects).
-- `useMenuModules` já filtra por permissões — não há mudança necessária; advogados verão exatamente os módulos liberados manualmente pelo admin, igual ao perfil "time".
-- Nenhuma migração de banco necessária; usuários existentes com role `advogado` continuam funcionando normalmente.
+---
 
-## Resultado esperado
+## Plano de correção
 
-Após as mudanças, advogados:
-- Fazem login e caem em `/dashboard` (ou são redirecionados pelo `ProtectedRoute` conforme suas permissões).
-- Veem o `MainLayout` padrão com sidebar e menus baseados nos módulos atribuídos.
-- Não têm nenhum acesso garantido automaticamente — comportamento idêntico ao perfil "time".
+### 1. Restringir auto-answer (causa principal)
+
+Em `src/pages/telefonia/hooks/useSipPhone.ts`:
+
+- **Adicionar janela temporal** para o auto-answer baseado em `isDialingRef`: só auto-atender se a chamada chegar dentro de **60s após o início do dial** (guardar `dialStartedAt` em ref no `dialNumber` do `PhoneContext` e expor para o hook).
+- **Logar (com `addDiagEvent`)** o motivo do auto-answer e o `from` da chamada, para rastrear quem está disparando.
+- **Bloquear auto-answer** quando `status === 'idle'` e não há dial ativo (defensivo).
+
+### 2. Confirmar nenhum efeito chama `retryDial`/`dialNumber` automaticamente
+
+- Auditar `SoftphoneWidget` e demais consumidores para garantir que `onRetry`/`dialNumber` só rodam por interação do usuário (sem `useEffect` disparando).
+
+### 3. Adicionar painel de diagnóstico
+
+- No softphone widget, mostrar quando uma chamada foi auto-atendida e por qual regra (já temos `addDiagEvent`, basta destacar visualmente).
+- Expor toast informativo quando o auto-answer disparar para o usuário entender o que aconteceu.
+
+### 4. Validação
+
+- Pedir ao usuário para reproduzir e enviar o **último evento do diagnóstico SIP** (Telefonia → Discador → Diagnóstico SIP) na hora do disparo. Isso confirma se foi callback PBX, header integrated ou outra causa.
+
+---
+
+## Arquivos afetados
+
+- `src/pages/telefonia/hooks/useSipPhone.ts` — lógica de auto-answer
+- `src/contexts/PhoneContext.tsx` — expor `dialStartedAt` ref
+- `src/pages/telefonia/components/SoftphoneWidget.tsx` — auditar handlers

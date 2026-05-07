@@ -66,6 +66,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   const [dialError, setDialError] = useState<string | null>(null);
   const [sipSetupError, setSipSetupError] = useState<string | null>(null);
   const lastDialArgs = useRef<{ phone: string; contactName?: string; origin?: 'CRM' | 'DISCADOR'; whatsappNumber?: string } | null>(null);
+  const dialStartedAtRef = useRef<number | null>(null);
   const autoConnected = useRef(false);
   const sipBlockedRef = useRef(false);
   const sipConnectInFlightRef = useRef(false);
@@ -82,6 +83,9 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const handleCallEnded = useCallback((_info: CallEndedInfo) => {
+    isDialingRef.current = false;
+    dialStartedAtRef.current = null;
+    setIsDialing(false);
     if (!hasTelephonyScope) return;
     const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     supabase.functions.invoke(getPhoneProxy(provider), {
@@ -98,9 +102,10 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     setDialError(friendlyMsg);
     setIsDialing(false);
     isDialingRef.current = false;
+    dialStartedAtRef.current = null;
   }, []);
 
-  const sip = useSipPhone(handleCallEnded, handleCallFailed, isDialingRef);
+  const sip = useSipPhone(handleCallEnded, handleCallFailed, isDialingRef, dialStartedAtRef);
 
   // Fetch user's extension (only if agent has active plan)
   useEffect(() => {
@@ -258,6 +263,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
 
     // Save args for retry
     lastDialArgs.current = { phone, contactName, origin, whatsappNumber };
+    dialStartedAtRef.current = Date.now();
 
     const { formatted } = formatPhoneForDialing(phone);
     setDialContactName(contactName || formatted);
@@ -313,6 +319,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     sip.hangup();
     setIsDialing(false);
     isDialingRef.current = false;
+    dialStartedAtRef.current = null;
     setDialError(null);
     setShowSoftphone(false);
     setSoftphoneCentered(false);
