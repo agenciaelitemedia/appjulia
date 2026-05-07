@@ -218,6 +218,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const [contacts, setContacts] = useState<ChatContact[]>([]);
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [isHydratingContact, setIsHydratingContact] = useState(false);
+  const [contactHydrationError, setContactHydrationError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ChatTab>('individual');
   const [searchQuery, setSearchQuery] = useState('');
   // Start as loading so the chat list shows skeleton from the very first
