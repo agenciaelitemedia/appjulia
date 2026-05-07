@@ -8,6 +8,7 @@ import { WhatsAppDataProvider } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import ChatChannelsPage from './ChatChannelsPage';
 import ChatAutomationsPage from './ChatAutomationsPage';
+import { ChatGeneralSettings } from './components/ChatGeneralSettings';
 
 function ChatSettingsContent() {
   const navigate = useNavigate();
@@ -52,9 +53,7 @@ function ChatSettingsContent() {
         </TabsList>
 
         <TabsContent value="geral" className="mt-6">
-          <div className="text-sm text-muted-foreground py-12 text-center border rounded-lg">
-            Configurações gerais do chat em breve.
-          </div>
+          <ChatGeneralSettings />
         </TabsContent>
 
         <TabsContent value="sla" className="mt-6">

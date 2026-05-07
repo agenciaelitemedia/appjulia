@@ -155,6 +155,7 @@ const actionLabels: Record<string, (e: ConversationHistoryEntry) => string> = {
   tag_added:        (e) => `adicionou tag "${e.to_value}"`,
   tag_removed:      (e) => `removeu tag "${e.to_value}"`,
   note_added:       () => 'registrou uma nota interna',
+  auto_returned:    (e) => `devolveu automaticamente à fila (responsável ${e.from_value ?? ''} removido por NRT vencido)`,
 };
 
 export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps) {
