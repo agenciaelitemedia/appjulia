@@ -1,61 +1,65 @@
-## Objetivo
-1. Bloquear tradução automática do navegador em todo o sistema.
-2. Resolver o erro de cache pós-deploy (usuários com a versão antiga tentando carregar chunks/assets que não existem mais — `ChunkLoadError` / `Failed to fetch dynamically imported module`).
+## Diagnóstico
 
----
+A lógica de SLA em `evaluateSla` (`src/hooks/useChatSlaConfigs.ts`) **já implementa** exatamente o comportamento que você descreveu:
 
-## Parte 1 — Desabilitar tradução (já planejado)
+1. Sem `first_response_at` → **FRT** (1ª Resposta).
+2. Com `first_response_at` E `last_message_from_me === false` E `last_customer_message_at` presente → **NRT** (Próxima Resposta).
+3. Com `first_response_at` E última mensagem do atendente → **TTR** (Resolução).
 
-### `index.html`
-- `<html lang="pt-BR" translate="no">`
-- `<meta name="google" content="notranslate" />`
-- `<meta http-equiv="Content-Language" content="pt-BR" />`
-- `<body class="notranslate" translate="no">` e `<div id="root" class="notranslate" translate="no">`
+**O problema:** os campos `last_customer_message_at` e `last_message_from_me` **não existem** na tabela `chat_conversations` (confirmado: a tabela só tem `opened_at`, `first_response_at`, `closed_at`, `resolved_at`, etc.). Em `ChatList`, `ChatHeader`, `ChatContactItem` e `ContactDetailPanel`, esses dois campos sempre chegam como `null` via `(conv as any).last_customer_message_at ?? null`. 
 
----
+Resultado: o ramo **NRT nunca é alcançado**. Após a primeira resposta o badge cai sempre em **TTR** (Resolução), independente de a última mensagem ser do lead.
 
-## Parte 2 — Estratégia anti-cache em novo deploy
+## Solução — Derivar os dois campos a partir de `chat_messages`
 
-O Vite já gera assets com hash no nome (`index-AbC123.js`), então o problema NÃO é o navegador servir o JS antigo do disco — é o app que JÁ ESTÁ ABERTO na aba do usuário tentar carregar um chunk lazy (`React.lazy` / `import()`) cujo arquivo foi removido pelo novo deploy. Solução em três camadas:
+Em vez de adicionar colunas e triggers (mais invasivo), criar um hook que enriquece as conversas visíveis com os metadados da última mensagem real, em uma única query batch. Isso mantém a verdade no `chat_messages` e funciona com os dados já existentes.
 
-### 2.1 Detectar erro de chunk e recarregar automaticamente
-Criar `src/lib/chunkReload.ts`:
-- Listener global em `window` para `error` e `unhandledrejection`.
-- Se a mensagem casar com `Loading chunk`, `Failed to fetch dynamically imported module`, `Importing a module script failed` ou `ChunkLoadError`:
-  - Usar `sessionStorage` com flag `chunk-reload-attempted` para evitar loop infinito.
-  - Chamar `window.location.reload()` (uma vez) para buscar o `index.html` novo, que aponta para os hashes atualizados.
-- Importar esse módulo no topo do `src/main.tsx`.
+### 1. Novo hook `useConversationsLastMessageMeta`
+`src/hooks/useConversationsLastMessageMeta.ts`
 
-### 2.2 Polling de versão + aviso de “nova versão disponível”
-- No build, gerar `public/version.json` com timestamp/commit. Hoje o Vite expõe `import.meta.env` mas não um build id automático — usar `define` no `vite.config.ts`:
-  - `define: { __APP_VERSION__: JSON.stringify(Date.now().toString()) }`
-- Criar hook `src/hooks/useAppVersionCheck.ts`:
-  - A cada 5 minutos (e no `visibilitychange` quando a aba volta ao foco), faz `fetch('/version.json?t=' + Date.now())`.
-  - Se a versão remota difere da que veio no bundle, dispara um toast persistente “Nova versão disponível — Atualizar” com botão que chama `window.location.reload()`.
-- Endpoint server-side simples: criar `public/version.json` com placeholder e atualizá-lo no build via plugin Vite custom (`writeBundle`) ou simplesmente ler `__APP_VERSION__` injetado.
-- Montar o hook em `App.tsx` (uma única vez, dentro do provider raiz).
+Recebe um array de `conversationId[]`. Faz uma única query:
 
-### 2.3 Cabeçalhos / `index.html` sem cache
-- O `index.html` em si NUNCA pode ser cacheado, senão o usuário continua vendo as referências aos chunks antigos.
-- Adicionar `<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />` e `<meta http-equiv="Pragma" content="no-cache" />` no `<head>` do `index.html` como camada extra (Lovable/CDN normalmente já trata, mas isso reforça em proxies intermediários).
+```text
+chat_messages
+  .select('conversation_id, timestamp, from_me')
+  .in('conversation_id', ids)
+  .eq('internal_note', false)   // notas internas não contam
+  .order('timestamp', { ascending: false })
+```
 
-### 2.4 Limpar Service Worker desatualizado (push notifications)
-O projeto usa Web Push (Service Worker registrado). SW antigo pode reter `index.html` em cache:
-- Em `src/main.tsx`, no boot, chamar `navigator.serviceWorker.getRegistrations()` e, se o SW reportar `updatefound`, exibir o mesmo toast “Nova versão disponível”.
-- Confirmar que o SW de push (`public/sw.js` ou similar) NÃO faz `cache.match` para HTML/JS principal — apenas para receber push events. Se fizer, remover essa parte.
+E em JS reduz para um `Map<convId, { lastTs, lastFromMe, lastCustomerTs }>`:
+- `lastTs` / `lastFromMe`: primeira ocorrência por conversa (a mais recente).
+- `lastCustomerTs`: primeira ocorrência onde `from_me === false`.
 
----
+Com `staleTime` curto (~15 s) e `refetchOnWindowFocus`, query keyed por `[ids.sort().join(',')]`. Limite de 200 conversas por chamada (alinhado com a paginação atual).
 
-## Resultado esperado
-- Usuários com a aba aberta durante um deploy: ao navegar para uma rota lazy ou após 5 min, recebem aviso de nova versão. Se um chunk falhar, a página recarrega sozinha 1x.
-- Tradução do navegador deixa de aparecer.
+### 2. Integração nos pontos de avaliação
+Em cada um destes locais, antes de chamar `evaluateSla`, ler do mapa:
 
-## Arquivos afetados
-- `index.html`
-- `src/main.tsx`
-- `src/App.tsx`
-- `src/lib/chunkReload.ts` (novo)
-- `src/hooks/useAppVersionCheck.ts` (novo)
-- `vite.config.ts`
-- `public/version.json` (novo)
-- Verificação no service worker existente
+- `src/components/chat/ChatList.tsx` (linha ~179) — para o badge na lista.
+- `src/components/chat/ChatContactItem.tsx` (linha ~118) — badge do item.
+- `src/components/chat/ChatHeader.tsx` (linha ~236) — badge no header da conversa.
+- `src/components/chat/ContactDetailPanel.tsx` (linha ~179) — painel lateral.
+
+`ChatList` busca o lote (`useConversationsLastMessageMeta(visibleConvIds)`) e propaga via prop opcional `lastMessageMeta?: { last_customer_message_at, last_message_from_me }` para `ChatContactItem`. `ChatHeader` e `ContactDetailPanel` chamam o hook só para o `selectedConversation.id`.
+
+### 3. Tipagem
+Acrescentar campos opcionais em `src/types/conversation.ts` e remover os `(conv as any)` casts para deixar o contrato explícito (os campos continuam opcionais — `WhatsAppDataContext` não os preenche, são derivados separadamente).
+
+### 4. Sem mudança de UI
+O `SlaBadge` já mostra o `slaTypeLabel` correto (1ª Resposta / Próx. Resposta / Resolução) e tooltips por tipo — a correção da fonte de dados é suficiente para o badge mudar de FRT → NRT durante a conversa quando o lead voltar a falar.
+
+## Arquivos a alterar
+
+- **Criar** `src/hooks/useConversationsLastMessageMeta.ts`
+- **Editar** `src/components/chat/ChatList.tsx` (buscar batch + passar prop)
+- **Editar** `src/components/chat/ChatContactItem.tsx` (aceitar prop `lastMessageMeta`, usar no `evaluateSla`)
+- **Editar** `src/components/chat/ChatHeader.tsx` (hook single-id)
+- **Editar** `src/components/chat/ContactDetailPanel.tsx` (hook single-id)
+- **Editar** `src/types/conversation.ts` (manter campos opcionais; documentar origem derivada)
+
+## O que não muda
+
+- `evaluateSla` permanece intacto.
+- `chat_conversations` não ganha colunas — sem migração.
+- Nenhum impacto em `chat-return-chat` (já usa CTE direta em `chat_messages`).
