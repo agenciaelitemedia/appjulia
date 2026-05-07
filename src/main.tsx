@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import "./lib/chunkReload";
 
 // Unregister service workers in preview/iframe to avoid stale cache
 const isInIframe = (() => {
