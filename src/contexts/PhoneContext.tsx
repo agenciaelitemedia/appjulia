@@ -83,6 +83,9 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const handleCallEnded = useCallback((_info: CallEndedInfo) => {
+    isDialingRef.current = false;
+    dialStartedAtRef.current = null;
+    setIsDialing(false);
     if (!hasTelephonyScope) return;
     const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     supabase.functions.invoke(getPhoneProxy(provider), {
