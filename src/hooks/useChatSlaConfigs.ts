@@ -26,7 +26,7 @@ export const DEFAULT_SLA_BY_PRIORITY: Record<string, { first: number; nrt: numbe
 
 export function useChatSlaConfigs() {
   const { user } = useAuth();
-  const clientId = String(user?.id ?? '');
+  const clientId = String(user?.client_id ?? user?.id ?? '');
   const queryClient = useQueryClient();
 
   const { data: configs = [], isLoading } = useQuery({
