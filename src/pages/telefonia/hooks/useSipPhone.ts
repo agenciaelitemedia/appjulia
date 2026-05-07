@@ -52,7 +52,12 @@ interface UseSipPhoneReturn {
   sendDTMF: (digit: string) => void;
 }
 
-export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (cause: string) => void, isDialingRef?: React.RefObject<boolean>): UseSipPhoneReturn {
+export function useSipPhone(
+  onCallEnded?: OnCallEndedCallback,
+  onCallFailed?: (cause: string) => void,
+  isDialingRef?: React.RefObject<boolean>,
+  dialStartedAtRef?: React.RefObject<number | null>,
+): UseSipPhoneReturn {
   const [status, setStatus] = useState<SipStatus>('idle');
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
@@ -388,19 +393,25 @@ export function useSipPhone(onCallEnded?: OnCallEndedCallback, onCallFailed?: (c
       addDiagEvent(`Incoming call from ${incomingCaller}`);
       attachSessionEvents(session);
 
-      // Auto-answer: either integrated call header OR active dialing (PBX callback)
+      // Auto-answer rules — gated by an active dial window to prevent
+      // unsolicited inbound calls (campaigns, queue) from being auto-picked up.
+      const AUTO_ANSWER_WINDOW_MS = 60_000;
+      const dialAt = dialStartedAtRef?.current ?? null;
+      const dialActiveRecently = !!dialAt && Date.now() - dialAt < AUTO_ANSWER_WINDOW_MS;
+
       const shouldAutoAnswer = (() => {
-        if (isDialingRef?.current) {
-          addDiagEvent('Auto-answering: active dial detected');
+        if (isDialingRef?.current && dialActiveRecently) {
+          addDiagEvent(`Auto-answering: active dial callback from ${incomingCaller}`);
           return true;
         }
         const request = (session as any).request;
-        if (request) {
-          const integratedHeader = request.getHeader?.('X-Api4comintegratedcall');
-          if (integratedHeader === 'true') {
-            addDiagEvent('Auto-answering: integrated call header');
-            return true;
-          }
+        const integratedHeader = request?.getHeader?.('X-Api4comintegratedcall');
+        if (integratedHeader === 'true' && dialActiveRecently) {
+          addDiagEvent(`Auto-answering: integrated header from ${incomingCaller}`);
+          return true;
+        }
+        if (integratedHeader === 'true' && !dialActiveRecently) {
+          addDiagEvent(`BLOCKED auto-answer (integrated header sem dial recente) from ${incomingCaller}`);
         }
         return false;
       })();
