@@ -2104,6 +2104,7 @@ export type Database = {
           first_response_minutes: number
           id: string
           is_active: boolean
+          nrt_response_minutes: number
           priority: string
           resolution_minutes: number
           updated_at: string
@@ -2115,6 +2116,7 @@ export type Database = {
           first_response_minutes?: number
           id?: string
           is_active?: boolean
+          nrt_response_minutes?: number
           priority?: string
           resolution_minutes?: number
           updated_at?: string
@@ -2126,6 +2128,7 @@ export type Database = {
           first_response_minutes?: number
           id?: string
           is_active?: boolean
+          nrt_response_minutes?: number
           priority?: string
           resolution_minutes?: number
           updated_at?: string

@@ -1,0 +1,1 @@
+ALTER TABLE public.chat_sla_configs ADD COLUMN IF NOT EXISTS nrt_response_minutes integer NOT NULL DEFAULT 60;
