@@ -184,6 +184,8 @@ export function ChatList() {
           first_response_at: conv.first_response_at || null,
           resolved_at: conv.resolved_at || null,
           closed_at: conv.closed_at || null,
+          last_customer_message_at: (conv as any).last_customer_message_at ?? null,
+          last_message_from_me: (conv as any).last_message_from_me ?? null,
         },
         slaConfigs
       );

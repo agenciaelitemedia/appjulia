@@ -24,6 +24,8 @@ export interface ChatConversation {
   first_response_at?: string;
   closed_at?: string;
   resolved_at?: string;
+  last_customer_message_at?: string | null;
+  last_message_from_me?: boolean | null;
   close_reason?: string;
   close_note?: string;
   metadata?: Record<string, unknown>;

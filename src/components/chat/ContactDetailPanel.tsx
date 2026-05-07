@@ -183,6 +183,8 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
         first_response_at: selectedConversation.first_response_at || null,
         resolved_at: selectedConversation.resolved_at || null,
         closed_at: selectedConversation.closed_at || null,
+        last_customer_message_at: (selectedConversation as any).last_customer_message_at ?? null,
+        last_message_from_me: (selectedConversation as any).last_message_from_me ?? null,
       },
       slaConfigs
     );

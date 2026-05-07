@@ -123,6 +123,8 @@ export const ChatContactItem = React.memo(function ChatContactItem({
         first_response_at: conversation.first_response_at ?? null,
         resolved_at: conversation.resolved_at ?? null,
         closed_at: conversation.closed_at ?? null,
+        last_customer_message_at: conversation.last_customer_message_at ?? null,
+        last_message_from_me: conversation.last_message_from_me ?? null,
       },
       configs
     );

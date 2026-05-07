@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft, Timer, Info } from 'lucide-react';
+import { ArrowLeft, Timer, Info, HelpCircle } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import {
   useChatSlaConfigs,
   DEFAULT_SLA_BY_PRIORITY,
@@ -12,15 +13,22 @@ import {
 } from '@/hooks/useChatSlaConfigs';
 import { useState, useEffect } from 'react';
 
-const PRIORITIES: { value: 'urgent' | 'high' | 'normal' | 'low'; label: string; color: string }[] = [
-  { value: 'urgent', label: 'Urgente', color: 'text-destructive' },
-  { value: 'high', label: 'Alta', color: 'text-orange-500' },
-  { value: 'normal', label: 'Normal', color: 'text-blue-500' },
-  { value: 'low', label: 'Baixa', color: 'text-muted-foreground' },
+const PRIORITIES: { value: 'urgent' | 'high' | 'normal' | 'low'; label: string; color: string; dot: string }[] = [
+  { value: 'urgent', label: 'Crítica',  color: 'text-destructive',        dot: 'bg-red-500' },
+  { value: 'high',   label: 'Alta',     color: 'text-orange-500',         dot: 'bg-orange-400' },
+  { value: 'normal', label: 'Média',    color: 'text-blue-500',           dot: 'bg-blue-500' },
+  { value: 'low',    label: 'Baixa',    color: 'text-muted-foreground',   dot: 'bg-slate-400' },
 ];
+
+const COLUMN_HELP = {
+  first: 'Tempo máximo para o atendente enviar a primeira resposta após a conversa ser aberta.',
+  nrt:   'Tempo máximo para o atendente responder após cada nova mensagem recebida do cliente (NRT — Next Response Time).',
+  resolution: 'Tempo máximo para encerrar/resolver a conversa desde a abertura (TTR — Time to Resolution).',
+};
 
 interface RowState {
   first: number;
+  nrt: number;
   resolution: number;
   active: boolean;
 }
@@ -34,9 +42,10 @@ export function ChatSlaConfigContent({ showIntro = true }: { showIntro?: boolean
     PRIORITIES.forEach((p) => {
       const existing = configs.find((c: ChatSlaConfig) => c.priority === p.value);
       next[p.value] = {
-        first: existing?.first_response_minutes ?? DEFAULT_SLA_BY_PRIORITY[p.value].first,
-        resolution: existing?.resolution_minutes ?? DEFAULT_SLA_BY_PRIORITY[p.value].resolution,
-        active: existing?.is_active ?? true,
+        first:      existing?.first_response_minutes ?? DEFAULT_SLA_BY_PRIORITY[p.value].first,
+        nrt:        existing?.nrt_response_minutes   ?? DEFAULT_SLA_BY_PRIORITY[p.value].nrt,
+        resolution: existing?.resolution_minutes     ?? DEFAULT_SLA_BY_PRIORITY[p.value].resolution,
+        active:     existing?.is_active ?? true,
       };
     });
     setState(next);
@@ -51,10 +60,29 @@ export function ChatSlaConfigContent({ showIntro = true }: { showIntro?: boolean
     upsert.mutate({
       priority: priority as 'urgent' | 'high' | 'normal' | 'low',
       first_response_minutes: Number(r.first) || 0,
-      resolution_minutes: Number(r.resolution) || 0,
+      nrt_response_minutes:   Number(r.nrt)   || 0,
+      resolution_minutes:     Number(r.resolution) || 0,
       is_active: r.active,
     });
   };
+
+  function ColHeader({ label, helpKey }: { label: string; helpKey: keyof typeof COLUMN_HELP }) {
+    return (
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex items-center gap-1 cursor-default select-none">
+              {label}
+              <HelpCircle className="h-3 w-3 text-muted-foreground" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-[220px] text-xs">
+            {COLUMN_HELP[helpKey]}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -65,7 +93,14 @@ export function ChatSlaConfigContent({ showIntro = true }: { showIntro?: boolean
             <div className="text-sm space-y-1">
               <p className="font-semibold text-foreground">Como funciona</p>
               <p className="text-muted-foreground">
-                O SLA é avaliado em duas etapas: <strong>tempo até a 1ª resposta</strong> e <strong>tempo total até a resolução</strong>. As conversas exibirão badges visuais conforme o tempo disponível.
+                O SLA é avaliado em três etapas:
+                <strong> 1ª Resposta (FRT)</strong> — aguardando a primeira resposta do atendente;
+                <strong> Próx. Resposta (NRT)</strong> — atendente deve responder à última mensagem do cliente;
+                <strong> Resolução (TTR)</strong> — atendente já respondeu, aguardando encerramento.
+                As conversas exibem badges visuais conforme o SLA ativo.
+              </p>
+              <p className="text-muted-foreground text-xs">
+                Os tempos seguem horas de trabalho (seg–sex, 9h–18h). Para SLA 24×7, ajuste os valores ou crie uma política específica para plantão.
               </p>
             </div>
           </CardContent>
@@ -85,7 +120,10 @@ export function ChatSlaConfigContent({ showIntro = true }: { showIntro?: boolean
               <Card key={p.value}>
                 <CardHeader className="pb-2">
                   <CardTitle className={`text-base ${p.color} flex items-center justify-between`}>
-                    <span>Prioridade {p.label}</span>
+                    <span className="flex items-center gap-2">
+                      <span className={`h-2.5 w-2.5 rounded-full ${p.dot}`} />
+                      {p.label}
+                    </span>
                     <div className="flex items-center gap-2">
                       <Switch
                         checked={r.active}
@@ -95,9 +133,12 @@ export function ChatSlaConfigContent({ showIntro = true }: { showIntro?: boolean
                     </div>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                   <div>
-                    <Label className="text-xs">Tempo p/ 1ª resposta (min)</Label>
+                    <Label className="text-xs flex items-center gap-1">
+                      <ColHeader label="1ª Resposta (FRT)" helpKey="first" />
+                      <span className="text-muted-foreground">(min)</span>
+                    </Label>
                     <Input
                       type="number"
                       min={1}
@@ -106,7 +147,22 @@ export function ChatSlaConfigContent({ showIntro = true }: { showIntro?: boolean
                     />
                   </div>
                   <div>
-                    <Label className="text-xs">Tempo total p/ resolução (min)</Label>
+                    <Label className="text-xs flex items-center gap-1">
+                      <ColHeader label="Próx. Respostas (NRT)" helpKey="nrt" />
+                      <span className="text-muted-foreground">(min)</span>
+                    </Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={r.nrt}
+                      onChange={(e) => update(p.value, { nrt: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs flex items-center gap-1">
+                      <ColHeader label="Resolução (TTR)" helpKey="resolution" />
+                      <span className="text-muted-foreground">(min)</span>
+                    </Label>
                     <Input
                       type="number"
                       min={1}
@@ -140,7 +196,7 @@ export default function ChatSlaConfigPage() {
             <Timer className="h-5 w-5 text-primary" /> Configuração de SLA
           </h2>
           <p className="text-muted-foreground text-sm">
-            Defina metas de tempo de resposta e resolução por prioridade
+            Defina metas de primeira resposta, próximas respostas e resolução por prioridade
           </p>
         </div>
       </div>
