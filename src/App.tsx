@@ -12,6 +12,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 
 import { ProtectedRoute } from "@/components/guards/ProtectedRoute";
 import { DebugBar } from "@/components/debug/DebugBar";
+import { useAppVersionCheck } from "@/hooks/useAppVersionCheck";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import CRMPage from "./pages/crm/CRMPage";
@@ -97,12 +98,18 @@ import ContatosPage from "./pages/contatos/ContatosPage";
 
 const queryClient = new QueryClient();
 
+const AppVersionWatcher = () => {
+  useAppVersionCheck();
+  return null;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <DebugProvider>
         <Toaster />
         <Sonner />
+        <AppVersionWatcher />
         <BrowserRouter>
           <AuthProvider>
             <UaZapiProvider>
