@@ -16,7 +16,8 @@ import { DisconnectedQueuesAlert } from './DisconnectedQueuesAlert';
 function GlobalSoftphone() {
   const { sip, showSoftphone, setShowSoftphone, softphoneCentered, setSoftphoneCentered, dialContactName, isDialing, dialError, clearDialError, retryDial, cancelDial } = usePhone();
 
-  if (!showSoftphone && !isDialing && !dialError) return null;
+  const sipActive = ['ringing', 'calling', 'in-call'].includes(sip.status);
+  if (!showSoftphone && !isDialing && !dialError && !sipActive) return null;
 
   return (
     <SoftphoneWidget

@@ -95,7 +95,17 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     }).catch(console.error);
   }, [hasTelephonyScope, clientId, codAgent, provider, queryClient]);
 
-  const handleCallFailed = useCallback((cause: string) => {
+  const handleCallFailed = useCallback((cause: string, direction?: 'incoming' | 'outgoing') => {
+    // For incoming calls (no user-initiated dial), don't surface as a dial error.
+    // Show a discreet toast and keep the softphone state clean.
+    if (direction === 'incoming') {
+      if (cause === 'Canceled') {
+        toast.info('Chamada recebida cancelada antes do atendimento');
+      } else {
+        toast.warning(`Chamada recebida finalizada: ${cause}`);
+      }
+      return;
+    }
     const friendlyMsg = cause === 'Canceled'
       ? 'Chamada cancelada ou não atendida'
       : `Falha na chamada: ${cause}`;
