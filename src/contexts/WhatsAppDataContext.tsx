@@ -187,6 +187,17 @@ interface ExtendedContextValue extends ChatContextValue {
   // page have all resolved at least once, so children can safely fetch
   // contact-scoped data (messages, history) without racing the bootstrap.
   isReady: boolean;
+
+  // Hydration state for the currently selected contact.
+  // True while we are fetching a contact row that is not yet in the local
+  // `contacts` cache (e.g. when opening a contact via deep-link or via the
+  // `useChatContactsByIds` overlay used by the chat list filters).
+  isHydratingContact: boolean;
+  // Last hydration error (if any) — used to render a fallback in the chat
+  // panel instead of a permanently blank "Selecione uma conversa" placeholder.
+  contactHydrationError: string | null;
+  // Manually retry hydration for the currently selected contact.
+  retryHydrateSelectedContact: () => void;
 }
 
 const WhatsAppDataContext = createContext<ExtendedContextValue | undefined>(undefined);
@@ -207,6 +218,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const [contacts, setContacts] = useState<ChatContact[]>([]);
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [isHydratingContact, setIsHydratingContact] = useState(false);
+  const [contactHydrationError, setContactHydrationError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ChatTab>('individual');
   const [searchQuery, setSearchQuery] = useState('');
   // Start as loading so the chat list shows skeleton from the very first
@@ -1587,7 +1600,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // ============================================
   const selectContact = useCallback((contactId: string | null) => {
     setSelectedContactId(contactId);
-    if (!contactId) return;
+    setContactHydrationError(null);
+    if (!contactId) {
+      setIsHydratingContact(false);
+      return;
+    }
     (async () => {
       try {
         let contact = contacts.find(c => c.id === contactId) || null;
@@ -1597,6 +1614,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         // Ao clicar neles, o painel central dependia de `selectedContact`
         // vindo só desse cache e acabava ficando no estado vazio.
         if (!contact) {
+          setIsHydratingContact(true);
           const { data: fetchedContact, error } = await supabase
             .from('chat_contacts')
             .select('id,client_id,cod_agent,channel_source,channel_type,remote_jid,phone,name,avatar,is_group,is_archived,is_muted,unread_count,last_message_at,last_message_text,created_at,updated_at')
@@ -1614,6 +1632,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               }
               return repositionContact(prev, contact!);
             });
+          } else {
+            setContactHydrationError('Contato não encontrado.');
           }
         }
 
@@ -1640,9 +1660,18 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         markAsRead(contactId).catch(() => { /* best-effort */ });
       } catch (e) {
         console.warn('[selectContact] error', e);
+        setContactHydrationError(
+          e instanceof Error ? e.message : 'Erro ao carregar a conversa.'
+        );
+      } finally {
+        setIsHydratingContact(false);
       }
     })();
   }, [getOrCreateConversation, contacts, conversations, markAsRead, user?.name, user?.id]);
+
+  const retryHydrateSelectedContact = useCallback(() => {
+    if (selectedContactId) selectContact(selectedContactId);
+  }, [selectContact, selectedContactId]);
 
   // ============================================
   // Sync Contacts (pull from UaZapi API via proxy)
@@ -2253,6 +2282,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
     // Bootstrap readiness — used by children to avoid racing context hydration
     isReady: !!clientId && !queuesLoading && hasLoadedConversationsOnce,
+
+    // Selected contact hydration state
+    isHydratingContact,
+    contactHydrationError,
+    retryHydrateSelectedContact,
   }), [
     contacts, messages, selectedContactId, activeTab, searchQuery, isLoading, isSyncing,
     loadContacts, loadMessages, sendMessage, sendMedia, downloadMedia, markAsRead, syncContacts, selectContact,
@@ -2265,6 +2299,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     hasMoreContacts, isLoadingMoreContacts, loadMoreContacts,
     hasMoreConversations, isLoadingMoreConversations, loadMoreConversations,
     periodFilter, clientId, queuesLoading, hasLoadedConversationsOnce,
+    isHydratingContact, contactHydrationError, retryHydrateSelectedContact,
   ]);
 
   return (
