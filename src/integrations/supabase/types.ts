@@ -5754,6 +5754,21 @@ export type Database = {
     }
     Functions: {
       get_infra_stats: { Args: never; Returns: Json }
+      get_return_chat_candidates: {
+        Args: { batch_limit?: number }
+        Returns: {
+          assigned_to: string
+          channel: string
+          client_id: string
+          contact_id: string
+          id: string
+          last_customer_message_at: string
+          nrt_minutes: number
+          priority: string
+          queue_id: string
+          tolerance_minutes: number
+        }[]
+      }
       map_priority_chat_to_crm: { Args: { p: string }; Returns: string }
       map_priority_crm_to_chat: { Args: { p: string }; Returns: string }
       show_limit: { Args: never; Returns: number }
