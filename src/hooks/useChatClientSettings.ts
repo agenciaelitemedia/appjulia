@@ -15,7 +15,7 @@ const DEFAULTS: ChatClientSettings = {
 
 export function useChatClientSettings() {
   const { user } = useAuth();
-  const clientId = String(user?.id ?? '');
+  const clientId = String(user?.client_id ?? user?.id ?? '');
   const queryClient = useQueryClient();
 
   const { data: settings = DEFAULTS, isLoading } = useQuery({

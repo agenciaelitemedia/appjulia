@@ -1,65 +1,42 @@
-## Diagnóstico
+## Causa raiz
 
-A lógica de SLA em `evaluateSla` (`src/hooks/useChatSlaConfigs.ts`) **já implementa** exatamente o comportamento que você descreveu:
+O hook `src/hooks/useChatClientSettings.ts` (e o `src/hooks/useChatSlaConfigs.ts`) salva e lê as configurações usando `user.id` como `client_id`, em vez do `user.client_id` real do usuário autenticado.
 
-1. Sem `first_response_at` → **FRT** (1ª Resposta).
-2. Com `first_response_at` E `last_message_from_me === false` E `last_customer_message_at` presente → **NRT** (Próxima Resposta).
-3. Com `first_response_at` E última mensagem do atendente → **TTR** (Resolução).
+No caso do Mario:
+- `user.id = 2` (id da linha do usuário)
+- `user.client_id = 30` (cliente ao qual ele pertence)
 
-**O problema:** os campos `last_customer_message_at` e `last_message_from_me` **não existem** na tabela `chat_conversations` (confirmado: a tabela só tem `opened_at`, `first_response_at`, `closed_at`, `resolved_at`, etc.). Em `ChatList`, `ChatHeader`, `ChatContactItem` e `ContactDetailPanel`, esses dois campos sempre chegam como `null` via `(conv as any).last_customer_message_at ?? null`. 
+Quando ele abre `/chat/configuracoes` → aba Geral e ativa "Devolver conversa automaticamente", o registro é gravado em `chat_client_settings` com `client_id = '2'`. Confirmado no banco:
 
-Resultado: o ramo **NRT nunca é alcançado**. Após a primeira resposta o badge cai sempre em **TTR** (Resolução), independente de a última mensagem ser do lead.
+- `client_id='2'` → `return_chat_enabled: true, return_chat_tolerance_minutes: 1`
+- `client_id='30'` → não tem `return_chat_enabled` nem tolerância
 
-## Solução — Derivar os dois campos a partir de `chat_messages`
+A RPC `get_return_chat_candidates` faz `JOIN chat_client_settings cs ON cs.client_id = c.client_id` (e `c.client_id = '30'` para as conversas do Mario). Como não há linha com `return_chat_enabled=true` para o client `30`, nenhuma conversa é devolvida — daí o "0 processadas".
 
-Em vez de adicionar colunas e triggers (mais invasivo), criar um hook que enriquece as conversas visíveis com os metadados da última mensagem real, em uma única query batch. Isso mantém a verdade no `chat_messages` e funciona com os dados já existentes.
+O mesmo bug existe em `useChatSlaConfigs` (SLA de NRT salvo no `client_id` errado), o que também afeta o cálculo de tempo do worker.
 
-### 1. Novo hook `useConversationsLastMessageMeta`
-`src/hooks/useConversationsLastMessageMeta.ts`
+## Correções
 
-Recebe um array de `conversationId[]`. Faz uma única query:
+1. **`src/hooks/useChatClientSettings.ts`**
+   - Trocar `const clientId = String(user?.id ?? '')` por `const clientId = String(user?.client_id ?? user?.id ?? '')`.
+   - Manter o fallback para `user.id` apenas para usuários que são o próprio cliente (sem `client_id`).
 
-```text
-chat_messages
-  .select('conversation_id, timestamp, from_me')
-  .in('conversation_id', ids)
-  .eq('internal_note', false)   // notas internas não contam
-  .order('timestamp', { ascending: false })
-```
+2. **`src/hooks/useChatSlaConfigs.ts`**
+   - Mesma correção: usar `user.client_id` como `clientId`.
 
-E em JS reduz para um `Map<convId, { lastTs, lastFromMe, lastCustomerTs }>`:
-- `lastTs` / `lastFromMe`: primeira ocorrência por conversa (a mais recente).
-- `lastCustomerTs`: primeira ocorrência onde `from_me === false`.
+3. **Migração de dados (insert tool, UPDATE)**
+   - Mover/mesclar a configuração que ficou em `chat_client_settings.client_id='2'` para `client_id='30'` (preservando os outros campos atuais do `30`):
+     - definir `settings.return_chat_enabled = true`
+     - definir `settings.return_chat_tolerance_minutes = 1`
+   - Não apagar a linha `2` automaticamente; só atualizar a `30` para o usuário voltar a ver os valores corretos.
+   - Verificar também `chat_sla_configs` — se houver linhas com `client_id='2'` que deveriam ser `'30'`, mover/mesclar (sem duplicar prioridade existente).
 
-Com `staleTime` curto (~15 s) e `refetchOnWindowFocus`, query keyed por `[ids.sort().join(',')]`. Limite de 200 conversas por chamada (alinhado com a paginação atual).
+4. **Validação**
+   - Após o deploy, abrir `/chat/configuracoes` como Mario: a tela deve mostrar "Devolver conversa = ativado, tolerância = 1 min".
+   - Clicar **Executar agora** no Monitor: a conversa parada há > NRT+tolerância deve ser devolvida (status `pending`, `assigned_to=null`, nota interna inserida e linha em `chat_conversation_history` com `action='auto_returned'`).
 
-### 2. Integração nos pontos de avaliação
-Em cada um destes locais, antes de chamar `evaluateSla`, ler do mapa:
+## Observações
 
-- `src/components/chat/ChatList.tsx` (linha ~179) — para o badge na lista.
-- `src/components/chat/ChatContactItem.tsx` (linha ~118) — badge do item.
-- `src/components/chat/ChatHeader.tsx` (linha ~236) — badge no header da conversa.
-- `src/components/chat/ContactDetailPanel.tsx` (linha ~179) — painel lateral.
-
-`ChatList` busca o lote (`useConversationsLastMessageMeta(visibleConvIds)`) e propaga via prop opcional `lastMessageMeta?: { last_customer_message_at, last_message_from_me }` para `ChatContactItem`. `ChatHeader` e `ContactDetailPanel` chamam o hook só para o `selectedConversation.id`.
-
-### 3. Tipagem
-Acrescentar campos opcionais em `src/types/conversation.ts` e remover os `(conv as any)` casts para deixar o contrato explícito (os campos continuam opcionais — `WhatsAppDataContext` não os preenche, são derivados separadamente).
-
-### 4. Sem mudança de UI
-O `SlaBadge` já mostra o `slaTypeLabel` correto (1ª Resposta / Próx. Resposta / Resolução) e tooltips por tipo — a correção da fonte de dados é suficiente para o badge mudar de FRT → NRT durante a conversa quando o lead voltar a falar.
-
-## Arquivos a alterar
-
-- **Criar** `src/hooks/useConversationsLastMessageMeta.ts`
-- **Editar** `src/components/chat/ChatList.tsx` (buscar batch + passar prop)
-- **Editar** `src/components/chat/ChatContactItem.tsx` (aceitar prop `lastMessageMeta`, usar no `evaluateSla`)
-- **Editar** `src/components/chat/ChatHeader.tsx` (hook single-id)
-- **Editar** `src/components/chat/ContactDetailPanel.tsx` (hook single-id)
-- **Editar** `src/types/conversation.ts` (manter campos opcionais; documentar origem derivada)
-
-## O que não muda
-
-- `evaluateSla` permanece intacto.
-- `chat_conversations` não ganha colunas — sem migração.
-- Nenhum impacto em `chat-return-chat` (já usa CTE direta em `chat_messages`).
+- `ChatReturnChatMonitor` já usa `user?.client_id` corretamente, então o histórico aparecerá assim que o worker processar.
+- A RPC e a edge function `chat-return-chat` estão corretas e não precisam mudar.
+- Importante revisar se outras telas que dependem desses hooks ainda funcionam para usuários "donos" (que não têm `client_id` próprio, apenas `user.id`); por isso o fallback `user.client_id ?? user.id`.
