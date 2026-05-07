@@ -302,17 +302,25 @@ serve(async (req) => {
           .eq('id', queue_id)
           .maybeSingle();
 
-        // Check for linked agents
+        // Auto-unlink agents (confirmação dupla já foi feita no front)
         const { data: links } = await supabase
           .from('queue_agent_links')
           .select('cod_agent')
           .eq('queue_id', queue_id);
 
         if (links && links.length > 0) {
-          return respond({
-            error: 'Cannot delete queue with linked agents. Unlink agents first.',
-            linked_agents: links.map(l => l.cod_agent),
-          }, 409);
+          const { error: unlinkError } = await supabase
+            .from('queue_agent_links')
+            .delete()
+            .eq('queue_id', queue_id);
+          if (unlinkError) {
+            return respond({
+              error: 'Failed to unlink agents from queue',
+              details: unlinkError.message,
+              linked_agents: links.map(l => l.cod_agent),
+            }, 500);
+          }
+          console.log('[queue-management] auto-unlinked agents on delete:', links.map(l => l.cod_agent));
         }
 
         // Check for active conversations
