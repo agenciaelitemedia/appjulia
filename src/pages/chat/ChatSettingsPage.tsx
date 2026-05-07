@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, Settings, Timer, Tag as TagIcon, Cog, Radio, Zap } from 'lucide-react';
+import { ArrowLeft, Settings, Timer, Tag as TagIcon, Cog, Radio, Zap, Activity } from 'lucide-react';
 import { TagsManagerContent } from '@/components/chat/TagsManagerDialog';
 import { ChatSlaConfigContent } from './ChatSlaConfigPage';
 import { WhatsAppDataProvider } from '@/contexts/WhatsAppDataContext';
@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import ChatChannelsPage from './ChatChannelsPage';
 import ChatAutomationsPage from './ChatAutomationsPage';
 import { ChatGeneralSettings } from './components/ChatGeneralSettings';
+import { ChatReturnChatMonitor } from './components/ChatReturnChatMonitor';
 
 function ChatSettingsContent() {
   const navigate = useNavigate();
@@ -30,7 +31,7 @@ function ChatSettingsContent() {
       </div>
 
       <Tabs defaultValue="geral" className="w-full">
-        <TabsList className={`grid w-full ${isAdmin ? 'max-w-3xl grid-cols-5' : 'max-w-md grid-cols-3'}`}>
+        <TabsList className={`grid w-full ${isAdmin ? 'max-w-4xl grid-cols-6' : 'max-w-xl grid-cols-4'}`}>
           <TabsTrigger value="geral" className="gap-1.5">
             <Cog className="h-3.5 w-3.5" /> Geral
           </TabsTrigger>
@@ -39,6 +40,9 @@ function ChatSettingsContent() {
           </TabsTrigger>
           <TabsTrigger value="etiquetas" className="gap-1.5">
             <TagIcon className="h-3.5 w-3.5" /> Etiquetas
+          </TabsTrigger>
+          <TabsTrigger value="monitor" className="gap-1.5">
+            <Activity className="h-3.5 w-3.5" /> Monitor
           </TabsTrigger>
           {isAdmin && (
             <TabsTrigger value="canais" className="gap-1.5">
@@ -62,6 +66,10 @@ function ChatSettingsContent() {
 
         <TabsContent value="etiquetas" className="mt-6">
           <TagsManagerContent />
+        </TabsContent>
+
+        <TabsContent value="monitor" className="mt-6">
+          <ChatReturnChatMonitor />
         </TabsContent>
 
         {isAdmin && (
