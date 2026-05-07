@@ -99,6 +99,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     setDialError(friendlyMsg);
     setIsDialing(false);
     isDialingRef.current = false;
+    dialStartedAtRef.current = null;
   }, []);
 
   const sip = useSipPhone(handleCallEnded, handleCallFailed, isDialingRef, dialStartedAtRef);
