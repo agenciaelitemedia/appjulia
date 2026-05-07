@@ -9,6 +9,7 @@ import { differenceInMinutes, differenceInHours } from 'date-fns';
 import type { ChatContact } from '@/types/chat';
 import type { ChatConversation, ChatTag } from '@/types/conversation';
 import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
+import type { LastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { SlaBadge } from '@/components/chat/SlaBadge';
 import { JuliaStatusBadge } from '@/components/chat/JuliaStatusBadge';
 import { PriorityBadge } from '@/components/chat/PriorityBadge';
@@ -36,6 +37,8 @@ interface ChatContactItemProps {
   stageName?: string | null;
   stageColor?: string | null;
   hasCrmCard?: boolean;
+  /** Metadados derivados de chat_messages para avaliar NRT corretamente. */
+  lastMessageMeta?: LastMessageMeta;
 }
 
 function ChannelOverlay({ channel }: { channel?: string }) {
@@ -109,6 +112,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   stageName,
   stageColor,
   hasCrmCard,
+  lastMessageMeta,
 }: ChatContactItemProps) {
   const { configs } = useChatSlaConfigs();
 
@@ -123,12 +127,12 @@ export const ChatContactItem = React.memo(function ChatContactItem({
         first_response_at: conversation.first_response_at ?? null,
         resolved_at: conversation.resolved_at ?? null,
         closed_at: conversation.closed_at ?? null,
-        last_customer_message_at: conversation.last_customer_message_at ?? null,
-        last_message_from_me: conversation.last_message_from_me ?? null,
+        last_customer_message_at: lastMessageMeta?.last_customer_message_at ?? conversation.last_customer_message_at ?? null,
+        last_message_from_me: lastMessageMeta?.last_message_from_me ?? conversation.last_message_from_me ?? null,
       },
       configs
     );
-  }, [conversation, configs]);
+  }, [conversation, configs, lastMessageMeta]);
 
   const initials = contact.name
     .split(' ')

@@ -36,6 +36,7 @@ import { SnoozeDialog } from './SnoozeDialog';
 import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 import { ChatCrmButton } from './ChatCrmButton';
 import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
+import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { SlaBadge } from './SlaBadge';
 import { PriorityBadge } from './PriorityBadge';
 import { JuliaStatusBadge } from './JuliaStatusBadge';
@@ -229,10 +230,14 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact, markAsRead, conversationTagsMap, setConversationStatusFilter } = useWhatsAppData();
   const { user } = useAuth();
   const { configs: slaConfigs } = useChatSlaConfigs();
+  const { getMeta: getLastMsgMeta } = useConversationsLastMessageMeta(
+    selectedConversation?.id ? [selectedConversation.id] : [],
+  );
 
   const slaEvaluation = React.useMemo(() => {
     if (!selectedConversation) return null;
     if (['closed', 'resolved'].includes(selectedConversation.status)) return null;
+    const meta = getLastMsgMeta(selectedConversation.id);
     return evaluateSla(
       {
         status: selectedConversation.status,
@@ -241,12 +246,12 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         first_response_at: selectedConversation.first_response_at || null,
         resolved_at: selectedConversation.resolved_at || null,
         closed_at: selectedConversation.closed_at || null,
-        last_customer_message_at: (selectedConversation as any).last_customer_message_at ?? null,
-        last_message_from_me: (selectedConversation as any).last_message_from_me ?? null,
+        last_customer_message_at: meta.last_customer_message_at,
+        last_message_from_me: meta.last_message_from_me,
       },
       slaConfigs
     );
-  }, [selectedConversation, slaConfigs]);
+  }, [selectedConversation, slaConfigs, getLastMsgMeta]);
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [showSearch, setShowSearch] = useState(false);

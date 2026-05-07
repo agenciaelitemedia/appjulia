@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAccessibleQueues } from '@/pages/agente/filas/hooks/useQueues';
 import { useAgentQueueLimits } from '@/pages/agente/filas/hooks/useAgentQueueLimits';
 import { useChatSlaConfigs, evaluateSla, type SlaStatus } from '@/hooks/useChatSlaConfigs';
+import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
 import { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
 import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
@@ -171,11 +172,18 @@ export function ChatList() {
   // Default = "Todas as filas" (selectedQueue null). No auto-select.
 
   // SLA status per contact (worst across that contact's open conversations)
+  const openConvIds = React.useMemo(
+    () => conversations.filter(c => ['pending', 'open'].includes(c.status)).map(c => c.id),
+    [conversations],
+  );
+  const { metaMap: lastMsgMetaMap, getMeta: getLastMsgMeta } = useConversationsLastMessageMeta(openConvIds);
+
   const slaStatusByContact = React.useMemo(() => {
     const map = new Map<string, SlaStatus>();
     const rank: Record<SlaStatus, number> = { breached: 3, at_risk: 2, on_track: 1, unknown: 0 };
     conversations.forEach((conv) => {
       if (!['pending', 'open'].includes(conv.status)) return;
+      const meta = lastMsgMetaMap.get(conv.id);
       const evalRes = evaluateSla(
         {
           status: conv.status,
@@ -184,8 +192,8 @@ export function ChatList() {
           first_response_at: conv.first_response_at || null,
           resolved_at: conv.resolved_at || null,
           closed_at: conv.closed_at || null,
-          last_customer_message_at: (conv as any).last_customer_message_at ?? null,
-          last_message_from_me: (conv as any).last_message_from_me ?? null,
+          last_customer_message_at: meta?.last_customer_message_at ?? null,
+          last_message_from_me: meta?.last_message_from_me ?? null,
         },
         slaConfigs
       );
@@ -195,7 +203,7 @@ export function ChatList() {
       }
     });
     return map;
-  }, [conversations, slaConfigs]);
+  }, [conversations, slaConfigs, lastMsgMetaMap]);
 
   const breachedCount = React.useMemo(
     () => Array.from(slaStatusByContact.values()).filter((s) => s === 'breached').length,
@@ -1208,6 +1216,7 @@ export function ChatList() {
                   stageName={queueLink?.hasAgent ? stageInfo?.stageName : undefined}
                   stageColor={queueLink?.hasAgent ? stageInfo?.stageColor : undefined}
                   hasCrmCard={conv?.id ? !!crmLinkedConversationIds?.has(conv.id) : false}
+                  lastMessageMeta={conv ? getLastMsgMeta(conv.id) : undefined}
                 />
               );
             })
