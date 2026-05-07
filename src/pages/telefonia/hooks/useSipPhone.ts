@@ -9,9 +9,11 @@ export interface CallEndedInfo {
   callerInfo: string;
   startedAt: string | null;
   endedAt: string;
+  direction?: 'incoming' | 'outgoing';
 }
 
 export type OnCallEndedCallback = (info: CallEndedInfo) => void;
+export type OnCallFailedCallback = (cause: string, direction?: 'incoming' | 'outgoing') => void;
 
 export interface SipDiagnostics {
   domain: string;
@@ -54,7 +56,7 @@ interface UseSipPhoneReturn {
 
 export function useSipPhone(
   onCallEnded?: OnCallEndedCallback,
-  onCallFailed?: (cause: string) => void,
+  onCallFailed?: OnCallFailedCallback,
   isDialingRef?: React.RefObject<boolean>,
   dialStartedAtRef?: React.RefObject<number | null>,
 ): UseSipPhoneReturn {
@@ -128,6 +130,7 @@ export function useSipPhone(
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const callStartedAtRef = useRef<string | null>(null);
   const callerInfoRef = useRef<string>('');
+  const callDirectionRef = useRef<'incoming' | 'outgoing' | null>(null);
   const onCallEndedRef = useRef(onCallEnded);
   onCallEndedRef.current = onCallEnded;
   const onCallFailedRef = useRef(onCallFailed);
@@ -185,6 +188,7 @@ export function useSipPhone(
           callerInfo: savedCallerInfo,
           startedAt: savedStartedAt,
           endedAt,
+          direction: callDirectionRef.current ?? undefined,
         });
       } catch (e) {
         console.error('onCallEnded callback error:', e);
@@ -204,6 +208,7 @@ export function useSipPhone(
     sessionRef.current = null;
     callStartedAtRef.current = null;
     callerInfoRef.current = '';
+    callDirectionRef.current = null;
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = null;
     }
@@ -246,7 +251,7 @@ export function useSipPhone(
     session.on('failed', (evt: any) => {
       const cause = evt?.cause || 'Unknown';
       addDiagEvent(`Call failed: ${cause}`);
-      onCallFailedRef.current?.(cause);
+      onCallFailedRef.current?.(cause, callDirectionRef.current ?? undefined);
       cleanupSession();
     });
 
@@ -389,8 +394,9 @@ export function useSipPhone(
       const incomingCaller = session.remote_identity?.uri?.user || 'Desconhecido';
       setCallerInfo(incomingCaller);
       callerInfoRef.current = incomingCaller;
+      callDirectionRef.current = 'incoming';
       setStatus('ringing');
-      addDiagEvent(`Incoming call from ${incomingCaller}`);
+      addDiagEvent(`Incoming call received from ${incomingCaller}`);
       attachSessionEvents(session);
 
       // Auto-answer rules — gated by an active dial window to prevent
@@ -412,6 +418,9 @@ export function useSipPhone(
         }
         if (integratedHeader === 'true' && !dialActiveRecently) {
           addDiagEvent(`BLOCKED auto-answer (integrated header sem dial recente) from ${incomingCaller}`);
+        }
+        if (!isDialingRef?.current) {
+          addDiagEvent(`Auto-answer blocked: no recent dial. Incoming from ${incomingCaller}`);
         }
         return false;
       })();
@@ -453,6 +462,7 @@ export function useSipPhone(
 
     setCallerInfo(target);
     callerInfoRef.current = target;
+    callDirectionRef.current = 'outgoing';
     setStatus('calling');
 
     const session = uaRef.current.call(`sip:${target}@${credsRef.current.domain}`, {
