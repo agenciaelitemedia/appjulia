@@ -187,6 +187,17 @@ interface ExtendedContextValue extends ChatContextValue {
   // page have all resolved at least once, so children can safely fetch
   // contact-scoped data (messages, history) without racing the bootstrap.
   isReady: boolean;
+
+  // Hydration state for the currently selected contact.
+  // True while we are fetching a contact row that is not yet in the local
+  // `contacts` cache (e.g. when opening a contact via deep-link or via the
+  // `useChatContactsByIds` overlay used by the chat list filters).
+  isHydratingContact: boolean;
+  // Last hydration error (if any) — used to render a fallback in the chat
+  // panel instead of a permanently blank "Selecione uma conversa" placeholder.
+  contactHydrationError: string | null;
+  // Manually retry hydration for the currently selected contact.
+  retryHydrateSelectedContact: () => void;
 }
 
 const WhatsAppDataContext = createContext<ExtendedContextValue | undefined>(undefined);
