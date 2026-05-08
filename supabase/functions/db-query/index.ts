@@ -144,8 +144,15 @@ function normalizeCaCert(input: string): string[] {
  */
 function createConnection(caCerts: string[]) {
   const externalDbUrl = (Deno.env.get('EXTERNAL_DB_URL') ?? '').trim();
-  
-  const ssl = caCerts.length > 0
+
+  // Detect Unix socket connection (cannot use TLS over Unix sockets)
+  const isUnixSocket = externalDbUrl.includes('/.s.PGSQL.')
+    || externalDbUrl.startsWith('socket:')
+    || (Deno.env.get('EXTERNAL_DB_HOST') ?? '').includes('/.s.PGSQL.');
+
+  const ssl = isUnixSocket
+    ? false
+    : caCerts.length > 0
     ? { caCerts, rejectUnauthorized: true }
     : "require" as const;
 
