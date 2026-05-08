@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Activity, RefreshCw, PlayCircle, CheckCircle2, AlertTriangle, Clock, RotateCcw } from 'lucide-react';
+import { Activity, RefreshCw, PlayCircle, CheckCircle2, AlertTriangle, Clock, RotateCcw, Gauge, Timer } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatDistanceToNow, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -27,6 +27,8 @@ interface RunResult {
   processed: number;
   results: Array<{ id: string; ok: boolean; error?: string }>;
   ranAt: string;
+  durationMs?: number;
+  rpcMs?: number;
 }
 
 export function ChatReturnChatMonitor() {
@@ -61,6 +63,24 @@ export function ChatReturnChatMonitor() {
     },
   });
 
+  // Stats agregadas (24h / 7d) — p50/p95/máx de duração e RPC
+  const { data: perfStats } = useQuery({
+    queryKey: ['return-chat-perf-stats'],
+    refetchInterval: 30_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_return_chat_run_stats');
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        window_label: string; runs: number; candidates: number; processed: number; errors: number;
+        avg_total_ms: number; p50_total_ms: number; p95_total_ms: number; max_total_ms: number;
+        avg_rpc_ms: number; p50_rpc_ms: number; p95_rpc_ms: number; max_rpc_ms: number;
+      }>;
+    },
+  });
+
+  const stats24h = perfStats?.find(s => s.window_label === '24h');
+  const stats7d = perfStats?.find(s => s.window_label === '7d');
+
   const now = Date.now();
   const last24h = rows.filter(r => now - new Date(r.created_at).getTime() < 86_400_000).length;
   const last7d = rows.filter(r => now - new Date(r.created_at).getTime() < 7 * 86_400_000).length;
@@ -69,21 +89,25 @@ export function ChatReturnChatMonitor() {
   const handleRunNow = async () => {
     setRunning(true);
     try {
-      const { data, error } = await supabase.functions.invoke('chat-return-chat', { body: {} });
+      const { data, error } = await supabase.functions.invoke('chat-return-chat', { body: { trigger: 'manual' } });
       if (error) throw error;
       const result: RunResult = {
         processed: data?.processed ?? 0,
         results: data?.results ?? [],
         ranAt: new Date().toISOString(),
+        durationMs: data?.durationMs,
+        rpcMs: data?.rpcMs,
       };
       setLastRun(result);
       const errors = result.results.filter(r => !r.ok).length;
       if (errors > 0) {
         toast.warning(`Processadas ${result.processed}, ${errors} com erro`);
       } else {
-        toast.success(`Execução concluída — ${result.processed} processada(s)`);
+        const ms = data?.durationMs;
+        toast.success(`Execução concluída — ${result.processed} processada(s)${ms ? ` em ${ms}ms` : ''}`);
       }
       qc.invalidateQueries({ queryKey: ['return-chat-history', clientId] });
+      qc.invalidateQueries({ queryKey: ['return-chat-perf-stats'] });
     } catch (err: any) {
       toast.error(`Falha ao executar: ${err?.message ?? err}`);
       setLastRun({ processed: 0, results: [{ id: '-', ok: false, error: String(err?.message ?? err) }], ranAt: new Date().toISOString() });
@@ -140,6 +164,55 @@ export function ChatReturnChatMonitor() {
           hint="Conversas devolvidas à fila"
         />
       </div>
+
+      {/* Performance metrics */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Gauge className="h-4 w-4 text-primary" />
+            Performance do worker
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Latência total da execução e tempo da consulta principal (RPC <code className="font-mono text-[11px]">get_return_chat_candidates</code>).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[80px]">Janela</TableHead>
+                <TableHead className="text-right">Execuções</TableHead>
+                <TableHead className="text-right">Total p50</TableHead>
+                <TableHead className="text-right">Total p95</TableHead>
+                <TableHead className="text-right">Total máx</TableHead>
+                <TableHead className="text-right">RPC p50</TableHead>
+                <TableHead className="text-right">RPC p95</TableHead>
+                <TableHead className="text-right">RPC máx</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[stats24h, stats7d].map((s, i) => (
+                <TableRow key={i}>
+                  <TableCell className="font-semibold text-xs">{s?.window_label ?? (i === 0 ? '24h' : '7d')}</TableCell>
+                  <TableCell className="text-right tabular-nums text-xs">{s?.runs ?? 0}</TableCell>
+                  <TableCell className="text-right tabular-nums text-xs">{fmtMs(s?.p50_total_ms)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-xs">{fmtMs(s?.p95_total_ms)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-xs">{fmtMs(s?.max_total_ms)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-xs text-emerald-600">{fmtMs(s?.p50_rpc_ms)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-xs text-emerald-600">{fmtMs(s?.p95_rpc_ms)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-xs text-emerald-600">{fmtMs(s?.max_rpc_ms)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {lastRun?.durationMs !== undefined && (
+            <div className="mt-3 text-[11px] text-muted-foreground flex items-center gap-2">
+              <Timer className="h-3 w-3" />
+              Última execução manual: total {lastRun.durationMs}ms · RPC {lastRun.rpcMs ?? 0}ms
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Cron info */}
       <Alert>
@@ -241,4 +314,12 @@ function StatCard({ icon, label, value, hint }: { icon: React.ReactNode; label: 
       {hint && <div className="text-[11px] text-muted-foreground mt-0.5">{hint}</div>}
     </div>
   );
+}
+
+function fmtMs(v: number | null | undefined): string {
+  if (v === null || v === undefined) return '—';
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return '—';
+  if (n >= 1000) return `${(n / 1000).toFixed(2)}s`;
+  return `${Math.round(n)}ms`;
 }

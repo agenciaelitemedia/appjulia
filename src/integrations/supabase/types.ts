@@ -1889,6 +1889,42 @@ export type Database = {
           },
         ]
       }
+      chat_return_chat_runs: {
+        Row: {
+          candidates: number
+          duration_ms: number
+          errors: number
+          id: string
+          notes: string | null
+          processed: number
+          ran_at: string
+          rpc_ms: number
+          trigger: string
+        }
+        Insert: {
+          candidates?: number
+          duration_ms: number
+          errors?: number
+          id?: string
+          notes?: string | null
+          processed?: number
+          ran_at?: string
+          rpc_ms: number
+          trigger?: string
+        }
+        Update: {
+          candidates?: number
+          duration_ms?: number
+          errors?: number
+          id?: string
+          notes?: string | null
+          processed?: number
+          ran_at?: string
+          rpc_ms?: number
+          trigger?: string
+        }
+        Relationships: []
+      }
       chat_role_permissions: {
         Row: {
           client_id: string
@@ -5759,6 +5795,24 @@ export type Database = {
       }
     }
     Functions: {
+      get_db_cache_hit_ratio: {
+        Args: never
+        Returns: {
+          heap_hit_ratio: number
+          index_hit_ratio: number
+          measured_at: string
+        }[]
+      }
+      get_db_top_queries: {
+        Args: { limit_rows?: number }
+        Returns: {
+          calls: number
+          mean_ms: number
+          query: string
+          rows_total: number
+          total_ms: number
+        }[]
+      }
       get_infra_stats: { Args: never; Returns: Json }
       get_return_chat_candidates: {
         Args: { batch_limit?: number }
@@ -5773,6 +5827,24 @@ export type Database = {
           priority: string
           queue_id: string
           tolerance_minutes: number
+        }[]
+      }
+      get_return_chat_run_stats: {
+        Args: never
+        Returns: {
+          avg_rpc_ms: number
+          avg_total_ms: number
+          candidates: number
+          errors: number
+          max_rpc_ms: number
+          max_total_ms: number
+          p50_rpc_ms: number
+          p50_total_ms: number
+          p95_rpc_ms: number
+          p95_total_ms: number
+          processed: number
+          runs: number
+          window_label: string
         }[]
       }
       map_priority_chat_to_crm: { Args: { p: string }; Returns: string }

@@ -23,22 +23,51 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
+  const startedAt = Date.now();
+  let trigger: 'cron' | 'manual' = 'cron';
   try {
+    const body = await req.clone().json().catch(() => ({}));
+    if (body && body.trigger === 'manual') trigger = 'manual';
+  } catch (_) { /* noop */ }
+
+  try {
+    const rpcStart = Date.now();
     const { data: conversations, error } = await supabase.rpc(
       'get_return_chat_candidates',
       { batch_limit: BATCH_LIMIT },
     );
+    const rpcMs = Date.now() - rpcStart;
     if (error) throw error;
 
     const results = await processConversations(supabase, conversations ?? []);
+    const errors = results.filter((r) => !r.ok).length;
+    const durationMs = Date.now() - startedAt;
     console.log(`chat-return-chat: processed ${results.length} conversations`);
 
+    await supabase.from('chat_return_chat_runs').insert({
+      trigger,
+      duration_ms: durationMs,
+      rpc_ms: rpcMs,
+      candidates: (conversations ?? []).length,
+      processed: results.length,
+      errors,
+    });
+
     return new Response(
-      JSON.stringify({ processed: results.length, results }),
+      JSON.stringify({ processed: results.length, results, durationMs, rpcMs }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   } catch (err) {
     console.error('chat-return-chat error:', err);
+    await supabase.from('chat_return_chat_runs').insert({
+      trigger,
+      duration_ms: Date.now() - startedAt,
+      rpc_ms: 0,
+      candidates: 0,
+      processed: 0,
+      errors: 1,
+      notes: String(err).slice(0, 500),
+    }).then(() => {}, () => {});
     return new Response(JSON.stringify({ error: String(err) }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
