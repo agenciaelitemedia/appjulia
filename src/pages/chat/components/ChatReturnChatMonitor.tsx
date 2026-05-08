@@ -315,3 +315,11 @@ function StatCard({ icon, label, value, hint }: { icon: React.ReactNode; label: 
     </div>
   );
 }
+
+function fmtMs(v: number | null | undefined): string {
+  if (v === null || v === undefined) return '—';
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return '—';
+  if (n >= 1000) return `${(n / 1000).toFixed(2)}s`;
+  return `${Math.round(n)}ms`;
+}
