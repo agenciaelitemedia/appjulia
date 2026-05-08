@@ -213,11 +213,49 @@ interface WhatsAppDataProviderProps {
 export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const { user } = useAuth();
 
+  // Max number of contact message lists kept in memory.
+  // When exceeded, the oldest accessed entries (excluding the selected contact)
+  // are evicted to prevent unbounded RAM growth during long sessions.
+  const MESSAGES_LRU_MAX = 50;
+  const messagesLruOrder = useRef<string[]>([]);
+
   // State
   const [effectiveClientId, setEffectiveClientId] = useState('');
   const [contacts, setContacts] = useState<ChatContact[]>([]);
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+
+  // LRU-aware wrapper around setMessages.
+  // Tracks access order and evicts the oldest entries when the map exceeds
+  // MESSAGES_LRU_MAX, skipping the currently selected contact so it is
+  // never evicted mid-session.
+  const setMessagesLru = useCallback(
+    (updater: (prev: Record<string, ChatMessage[]>) => Record<string, ChatMessage[]>, touchedId?: string) => {
+      setMessages(prev => {
+        const next = updater(prev);
+        if (touchedId) {
+          // Move touched id to end (most recently used)
+          messagesLruOrder.current = [
+            ...messagesLruOrder.current.filter(id => id !== touchedId),
+            touchedId,
+          ];
+        }
+        const keys = Object.keys(next);
+        if (keys.length <= MESSAGES_LRU_MAX) return next;
+        // Evict oldest entries that are not the current selected contact
+        const evict = messagesLruOrder.current
+          .filter(id => id !== selectedContactId && id in next)
+          .slice(0, keys.length - MESSAGES_LRU_MAX);
+        if (evict.length === 0) return next;
+        const trimmed = { ...next };
+        evict.forEach(id => { delete trimmed[id]; });
+        messagesLruOrder.current = messagesLruOrder.current.filter(id => !evict.includes(id));
+        return trimmed;
+      });
+    },
+    [selectedContactId]
+  );
+
   const [isHydratingContact, setIsHydratingContact] = useState(false);
   const [contactHydrationError, setContactHydrationError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ChatTab>('individual');
@@ -1031,7 +1069,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         chatMessages.forEach(m => knownMessageIds.current.add(m.id));
 
         const ordered = chatMessages.reverse();
-        setMessages(prev => {
+        setMessagesLru(prev => {
           const existing = prev[contactId] || [];
           if (offset === 0) {
             // Merge dedupe by id — preserves any realtime messages that
@@ -1044,7 +1082,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           const existingIds = new Set(existing.map(m => m.id));
           const newOlder = ordered.filter(m => !existingIds.has(m.id));
           return { ...prev, [contactId]: [...newOlder, ...existing] };
-        });
+        }, contactId);
 
         return { messages: chatMessages, hasMore: cachedMessages.length === limit };
       }
@@ -1052,7 +1090,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       // Empty result — make sure the bucket exists so the UI exits the
       // loading state with a deterministic empty list (instead of `undefined`).
       if (offset === 0) {
-        setMessages(prev => (prev[contactId] ? prev : { ...prev, [contactId]: [] }));
+        setMessagesLru(prev => (prev[contactId] ? prev : { ...prev, [contactId]: [] }), contactId);
       }
       return { messages: [], hasMore: false };
     } catch (error) {
@@ -1903,7 +1941,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           };
 
           let wasDuplicate = false;
-          setMessages(prev => {
+          setMessagesLru(prev => {
             const existing = prev[enriched.contact_id] || [];
             const isDuplicate = existing.some(m =>
               m.id === enriched.id ||
@@ -1918,7 +1956,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               ...prev,
               [enriched.contact_id]: [...existing, enriched],
             };
-          });
+          }, enriched.contact_id);
 
           // For outbound from_me messages received via realtime (sent from another device):
           // update last_message_text in-memory so the preview reflects the sent media.

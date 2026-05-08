@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
@@ -754,6 +755,17 @@ export function ChatList() {
     });
   }, [visibleContacts, fetchedMissing]);
 
+  // Virtual scroll — only renders items in the visible viewport.
+  // estimateSize ≈ base item height (3 info rows + tags). measureElement
+  // corrects actual heights so taller items (with tags) still display correctly.
+  const rowVirtualizer = useVirtualizer({
+    count: finalVisibleContacts.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => 102,
+    overscan: 8,
+    measureElement: (el) => el.getBoundingClientRect().height,
+  });
+
   const channelBadge = (type: string) => {
     switch (type) {
       case 'uazapi': return <Badge variant="outline" className="text-[10px] px-1 text-emerald-600 border-emerald-300">WhatsApp</Badge>;
@@ -1158,9 +1170,9 @@ export function ChatList() {
             Atualizando…
           </div>
         )}
-        <div className="py-1">
-          {isLoading && contacts.length === 0 ? (
-            Array.from({ length: 8 }).map((_, i) => (
+        {isLoading && contacts.length === 0 ? (
+          <div className="py-1">
+            {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-3">
                 <Skeleton className="h-10 w-10 rounded-full" />
                 <div className="flex-1 space-y-2">
@@ -1168,29 +1180,30 @@ export function ChatList() {
                   <Skeleton className="h-3 w-1/2" />
                 </div>
               </div>
-            ))
-          ) : finalVisibleContacts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-              <MessageCircle className="h-12 w-12 mb-4 opacity-50" />
-              <p className="font-medium">Nenhuma conversa</p>
-              <p className="text-sm mt-1">
-                {slaFilter !== 'all'
-                  ? slaFilter === 'breached'
-                    ? 'Nenhum ticket com SLA estourado'
-                    : 'Nenhum ticket com SLA em risco'
-                  : searchQuery
-                    ? 'Tente uma busca diferente'
-                    : 'As mensagens aparecerão aqui quando recebidas'}
-              </p>
-            </div>
-          ) : (
-            finalVisibleContacts.map((contact, idx) => {
-              // Pick most recent conversation (any status) so queue/team stay visible.
-              // Uses pre-grouped, pre-sorted Map → O(1) per row instead of
-              // O(N log N) filter+sort on every render.
+            ))}
+          </div>
+        ) : finalVisibleContacts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+            <MessageCircle className="h-12 w-12 mb-4 opacity-50" />
+            <p className="font-medium">Nenhuma conversa</p>
+            <p className="text-sm mt-1">
+              {slaFilter !== 'all'
+                ? slaFilter === 'breached'
+                  ? 'Nenhum ticket com SLA estourado'
+                  : 'Nenhum ticket com SLA em risco'
+                : searchQuery
+                  ? 'Tente uma busca diferente'
+                  : 'As mensagens aparecerão aqui quando recebidas'}
+            </p>
+          </div>
+        ) : (
+          <div
+            style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+              const contact = finalVisibleContacts[virtualItem.index];
               const contactConvs = convsByContact.get(contact.id) || [];
               const conv = contactConvs[0];
-              // Fallback: if current conversation has no queue, look for the most recent prior conversation that has one
               const queueIdToShow = conv?.queue_id || contactConvs.find(c => c.queue_id)?.queue_id;
               const convQueue = queueIdToShow ? activeQueues.find(q => q.id === queueIdToShow) : undefined;
               const queueLink = queueIdToShow ? queueAgentMap?.get(queueIdToShow) : undefined;
@@ -1201,42 +1214,54 @@ export function ChatList() {
               const normPhone = (contact.phone || '').replace(/\D/g, '');
               const stageInfo = normPhone ? stageByPhone?.get(normPhone) : undefined;
               return (
-                <ChatContactItem
-                  key={contact.id}
-                  contact={contact}
-                  isSelected={contact.id === selectedContactId}
-                  onClick={() => selectContact(contact.id)}
-                  conversation={conv}
-                  queueName={convQueue?.name}
-                  assignedAgentName={conv?.assigned_to || undefined}
-                  index={idx}
-                  convTags={conv ? (conversationTagsMap?.[conv.id] || []) : undefined}
-                  agentCodAgent={agentCodAgent}
-                  agentAlias={agentAlias}
-                  stageName={queueLink?.hasAgent ? stageInfo?.stageName : undefined}
-                  stageColor={queueLink?.hasAgent ? stageInfo?.stageColor : undefined}
-                  hasCrmCard={conv?.id ? !!crmLinkedConversationIds?.has(conv.id) : false}
-                  lastMessageMeta={conv ? getLastMsgMeta(conv.id) : undefined}
-                />
+                <div
+                  key={virtualItem.key}
+                  data-index={virtualItem.index}
+                  ref={rowVirtualizer.measureElement}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  <ChatContactItem
+                    contact={contact}
+                    isSelected={contact.id === selectedContactId}
+                    onClick={() => selectContact(contact.id)}
+                    conversation={conv}
+                    queueName={convQueue?.name}
+                    assignedAgentName={conv?.assigned_to || undefined}
+                    index={virtualItem.index}
+                    convTags={conv ? (conversationTagsMap?.[conv.id] || []) : undefined}
+                    agentCodAgent={agentCodAgent}
+                    agentAlias={agentAlias}
+                    stageName={queueLink?.hasAgent ? stageInfo?.stageName : undefined}
+                    stageColor={queueLink?.hasAgent ? stageInfo?.stageColor : undefined}
+                    hasCrmCard={conv?.id ? !!crmLinkedConversationIds?.has(conv.id) : false}
+                    lastMessageMeta={conv ? getLastMsgMeta(conv.id) : undefined}
+                  />
+                </div>
               );
-            })
-          )}
+            })}
+          </div>
+        )}
 
-          {/* Infinite scroll loader / sentinel */}
-          {isLoadingMoreContacts && contacts.length > 0 && (
-            <div className="flex justify-center py-3">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            </div>
-          )}
-          {finalVisibleContacts.length > 0 && (
-            <div ref={bottomSentinelRef} className="h-1" />
-          )}
-          {!isLoading && !hasMoreContacts && finalVisibleContacts.length > 0 && (
-            <div className="text-center text-[10px] text-muted-foreground py-3">
-              Fim da lista
-            </div>
-          )}
-        </div>
+        {/* Infinite scroll loader / sentinel */}
+        {isLoadingMoreContacts && contacts.length > 0 && (
+          <div className="flex justify-center py-3">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        {finalVisibleContacts.length > 0 && (
+          <div ref={bottomSentinelRef} className="h-1" />
+        )}
+        {!isLoading && !hasMoreContacts && finalVisibleContacts.length > 0 && (
+          <div className="text-center text-[10px] text-muted-foreground py-3">
+            Fim da lista
+          </div>
+        )}
       </div>
 
       {/* Footer: iniciar nova conversa */}
