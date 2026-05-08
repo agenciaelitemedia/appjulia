@@ -1318,6 +1318,8 @@ export type Database = {
           department: string | null
           first_response_at: string | null
           id: string
+          last_customer_message_at: string | null
+          last_message_from_me: boolean | null
           metadata: Json | null
           opened_at: string
           priority: string
@@ -1344,6 +1346,8 @@ export type Database = {
           department?: string | null
           first_response_at?: string | null
           id?: string
+          last_customer_message_at?: string | null
+          last_message_from_me?: boolean | null
           metadata?: Json | null
           opened_at?: string
           priority?: string
@@ -1370,6 +1374,8 @@ export type Database = {
           department?: string | null
           first_response_at?: string | null
           id?: string
+          last_customer_message_at?: string | null
+          last_message_from_me?: boolean | null
           metadata?: Json | null
           opened_at?: string
           priority?: string
