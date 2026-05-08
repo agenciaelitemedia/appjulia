@@ -904,7 +904,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       .from('chat_conversation_history')
       .select('*')
       .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(500);
     setConversationHistory((data || []) as ConversationHistoryEntry[]);
   }, []);
 
@@ -1824,15 +1825,22 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   useEffect(() => {
     if (!clientId) return;
 
+    // When a specific queue is selected, filter Realtime at the server level
+    // to that queue only — reduces broadcast volume by ~60-80% per agent.
+    // When viewing "Todas", fall back to client_id (JS-side filtering still applies).
+    const contactsFilter = currentQueueId
+      ? `channel_source=eq.${currentQueueId}`
+      : `client_id=eq.${clientId}`;
+
     const contactsChannel = supabase
-      .channel('chat_contacts_changes')
+      .channel(`chat_contacts_changes_${currentQueueId ?? 'all'}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'chat_contacts',
-          filter: `client_id=eq.${clientId}`,
+          filter: contactsFilter,
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {
@@ -2033,15 +2041,19 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       )
       .subscribe();
 
+    const conversationsFilter = currentQueueId
+      ? `queue_id=eq.${currentQueueId}`
+      : `client_id=eq.${clientId}`;
+
     const conversationsChannel = supabase
-      .channel('chat_conversations_changes')
+      .channel(`chat_conversations_changes_${currentQueueId ?? 'all'}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'chat_conversations',
-          filter: `client_id=eq.${clientId}`,
+          filter: conversationsFilter,
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {

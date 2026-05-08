@@ -1317,8 +1317,13 @@ Deno.serve(async (req) => {
 
     console.log(`[uazapi-chat-webhook] Done. processed=${processed} skipped=${JSON.stringify(skipped)} backfills=${backfillTriggered.size}`);
 
-    // Await the n8n fan-out promise that was started early (before messages loop).
-    await n8nFanOutPromise;
+    // Move n8n fan-out to background so webhook responds immediately.
+    // EdgeRuntime.waitUntil keeps the isolate alive until the promise settles
+    // without blocking the HTTP response — prevents duplicate deliveries caused
+    // by provider retries when fan-out to many agents takes > 15s.
+    if (n8nFanOutPromise) {
+      EdgeRuntime.waitUntil(n8nFanOutPromise);
+    }
 
     return respond({ ok: true, event, processed, skipped, backfills: backfillTriggered.size });
   } catch (error) {
