@@ -139,27 +139,53 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ delivered: 0 }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    let delivered = 0;
-    await Promise.all(hooks.map(async (h: any) => {
+    // Timeout per individual webhook delivery — prevents one slow endpoint
+    // from blocking all other deliveries in the Promise.all batch.
+    const DELIVERY_TIMEOUT_MS = 8_000;
+    const RETRY_DELAY_MS = 1_000;
+
+    const deliverOne = async (h: any): Promise<void> => {
       const provider = detectProvider(h.url);
       const { body, headers } = formatForProvider(provider, event, payload);
       if (h.secret && provider === "generic") {
         headers["X-Lovable-Signature"] = `sha256=${await hmacSha256(h.secret, body)}`;
       }
-      try {
-        const r = await fetch(h.url, { method: "POST", headers, body });
-        await supabase.from("chat_webhook_deliveries").insert({
-          webhook_id: h.id, event, payload: { ...payload, _provider: provider }, status_code: r.status, success: r.ok,
-          error_message: r.ok ? null : `HTTP ${r.status}`,
-        });
-        if (r.ok) delivered++;
-      } catch (err) {
-        await supabase.from("chat_webhook_deliveries").insert({
-          webhook_id: h.id, event, payload: { ...payload, _provider: provider }, success: false,
-          error_message: err instanceof Error ? err.message : String(err),
-        });
+
+      let lastError: string | null = null;
+      let statusCode: number | null = null;
+      let success = false;
+
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS);
+        try {
+          const r = await fetch(h.url, { method: "POST", headers, body, signal: controller.signal });
+          clearTimeout(timer);
+          statusCode = r.status;
+          success = r.ok;
+          lastError = r.ok ? null : `HTTP ${r.status}`;
+          if (r.ok) break;
+          // Retry once on 5xx
+          if (r.status < 500 || attempt === 2) break;
+          await new Promise(res => setTimeout(res, RETRY_DELAY_MS));
+        } catch (err) {
+          clearTimeout(timer);
+          const msg = err instanceof Error ? err.message : String(err);
+          lastError = controller.signal.aborted ? `timeout after ${DELIVERY_TIMEOUT_MS}ms` : msg;
+          if (attempt === 2) break;
+          await new Promise(res => setTimeout(res, RETRY_DELAY_MS));
+        }
       }
-    }));
+
+      await supabase.from("chat_webhook_deliveries").insert({
+        webhook_id: h.id, event, payload: { ...payload, _provider: provider },
+        status_code: statusCode, success, error_message: lastError,
+      });
+      if (success) delivered++;
+    };
+
+    let delivered = 0;
+    await Promise.all(hooks.map(deliverOne));
 
     return new Response(JSON.stringify({ delivered }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {

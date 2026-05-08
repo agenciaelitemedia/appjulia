@@ -13,6 +13,39 @@ const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // ============================================
+// Resilient fetch: retries on 429 (rate-limit) and 5xx errors.
+// Respects the Retry-After header from Meta when present.
+// ============================================
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxAttempts = 3,
+): Promise<Response> {
+  let lastResp: Response | null = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const resp = await fetch(url, options);
+    if (resp.status === 429) {
+      const retryAfter = Number(resp.headers.get("Retry-After") ?? 60);
+      console.warn(`[waba-send] rate-limited (429), waiting ${retryAfter}s (attempt ${attempt}/${maxAttempts})`);
+      if (attempt < maxAttempts) await sleep(retryAfter * 1000);
+      lastResp = resp;
+      continue;
+    }
+    if (resp.status >= 500 && attempt < maxAttempts) {
+      const backoff = attempt * 2000;
+      console.warn(`[waba-send] server error ${resp.status}, retrying in ${backoff}ms (attempt ${attempt}/${maxAttempts})`);
+      await sleep(backoff);
+      lastResp = resp;
+      continue;
+    }
+    return resp;
+  }
+  return lastResp!;
+}
+
+// ============================================
 // Persist outbound message to chat_messages (Meta does NOT echo to webhook)
 // ============================================
 async function persistOutbound(args: {
@@ -309,7 +342,7 @@ Deno.serve(async (req) => {
         }
 
         const cleanNumber = to.replace(/\D/g, "");
-        const resp = await fetch(`${GRAPH_API}/${phone_number_id}/messages`, {
+        const resp = await fetchWithRetry(`${GRAPH_API}/${phone_number_id}/messages`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${waba_token}`,
@@ -389,7 +422,7 @@ Deno.serve(async (req) => {
 
         console.log(`[waba-send] Uploading media: type=${media_type}, mime=${uploadMime}, size=${bytes.length}, filename=${fallbackName}`);
 
-        const uploadResp = await fetch(`${GRAPH_API}/${phone_number_id}/media`, {
+        const uploadResp = await fetchWithRetry(`${GRAPH_API}/${phone_number_id}/media`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${waba_token}`,
@@ -425,7 +458,7 @@ Deno.serve(async (req) => {
           mediaPayload.filename = filename;
         }
 
-        const msgResp = await fetch(`${GRAPH_API}/${phone_number_id}/messages`, {
+        const msgResp = await fetchWithRetry(`${GRAPH_API}/${phone_number_id}/messages`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${waba_token}`,
@@ -468,7 +501,7 @@ Deno.serve(async (req) => {
         }
 
         // Step 1: Get media URL
-        const mediaInfoResp = await fetch(`${GRAPH_API}/${media_id}`, {
+        const mediaInfoResp = await fetchWithRetry(`${GRAPH_API}/${media_id}`, {
           headers: { Authorization: `Bearer ${waba_token}` },
         });
         const mediaInfo = await mediaInfoResp.json();
@@ -517,7 +550,7 @@ Deno.serve(async (req) => {
           );
         }
         try {
-          const resp = await fetch(`${GRAPH_API}/${phone_number_id}/messages`, {
+          const resp = await fetchWithRetry(`${GRAPH_API}/${phone_number_id}/messages`, {
             method: "POST",
             headers: {
               Authorization: `Bearer ${waba_token}`,

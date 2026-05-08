@@ -889,16 +889,26 @@ Deno.serve(async (req) => {
       if (targets.length > 0) {
         const N8N_BASE_URL = Deno.env.get('N8N_HUB_WEBHOOK_URL') || 'https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start';
         const rawBody = JSON.stringify(payload);
+        // 10s timeout per agent — prevents a slow N8N instance from
+        // blocking the whole fan-out when running in EdgeRuntime.waitUntil().
+        const N8N_TIMEOUT_MS = 10_000;
         const promises = targets.map((link) => {
           const n8nUrl = `${N8N_BASE_URL}?app=uazapi&c=${link.cod_agent}`;
-          console.log(`[fan-out] POST n8n agent=${link.cod_agent} url=${n8nUrl}`);
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), N8N_TIMEOUT_MS);
+          console.log(`[fan-out] POST n8n agent=${link.cod_agent}`);
           return fetch(n8nUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: rawBody,
+            signal: controller.signal,
           })
-            .then((r) => console.log(`[fan-out] response agent=${link.cod_agent} status=${r.status}`))
-            .catch((err: Error) => console.warn(`[fan-out] error agent=${link.cod_agent}:`, err.message));
+            .then((r) => { clearTimeout(timer); console.log(`[fan-out] agent=${link.cod_agent} status=${r.status}`); })
+            .catch((err: Error) => {
+              clearTimeout(timer);
+              const reason = controller.signal.aborted ? `timeout after ${N8N_TIMEOUT_MS}ms` : err.message;
+              console.warn(`[fan-out] error agent=${link.cod_agent}: ${reason}`);
+            });
         });
         n8nFanOutPromise = Promise.allSettled(promises).then(() => undefined);
       }
