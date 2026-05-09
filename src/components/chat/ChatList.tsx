@@ -343,7 +343,7 @@ export function ChatList() {
     [filteredContacts]
   );
   const { data: stageByPhone } = useCRMStageByPhone(allPhones);
-  const { data: crmLinkedConversationIds } = useCRMBuilderLinkedConversations();
+  const { data: crmBuilderMap } = useCRMBuilderLinkedConversations();
 
   const stageSet = React.useMemo(() => new Set(stageIds), [stageIds]);
   const allStagesSelected = stages.length > 0 && stageIds.length === stages.length;
@@ -1239,7 +1239,8 @@ export function ChatList() {
                     agentAlias={agentAlias}
                     stageName={queueLink?.hasAgent ? stageInfo?.stageName : undefined}
                     stageColor={queueLink?.hasAgent ? stageInfo?.stageColor : undefined}
-                    hasCrmCard={conv?.id ? !!crmLinkedConversationIds?.has(conv.id) : false}
+                    hasCrmCard={conv?.id ? !!crmBuilderMap?.has(conv.id) : false}
+                    crmBuilderLink={conv?.id ? crmBuilderMap?.get(conv.id) : undefined}
                     lastMessageMeta={conv ? getLastMsgMeta(conv.id) : undefined}
                   />
                 </div>

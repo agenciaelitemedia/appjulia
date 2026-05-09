@@ -2,7 +2,7 @@ import React from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { SmartAvatarImage } from '@/components/chat/SmartAvatarImage';
 import { Badge } from '@/components/ui/badge';
-import { Users, MessageCircle, Globe, Instagram, Kanban } from 'lucide-react';
+import { Users, MessageCircle, Globe, Instagram, Kanban, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { differenceInMinutes, differenceInHours } from 'date-fns';
@@ -14,6 +14,7 @@ import { SlaBadge } from '@/components/chat/SlaBadge';
 import { JuliaStatusBadge } from '@/components/chat/JuliaStatusBadge';
 import { PriorityBadge } from '@/components/chat/PriorityBadge';
 import { getMessagePreview } from '@/lib/chat/messagePreview';
+import type { CrmBuilderLink } from '@/hooks/useCRMBuilderLinkedConversations';
 
 function toTitleCase(s: string): string {
   return s
@@ -37,6 +38,8 @@ interface ChatContactItemProps {
   stageName?: string | null;
   stageColor?: string | null;
   hasCrmCard?: boolean;
+  /** Vínculo com card do CRM Builder (Quadro · Etapa). */
+  crmBuilderLink?: CrmBuilderLink;
   /** Metadados derivados de chat_messages para avaliar NRT corretamente. */
   lastMessageMeta?: LastMessageMeta;
 }
@@ -112,6 +115,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   stageName,
   stageColor,
   hasCrmCard,
+  crmBuilderLink,
   lastMessageMeta,
 }: ChatContactItemProps) {
   const { configs } = useChatSlaConfigs();
@@ -228,27 +232,6 @@ export const ChatContactItem = React.memo(function ChatContactItem({
           )}
         </div>
 
-        {/* Row 2.5: Agent IA (esquerda) + Etapa CRM (direita) — só quando há vínculo com agente IA */}
-        {(agentCodAgent || stageName) && (
-          <div className="flex items-center justify-between gap-1 min-w-0 w-full">
-            <div className="flex items-center gap-1 min-w-0 overflow-hidden">
-              {agentCodAgent && (
-                <span className="text-[10px] text-muted-foreground font-mono truncate">
-                  #{agentCodAgent}{agentAlias ? ` · ${agentAlias}` : ''}
-                </span>
-              )}
-            </div>
-            {stageName && (
-              <span
-                className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-white whitespace-nowrap"
-                style={{ backgroundColor: stageColor || '#64748b' }}
-              >
-                {stageName}
-              </span>
-            )}
-          </div>
-        )}
-
         {/* Row 3: Tags — fila → SLA → atribuído → extras → prioridade (direita) */}
         <div className="flex items-center gap-1 flex-nowrap min-w-0 overflow-hidden w-full">
           <div className="flex items-stretch gap-0 flex-shrink-0 mr-2">
@@ -318,6 +301,56 @@ export const ChatContactItem = React.memo(function ChatContactItem({
                 </span>
               </span>
             ))}
+          </div>
+        )}
+
+        {/* Linha Julia: cod_agent · alias + badge etapa CRM Julia (lazy) */}
+        {(agentCodAgent || stageName) && (
+          <div className="flex items-center justify-between gap-1 min-w-0 w-full pt-1 mt-1 border-t border-border/40">
+            <div className="flex items-center gap-1 min-w-0 overflow-hidden">
+              <Bot className="h-3 w-3 flex-shrink-0 text-emerald-600" />
+              {agentCodAgent && (
+                <span className="text-[10px] text-muted-foreground font-mono truncate">
+                  #{agentCodAgent}{agentAlias ? ` · ${agentAlias}` : ''}
+                </span>
+              )}
+            </div>
+            {stageName && (
+              <span
+                className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-white whitespace-nowrap"
+                style={{ backgroundColor: stageColor || '#64748b' }}
+              >
+                {stageName}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Linha CRM Builder: Quadro · Etapa (lazy) */}
+        {crmBuilderLink && (crmBuilderLink.boardName || crmBuilderLink.pipelineName) && (
+          <div className="flex items-center gap-1.5 min-w-0 w-full pt-1 mt-1 border-t border-border/40">
+            <Kanban
+              className="h-3 w-3 flex-shrink-0"
+              style={{ color: crmBuilderLink.boardColor || '#2563eb' }}
+            />
+            <span className="text-[10px] text-muted-foreground truncate min-w-0">
+              {crmBuilderLink.boardName && (
+                <span className="font-semibold text-foreground/80">
+                  {crmBuilderLink.boardName}
+                </span>
+              )}
+              {crmBuilderLink.boardName && crmBuilderLink.pipelineName && (
+                <span className="mx-1 text-muted-foreground/60">·</span>
+              )}
+              {crmBuilderLink.pipelineName && (
+                <span
+                  className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold text-white whitespace-nowrap align-middle"
+                  style={{ backgroundColor: crmBuilderLink.pipelineColor || '#2563eb' }}
+                >
+                  {crmBuilderLink.pipelineName}
+                </span>
+              )}
+            </span>
           </div>
         )}
       </div>
