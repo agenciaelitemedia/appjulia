@@ -829,8 +829,8 @@ serve(async (req) => {
           break;
         }
         const rows = await sql.unsafe(
-          `SELECT id FROM agents WHERE cod_agent = $1::bigint LIMIT 1`,
-          [codAgent]
+          `SELECT id FROM agents WHERE cod_agent::text = $1::text LIMIT 1`,
+          [String(codAgent)]
         );
         result = [{ exists: rows.length > 0 }];
         break;
@@ -955,8 +955,8 @@ serve(async (req) => {
         const { codAgent } = data;
         // 1. Get owner user_id from agents table
         const agentRows = await sql.unsafe(
-          `SELECT user_id FROM agents WHERE cod_agent = $1::bigint LIMIT 1`,
-          [codAgent]
+          `SELECT user_id FROM agents WHERE cod_agent::text = $1::text LIMIT 1`,
+          [String(codAgent)]
         );
         const ownerId = agentRows[0]?.user_id;
         if (!ownerId) {
@@ -2176,7 +2176,7 @@ serve(async (req) => {
           FROM sessions s
           JOIN agents a ON a.id = s.agent_id
           WHERE s.whatsapp_number::text = ANY($1)
-            AND a.cod_agent = $2::bigint
+            AND a.cod_agent::text = $2::text
           ORDER BY s.created_at DESC
           LIMIT 1`,
           [numberVariants, String(codAgent)]
@@ -2217,7 +2217,7 @@ serve(async (req) => {
            FROM sessions s
            JOIN agents a ON a.id = s.agent_id
            WHERE s.whatsapp_number::text = ANY($1)
-             AND a.cod_agent = ANY($2::bigint[])
+             AND a.cod_agent::text = ANY($2::varchar[])
            ORDER BY s.whatsapp_number::text, a.cod_agent::text, s.created_at DESC`,
           [numbers, codes]
         );
