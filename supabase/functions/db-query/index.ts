@@ -2176,10 +2176,10 @@ serve(async (req) => {
           FROM sessions s
           JOIN agents a ON a.id = s.agent_id
           WHERE s.whatsapp_number::text = ANY($1)
-            AND a.cod_agent::text = $2
+            AND a.cod_agent = $2::bigint
           ORDER BY s.created_at DESC
           LIMIT 1`,
-          [numberVariants, codAgent]
+          [numberVariants, String(codAgent)]
         );
         result = rows;
         break;
@@ -2217,7 +2217,7 @@ serve(async (req) => {
            FROM sessions s
            JOIN agents a ON a.id = s.agent_id
            WHERE s.whatsapp_number::text = ANY($1)
-             AND a.cod_agent::text = ANY($2)
+             AND a.cod_agent = ANY($2::bigint[])
            ORDER BY s.whatsapp_number::text, a.cod_agent::text, s.created_at DESC`,
           [numbers, codes]
         );
