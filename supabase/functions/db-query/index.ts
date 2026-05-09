@@ -684,7 +684,7 @@ serve(async (req) => {
           FROM agents a
           JOIN clients c ON c.id = a.client_id
           LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
-          LEFT JOIN user_agents ua ON ua.agent_id = a.id AND ua.cod_agent = a.cod_agent
+          LEFT JOIN user_agents ua ON ua.agent_id = a.id AND ua.cod_agent::text = a.cod_agent::text
           LEFT JOIN (
             SELECT s.agent_id, COUNT(DISTINCT s.id) as count
             FROM sessions s
@@ -875,7 +875,7 @@ serve(async (req) => {
         // Verificar duplicidade
         if (agentId === null || agentId === undefined) {
           const existing = await sql.unsafe(
-            `SELECT id FROM user_agents WHERE user_id = $1 AND cod_agent = $2::bigint AND agent_id IS NULL LIMIT 1`,
+            `SELECT id FROM user_agents WHERE user_id = $1 AND cod_agent::text = $2::text AND agent_id IS NULL LIMIT 1`,
             [userId, codAgent]
           );
           if (existing.length > 0) {
@@ -883,7 +883,7 @@ serve(async (req) => {
           }
         } else {
           const existing = await sql.unsafe(
-            `SELECT id FROM user_agents WHERE user_id = $1 AND cod_agent = $2::bigint AND agent_id IS NOT NULL LIMIT 1`,
+            `SELECT id FROM user_agents WHERE user_id = $1 AND cod_agent::text = $2::text AND agent_id IS NOT NULL LIMIT 1`,
             [userId, codAgent]
           );
           if (existing.length > 0) {
@@ -893,7 +893,7 @@ serve(async (req) => {
         
         const rows = await sql.unsafe(
           `INSERT INTO user_agents (user_id, agent_id, cod_agent, created_at)
-           VALUES ($1, $2::int, $3::bigint, now())
+           VALUES ($1, $2::int, $3, now())
            RETURNING id`,
           [userId, agentId ?? null, codAgent]
         );
