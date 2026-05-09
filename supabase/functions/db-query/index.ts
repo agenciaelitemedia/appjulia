@@ -2688,7 +2688,7 @@ serve(async (req) => {
       case 'update_user_agent_permissions': {
         const { userId, codAgent, canEditPrompt, canEditConfig } = data;
         await sql.unsafe(
-          `UPDATE user_agents SET can_edit_prompt = $3, can_edit_config = $4 WHERE user_id = $1 AND cod_agent = $2::bigint`,
+          `UPDATE user_agents SET can_edit_prompt = $3, can_edit_config = $4 WHERE user_id = $1 AND cod_agent::text = $2::text`,
           [userId, codAgent, canEditPrompt, canEditConfig]
         );
         result = [{ success: true }];
@@ -2701,7 +2701,7 @@ serve(async (req) => {
         const ownership = await sql.unsafe(
           `SELECT ua.agent_id, ua.can_edit_prompt, ua.can_edit_config
            FROM user_agents ua
-           WHERE ua.user_id = $1 AND ua.cod_agent = $2::bigint AND ua.agent_id IS NOT NULL
+           WHERE ua.user_id = $1 AND ua.cod_agent::text = $2::text AND ua.agent_id IS NOT NULL
            LIMIT 1`,
           [userId, codAgent]
         );
