@@ -1321,7 +1321,7 @@ serve(async (req) => {
         for (const agent of agentIds) {
           await sql.unsafe(
             `INSERT INTO user_agents (user_id, agent_id, cod_agent, created_at)
-             VALUES ($1, $2, $3::bigint, now())`,
+             VALUES ($1, $2, $3, now())`,
             [newUserId, agent.agentId, agent.codAgent]
           );
         }
@@ -1366,7 +1366,7 @@ serve(async (req) => {
         for (const agent of agentIds) {
           await sql.unsafe(
             `INSERT INTO user_agents (user_id, agent_id, cod_agent, created_at)
-             VALUES ($1, $2, $3::bigint, now())`,
+             VALUES ($1, $2, $3, now())`,
             [memberId, agent.agentId, agent.codAgent]
           );
         }
