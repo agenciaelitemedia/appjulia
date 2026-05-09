@@ -31,8 +31,8 @@ export function useContractInfo(whatsappNumber: string, codAgent: string, enable
             business_name,
             whatsapp
           FROM vw_painelv2_desempenho_julia_contratos
-          WHERE whatsapp = $1
-            AND cod_agent::text = $2
+          WHERE whatsapp::text = $1::text
+            AND cod_agent::text = $2::text
           ORDER BY data_contrato DESC
           LIMIT 1
         `,

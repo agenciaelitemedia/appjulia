@@ -96,7 +96,7 @@ export function useDealJuliaContext(deal: CRMDeal | null): DealJuliaContext {
           query: `
             SELECT cod_document, status_document, data_assinatura
             FROM vw_painelv2_desempenho_julia_contratos
-            WHERE whatsapp = ANY($1::varchar[]) AND cod_agent::text = $2::text
+            WHERE whatsapp::text = ANY($1::text[]) AND cod_agent::text = $2::text
             ORDER BY data_contrato DESC NULLS LAST
             LIMIT 1
           `,
