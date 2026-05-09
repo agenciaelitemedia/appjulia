@@ -2,7 +2,7 @@ import React from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { SmartAvatarImage } from '@/components/chat/SmartAvatarImage';
 import { Badge } from '@/components/ui/badge';
-import { Users, MessageCircle, Globe, Instagram, Kanban } from 'lucide-react';
+import { Users, MessageCircle, Globe, Instagram, Kanban, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { differenceInMinutes, differenceInHours } from 'date-fns';
@@ -14,6 +14,7 @@ import { SlaBadge } from '@/components/chat/SlaBadge';
 import { JuliaStatusBadge } from '@/components/chat/JuliaStatusBadge';
 import { PriorityBadge } from '@/components/chat/PriorityBadge';
 import { getMessagePreview } from '@/lib/chat/messagePreview';
+import type { CrmBuilderLink } from '@/hooks/useCRMBuilderLinkedConversations';
 
 function toTitleCase(s: string): string {
   return s
@@ -37,6 +38,8 @@ interface ChatContactItemProps {
   stageName?: string | null;
   stageColor?: string | null;
   hasCrmCard?: boolean;
+  /** Vínculo com card do CRM Builder (Quadro · Etapa). */
+  crmBuilderLink?: CrmBuilderLink;
   /** Metadados derivados de chat_messages para avaliar NRT corretamente. */
   lastMessageMeta?: LastMessageMeta;
 }
