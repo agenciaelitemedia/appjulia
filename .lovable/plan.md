@@ -1,56 +1,42 @@
-# Sincronizar chat do /crm-builder com /chat
+# Plano para corrigir o erro definitivamente
 
-## Problema atual
+## Objetivo
+Eliminar o erro `operator does not exist: bigint = character varying` na função `db-query` sem ficar apenas apagando sintomas em pontos isolados.
 
-`BoardChatSidePanel` (ícone de chat no card do CRM Builder) abre um `WhatsAppDataProvider` isolado e chama apenas `selectContact(contactId)`. Diferente do `/chat`, **a fila do deal não é selecionada**, então o provider não carrega `chat_conversations` correspondentes. Resultado:
+## O que vou fazer
+1. **Corrigir a origem real do erro nas consultas de contratos**
+   - Ajustar as queries que usam `vw_painelv2_desempenho_julia_contratos`, porque a falha atual está vindo dessa view.
+   - Padronizar as comparações de `cod_agent` e `whatsapp` para evitar mistura entre `bigint` e `varchar`.
 
-- `selectedConversation` fica `null` no `ChatInput` → o cálculo `canSend = noteMode || (isAssignedToMe && isActiveStatus)` sempre falha.
-- Não aparece o banner "assumir conversa", nem o status (open/pending/resolved/closed) é respeitado.
-- O `ChatHeader` perde ações dependentes da conversa (transferir, encerrar, prioridade).
-- Comportamento divergente do `/chat`, podendo permitir/bloquear ações de forma inconsistente.
+2. **Aplicar a mesma correção em todos os pontos do app que dependem dessa view**
+   - `CRM Builder` (contexto da deal/Júlia)
+   - `CRM` (informações de contrato)
+   - `Dashboard` (funis e contadores)
+   - Outros hooks/páginas que consultam essa mesma view
 
-A fonte da verdade já existe (`WhatsAppDataContext` + `ChatInput` + `ChatHeader`). O painel lateral só precisa "preparar" o provider exatamente como o `/chat` faz.
+3. **Blindar o acesso ao banco externo no `db-query`**
+   - Revisar os trechos do edge function onde comparações com `cod_agent`, `session_id` e campos relacionados ainda podem depender de inferência de tipo.
+   - Padronizar casts explícitos nos filtros mais sensíveis para impedir regressões.
 
-## Solução
+4. **Validar com a requisição que hoje quebra**
+   - Reproduzir a chamada com erro.
+   - Confirmar que a resposta volta 200 e que a página deixa de cair com blank screen.
 
-Ajustar **apenas `src/pages/crm-builder/components/deals/BoardChatSidePanel.tsx`** para:
-
-1. Após resolver o deal via `useDealConversation` (já retorna `queueId`, `queueName`, `contactId`), chamar `setSelectedQueue({ id: queueId, name: queueName, ... })` antes/junto de `selectContact(contactId)`.
-2. Aguardar `loadConversations` concluir (estado `hasLoadedConversationsOnce` ou polling do `selectedConversation`) antes de renderizar `ChatHeader`/`ChatMessages`/`ChatInput`. Skeleton enquanto carrega.
-3. Se a fila do deal **não** estiver na allowlist do usuário (`useUserQueueAccess`), mostrar bloco informativo "Você não tem acesso a esta fila" com botão "Abrir no /chat" — mesma regra de visibilidade do `/chat`.
-4. Se `useDealConversation` retornar `null` (vínculo inválido / fila soft-deleted), manter o estado vazio atual.
-5. Manter o `ScopedChat` dentro do `WhatsAppDataProvider` isolado (não vazar estado para o `/chat`).
-
-### Diagrama de fluxo
-
-```text
-Card click → BoardChatSidePanel
-   │
-   ├─ useDealConversation(deal) → { conversationId, contactId, queueId, queueName, status }
-   │
-   └─ <WhatsAppDataProvider>
-         └─ ScopedChat
-              1. setSelectedQueue({ id: queueId, name: queueName })
-              2. selectContact(contactId)
-              3. aguarda conversations carregar
-              4. renderiza ChatHeader + ChatMessages + ChatInput
-                 (mesmo canSend / claim / status do /chat)
-```
+## Resultado esperado
+- O `db-query` para de retornar 500.
+- O card/contrato da Júlia volta a carregar normalmente.
+- Dashboard e demais telas que usam a mesma view deixam de falhar pelo mesmo motivo.
+- Fica um padrão único de comparação para esses identificadores, reduzindo a chance de o erro reaparecer.
 
 ## Detalhes técnicos
-
-- Reutilizar `useUserQueueAccess` para decidir o bloqueio antes de chamar `setSelectedQueue`.
-- O tipo `SelectedQueue` está exportado em `WhatsAppDataContext`; passar pelo menos `{ id, name }`.
-- Não alterar `ChatInput`, `ChatHeader`, `ChatMessages` nem o `WhatsAppDataContext` — qualquer regra futura de "quem pode conversar" continuará valendo automaticamente nos dois lugares.
-- Não tocar em `useDealConversation` (já entrega tudo necessário).
-- Sem mudanças de banco de dados, sem novas dependências.
-
-## Arquivos afetados
-
-- `src/pages/crm-builder/components/deals/BoardChatSidePanel.tsx` (único arquivo editado)
-
-## Fora do escopo
-
-- Mudanças de UI no `/chat`.
-- Mudanças no `ChatContainer` ou no contexto principal.
-- Ajustes em outros pontos do CRM Builder.
+- A evidência atual mostra que o 500 vem desta query:
+  - `FROM vw_painelv2_desempenho_julia_contratos`
+  - `WHERE whatsapp = ANY($1::varchar[]) AND cod_agent::text = $2::text`
+- Isso indica que o problema não está mais na consulta do card nem na sessão, mas na própria consulta de contratos/view.
+- Vou trocar os filtros para uma forma compatível com os tipos reais retornados pela view e replicar o mesmo padrão em todos os consumidores dessa view.
+- Também vou revisar usos relacionados já mapeados em:
+  - `src/pages/crm-builder/hooks/useDealJuliaContext.ts`
+  - `src/pages/crm/hooks/useContractInfo.ts`
+  - `src/pages/dashboard/hooks/useDashboardFunnels.ts`
+  - `src/pages/dashboard/hooks/useDashboardData.ts`
+  - pontos equivalentes em páginas estratégicas que usam a mesma view.
