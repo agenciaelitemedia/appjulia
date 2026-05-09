@@ -2657,7 +2657,7 @@ serve(async (req) => {
            WHERE a.is_visibilided = true
            AND NOT EXISTS (
              SELECT 1 FROM user_agents ua
-             WHERE ua.cod_agent = a.cod_agent AND ua.user_id = $1
+             WHERE ua.cod_agent::text = a.cod_agent::text AND ua.user_id = $1
            )
            ORDER BY c.business_name`,
           [userId]
@@ -2668,7 +2668,7 @@ serve(async (req) => {
       case 'delete_user_agent': {
         const { userId, codAgent } = data;
         await sql.unsafe(
-          `DELETE FROM user_agents WHERE user_id = $1 AND cod_agent = $2::bigint`,
+          `DELETE FROM user_agents WHERE user_id = $1 AND cod_agent::text = $2::text`,
           [userId, codAgent]
         );
         result = [{ success: true }];
@@ -2678,7 +2678,7 @@ serve(async (req) => {
       case 'update_user_agent_ownership': {
         const { userId, codAgent, agentId } = data;
         await sql.unsafe(
-          `UPDATE user_agents SET agent_id = $3::int WHERE user_id = $1 AND cod_agent = $2::bigint`,
+          `UPDATE user_agents SET agent_id = $3::int WHERE user_id = $1 AND cod_agent::text = $2::text`,
           [userId, codAgent, agentId]
         );
         result = [{ success: true }];
