@@ -247,33 +247,15 @@ export const ChatContactItem = React.memo(function ChatContactItem({
                 'w-[110px]',
                 'bg-slate-100 text-slate-900',
                 assignedAgentName ? 'font-bold' : '!font-normal',
-                !slaEvaluation && !hasCrmCard && 'rounded-r'
+                !slaEvaluation && 'rounded-r'
               )}
             />
             {slaEvaluation && (
               <SlaBadge
                 evaluation={slaEvaluation}
                 compact
-                className={cn('w-[64px]', !hasCrmCard && 'rounded-r')}
+                className={cn('w-[64px]', 'rounded-r')}
               />
-            )}
-            {hasCrmCard && (
-              <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span
-                      className="inline-flex items-center justify-center gap-0.5 h-5 w-[44px] px-1 text-[9px] font-bold leading-none rounded-r bg-blue-50 text-blue-700 whitespace-nowrap"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Kanban className="h-2.5 w-2.5 flex-shrink-0" />
-                      CRM
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="text-xs">
-                    Este contato possui card no CRM
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
             )}
           </div>
           {conversation && (
@@ -304,11 +286,14 @@ export const ChatContactItem = React.memo(function ChatContactItem({
           </div>
         )}
 
-        {/* Linha Julia: cod_agent · alias + badge etapa CRM Julia (lazy) */}
+        {/* Linha Julia: badge JULIA + cod_agent · alias + badge etapa CRM Julia (lazy) */}
         {(agentCodAgent || stageName) && (
-          <div className="flex items-center justify-between gap-1 min-w-0 w-full pt-1 mt-1 border-t border-border/40">
-            <div className="flex items-center gap-1 min-w-0 overflow-hidden">
-              <Bot className="h-3 w-3 flex-shrink-0 text-emerald-600" />
+          <div className="flex items-center justify-between gap-1.5 min-w-0 w-full pt-1.5 mt-1 border-t border-border/60 bg-emerald-50/40 dark:bg-emerald-950/20 px-1.5 rounded-sm">
+            <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+              <span className="inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[9px] font-bold leading-none rounded bg-emerald-100 text-emerald-700 whitespace-nowrap flex-shrink-0">
+                <Bot className="h-2.5 w-2.5 flex-shrink-0" />
+                JULIA
+              </span>
               {agentCodAgent && (
                 <span className="text-[10px] text-muted-foreground font-mono truncate">
                   #{agentCodAgent}{agentAlias ? ` · ${agentAlias}` : ''}
@@ -326,13 +311,13 @@ export const ChatContactItem = React.memo(function ChatContactItem({
           </div>
         )}
 
-        {/* Linha CRM Builder: Quadro · Etapa (lazy) */}
+        {/* Linha CRM Builder: badge CRM + Quadro · Etapa (lazy) */}
         {crmBuilderLink && (crmBuilderLink.boardName || crmBuilderLink.pipelineName) && (
-          <div className="flex items-center gap-1.5 min-w-0 w-full pt-1 mt-1 border-t border-border/40">
-            <Kanban
-              className="h-3 w-3 flex-shrink-0"
-              style={{ color: crmBuilderLink.boardColor || '#2563eb' }}
-            />
+          <div className="flex items-center gap-1.5 min-w-0 w-full pt-1.5 mt-1 border-t border-border/60 bg-blue-50/40 dark:bg-blue-950/20 px-1.5 rounded-sm">
+            <span className="inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[9px] font-bold leading-none rounded bg-blue-100 text-blue-700 whitespace-nowrap flex-shrink-0">
+              <Kanban className="h-2.5 w-2.5 flex-shrink-0" />
+              CRM
+            </span>
             <span className="text-[10px] text-muted-foreground truncate min-w-0">
               {crmBuilderLink.boardName && (
                 <span className="font-semibold text-foreground/80">
