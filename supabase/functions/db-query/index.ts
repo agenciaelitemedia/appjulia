@@ -684,7 +684,7 @@ serve(async (req) => {
           FROM agents a
           JOIN clients c ON c.id = a.client_id
           LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
-          LEFT JOIN user_agents ua ON ua.agent_id = a.id AND ua.cod_agent = a.cod_agent
+          LEFT JOIN user_agents ua ON ua.agent_id = a.id AND ua.cod_agent::text = a.cod_agent::text
           LEFT JOIN (
             SELECT s.agent_id, COUNT(DISTINCT s.id) as count
             FROM sessions s
@@ -875,7 +875,7 @@ serve(async (req) => {
         // Verificar duplicidade
         if (agentId === null || agentId === undefined) {
           const existing = await sql.unsafe(
-            `SELECT id FROM user_agents WHERE user_id = $1 AND cod_agent = $2::bigint AND agent_id IS NULL LIMIT 1`,
+            `SELECT id FROM user_agents WHERE user_id = $1 AND cod_agent::text = $2::text AND agent_id IS NULL LIMIT 1`,
             [userId, codAgent]
           );
           if (existing.length > 0) {
@@ -883,7 +883,7 @@ serve(async (req) => {
           }
         } else {
           const existing = await sql.unsafe(
-            `SELECT id FROM user_agents WHERE user_id = $1 AND cod_agent = $2::bigint AND agent_id IS NOT NULL LIMIT 1`,
+            `SELECT id FROM user_agents WHERE user_id = $1 AND cod_agent::text = $2::text AND agent_id IS NOT NULL LIMIT 1`,
             [userId, codAgent]
           );
           if (existing.length > 0) {
@@ -893,7 +893,7 @@ serve(async (req) => {
         
         const rows = await sql.unsafe(
           `INSERT INTO user_agents (user_id, agent_id, cod_agent, created_at)
-           VALUES ($1, $2::int, $3::bigint, now())
+           VALUES ($1, $2::int, $3, now())
            RETURNING id`,
           [userId, agentId ?? null, codAgent]
         );
@@ -1321,7 +1321,7 @@ serve(async (req) => {
         for (const agent of agentIds) {
           await sql.unsafe(
             `INSERT INTO user_agents (user_id, agent_id, cod_agent, created_at)
-             VALUES ($1, $2, $3::bigint, now())`,
+             VALUES ($1, $2, $3, now())`,
             [newUserId, agent.agentId, agent.codAgent]
           );
         }
@@ -1366,7 +1366,7 @@ serve(async (req) => {
         for (const agent of agentIds) {
           await sql.unsafe(
             `INSERT INTO user_agents (user_id, agent_id, cod_agent, created_at)
-             VALUES ($1, $2, $3::bigint, now())`,
+             VALUES ($1, $2, $3, now())`,
             [memberId, agent.agentId, agent.codAgent]
           );
         }
@@ -2657,7 +2657,7 @@ serve(async (req) => {
            WHERE a.is_visibilided = true
            AND NOT EXISTS (
              SELECT 1 FROM user_agents ua
-             WHERE ua.cod_agent = a.cod_agent AND ua.user_id = $1
+             WHERE ua.cod_agent::text = a.cod_agent::text AND ua.user_id = $1
            )
            ORDER BY c.business_name`,
           [userId]
@@ -2668,7 +2668,7 @@ serve(async (req) => {
       case 'delete_user_agent': {
         const { userId, codAgent } = data;
         await sql.unsafe(
-          `DELETE FROM user_agents WHERE user_id = $1 AND cod_agent = $2::bigint`,
+          `DELETE FROM user_agents WHERE user_id = $1 AND cod_agent::text = $2::text`,
           [userId, codAgent]
         );
         result = [{ success: true }];
@@ -2678,7 +2678,7 @@ serve(async (req) => {
       case 'update_user_agent_ownership': {
         const { userId, codAgent, agentId } = data;
         await sql.unsafe(
-          `UPDATE user_agents SET agent_id = $3::int WHERE user_id = $1 AND cod_agent = $2::bigint`,
+          `UPDATE user_agents SET agent_id = $3::int WHERE user_id = $1 AND cod_agent::text = $2::text`,
           [userId, codAgent, agentId]
         );
         result = [{ success: true }];
@@ -2688,7 +2688,7 @@ serve(async (req) => {
       case 'update_user_agent_permissions': {
         const { userId, codAgent, canEditPrompt, canEditConfig } = data;
         await sql.unsafe(
-          `UPDATE user_agents SET can_edit_prompt = $3, can_edit_config = $4 WHERE user_id = $1 AND cod_agent = $2::bigint`,
+          `UPDATE user_agents SET can_edit_prompt = $3, can_edit_config = $4 WHERE user_id = $1 AND cod_agent::text = $2::text`,
           [userId, codAgent, canEditPrompt, canEditConfig]
         );
         result = [{ success: true }];
@@ -2701,7 +2701,7 @@ serve(async (req) => {
         const ownership = await sql.unsafe(
           `SELECT ua.agent_id, ua.can_edit_prompt, ua.can_edit_config
            FROM user_agents ua
-           WHERE ua.user_id = $1 AND ua.cod_agent = $2::bigint AND ua.agent_id IS NOT NULL
+           WHERE ua.user_id = $1 AND ua.cod_agent::text = $2::text AND ua.agent_id IS NOT NULL
            LIMIT 1`,
           [userId, codAgent]
         );
