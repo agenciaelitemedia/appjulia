@@ -2,8 +2,15 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
+export interface CrmBuilderLink {
+  boardName: string | null;
+  boardColor: string | null;
+  pipelineName: string | null;
+  pipelineColor: string | null;
+}
+
 /**
- * Returns a Set of conversation_ids that have at least one non-archived deal
+ * Returns a Map<conversation_id, CrmBuilderLink> for non-archived deals
  * in the CRM Builder linked via custom_fields.links.chat.conversation_id.
  *
  * This is a STRONG link (UUID, immutable) — preferred over phone matching,
@@ -11,8 +18,6 @@ import { useAuth } from '@/contexts/AuthContext';
  */
 export function useCRMBuilderLinkedConversations() {
   const { user } = useAuth();
-  // CRM Builder deals are scoped by user.client_id (e.g. '300'),
-  // NOT by cod_agent — must match the same scope used in useCRMDeals.
   const clientId = user?.client_id ? String(user.client_id) : '';
 
   return useQuery({
@@ -22,18 +27,30 @@ export function useCRMBuilderLinkedConversations() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('crm_deals')
-        .select('custom_fields')
+        .select('custom_fields, crm_boards(name,color), crm_pipelines(name,color)')
         .eq('client_id', clientId)
         .neq('status', 'archived');
       if (error) throw error;
-      const set = new Set<string>();
+      const map = new Map<string, CrmBuilderLink>();
       for (const row of data || []) {
-        const cf = (row as { custom_fields?: Record<string, unknown> }).custom_fields || {};
+        const r = row as {
+          custom_fields?: Record<string, unknown>;
+          crm_boards?: { name?: string; color?: string } | null;
+          crm_pipelines?: { name?: string; color?: string } | null;
+        };
+        const cf = r.custom_fields || {};
         const links = (cf as any).links as Record<string, any> | undefined;
         const convId = links?.chat?.conversation_id;
-        if (typeof convId === 'string' && convId) set.add(convId);
+        if (typeof convId === 'string' && convId) {
+          map.set(convId, {
+            boardName: r.crm_boards?.name ?? null,
+            boardColor: r.crm_boards?.color ?? null,
+            pipelineName: r.crm_pipelines?.name ?? null,
+            pipelineColor: r.crm_pipelines?.color ?? null,
+          });
+        }
       }
-      return set;
+      return map;
     },
   });
 }
