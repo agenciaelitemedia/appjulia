@@ -829,7 +829,7 @@ serve(async (req) => {
           break;
         }
         const rows = await sql.unsafe(
-          `SELECT id FROM agents WHERE cod_agent = $1 LIMIT 1`,
+          `SELECT id FROM agents WHERE cod_agent = $1::bigint LIMIT 1`,
           [codAgent]
         );
         result = [{ exists: rows.length > 0 }];
@@ -2797,7 +2797,7 @@ serve(async (req) => {
         if (!codAgent) throw new Error('codAgent is required');
         result = await sql.unsafe(
           `SELECT id, cod_agent, hub, evo_url, evo_apikey, evo_instance, waba_id, waba_token, waba_number_id
-           FROM agents WHERE cod_agent = $1 LIMIT 1`,
+           FROM agents WHERE cod_agent = $1::bigint LIMIT 1`,
           [codAgent]
         );
         break;
@@ -2844,7 +2844,7 @@ serve(async (req) => {
         }
         // Get agent_id from cod_agent
         const agentRows = await sql.unsafe(
-          `SELECT id FROM agents WHERE cod_agent = $1 LIMIT 1`,
+          `SELECT id FROM agents WHERE cod_agent = $1::bigint LIMIT 1`,
           [codAgent]
         );
         if (!agentRows || agentRows.length === 0) {
