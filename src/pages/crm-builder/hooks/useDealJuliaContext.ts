@@ -70,7 +70,7 @@ export function useDealJuliaContext(deal: CRMDeal | null): DealJuliaContext {
                  s.name as stage_name, s.color as stage_color
           FROM crm_atendimento_cards c
           LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
-          WHERE c.whatsapp_number = ANY($1::varchar[]) AND c.cod_agent = $2::bigint
+          WHERE c.whatsapp_number = ANY($1::varchar[]) AND c.cod_agent::text = $2::text
           ORDER BY c.updated_at DESC NULLS LAST
           LIMIT 1
         `,
@@ -96,7 +96,7 @@ export function useDealJuliaContext(deal: CRMDeal | null): DealJuliaContext {
           query: `
             SELECT cod_document, status_document, data_assinatura
             FROM vw_painelv2_desempenho_julia_contratos
-            WHERE whatsapp = ANY($1::varchar[]) AND cod_agent = $2::bigint
+            WHERE whatsapp = ANY($1::varchar[]) AND cod_agent::text = $2::text
             ORDER BY data_contrato DESC NULLS LAST
             LIMIT 1
           `,
