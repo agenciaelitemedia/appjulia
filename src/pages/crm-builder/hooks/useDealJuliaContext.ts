@@ -70,7 +70,7 @@ export function useDealJuliaContext(deal: CRMDeal | null): DealJuliaContext {
                  s.name as stage_name, s.color as stage_color
           FROM crm_atendimento_cards c
           LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
-          WHERE c.whatsapp_number = ANY($1::varchar[]) AND c.cod_agent = $2
+          WHERE c.whatsapp_number = ANY($1::varchar[]) AND c.cod_agent = $2::bigint
           ORDER BY c.updated_at DESC NULLS LAST
           LIMIT 1
         `,
