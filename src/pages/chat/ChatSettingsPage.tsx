@@ -31,7 +31,7 @@ function ChatSettingsContent() {
       </div>
 
       <Tabs defaultValue="geral" className="w-full">
-        <TabsList className={`grid w-full ${isAdmin ? 'max-w-4xl grid-cols-6' : 'max-w-xl grid-cols-4'}`}>
+        <TabsList className={`grid w-full ${isAdmin ? 'max-w-4xl grid-cols-6' : 'max-w-xl grid-cols-3'}`}>
           <TabsTrigger value="geral" className="gap-1.5">
             <Cog className="h-3.5 w-3.5" /> Geral
           </TabsTrigger>
@@ -41,9 +41,11 @@ function ChatSettingsContent() {
           <TabsTrigger value="etiquetas" className="gap-1.5">
             <TagIcon className="h-3.5 w-3.5" /> Etiquetas
           </TabsTrigger>
-          <TabsTrigger value="monitor" className="gap-1.5">
-            <Activity className="h-3.5 w-3.5" /> Monitor
-          </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="monitor" className="gap-1.5">
+              <Activity className="h-3.5 w-3.5" /> Monitor
+            </TabsTrigger>
+          )}
           {isAdmin && (
             <TabsTrigger value="canais" className="gap-1.5">
               <Radio className="h-3.5 w-3.5" /> Canais
@@ -68,9 +70,11 @@ function ChatSettingsContent() {
           <TagsManagerContent />
         </TabsContent>
 
-        <TabsContent value="monitor" className="mt-6">
-          <ChatReturnChatMonitor />
-        </TabsContent>
+        {isAdmin && (
+          <TabsContent value="monitor" className="mt-6">
+            <ChatReturnChatMonitor />
+          </TabsContent>
+        )}
 
         {isAdmin && (
           <TabsContent value="canais" className="mt-6">
