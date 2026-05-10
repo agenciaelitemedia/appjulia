@@ -33,7 +33,34 @@ export type ChatPeriodFilter =
   | 'last3Months';
 
 const CONTACTS_PAGE_SIZE = 50;
-const CONVERSATIONS_PAGE_SIZE = 100;
+const CONVERSATIONS_PAGE_SIZE = 500;
+
+// Background auto-pagination caps:
+// - 'active' tab (pending+open) loads ALL pages eagerly.
+// - 'resolved' / 'closed' tabs load lazily on first activation, capped to
+//   10 pages (5_000 rows) to avoid hammering the DB on huge histories.
+const CONV_AUTOLOAD_MAX_PAGES_RESOLVED_CLOSED = 10;
+// Small breathing pause between pages so we don't saturate Postgres for
+// clients with very large conversation history.
+const CONV_AUTOLOAD_PAGE_DELAY_MS = 120;
+
+type ConvLoadGroup = 'active' | 'resolved' | 'closed';
+interface ConvGroupMeta {
+  pages: number;
+  hasMore: boolean;
+  autoLoadDone: boolean;
+  isAutoLoading: boolean;
+  cappedAt: number | null;
+  error: string | null;
+}
+const initialConvGroupMeta = (): ConvGroupMeta => ({
+  pages: 0,
+  hasMore: true,
+  autoLoadDone: false,
+  isAutoLoading: false,
+  cappedAt: null,
+  error: null,
+});
 
 // Lean column list for conversations — avoids transferring unused heavy columns
 const CONV_COLUMNS = 'id,contact_id,client_id,queue_id,status,priority,assigned_to,cod_agent,updated_at,created_at,opened_at,first_response_at,resolved_at,closed_at,snoozed_until,channel,protocol,close_note'
