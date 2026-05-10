@@ -2207,8 +2207,24 @@ serve(async (req) => {
           result = [];
           break;
         }
-        const numbers = pairs.map((p: any) => String(p.whatsappNumber || '').replace(/\D/g, ''));
-        const codes = pairs.map((p: any) => String(p.codAgent || ''));
+        // Expand each whatsapp number into BR variants (with/without 9th digit)
+        // because chat normalizes to 13 digits while sessions may store 12.
+        const numbersSet = new Set<string>();
+        for (const p of pairs) {
+          const d = String(p?.whatsappNumber || '').replace(/\D/g, '');
+          if (!d) continue;
+          numbersSet.add(d);
+          if (d.startsWith('55')) {
+            const ddd = d.slice(2, 4);
+            if (d.length === 13 && d[4] === '9' && /[6-9]/.test(d[5] ?? '')) {
+              numbersSet.add(`55${ddd}${d.slice(5)}`);
+            } else if (d.length === 12 && /[6-9]/.test(d[4] ?? '')) {
+              numbersSet.add(`55${ddd}9${d.slice(4)}`);
+            }
+          }
+        }
+        const numbers = Array.from(numbersSet);
+        const codes = Array.from(new Set(pairs.map((p: any) => String(p.codAgent || '')).filter(Boolean)));
         const rows = await sql.unsafe(
           `SELECT DISTINCT ON (s.whatsapp_number::text, a.cod_agent::text)
              s.whatsapp_number::text AS whatsapp_number,
