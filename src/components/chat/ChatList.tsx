@@ -357,14 +357,21 @@ export function ChatList() {
   // o usuário deixa de "perder" conversas que casariam o filtro mas
   // ainda estavam fora da página corrente.
   // ────────────────────────────────────────────────────────────────────
+  // Resolve cod_agents from ALL accessible queues (not only the queues
+  // currently visible in the list) so the mode filter covers conversations
+  // that may still be beyond the pagination window.
+  const accessibleQueueIds = React.useMemo(
+    () => queues.filter((q: any) => q.is_active && !q.is_deleted).map((q: any) => q.id),
+    [queues]
+  );
+  const { data: accessibleQueueAgentMap } = useQueueAgentLinks(accessibleQueueIds);
   const accessibleCodAgents = React.useMemo(() => {
     const set = new Set<string>();
-    queues.forEach((q: any) => {
-      const links = q?.queue_agent_links || q?.link_agents || [];
-      links.forEach((l: any) => { if (l?.cod_agent) set.add(String(l.cod_agent)); });
+    accessibleQueueAgentMap?.forEach((link) => {
+      if (link?.codAgent) set.add(String(link.codAgent));
     });
     return Array.from(set);
-  }, [queues]);
+  }, [accessibleQueueAgentMap]);
 
   const { data: serverPhoneAllowlist } = usePhoneAllowlist({
     modeFilter,
