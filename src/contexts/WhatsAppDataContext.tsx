@@ -311,8 +311,18 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const [isLoadingMoreContacts, setIsLoadingMoreContacts] = useState(false);
 
   // Conversations pagination
-  const [hasMoreConversations, setHasMoreConversations] = useState(false);
-  const [isLoadingMoreConversations, setIsLoadingMoreConversations] = useState(false);
+  // Per-group metadata. The single `conversations` array below holds rows
+  // from every group we've ever loaded for the current scope, so switching
+  // tabs is instant and never re-queries the DB.
+  const [convGroupMeta, setConvGroupMeta] = useState<Record<ConvLoadGroup, ConvGroupMeta>>(() => ({
+    active: initialConvGroupMeta(),
+    resolved: initialConvGroupMeta(),
+    closed: initialConvGroupMeta(),
+  }));
+  // Epoch is bumped whenever the bootstrap scope changes (clientId, queue,
+  // period, sortOrder). Auto-load loops compare their captured epoch against
+  // the live ref before each setState to bail out cleanly.
+  const convLoadEpochRef = useRef(0);
 
   // Period filter — defaults to last 7 days every time the chat is opened
   const [periodFilter, setPeriodFilter] = useState<ChatPeriodFilter>('all');
