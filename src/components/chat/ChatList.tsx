@@ -1503,6 +1503,33 @@ export function ChatList() {
             Fim da lista
           </div>
         )}
+
+        {/* Search-mode pagination footer */}
+        {isSearching && searchLoaded > 0 && (
+          <>
+            {isSearchFetching && (
+              <div className="flex justify-center py-3">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            {!isSearchFetching && hasMoreSearch && (
+              <div className="flex justify-center py-3">
+                <button
+                  type="button"
+                  onClick={() => setSearchPage((p) => p + 1)}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Carregar mais ({searchLoaded} de {searchTotal})
+                </button>
+              </div>
+            )}
+            {!isSearchFetching && !hasMoreSearch && (
+              <div className="text-center text-[10px] text-muted-foreground py-3">
+                Fim da lista ({searchTotal} de {searchTotal})
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Footer: iniciar nova conversa */}
