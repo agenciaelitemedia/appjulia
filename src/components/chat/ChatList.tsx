@@ -1247,7 +1247,12 @@ export function ChatList() {
                     <ToggleGroupItem
                       value="all"
                       aria-label="Todos os modos"
-                      className="h-8 w-8 p-0 rounded-md border bg-transparent text-muted-foreground border-border hover:bg-muted transition-colors data-[state=on]:!bg-gray-700 data-[state=on]:!text-white data-[state=on]:!border-gray-700 dark:data-[state=on]:!bg-gray-200 dark:data-[state=on]:!text-gray-900 dark:data-[state=on]:!border-gray-200"
+                      className={cn(
+                        "h-8 w-8 p-0 rounded-md border transition-colors",
+                        modeFilter === 'all'
+                          ? "bg-gray-700 text-white border-gray-700 hover:bg-gray-700 hover:text-white dark:bg-gray-200 dark:text-gray-900 dark:border-gray-200"
+                          : "bg-transparent text-muted-foreground border-border hover:bg-muted",
+                      )}
                     >
                       <ListFilter className="h-3.5 w-3.5" />
                     </ToggleGroupItem>
@@ -1259,7 +1264,12 @@ export function ChatList() {
                     <ToggleGroupItem
                       value="julia"
                       aria-label="Julia IA ativa"
-                      className="h-8 w-8 p-0 rounded-md border bg-transparent text-muted-foreground border-border hover:bg-muted transition-colors data-[state=on]:!bg-green-600 data-[state=on]:!text-white data-[state=on]:!border-green-600"
+                      className={cn(
+                        "h-8 w-8 p-0 rounded-md border transition-colors",
+                        modeFilter === 'julia'
+                          ? "bg-green-600 text-white border-green-600 hover:bg-green-600 hover:text-white"
+                          : "bg-transparent text-muted-foreground border-border hover:bg-muted",
+                      )}
                     >
                       <Bot className="h-3.5 w-3.5" />
                     </ToggleGroupItem>
@@ -1271,7 +1281,12 @@ export function ChatList() {
                     <ToggleGroupItem
                       value="human"
                       aria-label="Atendimento humano"
-                      className="h-8 w-8 p-0 rounded-md border bg-transparent text-muted-foreground border-border hover:bg-muted transition-colors data-[state=on]:!bg-amber-500 data-[state=on]:!text-white data-[state=on]:!border-amber-500"
+                      className={cn(
+                        "h-8 w-8 p-0 rounded-md border transition-colors",
+                        modeFilter === 'human'
+                          ? "bg-amber-500 text-white border-amber-500 hover:bg-amber-500 hover:text-white"
+                          : "bg-transparent text-muted-foreground border-border hover:bg-muted",
+                      )}
                     >
                       <User className="h-3.5 w-3.5" />
                     </ToggleGroupItem>
