@@ -935,7 +935,7 @@ export function ChatList() {
                     <ToggleGroupItem
                       value="all"
                       aria-label="Todos os modos"
-                      className="h-8 w-8 p-0 rounded-md border bg-transparent text-muted-foreground border-border hover:bg-muted transition-colors data-[state=on]:bg-foreground/10 data-[state=on]:text-foreground data-[state=on]:border-foreground/30"
+                      className="h-8 w-8 p-0 rounded-md border bg-transparent text-muted-foreground border-border hover:bg-muted transition-colors data-[state=on]:bg-gray-700 data-[state=on]:text-white data-[state=on]:border-gray-700 dark:data-[state=on]:bg-gray-200 dark:data-[state=on]:text-gray-900 dark:data-[state=on]:border-gray-200"
                     >
                       <ListFilter className="h-3.5 w-3.5" />
                     </ToggleGroupItem>
@@ -947,7 +947,7 @@ export function ChatList() {
                     <ToggleGroupItem
                       value="julia"
                       aria-label="Julia IA ativa"
-                      className="h-8 w-8 p-0 rounded-md border bg-transparent text-muted-foreground border-border hover:bg-muted transition-colors data-[state=on]:bg-green-500/15 data-[state=on]:text-green-600 dark:data-[state=on]:text-green-400 data-[state=on]:border-green-500/40"
+                      className="h-8 w-8 p-0 rounded-md border bg-transparent text-muted-foreground border-border hover:bg-muted transition-colors data-[state=on]:bg-green-600 data-[state=on]:text-white data-[state=on]:border-green-600"
                     >
                       <Bot className="h-3.5 w-3.5" />
                     </ToggleGroupItem>
@@ -959,7 +959,7 @@ export function ChatList() {
                     <ToggleGroupItem
                       value="human"
                       aria-label="Atendimento humano"
-                      className="h-8 w-8 p-0 rounded-md border bg-transparent text-muted-foreground border-border hover:bg-muted transition-colors data-[state=on]:bg-amber-500/15 data-[state=on]:text-amber-600 dark:data-[state=on]:text-amber-400 data-[state=on]:border-amber-500/40"
+                      className="h-8 w-8 p-0 rounded-md border bg-transparent text-muted-foreground border-border hover:bg-muted transition-colors data-[state=on]:bg-amber-500 data-[state=on]:text-white data-[state=on]:border-amber-500"
                     >
                       <User className="h-3.5 w-3.5" />
                     </ToggleGroupItem>
@@ -1082,6 +1082,7 @@ export function ChatList() {
             )}
           >
             {tab.iconOnly ? tab.icon : tab.label}
+            {tab.value !== 'resolved_closed' && (
             <span className={cn(
               'rounded-full min-w-[18px] h-4 flex items-center justify-center px-1 text-[9px] font-bold',
               conversationStatusFilter === tab.value
@@ -1090,6 +1091,7 @@ export function ChatList() {
             )}>
               {tab.count >= 99 ? '99+' : tab.count}
             </span>
+            )}
           </button>
             </TooltipTrigger>
             <TooltipContent>{tab.tooltip}</TooltipContent>
