@@ -907,44 +907,73 @@ export function ChatList() {
         {/* Linha: Filas + Atendentes lado a lado */}
         <div className="px-4 pb-2 grid grid-cols-2 gap-2">
           {activeQueues.length > 0 ? (
-            <Select
-              value={selectedQueue?.id || '__all__'}
-              onValueChange={(val) => {
-                if (val === '__all__') { setSelectedQueue(null); return; }
-                const queue = activeQueues.find(q => q.id === val);
-                if (queue) {
-                  setSelectedQueue({
-                    id: queue.id,
-                    name: queue.name,
-                    channel_type: queue.channel_type,
-                    hub: queue.hub,
-                    evo_url: queue.evo_url,
-                    evo_apikey: queue.evo_apikey,
-                    evo_instance: queue.evo_instance,
-                  });
-                }
-              }}
-            >
-              <SelectTrigger className="w-full h-8 text-xs">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <Layers className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <SelectValue placeholder="Todas as filas" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">
-                  <div className="flex items-center gap-2"><span>Todas as filas</span></div>
-                </SelectItem>
-                {activeQueues.map((queue) => (
-                  <SelectItem key={queue.id} value={queue.id}>
-                    <div className="flex items-center gap-2">
-                      <span>{queue.name}</span>
-                      {channelBadge(queue.channel_type)}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={queuePopoverOpen} onOpenChange={setQueuePopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className="w-full h-8 justify-between text-xs font-normal px-2.5"
+                >
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <Layers className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="truncate">
+                      {selectedQueue?.name || 'Todas as filas'}
+                    </span>
+                  </span>
+                  <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[280px] p-0 z-[60]" align="start">
+                <Command>
+                  <CommandInput placeholder="Buscar fila…" className="h-9" />
+                  <CommandList className="max-h-[280px]">
+                    <CommandEmpty>Nenhuma fila encontrada.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="__all__ todas as filas"
+                        onSelect={() => {
+                          setSelectedQueue(null);
+                          setQueuePopoverOpen(false);
+                        }}
+                        className="cursor-pointer gap-2"
+                      >
+                        <Check className={cn('h-4 w-4', !selectedQueue ? 'opacity-100' : 'opacity-0')} />
+                        <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="flex-1 truncate">Todas as filas</span>
+                      </CommandItem>
+                      {[...activeQueues]
+                        .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'))
+                        .map((queue) => {
+                          const isSel = selectedQueue?.id === queue.id;
+                          return (
+                            <CommandItem
+                              key={queue.id}
+                              value={`${queue.name} ${queue.channel_type}`}
+                              onSelect={() => {
+                                setSelectedQueue({
+                                  id: queue.id,
+                                  name: queue.name,
+                                  channel_type: queue.channel_type,
+                                  hub: queue.hub,
+                                  evo_url: queue.evo_url,
+                                  evo_apikey: queue.evo_apikey,
+                                  evo_instance: queue.evo_instance,
+                                });
+                                setQueuePopoverOpen(false);
+                              }}
+                              className="cursor-pointer gap-2"
+                            >
+                              <Check className={cn('h-4 w-4', isSel ? 'opacity-100' : 'opacity-0')} />
+                              <span className="flex-1 truncate">{queue.name}</span>
+                              {channelBadge(queue.channel_type)}
+                            </CommandItem>
+                          );
+                        })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           ) : <div />}
           <TeamMemberSelect
             members={teamMembers}
