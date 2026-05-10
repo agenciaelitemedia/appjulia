@@ -127,9 +127,11 @@ export function ChatList() {
   const [footerCountry, setFooterCountry] = useState('55');
   const [footerPhone, setFooterPhone] = useState('');
 
-  // Pagination for server-side search
+  // Pagination for server-side search — kept per (activeTab, conversationStatusFilter)
+  // so switching tabs preserves how much each one has loaded and the counter
+  // stays coherent with the visible list.
   const SEARCH_PAGE_SIZE = 50;
-  const [searchPage, setSearchPage] = useState(1);
+  const [searchPages, setSearchPages] = useState<Record<string, number>>({});
 
   // Sync local draft when external search query is reset elsewhere
   useEffect(() => {
@@ -154,13 +156,23 @@ export function ChatList() {
   const trimmedSearch = (searchQuery || '').trim();
   const isSearching = trimmedSearch.length >= 2;
 
-  // Reset pagination whenever the search term changes
+  // Key used to scope pagination per tab/status combo
+  const searchPageKey = `${activeTab}|${conversationStatusFilter}`;
+  const searchPage = searchPages[searchPageKey] ?? 1;
+  const incrementSearchPage = React.useCallback(() => {
+    setSearchPages((prev) => ({
+      ...prev,
+      [searchPageKey]: (prev[searchPageKey] ?? 1) + 1,
+    }));
+  }, [searchPageKey]);
+
+  // Reset all per-tab pagination whenever the search term changes
   useEffect(() => {
-    setSearchPage(1);
+    setSearchPages({});
   }, [trimmedSearch]);
 
   const { data: searchResults, isFetching: isSearchFetching } = useQuery({
-    queryKey: ['chat-list-search', clientId, trimmedSearch, searchPage],
+    queryKey: ['chat-list-search', clientId, trimmedSearch, searchPageKey, searchPage],
     enabled: isSearching && !!clientId,
     staleTime: 30_000,
     placeholderData: (prev) => prev,
@@ -1516,7 +1528,7 @@ export function ChatList() {
               <div className="flex justify-center py-3">
                 <button
                   type="button"
-                  onClick={() => setSearchPage((p) => p + 1)}
+                  onClick={() => incrementSearchPage()}
                   className="text-xs text-primary hover:underline"
                 >
                   Carregar mais ({searchLoaded} de {searchTotal})
