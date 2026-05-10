@@ -289,8 +289,21 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
   // Period filter — defaults to last 7 days every time the chat is opened
   const [periodFilter, setPeriodFilter] = useState<ChatPeriodFilter>('all');
-  // Sort order for contacts list — newest first by default
-  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  // Sort order for contacts list — persisted in localStorage so the user
+  // preference is preserved across sessions.
+  const [sortOrder, setSortOrderState] = useState<'newest' | 'oldest'>(() => {
+    if (typeof window === 'undefined') return 'newest';
+    const stored = window.localStorage.getItem('chat:sortOrder');
+    return stored === 'oldest' ? 'oldest' : 'newest';
+  });
+  const setSortOrder = useCallback((o: 'newest' | 'oldest') => {
+    setSortOrderState(o);
+    try {
+      window.localStorage.setItem('chat:sortOrder', o);
+    } catch {
+      /* storage unavailable — ignore */
+    }
+  }, []);
 
   const knownMessageIds = useRef<Set<string>>(new Set());
 
