@@ -789,13 +789,40 @@ export function ChatList() {
         <div className="px-4 pb-2">
           <div className="relative flex items-center gap-1">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar atendimento"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 h-9 bg-muted/40 border-0"
+                value={searchDraft}
+                onChange={(e) => setSearchDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    submitSearch();
+                  }
+                }}
+                className="pl-3 pr-16 h-9 bg-muted/40 border-0"
               />
+              {(searchDraft || searchQuery) && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-8 top-1/2 -translate-y-1/2 h-7 w-7"
+                  onClick={clearSearch}
+                  title="Limpar busca"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                onClick={submitSearch}
+                title="Buscar"
+              >
+                <Search className="h-4 w-4" />
+              </Button>
             </div>
             <Popover>
               <PopoverTrigger asChild>
