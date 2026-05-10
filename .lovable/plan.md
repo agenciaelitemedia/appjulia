@@ -1,44 +1,98 @@
 ## Causa raiz
 
-O efeito de bootstrap em `src/contexts/WhatsAppDataContext.tsx` (linha 2318) recalcula uma `key` a partir de `clientId/currentQueueId/periodFilter/sortOrder/activeQueueIds`, mas só usa essa key para decidir se limpa a seleção. Todo o resto do efeito — **bump de epoch, reset de `convGroupMeta`, `setConversations([])` e o `runConvAutoLoad('active', Infinity)`** — roda **toda vez que `activeQueueIds` muda de referência**, mesmo com conteúdo idêntico.
+A aba "Em aberto" usa o auto-load eager (`runConvAutoLoad('active', POSITIVE_INFINITY)`) e funciona; o problema do filtro "humano vs Julia" não é a paginação de conversas em si, mas três condições de corrida que aparecem juntas quando há ~1.6k conversas:
 
-`activeQueueIds` é um `useMemo` que depende da lista de filas, e essa lista é re-emitida com nova referência sempre que o realtime de filas dispara (e também por re-fetches periódicos). Resultado:
+1. **`queueAgentMap` chega depois das conversas.** Em `getConversationMode` (ChatList.tsx:465-474), enquanto `queueAgentMap` ainda não retornou para uma `queue_id`, `queueLink` é `undefined` → cai em `return 'human'`. Resultado: ao filtrar por "humano", entram conversas que na verdade são Julia ativa.
 
-1. O loop `runConvAutoLoad` carrega a 1ª página (500 linhas) → `convGroupMeta.active.pages=1, hasMore=true`.
-2. Antes de a 2ª página completar, `activeQueueIds` muda de referência (mesmo conteúdo).
-3. Bootstrap re-executa: `convLoadEpochRef++` mata o loop em andamento, reseta meta para `pages=0, hasMore=true, isAutoLoading=false`, **zera `conversations`**, e dispara um novo loop do offset 0.
-4. Isso se repete indefinidamente. O usuário vê "43 de 1688" travado porque cada ciclo só consegue completar 1 página antes do próximo reset.
+2. **`sessionActiveMap` é construído incrementalmente.** O hook `useAgentSessionStatusesBatch` recalcula a queryKey a cada mudança de `sessionPairs` (que cresce conforme `contacts` é paginado por scroll de 50 em 50). Cada novo lote dispara um novo fetch e, no intervalo, `getSessionActive` devolve `undefined`, classificado como `'human'` na linha 460/471. Por isso, ao rolar, conversas "vão aparecendo como Julia" — elas estavam temporariamente classificadas como humano.
 
-Bug secundário: dentro de `runConvAutoLoad` (linha 622), o updater de `setConvGroupMeta` faz early-return se `isAutoLoading || autoLoadDone`, mas a função em si **não retorna** — o `while` segue rodando. Se duas chamadas escapam do guarda de bootstrap, ambas rodam em paralelo fazendo fetches duplicados.
+3. **`sessionPairs` depende de `contacts`, não de `conversations`.** O loop que monta os pares (linhas 352-368) só inclui contatos já carregados na paginação de `chat_contacts` (50 em 50). Conversas cujo `contact_id` ainda não foi paginado nunca entram no batch de sessão e ficam permanentemente classificadas como humano até o usuário rolar e disparar `loadMoreContacts`.
 
-## Correção
+A combinação faz com que o filtro "humano" mostre lixo (conversas Julia) que vai sumindo conforme: (a) `queueAgentMap` carrega, (b) `sessionActiveMap` cresce, (c) contatos faltantes são paginados.
 
-### 1. Gatear o bootstrap pela `key` (correção principal)
+## Objetivo
 
-Em `WhatsAppDataContext.tsx`, dentro do efeito de bootstrap (linhas 2318–2359):
+Filtro "Progressivo seguro": a lista pode crescer aos poucos, mas **nenhum item é classificado como `julia` ou `human` até termos os dados mínimos** (queue link + sessão) para aquele item. Itens "indefinidos" ficam ocultos do filtro humano/Julia em vez de cair no balde errado.
 
-- Calcular `key` como hoje.
-- **Se `prev === key`, retornar imediatamente** — não bumpar epoch, não resetar meta, não limpar `conversations`, não disparar `runConvAutoLoad`. Isso evita reinicializações espúrias quando `activeQueueIds` muda só de referência.
-- Manter o reset / restart só quando `prev !== key` (mudança real de escopo) ou no primeiro run (`prev === null`).
-- A lógica de wipe de seleção (linha 2353) já é correta — fica como está.
+## Mudanças
 
-### 2. Tornar `runConvAutoLoad` reentrante-safe
+### 1. `src/components/chat/ChatList.tsx` — classificação tri-state
 
-Em `runConvAutoLoad` (linha 617):
+Trocar `getConversationMode` / `getContactMode` para retornar `'julia' | 'human' | 'unknown'`:
 
-- Antes do `setConvGroupMeta`, ler `convGroupMetaRef.current[group]` e fazer `if (meta.isAutoLoading || meta.autoLoadDone) return;` — encerra a função inteira, não só o updater.
-- Mantém o `setConvGroupMeta` para marcar `isAutoLoading=true`.
+- `unknown` quando: `queueAgentMap` ainda não carregou para a queue, OU `queueLink.hasAgent === true` mas `sessionActiveMap` ainda não tem entrada para `(phone, codAgent)` E o batch ainda está em fetch/pending.
+- `human` só quando: queue confirmada sem agente, OU sessão confirmadamente ausente/`active=false`.
+- `julia` só quando: sessão confirmada com `active=true`.
 
-### 3. Verificação
+No filtro (linhas 515-517, 673-676, 786-788): `if (modeFilter !== 'all' && mode !== modeFilter) continue` — itens `unknown` ficam de fora do "humano" E do "Julia". Isso elimina o vazamento entre as duas abas.
 
-Após o patch, em `/chat`:
-- Recarregar a página com filtro "Em Atendimento" ativo.
-- Acompanhar `convGroupMeta.active.pages` crescendo monotonicamente até `hasMore=false`.
-- Conferir no console que não aparece mais o ciclo "epoch++ → reset" repetido (pode adicionar um log temporário no bootstrap para confirmar que ele só roda 1× por mudança real de escopo).
-- Footer deve evoluir de "500 de 1688" → "1000 de 1688" → … → "1688 de 1688".
+Expor o estado de carregamento do `useAgentSessionStatusesBatch` (`isFetching`, `isPending`) e do `useQueueAgentLinks` para o `getConversationMode` saber quando ainda há dados em voo (e portanto retornar `unknown` em vez de `human`).
 
-## Arquivos afetados
+### 2. `src/components/chat/ChatList.tsx` — construir `sessionPairs` a partir de `conversations`, não `contacts`
 
-- `src/contexts/WhatsAppDataContext.tsx` (somente — duas alterações pontuais).
+Hoje (linha 355) o loop é `contacts.forEach`. Trocar por `sortedConversations.forEach` usando o `convMetaByContact` (que já tem queueId) e juntar com o telefone do contato — quando o contato ainda não está carregado, usar o telefone derivado do `remote_jid` da conversa (já existe no schema). Isso garante que **todas as conversas em memória entram no batch de sessão**, mesmo antes do contato ser paginado, eliminando a classificação errada por contato faltante.
 
-Nenhuma mudança de banco, edge function ou UI.
+### 3. `src/components/chat/ChatList.tsx` — banner de status do filtro
+
+Quando `modeFilter !== 'all'` E (`queueAgentMap` ainda carregando OU `sessionActiveMap.isFetching` OU `missingContactIds.length > 0`), mostrar um banner discreto no topo da lista: "Classificando conversas… (X/Y prontas)" com contador baseado em `pairs resolvidos / pairs totais`. Substitui a sensação de "filtro errado" por "filtro ainda processando".
+
+### 4. `src/contexts/WhatsAppDataContext.tsx` — pré-carregar contatos das conversas em memória
+
+Adicionar, dentro do `runConvAutoLoad('active', ...)` (após cada página chegar), um disparo silencioso: pegar `contact_id`s da página que **não estão** em `contacts` e fazer um `select` em lote para hidratar a cache local de `contacts` (sem alterar `hasMoreContacts`/paginação visual). Reduz o `missingContactIds` a quase zero antes do usuário aplicar o filtro.
+
+Limites:
+- Lote de até 200 ids por chamada.
+- Marcar esses contatos como "hidratação silenciosa" para o `loadMoreContacts` continuar funcionando normal sem duplicar.
+
+### 5. `useAgentSessionStatusesBatch` — estabilizar fetch incremental
+
+A queryKey muda toda vez que um novo par entra (a cada lote de contatos). Trocar para uma estratégia incremental: dividir `pairs` em "chunks estáveis" (ordenado por `phone:codAgent`, agrupado em janelas de 200) e usar `useQueries` por chunk. Resultado: chunks já resolvidos não refazem fetch quando novos pares chegam, e o `Map` final é a união dos chunks. Reduz drasticamente o tempo em que o filtro fica "incompleto".
+
+## Detalhes técnicos
+
+```ts
+// ChatList.tsx
+type ConvMode = 'julia' | 'human' | 'unknown';
+
+const getConversationMode = (conv): ConvMode => {
+  if (queueAgentLoading) return 'unknown';
+  const link = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
+  if (!link) return 'unknown';            // queue não resolvida
+  if (!link.hasAgent) return 'human';     // queue sem agente Julia → humano
+  const phone = contactPhoneById.get(conv.contact_id) ?? phoneFromRemoteJid(conv);
+  if (!phone) return 'unknown';
+  const active = getSessionActive(phone, link.codAgent);
+  if (active === undefined) {
+    return sessionStatusesIsFetching ? 'unknown' : 'human';
+  }
+  return active ? 'julia' : 'human';
+};
+```
+
+```ts
+// sessionPairs a partir de conversas
+const sessionPairs = React.useMemo(() => {
+  const pairs = []; const seen = new Set();
+  for (const conv of sortedConversations) {
+    const link = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
+    if (!link?.hasAgent || !link.codAgent) continue;
+    const phone = (contactPhoneById.get(conv.contact_id) ?? phoneFromRemoteJid(conv) ?? '')
+      .replace(/\D/g, '');
+    if (!phone) continue;
+    const key = `${phone}:${link.codAgent}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    pairs.push({ whatsappNumber: phone, codAgent: link.codAgent });
+  }
+  return pairs;
+}, [sortedConversations, queueAgentMap, contactPhoneById]);
+```
+
+A normalização BR (`normalizeBrPhone` / `brPhoneVariants`) já está dentro de `useAgentSessionStatusesBatch`, então o lookup em `getSessionActive` continua válido.
+
+## Critérios de aceitação
+
+- Trocar de "Em aberto" → filtro "Atendimento humano" não exibe nenhuma conversa com badge "Julia ativa", em qualquer momento da rolagem.
+- Enquanto o batch de sessões está carregando, o contador "X de Y" pode crescer, mas itens nunca migram da aba humano para Julia (ou vice-versa) após aparecerem.
+- Banner "Classificando conversas…" aparece e some quando todos os pares estão resolvidos.
+- Sem regressão na aba "Em atendimento" / "Resolvidos / Fechados".
