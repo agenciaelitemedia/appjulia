@@ -284,7 +284,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const [isLoadingMoreConversations, setIsLoadingMoreConversations] = useState(false);
 
   // Period filter — defaults to last 7 days every time the chat is opened
-  const [periodFilter, setPeriodFilter] = useState<ChatPeriodFilter>('last7days');
+  const [periodFilter, setPeriodFilter] = useState<ChatPeriodFilter>('all');
 
   const knownMessageIds = useRef<Set<string>>(new Set());
 
