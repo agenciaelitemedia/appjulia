@@ -886,7 +886,7 @@ export function ChatList() {
   // results split by tab, just like outside the search.
   // ─────────────────────────────────────────────────────────────────────
   const searchView = React.useMemo(() => {
-    if (!isSearching || !searchResults) {
+    if (!isRemoteQuery || !searchResults) {
       return null as null | {
         contacts: typeof contacts;
         convsByContact: Map<string, typeof sortedConversations>;
@@ -1013,29 +1013,29 @@ export function ChatList() {
       closedCount: closed,
     };
   }, [
-    isSearching, searchResults, contacts, sortedConversations,
+    isRemoteQuery, searchResults, contacts, sortedConversations,
     matchesActiveTab, isVisibleByOpenScope, selectedQueue, periodFilter,
     ownerFilter, teamMembers, user?.id, user?.name, stageIds, stageByPhone,
     modeFilter, getConversationMode, conversationStatusFilter, sortOrder,
   ]);
 
-  const displayContacts = isSearching
+  const displayContacts = isRemoteQuery
     ? (searchView?.contacts ?? [])
     : finalVisibleContacts;
 
-  const displayConvsByContact = isSearching
+  const displayConvsByContact = isRemoteQuery
     ? (searchView?.convsByContact ?? new Map<string, typeof sortedConversations>())
     : convsByContact;
 
-  // Override badge counts when searching so the tabs reflect search totals
-  const effPendingConvCount = isSearching ? (searchView?.pendingCount ?? 0) : pendingConvCount;
-  const effOpenConvCount = isSearching ? (searchView?.openCount ?? 0) : openConvCount;
-  const effClosedConvCount = isSearching ? (searchView?.closedCount ?? 0) : closedConvCount;
+  // Override badge counts when in remote-query mode so the tabs reflect totals
+  const effPendingConvCount = isRemoteQuery ? (searchView?.pendingCount ?? 0) : pendingConvCount;
+  const effOpenConvCount = isRemoteQuery ? (searchView?.openCount ?? 0) : openConvCount;
+  const effClosedConvCount = isRemoteQuery ? (searchView?.closedCount ?? 0) : closedConvCount;
 
-  // Search pagination metadata for footer UI
+  // Remote-query pagination metadata for footer UI
   const searchTotal = searchResults?.total ?? 0;
   const searchLoaded = searchResults?.contacts?.length ?? 0;
-  const hasMoreSearch = isSearching && searchLoaded < searchTotal;
+  const hasMoreSearch = isRemoteQuery && searchLoaded < searchTotal;
 
   // Per-tab/status counters for footer (independent for each status tab)
   const activeTabTotal =
