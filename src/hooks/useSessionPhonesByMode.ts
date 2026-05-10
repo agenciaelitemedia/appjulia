@@ -40,7 +40,7 @@ export function useSessionPhonesByMode(
       const rows = await externalDb.getSessionPhonesByActive(
         codAgents,
         active,
-        5000
+        2000
       );
       const set = new Set<string>();
       for (const r of rows || []) {
@@ -60,7 +60,7 @@ export function useSessionPhonesByMode(
         }
       }
       const phones = [...set];
-      const exceededLimit = (rows?.length ?? 0) >= 5000;
+      const exceededLimit = (rows?.length ?? 0) >= 2000;
       return { phones, exceededLimit };
     },
   });
