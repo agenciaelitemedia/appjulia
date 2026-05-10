@@ -2395,7 +2395,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       // Silent refresh — no setIsLoading(true) so the list does not flash.
       if (clientId) {
         loadContacts({ reset: true }).catch(() => { /* silent */ });
-        loadConversations().catch(() => { /* silent */ });
+        // Conversations are kept in sync via realtime; no full refetch on
+        // visibility change. Realtime will deliver any missed events on
+        // reconnect, and counts/lists update automatically.
       }
       const cid = selectedContactId;
       if (cid) {
@@ -2404,7 +2406,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [clientId, selectedContactId, loadContacts, loadConversations, loadMessages]);
+  }, [clientId, selectedContactId, loadContacts, loadMessages]);
 
   // ============================================
   // Context Value
