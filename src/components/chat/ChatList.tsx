@@ -1064,9 +1064,9 @@ export function ChatList() {
       <div className="flex border-b shrink-0">
         <TooltipProvider delayDuration={200}>
         {([
+          { value: 'resolved_closed' as const, label: '', icon: <CheckCheck className="h-4 w-4" />, count: closedConvCount, iconOnly: true, tooltip: 'Resolvidas / Encerradas' },
           { value: 'pending' as const, label: 'Em Abertos', count: pendingConvCount, iconOnly: false, tooltip: 'Conversas aguardando atendimento' },
           { value: 'open' as const,    label: 'Em Atendimento', count: openConvCount, iconOnly: false, tooltip: 'Conversas em atendimento ativo' },
-          { value: 'resolved_closed' as const, label: '', icon: <CheckCheck className="h-4 w-4" />, count: closedConvCount, iconOnly: true, tooltip: 'Resolvidas / Encerradas' },
         ]).map(tab => (
           <Tooltip key={tab.value}>
             <TooltipTrigger asChild>

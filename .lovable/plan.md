@@ -1,62 +1,39 @@
-## Refatoração de filtros do /chat
+## Ajustes nas abas e no filtro de modo do `/chat`
 
-### 1. `src/components/chat/ChatList.tsx` — área de filtros
+Arquivo único: `src/components/chat/ChatList.tsx`.
 
-**Remover completamente:**
-- Filtro de SLA (pills "Todos SLAs / Estourado / Em risco" — linhas 884-934).
-- Pills de status `Todos / Pendentes / Em atendimento / Resolvidas / Encerradas` (linhas 936-959). O controle de status passa a ser feito apenas pelas abas inferiores.
-- Botão (ícone Filter) e contador `activeFilterCount` na barra de busca, pois o painel de filtros fica vazio.
-- Estado `slaFilter`, `setSlaFilter`, e cálculos `breachedCount` / `atRiskCount` se não usados em outro lugar (manter `slaStatusByContact` apenas se ainda servir ao item — não serve mais; pode ser removido).
-- Toda a aplicação de `slaFilter` em `applyClientFilters`, `pendingConvCount`/`openConvCount` e `visibleContacts`.
-- Estado `filtersOpen` e wrappers `{filtersOpen && ...}`.
+### 1. Reordenar as abas de status (linha ~1066)
 
-**Reorganizar a barra de filtros (sempre visível, sem painel colapsável):**
+A aba **Resolvidas/Encerradas** passa a ser a **primeira**. Nova ordem do array que alimenta o `.map`:
 
-Linha 1 — período (mantém pills atuais com ícone calendário).
+1. `resolved_closed` — ícone `CheckCheck` (icon-only, com tooltip "Resolvidas / Encerradas").
+2. `pending` — "Em Abertos".
+3. `open` — "Em Atendimento".
 
-Linha 2 — Filas + Atendentes (lado a lado):
-```
-[Select Fila .................] [TeamMemberSelect Atendente ...]
-```
-Distribuir em `grid-cols-2 gap-2` para ficarem lado a lado, mantendo a UX atual de cada um (apenas reduzindo larguras).
+### 2. Contadores sempre visíveis e independentes da aba
 
-Linha 3 — Modo (Todos/Julia/Humano) + Etapas, em um único bloco com destaque:
-- Envolver em `<div className="flex items-center gap-2 p-2 rounded-md border border-primary/20 bg-primary/5">`.
-- Modo vira `ToggleGroup` somente com **ícones**:
-  - Todos → `ListFilter` (tooltip "Todos os modos")
-  - Julia → `Bot` (tooltip "Filas com Julia IA ativa")
-  - Humano → `User` (tooltip "Atendimento humano (Julia inativa)")
-- Ao lado, o popover de etapas (mantém o componente atual, `Layers` + label `stageLabel`), envolvido em Tooltip explicativo.
+Hoje o badge só renderiza dentro de cada `<button>` da aba ativa quando `count >= 0`, mas o cálculo (`pendingConvCount` / `openConvCount` / `closedConvCount`) já é feito sobre `conversationsForBadges`, que ignora o `conversationStatusFilter`. Vamos:
 
-**Tabs inferiores de status (atualmente `pending` e `open`):** adicionar uma terceira aba **icon-only** que cobre Resolvidas + Encerradas:
-- `value: 'resolved_closed'` (novo agrupador local) com ícone `CheckCheck` (ou `Archive`) + tooltip "Resolvidas / Encerradas".
-- Ao clicar, chamar `setConversationStatusFilter('resolved')` por padrão; o cálculo de `visibleContacts` para esse caso deve incluir conversas com `status === 'resolved' || status === 'closed'`.
-- Ajustar `visibleContacts` (bloco `if (conversationStatusFilter !== 'pending' ...)`) para suportar o novo valor agregando os dois status no filtro `filteredContacts`. Como o contexto trabalha com `ConversationFilterStatus`, criar um filtro local que aceite ambos: derivar `visibleContacts` direto de `sortedConversations` filtrando `status in ['resolved','closed']` quando a aba estiver ativa.
-- Adicionar contador da nova aba (similar a `pendingConvCount`/`openConvCount`).
+- Garantir que o `<span>` do badge **sempre renderize** (remover qualquer condicional `count > 0` se houver) e exibir `0` quando não houver conversas — assim o usuário enxerga o número real de cada categoria mesmo na aba selecionada.
+- Manter o estilo de cor diferenciado (preenchido em `bg-primary` quando a aba está ativa, `bg-muted` quando inativa) para reforçar a aba selecionada sem esconder os outros contadores.
+- Confirmar que `conversationsForBadges` continua sendo a fonte (já ignora status); nenhuma mudança nos memos é necessária além do que já existe.
 
-### 2. `src/components/chat/ChatContactItem.tsx` — listagem
+Tecnicamente, como não existem mais pills de status acima da lista, os badges das abas passam a ser a **única referência visual** de quantas conversas existem em cada bucket — por isso o badge precisa ser persistente.
 
-Mover blocos **Julia** (linhas 290-324) e **CRM Builder** (linhas 327-360) para **logo abaixo do preview da última mensagem (Row 2)** e **antes** da linha de pills (fila/atribuído/SLA).
+### 3. Destaque do filtro de modo (Todos / Julia / Humano)
 
-Resultado da ordem dentro de `flex-1`:
-1. Row 1: nome + tempo
-2. Row 2: preview + unread badge
-3. **NOVO posicionamento:** linha Julia (se houver) + linha CRM Builder (se houver)
-4. Row 3: pills (fila → atribuído → SLA → prioridade)
-5. Row 4: tags
+No bloco `ToggleGroup` (linhas ~926-969), reforçar visualmente o item selecionado, para que fique nítido qual modo está ativo:
 
-Manter exatamente os mesmos componentes/markup, apenas reordenar.
+- Aumentar o item ativo: `data-[state=on]:ring-2 data-[state=on]:ring-offset-1 data-[state=on]:scale-105 data-[state=on]:shadow-sm`.
+- Cores ativas mais saturadas (mantendo a paleta existente): 
+  - **Todos**: `data-[state=on]:bg-foreground data-[state=on]:text-background data-[state=on]:ring-foreground/40`.
+  - **Julia**: `data-[state=on]:bg-green-500 data-[state=on]:text-white data-[state=on]:ring-green-500/40`.
+  - **Humano**: `data-[state=on]:bg-amber-500 data-[state=on]:text-white data-[state=on]:ring-amber-500/40`.
+- Itens não selecionados permanecem com `bg-background text-muted-foreground` para contraste.
+- Adicionar um pequeno rótulo dinâmico (texto curto) ao lado dos ícones — por exemplo, à direita do `ToggleGroup`, um `<span className="text-[11px] font-medium text-foreground/80">{modeLabel}</span>` onde `modeLabel` mapeia `all → 'Todos'`, `julia → 'Julia IA'`, `human → 'Humano'`. Isso deixa explícito o modo ativo sem depender só da cor.
 
-### 3. Limpeza
+### Observações
 
-- Remover imports não utilizados após a remoção: `AlertTriangle`, `Flame`, `Filter` (se nada mais usar), `FolderOpen`, `CheckCheck`/`Archive` se substituídos, etc. Re-verificar lista de imports do `lucide-react` no topo de `ChatList.tsx` e podar.
-- Remover constantes `SlaFilter` type se não usado.
-- Garantir `TooltipProvider` envolvendo os novos botões com `title` substituído por `Tooltip`.
-
-### Observações técnicas
-
-- Não alterar `WhatsAppDataContext` — toda a lógica nova fica client-side em `ChatList`.
-- Para a aba "Resolvidas/Encerradas", como o contexto mantém `conversationStatusFilter: ConversationFilterStatus`, usar um estado local `statusTab: 'pending' | 'open' | 'closed_group'` e mapear:
-  - `pending`/`open` → seta `setConversationStatusFilter(value)`
-  - `closed_group` → seta `setConversationStatusFilter('all')` e aplica filtro client-side `status in ['resolved','closed']` no derivador `visibleContacts`. Isso evita mexer no enum do contexto.
-- O contador da nova aba reaproveita o mesmo loop de `pendingConvCount`/`openConvCount` adicionando um terceiro acumulador (`closedConvCount`) sob `effectiveStatus in ['resolved','closed']`.
+- Nenhuma alteração em `WhatsAppDataContext`, em hooks ou em queries.
+- Mudanças puramente de UI/ordem; lógica de filtro de status continua sendo a aba (`setConversationStatusFilter`).
+- Manter tokens semânticos do design system; usar variantes Tailwind já presentes.
