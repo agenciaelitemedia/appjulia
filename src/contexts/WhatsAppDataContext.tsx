@@ -667,6 +667,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       }
     } finally {
       if (!aborted && convLoadEpochRef.current === myEpoch) {
+        if (group === 'active' && !hasLoadedConversationsOnceRef.current) {
+          hasLoadedConversationsOnceRef.current = true;
+          setHasLoadedConversationsOnce(true);
+        }
         setConvGroupMeta(prev => {
           const reachedCap = pages >= maxPages && lastFetched === CONVERSATIONS_PAGE_SIZE;
           return {
