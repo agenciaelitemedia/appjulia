@@ -287,7 +287,7 @@ export function ChatList() {
   useEffect(() => {
     const sentinel = convSentinelRef.current;
     if (!sentinel) return;
-    if (isSearching) return;
+    if (isRemoteQuery) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting && hasMoreConversations) {
@@ -298,7 +298,7 @@ export function ChatList() {
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMoreConversations, loadMoreConversations, isSearching]);
+  }, [hasMoreConversations, loadMoreConversations, isRemoteQuery]);
   const activeQueues = queues.filter(q => q.is_active && !q.is_deleted);
 
   // Default = "Todas as filas" (selectedQueue null). No auto-select.
