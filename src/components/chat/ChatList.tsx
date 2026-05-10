@@ -179,7 +179,15 @@ export function ChatList() {
 
   const { data: modePhonesData, isFetching: isModePhonesFetching } =
     useSessionPhonesByMode(phoneFilterMode ?? 'all', clientCodAgentsForMode);
-  const modePhones = modePhonesData?.phones ?? null;
+  // When the user has no agents linked we can't compute a phone universe,
+  // so treat the mode filter as "ready with empty result" to avoid hanging
+  // the query in a perpetual loading state.
+  const modePhones =
+    phoneFilterMode === null
+      ? null
+      : clientCodAgentsForMode.length === 0
+        ? []
+        : (modePhonesData?.phones ?? null);
   const modePhonesReady = phoneFilterMode === null || modePhones !== null;
 
   // Either a free-text search or a mode pre-filter triggers the remote
