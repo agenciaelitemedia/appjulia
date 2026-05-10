@@ -1528,7 +1528,7 @@ export function ChatList() {
               <div className="flex justify-center py-3">
                 <button
                   type="button"
-                  onClick={() => setSearchPage((p) => p + 1)}
+                  onClick={() => incrementSearchPage()}
                   className="text-xs text-primary hover:underline"
                 >
                   Carregar mais ({searchLoaded} de {searchTotal})
