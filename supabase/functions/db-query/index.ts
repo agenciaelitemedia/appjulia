@@ -2225,32 +2225,6 @@ serve(async (req) => {
         break;
       }
 
-      case 'get_session_phones_by_active': {
-        // Return DISTINCT whatsapp_number list for sessions of the given
-        // cod_agents whose `active` flag matches. Used to build a server-side
-        // phone universe for the chat list "Julia/Humano" mode filter.
-        const { codAgents, active, limit } = data || {};
-        if (!codAgents || !Array.isArray(codAgents) || codAgents.length === 0) {
-          result = [];
-          break;
-        }
-        const codes = codAgents.map((c: any) => String(c || '')).filter(Boolean);
-        if (codes.length === 0) { result = []; break; }
-        const cap = Math.max(1, Math.min(Number(limit) || 5000, 10000));
-        const rows = await sql.unsafe(
-          `SELECT DISTINCT s.whatsapp_number::text AS whatsapp_number
-             FROM sessions s
-             JOIN agents a ON a.id = s.agent_id
-            WHERE a.cod_agent::text = ANY($1::varchar[])
-              AND s.active = $2
-              AND s.whatsapp_number IS NOT NULL
-            LIMIT ${cap}`,
-          [codes, !!active]
-        );
-        result = rows;
-        break;
-      }
-
       // ================== ADVBOX INTEGRATION ACTIONS ==================
 
       case 'advbox_get_integration': {

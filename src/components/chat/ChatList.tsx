@@ -29,7 +29,6 @@ import { useChatSlaConfigs, evaluateSla, type SlaStatus } from '@/hooks/useChatS
 import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
 import { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
-import { useSessionPhonesByMode } from '@/hooks/useSessionPhonesByMode';
 import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
@@ -157,43 +156,6 @@ export function ChatList() {
   const trimmedSearch = (searchQuery || '').trim();
   const isSearching = trimmedSearch.length >= 2;
 
-  // Mode filter applied server-side when Julia/Humano is selected. We
-  // pre-fetch the universe of phones for that mode (from agent_sessions)
-  // and use it as a `phone IN (...)` filter on the contacts query so the
-  // totalizers and pagination cover the whole base, not just the
-  // already-loaded page.
-  const phoneFilterMode: 'julia' | 'human' | null =
-    modeFilter === 'julia' || modeFilter === 'human' ? modeFilter : null;
-
-  const { data: agentsForMode } = useMyAgents();
-  const clientCodAgentsForMode = React.useMemo(() => {
-    const set = new Set<string>();
-    [
-      ...(agentsForMode?.myAgents || []),
-      ...(agentsForMode?.monitoredAgents || []),
-    ].forEach((a: any) => {
-      if (a?.cod_agent) set.add(String(a.cod_agent));
-    });
-    return [...set];
-  }, [agentsForMode]);
-
-  const { data: modePhonesData, isFetching: isModePhonesFetching } =
-    useSessionPhonesByMode(phoneFilterMode ?? 'all', clientCodAgentsForMode);
-  // When the user has no agents linked we can't compute a phone universe,
-  // so treat the mode filter as "ready with empty result" to avoid hanging
-  // the query in a perpetual loading state.
-  const modePhones =
-    phoneFilterMode === null
-      ? null
-      : clientCodAgentsForMode.length === 0
-        ? []
-        : (modePhonesData?.phones ?? null);
-  const modePhonesReady = phoneFilterMode === null || modePhones !== null;
-
-  // Either a free-text search or a mode pre-filter triggers the remote
-  // query path. Both scenarios bypass the in-memory paginated list.
-  const isRemoteQuery = isSearching || phoneFilterMode !== null;
-
   // Key used to scope pagination per tab/status combo
   const searchPageKey = `${activeTab}|${conversationStatusFilter}`;
   const searchPage = searchPages[searchPageKey] ?? 1;
@@ -204,94 +166,35 @@ export function ChatList() {
     }));
   }, [searchPageKey]);
 
-  // Reset all per-tab pagination whenever the search term or mode filter changes
+  // Reset all per-tab pagination whenever the search term changes
   useEffect(() => {
     setSearchPages({});
-  }, [trimmedSearch, phoneFilterMode]);
+  }, [trimmedSearch]);
 
   const { data: searchResults, isFetching: isSearchFetching } = useQuery({
-    queryKey: [
-      'chat-list-search',
-      clientId,
-      trimmedSearch,
-      phoneFilterMode,
-      modePhones?.length ?? 0,
-      searchPageKey,
-      searchPage,
-    ],
-    enabled: isRemoteQuery && !!clientId && modePhonesReady,
+    queryKey: ['chat-list-search', clientId, trimmedSearch, searchPageKey, searchPage],
+    enabled: isSearching && !!clientId,
     staleTime: 30_000,
     placeholderData: (prev) => prev,
     queryFn: async () => {
       const term = trimmedSearch.replace(/[%,]/g, ' ').trim();
-      // Empty universe when mode filter has no matching phones
-      if (phoneFilterMode && (!modePhones || modePhones.length === 0)) {
-        return { contacts: [] as typeof contacts, conversations: [] as typeof conversations, total: 0 };
-      }
-      if (!term && !phoneFilterMode) {
-        return { contacts: [] as typeof contacts, conversations: [] as typeof conversations, total: 0 };
-      }
+      if (!term) return { contacts: [] as typeof contacts, conversations: [] as typeof conversations, total: 0 };
       const digits = term.replace(/\D/g, '');
+      const orParts: string[] = [`name.ilike.%${term}%`];
+      if (digits.length >= 3) orParts.push(`phone.ilike.%${digits}%`);
       const upper = searchPage * SEARCH_PAGE_SIZE - 1;
-      const SELECT_COLS =
-        'id,client_id,cod_agent,channel_source,channel_type,remote_jid,phone,name,avatar,is_group,is_archived,is_muted,unread_count,last_message_at,last_message_text,created_at,updated_at';
-
-      const buildBase = () => {
-        let q = supabase
-          .from('chat_contacts')
-          .select(SELECT_COLS, { count: 'exact' })
-          .eq('client_id', clientId)
-          .order('last_message_at', { ascending: false, nullsFirst: false });
-        if (term) {
-          const orParts: string[] = [`name.ilike.%${term}%`];
-          if (digits.length >= 3) orParts.push(`phone.ilike.%${digits}%`);
-          q = q.or(orParts.join(','));
-        }
-        return q;
-      };
-
-      let matchedContacts: typeof contacts = [];
-      let totalCount = 0;
-
-      if (phoneFilterMode && modePhones && modePhones.length > 0) {
-        // PostgREST URL has a length cap; chunk the IN list, fetch in
-        // parallel, then merge / sort / paginate client-side.
-        const CHUNK = 120;
-        const chunks: string[][] = [];
-        for (let i = 0; i < modePhones.length; i += CHUNK) {
-          chunks.push(modePhones.slice(i, i + CHUNK));
-        }
-        const results = await Promise.all(
-          chunks.map(async (chunk) => {
-            const q = buildBase().in('phone', chunk).limit(500);
-            const { data, error } = await q;
-            if (error) throw error;
-            return (data || []) as unknown as typeof contacts;
-          })
-        );
-        const seen = new Set<string>();
-        const merged: typeof contacts = [];
-        for (const arr of results) {
-          for (const c of arr) {
-            if (seen.has(c.id)) continue;
-            seen.add(c.id);
-            merged.push(c);
-          }
-        }
-        merged.sort((a, b) => {
-          const ta = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
-          const tb = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
-          return tb - ta;
-        });
-        totalCount = merged.length;
-        matchedContacts = merged.slice(0, upper + 1);
-      } else {
-        const { data: matched, error, count } = await buildBase().range(0, upper);
-        if (error) throw error;
-        matchedContacts = (matched || []) as unknown as typeof contacts;
-        totalCount = count ?? matchedContacts.length;
-      }
-
+      const { data: matched, error, count } = await supabase
+        .from('chat_contacts')
+        .select(
+          'id,client_id,cod_agent,channel_source,channel_type,remote_jid,phone,name,avatar,is_group,is_archived,is_muted,unread_count,last_message_at,last_message_text,created_at,updated_at',
+          { count: 'exact' }
+        )
+        .eq('client_id', clientId)
+        .or(orParts.join(','))
+        .order('last_message_at', { ascending: false, nullsFirst: false })
+        .range(0, upper);
+      if (error) throw error;
+      const matchedContacts = (matched || []) as unknown as typeof contacts;
       const ids = matchedContacts.map((c) => c.id);
       let convs: typeof conversations = [];
       if (ids.length > 0) {
@@ -303,7 +206,7 @@ export function ChatList() {
           .order('updated_at', { ascending: false });
         convs = ((cdata || []) as unknown as typeof conversations);
       }
-      return { contacts: matchedContacts, conversations: convs, total: totalCount };
+      return { contacts: matchedContacts, conversations: convs, total: count ?? matchedContacts.length };
     },
   });
 
@@ -334,7 +237,7 @@ export function ChatList() {
   useEffect(() => {
     const sentinel = convSentinelRef.current;
     if (!sentinel) return;
-    if (isRemoteQuery) return;
+    if (isSearching) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting && hasMoreConversations) {
@@ -345,7 +248,7 @@ export function ChatList() {
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMoreConversations, loadMoreConversations, isRemoteQuery]);
+  }, [hasMoreConversations, loadMoreConversations, isSearching]);
   const activeQueues = queues.filter(q => q.is_active && !q.is_deleted);
 
   // Default = "Todas as filas" (selectedQueue null). No auto-select.
@@ -433,30 +336,12 @@ export function ChatList() {
     return map;
   }, [sortedConversations]);
 
-  const remoteConversations = searchResults?.conversations ?? [];
-  const remoteContacts = searchResults?.contacts ?? [];
-
-  const remoteConvMetaByContact = React.useMemo(() => {
-    const map = new Map<string, { codAgent?: string; queueId?: string; assignedTo?: string | null }>();
-    remoteConversations.forEach((conv) => {
-      if (!map.has(conv.contact_id)) {
-        map.set(conv.contact_id, {
-          codAgent: conv.cod_agent || undefined,
-          queueId: conv.queue_id || undefined,
-          assignedTo: conv.assigned_to || null,
-        });
-      }
-    });
-    return map;
-  }, [remoteConversations]);
-
   // Batch-load queue → agent links for all visible queues
   const queueIds = React.useMemo(() => {
     const set = new Set<string>();
     convMetaByContact.forEach((m) => { if (m.queueId) set.add(m.queueId); });
-    remoteConvMetaByContact.forEach((m) => { if (m.queueId) set.add(m.queueId); });
     return Array.from(set);
-  }, [convMetaByContact, remoteConvMetaByContact]);
+  }, [convMetaByContact]);
   const { data: queueAgentMap } = useQueueAgentLinks(queueIds);
 
   // For every contact whose conversation runs through a Julia-enabled queue,
@@ -478,20 +363,8 @@ export function ChatList() {
       seen.add(key);
       pairs.push({ whatsappNumber: phone, codAgent: link.codAgent, key });
     });
-    remoteContacts.forEach((c) => {
-      const meta = remoteConvMetaByContact.get(c.id);
-      if (!meta?.queueId || !c.phone) return;
-      const link = queueAgentMap?.get(meta.queueId);
-      if (!link?.hasAgent || !link.codAgent) return;
-      const phone = c.phone.replace(/\D/g, '');
-      if (!phone) return;
-      const key = `${phone}:${link.codAgent}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      pairs.push({ whatsappNumber: phone, codAgent: link.codAgent, key });
-    });
     return pairs;
-  }, [contacts, convMetaByContact, queueAgentMap, remoteContacts, remoteConvMetaByContact]);
+  }, [contacts, convMetaByContact, queueAgentMap]);
 
   const { data: sessionActiveMap } = useAgentSessionStatusesBatch(
     sessionPairs.map(({ whatsappNumber, codAgent }) => ({ whatsappNumber, codAgent }))
@@ -500,11 +373,8 @@ export function ChatList() {
   const contactPhoneById = React.useMemo(() => {
     const map = new Map<string, string | null>();
     contacts.forEach((c) => map.set(c.id, c.phone || null));
-    remoteContacts.forEach((c) => {
-      if (!map.has(c.id)) map.set(c.id, c.phone || null);
-    });
     return map;
-  }, [contacts, remoteContacts]);
+  }, [contacts]);
 
   // Resolve session.active for a (contactId, queueLink) pair. Returns:
   //  - true: Julia ativa
@@ -576,30 +446,26 @@ export function ChatList() {
   };
 
   const getContactMode = React.useCallback(
-    (contactId: string): 'julia' | 'human' | 'unknown' => {
+    (contactId: string): Exclude<ConversationModeFilter, 'all'> => {
       const meta = convMetaByContact.get(contactId);
       const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
-      // Without a queue→agent link we cannot tell — treat as unknown so
-      // these conversations don't pollute the "Humano" filter.
-      if (!queueLink?.hasAgent) return 'unknown';
+      if (!queueLink?.hasAgent) return 'human';
+      // Só classifica como 'julia' quando há sessão ATIVA confirmada.
+      // Sessão pausada (active === false) ou inexistente => humano.
       const phone = contactPhoneById.get(contactId);
       const active = getSessionActive(phone, queueLink.codAgent);
-      if (active === true) return 'julia';
-      if (active === false) return 'human'; // sessão pausada → humano confirmado
-      return 'unknown'; // sessão não encontrada / ainda carregando
+      return active === true ? 'julia' : 'human';
     },
     [convMetaByContact, queueAgentMap, contactPhoneById, getSessionActive]
   );
 
   const getConversationMode = React.useCallback(
-    (conv: typeof conversations[number]): 'julia' | 'human' | 'unknown' => {
+    (conv: typeof conversations[number]): Exclude<ConversationModeFilter, 'all'> => {
       const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
-      if (!queueLink?.hasAgent) return 'unknown';
+      if (!queueLink?.hasAgent) return 'human';
       const phone = contactPhoneById.get(conv.contact_id);
       const active = getSessionActive(phone, queueLink.codAgent);
-      if (active === true) return 'julia';
-      if (active === false) return 'human';
-      return 'unknown';
+      return active === true ? 'julia' : 'human';
     },
     [conversations, queueAgentMap, contactPhoneById, getSessionActive]
   );
@@ -966,7 +832,7 @@ export function ChatList() {
   // results split by tab, just like outside the search.
   // ─────────────────────────────────────────────────────────────────────
   const searchView = React.useMemo(() => {
-    if (!isRemoteQuery || !searchResults) {
+    if (!isSearching || !searchResults) {
       return null as null | {
         contacts: typeof contacts;
         convsByContact: Map<string, typeof sortedConversations>;
@@ -1093,29 +959,29 @@ export function ChatList() {
       closedCount: closed,
     };
   }, [
-    isRemoteQuery, searchResults, contacts, sortedConversations,
+    isSearching, searchResults, contacts, sortedConversations,
     matchesActiveTab, isVisibleByOpenScope, selectedQueue, periodFilter,
     ownerFilter, teamMembers, user?.id, user?.name, stageIds, stageByPhone,
     modeFilter, getConversationMode, conversationStatusFilter, sortOrder,
   ]);
 
-  const displayContacts = isRemoteQuery
+  const displayContacts = isSearching
     ? (searchView?.contacts ?? [])
     : finalVisibleContacts;
 
-  const displayConvsByContact = isRemoteQuery
+  const displayConvsByContact = isSearching
     ? (searchView?.convsByContact ?? new Map<string, typeof sortedConversations>())
     : convsByContact;
 
-  // Override badge counts when in remote-query mode so the tabs reflect totals
-  const effPendingConvCount = isRemoteQuery ? (searchView?.pendingCount ?? 0) : pendingConvCount;
-  const effOpenConvCount = isRemoteQuery ? (searchView?.openCount ?? 0) : openConvCount;
-  const effClosedConvCount = isRemoteQuery ? (searchView?.closedCount ?? 0) : closedConvCount;
+  // Override badge counts when searching so the tabs reflect search totals
+  const effPendingConvCount = isSearching ? (searchView?.pendingCount ?? 0) : pendingConvCount;
+  const effOpenConvCount = isSearching ? (searchView?.openCount ?? 0) : openConvCount;
+  const effClosedConvCount = isSearching ? (searchView?.closedCount ?? 0) : closedConvCount;
 
-  // Remote-query pagination metadata for footer UI
+  // Search pagination metadata for footer UI
   const searchTotal = searchResults?.total ?? 0;
   const searchLoaded = searchResults?.contacts?.length ?? 0;
-  const hasMoreSearch = isRemoteQuery && searchLoaded < searchTotal;
+  const hasMoreSearch = isSearching && searchLoaded < searchTotal;
 
   // Per-tab/status counters for footer (independent for each status tab)
   const activeTabTotal =
@@ -1567,13 +1433,13 @@ export function ChatList() {
       <div ref={listRef} className="flex-1 overflow-y-auto">
         {/* Silent-refetch banner — shown when reloading but the list is
             already populated, so the user doesn't lose the current view. */}
-        {(isLoading || (isRemoteQuery && (isSearchFetching || isModePhonesFetching) && (searchResults?.contacts?.length ?? 0) > 0)) && contacts.length > 0 && (
+        {(isLoading || (isSearching && isSearchFetching && (searchResults?.contacts?.length ?? 0) > 0)) && contacts.length > 0 && (
           <div className="flex items-center justify-center gap-2 py-1.5 text-[10px] text-muted-foreground bg-muted/30 border-b">
             <Loader2 className="h-3 w-3 animate-spin" />
-            {isSearching ? 'Buscando…' : phoneFilterMode ? 'Filtrando…' : 'Atualizando…'}
+            {isSearching ? 'Buscando…' : 'Atualizando…'}
           </div>
         )}
-        {(isLoading && contacts.length === 0) || (isRemoteQuery && (isSearchFetching || isModePhonesFetching) && !searchResults) ? (
+        {(isLoading && contacts.length === 0) || (isSearching && isSearchFetching && !searchResults) ? (
           <div className="py-1">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-3">
@@ -1649,15 +1515,15 @@ export function ChatList() {
         )}
 
         {/* Infinite scroll loader / sentinel */}
-        {!isRemoteQuery && isLoadingMoreContacts && contacts.length > 0 && (
+        {!isSearching && isLoadingMoreContacts && contacts.length > 0 && (
           <div className="flex justify-center py-3">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         )}
-        {!isRemoteQuery && displayContacts.length > 0 && (
+        {!isSearching && displayContacts.length > 0 && (
           <div ref={bottomSentinelRef} className="h-1" />
         )}
-        {!isRemoteQuery && hasMoreContacts && !isLoadingMoreContacts && displayContacts.length > 0 && (
+        {!isSearching && hasMoreContacts && !isLoadingMoreContacts && displayContacts.length > 0 && (
           <div className="flex justify-center py-3">
             <button
               type="button"
@@ -1668,21 +1534,21 @@ export function ChatList() {
             </button>
           </div>
         )}
-        {!isRemoteQuery && !isLoading && !hasMoreContacts && displayContacts.length > 0 && (
+        {!isSearching && !isLoading && !hasMoreContacts && displayContacts.length > 0 && (
           <div className="text-center text-[10px] text-muted-foreground py-3">
             Fim da lista ({activeTabTotal} de {activeTabTotal})
           </div>
         )}
 
-        {/* Remote-query pagination footer (search or mode filter) */}
-        {isRemoteQuery && searchLoaded > 0 && (
+        {/* Search-mode pagination footer */}
+        {isSearching && searchLoaded > 0 && (
           <>
-            {(isSearchFetching || isModePhonesFetching) && (
+            {isSearchFetching && (
               <div className="flex justify-center py-3">
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               </div>
             )}
-            {!isSearchFetching && !isModePhonesFetching && hasMoreSearch && (
+            {!isSearchFetching && hasMoreSearch && (
               <div className="flex justify-center py-3">
                 <button
                   type="button"
@@ -1693,7 +1559,7 @@ export function ChatList() {
                 </button>
               </div>
             )}
-            {!isSearchFetching && !isModePhonesFetching && !hasMoreSearch && (
+            {!isSearchFetching && !hasMoreSearch && (
               <div className="text-center text-[10px] text-muted-foreground py-3">
                 Fim da lista ({activeTabTotal} de {activeTabTotal})
               </div>

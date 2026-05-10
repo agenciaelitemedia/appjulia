@@ -797,18 +797,6 @@ class ExternalDatabase {
       data: { pairs },
     });
   }
-
-  async getSessionPhonesByActive(
-    codAgents: string[],
-    active: boolean,
-    limit = 5000
-  ): Promise<{ whatsapp_number: string }[]> {
-    if (!codAgents || codAgents.length === 0) return [];
-    return this.invoke({
-      action: 'get_session_phones_by_active',
-      data: { codAgents, active, limit },
-    });
-  }
 }
 
 export interface AgentInsertData {

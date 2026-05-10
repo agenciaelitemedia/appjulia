@@ -1,74 +1,64 @@
-## Problema
+## Objetivo
 
-O filtro de modo (Todos/Julia/Humano/Sem definição) na lista de chats hoje é puramente client-side: ele só consegue avaliar o subconjunto de conversas/contatos já trazidos do banco pela paginação infinita (`useWhatsAppData`) e pela busca server-side em `ChatList.tsx`. Como a base tem muito mais registros do que está carregado, ao escolher "Julia IA" ou "Humano" o usuário enxerga um número arbitrário de itens — o que está na memória — em vez do total real daquele modo.
+No `ChatList.tsx`, melhorar a busca server-side em dois pontos:
 
-A classificação é feita em `getContactMode` / `getConversationMode` cruzando dois lados que **não vêm na query da lista**:
+1. **Respeitar as abas/filtros ativos** — hoje a busca substitui a lista por todos os contatos retornados, ignorando aba Individual/Grupos, status (Em Aberto / Em Atendimento / Resolvidas) e demais filtros (modo Julia/Humano, atendente, fila, etapa, período). Os badges de contagem também não refletem os totais reais da busca.
+2. **Paginar progressivamente** — hoje a query retorna no máximo 100 e exibe tudo de uma vez. Quando houver mais resultados, mostrar `Carregar mais (X de XXX)`. Quando todos forem carregados, mostrar `Fim da lista (XXX de XXX)`. Mesmo padrão visual já usado fora do modo busca (linhas ~1342–1365).
 
-- vínculo `queue → cod_agent` (Supabase, hook `useQueueAgentLinks`);
-- flag `agent_sessions.active` por `(whatsapp_number, cod_agent)` (banco externo, hook `useAgentSessionStatusesBatch`).
+Tudo acontece no `src/components/chat/ChatList.tsx`. Sem alteração de schema, RLS, contexto ou tipos.
 
-Por isso não dá pra simplesmente mover a regra para um `WHERE` em `chat_contacts/chat_conversations`. A solução proposta resolve isso projetando o filtro de modo em uma **lista de telefones** que é então aplicada como `IN (...)` nas queries paginadas existentes.
+---
 
-## Estratégia
+## 1) Busca segmentada por aba e filtros
 
-Quando `modeFilter` for `julia` ou `human`, **mudar a fonte da paginação**: primeiro descobrir o universo completo de telefones que casa com aquele modo (consulta única ao banco externo, sem paginação), depois usar esse conjunto como filtro nas queries de contatos/conversas que já existem. Os totalizadores (badges e rodapé) passam a refletir o universo real, e a paginação carrega apenas itens daquele modo.
+Comportamento novo quando `isSearching === true`:
 
-Para `all` e `unknown` o comportamento atual continua (sem pré-filtro server-side).
+- Aplicar aos resultados da busca os mesmos predicados já usados em `visibleContacts` / `baseForCounts`:
+  - Aba **Individual / Grupos** (`activeTab` via `matchesActiveTab`).
+  - Filtro de **status** da conversa (`conversationStatusFilter`: `pending` / `open` / `resolved_closed`) usando o mesmo cálculo de `effectiveStatus` (pending+assignee → open).
+  - Filtros de **modo** (Julia/Humano via `getConversationMode`), **atendente** (`ownerFilter`), **fila** (`selectedQueue`), **etapa** (`stageIds` + `stageByPhone`), **período** (`periodFilter`) e restrição de open por usuário não-privilegiado (`isVisibleByOpenScope`).
+  - Snooze (`snoozed_until > now`) continua escondendo o contato.
 
-### Passo a passo
+Implementação:
 
-1. **Determinar os `cod_agent` do cliente logado.**  
-   Reaproveitar `useMyAgents` (`agentsData.myAgents` + `monitoredAgents`) — já em uso em `ChatList.tsx`. Resultado: `clientCodAgents: string[]`.
+- Em `displayContacts`, ao invés de só ordenar `searchResults.contacts`, percorrer `searchResults.conversations` (que já vem do servidor), aplicar todos os predicados acima e retornar os contatos correspondentes (dedupe por `contact_id`). Para contatos sem conversa, manter o contato apenas quando o filtro de status atual for compatível com "todos" (na prática hoje sempre há uma aba ativa — se não houver conversa, só aparece em `resolved_closed` quando não houver match; vamos manter o comportamento atual de pular se `conversationStatusFilter` é pending/open).
+- Para `displayConvsByContact`, manter a montagem atual (já funciona), apenas restringindo às conversas que passaram pelo filtro.
 
-2. **Novo hook `useModeFilterPhones(modeFilter, clientCodAgents)`.**  
-   - `modeFilter === 'julia'`: `SELECT whatsapp_number FROM agent_sessions WHERE cod_agent IN (...) AND active = true`.  
-   - `modeFilter === 'human'`: idem com `active = false`.  
-   - Retorna `{ phones: string[], expandedPhones: string[], isLoading, exceededLimit }`.  
-   - `expandedPhones` aplica `getBrPhoneVariants` em cada telefone (para casar com a forma como `chat_contacts.phone` é gravado), igual ao tratamento já feito em `useAgentSessionStatusesBatch`.  
-   - Cap defensivo: se o universo passar de ~5.000 telefones, expor `exceededLimit=true` e o componente usa fallback client-side com aviso. Na prática a base de sessões por cliente fica bem abaixo disso.  
-   - `staleTime: 30s`, mesma janela do batch de sessões.
+Contadores das abas durante a busca:
 
-3. **Propagar o filtro de telefones para as queries paginadas.**  
-   Em `WhatsAppDataContext.tsx`:
-   - Adicionar parâmetro opcional `phoneFilter?: string[] | null` ao contexto (setter exposto no provider).  
-   - Nas queries de contatos paginadas (linha ~463, `from('chat_contacts')`) e nas equivalentes de conversas que filtram por contato, aplicar `.in('phone', phoneFilter)` quando o filtro estiver presente.  
-   - Resetar a paginação (`offset=0`) sempre que `phoneFilter` mudar — mesmo padrão já usado em `useEffect` que zera `searchPages` quando o termo de busca muda.  
-   - O `count` retornado por essa mesma query passa a ser o total real do modo selecionado.
+- Reaproveitar o loop existente de `pendingConvCount/openConvCount/closedConvCount`, mas quando `isSearching` for true, alimentá-lo a partir de `searchResults.conversations` (universo da busca) ao invés de `conversations`. Mantém todos os outros predicados. Resultado: os badges Em Aberto / Em Atendimento e o ícone de Resolvidas mostram o total da busca em cada aba.
 
-4. **Aplicar também na busca server-side de `ChatList.tsx`.**  
-   No `useQuery(['chat-list-search', ...])` (linha 174), quando `phoneFilter` estiver setado, adicionar `.in('phone', phoneFilter)` no `from('chat_contacts')`. A paginação por aba já existente continua igual; só o universo varrido é restringido.
+## 2) Paginação progressiva da busca
 
-5. **Wire up no `ChatList.tsx`.**  
-   - Chamar `useModeFilterPhones(modeFilter, clientCodAgents)`.  
-   - Passar o resultado para o contexto via setter (ou via prop nas queries).  
-   - Manter `getContactMode`/`getConversationMode` como estão para colorir o badge individual e tratar `unknown`.  
-   - Remover (ou condicionar a `unknown`) as filtragens client-side em `filteredContacts`, no laço de `conversations` etc., quando o filtro server-side estiver ativo — caso contrário a lista é filtrada duas vezes e zera enquanto a query ainda não voltou.
+Trocar a query única por uma query paginada com count exato:
 
-6. **Modo `unknown`.**  
-   Não cabe em uma única consulta server-side eficiente (é o complemento de Julia ∪ Humano em todo o `chat_contacts`). Mantemos o comportamento client-side atual para esse caso (limitado ao que já foi paginado), e exibimos um pequeno hint no rodapé indicando que o total mostrado é parcial. Aceitável porque "Sem definição" é mais inspecional do que operacional.
+- Estado local: `searchPage` (number, começa em 1) + tamanho de página `SEARCH_PAGE_SIZE = 50`.
+- `useQuery` com `queryKey: ['chat-list-search', clientId, trimmedSearch, searchPage]`:
+  - Primeiro `select(..., { count: 'exact' })` em `chat_contacts` filtrando por `client_id` + `or(name.ilike%/phone.ilike%)`, `range(0, page * SEARCH_PAGE_SIZE - 1)`, ordenado por `last_message_at desc nulls last`.
+  - Em seguida `chat_conversations.in('contact_id', ids)` igual hoje.
+  - Retornar `{ contacts, conversations, total }`.
+- Resetar `searchPage` para 1 sempre que `trimmedSearch` mudar (via `useEffect`).
+- `keepPreviousData: true` (placeholderData) para não “piscar” a lista ao paginar.
 
-7. **Estados de carregamento.**  
-   - Enquanto `useModeFilterPhones` está fetchando, exibir o mesmo skeleton já usado pela busca (`isSearchFetching`).  
-   - Se `phones.length === 0`, lista vazia imediata com mensagem "Nenhuma conversa neste modo".
+UI no rodapé da lista (substitui o ramo `!isSearching` atual quando estiver buscando):
+
+- Contagem visível filtrada após aplicar os predicados de aba: `displayContacts.length`. O total geral da busca: `searchResults.total`.
+- Se `displayContacts.length < total` e há mais páginas no servidor (`searchResults.contacts.length < total`):
+  - Botão `Carregar mais (X de XXX)` onde `X = searchResults.contacts.length` e `XXX = searchResults.total`. Click → `setSearchPage(p => p + 1)`. Spinner enquanto `isFetching`.
+- Quando `searchResults.contacts.length >= total`:
+  - Texto `Fim da lista (XXX de XXX)`.
+- Manter o mesmo comportamento já existente para o modo não-busca (load-more incremental dos contatos do contexto), apenas exibindo também `(X de XXX)` ali se o contexto fornecer um total — fora do escopo se o total não estiver disponível; nesse caso manter os textos atuais. (Decisão: mostrar o `(X de XXX)` apenas no modo busca, onde temos o `count` exato; no modo padrão manter "Carregar mais conversas" e "Fim da lista" como hoje, conforme o usuário pediu “mesmo padrão do chat”.)
 
 ## Detalhes técnicos
 
-- **Fonte da verdade do `active`**: `agent_sessions` (banco externo via `externalDb`). Reusar `externalDb.getSessionStatusesBatch` ou criar `externalDb.getSessionPhonesByActive(codAgents, active)` — preferível o segundo porque evita trazer pares e devolve direto o array de telefones distintos.
-- **Variantes de telefone**: usar `getBrPhoneVariants` (`src/lib/phoneVariants.ts`), que já é o padrão do projeto para resolver as 4 formas (com/sem 55, com/sem 9º dígito).
-- **Cast bigint**: `cod_agent` continua sendo `bigint` no banco externo; passar como string no `IN`, igual ao padrão existente.
-- **Cache**: `react-query` por `[modeFilter, clientCodAgents.join(',')]`; invalidar quando o batch de sessões já existente também invalida (mesma janela de 30 s).
-- **Tabs (activeTab/conversationStatusFilter) e aba ativa**: a paginação per-tab introduzida na iteração anterior continua funcionando; o filtro de modo é ortogonal e simplesmente reduz o universo de cada aba.
+- Arquivo: `src/components/chat/ChatList.tsx` (todas as mudanças).
+- Reaproveitar `getDateRange`, `applyClientFilters`, `getConversationMode`, `matchesActiveTab`, `isVisibleByOpenScope`, `stageByPhone`.
+- Nenhuma mudança em `WhatsAppDataContext`, hooks de dados ou Supabase.
+- Cuidado: ao filtrar `displayContacts` pelo `conversationStatusFilter`, o sentinel infinito (`bottomSentinelRef`) deve permanecer escondido durante a busca (já está sob `!isSearching`). Manter assim.
+- O sentinel `convSentinelRef` (carrega mais conversas para badges) também não deve disparar durante a busca; condicionar seu `IntersectionObserver` a `!isSearching`.
 
 ## Fora de escopo
 
-- Mover a query da lista para uma view materializada com `cod_agent`/`active` denormalizados.
-- Resolver `unknown` server-side.
-- Backfill de `agent_sessions` históricas com `cod_agent` divergente (já listado no plano anterior).
-
-## Pergunta antes de implementar
-
-Comportamento ao trocar para Julia/Humano e haver muitos telefones (acima do cap de 5.000):
-
-- (a) **Fallback automático para client-side** com um aviso discreto "exibindo apenas amostra carregada". (recomendado)
-- (b) **Bloquear o filtro** com mensagem "muitos registros — refine por fila/etapa".
-- (c) **Sem cap**: mandar `IN` gigante mesmo (risco de query lenta / URL grande no PostgREST).
+- Server-side filters por aba/status (continua sendo client-side sobre os 50/100 carregados; aceitável porque a busca limita o universo).
+- Mudança no padrão da lista padrão (não-busca).
+- Ajustes em hooks externos, schema, RLS ou edge functions.
