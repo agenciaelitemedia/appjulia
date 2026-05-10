@@ -233,26 +233,65 @@ export function ChatList() {
       }
       const digits = term.replace(/\D/g, '');
       const upper = searchPage * SEARCH_PAGE_SIZE - 1;
-      let q = supabase
-        .from('chat_contacts')
-        .select(
-          'id,client_id,cod_agent,channel_source,channel_type,remote_jid,phone,name,avatar,is_group,is_archived,is_muted,unread_count,last_message_at,last_message_text,created_at,updated_at',
-          { count: 'exact' }
-        )
-        .eq('client_id', clientId)
-        .order('last_message_at', { ascending: false, nullsFirst: false })
-        .range(0, upper);
-      if (term) {
-        const orParts: string[] = [`name.ilike.%${term}%`];
-        if (digits.length >= 3) orParts.push(`phone.ilike.%${digits}%`);
-        q = q.or(orParts.join(','));
-      }
+      const SELECT_COLS =
+        'id,client_id,cod_agent,channel_source,channel_type,remote_jid,phone,name,avatar,is_group,is_archived,is_muted,unread_count,last_message_at,last_message_text,created_at,updated_at';
+
+      const buildBase = () => {
+        let q = supabase
+          .from('chat_contacts')
+          .select(SELECT_COLS, { count: 'exact' })
+          .eq('client_id', clientId)
+          .order('last_message_at', { ascending: false, nullsFirst: false });
+        if (term) {
+          const orParts: string[] = [`name.ilike.%${term}%`];
+          if (digits.length >= 3) orParts.push(`phone.ilike.%${digits}%`);
+          q = q.or(orParts.join(','));
+        }
+        return q;
+      };
+
+      let matchedContacts: typeof contacts = [];
+      let totalCount = 0;
+
       if (phoneFilterMode && modePhones && modePhones.length > 0) {
-        q = q.in('phone', modePhones);
+        // PostgREST URL has a length cap; chunk the IN list, fetch in
+        // parallel, then merge / sort / paginate client-side.
+        const CHUNK = 120;
+        const chunks: string[][] = [];
+        for (let i = 0; i < modePhones.length; i += CHUNK) {
+          chunks.push(modePhones.slice(i, i + CHUNK));
+        }
+        const results = await Promise.all(
+          chunks.map(async (chunk) => {
+            const q = buildBase().in('phone', chunk).limit(500);
+            const { data, error } = await q;
+            if (error) throw error;
+            return (data || []) as unknown as typeof contacts;
+          })
+        );
+        const seen = new Set<string>();
+        const merged: typeof contacts = [];
+        for (const arr of results) {
+          for (const c of arr) {
+            if (seen.has(c.id)) continue;
+            seen.add(c.id);
+            merged.push(c);
+          }
+        }
+        merged.sort((a, b) => {
+          const ta = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+          const tb = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+          return tb - ta;
+        });
+        totalCount = merged.length;
+        matchedContacts = merged.slice(0, upper + 1);
+      } else {
+        const { data: matched, error, count } = await buildBase().range(0, upper);
+        if (error) throw error;
+        matchedContacts = (matched || []) as unknown as typeof contacts;
+        totalCount = count ?? matchedContacts.length;
       }
-      const { data: matched, error, count } = await q;
-      if (error) throw error;
-      const matchedContacts = (matched || []) as unknown as typeof contacts;
+
       const ids = matchedContacts.map((c) => c.id);
       let convs: typeof conversations = [];
       if (ids.length > 0) {
@@ -264,7 +303,7 @@ export function ChatList() {
           .order('updated_at', { ascending: false });
         convs = ((cdata || []) as unknown as typeof conversations);
       }
-      return { contacts: matchedContacts, conversations: convs, total: count ?? matchedContacts.length };
+      return { contacts: matchedContacts, conversations: convs, total: totalCount };
     },
   });
 
