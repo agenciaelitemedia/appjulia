@@ -112,13 +112,11 @@ export function ChatList() {
   const { user, isAdmin } = useAuth();
   const { data: queues = [] } = useAccessibleQueues();
   const { configs: slaConfigs } = useChatSlaConfigs();
-  const [slaFilter, setSlaFilter] = useState<SlaFilter>('all');
   const [modeFilter, setModeFilter] = useState<ConversationModeFilter>('all');
   const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('all');
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [stageIds, setStageIds] = useState<number[]>([]);
   const [stagePopoverOpen, setStagePopoverOpen] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [showTagsManager, setShowTagsManager] = useState(false);
   const [newConvOpen, setNewConvOpen] = useState(false);
   const [footerCountry, setFooterCountry] = useState('55');
@@ -162,14 +160,6 @@ export function ChatList() {
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [hasMoreConversations, loadMoreConversations]);
-  const activeFilterCount =
-    (modeFilter !== 'all' ? 1 : 0) +
-    (slaFilter !== 'all' ? 1 : 0) +
-    (ownerFilter !== 'all' ? 1 : 0) +
-    (conversationStatusFilter !== 'all' ? 1 : 0) +
-    (periodFilter !== 'all' ? 1 : 0) +
-    (stageIds.length > 0 ? 1 : 0);
-
   const activeQueues = queues.filter(q => q.is_active && !q.is_deleted);
 
   // Default = "Todas as filas" (selectedQueue null). No auto-select.
