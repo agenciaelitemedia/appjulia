@@ -343,39 +343,40 @@ export function ChatList() {
     convMetaByContact.forEach((m) => { if (m.queueId) set.add(m.queueId); });
     return Array.from(set);
   }, [convMetaByContact]);
-  const { data: queueAgentMap } = useQueueAgentLinks(queueIds);
+  const { data: queueAgentMap, isLoading: queueAgentLoading } = useQueueAgentLinks(queueIds);
 
-  // For every contact whose conversation runs through a Julia-enabled queue,
-  // build (whatsapp, codAgent) pairs and batch-load their session.active flag.
-  // A "Julia" conversation is only counted as Julia when active=true; if the
-  // session is paused (active=false), it is treated as "Atendimento Humano".
-  const sessionPairs = React.useMemo(() => {
-    const pairs: { whatsappNumber: string; codAgent: string; key: string }[] = [];
-    const seen = new Set<string>();
-    contacts.forEach((c) => {
-      const meta = convMetaByContact.get(c.id);
-      if (!meta?.queueId || !c.phone) return;
-      const link = queueAgentMap?.get(meta.queueId);
-      if (!link?.hasAgent || !link.codAgent) return;
-      const phone = c.phone.replace(/\D/g, '');
-      if (!phone) return;
-      const key = `${phone}:${link.codAgent}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      pairs.push({ whatsappNumber: phone, codAgent: link.codAgent, key });
-    });
-    return pairs;
-  }, [contacts, convMetaByContact, queueAgentMap]);
-
-  const { data: sessionActiveMap } = useAgentSessionStatusesBatch(
-    sessionPairs.map(({ whatsappNumber, codAgent }) => ({ whatsappNumber, codAgent }))
-  );
-
+  // Phone map keyed by contact_id — merged later with fetchedMissing so
+  // conversations whose contact is not yet paginated still resolve a phone.
   const contactPhoneById = React.useMemo(() => {
     const map = new Map<string, string | null>();
     contacts.forEach((c) => map.set(c.id, c.phone || null));
     return map;
   }, [contacts]);
+
+  // Build (whatsapp, codAgent) pairs from CONVERSATIONS — not from contacts —
+  // so every conversation in memory enters the session-status batch even
+  // before its chat_contacts row has been paginated. Without this, a
+  // conversation whose contact is not yet loaded would be classified as
+  // "human" purely because we couldn't look up its session.
+  const sessionPairs = React.useMemo(() => {
+    const pairs: { whatsappNumber: string; codAgent: string }[] = [];
+    const seen = new Set<string>();
+    sortedConversations.forEach((conv) => {
+      if (!conv.queue_id) return;
+      const link = queueAgentMap?.get(conv.queue_id);
+      if (!link?.hasAgent || !link.codAgent) return;
+      const phone = (contactPhoneById.get(conv.contact_id) || '').replace(/\D/g, '');
+      if (!phone) return;
+      const key = `${phone}:${link.codAgent}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      pairs.push({ whatsappNumber: phone, codAgent: link.codAgent });
+    });
+    return pairs;
+  }, [sortedConversations, queueAgentMap, contactPhoneById]);
+
+  const { data: sessionActiveMap, isFetching: sessionStatusesFetching } =
+    useAgentSessionStatusesBatch(sessionPairs);
 
   // Resolve session.active for a (contactId, queueLink) pair. Returns:
   //  - true: Julia ativa
@@ -448,29 +449,49 @@ export function ChatList() {
     setStageIds(allStagesSelected ? [] : stages.map((s) => s.id));
   };
 
+  // Tri-state classification: 'julia' | 'human' | 'unknown'.
+  // 'unknown' is returned while we are still waiting for queueAgentMap or for
+  // the session-status batch to resolve this specific (phone, codAgent) pair.
+  // Items with mode === 'unknown' are EXCLUDED from both the "Julia" and
+  // "Atendimento humano" filters, preventing the visual leak where a Julia
+  // conversation briefly shows up under "humano" until its session loads.
+  type ConvMode = Exclude<ConversationModeFilter, 'all'> | 'unknown';
+
   const getContactMode = React.useCallback(
-    (contactId: string): Exclude<ConversationModeFilter, 'all'> => {
+    (contactId: string): ConvMode => {
       const meta = convMetaByContact.get(contactId);
+      if (queueAgentLoading && meta?.queueId && !queueAgentMap?.has(meta.queueId)) return 'unknown';
       const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
-      if (!queueLink?.hasAgent) return 'human';
-      // Só classifica como 'julia' quando há sessão ATIVA confirmada.
-      // Sessão pausada (active === false) ou inexistente => humano.
+      if (!queueLink) {
+        // No queue or queue link not yet known. If queue exists but link
+        // hasn't been fetched yet, defer; otherwise it's confirmed human.
+        return meta?.queueId && queueAgentLoading ? 'unknown' : 'human';
+      }
+      if (!queueLink.hasAgent) return 'human';
       const phone = contactPhoneById.get(contactId);
+      if (!phone) return sessionStatusesFetching ? 'unknown' : 'unknown';
       const active = getSessionActive(phone, queueLink.codAgent);
-      return active === true ? 'julia' : 'human';
+      if (active === undefined) return sessionStatusesFetching ? 'unknown' : 'human';
+      return active ? 'julia' : 'human';
     },
-    [convMetaByContact, queueAgentMap, contactPhoneById, getSessionActive]
+    [convMetaByContact, queueAgentMap, queueAgentLoading, contactPhoneById, getSessionActive, sessionStatusesFetching]
   );
 
   const getConversationMode = React.useCallback(
-    (conv: typeof conversations[number]): Exclude<ConversationModeFilter, 'all'> => {
+    (conv: typeof conversations[number]): ConvMode => {
+      if (queueAgentLoading && conv.queue_id && !queueAgentMap?.has(conv.queue_id)) return 'unknown';
       const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
-      if (!queueLink?.hasAgent) return 'human';
+      if (!queueLink) {
+        return conv.queue_id && queueAgentLoading ? 'unknown' : 'human';
+      }
+      if (!queueLink.hasAgent) return 'human';
       const phone = contactPhoneById.get(conv.contact_id);
+      if (!phone) return 'unknown';
       const active = getSessionActive(phone, queueLink.codAgent);
-      return active === true ? 'julia' : 'human';
+      if (active === undefined) return sessionStatusesFetching ? 'unknown' : 'human';
+      return active ? 'julia' : 'human';
     },
-    [conversations, queueAgentMap, contactPhoneById, getSessionActive]
+    [conversations, queueAgentMap, queueAgentLoading, contactPhoneById, getSessionActive, sessionStatusesFetching]
   );
 
   // Reusable client-side filters (owner, period, stage, sla, mode).
