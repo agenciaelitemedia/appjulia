@@ -187,6 +187,27 @@ interface ExtendedContextValue extends ChatContextValue {
   sortOrder: 'newest' | 'oldest';
   setSortOrder: (o: 'newest' | 'oldest') => void;
 
+  // ────────────────────────────────────────────────────────────────────
+  // Server-side filters applied to BOTH `loadContacts` and
+  // `loadConversations`. These ensure pagination respects the active
+  // filter universe, not only what was loaded into memory.
+  //
+  // - `assignedToFilter`:
+  //     • 'all'       → sem filtro
+  //     • 'mine'      → conversas atribuídas ao usuário atual
+  //     • 'unassigned'→ conversas sem responsável
+  //     • <string>    → assigned_to == valor (id ou nome de membro)
+  // - `phoneAllowlist`:
+  //     • null        → sem filtro
+  //     • string[]    → restringe a `phone IN (lista)`. Lista vazia
+  //                     significa "nenhum match" — a query é
+  //                     curto-circuitada e devolve [] sem ir ao banco.
+  // ────────────────────────────────────────────────────────────────────
+  assignedToFilter: string;
+  setAssignedToFilter: (v: string) => void;
+  phoneAllowlist: string[] | null;
+  setPhoneAllowlist: (v: string[] | null) => void;
+
   // Bootstrap readiness — true once client_id + queues + first conversations
   // page have all resolved at least once, so children can safely fetch
   // contact-scoped data (messages, history) without racing the bootstrap.
