@@ -1258,6 +1258,17 @@ export function ChatList() {
         {finalVisibleContacts.length > 0 && (
           <div ref={bottomSentinelRef} className="h-1" />
         )}
+        {hasMoreContacts && !isLoadingMoreContacts && finalVisibleContacts.length > 0 && (
+          <div className="flex justify-center py-3">
+            <button
+              type="button"
+              onClick={() => loadMoreContacts()}
+              className="text-xs text-primary hover:underline"
+            >
+              Carregar mais conversas
+            </button>
+          </div>
+        )}
         {!isLoading && !hasMoreContacts && finalVisibleContacts.length > 0 && (
           <div className="text-center text-[10px] text-muted-foreground py-3">
             Fim da lista
