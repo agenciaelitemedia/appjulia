@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, Plus, Timer, AlertTriangle, Flame, Bot, User, UserCheck, UserX, ListFilter, FolderOpen, CheckCheck, Archive, UserCircle, ChevronsUpDown, CalendarDays, Tag, Settings } from 'lucide-react';
+import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, Plus, Timer, AlertTriangle, Flame, Bot, User, UserCheck, UserX, ListFilter, FolderOpen, CheckCheck, Archive, UserCircle, ChevronsUpDown, CalendarDays, Tag, Settings, ArrowDownUp, ArrowDown, ArrowUp } from 'lucide-react';
 import { TeamMemberSelect } from '@/components/TeamMemberSelect';
 import { TagsManagerDialog } from './TagsManagerDialog';
 import { NewConversationDialog } from './NewConversationDialog';
@@ -95,6 +95,8 @@ export function ChatList() {
     loadMoreContacts,
     periodFilter,
     setPeriodFilter,
+    sortOrder,
+    setSortOrder,
   } = useWhatsAppData();
   const { data: queueLimits } = useAgentQueueLimits();
   const showGroupsTab = !!(queueLimits?.allowGroups && queueLimits?.showGroupsTab);
@@ -751,9 +753,9 @@ export function ChatList() {
     return Array.from(byId.values()).sort((a, b) => {
       const aTs = Date.parse(a.last_message_at || a.updated_at || '') || 0;
       const bTs = Date.parse(b.last_message_at || b.updated_at || '') || 0;
-      return bTs - aTs;
+      return sortOrder === 'oldest' ? aTs - bTs : bTs - aTs;
     });
-  }, [visibleContacts, fetchedMissing]);
+  }, [visibleContacts, fetchedMissing, sortOrder]);
 
   // Virtual scroll — only renders items in the visible viewport.
   // estimateSize ≈ base item height (3 info rows + tags). measureElement
@@ -816,6 +818,42 @@ export function ChatList() {
                 </span>
               )}
             </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 flex-shrink-0"
+                  title="Ordenar conversas"
+                >
+                  <ArrowDownUp className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-48 p-1">
+                <button
+                  type="button"
+                  onClick={() => setSortOrder('newest')}
+                  className={cn(
+                    'w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md hover:bg-muted text-left',
+                    sortOrder === 'newest' && 'bg-muted font-medium'
+                  )}
+                >
+                  <ArrowDown className="h-3.5 w-3.5" />
+                  Mais recentes primeiro
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSortOrder('oldest')}
+                  className={cn(
+                    'w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md hover:bg-muted text-left',
+                    sortOrder === 'oldest' && 'bg-muted font-medium'
+                  )}
+                >
+                  <ArrowUp className="h-3.5 w-3.5" />
+                  Mais antigas primeiro
+                </button>
+              </PopoverContent>
+            </Popover>
             {(isAdmin || user?.role === 'user' || user?.role === 'colaborador') && (
               <>
                 <Button

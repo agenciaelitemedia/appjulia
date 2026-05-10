@@ -183,6 +183,10 @@ interface ExtendedContextValue extends ChatContextValue {
   periodFilter: ChatPeriodFilter;
   setPeriodFilter: (p: ChatPeriodFilter) => void;
 
+  // Sort order for contacts list (by last_message_at)
+  sortOrder: 'newest' | 'oldest';
+  setSortOrder: (o: 'newest' | 'oldest') => void;
+
   // Bootstrap readiness — true once client_id + queues + first conversations
   // page have all resolved at least once, so children can safely fetch
   // contact-scoped data (messages, history) without racing the bootstrap.
@@ -285,6 +289,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
   // Period filter — defaults to last 7 days every time the chat is opened
   const [periodFilter, setPeriodFilter] = useState<ChatPeriodFilter>('all');
+  // Sort order for contacts list — newest first by default
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
 
   const knownMessageIds = useRef<Set<string>>(new Set());
 
@@ -446,7 +452,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         // Avoids fetching heavy/unused columns on every list refresh.
         .select('id,client_id,cod_agent,channel_source,channel_type,remote_jid,phone,name,avatar,is_group,is_archived,is_muted,unread_count,last_message_at,last_message_text,created_at,updated_at')
         .eq('client_id', clientId)
-        .order('last_message_at', { ascending: false, nullsFirst: false })
+        .order('last_message_at', { ascending: sortOrder === 'oldest', nullsFirst: false })
         .range(offset, offset + CONTACTS_PAGE_SIZE - 1);
 
       if (currentQueueId) {
@@ -489,7 +495,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       if (append) setIsLoadingMoreContacts(false);
       else setIsLoading(false);
     }
-  }, [clientId, currentQueueId, activeQueueIds, queuesLoading, periodFilter]);
+  }, [clientId, currentQueueId, activeQueueIds, queuesLoading, periodFilter, sortOrder]);
 
   const loadMoreContacts = useCallback(async () => {
     if (isLoadingMoreContacts || !hasMoreContacts) return;
@@ -2162,6 +2168,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       clientId,
       queueId: currentQueueId || null,
       period: periodFilter,
+      sortOrder,
       // Sorted active queues so reorderings don't trigger a reset.
       queues: [...activeQueueIds].sort(),
     });
@@ -2186,7 +2193,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       knownMessageIds.current.clear();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQueueId, clientId, activeQueueIds, periodFilter, queuesLoading]);
+  }, [currentQueueId, clientId, activeQueueIds, periodFilter, sortOrder, queuesLoading]);
 
   // Reload conversations when ONLY the query group (status tab) changes —
   // without triggering the full bootstrap effect above.
@@ -2330,6 +2337,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     periodFilter,
     setPeriodFilter,
 
+    // Sort order
+    sortOrder,
+    setSortOrder,
+
     // Bootstrap readiness — used by children to avoid racing context hydration
     isReady: !!clientId && !queuesLoading && hasLoadedConversationsOnce,
 
@@ -2348,7 +2359,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     sendInternalNote, showDetailPanel, conversationHistory, loadConversationHistory,
     hasMoreContacts, isLoadingMoreContacts, loadMoreContacts,
     hasMoreConversations, isLoadingMoreConversations, loadMoreConversations,
-    periodFilter, clientId, queuesLoading, hasLoadedConversationsOnce,
+    periodFilter, sortOrder, clientId, queuesLoading, hasLoadedConversationsOnce,
     isHydratingContact, contactHydrationError, retryHydrateSelectedContact,
   ]);
 
