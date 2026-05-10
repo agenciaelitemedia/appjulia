@@ -619,6 +619,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     maxPages: number,
   ): Promise<void> => {
     const myEpoch = convLoadEpochRef.current;
+    // Reentrancy guard: bail out fully (not just the state updater) if a
+    // loop is already running for this group or it has already finished.
+    const currentMeta = convGroupMetaRef.current?.[group];
+    if (currentMeta && (currentMeta.isAutoLoading || currentMeta.autoLoadDone)) {
+      return;
+    }
     setConvGroupMeta(prev => {
       if (prev[group].isAutoLoading || prev[group].autoLoadDone) return prev;
       return { ...prev, [group]: { ...prev[group], isAutoLoading: true, error: null } };
