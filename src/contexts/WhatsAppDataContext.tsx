@@ -2445,6 +2445,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     sortOrder,
     setSortOrder,
 
+    // Server-side filters (mode/stage/owner pushdown)
+    assignedToFilter,
+    setAssignedToFilter,
+    phoneAllowlist,
+    setPhoneAllowlist,
+
     // Bootstrap readiness — used by children to avoid racing context hydration
     isReady: !!clientId && !queuesLoading && hasLoadedConversationsOnce,
 
@@ -2464,6 +2470,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     hasMoreContacts, isLoadingMoreContacts, loadMoreContacts,
     hasMoreConversations, isLoadingMoreConversations, loadMoreConversations,
     periodFilter, sortOrder, clientId, queuesLoading, hasLoadedConversationsOnce,
+    assignedToFilter, phoneAllowlist,
     isHydratingContact, contactHydrationError, retryHydrateSelectedContact,
   ]);
 
