@@ -64,12 +64,13 @@ export function usePhoneAllowlist({ modeFilter, stageIds, codAgents }: UsePhoneA
         const rows = await externalDb.raw<{ whatsapp_number: string }>({
           query: `
             SELECT DISTINCT whatsapp_number
-            FROM agent_sessions
-            WHERE cod_agent::bigint = ANY($1::bigint[])
-              AND active = $2
-              AND whatsapp_number IS NOT NULL
+            FROM sessions s
+            JOIN agents a ON a.id = s.agent_id
+            WHERE a.cod_agent::text = ANY($1::text[])
+              AND s.active = $2
+              AND s.whatsapp_number IS NOT NULL
           `,
-          params: [cleanCodAgents.map((c) => Number(c)), desiredActive],
+          params: [cleanCodAgents, desiredActive],
         });
         modeSet = new Set(expandVariants((rows || []).map((r) => r.whatsapp_number)));
       }
