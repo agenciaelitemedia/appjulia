@@ -858,16 +858,13 @@ export function ChatList() {
           ))}
         </div>
 
-        {/* Queue selector - includes "Todas as filas" option */}
-        {activeQueues.length > 0 && (
-          <div className="px-4 pb-2">
+        {/* Linha: Filas + Atendentes lado a lado */}
+        <div className="px-4 pb-2 grid grid-cols-2 gap-2">
+          {activeQueues.length > 0 ? (
             <Select
               value={selectedQueue?.id || '__all__'}
               onValueChange={(val) => {
-                if (val === '__all__') {
-                  setSelectedQueue(null);
-                  return;
-                }
+                if (val === '__all__') { setSelectedQueue(null); return; }
                 const queue = activeQueues.find(q => q.id === val);
                 if (queue) {
                   setSelectedQueue({
@@ -883,16 +880,14 @@ export function ChatList() {
               }}
             >
               <SelectTrigger className="w-full h-8 text-xs">
-                <div className="flex items-center gap-2">
-                  <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Layers className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <SelectValue placeholder="Todas as filas" />
                 </div>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">
-                  <div className="flex items-center gap-2">
-                    <span>Todas as filas</span>
-                  </div>
+                  <div className="flex items-center gap-2"><span>Todas as filas</span></div>
                 </SelectItem>
                 {activeQueues.map((queue) => (
                   <SelectItem key={queue.id} value={queue.id}>
@@ -904,41 +899,132 @@ export function ChatList() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-        )}
-
-        {/* Filtro Julia / Atendimento Humano — sempre visível, abaixo das filas */}
-        <div className="px-4 pb-2 pt-1 flex items-center gap-1.5">
-          <ToggleGroup
-            type="single"
-            value={modeFilter}
-            onValueChange={(val) => { if (val) setModeFilter(val as ConversationModeFilter); }}
+          ) : <div />}
+          <TeamMemberSelect
+            members={teamMembers}
+            valueKey="id"
+            value={ownerFilter}
+            onValueChange={(v) => setOwnerFilter(v ?? 'all')}
+            allowUnassigned={false}
+            extraOptions={[
+              { value: 'all', label: 'Todos atendentes', icon: Users },
+              { value: 'mine', label: 'Meus atendimentos', icon: UserCheck, badgeLabel: 'EU' },
+              { value: 'unassigned', label: 'Sem atendente', icon: UserX },
+            ]}
+            placeholder="Atendente"
             size="sm"
-            className="justify-start w-full"
-          >
-            <ToggleGroupItem
-              value="all"
-              className="flex-1 text-[10px] font-medium px-2 py-1 h-auto rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-foreground/10 data-[state=on]:text-foreground data-[state=on]:border-foreground/20"
-            >
-              Todos
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="julia"
-              className="flex-1 text-[10px] font-medium px-2 py-1 h-auto gap-1 rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-green-500/15 data-[state=on]:text-green-600 dark:data-[state=on]:text-green-400 data-[state=on]:border-green-500/30"
-              title="Filas com Julia IA ativa"
-            >
-              <Bot className="h-3 w-3" />
-              Julia
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="human"
-              className="flex-1 text-[10px] font-medium px-2 py-1 h-auto gap-1 rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-amber-500/20 data-[state=on]:text-amber-600 dark:data-[state=on]:text-amber-400 data-[state=on]:border-amber-500/30"
-              title="Filas com Julia IA inativa (atendimento humano)"
-            >
-              <User className="h-3 w-3" />
-              Atendimento Humano
-            </ToggleGroupItem>
-          </ToggleGroup>
+            className="w-full text-xs"
+          />
+        </div>
+
+        {/* Linha destaque: Modo (icones) + Etapas */}
+        <div className="px-4 pb-2">
+          <div className="flex items-center gap-2 p-2 rounded-md border border-primary/30 bg-primary/5">
+            <TooltipProvider delayDuration={200}>
+              <ToggleGroup
+                type="single"
+                value={modeFilter}
+                onValueChange={(val) => { if (val) setModeFilter(val as ConversationModeFilter); }}
+                size="sm"
+                className="justify-start gap-1 shrink-0"
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <ToggleGroupItem
+                      value="all"
+                      aria-label="Todos os modos"
+                      className="h-8 w-8 p-0 rounded-md border border-border bg-background text-muted-foreground hover:bg-muted data-[state=on]:bg-foreground/10 data-[state=on]:text-foreground data-[state=on]:border-foreground/30"
+                    >
+                      <ListFilter className="h-3.5 w-3.5" />
+                    </ToggleGroupItem>
+                  </TooltipTrigger>
+                  <TooltipContent>Todos os modos</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <ToggleGroupItem
+                      value="julia"
+                      aria-label="Julia IA ativa"
+                      className="h-8 w-8 p-0 rounded-md border border-border bg-background text-muted-foreground hover:bg-muted data-[state=on]:bg-green-500/15 data-[state=on]:text-green-600 dark:data-[state=on]:text-green-400 data-[state=on]:border-green-500/40"
+                    >
+                      <Bot className="h-3.5 w-3.5" />
+                    </ToggleGroupItem>
+                  </TooltipTrigger>
+                  <TooltipContent>Filas com Julia IA ativa</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <ToggleGroupItem
+                      value="human"
+                      aria-label="Atendimento humano"
+                      className="h-8 w-8 p-0 rounded-md border border-border bg-background text-muted-foreground hover:bg-muted data-[state=on]:bg-amber-500/20 data-[state=on]:text-amber-600 dark:data-[state=on]:text-amber-400 data-[state=on]:border-amber-500/40"
+                    >
+                      <User className="h-3.5 w-3.5" />
+                    </ToggleGroupItem>
+                  </TooltipTrigger>
+                  <TooltipContent>Atendimento humano (Julia inativa)</TooltipContent>
+                </Tooltip>
+              </ToggleGroup>
+
+              <Popover open={stagePopoverOpen} onOpenChange={setStagePopoverOpen}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="h-8 flex-1 justify-between text-xs font-normal bg-background"
+                      >
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <Layers className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="truncate">{stageLabel}</span>
+                        </span>
+                        <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>Filtrar por etapas do CRM Julia</TooltipContent>
+                </Tooltip>
+                <PopoverContent className="w-[280px] p-0" align="start">
+                  <div className="px-2 py-1.5 border-b">
+                    <button
+                      onClick={toggleAllStages}
+                      className="flex items-center gap-2 w-full text-xs hover:bg-accent rounded px-2 py-1.5"
+                    >
+                      <Checkbox checked={allStagesSelected} className="pointer-events-none" />
+                      <span className="font-medium">{allStagesSelected ? 'Desmarcar todas' : 'Selecionar todas'}</span>
+                    </button>
+                  </div>
+                  <ScrollArea className="max-h-[260px]">
+                    <div className="p-1">
+                      {stages.length === 0 ? (
+                        <div className="text-xs text-muted-foreground px-3 py-4 text-center">
+                          Nenhuma etapa disponível
+                        </div>
+                      ) : (
+                        stages.map((stage) => (
+                          <button
+                            key={stage.id}
+                            onClick={() => toggleStage(stage.id)}
+                            className="flex items-center gap-2 w-full text-xs hover:bg-accent rounded px-2 py-1.5 text-left"
+                          >
+                            <Checkbox checked={stageSet.has(stage.id)} className="pointer-events-none" />
+                            {stage.color && (
+                              <span
+                                className="h-2.5 w-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: stage.color }}
+                              />
+                            )}
+                            <span className="truncate">{stage.name}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
+            </TooltipProvider>
+          </div>
         </div>
 
 
