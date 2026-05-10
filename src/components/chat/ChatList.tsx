@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, Plus, Timer, AlertTriangle, Flame, Bot, User, UserCheck, UserX, ListFilter, FolderOpen, CheckCheck, Archive, UserCircle, ChevronsUpDown, CalendarDays, Tag, Settings, ArrowDownUp, ArrowDown, ArrowUp } from 'lucide-react';
+import { Search, MessageCircle, Users, Layers, Bot, User, UserCheck, UserX, ListFilter, CheckCheck, UserCircle, ChevronsUpDown, CalendarDays, Settings, BarChart3, ArrowDownUp, ArrowDown, ArrowUp } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { TeamMemberSelect } from '@/components/TeamMemberSelect';
 import { TagsManagerDialog } from './TagsManagerDialog';
 import { NewConversationDialog } from './NewConversationDialog';
@@ -38,7 +39,6 @@ import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
 import type { ConversationFilterStatus } from '@/types/conversation';
 import { cn } from '@/lib/utils';
 
-type SlaFilter = 'all' | 'breached' | 'at_risk';
 type ConversationModeFilter = 'all' | 'julia' | 'human';
 type AssigneeFilter = 'all' | 'mine' | 'unassigned';
 type PeriodFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'last3Months';
