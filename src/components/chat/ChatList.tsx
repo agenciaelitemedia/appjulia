@@ -20,6 +20,7 @@ import { MessageSquarePlus } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { ChatContactItem } from './ChatContactItem';
 import { Badge } from '@/components/ui/badge';
 import { useAccessibleQueues } from '@/pages/agente/filas/hooks/useQueues';
@@ -111,6 +112,7 @@ export function ChatList() {
 
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
+  const clientId = user?.client_id ? String(user.client_id) : '';
   const { data: queues = [] } = useAccessibleQueues();
   const { configs: slaConfigs } = useChatSlaConfigs();
   const [modeFilter, setModeFilter] = useState<ConversationModeFilter>('all');
@@ -138,6 +140,48 @@ export function ChatList() {
     setSearchDraft('');
     setSearchQuery('');
   }, [setSearchQuery]);
+
+  // ────────────────────────────────────────────────────────────────────
+  // Server-side search — when the user submits a search term, query the
+  // database directly so we are not limited to the contacts already
+  // paginated in memory. While the request is in flight we show a loading
+  // state in place of the conversation list.
+  // ────────────────────────────────────────────────────────────────────
+  const trimmedSearch = (searchQuery || '').trim();
+  const isSearching = trimmedSearch.length >= 2;
+  const { data: searchResults, isFetching: isSearchFetching } = useQuery({
+    queryKey: ['chat-list-search', clientId, trimmedSearch],
+    enabled: isSearching && !!clientId,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const term = trimmedSearch.replace(/[%,]/g, ' ').trim();
+      if (!term) return { contacts: [] as typeof contacts, conversations: [] as typeof conversations };
+      const digits = term.replace(/\D/g, '');
+      const orParts: string[] = [`name.ilike.%${term}%`];
+      if (digits.length >= 3) orParts.push(`phone.ilike.%${digits}%`);
+      const { data: matched, error } = await supabase
+        .from('chat_contacts')
+        .select('id,client_id,cod_agent,channel_source,channel_type,remote_jid,phone,name,avatar,is_group,is_archived,is_muted,unread_count,last_message_at,last_message_text,created_at,updated_at')
+        .eq('client_id', clientId)
+        .or(orParts.join(','))
+        .order('last_message_at', { ascending: false, nullsFirst: false })
+        .limit(100);
+      if (error) throw error;
+      const matchedContacts = (matched || []) as unknown as typeof contacts;
+      const ids = matchedContacts.map((c) => c.id);
+      let convs: typeof conversations = [];
+      if (ids.length > 0) {
+        const { data: cdata } = await supabase
+          .from('chat_conversations')
+          .select('id,contact_id,client_id,queue_id,status,priority,assigned_to,cod_agent,updated_at,created_at,opened_at,first_response_at,resolved_at,closed_at,snoozed_until,channel,protocol,close_note')
+          .eq('client_id', clientId)
+          .in('contact_id', ids)
+          .order('updated_at', { ascending: false });
+        convs = ((cdata || []) as unknown as typeof conversations);
+      }
+      return { contacts: matchedContacts, conversations: convs };
+    },
+  });
 
   // Infinite scroll refs — sentinel at the bottom of the list triggers
   // loadMoreContacts when it enters the viewport.
@@ -753,11 +797,45 @@ export function ChatList() {
     });
   }, [visibleContacts, fetchedMissing, sortOrder]);
 
+  // When in search mode, replace the visible list with the server results
+  // and build a local conversations-by-contact map so the row renderer
+  // still shows queue / agent / status badges.
+  const displayContacts = React.useMemo(() => {
+    if (!isSearching) return finalVisibleContacts;
+    const list = searchResults?.contacts ?? [];
+    return [...list].sort((a, b) => {
+      const aTs = Date.parse(a.last_message_at || a.updated_at || '') || 0;
+      const bTs = Date.parse(b.last_message_at || b.updated_at || '') || 0;
+      return sortOrder === 'oldest' ? aTs - bTs : bTs - aTs;
+    });
+  }, [isSearching, searchResults, finalVisibleContacts, sortOrder]);
+
+  const displayConvsByContact = React.useMemo(() => {
+    if (!isSearching) return convsByContact;
+    const map = new Map<string, typeof sortedConversations>();
+    const fromContext = new Set<string>();
+    // Prefer fresher data from context when available
+    (searchResults?.contacts ?? []).forEach((c) => {
+      const arr = convsByContact.get(c.id);
+      if (arr && arr.length) {
+        map.set(c.id, arr);
+        fromContext.add(c.id);
+      }
+    });
+    (searchResults?.conversations ?? []).forEach((conv) => {
+      if (fromContext.has(conv.contact_id)) return;
+      const arr = map.get(conv.contact_id);
+      if (arr) arr.push(conv);
+      else map.set(conv.contact_id, [conv]);
+    });
+    return map;
+  }, [isSearching, searchResults, convsByContact, sortedConversations]);
+
   // Virtual scroll — only renders items in the visible viewport.
   // estimateSize ≈ base item height (3 info rows + tags). measureElement
   // corrects actual heights so taller items (with tags) still display correctly.
   const rowVirtualizer = useVirtualizer({
-    count: finalVisibleContacts.length,
+    count: displayContacts.length,
     getScrollElement: () => listRef.current,
     estimateSize: () => 102,
     overscan: 8,
