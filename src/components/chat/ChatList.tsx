@@ -347,6 +347,60 @@ export function ChatList() {
   }, [convMetaByContact]);
   const { data: queueAgentMap } = useQueueAgentLinks(queueIds);
 
+  // ────────────────────────────────────────────────────────────────────
+  // Server-side filter pushdown
+  //
+  // Mode (Julia/Humano) e Etapa CRM são resolvidos no External DB para
+  // virar uma allowlist de telefones que vai como `phone IN (...)` na
+  // query principal de contatos/conversas. Owner vai direto como
+  // `assigned_to = …`. Assim a paginação respeita o universo filtrado e
+  // o usuário deixa de "perder" conversas que casariam o filtro mas
+  // ainda estavam fora da página corrente.
+  // ────────────────────────────────────────────────────────────────────
+  const accessibleCodAgents = React.useMemo(() => {
+    const set = new Set<string>();
+    queues.forEach((q: any) => {
+      const links = q?.queue_agent_links || q?.link_agents || [];
+      links.forEach((l: any) => { if (l?.cod_agent) set.add(String(l.cod_agent)); });
+    });
+    return Array.from(set);
+  }, [queues]);
+
+  const { data: serverPhoneAllowlist } = usePhoneAllowlist({
+    modeFilter,
+    stageIds,
+    codAgents: accessibleCodAgents,
+  });
+
+  // Push owner filter into the context loaders
+  React.useEffect(() => {
+    setAssignedToFilter(ownerFilter || 'all');
+  }, [ownerFilter, setAssignedToFilter]);
+
+  // Push the resolved phone allowlist into the context loaders. Null when
+  // no mode/stage filter is active so the queries are unrestricted.
+  React.useEffect(() => {
+    const hasFilter = modeFilter !== 'all' || stageIds.length > 0;
+    if (!hasFilter) {
+      setPhoneAllowlist(null);
+      return;
+    }
+    // While the allowlist is still resolving, send an empty array — the
+    // context short-circuits to "no results" and avoids a misleading flash
+    // of unfiltered rows. As soon as `serverPhoneAllowlist` resolves the
+    // real list is pushed in.
+    setPhoneAllowlist(serverPhoneAllowlist ?? []);
+  }, [modeFilter, stageIds, serverPhoneAllowlist, setPhoneAllowlist]);
+
+  // Reset filters on unmount so navigating away doesn't leave the context
+  // restricted for other consumers / next visits.
+  React.useEffect(() => {
+    return () => {
+      setAssignedToFilter('all');
+      setPhoneAllowlist(null);
+    };
+  }, [setAssignedToFilter, setPhoneAllowlist]);
+
   // For every contact whose conversation runs through a Julia-enabled queue,
   // build (whatsapp, codAgent) pairs and batch-load their session.active flag.
   // A "Julia" conversation is only counted as Julia when active=true; if the
