@@ -1082,6 +1082,7 @@ export function ChatList() {
             )}
           >
             {tab.iconOnly ? tab.icon : tab.label}
+            {tab.value !== 'resolved_closed' && (
             <span className={cn(
               'rounded-full min-w-[18px] h-4 flex items-center justify-center px-1 text-[9px] font-bold',
               conversationStatusFilter === tab.value
@@ -1090,6 +1091,7 @@ export function ChatList() {
             )}>
               {tab.count >= 99 ? '99+' : tab.count}
             </span>
+            )}
           </button>
             </TooltipTrigger>
             <TooltipContent>{tab.tooltip}</TooltipContent>
