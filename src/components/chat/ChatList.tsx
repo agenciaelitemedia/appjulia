@@ -118,10 +118,26 @@ export function ChatList() {
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [stageIds, setStageIds] = useState<number[]>([]);
   const [stagePopoverOpen, setStagePopoverOpen] = useState(false);
+  const [queuePopoverOpen, setQueuePopoverOpen] = useState(false);
+  const [searchDraft, setSearchDraft] = useState(searchQuery);
   const [showTagsManager, setShowTagsManager] = useState(false);
   const [newConvOpen, setNewConvOpen] = useState(false);
   const [footerCountry, setFooterCountry] = useState('55');
   const [footerPhone, setFooterPhone] = useState('');
+
+  // Sync local draft when external search query is reset elsewhere
+  useEffect(() => {
+    setSearchDraft(searchQuery);
+  }, [searchQuery]);
+
+  const submitSearch = React.useCallback(() => {
+    setSearchQuery(searchDraft.trim());
+  }, [searchDraft, setSearchQuery]);
+
+  const clearSearch = React.useCallback(() => {
+    setSearchDraft('');
+    setSearchQuery('');
+  }, [setSearchQuery]);
 
   // Infinite scroll refs — sentinel at the bottom of the list triggers
   // loadMoreContacts when it enters the viewport.
