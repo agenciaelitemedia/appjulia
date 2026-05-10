@@ -2332,6 +2332,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       queues: [...activeQueueIds].sort(),
     });
     const prev = bootstrapKeyRef.current;
+    // Skip when nothing meaningful changed (e.g. activeQueueIds got a new
+    // reference but same contents). Without this gate, the auto-load loop
+    // would be killed and restarted from offset 0 on every queue re-fetch,
+    // never reaching completion on large histories.
+    if (prev !== null && prev === key) return;
     bootstrapKeyRef.current = key;
     setHasMoreContacts(true);
     // Bump epoch — kills any in-flight auto-load loop from the previous scope.
