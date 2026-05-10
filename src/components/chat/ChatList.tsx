@@ -29,6 +29,7 @@ import { useChatSlaConfigs, evaluateSla, type SlaStatus } from '@/hooks/useChatS
 import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
 import { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
+import { useSessionPhonesByMode } from '@/hooks/useSessionPhonesByMode';
 import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
