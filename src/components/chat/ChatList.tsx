@@ -127,6 +127,10 @@ export function ChatList() {
   const [footerCountry, setFooterCountry] = useState('55');
   const [footerPhone, setFooterPhone] = useState('');
 
+  // Pagination for server-side search
+  const SEARCH_PAGE_SIZE = 50;
+  const [searchPage, setSearchPage] = useState(1);
+
   // Sync local draft when external search query is reset elsewhere
   useEffect(() => {
     setSearchDraft(searchQuery);
@@ -149,23 +153,34 @@ export function ChatList() {
   // ────────────────────────────────────────────────────────────────────
   const trimmedSearch = (searchQuery || '').trim();
   const isSearching = trimmedSearch.length >= 2;
+
+  // Reset pagination whenever the search term changes
+  useEffect(() => {
+    setSearchPage(1);
+  }, [trimmedSearch]);
+
   const { data: searchResults, isFetching: isSearchFetching } = useQuery({
-    queryKey: ['chat-list-search', clientId, trimmedSearch],
+    queryKey: ['chat-list-search', clientId, trimmedSearch, searchPage],
     enabled: isSearching && !!clientId,
     staleTime: 30_000,
+    placeholderData: (prev) => prev,
     queryFn: async () => {
       const term = trimmedSearch.replace(/[%,]/g, ' ').trim();
-      if (!term) return { contacts: [] as typeof contacts, conversations: [] as typeof conversations };
+      if (!term) return { contacts: [] as typeof contacts, conversations: [] as typeof conversations, total: 0 };
       const digits = term.replace(/\D/g, '');
       const orParts: string[] = [`name.ilike.%${term}%`];
       if (digits.length >= 3) orParts.push(`phone.ilike.%${digits}%`);
-      const { data: matched, error } = await supabase
+      const upper = searchPage * SEARCH_PAGE_SIZE - 1;
+      const { data: matched, error, count } = await supabase
         .from('chat_contacts')
-        .select('id,client_id,cod_agent,channel_source,channel_type,remote_jid,phone,name,avatar,is_group,is_archived,is_muted,unread_count,last_message_at,last_message_text,created_at,updated_at')
+        .select(
+          'id,client_id,cod_agent,channel_source,channel_type,remote_jid,phone,name,avatar,is_group,is_archived,is_muted,unread_count,last_message_at,last_message_text,created_at,updated_at',
+          { count: 'exact' }
+        )
         .eq('client_id', clientId)
         .or(orParts.join(','))
         .order('last_message_at', { ascending: false, nullsFirst: false })
-        .limit(100);
+        .range(0, upper);
       if (error) throw error;
       const matchedContacts = (matched || []) as unknown as typeof contacts;
       const ids = matchedContacts.map((c) => c.id);
@@ -179,7 +194,7 @@ export function ChatList() {
           .order('updated_at', { ascending: false });
         convs = ((cdata || []) as unknown as typeof conversations);
       }
-      return { contacts: matchedContacts, conversations: convs };
+      return { contacts: matchedContacts, conversations: convs, total: count ?? matchedContacts.length };
     },
   });
 
