@@ -1836,6 +1836,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         .filter(c => {
           const hasAssignee = !!(c.assigned_to && String(c.assigned_to).trim() !== '');
           const effective = c.status === 'pending' && hasAssignee ? 'open' : c.status;
+          if (conversationStatusFilter === 'resolved_closed') {
+            return effective === 'resolved' || effective === 'closed';
+          }
           return effective === conversationStatusFilter;
         })
         .map(c => c.contact_id);
