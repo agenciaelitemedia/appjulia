@@ -446,26 +446,30 @@ export function ChatList() {
   };
 
   const getContactMode = React.useCallback(
-    (contactId: string): Exclude<ConversationModeFilter, 'all'> => {
+    (contactId: string): 'julia' | 'human' | 'unknown' => {
       const meta = convMetaByContact.get(contactId);
       const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
-      if (!queueLink?.hasAgent) return 'human';
-      // Só classifica como 'julia' quando há sessão ATIVA confirmada.
-      // Sessão pausada (active === false) ou inexistente => humano.
+      // Without a queue→agent link we cannot tell — treat as unknown so
+      // these conversations don't pollute the "Humano" filter.
+      if (!queueLink?.hasAgent) return 'unknown';
       const phone = contactPhoneById.get(contactId);
       const active = getSessionActive(phone, queueLink.codAgent);
-      return active === true ? 'julia' : 'human';
+      if (active === true) return 'julia';
+      if (active === false) return 'human'; // sessão pausada → humano confirmado
+      return 'unknown'; // sessão não encontrada / ainda carregando
     },
     [convMetaByContact, queueAgentMap, contactPhoneById, getSessionActive]
   );
 
   const getConversationMode = React.useCallback(
-    (conv: typeof conversations[number]): Exclude<ConversationModeFilter, 'all'> => {
+    (conv: typeof conversations[number]): 'julia' | 'human' | 'unknown' => {
       const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
-      if (!queueLink?.hasAgent) return 'human';
+      if (!queueLink?.hasAgent) return 'unknown';
       const phone = contactPhoneById.get(conv.contact_id);
       const active = getSessionActive(phone, queueLink.codAgent);
-      return active === true ? 'julia' : 'human';
+      if (active === true) return 'julia';
+      if (active === false) return 'human';
+      return 'unknown';
     },
     [conversations, queueAgentMap, contactPhoneById, getSessionActive]
   );
