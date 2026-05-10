@@ -187,27 +187,6 @@ interface ExtendedContextValue extends ChatContextValue {
   sortOrder: 'newest' | 'oldest';
   setSortOrder: (o: 'newest' | 'oldest') => void;
 
-  // ────────────────────────────────────────────────────────────────────
-  // Server-side filters applied to BOTH `loadContacts` and
-  // `loadConversations`. These ensure pagination respects the active
-  // filter universe, not only what was loaded into memory.
-  //
-  // - `assignedToFilter`:
-  //     • 'all'       → sem filtro
-  //     • 'mine'      → conversas atribuídas ao usuário atual
-  //     • 'unassigned'→ conversas sem responsável
-  //     • <string>    → assigned_to == valor (id ou nome de membro)
-  // - `phoneAllowlist`:
-  //     • null        → sem filtro
-  //     • string[]    → restringe a `phone IN (lista)`. Lista vazia
-  //                     significa "nenhum match" — a query é
-  //                     curto-circuitada e devolve [] sem ir ao banco.
-  // ────────────────────────────────────────────────────────────────────
-  assignedToFilter: string;
-  setAssignedToFilter: (v: string) => void;
-  phoneAllowlist: string[] | null;
-  setPhoneAllowlist: (v: string[] | null) => void;
-
   // Bootstrap readiness — true once client_id + queues + first conversations
   // page have all resolved at least once, so children can safely fetch
   // contact-scoped data (messages, history) without racing the bootstrap.
@@ -310,17 +289,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
   // Period filter — defaults to last 7 days every time the chat is opened
   const [periodFilter, setPeriodFilter] = useState<ChatPeriodFilter>('all');
-
-  // Server-side filter state (see ExtendedContextValue for semantics)
-  const [assignedToFilter, setAssignedToFilter] = useState<string>('all');
-  const [phoneAllowlist, setPhoneAllowlist] = useState<string[] | null>(null);
-  // Snapshot refs so the loaders can read the latest value without
-  // becoming a new useCallback identity on every state change (which
-  // would thrash the bootstrap effect).
-  const assignedToFilterRef = useRef(assignedToFilter);
-  useEffect(() => { assignedToFilterRef.current = assignedToFilter; }, [assignedToFilter]);
-  const phoneAllowlistRef = useRef(phoneAllowlist);
-  useEffect(() => { phoneAllowlistRef.current = phoneAllowlist; }, [phoneAllowlist]);
   // Sort order for contacts list — persisted in localStorage so the user
   // preference is preserved across sessions.
   const [sortOrder, setSortOrderState] = useState<'newest' | 'oldest'>(() => {
@@ -517,18 +485,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         query = query.gte('last_message_at', cutoff);
       }
 
-      // Server-side phone allowlist (mode/stage filters resolved upstream).
-      // Empty list means "no matches" — short-circuit to avoid a useless DB call.
-      const allowlist = phoneAllowlistRef.current;
-      if (allowlist !== null) {
-        if (allowlist.length === 0) {
-          if (!append) setContacts([]);
-          setHasMoreContacts(false);
-          return;
-        }
-        query = query.in('phone', allowlist);
-      }
-
       const { data, error } = await query;
       if (error) throw error;
 
@@ -615,47 +571,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         query = query.in('status', ['resolved', 'closed']);
       } else {
         query = query.eq('status', convQueryGroup);
-      }
-
-      // Server-side assignee filter — same semantics used by the chat list.
-      const assignedTo = assignedToFilterRef.current;
-      if (assignedTo === 'unassigned') {
-        query = query.or('assigned_to.is.null,assigned_to.eq.');
-      } else if (assignedTo === 'mine') {
-        const me = String(user?.id || '');
-        const meName = user?.name || '';
-        if (me || meName) {
-          const parts: string[] = [];
-          if (me) parts.push(`assigned_to.eq.${me}`);
-          if (meName) parts.push(`assigned_to.eq.${meName}`);
-          query = query.or(parts.join(','));
-        }
-      } else if (assignedTo && assignedTo !== 'all') {
-        query = query.eq('assigned_to', assignedTo);
-      }
-
-      // Phone allowlist applied via contact join: resolve allowlist's
-      // contact ids first, then filter conversations by contact_id.
-      const allowlist = phoneAllowlistRef.current;
-      let allowedContactIds: string[] | null = null;
-      if (allowlist !== null) {
-        if (allowlist.length === 0) {
-          if (!append) setConversations([]);
-          setHasMoreConversations(false);
-          return;
-        }
-        const { data: matched } = await supabase
-          .from('chat_contacts')
-          .select('id')
-          .eq('client_id', clientId)
-          .in('phone', allowlist);
-        allowedContactIds = (matched || []).map((r: any) => String(r.id));
-        if (allowedContactIds.length === 0) {
-          if (!append) setConversations([]);
-          setHasMoreConversations(false);
-          return;
-        }
-        query = query.in('contact_id', allowedContactIds);
       }
 
       const { data, error } = await query;
@@ -2273,9 +2188,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       queueId: currentQueueId || null,
       period: periodFilter,
       sortOrder,
-      assignedTo: assignedToFilter,
-      // Stable allowlist signature — sort to avoid order-only churn.
-      allowlist: phoneAllowlist === null ? null : [...phoneAllowlist].sort(),
       // Sorted active queues so reorderings don't trigger a reset.
       queues: [...activeQueueIds].sort(),
     });
@@ -2300,7 +2212,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       knownMessageIds.current.clear();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQueueId, clientId, activeQueueIds, periodFilter, sortOrder, queuesLoading, assignedToFilter, phoneAllowlist]);
+  }, [currentQueueId, clientId, activeQueueIds, periodFilter, sortOrder, queuesLoading]);
 
   // Reload conversations when ONLY the query group (status tab) changes —
   // without triggering the full bootstrap effect above.
@@ -2448,12 +2360,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     sortOrder,
     setSortOrder,
 
-    // Server-side filters (mode/stage/owner pushdown)
-    assignedToFilter,
-    setAssignedToFilter,
-    phoneAllowlist,
-    setPhoneAllowlist,
-
     // Bootstrap readiness — used by children to avoid racing context hydration
     isReady: !!clientId && !queuesLoading && hasLoadedConversationsOnce,
 
@@ -2473,7 +2379,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     hasMoreContacts, isLoadingMoreContacts, loadMoreContacts,
     hasMoreConversations, isLoadingMoreConversations, loadMoreConversations,
     periodFilter, sortOrder, clientId, queuesLoading, hasLoadedConversationsOnce,
-    assignedToFilter, phoneAllowlist,
     isHydratingContact, contactHydrationError, retryHydrateSelectedContact,
   ]);
 
