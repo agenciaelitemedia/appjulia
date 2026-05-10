@@ -40,6 +40,7 @@ import { useChatContactsByIds } from '@/hooks/useChatContactsByIds';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
 import type { ConversationFilterStatus } from '@/types/conversation';
 import { cn } from '@/lib/utils';
+import { usePhoneAllowlist } from '@/hooks/usePhoneAllowlist';
 
 type ConversationModeFilter = 'all' | 'julia' | 'human';
 type AssigneeFilter = 'all' | 'mine' | 'unassigned';
