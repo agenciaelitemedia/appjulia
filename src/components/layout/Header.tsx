@@ -13,8 +13,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
-import { useQuery } from '@tanstack/react-query';
-import { externalDb } from '@/lib/externalDb';
 import {
   Tooltip,
   TooltipContent,
@@ -31,20 +29,10 @@ interface HeaderProps {
 export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
   const { user, logout } = useAuth();
 
-  // Avatar lives on `clients.photo` (not on the user record), so we fetch it
-  // on demand. Cached for 5 minutes to avoid hitting the DB on every render.
-  const { data: clientPhoto } = useQuery({
-    queryKey: ['header-client-photo', user?.client_id],
-    queryFn: async () => {
-      if (!user?.client_id) return null;
-      const client = await externalDb.getClient<{ photo?: string | null }>(user.client_id);
-      return client?.photo ?? null;
-    },
-    enabled: !!user?.client_id,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const avatarSrc = clientPhoto || user?.avatar || undefined;
+  // Avatar (clients.photo) is hydrated by AuthContext into `user.avatar`,
+  // cached per client_id in localStorage. No fetch needed here.
+  const avatarSrc = user?.avatar || undefined;
+  const displayName = user?.client_name || user?.name || 'Usuário';
 
   const getInitials = (name: string) => {
     return name
@@ -122,20 +110,20 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                <Avatar className="h-10 w-10">
-                  <AvatarImage src={avatarSrc} alt={user?.name} />
-                  <AvatarFallback className="bg-primary text-primary-foreground">
-                    {user?.name ? getInitials(user.name) : 'U'}
+                <Avatar className="h-10 w-10 border-2 border-border">
+                  <AvatarImage src={avatarSrc} alt={displayName} />
+                  <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+                    {getInitials(displayName)}
                   </AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <div className="flex items-center gap-2 p-2">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={avatarSrc} alt={user?.name} />
-                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                    {user?.name ? getInitials(user.name) : 'U'}
+                <Avatar className="h-8 w-8 border border-border">
+                  <AvatarImage src={avatarSrc} alt={displayName} />
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
+                    {getInitials(displayName)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col">
