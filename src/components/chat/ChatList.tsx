@@ -1515,13 +1515,13 @@ export function ChatList() {
               onClick={() => loadMoreContacts()}
               className="text-xs text-primary hover:underline"
             >
-              Carregar mais conversas
+              Carregar mais conversas ({activeTabLoaded} de {activeTabTotal})
             </button>
           </div>
         )}
         {!isSearching && !isLoading && !hasMoreContacts && displayContacts.length > 0 && (
           <div className="text-center text-[10px] text-muted-foreground py-3">
-            Fim da lista
+            Fim da lista ({activeTabTotal} de {activeTabTotal})
           </div>
         )}
 
@@ -1540,13 +1540,13 @@ export function ChatList() {
                   onClick={() => incrementSearchPage()}
                   className="text-xs text-primary hover:underline"
                 >
-                  Carregar mais ({searchLoaded} de {searchTotal})
+                  Carregar mais ({activeTabLoaded} de {activeTabTotal})
                 </button>
               </div>
             )}
             {!isSearchFetching && !hasMoreSearch && (
               <div className="text-center text-[10px] text-muted-foreground py-3">
-                Fim da lista ({searchTotal} de {searchTotal})
+                Fim da lista ({activeTabTotal} de {activeTabTotal})
               </div>
             )}
           </>
