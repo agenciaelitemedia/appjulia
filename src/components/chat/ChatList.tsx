@@ -983,6 +983,15 @@ export function ChatList() {
   const searchLoaded = searchResults?.contacts?.length ?? 0;
   const hasMoreSearch = isSearching && searchLoaded < searchTotal;
 
+  // Per-tab/status counters for footer (independent for each status tab)
+  const activeTabTotal =
+    conversationStatusFilter === 'pending'
+      ? effPendingConvCount
+      : conversationStatusFilter === 'open'
+        ? effOpenConvCount
+        : effClosedConvCount;
+  const activeTabLoaded = displayContacts.length;
+
   // Virtual scroll — only renders items in the visible viewport.
   // estimateSize ≈ base item height (3 info rows + tags). measureElement
   // corrects actual heights so taller items (with tags) still display correctly.
