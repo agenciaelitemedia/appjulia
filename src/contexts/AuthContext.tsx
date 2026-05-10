@@ -142,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     };
     restoreSession();
-  }, [loadPermissions]);
+  }, [loadPermissions, hydrateClientPhoto]);
 
   const login = async (email: string, password: string) => {
     try {
