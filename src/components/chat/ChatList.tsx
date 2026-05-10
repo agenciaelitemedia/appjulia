@@ -1465,6 +1465,12 @@ export function ChatList() {
             {isSearching ? 'Buscando…' : 'Atualizando…'}
           </div>
         )}
+        {modeFilter !== 'all' && (queueAgentLoading || sessionStatusesFetching) && (
+          <div className="flex items-center justify-center gap-2 py-1.5 text-[10px] text-muted-foreground bg-muted/30 border-b">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Classificando conversas…
+          </div>
+        )}
         {(isLoading && contacts.length === 0) || (isSearching && isSearchFetching && !searchResults) ? (
           <div className="py-1">
             {Array.from({ length: 8 }).map((_, i) => (
