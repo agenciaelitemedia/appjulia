@@ -436,12 +436,6 @@ export function ChatList() {
   const remoteConversations = searchResults?.conversations ?? [];
   const remoteContacts = searchResults?.contacts ?? [];
 
-  const remoteContactPhoneById = React.useMemo(() => {
-    const map = new Map<string, string | null>();
-    remoteContacts.forEach((c) => map.set(c.id, c.phone || null));
-    return map;
-  }, [remoteContacts]);
-
   const remoteConvMetaByContact = React.useMemo(() => {
     const map = new Map<string, { codAgent?: string; queueId?: string; assignedTo?: string | null }>();
     remoteConversations.forEach((conv) => {
