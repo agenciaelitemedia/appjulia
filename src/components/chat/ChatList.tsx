@@ -517,9 +517,10 @@ export function ChatList() {
   // real total of pending/open tickets matching the active filters,
   // regardless of how many contacts were already paginated into the list.
   // ─────────────────────────────────────────────────────────────────────
-  const { pendingConvCount, openConvCount } = React.useMemo(() => {
+  const { pendingConvCount, openConvCount, closedConvCount } = React.useMemo(() => {
     let pending = 0;
     let open = 0;
+    let closed = 0;
 
     // Pre-build helpers
     const contactById = new Map<string, typeof contacts[number]>();
@@ -534,8 +535,8 @@ export function ChatList() {
     const now = Date.now();
 
     for (const conv of conversations) {
-      // Status must be pending/open
-      if (conv.status !== 'pending' && conv.status !== 'open') continue;
+      // Status must be pending/open/resolved/closed
+      if (!['pending', 'open', 'resolved', 'closed'].includes(conv.status)) continue;
 
       // Snooze filter (always hidden by default in the list)
       const snoozedUntil = (conv as { snoozed_until?: string | null }).snoozed_until;
@@ -596,10 +597,11 @@ export function ChatList() {
       const hasAssignee = !!(conv.assigned_to && String(conv.assigned_to).trim() !== '');
       const effectiveStatus = conv.status === 'pending' && hasAssignee ? 'open' : conv.status;
       if (effectiveStatus === 'pending') pending++;
-      else open++;
+      else if (effectiveStatus === 'open') open++;
+      else if (effectiveStatus === 'resolved' || effectiveStatus === 'closed') closed++;
     }
 
-    return { pendingConvCount: pending, openConvCount: open };
+    return { pendingConvCount: pending, openConvCount: open, closedConvCount: closed };
   }, [
     conversations, contacts, deferredSearch, periodFilter, ownerFilter, teamMembers,
     user?.id, user?.name, stageIds, stageByPhone,
