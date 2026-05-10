@@ -818,6 +818,42 @@ export function ChatList() {
                 </span>
               )}
             </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 flex-shrink-0"
+                  title="Ordenar conversas"
+                >
+                  <ArrowDownUp className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-48 p-1">
+                <button
+                  type="button"
+                  onClick={() => setSortOrder('newest')}
+                  className={cn(
+                    'w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md hover:bg-muted text-left',
+                    sortOrder === 'newest' && 'bg-muted font-medium'
+                  )}
+                >
+                  <ArrowDown className="h-3.5 w-3.5" />
+                  Mais recentes primeiro
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSortOrder('oldest')}
+                  className={cn(
+                    'w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md hover:bg-muted text-left',
+                    sortOrder === 'oldest' && 'bg-muted font-medium'
+                  )}
+                >
+                  <ArrowUp className="h-3.5 w-3.5" />
+                  Mais antigas primeiro
+                </button>
+              </PopoverContent>
+            </Popover>
             {(isAdmin || user?.role === 'user' || user?.role === 'colaborador') && (
               <>
                 <Button
