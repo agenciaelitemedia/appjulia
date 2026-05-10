@@ -1257,13 +1257,13 @@ export function ChatList() {
       <div ref={listRef} className="flex-1 overflow-y-auto">
         {/* Silent-refetch banner — shown when reloading but the list is
             already populated, so the user doesn't lose the current view. */}
-        {isLoading && contacts.length > 0 && (
+        {(isLoading || (isSearching && isSearchFetching && (searchResults?.contacts?.length ?? 0) > 0)) && contacts.length > 0 && (
           <div className="flex items-center justify-center gap-2 py-1.5 text-[10px] text-muted-foreground bg-muted/30 border-b">
             <Loader2 className="h-3 w-3 animate-spin" />
-            Atualizando…
+            {isSearching ? 'Buscando…' : 'Atualizando…'}
           </div>
         )}
-        {isLoading && contacts.length === 0 ? (
+        {(isLoading && contacts.length === 0) || (isSearching && isSearchFetching && !searchResults) ? (
           <div className="py-1">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-3">
@@ -1275,7 +1275,7 @@ export function ChatList() {
               </div>
             ))}
           </div>
-        ) : finalVisibleContacts.length === 0 ? (
+        ) : displayContacts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
             <MessageCircle className="h-12 w-12 mb-4 opacity-50" />
             <p className="font-medium">Nenhuma conversa</p>
@@ -1290,8 +1290,8 @@ export function ChatList() {
             style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}
           >
             {rowVirtualizer.getVirtualItems().map((virtualItem) => {
-              const contact = finalVisibleContacts[virtualItem.index];
-              const contactConvs = convsByContact.get(contact.id) || [];
+              const contact = displayContacts[virtualItem.index];
+              const contactConvs = displayConvsByContact.get(contact.id) || [];
               const conv = contactConvs[0];
               const queueIdToShow = conv?.queue_id || contactConvs.find(c => c.queue_id)?.queue_id;
               const convQueue = queueIdToShow ? activeQueues.find(q => q.id === queueIdToShow) : undefined;
@@ -1339,15 +1339,15 @@ export function ChatList() {
         )}
 
         {/* Infinite scroll loader / sentinel */}
-        {isLoadingMoreContacts && contacts.length > 0 && (
+        {!isSearching && isLoadingMoreContacts && contacts.length > 0 && (
           <div className="flex justify-center py-3">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         )}
-        {finalVisibleContacts.length > 0 && (
+        {!isSearching && displayContacts.length > 0 && (
           <div ref={bottomSentinelRef} className="h-1" />
         )}
-        {hasMoreContacts && !isLoadingMoreContacts && finalVisibleContacts.length > 0 && (
+        {!isSearching && hasMoreContacts && !isLoadingMoreContacts && displayContacts.length > 0 && (
           <div className="flex justify-center py-3">
             <button
               type="button"
@@ -1358,7 +1358,7 @@ export function ChatList() {
             </button>
           </div>
         )}
-        {!isLoading && !hasMoreContacts && finalVisibleContacts.length > 0 && (
+        {!isSearching && !isLoading && !hasMoreContacts && displayContacts.length > 0 && (
           <div className="text-center text-[10px] text-muted-foreground py-3">
             Fim da lista
           </div>
