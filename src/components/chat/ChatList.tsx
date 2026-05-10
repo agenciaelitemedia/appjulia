@@ -813,39 +813,163 @@ export function ChatList() {
     });
   }, [visibleContacts, fetchedMissing, sortOrder]);
 
-  // When in search mode, replace the visible list with the server results
-  // and build a local conversations-by-contact map so the row renderer
-  // still shows queue / agent / status badges.
-  const displayContacts = React.useMemo(() => {
-    if (!isSearching) return finalVisibleContacts;
-    const list = searchResults?.contacts ?? [];
-    return [...list].sort((a, b) => {
+  // ─────────────────────────────────────────────────────────────────────
+  // Search mode — apply the SAME filters used by the default list/badges
+  // (active tab, conversation status, mode, owner, queue, stage, period,
+  // open-scope) over the server-side search universe so the user sees the
+  // results split by tab, just like outside the search.
+  // ─────────────────────────────────────────────────────────────────────
+  const searchView = React.useMemo(() => {
+    if (!isSearching || !searchResults) {
+      return null as null | {
+        contacts: typeof contacts;
+        convsByContact: Map<string, typeof sortedConversations>;
+        pendingCount: number;
+        openCount: number;
+        closedCount: number;
+      };
+    }
+    const resContacts = searchResults.contacts ?? [];
+    const resConvs = searchResults.conversations ?? [];
+
+    const contactById = new Map<string, typeof contacts[number]>();
+    resContacts.forEach((c) => contactById.set(c.id, c));
+
+    // Sort search conversations newest-first
+    const sortedSearchConvs = [...resConvs].sort((a, b) => {
+      const aTs = Date.parse(a.updated_at || a.created_at || '') || 0;
+      const bTs = Date.parse(b.updated_at || b.created_at || '') || 0;
+      return bTs - aTs;
+    });
+
+    const range = getDateRange(periodFilter);
+    const selectedMember =
+      ownerFilter !== 'all' && ownerFilter !== 'mine' && ownerFilter !== 'unassigned'
+        ? teamMembers.find((m) => String(m.id) === ownerFilter)
+        : undefined;
+    const now = Date.now();
+
+    let pending = 0;
+    let open = 0;
+    let closed = 0;
+
+    // conversations that pass all non-status filters
+    const passingConvsByContact = new Map<string, typeof sortedConversations>();
+    const visibleByStatus = new Set<string>(); // contact ids matching current status filter
+
+    for (const conv of sortedSearchConvs) {
+      if (!['pending', 'open', 'resolved', 'closed'].includes(conv.status)) continue;
+
+      const snoozedUntil = (conv as { snoozed_until?: string | null }).snoozed_until;
+      if (snoozedUntil && new Date(snoozedUntil).getTime() > now) continue;
+
+      if (!matchesActiveTab(conv.contact_id)) continue;
+      if (!isVisibleByOpenScope(conv.contact_id)) continue;
+
+      // Queue filter (active queue selection)
+      if (selectedQueue?.id) {
+        if (conv.queue_id !== selectedQueue.id) continue;
+      }
+
+      if (range) {
+        const ts = conv.updated_at || conv.created_at;
+        if (!ts) continue;
+        const d = new Date(ts);
+        if (Number.isNaN(d.getTime()) || d < range.from || d > range.to) continue;
+      }
+
+      if (ownerFilter !== 'all') {
+        const assigned = conv.assigned_to;
+        if (ownerFilter === 'unassigned') {
+          if (assigned) continue;
+        } else if (ownerFilter === 'mine') {
+          if (!assigned) continue;
+          if (assigned !== String(user?.id) && assigned !== user?.name) continue;
+        } else {
+          if (!assigned) continue;
+          if (assigned !== ownerFilter && (!selectedMember || assigned !== selectedMember.name)) continue;
+        }
+      }
+
+      const contact = contactById.get(conv.contact_id);
+
+      if (stageIds.length > 0 && stageByPhone) {
+        const norm = (contact?.phone || '').replace(/\D/g, '');
+        const info = norm ? stageByPhone.get(norm) : undefined;
+        if (!info || !stageIds.includes(info.stageId)) continue;
+      }
+
+      if (modeFilter !== 'all') {
+        if (getConversationMode(conv) !== modeFilter) continue;
+      }
+
+      // Conversation passes all non-status filters — register it
+      const arr = passingConvsByContact.get(conv.contact_id);
+      if (arr) arr.push(conv);
+      else passingConvsByContact.set(conv.contact_id, [conv]);
+
+      // Effective status (pending+assignee → open) — only count once per contact
+      // for the badges (use the most recent matching conv, which is the first).
+      if (arr) continue;
+      const hasAssignee = !!(conv.assigned_to && String(conv.assigned_to).trim() !== '');
+      const effective = conv.status === 'pending' && hasAssignee ? 'open' : conv.status;
+      if (effective === 'pending') pending++;
+      else if (effective === 'open') open++;
+      else if (effective === 'resolved' || effective === 'closed') closed++;
+
+      // Match against current conversationStatusFilter
+      const matchesStatus =
+        conversationStatusFilter === 'all'
+          ? true
+          : conversationStatusFilter === 'resolved_closed'
+            ? effective === 'resolved' || effective === 'closed'
+            : effective === conversationStatusFilter;
+      if (matchesStatus) visibleByStatus.add(conv.contact_id);
+    }
+
+    // Build visible contact list ordered by sortOrder
+    const visibleList: typeof contacts = [];
+    visibleByStatus.forEach((cid) => {
+      const c = contactById.get(cid);
+      if (c) visibleList.push(c);
+    });
+    visibleList.sort((a, b) => {
       const aTs = Date.parse(a.last_message_at || a.updated_at || '') || 0;
       const bTs = Date.parse(b.last_message_at || b.updated_at || '') || 0;
       return sortOrder === 'oldest' ? aTs - bTs : bTs - aTs;
     });
-  }, [isSearching, searchResults, finalVisibleContacts, sortOrder]);
 
-  const displayConvsByContact = React.useMemo(() => {
-    if (!isSearching) return convsByContact;
-    const map = new Map<string, typeof sortedConversations>();
-    const fromContext = new Set<string>();
-    // Prefer fresher data from context when available
-    (searchResults?.contacts ?? []).forEach((c) => {
-      const arr = convsByContact.get(c.id);
-      if (arr && arr.length) {
-        map.set(c.id, arr);
-        fromContext.add(c.id);
-      }
-    });
-    (searchResults?.conversations ?? []).forEach((conv) => {
-      if (fromContext.has(conv.contact_id)) return;
-      const arr = map.get(conv.contact_id);
-      if (arr) arr.push(conv);
-      else map.set(conv.contact_id, [conv]);
-    });
-    return map;
-  }, [isSearching, searchResults, convsByContact, sortedConversations]);
+    return {
+      contacts: visibleList,
+      convsByContact: passingConvsByContact,
+      pendingCount: pending,
+      openCount: open,
+      closedCount: closed,
+    };
+  }, [
+    isSearching, searchResults, contacts, sortedConversations,
+    matchesActiveTab, isVisibleByOpenScope, selectedQueue, periodFilter,
+    ownerFilter, teamMembers, user?.id, user?.name, stageIds, stageByPhone,
+    modeFilter, getConversationMode, conversationStatusFilter, sortOrder,
+  ]);
+
+  const displayContacts = isSearching
+    ? (searchView?.contacts ?? [])
+    : finalVisibleContacts;
+
+  const displayConvsByContact = isSearching
+    ? (searchView?.convsByContact ?? new Map<string, typeof sortedConversations>())
+    : convsByContact;
+
+  // Override badge counts when searching so the tabs reflect search totals
+  const effPendingConvCount = isSearching ? (searchView?.pendingCount ?? 0) : pendingConvCount;
+  const effOpenConvCount = isSearching ? (searchView?.openCount ?? 0) : openConvCount;
+  const effClosedConvCount = isSearching ? (searchView?.closedCount ?? 0) : closedConvCount;
+
+  // Search pagination metadata for footer UI
+  const searchTotal = searchResults?.total ?? 0;
+  const searchLoaded = searchResults?.contacts?.length ?? 0;
+  const hasMoreSearch = isSearching && searchLoaded < searchTotal;
 
   // Virtual scroll — only renders items in the visible viewport.
   // estimateSize ≈ base item height (3 info rows + tags). measureElement
