@@ -2273,6 +2273,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       queueId: currentQueueId || null,
       period: periodFilter,
       sortOrder,
+      assignedTo: assignedToFilter,
+      // Stable allowlist signature — sort to avoid order-only churn.
+      allowlist: phoneAllowlist === null ? null : [...phoneAllowlist].sort(),
       // Sorted active queues so reorderings don't trigger a reset.
       queues: [...activeQueueIds].sort(),
     });
@@ -2297,7 +2300,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       knownMessageIds.current.clear();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQueueId, clientId, activeQueueIds, periodFilter, sortOrder, queuesLoading]);
+  }, [currentQueueId, clientId, activeQueueIds, periodFilter, sortOrder, queuesLoading, assignedToFilter, phoneAllowlist]);
 
   // Reload conversations when ONLY the query group (status tab) changes —
   // without triggering the full bootstrap effect above.
