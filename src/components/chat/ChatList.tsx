@@ -1118,13 +1118,9 @@ export function ChatList() {
             <MessageCircle className="h-12 w-12 mb-4 opacity-50" />
             <p className="font-medium">Nenhuma conversa</p>
             <p className="text-sm mt-1">
-              {slaFilter !== 'all'
-                ? slaFilter === 'breached'
-                  ? 'Nenhum ticket com SLA estourado'
-                  : 'Nenhum ticket com SLA em risco'
-                : searchQuery
-                  ? 'Tente uma busca diferente'
-                  : 'As mensagens aparecerão aqui quando recebidas'}
+              {searchQuery
+                ? 'Tente uma busca diferente'
+                : 'As mensagens aparecerão aqui quando recebidas'}
             </p>
           </div>
         ) : (
