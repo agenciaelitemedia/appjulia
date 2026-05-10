@@ -522,6 +522,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // re-fetches from the DB — the local state already has both.
   const convQueryGroup = conversationStatusFilter === 'resolved' ? 'resolved'
     : conversationStatusFilter === 'closed' ? 'closed'
+    : conversationStatusFilter === 'resolved_closed' ? 'resolved_closed'
     : 'active';
 
   // Mirror `convQueryGroup` into a ref so the realtime subscription handler
@@ -566,6 +567,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
       if (convQueryGroup === 'active') {
         query = query.in('status', ['pending', 'open']);
+      } else if (convQueryGroup === 'resolved_closed') {
+        query = query.in('status', ['resolved', 'closed']);
       } else {
         query = query.eq('status', convQueryGroup);
       }
@@ -1833,6 +1836,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         .filter(c => {
           const hasAssignee = !!(c.assigned_to && String(c.assigned_to).trim() !== '');
           const effective = c.status === 'pending' && hasAssignee ? 'open' : c.status;
+          if (conversationStatusFilter === 'resolved_closed') {
+            return effective === 'resolved' || effective === 'closed';
+          }
           return effective === conversationStatusFilter;
         })
         .map(c => c.contact_id);

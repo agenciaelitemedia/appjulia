@@ -232,6 +232,79 @@ export const ChatContactItem = React.memo(function ChatContactItem({
           )}
         </div>
 
+        {/* Linha Julia: badge JULIA + cod_agent · alias + badge etapa CRM Julia (lazy) */}
+        {(agentCodAgent || stageName) && (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center justify-between gap-1.5 min-w-0 w-full pt-1 mt-0.5 bg-emerald-50/40 dark:bg-emerald-950/20 px-1.5 rounded-sm">
+                  <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                    <span className="inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[9px] font-bold leading-none rounded bg-emerald-100 text-emerald-700 whitespace-nowrap flex-shrink-0">
+                      <Bot className="h-2.5 w-2.5 flex-shrink-0" />
+                      JULIA
+                    </span>
+                    {agentCodAgent && (
+                      <span className="text-[10px] text-muted-foreground font-mono truncate">
+                        #{agentCodAgent}{agentAlias ? ` · ${agentAlias}` : ''}
+                      </span>
+                    )}
+                  </div>
+                  {stageName && (
+                    <span
+                      className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-white whitespace-nowrap"
+                      style={{ backgroundColor: stageColor || '#64748b' }}
+                    >
+                      {stageName}
+                    </span>
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                <div className="font-semibold mb-1">Agente Julia</div>
+                {agentCodAgent && <div>Código: #{agentCodAgent}</div>}
+                {agentAlias && <div>Alias: {agentAlias}</div>}
+                {stageName && <div>Etapa CRM Julia: {stageName}</div>}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+
+        {/* Linha CRM Builder: badge CRM + Quadro · Etapa (lazy) */}
+        {crmBuilderLink && (crmBuilderLink.boardName || crmBuilderLink.pipelineName) && (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center justify-between gap-1.5 min-w-0 w-full pt-1 mt-0.5 bg-blue-50/40 dark:bg-blue-950/20 px-1.5 rounded-sm">
+                  <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                    <span className="inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[9px] font-bold leading-none rounded bg-blue-100 text-blue-700 whitespace-nowrap flex-shrink-0">
+                      <Kanban className="h-2.5 w-2.5 flex-shrink-0" />
+                      CRM
+                    </span>
+                    {crmBuilderLink.boardName && (
+                      <span className="text-[10px] text-muted-foreground font-mono truncate">
+                        {crmBuilderLink.boardName}
+                      </span>
+                    )}
+                  </div>
+                  {crmBuilderLink.pipelineName && (
+                    <span
+                      className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-white whitespace-nowrap"
+                      style={{ backgroundColor: crmBuilderLink.pipelineColor || '#2563eb' }}
+                    >
+                      {crmBuilderLink.pipelineName}
+                    </span>
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                <div className="font-semibold mb-1">Vinculado ao CRM Builder</div>
+                {crmBuilderLink.boardName && <div>Quadro: {crmBuilderLink.boardName}</div>}
+                {crmBuilderLink.pipelineName && <div>Etapa: {crmBuilderLink.pipelineName}</div>}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+
         {/* Row 3: Tags — fila → SLA → atribuído → extras → prioridade (direita) */}
         <div className="flex items-center gap-1 flex-nowrap min-w-0 overflow-hidden w-full">
           <div className="flex items-stretch gap-0 flex-shrink-0 mr-2">
@@ -286,78 +359,6 @@ export const ChatContactItem = React.memo(function ChatContactItem({
           </div>
         )}
 
-        {/* Linha Julia: badge JULIA + cod_agent · alias + badge etapa CRM Julia (lazy) */}
-        {(agentCodAgent || stageName) && (
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center justify-between gap-1.5 min-w-0 w-full pt-1.5 mt-1 border-t border-border/60 bg-emerald-50/40 dark:bg-emerald-950/20 px-1.5 rounded-sm">
-                  <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-                    <span className="inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[9px] font-bold leading-none rounded bg-emerald-100 text-emerald-700 whitespace-nowrap flex-shrink-0">
-                      <Bot className="h-2.5 w-2.5 flex-shrink-0" />
-                      JULIA
-                    </span>
-                    {agentCodAgent && (
-                      <span className="text-[10px] text-muted-foreground font-mono truncate">
-                        #{agentCodAgent}{agentAlias ? ` · ${agentAlias}` : ''}
-                      </span>
-                    )}
-                  </div>
-                  {stageName && (
-                    <span
-                      className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-white whitespace-nowrap"
-                      style={{ backgroundColor: stageColor || '#64748b' }}
-                    >
-                      {stageName}
-                    </span>
-                  )}
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">
-                <div className="font-semibold mb-1">Agente Julia</div>
-                {agentCodAgent && <div>Código: #{agentCodAgent}</div>}
-                {agentAlias && <div>Alias: {agentAlias}</div>}
-                {stageName && <div>Etapa CRM Julia: {stageName}</div>}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
-
-        {/* Linha CRM Builder: badge CRM + Quadro · Etapa (lazy) */}
-        {crmBuilderLink && (crmBuilderLink.boardName || crmBuilderLink.pipelineName) && (
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center justify-between gap-1.5 min-w-0 w-full pt-1.5 mt-1 border-t border-border/60 bg-blue-50/40 dark:bg-blue-950/20 px-1.5 rounded-sm">
-                  <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-                    <span className="inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[9px] font-bold leading-none rounded bg-blue-100 text-blue-700 whitespace-nowrap flex-shrink-0">
-                      <Kanban className="h-2.5 w-2.5 flex-shrink-0" />
-                      CRM
-                    </span>
-                    {crmBuilderLink.boardName && (
-                      <span className="text-[10px] text-muted-foreground font-mono truncate">
-                        {crmBuilderLink.boardName}
-                      </span>
-                    )}
-                  </div>
-                  {crmBuilderLink.pipelineName && (
-                    <span
-                      className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-white whitespace-nowrap"
-                      style={{ backgroundColor: crmBuilderLink.pipelineColor || '#2563eb' }}
-                    >
-                      {crmBuilderLink.pipelineName}
-                    </span>
-                  )}
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">
-                <div className="font-semibold mb-1">Vinculado ao CRM Builder</div>
-                {crmBuilderLink.boardName && <div>Quadro: {crmBuilderLink.boardName}</div>}
-                {crmBuilderLink.pipelineName && <div>Etapa: {crmBuilderLink.pipelineName}</div>}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
       </div>
     </div>
   );

@@ -1,55 +1,62 @@
-## Objetivo
-No `/chat`, definir o filtro de período padrão como **"Todos"**, mantendo carregamento sob demanda (50 por página), com auto-carregamento via scroll e fallback de link "Carregar mais".
+## Refatoração de filtros do /chat
 
-## Estado atual (já existente)
-- `CONTACTS_PAGE_SIZE = 50` em `WhatsAppDataContext.tsx`
-- Paginação server-side via `.range(offset, offset + 49)` no Supabase
-- `hasMoreContacts`, `isLoadingMoreContacts`, `loadMoreContacts()` já implementados
-- `IntersectionObserver` em `ChatList.tsx` (sentinela `bottomSentinelRef`) já dispara `loadMoreContacts` ao chegar perto do fim
-- Filtro padrão atual: `periodFilter = 'last7days'`
+### 1. `src/components/chat/ChatList.tsx` — área de filtros
 
-## Mudanças
+**Remover completamente:**
+- Filtro de SLA (pills "Todos SLAs / Estourado / Em risco" — linhas 884-934).
+- Pills de status `Todos / Pendentes / Em atendimento / Resolvidas / Encerradas` (linhas 936-959). O controle de status passa a ser feito apenas pelas abas inferiores.
+- Botão (ícone Filter) e contador `activeFilterCount` na barra de busca, pois o painel de filtros fica vazio.
+- Estado `slaFilter`, `setSlaFilter`, e cálculos `breachedCount` / `atRiskCount` se não usados em outro lugar (manter `slaStatusByContact` apenas se ainda servir ao item — não serve mais; pode ser removido).
+- Toda a aplicação de `slaFilter` em `applyClientFilters`, `pendingConvCount`/`openConvCount` e `visibleContacts`.
+- Estado `filtersOpen` e wrappers `{filtersOpen && ...}`.
 
-### 1. Padrão "Todos" (`src/contexts/WhatsAppDataContext.tsx`, linha 287)
-Trocar:
-```ts
-const [periodFilter, setPeriodFilter] = useState<ChatPeriodFilter>('last7days');
+**Reorganizar a barra de filtros (sempre visível, sem painel colapsável):**
+
+Linha 1 — período (mantém pills atuais com ícone calendário).
+
+Linha 2 — Filas + Atendentes (lado a lado):
 ```
-por:
-```ts
-const [periodFilter, setPeriodFilter] = useState<ChatPeriodFilter>('all');
+[Select Fila .................] [TeamMemberSelect Atendente ...]
 ```
-Quando `periodFilter === 'all'`, `getPeriodCutoffISO` já retorna `null` e nenhum `gte('last_message_at', ...)` é aplicado — a query naturalmente percorre todos os contatos, ordenados por `last_message_at desc`, paginando de 50 em 50.
+Distribuir em `grid-cols-2 gap-2` para ficarem lado a lado, mantendo a UX atual de cada um (apenas reduzindo larguras).
 
-### 2. Link "Carregar mais" como fallback (`src/components/chat/ChatList.tsx`, ~linha 1252-1265)
-Logo abaixo do `bottomSentinelRef` (que continua existindo para auto-load), adicionar um botão visível enquanto `hasMoreContacts && !isLoadingMoreContacts`:
+Linha 3 — Modo (Todos/Julia/Humano) + Etapas, em um único bloco com destaque:
+- Envolver em `<div className="flex items-center gap-2 p-2 rounded-md border border-primary/20 bg-primary/5">`.
+- Modo vira `ToggleGroup` somente com **ícones**:
+  - Todos → `ListFilter` (tooltip "Todos os modos")
+  - Julia → `Bot` (tooltip "Filas com Julia IA ativa")
+  - Humano → `User` (tooltip "Atendimento humano (Julia inativa)")
+- Ao lado, o popover de etapas (mantém o componente atual, `Layers` + label `stageLabel`), envolvido em Tooltip explicativo.
 
-```tsx
-{hasMoreContacts && !isLoadingMoreContacts && finalVisibleContacts.length > 0 && (
-  <div className="flex justify-center py-3">
-    <button
-      onClick={() => loadMoreContacts()}
-      className="text-xs text-primary hover:underline"
-    >
-      Carregar mais conversas
-    </button>
-  </div>
-)}
-```
+**Tabs inferiores de status (atualmente `pending` e `open`):** adicionar uma terceira aba **icon-only** que cobre Resolvidas + Encerradas:
+- `value: 'resolved_closed'` (novo agrupador local) com ícone `CheckCheck` (ou `Archive`) + tooltip "Resolvidas / Encerradas".
+- Ao clicar, chamar `setConversationStatusFilter('resolved')` por padrão; o cálculo de `visibleContacts` para esse caso deve incluir conversas com `status === 'resolved' || status === 'closed'`.
+- Ajustar `visibleContacts` (bloco `if (conversationStatusFilter !== 'pending' ...)`) para suportar o novo valor agregando os dois status no filtro `filteredContacts`. Como o contexto trabalha com `ConversationFilterStatus`, criar um filtro local que aceite ambos: derivar `visibleContacts` direto de `sortedConversations` filtrando `status in ['resolved','closed']` quando a aba estiver ativa.
+- Adicionar contador da nova aba (similar a `pendingConvCount`/`openConvCount`).
 
-Isso garante que, mesmo se o `IntersectionObserver` falhar (root sem altura, scroll virtualizado, etc.), o usuário tenha como avançar manualmente. O texto "Fim da lista" já existente continua aparecendo quando `!hasMoreContacts`.
+### 2. `src/components/chat/ChatContactItem.tsx` — listagem
 
-### 3. Sem mudanças adicionais
-- Sem alterações em queries/RLS/edge functions
-- Sem alterações no design system (usa tokens semânticos existentes: `text-primary`, `text-muted-foreground`)
-- Filtros client-side (owner, stage, sla, mode, search) continuam funcionando sobre o conjunto já carregado
+Mover blocos **Julia** (linhas 290-324) e **CRM Builder** (linhas 327-360) para **logo abaixo do preview da última mensagem (Row 2)** e **antes** da linha de pills (fila/atribuído/SLA).
 
-## Validação
-1. Abrir `/chat`, confirmar que o seletor de período inicia em "Todos".
-2. Verificar que apenas ~50 contatos são carregados inicialmente (Network tab: uma única chamada com `range: 0-49`).
-3. Rolar a lista — observar nova chamada com `range: 50-99` automaticamente.
-4. Confirmar que o link "Carregar mais conversas" aparece no rodapé enquanto há mais a carregar e some quando termina (mostra "Fim da lista").
+Resultado da ordem dentro de `flex-1`:
+1. Row 1: nome + tempo
+2. Row 2: preview + unread badge
+3. **NOVO posicionamento:** linha Julia (se houver) + linha CRM Builder (se houver)
+4. Row 3: pills (fila → atribuído → SLA → prioridade)
+5. Row 4: tags
 
-## Arquivos alterados
-- `src/contexts/WhatsAppDataContext.tsx` (1 linha)
-- `src/components/chat/ChatList.tsx` (+ ~10 linhas)
+Manter exatamente os mesmos componentes/markup, apenas reordenar.
+
+### 3. Limpeza
+
+- Remover imports não utilizados após a remoção: `AlertTriangle`, `Flame`, `Filter` (se nada mais usar), `FolderOpen`, `CheckCheck`/`Archive` se substituídos, etc. Re-verificar lista de imports do `lucide-react` no topo de `ChatList.tsx` e podar.
+- Remover constantes `SlaFilter` type se não usado.
+- Garantir `TooltipProvider` envolvendo os novos botões com `title` substituído por `Tooltip`.
+
+### Observações técnicas
+
+- Não alterar `WhatsAppDataContext` — toda a lógica nova fica client-side em `ChatList`.
+- Para a aba "Resolvidas/Encerradas", como o contexto mantém `conversationStatusFilter: ConversationFilterStatus`, usar um estado local `statusTab: 'pending' | 'open' | 'closed_group'` e mapear:
+  - `pending`/`open` → seta `setConversationStatusFilter(value)`
+  - `closed_group` → seta `setConversationStatusFilter('all')` e aplica filtro client-side `status in ['resolved','closed']` no derivador `visibleContacts`. Isso evita mexer no enum do contexto.
+- O contador da nova aba reaproveita o mesmo loop de `pendingConvCount`/`openConvCount` adicionando um terceiro acumulador (`closedConvCount`) sob `effectiveStatus in ['resolved','closed']`.

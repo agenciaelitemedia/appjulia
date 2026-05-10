@@ -63,7 +63,7 @@ export interface ChatDepartment {
 }
 
 // Filters for conversation list
-export type ConversationFilterStatus = 'all' | 'pending' | 'open' | 'closed' | 'resolved';
+export type ConversationFilterStatus = 'all' | 'pending' | 'open' | 'closed' | 'resolved' | 'resolved_closed';
 
 export interface ConversationFilters {
   status: ConversationFilterStatus;

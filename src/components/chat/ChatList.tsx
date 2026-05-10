@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { RefreshCw, Search, MessageCircle, Users, Clock, CheckCircle2, Inbox, Settings2, BarChart3, Layers, Filter, Plus, Timer, AlertTriangle, Flame, Bot, User, UserCheck, UserX, ListFilter, FolderOpen, CheckCheck, Archive, UserCircle, ChevronsUpDown, CalendarDays, Tag, Settings, ArrowDownUp, ArrowDown, ArrowUp } from 'lucide-react';
+import { Search, MessageCircle, Users, Layers, Bot, User, UserCheck, UserX, ListFilter, CheckCheck, UserCircle, ChevronsUpDown, CalendarDays, Settings, BarChart3, ArrowDownUp, ArrowDown, ArrowUp } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { TeamMemberSelect } from '@/components/TeamMemberSelect';
 import { TagsManagerDialog } from './TagsManagerDialog';
 import { NewConversationDialog } from './NewConversationDialog';
@@ -38,7 +39,6 @@ import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
 import type { ConversationFilterStatus } from '@/types/conversation';
 import { cn } from '@/lib/utils';
 
-type SlaFilter = 'all' | 'breached' | 'at_risk';
 type ConversationModeFilter = 'all' | 'julia' | 'human';
 type AssigneeFilter = 'all' | 'mine' | 'unassigned';
 type PeriodFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'last3Months';
@@ -112,13 +112,11 @@ export function ChatList() {
   const { user, isAdmin } = useAuth();
   const { data: queues = [] } = useAccessibleQueues();
   const { configs: slaConfigs } = useChatSlaConfigs();
-  const [slaFilter, setSlaFilter] = useState<SlaFilter>('all');
   const [modeFilter, setModeFilter] = useState<ConversationModeFilter>('all');
   const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('all');
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [stageIds, setStageIds] = useState<number[]>([]);
   const [stagePopoverOpen, setStagePopoverOpen] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [showTagsManager, setShowTagsManager] = useState(false);
   const [newConvOpen, setNewConvOpen] = useState(false);
   const [footerCountry, setFooterCountry] = useState('55');
@@ -162,14 +160,6 @@ export function ChatList() {
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [hasMoreConversations, loadMoreConversations]);
-  const activeFilterCount =
-    (modeFilter !== 'all' ? 1 : 0) +
-    (slaFilter !== 'all' ? 1 : 0) +
-    (ownerFilter !== 'all' ? 1 : 0) +
-    (conversationStatusFilter !== 'all' ? 1 : 0) +
-    (periodFilter !== 'all' ? 1 : 0) +
-    (stageIds.length > 0 ? 1 : 0);
-
   const activeQueues = queues.filter(q => q.is_active && !q.is_deleted);
 
   // Default = "Todas as filas" (selectedQueue null). No auto-select.
@@ -430,15 +420,12 @@ export function ChatList() {
           return info ? stageIds.includes(info.stageId) : false;
         });
       }
-      if (slaFilter !== 'all') {
-        result = result.filter((c) => slaStatusByContact.get(c.id) === slaFilter);
-      }
       if (modeFilter !== 'all') {
         result = result.filter((c) => getContactMode(c.id) === modeFilter);
       }
       return result;
     },
-    [ownerFilter, teamMembers, convMetaByContact, user?.id, user?.name, periodFilter, stageIds, stageByPhone, slaFilter, slaStatusByContact, modeFilter, getContactMode]
+    [ownerFilter, teamMembers, convMetaByContact, user?.id, user?.name, periodFilter, stageIds, stageByPhone, modeFilter, getContactMode]
   );
 
   // Count conversations by status — scoped to the active tab (Individual / Groups)
@@ -530,9 +517,10 @@ export function ChatList() {
   // real total of pending/open tickets matching the active filters,
   // regardless of how many contacts were already paginated into the list.
   // ─────────────────────────────────────────────────────────────────────
-  const { pendingConvCount, openConvCount } = React.useMemo(() => {
+  const { pendingConvCount, openConvCount, closedConvCount } = React.useMemo(() => {
     let pending = 0;
     let open = 0;
+    let closed = 0;
 
     // Pre-build helpers
     const contactById = new Map<string, typeof contacts[number]>();
@@ -547,8 +535,8 @@ export function ChatList() {
     const now = Date.now();
 
     for (const conv of conversations) {
-      // Status must be pending/open
-      if (conv.status !== 'pending' && conv.status !== 'open') continue;
+      // Status must be pending/open/resolved/closed
+      if (!['pending', 'open', 'resolved', 'closed'].includes(conv.status)) continue;
 
       // Snooze filter (always hidden by default in the list)
       const snoozedUntil = (conv as { snoozed_until?: string | null }).snoozed_until;
@@ -590,11 +578,6 @@ export function ChatList() {
         if (!info || !stageIds.includes(info.stageId)) continue;
       }
 
-      // SLA filter
-      if (slaFilter !== 'all') {
-        if (slaStatusByContact.get(conv.contact_id) !== slaFilter) continue;
-      }
-
       // Mode filter (Julia/humano)
       if (modeFilter !== 'all') {
         if (getConversationMode(conv) !== modeFilter) continue;
@@ -614,13 +597,14 @@ export function ChatList() {
       const hasAssignee = !!(conv.assigned_to && String(conv.assigned_to).trim() !== '');
       const effectiveStatus = conv.status === 'pending' && hasAssignee ? 'open' : conv.status;
       if (effectiveStatus === 'pending') pending++;
-      else open++;
+      else if (effectiveStatus === 'open') open++;
+      else if (effectiveStatus === 'resolved' || effectiveStatus === 'closed') closed++;
     }
 
-    return { pendingConvCount: pending, openConvCount: open };
+    return { pendingConvCount: pending, openConvCount: open, closedConvCount: closed };
   }, [
     conversations, contacts, deferredSearch, periodFilter, ownerFilter, teamMembers,
-    user?.id, user?.name, stageIds, stageByPhone, slaFilter, slaStatusByContact,
+    user?.id, user?.name, stageIds, stageByPhone,
     modeFilter, getConversationMode, matchesActiveTab, isVisibleByOpenScope,
   ]);
 
@@ -706,11 +690,6 @@ export function ChatList() {
         if (!info || !stageIds.includes(info.stageId)) continue;
       }
 
-      // SLA
-      if (slaFilter !== 'all') {
-        if (slaStatusByContact.get(conv.contact_id) !== slaFilter) continue;
-      }
-
       // Mode (Julia / humano)
       if (modeFilter !== 'all') {
         if (getConversationMode(conv) !== modeFilter) continue;
@@ -735,7 +714,7 @@ export function ChatList() {
   }, [
     conversationStatusFilter, sortedConversations, contacts, deferredSearch,
     periodFilter, ownerFilter, teamMembers, user?.id, user?.name,
-    stageIds, stageByPhone, slaFilter, slaStatusByContact, modeFilter,
+    stageIds, stageByPhone, modeFilter,
     getConversationMode, matchesActiveTab, isVisibleByOpenScope,
     applyClientFilters, filteredContacts,
   ]);
@@ -801,23 +780,6 @@ export function ChatList() {
                 className="pl-9 h-9 bg-muted/40 border-0"
               />
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                'h-9 w-9 flex-shrink-0 relative',
-                filtersOpen && 'bg-muted text-foreground'
-              )}
-              onClick={() => setFiltersOpen((v) => !v)}
-              title="Filtros"
-            >
-              <Filter className="h-4 w-4" />
-              {activeFilterCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 bg-primary text-primary-foreground rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
-                  {activeFilterCount}
-                </span>
-              )}
-            </Button>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -879,161 +841,6 @@ export function ChatList() {
           </div>
         </div>
 
-        {filtersOpen && (
-        <>
-        {(breachedCount > 0 || atRiskCount > 0 || slaFilter !== 'all') && (
-          <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
-            <button
-              onClick={() => setSlaFilter('all')}
-              className={cn(
-                'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
-                slaFilter === 'all'
-                  ? 'bg-foreground/10 text-foreground border-foreground/20'
-                  : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
-              )}
-            >
-              Todos SLAs
-            </button>
-            <button
-              onClick={() => setSlaFilter(slaFilter === 'breached' ? 'all' : 'breached')}
-              className={cn(
-                'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
-                slaFilter === 'breached'
-                  ? 'bg-destructive/15 text-destructive border-destructive/30'
-                  : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
-              )}
-              title="Mostrar apenas tickets com SLA estourado"
-            >
-              <Flame className="h-3 w-3" />
-              Estourado
-              {breachedCount > 0 && (
-                <span className="ml-0.5 bg-destructive text-destructive-foreground rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
-                  {breachedCount}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setSlaFilter(slaFilter === 'at_risk' ? 'all' : 'at_risk')}
-              className={cn(
-                'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
-                slaFilter === 'at_risk'
-                  ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30'
-                  : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
-              )}
-              title="Mostrar apenas tickets com SLA em risco"
-            >
-              <AlertTriangle className="h-3 w-3" />
-              Em risco
-              {atRiskCount > 0 && (
-                <span className="ml-0.5 bg-amber-500 text-white rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold">
-                  {atRiskCount}
-                </span>
-              )}
-            </button>
-          </div>
-        )}
-
-        {/* Status pills — dentro do painel de filtros, sem contagens */}
-        <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
-          {([
-            { value: 'all',      label: 'Todos',           icon: <ListFilter className="h-3 w-3" />,  active: 'bg-foreground/10 text-foreground border-foreground/20' },
-            { value: 'pending',  label: 'Pendentes',       icon: <Clock className="h-3 w-3" />,       active: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30' },
-            { value: 'open',     label: 'Em atendimento',  icon: <FolderOpen className="h-3 w-3" />,  active: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30' },
-            { value: 'resolved', label: 'Resolvidas',      icon: <CheckCheck className="h-3 w-3" />,  active: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' },
-            { value: 'closed',   label: 'Encerradas',      icon: <Archive className="h-3 w-3" />,     active: 'bg-foreground/10 text-foreground border-foreground/20' },
-          ] as const).map(pill => (
-            <button
-              key={pill.value}
-              onClick={() => setConversationStatusFilter(pill.value)}
-              className={cn(
-                'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
-                conversationStatusFilter === pill.value
-                  ? pill.active
-                  : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
-              )}
-            >
-              {pill.icon}
-              {pill.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Responsável (busca + avatares) */}
-        <div className="px-4 pb-2 flex items-center gap-2">
-          <UserCircle className="h-4 w-4 text-muted-foreground shrink-0" />
-          <TeamMemberSelect
-            members={teamMembers}
-            valueKey="id"
-            value={['all', 'mine', 'unassigned'].includes(ownerFilter) ? ownerFilter : ownerFilter}
-            onValueChange={(v) => setOwnerFilter(v ?? 'all')}
-            allowUnassigned={false}
-            extraOptions={[
-              { value: 'all', label: 'Todos atendentes', icon: Users },
-              { value: 'mine', label: 'Meus atendimentos', icon: UserCheck, badgeLabel: 'EU' },
-              { value: 'unassigned', label: 'Sem atendente', icon: UserX },
-            ]}
-            placeholder="Responsável"
-            size="sm"
-            className="w-full text-xs"
-          />
-        </div>
-
-        {/* Etapas (multi-select) */}
-        <div className="px-4 pb-2 flex items-center gap-2">
-          <Layers className="h-4 w-4 text-muted-foreground shrink-0" />
-          <Popover open={stagePopoverOpen} onOpenChange={setStagePopoverOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                className="h-8 w-full justify-between text-xs font-normal"
-              >
-                <span className="truncate">{stageLabel}</span>
-                <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[280px] p-0" align="start">
-              <div className="px-2 py-1.5 border-b">
-                <button
-                  onClick={toggleAllStages}
-                  className="flex items-center gap-2 w-full text-xs hover:bg-accent rounded px-2 py-1.5"
-                >
-                  <Checkbox checked={allStagesSelected} className="pointer-events-none" />
-                  <span className="font-medium">{allStagesSelected ? 'Desmarcar todas' : 'Selecionar todas'}</span>
-                </button>
-              </div>
-              <ScrollArea className="max-h-[260px]">
-                <div className="p-1">
-                  {stages.length === 0 ? (
-                    <div className="text-xs text-muted-foreground px-3 py-4 text-center">
-                      Nenhuma etapa disponível
-                    </div>
-                  ) : (
-                    stages.map((stage) => (
-                      <button
-                        key={stage.id}
-                        onClick={() => toggleStage(stage.id)}
-                        className="flex items-center gap-2 w-full text-xs hover:bg-accent rounded px-2 py-1.5 text-left"
-                      >
-                        <Checkbox checked={stageSet.has(stage.id)} className="pointer-events-none" />
-                        {stage.color && (
-                          <span
-                            className="h-2.5 w-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: stage.color }}
-                          />
-                        )}
-                        <span className="truncate">{stage.name}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </ScrollArea>
-            </PopoverContent>
-          </Popover>
-        </div>
-        </>
-        )}
-
         {/* Período (pills) - sempre visível, fora do painel de filtros */}
         <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
           <CalendarDays className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -1053,16 +860,13 @@ export function ChatList() {
           ))}
         </div>
 
-        {/* Queue selector - includes "Todas as filas" option */}
-        {activeQueues.length > 0 && (
-          <div className="px-4 pb-2">
+        {/* Linha: Filas + Atendentes lado a lado */}
+        <div className="px-4 pb-2 grid grid-cols-2 gap-2">
+          {activeQueues.length > 0 ? (
             <Select
               value={selectedQueue?.id || '__all__'}
               onValueChange={(val) => {
-                if (val === '__all__') {
-                  setSelectedQueue(null);
-                  return;
-                }
+                if (val === '__all__') { setSelectedQueue(null); return; }
                 const queue = activeQueues.find(q => q.id === val);
                 if (queue) {
                   setSelectedQueue({
@@ -1078,16 +882,14 @@ export function ChatList() {
               }}
             >
               <SelectTrigger className="w-full h-8 text-xs">
-                <div className="flex items-center gap-2">
-                  <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Layers className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <SelectValue placeholder="Todas as filas" />
                 </div>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">
-                  <div className="flex items-center gap-2">
-                    <span>Todas as filas</span>
-                  </div>
+                  <div className="flex items-center gap-2"><span>Todas as filas</span></div>
                 </SelectItem>
                 {activeQueues.map((queue) => (
                   <SelectItem key={queue.id} value={queue.id}>
@@ -1099,41 +901,132 @@ export function ChatList() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-        )}
-
-        {/* Filtro Julia / Atendimento Humano — sempre visível, abaixo das filas */}
-        <div className="px-4 pb-2 pt-1 flex items-center gap-1.5">
-          <ToggleGroup
-            type="single"
-            value={modeFilter}
-            onValueChange={(val) => { if (val) setModeFilter(val as ConversationModeFilter); }}
+          ) : <div />}
+          <TeamMemberSelect
+            members={teamMembers}
+            valueKey="id"
+            value={ownerFilter}
+            onValueChange={(v) => setOwnerFilter(v ?? 'all')}
+            allowUnassigned={false}
+            extraOptions={[
+              { value: 'all', label: 'Todos atendentes', icon: Users },
+              { value: 'mine', label: 'Meus atendimentos', icon: UserCheck, badgeLabel: 'EU' },
+              { value: 'unassigned', label: 'Sem atendente', icon: UserX },
+            ]}
+            placeholder="Atendente"
             size="sm"
-            className="justify-start w-full"
-          >
-            <ToggleGroupItem
-              value="all"
-              className="flex-1 text-[10px] font-medium px-2 py-1 h-auto rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-foreground/10 data-[state=on]:text-foreground data-[state=on]:border-foreground/20"
-            >
-              Todos
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="julia"
-              className="flex-1 text-[10px] font-medium px-2 py-1 h-auto gap-1 rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-green-500/15 data-[state=on]:text-green-600 dark:data-[state=on]:text-green-400 data-[state=on]:border-green-500/30"
-              title="Filas com Julia IA ativa"
-            >
-              <Bot className="h-3 w-3" />
-              Julia
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="human"
-              className="flex-1 text-[10px] font-medium px-2 py-1 h-auto gap-1 rounded-md border border-border bg-transparent text-muted-foreground hover:bg-muted data-[state=on]:bg-amber-500/20 data-[state=on]:text-amber-600 dark:data-[state=on]:text-amber-400 data-[state=on]:border-amber-500/30"
-              title="Filas com Julia IA inativa (atendimento humano)"
-            >
-              <User className="h-3 w-3" />
-              Atendimento Humano
-            </ToggleGroupItem>
-          </ToggleGroup>
+            className="w-full text-xs"
+          />
+        </div>
+
+        {/* Linha destaque: Modo (icones) + Etapas */}
+        <div className="px-4 pb-2">
+          <div className="flex items-center gap-2 p-2 rounded-md border border-primary/30 bg-primary/5">
+            <TooltipProvider delayDuration={200}>
+              <ToggleGroup
+                type="single"
+                value={modeFilter}
+                onValueChange={(val) => { if (val) setModeFilter(val as ConversationModeFilter); }}
+                size="sm"
+                className="justify-start gap-1 shrink-0"
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <ToggleGroupItem
+                      value="all"
+                      aria-label="Todos os modos"
+                      className="h-8 w-8 p-0 rounded-md border border-border bg-background text-muted-foreground hover:bg-muted data-[state=on]:bg-foreground/10 data-[state=on]:text-foreground data-[state=on]:border-foreground/30"
+                    >
+                      <ListFilter className="h-3.5 w-3.5" />
+                    </ToggleGroupItem>
+                  </TooltipTrigger>
+                  <TooltipContent>Todos os modos</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <ToggleGroupItem
+                      value="julia"
+                      aria-label="Julia IA ativa"
+                      className="h-8 w-8 p-0 rounded-md border border-border bg-background text-muted-foreground hover:bg-muted data-[state=on]:bg-green-500/15 data-[state=on]:text-green-600 dark:data-[state=on]:text-green-400 data-[state=on]:border-green-500/40"
+                    >
+                      <Bot className="h-3.5 w-3.5" />
+                    </ToggleGroupItem>
+                  </TooltipTrigger>
+                  <TooltipContent>Filas com Julia IA ativa</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <ToggleGroupItem
+                      value="human"
+                      aria-label="Atendimento humano"
+                      className="h-8 w-8 p-0 rounded-md border border-border bg-background text-muted-foreground hover:bg-muted data-[state=on]:bg-amber-500/20 data-[state=on]:text-amber-600 dark:data-[state=on]:text-amber-400 data-[state=on]:border-amber-500/40"
+                    >
+                      <User className="h-3.5 w-3.5" />
+                    </ToggleGroupItem>
+                  </TooltipTrigger>
+                  <TooltipContent>Atendimento humano (Julia inativa)</TooltipContent>
+                </Tooltip>
+              </ToggleGroup>
+
+              <Popover open={stagePopoverOpen} onOpenChange={setStagePopoverOpen}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="h-8 flex-1 justify-between text-xs font-normal bg-background"
+                      >
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <Layers className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="truncate">{stageLabel}</span>
+                        </span>
+                        <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>Filtrar por etapas do CRM Julia</TooltipContent>
+                </Tooltip>
+                <PopoverContent className="w-[280px] p-0" align="start">
+                  <div className="px-2 py-1.5 border-b">
+                    <button
+                      onClick={toggleAllStages}
+                      className="flex items-center gap-2 w-full text-xs hover:bg-accent rounded px-2 py-1.5"
+                    >
+                      <Checkbox checked={allStagesSelected} className="pointer-events-none" />
+                      <span className="font-medium">{allStagesSelected ? 'Desmarcar todas' : 'Selecionar todas'}</span>
+                    </button>
+                  </div>
+                  <ScrollArea className="max-h-[260px]">
+                    <div className="p-1">
+                      {stages.length === 0 ? (
+                        <div className="text-xs text-muted-foreground px-3 py-4 text-center">
+                          Nenhuma etapa disponível
+                        </div>
+                      ) : (
+                        stages.map((stage) => (
+                          <button
+                            key={stage.id}
+                            onClick={() => toggleStage(stage.id)}
+                            className="flex items-center gap-2 w-full text-xs hover:bg-accent rounded px-2 py-1.5 text-left"
+                          >
+                            <Checkbox checked={stageSet.has(stage.id)} className="pointer-events-none" />
+                            {stage.color && (
+                              <span
+                                className="h-2.5 w-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: stage.color }}
+                              />
+                            )}
+                            <span className="truncate">{stage.name}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
+            </TooltipProvider>
+          </div>
         </div>
 
 
@@ -1169,10 +1062,14 @@ export function ChatList() {
 
       {/* Status tabs — Aguardando Atendimento / Em Atendimento */}
       <div className="flex border-b shrink-0">
+        <TooltipProvider delayDuration={200}>
         {([
-          { value: 'pending', label: 'Em Abertos', count: pendingConvCount },
-          { value: 'open',    label: 'Em Atendimento', count: openConvCount },
-        ] as const).map(tab => (
+          { value: 'pending' as const, label: 'Em Abertos', count: pendingConvCount, iconOnly: false, tooltip: 'Conversas aguardando atendimento' },
+          { value: 'open' as const,    label: 'Em Atendimento', count: openConvCount, iconOnly: false, tooltip: 'Conversas em atendimento ativo' },
+          { value: 'resolved_closed' as const, label: '', icon: <CheckCheck className="h-4 w-4" />, count: closedConvCount, iconOnly: true, tooltip: 'Resolvidas / Encerradas' },
+        ]).map(tab => (
+          <Tooltip key={tab.value}>
+            <TooltipTrigger asChild>
           <button
             key={tab.value}
             onClick={() => setConversationStatusFilter(tab.value)}
@@ -1183,7 +1080,7 @@ export function ChatList() {
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
-            {tab.label}
+            {tab.iconOnly ? tab.icon : tab.label}
             <span className={cn(
               'rounded-full min-w-[18px] h-4 flex items-center justify-center px-1 text-[9px] font-bold',
               conversationStatusFilter === tab.value
@@ -1193,7 +1090,11 @@ export function ChatList() {
               {tab.count >= 99 ? '99+' : tab.count}
             </span>
           </button>
+            </TooltipTrigger>
+            <TooltipContent>{tab.tooltip}</TooltipContent>
+          </Tooltip>
         ))}
+        </TooltipProvider>
       </div>
       {/* Invisible sentinel — triggers loadMoreConversations to keep counts accurate */}
       <div ref={convSentinelRef} className="h-0 w-full" />
@@ -1225,13 +1126,9 @@ export function ChatList() {
             <MessageCircle className="h-12 w-12 mb-4 opacity-50" />
             <p className="font-medium">Nenhuma conversa</p>
             <p className="text-sm mt-1">
-              {slaFilter !== 'all'
-                ? slaFilter === 'breached'
-                  ? 'Nenhum ticket com SLA estourado'
-                  : 'Nenhum ticket com SLA em risco'
-                : searchQuery
-                  ? 'Tente uma busca diferente'
-                  : 'As mensagens aparecerão aqui quando recebidas'}
+              {searchQuery
+                ? 'Tente uma busca diferente'
+                : 'As mensagens aparecerão aqui quando recebidas'}
             </p>
           </div>
         ) : (
