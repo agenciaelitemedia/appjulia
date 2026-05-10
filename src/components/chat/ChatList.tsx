@@ -420,15 +420,12 @@ export function ChatList() {
           return info ? stageIds.includes(info.stageId) : false;
         });
       }
-      if (slaFilter !== 'all') {
-        result = result.filter((c) => slaStatusByContact.get(c.id) === slaFilter);
-      }
       if (modeFilter !== 'all') {
         result = result.filter((c) => getContactMode(c.id) === modeFilter);
       }
       return result;
     },
-    [ownerFilter, teamMembers, convMetaByContact, user?.id, user?.name, periodFilter, stageIds, stageByPhone, slaFilter, slaStatusByContact, modeFilter, getContactMode]
+    [ownerFilter, teamMembers, convMetaByContact, user?.id, user?.name, periodFilter, stageIds, stageByPhone, modeFilter, getContactMode]
   );
 
   // Count conversations by status — scoped to the active tab (Individual / Groups)
