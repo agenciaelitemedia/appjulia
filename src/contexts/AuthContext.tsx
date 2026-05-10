@@ -19,6 +19,7 @@ interface User {
   hub?: string;
   created_at?: string;
   avatar?: string;
+  client_name?: string;
   use_custom_permissions?: boolean;
   is_active?: boolean;
 }
@@ -45,6 +46,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [permissionsLoading, setPermissionsLoading] = useState(false);
 
   const isAdmin = user?.role === 'admin';
+
+  // Hydrate the user's avatar from `clients.photo`. Cached per client_id in
+  // localStorage so subsequent navigations / reloads don't refetch.
+  const PHOTO_CACHE_KEY = 'auth_client_photo_cache_v1';
+  const readPhotoCache = (): Record<string, { photo: string | null; name?: string | null; ts: number }> => {
+    try { return JSON.parse(localStorage.getItem(PHOTO_CACHE_KEY) || '{}'); } catch { return {}; }
+  };
+  const writePhotoCache = (clientId: number, photo: string | null, name?: string | null) => {
+    try {
+      const cache = readPhotoCache();
+      cache[String(clientId)] = { photo, name: name ?? null, ts: Date.now() };
+      localStorage.setItem(PHOTO_CACHE_KEY, JSON.stringify(cache));
+    } catch { /* ignore quota */ }
+  };
+
+  const hydrateClientPhoto = useCallback(async (u: User): Promise<User> => {
+    if (!u.client_id) return u;
+    const cached = readPhotoCache()[String(u.client_id)];
+    let next: User = u;
+    if (cached) {
+      next = {
+        ...u,
+        avatar: u.avatar || cached.photo || undefined,
+        client_name: u.client_name || cached.name || undefined,
+      };
+    }
+    // Refresh in background — keeps the cache fresh without blocking UI.
+    (async () => {
+      try {
+        const client = await externalDb.getClient<{ photo?: string | null; name?: string | null }>(u.client_id!);
+        const photo = client?.photo ?? null;
+        const name = client?.name ?? null;
+        writePhotoCache(u.client_id!, photo, name);
+        setUser(prev => {
+          if (!prev || prev.id !== u.id) return prev;
+          if (prev.avatar === (photo || undefined) && prev.client_name === (name || undefined)) return prev;
+          return { ...prev, avatar: photo || undefined, client_name: name || undefined };
+        });
+      } catch (e) {
+        console.warn('[AuthContext] Failed to hydrate client photo', e);
+      }
+    })();
+    return next;
+  }, []);
 
   const loadPermissions = useCallback(async (userId: number) => {
     try {
@@ -85,7 +130,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               console.warn('[AuthContext] Failed to hydrate effective client_id', e);
             }
           }
-          setUser(effectiveUser);
+          const withPhoto = await hydrateClientPhoto(effectiveUser);
+          setUser(withPhoto);
           // Await permissions so components never render with stale permission state
           await loadPermissions(effectiveUser.id);
         } catch {
@@ -116,7 +162,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: 'Usuário inativo. Entre em contato com o administrador.' };
       }
 
-      setUser(authenticatedUser);
+      const withPhoto = await hydrateClientPhoto(authenticatedUser);
+      setUser(withPhoto);
       localStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(authenticatedUser));
       
       // Load permissions after login
