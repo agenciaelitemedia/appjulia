@@ -127,6 +127,10 @@ export function ChatList() {
   const [footerCountry, setFooterCountry] = useState('55');
   const [footerPhone, setFooterPhone] = useState('');
 
+  // Pagination for server-side search
+  const SEARCH_PAGE_SIZE = 50;
+  const [searchPage, setSearchPage] = useState(1);
+
   // Sync local draft when external search query is reset elsewhere
   useEffect(() => {
     setSearchDraft(searchQuery);
@@ -149,23 +153,34 @@ export function ChatList() {
   // ────────────────────────────────────────────────────────────────────
   const trimmedSearch = (searchQuery || '').trim();
   const isSearching = trimmedSearch.length >= 2;
+
+  // Reset pagination whenever the search term changes
+  useEffect(() => {
+    setSearchPage(1);
+  }, [trimmedSearch]);
+
   const { data: searchResults, isFetching: isSearchFetching } = useQuery({
-    queryKey: ['chat-list-search', clientId, trimmedSearch],
+    queryKey: ['chat-list-search', clientId, trimmedSearch, searchPage],
     enabled: isSearching && !!clientId,
     staleTime: 30_000,
+    placeholderData: (prev) => prev,
     queryFn: async () => {
       const term = trimmedSearch.replace(/[%,]/g, ' ').trim();
-      if (!term) return { contacts: [] as typeof contacts, conversations: [] as typeof conversations };
+      if (!term) return { contacts: [] as typeof contacts, conversations: [] as typeof conversations, total: 0 };
       const digits = term.replace(/\D/g, '');
       const orParts: string[] = [`name.ilike.%${term}%`];
       if (digits.length >= 3) orParts.push(`phone.ilike.%${digits}%`);
-      const { data: matched, error } = await supabase
+      const upper = searchPage * SEARCH_PAGE_SIZE - 1;
+      const { data: matched, error, count } = await supabase
         .from('chat_contacts')
-        .select('id,client_id,cod_agent,channel_source,channel_type,remote_jid,phone,name,avatar,is_group,is_archived,is_muted,unread_count,last_message_at,last_message_text,created_at,updated_at')
+        .select(
+          'id,client_id,cod_agent,channel_source,channel_type,remote_jid,phone,name,avatar,is_group,is_archived,is_muted,unread_count,last_message_at,last_message_text,created_at,updated_at',
+          { count: 'exact' }
+        )
         .eq('client_id', clientId)
         .or(orParts.join(','))
         .order('last_message_at', { ascending: false, nullsFirst: false })
-        .limit(100);
+        .range(0, upper);
       if (error) throw error;
       const matchedContacts = (matched || []) as unknown as typeof contacts;
       const ids = matchedContacts.map((c) => c.id);
@@ -179,7 +194,7 @@ export function ChatList() {
           .order('updated_at', { ascending: false });
         convs = ((cdata || []) as unknown as typeof conversations);
       }
-      return { contacts: matchedContacts, conversations: convs };
+      return { contacts: matchedContacts, conversations: convs, total: count ?? matchedContacts.length };
     },
   });
 
@@ -210,6 +225,7 @@ export function ChatList() {
   useEffect(() => {
     const sentinel = convSentinelRef.current;
     if (!sentinel) return;
+    if (isSearching) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting && hasMoreConversations) {
@@ -220,7 +236,7 @@ export function ChatList() {
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMoreConversations, loadMoreConversations]);
+  }, [hasMoreConversations, loadMoreConversations, isSearching]);
   const activeQueues = queues.filter(q => q.is_active && !q.is_deleted);
 
   // Default = "Todas as filas" (selectedQueue null). No auto-select.
@@ -797,39 +813,163 @@ export function ChatList() {
     });
   }, [visibleContacts, fetchedMissing, sortOrder]);
 
-  // When in search mode, replace the visible list with the server results
-  // and build a local conversations-by-contact map so the row renderer
-  // still shows queue / agent / status badges.
-  const displayContacts = React.useMemo(() => {
-    if (!isSearching) return finalVisibleContacts;
-    const list = searchResults?.contacts ?? [];
-    return [...list].sort((a, b) => {
+  // ─────────────────────────────────────────────────────────────────────
+  // Search mode — apply the SAME filters used by the default list/badges
+  // (active tab, conversation status, mode, owner, queue, stage, period,
+  // open-scope) over the server-side search universe so the user sees the
+  // results split by tab, just like outside the search.
+  // ─────────────────────────────────────────────────────────────────────
+  const searchView = React.useMemo(() => {
+    if (!isSearching || !searchResults) {
+      return null as null | {
+        contacts: typeof contacts;
+        convsByContact: Map<string, typeof sortedConversations>;
+        pendingCount: number;
+        openCount: number;
+        closedCount: number;
+      };
+    }
+    const resContacts = searchResults.contacts ?? [];
+    const resConvs = searchResults.conversations ?? [];
+
+    const contactById = new Map<string, typeof contacts[number]>();
+    resContacts.forEach((c) => contactById.set(c.id, c));
+
+    // Sort search conversations newest-first
+    const sortedSearchConvs = [...resConvs].sort((a, b) => {
+      const aTs = Date.parse(a.updated_at || a.created_at || '') || 0;
+      const bTs = Date.parse(b.updated_at || b.created_at || '') || 0;
+      return bTs - aTs;
+    });
+
+    const range = getDateRange(periodFilter);
+    const selectedMember =
+      ownerFilter !== 'all' && ownerFilter !== 'mine' && ownerFilter !== 'unassigned'
+        ? teamMembers.find((m) => String(m.id) === ownerFilter)
+        : undefined;
+    const now = Date.now();
+
+    let pending = 0;
+    let open = 0;
+    let closed = 0;
+
+    // conversations that pass all non-status filters
+    const passingConvsByContact = new Map<string, typeof sortedConversations>();
+    const visibleByStatus = new Set<string>(); // contact ids matching current status filter
+
+    for (const conv of sortedSearchConvs) {
+      if (!['pending', 'open', 'resolved', 'closed'].includes(conv.status)) continue;
+
+      const snoozedUntil = (conv as { snoozed_until?: string | null }).snoozed_until;
+      if (snoozedUntil && new Date(snoozedUntil).getTime() > now) continue;
+
+      if (!matchesActiveTab(conv.contact_id)) continue;
+      if (!isVisibleByOpenScope(conv.contact_id)) continue;
+
+      // Queue filter (active queue selection)
+      if (selectedQueue?.id) {
+        if (conv.queue_id !== selectedQueue.id) continue;
+      }
+
+      if (range) {
+        const ts = conv.updated_at || conv.created_at;
+        if (!ts) continue;
+        const d = new Date(ts);
+        if (Number.isNaN(d.getTime()) || d < range.from || d > range.to) continue;
+      }
+
+      if (ownerFilter !== 'all') {
+        const assigned = conv.assigned_to;
+        if (ownerFilter === 'unassigned') {
+          if (assigned) continue;
+        } else if (ownerFilter === 'mine') {
+          if (!assigned) continue;
+          if (assigned !== String(user?.id) && assigned !== user?.name) continue;
+        } else {
+          if (!assigned) continue;
+          if (assigned !== ownerFilter && (!selectedMember || assigned !== selectedMember.name)) continue;
+        }
+      }
+
+      const contact = contactById.get(conv.contact_id);
+
+      if (stageIds.length > 0 && stageByPhone) {
+        const norm = (contact?.phone || '').replace(/\D/g, '');
+        const info = norm ? stageByPhone.get(norm) : undefined;
+        if (!info || !stageIds.includes(info.stageId)) continue;
+      }
+
+      if (modeFilter !== 'all') {
+        if (getConversationMode(conv) !== modeFilter) continue;
+      }
+
+      // Conversation passes all non-status filters — register it
+      const arr = passingConvsByContact.get(conv.contact_id);
+      if (arr) arr.push(conv);
+      else passingConvsByContact.set(conv.contact_id, [conv]);
+
+      // Effective status (pending+assignee → open) — only count once per contact
+      // for the badges (use the most recent matching conv, which is the first).
+      if (arr) continue;
+      const hasAssignee = !!(conv.assigned_to && String(conv.assigned_to).trim() !== '');
+      const effective = conv.status === 'pending' && hasAssignee ? 'open' : conv.status;
+      if (effective === 'pending') pending++;
+      else if (effective === 'open') open++;
+      else if (effective === 'resolved' || effective === 'closed') closed++;
+
+      // Match against current conversationStatusFilter
+      const matchesStatus =
+        conversationStatusFilter === 'all'
+          ? true
+          : conversationStatusFilter === 'resolved_closed'
+            ? effective === 'resolved' || effective === 'closed'
+            : effective === conversationStatusFilter;
+      if (matchesStatus) visibleByStatus.add(conv.contact_id);
+    }
+
+    // Build visible contact list ordered by sortOrder
+    const visibleList: typeof contacts = [];
+    visibleByStatus.forEach((cid) => {
+      const c = contactById.get(cid);
+      if (c) visibleList.push(c);
+    });
+    visibleList.sort((a, b) => {
       const aTs = Date.parse(a.last_message_at || a.updated_at || '') || 0;
       const bTs = Date.parse(b.last_message_at || b.updated_at || '') || 0;
       return sortOrder === 'oldest' ? aTs - bTs : bTs - aTs;
     });
-  }, [isSearching, searchResults, finalVisibleContacts, sortOrder]);
 
-  const displayConvsByContact = React.useMemo(() => {
-    if (!isSearching) return convsByContact;
-    const map = new Map<string, typeof sortedConversations>();
-    const fromContext = new Set<string>();
-    // Prefer fresher data from context when available
-    (searchResults?.contacts ?? []).forEach((c) => {
-      const arr = convsByContact.get(c.id);
-      if (arr && arr.length) {
-        map.set(c.id, arr);
-        fromContext.add(c.id);
-      }
-    });
-    (searchResults?.conversations ?? []).forEach((conv) => {
-      if (fromContext.has(conv.contact_id)) return;
-      const arr = map.get(conv.contact_id);
-      if (arr) arr.push(conv);
-      else map.set(conv.contact_id, [conv]);
-    });
-    return map;
-  }, [isSearching, searchResults, convsByContact, sortedConversations]);
+    return {
+      contacts: visibleList,
+      convsByContact: passingConvsByContact,
+      pendingCount: pending,
+      openCount: open,
+      closedCount: closed,
+    };
+  }, [
+    isSearching, searchResults, contacts, sortedConversations,
+    matchesActiveTab, isVisibleByOpenScope, selectedQueue, periodFilter,
+    ownerFilter, teamMembers, user?.id, user?.name, stageIds, stageByPhone,
+    modeFilter, getConversationMode, conversationStatusFilter, sortOrder,
+  ]);
+
+  const displayContacts = isSearching
+    ? (searchView?.contacts ?? [])
+    : finalVisibleContacts;
+
+  const displayConvsByContact = isSearching
+    ? (searchView?.convsByContact ?? new Map<string, typeof sortedConversations>())
+    : convsByContact;
+
+  // Override badge counts when searching so the tabs reflect search totals
+  const effPendingConvCount = isSearching ? (searchView?.pendingCount ?? 0) : pendingConvCount;
+  const effOpenConvCount = isSearching ? (searchView?.openCount ?? 0) : openConvCount;
+  const effClosedConvCount = isSearching ? (searchView?.closedCount ?? 0) : closedConvCount;
+
+  // Search pagination metadata for footer UI
+  const searchTotal = searchResults?.total ?? 0;
+  const searchLoaded = searchResults?.contacts?.length ?? 0;
+  const hasMoreSearch = isSearching && searchLoaded < searchTotal;
 
   // Virtual scroll — only renders items in the visible viewport.
   // estimateSize ≈ base item height (3 info rows + tags). measureElement
@@ -1215,9 +1355,9 @@ export function ChatList() {
       <div className="flex border-b shrink-0">
         <TooltipProvider delayDuration={200}>
         {([
-          { value: 'resolved_closed' as const, label: '', icon: <CheckCheck className="h-4 w-4" />, count: closedConvCount, iconOnly: true, tooltip: 'Resolvidas / Encerradas' },
-          { value: 'pending' as const, label: 'Em Abertos', count: pendingConvCount, iconOnly: false, tooltip: 'Conversas aguardando atendimento' },
-          { value: 'open' as const,    label: 'Em Atendimento', count: openConvCount, iconOnly: false, tooltip: 'Conversas em atendimento ativo' },
+          { value: 'resolved_closed' as const, label: '', icon: <CheckCheck className="h-4 w-4" />, count: effClosedConvCount, iconOnly: true, tooltip: 'Resolvidas / Encerradas' },
+          { value: 'pending' as const, label: 'Em Abertos', count: effPendingConvCount, iconOnly: false, tooltip: 'Conversas aguardando atendimento' },
+          { value: 'open' as const,    label: 'Em Atendimento', count: effOpenConvCount, iconOnly: false, tooltip: 'Conversas em atendimento ativo' },
         ]).map(tab => (
           <Tooltip key={tab.value}>
             <TooltipTrigger asChild>
@@ -1362,6 +1502,33 @@ export function ChatList() {
           <div className="text-center text-[10px] text-muted-foreground py-3">
             Fim da lista
           </div>
+        )}
+
+        {/* Search-mode pagination footer */}
+        {isSearching && searchLoaded > 0 && (
+          <>
+            {isSearchFetching && (
+              <div className="flex justify-center py-3">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            {!isSearchFetching && hasMoreSearch && (
+              <div className="flex justify-center py-3">
+                <button
+                  type="button"
+                  onClick={() => setSearchPage((p) => p + 1)}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Carregar mais ({searchLoaded} de {searchTotal})
+                </button>
+              </div>
+            )}
+            {!isSearchFetching && !hasMoreSearch && (
+              <div className="text-center text-[10px] text-muted-foreground py-3">
+                Fim da lista ({searchTotal} de {searchTotal})
+              </div>
+            )}
+          </>
         )}
       </div>
 

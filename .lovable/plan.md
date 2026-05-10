@@ -1,68 +1,64 @@
 ## Objetivo
 
-Ajustar três pontos no header do `ChatList`:
+No `ChatList.tsx`, melhorar a busca server-side em dois pontos:
 
-1. Padronizar a fonte do filtro **Atendentes** com a do filtro **Filas**.
-2. Converter o filtro **Filas** num combobox com busca, igual ao padrão usado em **Atendentes** (`TeamMemberSelect`).
-3. Tornar a **busca de atendimento** manual: só dispara ao clicar no botão de lupa que ficará dentro do próprio campo (ou ao pressionar Enter).
+1. **Respeitar as abas/filtros ativos** — hoje a busca substitui a lista por todos os contatos retornados, ignorando aba Individual/Grupos, status (Em Aberto / Em Atendimento / Resolvidas) e demais filtros (modo Julia/Humano, atendente, fila, etapa, período). Os badges de contagem também não refletem os totais reais da busca.
+2. **Paginar progressivamente** — hoje a query retorna no máximo 100 e exibe tudo de uma vez. Quando houver mais resultados, mostrar `Carregar mais (X de XXX)`. Quando todos forem carregados, mostrar `Fim da lista (XXX de XXX)`. Mesmo padrão visual já usado fora do modo busca (linhas ~1342–1365).
 
-Tudo é UI/presentation em `src/components/chat/ChatList.tsx`. Sem mudanças de regra de negócio, schema ou contexto.
-
----
-
-## 1) Fonte do filtro Atendentes = filtro Filas
-
-- Hoje:
-  - Filas (`Select` shadcn): trigger `h-8 text-xs`, item `text-sm` por padrão.
-  - Atendentes (`TeamMemberSelect`, prop `size="sm"`): trigger `h-8` mas labels internos `text-sm`.
-- Ação: aplicar `text-xs` ao label visível do trigger do `TeamMemberSelect` e seguir usando `size="sm"`. Como o componente é compartilhado, fazer isso pelo `className` recebido (já é passado pelo ChatList) — adicionar suporte para `text-xs` herdado, ou simplesmente sobrescrever via `className="w-full text-xs"` + ajuste local na render do trigger para usar `text-xs` quando a className inclui `text-xs`.
-  - Implementação mais segura: no `TeamMemberSelect`, trocar os `text-sm` dos labels do trigger (linhas ~165, 170, 175, 180, 185) por `text-xs` quando `size === 'sm'`. Isso mantém consistência com o padrão visual usado no chat e não afeta os usos `size="md"` em outras telas.
-
-## 2) Filas com padrão de combobox + busca
-
-Substituir o `<Select>` atual de filas por um `Popover` + `Command` (mesmo padrão de `AgentSearchSelect` / `TeamMemberSelect`).
-
-Comportamento:
-- Trigger: botão `outline` `h-8 text-xs`, com ícone `Layers`, label da fila selecionada (ou "Todas as filas") e `ChevronsUpDown`.
-- Popover (`align="start"`, `w-[280px]`):
-  - `CommandInput placeholder="Buscar fila…"`.
-  - Item fixo no topo: **"Todas as filas"** (limpa seleção).
-  - Lista de `activeQueues` ordenada alfabeticamente, exibindo o nome e o `channelBadge(queue.channel_type)` à direita.
-  - Seleção fecha o popover e aciona o mesmo `setSelectedQueue(...)` já usado hoje (mantém o objeto enxuto: id, name, channel_type, hub, evo_url, evo_apikey, evo_instance).
-
-Manter o grid `grid-cols-2 gap-2` para Filas + Atendentes lado a lado.
-
-## 3) Busca de atendimento manual com botão dentro do campo
-
-Hoje: `Input` controla `searchQuery` do contexto a cada keystroke (filtragem reativa).
-
-Comportamento novo:
-- Estado **local** `searchDraft` no `ChatList` para controlar o `Input`.
-- O contexto (`searchQuery` via `setSearchQuery`) só é atualizado quando o usuário:
-  - Clicar no botão de lupa que fica **dentro** do campo (à direita), ou
-  - Pressionar **Enter** no input.
-- Ao limpar o campo (botão X opcional), `setSearchQuery('')` deve ser chamado para restaurar a lista completa.
-- Sincronizar `searchDraft` com `searchQuery` no mount para casos em que o contexto já tinha valor.
-
-UI:
-- Remover o ícone `Search` da esquerda.
-- Manter `Input` com `placeholder="Buscar atendimento"` e padding direito (`pr-10`) suficiente para o botão.
-- Botão `Search` (`variant="ghost"`, `size="icon"`, `h-7 w-7`) absoluto à direita dentro do wrapper relativo, executando `setSearchQuery(searchDraft.trim())`.
-- Quando há texto no `searchDraft` ou em `searchQuery`, mostrar um `X` (segundo botão) à esquerda do botão de busca para limpar; opcional mas recomendado para reverter ao estado padrão.
-
-Os botões já existentes ao lado do input (Ordenar, Métricas, Configurações) permanecem fora do campo, como hoje.
+Tudo acontece no `src/components/chat/ChatList.tsx`. Sem alteração de schema, RLS, contexto ou tipos.
 
 ---
+
+## 1) Busca segmentada por aba e filtros
+
+Comportamento novo quando `isSearching === true`:
+
+- Aplicar aos resultados da busca os mesmos predicados já usados em `visibleContacts` / `baseForCounts`:
+  - Aba **Individual / Grupos** (`activeTab` via `matchesActiveTab`).
+  - Filtro de **status** da conversa (`conversationStatusFilter`: `pending` / `open` / `resolved_closed`) usando o mesmo cálculo de `effectiveStatus` (pending+assignee → open).
+  - Filtros de **modo** (Julia/Humano via `getConversationMode`), **atendente** (`ownerFilter`), **fila** (`selectedQueue`), **etapa** (`stageIds` + `stageByPhone`), **período** (`periodFilter`) e restrição de open por usuário não-privilegiado (`isVisibleByOpenScope`).
+  - Snooze (`snoozed_until > now`) continua escondendo o contato.
+
+Implementação:
+
+- Em `displayContacts`, ao invés de só ordenar `searchResults.contacts`, percorrer `searchResults.conversations` (que já vem do servidor), aplicar todos os predicados acima e retornar os contatos correspondentes (dedupe por `contact_id`). Para contatos sem conversa, manter o contato apenas quando o filtro de status atual for compatível com "todos" (na prática hoje sempre há uma aba ativa — se não houver conversa, só aparece em `resolved_closed` quando não houver match; vamos manter o comportamento atual de pular se `conversationStatusFilter` é pending/open).
+- Para `displayConvsByContact`, manter a montagem atual (já funciona), apenas restringindo às conversas que passaram pelo filtro.
+
+Contadores das abas durante a busca:
+
+- Reaproveitar o loop existente de `pendingConvCount/openConvCount/closedConvCount`, mas quando `isSearching` for true, alimentá-lo a partir de `searchResults.conversations` (universo da busca) ao invés de `conversations`. Mantém todos os outros predicados. Resultado: os badges Em Aberto / Em Atendimento e o ícone de Resolvidas mostram o total da busca em cada aba.
+
+## 2) Paginação progressiva da busca
+
+Trocar a query única por uma query paginada com count exato:
+
+- Estado local: `searchPage` (number, começa em 1) + tamanho de página `SEARCH_PAGE_SIZE = 50`.
+- `useQuery` com `queryKey: ['chat-list-search', clientId, trimmedSearch, searchPage]`:
+  - Primeiro `select(..., { count: 'exact' })` em `chat_contacts` filtrando por `client_id` + `or(name.ilike%/phone.ilike%)`, `range(0, page * SEARCH_PAGE_SIZE - 1)`, ordenado por `last_message_at desc nulls last`.
+  - Em seguida `chat_conversations.in('contact_id', ids)` igual hoje.
+  - Retornar `{ contacts, conversations, total }`.
+- Resetar `searchPage` para 1 sempre que `trimmedSearch` mudar (via `useEffect`).
+- `keepPreviousData: true` (placeholderData) para não “piscar” a lista ao paginar.
+
+UI no rodapé da lista (substitui o ramo `!isSearching` atual quando estiver buscando):
+
+- Contagem visível filtrada após aplicar os predicados de aba: `displayContacts.length`. O total geral da busca: `searchResults.total`.
+- Se `displayContacts.length < total` e há mais páginas no servidor (`searchResults.contacts.length < total`):
+  - Botão `Carregar mais (X de XXX)` onde `X = searchResults.contacts.length` e `XXX = searchResults.total`. Click → `setSearchPage(p => p + 1)`. Spinner enquanto `isFetching`.
+- Quando `searchResults.contacts.length >= total`:
+  - Texto `Fim da lista (XXX de XXX)`.
+- Manter o mesmo comportamento já existente para o modo não-busca (load-more incremental dos contatos do contexto), apenas exibindo também `(X de XXX)` ali se o contexto fornecer um total — fora do escopo se o total não estiver disponível; nesse caso manter os textos atuais. (Decisão: mostrar o `(X de XXX)` apenas no modo busca, onde temos o `count` exato; no modo padrão manter "Carregar mais conversas" e "Fim da lista" como hoje, conforme o usuário pediu “mesmo padrão do chat”.)
 
 ## Detalhes técnicos
 
-- Arquivo único: `src/components/chat/ChatList.tsx`.
-- Para o item 1 também editar `src/components/TeamMemberSelect.tsx` substituindo `text-sm` por `text-xs` apenas quando `size === 'sm'` no trigger.
-- Imports a adicionar em `ChatList.tsx`: `Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem` de `@/components/ui/command`. `Search` já está importado.
-- Remover do JSX o `<Select>`/`<SelectTrigger>`/`<SelectContent>`/`<SelectItem>` da fila (não remover dos imports caso ainda sejam usados em outro ponto do arquivo — verificar antes).
-- Não alterar `WhatsAppDataContext` nem hooks — apenas o ponto onde `setSearchQuery` é chamado.
+- Arquivo: `src/components/chat/ChatList.tsx` (todas as mudanças).
+- Reaproveitar `getDateRange`, `applyClientFilters`, `getConversationMode`, `matchesActiveTab`, `isVisibleByOpenScope`, `stageByPhone`.
+- Nenhuma mudança em `WhatsAppDataContext`, hooks de dados ou Supabase.
+- Cuidado: ao filtrar `displayContacts` pelo `conversationStatusFilter`, o sentinel infinito (`bottomSentinelRef`) deve permanecer escondido durante a busca (já está sob `!isSearching`). Manter assim.
+- O sentinel `convSentinelRef` (carrega mais conversas para badges) também não deve disparar durante a busca; condicionar seu `IntersectionObserver` a `!isSearching`.
 
 ## Fora de escopo
 
-- Nenhuma mudança nas abas, contadores, filtros de modo/etapas ou na listagem de conversas.
-- Nenhum ajuste de backend, RLS ou tipos.
+- Server-side filters por aba/status (continua sendo client-side sobre os 50/100 carregados; aceitável porque a busca limita o universo).
+- Mudança no padrão da lista padrão (não-busca).
+- Ajustes em hooks externos, schema, RLS ou edge functions.
