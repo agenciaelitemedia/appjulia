@@ -33,6 +33,7 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
   // cached per client_id in localStorage. No fetch needed here.
   const avatarSrc = user?.avatar || undefined;
   const displayName = user?.client_name || user?.name || 'Usuário';
+  const initialsName = user?.name || user?.client_name || 'Usuário';
 
   const getInitials = (name: string) => {
     return name
@@ -113,7 +114,7 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
                 <Avatar className="h-10 w-10 border-2 border-border">
                   <AvatarImage src={avatarSrc} alt={displayName} />
                   <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
-                    {getInitials(displayName)}
+                    {getInitials(initialsName)}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -123,7 +124,7 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
                 <Avatar className="h-8 w-8 border border-border">
                   <AvatarImage src={avatarSrc} alt={displayName} />
                   <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
-                    {getInitials(displayName)}
+                    {getInitials(initialsName)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col">
