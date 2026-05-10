@@ -143,6 +143,7 @@ export function TeamMemberSelect({
   const isUnassigned = allowUnassigned && (value === null || value === '' || value === '__none__');
 
   const triggerH = size === 'sm' ? 'h-8' : 'h-9';
+  const labelText = size === 'sm' ? 'text-xs' : 'text-sm';
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -162,27 +163,27 @@ export function TeamMemberSelect({
                 ) : (
                   <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 )}
-                <span className="truncate text-sm">{selectedExtra.label}</span>
+                <span className={cn('truncate', labelText)}>{selectedExtra.label}</span>
               </>
             ) : isMeShortcut ? (
               <>
                 <MemberAvatar name={meName} size="sm" />
-                <span className="truncate text-sm">{meName || 'Eu'}</span>
+                <span className={cn('truncate', labelText)}>{meName || 'Eu'}</span>
               </>
             ) : selectedMember ? (
               <>
                 <MemberAvatar name={selectedMember.name} photo={selectedMember.photo} size="sm" />
-                <span className="truncate text-sm">{selectedMember.name}</span>
+                <span className={cn('truncate', labelText)}>{selectedMember.name}</span>
               </>
             ) : isUnassigned ? (
               <>
                 <UserX className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                <span className="truncate text-sm text-muted-foreground">{unassignedLabel}</span>
+                <span className={cn('truncate text-muted-foreground', labelText)}>{unassignedLabel}</span>
               </>
             ) : (
               <>
                 <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                <span className="truncate text-sm text-muted-foreground">{placeholder}</span>
+                <span className={cn('truncate text-muted-foreground', labelText)}>{placeholder}</span>
               </>
             )}
           </span>

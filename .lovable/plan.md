@@ -1,39 +1,68 @@
-## Ajustes nas abas e no filtro de modo do `/chat`
+## Objetivo
 
-Arquivo único: `src/components/chat/ChatList.tsx`.
+Ajustar três pontos no header do `ChatList`:
 
-### 1. Reordenar as abas de status (linha ~1066)
+1. Padronizar a fonte do filtro **Atendentes** com a do filtro **Filas**.
+2. Converter o filtro **Filas** num combobox com busca, igual ao padrão usado em **Atendentes** (`TeamMemberSelect`).
+3. Tornar a **busca de atendimento** manual: só dispara ao clicar no botão de lupa que ficará dentro do próprio campo (ou ao pressionar Enter).
 
-A aba **Resolvidas/Encerradas** passa a ser a **primeira**. Nova ordem do array que alimenta o `.map`:
+Tudo é UI/presentation em `src/components/chat/ChatList.tsx`. Sem mudanças de regra de negócio, schema ou contexto.
 
-1. `resolved_closed` — ícone `CheckCheck` (icon-only, com tooltip "Resolvidas / Encerradas").
-2. `pending` — "Em Abertos".
-3. `open` — "Em Atendimento".
+---
 
-### 2. Contadores sempre visíveis e independentes da aba
+## 1) Fonte do filtro Atendentes = filtro Filas
 
-Hoje o badge só renderiza dentro de cada `<button>` da aba ativa quando `count >= 0`, mas o cálculo (`pendingConvCount` / `openConvCount` / `closedConvCount`) já é feito sobre `conversationsForBadges`, que ignora o `conversationStatusFilter`. Vamos:
+- Hoje:
+  - Filas (`Select` shadcn): trigger `h-8 text-xs`, item `text-sm` por padrão.
+  - Atendentes (`TeamMemberSelect`, prop `size="sm"`): trigger `h-8` mas labels internos `text-sm`.
+- Ação: aplicar `text-xs` ao label visível do trigger do `TeamMemberSelect` e seguir usando `size="sm"`. Como o componente é compartilhado, fazer isso pelo `className` recebido (já é passado pelo ChatList) — adicionar suporte para `text-xs` herdado, ou simplesmente sobrescrever via `className="w-full text-xs"` + ajuste local na render do trigger para usar `text-xs` quando a className inclui `text-xs`.
+  - Implementação mais segura: no `TeamMemberSelect`, trocar os `text-sm` dos labels do trigger (linhas ~165, 170, 175, 180, 185) por `text-xs` quando `size === 'sm'`. Isso mantém consistência com o padrão visual usado no chat e não afeta os usos `size="md"` em outras telas.
 
-- Garantir que o `<span>` do badge **sempre renderize** (remover qualquer condicional `count > 0` se houver) e exibir `0` quando não houver conversas — assim o usuário enxerga o número real de cada categoria mesmo na aba selecionada.
-- Manter o estilo de cor diferenciado (preenchido em `bg-primary` quando a aba está ativa, `bg-muted` quando inativa) para reforçar a aba selecionada sem esconder os outros contadores.
-- Confirmar que `conversationsForBadges` continua sendo a fonte (já ignora status); nenhuma mudança nos memos é necessária além do que já existe.
+## 2) Filas com padrão de combobox + busca
 
-Tecnicamente, como não existem mais pills de status acima da lista, os badges das abas passam a ser a **única referência visual** de quantas conversas existem em cada bucket — por isso o badge precisa ser persistente.
+Substituir o `<Select>` atual de filas por um `Popover` + `Command` (mesmo padrão de `AgentSearchSelect` / `TeamMemberSelect`).
 
-### 3. Destaque do filtro de modo (Todos / Julia / Humano)
+Comportamento:
+- Trigger: botão `outline` `h-8 text-xs`, com ícone `Layers`, label da fila selecionada (ou "Todas as filas") e `ChevronsUpDown`.
+- Popover (`align="start"`, `w-[280px]`):
+  - `CommandInput placeholder="Buscar fila…"`.
+  - Item fixo no topo: **"Todas as filas"** (limpa seleção).
+  - Lista de `activeQueues` ordenada alfabeticamente, exibindo o nome e o `channelBadge(queue.channel_type)` à direita.
+  - Seleção fecha o popover e aciona o mesmo `setSelectedQueue(...)` já usado hoje (mantém o objeto enxuto: id, name, channel_type, hub, evo_url, evo_apikey, evo_instance).
 
-No bloco `ToggleGroup` (linhas ~926-969), reforçar visualmente o item selecionado, para que fique nítido qual modo está ativo:
+Manter o grid `grid-cols-2 gap-2` para Filas + Atendentes lado a lado.
 
-- Aumentar o item ativo: `data-[state=on]:ring-2 data-[state=on]:ring-offset-1 data-[state=on]:scale-105 data-[state=on]:shadow-sm`.
-- Cores ativas mais saturadas (mantendo a paleta existente): 
-  - **Todos**: `data-[state=on]:bg-foreground data-[state=on]:text-background data-[state=on]:ring-foreground/40`.
-  - **Julia**: `data-[state=on]:bg-green-500 data-[state=on]:text-white data-[state=on]:ring-green-500/40`.
-  - **Humano**: `data-[state=on]:bg-amber-500 data-[state=on]:text-white data-[state=on]:ring-amber-500/40`.
-- Itens não selecionados permanecem com `bg-background text-muted-foreground` para contraste.
-- Adicionar um pequeno rótulo dinâmico (texto curto) ao lado dos ícones — por exemplo, à direita do `ToggleGroup`, um `<span className="text-[11px] font-medium text-foreground/80">{modeLabel}</span>` onde `modeLabel` mapeia `all → 'Todos'`, `julia → 'Julia IA'`, `human → 'Humano'`. Isso deixa explícito o modo ativo sem depender só da cor.
+## 3) Busca de atendimento manual com botão dentro do campo
 
-### Observações
+Hoje: `Input` controla `searchQuery` do contexto a cada keystroke (filtragem reativa).
 
-- Nenhuma alteração em `WhatsAppDataContext`, em hooks ou em queries.
-- Mudanças puramente de UI/ordem; lógica de filtro de status continua sendo a aba (`setConversationStatusFilter`).
-- Manter tokens semânticos do design system; usar variantes Tailwind já presentes.
+Comportamento novo:
+- Estado **local** `searchDraft` no `ChatList` para controlar o `Input`.
+- O contexto (`searchQuery` via `setSearchQuery`) só é atualizado quando o usuário:
+  - Clicar no botão de lupa que fica **dentro** do campo (à direita), ou
+  - Pressionar **Enter** no input.
+- Ao limpar o campo (botão X opcional), `setSearchQuery('')` deve ser chamado para restaurar a lista completa.
+- Sincronizar `searchDraft` com `searchQuery` no mount para casos em que o contexto já tinha valor.
+
+UI:
+- Remover o ícone `Search` da esquerda.
+- Manter `Input` com `placeholder="Buscar atendimento"` e padding direito (`pr-10`) suficiente para o botão.
+- Botão `Search` (`variant="ghost"`, `size="icon"`, `h-7 w-7`) absoluto à direita dentro do wrapper relativo, executando `setSearchQuery(searchDraft.trim())`.
+- Quando há texto no `searchDraft` ou em `searchQuery`, mostrar um `X` (segundo botão) à esquerda do botão de busca para limpar; opcional mas recomendado para reverter ao estado padrão.
+
+Os botões já existentes ao lado do input (Ordenar, Métricas, Configurações) permanecem fora do campo, como hoje.
+
+---
+
+## Detalhes técnicos
+
+- Arquivo único: `src/components/chat/ChatList.tsx`.
+- Para o item 1 também editar `src/components/TeamMemberSelect.tsx` substituindo `text-sm` por `text-xs` apenas quando `size === 'sm'` no trigger.
+- Imports a adicionar em `ChatList.tsx`: `Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem` de `@/components/ui/command`. `Search` já está importado.
+- Remover do JSX o `<Select>`/`<SelectTrigger>`/`<SelectContent>`/`<SelectItem>` da fila (não remover dos imports caso ainda sejam usados em outro ponto do arquivo — verificar antes).
+- Não alterar `WhatsAppDataContext` nem hooks — apenas o ponto onde `setSearchQuery` é chamado.
+
+## Fora de escopo
+
+- Nenhuma mudança nas abas, contadores, filtros de modo/etapas ou na listagem de conversas.
+- Nenhum ajuste de backend, RLS ou tipos.
