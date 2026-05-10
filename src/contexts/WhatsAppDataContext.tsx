@@ -33,7 +33,34 @@ export type ChatPeriodFilter =
   | 'last3Months';
 
 const CONTACTS_PAGE_SIZE = 50;
-const CONVERSATIONS_PAGE_SIZE = 100;
+const CONVERSATIONS_PAGE_SIZE = 500;
+
+// Background auto-pagination caps:
+// - 'active' tab (pending+open) loads ALL pages eagerly.
+// - 'resolved' / 'closed' tabs load lazily on first activation, capped to
+//   10 pages (5_000 rows) to avoid hammering the DB on huge histories.
+const CONV_AUTOLOAD_MAX_PAGES_RESOLVED_CLOSED = 10;
+// Small breathing pause between pages so we don't saturate Postgres for
+// clients with very large conversation history.
+const CONV_AUTOLOAD_PAGE_DELAY_MS = 120;
+
+type ConvLoadGroup = 'active' | 'resolved' | 'closed';
+interface ConvGroupMeta {
+  pages: number;
+  hasMore: boolean;
+  autoLoadDone: boolean;
+  isAutoLoading: boolean;
+  cappedAt: number | null;
+  error: string | null;
+}
+const initialConvGroupMeta = (): ConvGroupMeta => ({
+  pages: 0,
+  hasMore: true,
+  autoLoadDone: false,
+  isAutoLoading: false,
+  cappedAt: null,
+  error: null,
+});
 
 // Lean column list for conversations — avoids transferring unused heavy columns
 const CONV_COLUMNS = 'id,contact_id,client_id,queue_id,status,priority,assigned_to,cod_agent,updated_at,created_at,opened_at,first_response_at,resolved_at,closed_at,snoozed_until,channel,protocol,close_note'
@@ -284,8 +311,18 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const [isLoadingMoreContacts, setIsLoadingMoreContacts] = useState(false);
 
   // Conversations pagination
-  const [hasMoreConversations, setHasMoreConversations] = useState(false);
-  const [isLoadingMoreConversations, setIsLoadingMoreConversations] = useState(false);
+  // Per-group metadata. The single `conversations` array below holds rows
+  // from every group we've ever loaded for the current scope, so switching
+  // tabs is instant and never re-queries the DB.
+  const [convGroupMeta, setConvGroupMeta] = useState<Record<ConvLoadGroup, ConvGroupMeta>>(() => ({
+    active: initialConvGroupMeta(),
+    resolved: initialConvGroupMeta(),
+    closed: initialConvGroupMeta(),
+  }));
+  // Epoch is bumped whenever the bootstrap scope changes (clientId, queue,
+  // period, sortOrder). Auto-load loops compare their captured epoch against
+  // the live ref before each setState to bail out cleanly.
+  const convLoadEpochRef = useRef(0);
 
   // Period filter — defaults to last 7 days every time the chat is opened
   const [periodFilter, setPeriodFilter] = useState<ChatPeriodFilter>('all');
@@ -532,75 +569,182 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     convQueryGroupRef.current = convQueryGroup;
   }, [convQueryGroup]);
 
-  const loadConversations = useCallback(async (opts?: { append?: boolean }) => {
-    if (!clientId || queuesLoading) return;
-    const append = opts?.append === true;
+  // Fetch a single page of `chat_conversations` for a given group, merging
+  // the result into the global `conversations` list (deduped by id, sorted
+  // by updated_at desc). Pure: callers own retry / loop / cancellation.
+  const loadConversationsPage = useCallback(async (
+    group: ConvLoadGroup,
+    offset: number,
+  ): Promise<{ fetched: number; skipped?: boolean }> => {
+    if (!clientId || queuesLoading) return { fetched: 0, skipped: true };
 
-    if (append) setIsLoadingMoreConversations(true);
+    let query = supabase
+      .from('chat_conversations')
+      .select(CONV_COLUMNS)
+      .eq('client_id', clientId)
+      .order('updated_at', { ascending: false })
+      .range(offset, offset + CONVERSATIONS_PAGE_SIZE - 1);
 
-    try {
-      // Compute offset from current list when paginating
-      let offset = 0;
-      if (append) {
-        offset = await new Promise<number>((resolve) => {
-          setConversations(prev => {
-            resolve(prev.length);
-            return prev;
-          });
+    if (currentQueueId) query = query.eq('queue_id', currentQueueId);
+    else if (activeQueueIds.length > 0) query = query.in('queue_id', activeQueueIds);
+    else return { fetched: 0, skipped: true };
+
+    if (group === 'active') query = query.in('status', ['pending', 'open']);
+    else query = query.eq('status', group);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const page = ((data || []) as unknown) as ChatConversation[];
+    if (page.length > 0) {
+      setConversations(prev => {
+        const map = new Map<string, ChatConversation>();
+        for (const c of prev) map.set(c.id, c);
+        for (const c of page) map.set(c.id, c);
+        return Array.from(map.values()).sort((a, b) => {
+          const ta = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+          const tb = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+          return tb - ta;
         });
-      }
-
-      let query = supabase
-        .from('chat_conversations')
-        .select(CONV_COLUMNS)
-        .eq('client_id', clientId)
-        .order('updated_at', { ascending: false })
-        .range(offset, offset + CONVERSATIONS_PAGE_SIZE - 1);
-
-      if (currentQueueId) query = query.eq('queue_id', currentQueueId);
-      else if (activeQueueIds.length > 0) query = query.in('queue_id', activeQueueIds);
-      else {
-        if (!append) setConversations([]);
-        setHasMoreConversations(false);
-        return;
-      }
-
-      if (convQueryGroup === 'active') {
-        query = query.in('status', ['pending', 'open']);
-      } else if (convQueryGroup === 'resolved_closed') {
-        query = query.in('status', ['resolved', 'closed']);
-      } else {
-        query = query.eq('status', convQueryGroup);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-
-      const page = ((data || []) as unknown) as ChatConversation[];
-      setHasMoreConversations(page.length === CONVERSATIONS_PAGE_SIZE);
-
-      if (append) {
-        setConversations(prev => {
-          const seen = new Set(prev.map(c => c.id));
-          const merged = [...prev];
-          for (const c of page) if (!seen.has(c.id)) merged.push(c);
-          return merged;
-        });
-      } else {
-        setConversations(page);
-      }
-    } catch (error) {
-      console.error('Error loading conversations:', error);
-    } finally {
-      if (!append) setHasLoadedConversationsOnce(true);
-      if (append) setIsLoadingMoreConversations(false);
+      });
     }
-  }, [clientId, currentQueueId, convQueryGroup, activeQueueIds, queuesLoading]);
+    return { fetched: page.length };
+  }, [clientId, currentQueueId, activeQueueIds, queuesLoading]);
 
-  const loadMoreConversations = useCallback(async () => {
-    if (isLoadingMoreConversations || !hasMoreConversations) return;
-    await loadConversations({ append: true });
-  }, [loadConversations, isLoadingMoreConversations, hasMoreConversations]);
+  // Background loop: fetch successive pages of a group until the server
+  // returns fewer than CONVERSATIONS_PAGE_SIZE rows OR `maxPages` is hit
+  // OR the bootstrap epoch changes (scope reset).
+  const runConvAutoLoad = useCallback(async (
+    group: ConvLoadGroup,
+    maxPages: number,
+  ): Promise<void> => {
+    const myEpoch = convLoadEpochRef.current;
+    setConvGroupMeta(prev => {
+      if (prev[group].isAutoLoading || prev[group].autoLoadDone) return prev;
+      return { ...prev, [group]: { ...prev[group], isAutoLoading: true, error: null } };
+    });
+
+    let pages = 0;
+    let lastFetched = 0;
+    let aborted = false;
+    try {
+      while (pages < maxPages) {
+        if (convLoadEpochRef.current !== myEpoch) { aborted = true; break; }
+        const offset = pages * CONVERSATIONS_PAGE_SIZE;
+        let res: { fetched: number; skipped?: boolean };
+        try {
+          res = await loadConversationsPage(group, offset);
+        } catch (err) {
+          console.error('[WhatsAppDataContext] auto-load page failed', { group, offset, err });
+          if (convLoadEpochRef.current === myEpoch) {
+            setConvGroupMeta(prev => ({
+              ...prev,
+              [group]: {
+                ...prev[group],
+                isAutoLoading: false,
+                error: (err as Error)?.message ?? 'unknown error',
+              },
+            }));
+          }
+          return;
+        }
+        if (res.skipped) { aborted = true; break; }
+        pages += 1;
+        lastFetched = res.fetched;
+        const hasMore = res.fetched === CONVERSATIONS_PAGE_SIZE;
+        if (convLoadEpochRef.current !== myEpoch) { aborted = true; break; }
+        setConvGroupMeta(prev => ({
+          ...prev,
+          [group]: { ...prev[group], pages, hasMore },
+        }));
+        if (group === 'active' && !hasLoadedConversationsOnceRef.current) {
+          hasLoadedConversationsOnceRef.current = true;
+          setHasLoadedConversationsOnce(true);
+        }
+        if (!hasMore) break;
+        // Breathe between pages — keeps Postgres relaxed for big histories.
+        await new Promise(r => setTimeout(r, CONV_AUTOLOAD_PAGE_DELAY_MS));
+      }
+    } finally {
+      if (!aborted && convLoadEpochRef.current === myEpoch) {
+        if (group === 'active' && !hasLoadedConversationsOnceRef.current) {
+          hasLoadedConversationsOnceRef.current = true;
+          setHasLoadedConversationsOnce(true);
+        }
+        setConvGroupMeta(prev => {
+          const reachedCap = pages >= maxPages && lastFetched === CONVERSATIONS_PAGE_SIZE;
+          return {
+            ...prev,
+            [group]: {
+              ...prev[group],
+              isAutoLoading: false,
+              autoLoadDone: true,
+              cappedAt: reachedCap ? maxPages : null,
+              hasMore: reachedCap, // user can still click "load more"
+            },
+          };
+        });
+      } else if (aborted && convLoadEpochRef.current === myEpoch) {
+        setConvGroupMeta(prev => ({
+          ...prev,
+          [group]: { ...prev[group], isAutoLoading: false },
+        }));
+      }
+    }
+  }, [loadConversationsPage]);
+
+  // Backwards-compat wrapper kept for the few internal callers that still
+  // reference `loadConversations()`. Triggers an auto-load for the currently
+  // visible tab (cap depends on group).
+  const loadConversations = useCallback(async (): Promise<void> => {
+    const group: ConvLoadGroup = convQueryGroupRef.current === 'resolved' ? 'resolved'
+      : convQueryGroupRef.current === 'closed' ? 'closed'
+      : 'active';
+    const cap = group === 'active' ? Number.POSITIVE_INFINITY : CONV_AUTOLOAD_MAX_PAGES_RESOLVED_CLOSED;
+    await runConvAutoLoad(group, cap);
+  }, [runConvAutoLoad]);
+
+  // `loadMoreConversations` advances ONE more page for the current tab —
+  // used by the IntersectionObserver fallback in the chat list.
+  const loadMoreConversations = useCallback(async (): Promise<void> => {
+    const group: ConvLoadGroup = convQueryGroupRef.current === 'resolved' ? 'resolved'
+      : convQueryGroupRef.current === 'closed' ? 'closed'
+      : 'active';
+    const meta = convGroupMetaRef.current[group];
+    if (!meta || meta.isAutoLoading || !meta.hasMore) return;
+    setConvGroupMeta(prev => ({ ...prev, [group]: { ...prev[group], isAutoLoading: true } }));
+    try {
+      const res = await loadConversationsPage(group, meta.pages * CONVERSATIONS_PAGE_SIZE);
+      if (res.skipped) return;
+      setConvGroupMeta(prev => ({
+        ...prev,
+        [group]: {
+          ...prev[group],
+          pages: prev[group].pages + 1,
+          hasMore: res.fetched === CONVERSATIONS_PAGE_SIZE,
+        },
+      }));
+    } catch (err) {
+      console.error('[WhatsAppDataContext] loadMoreConversations failed', err);
+    } finally {
+      setConvGroupMeta(prev => ({ ...prev, [group]: { ...prev[group], isAutoLoading: false } }));
+    }
+  }, [loadConversationsPage]);
+
+  // Mirror metas + hasLoadedOnce into refs so callbacks above don't have to
+  // depend on the state itself (avoids invalidating loadMoreConversations
+  // on every meta update, which would re-trigger sentinel observers).
+  const convGroupMetaRef = useRef(convGroupMeta);
+  useEffect(() => { convGroupMetaRef.current = convGroupMeta; }, [convGroupMeta]);
+  const hasLoadedConversationsOnceRef = useRef(false);
+
+  // Derived flags exposed via context — refer to the currently active tab.
+  const currentConvGroup: ConvLoadGroup = convQueryGroup === 'resolved' ? 'resolved'
+    : convQueryGroup === 'closed' ? 'closed'
+    : convQueryGroup === 'resolved_closed' ? 'resolved' // for "ambos", expose resolved meta as the leading indicator
+    : 'active';
+  const hasMoreConversations = convGroupMeta[currentConvGroup].hasMore;
+  const isLoadingMoreConversations = convGroupMeta[currentConvGroup].isAutoLoading;
 
   // Derived counts straight from in-memory `conversations` — no extra DB
   // round-trip. The realtime channel keeps `conversations` fresh, so these
@@ -2140,19 +2284,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               setConversations(prev => prev.filter(c => c.id !== updConv.id));
               return;
             }
-            // Status scope check vs the currently loaded group (active / resolved / closed).
-            // This is what makes a "resolved → open" reopen show up immediately in the
-            // "Em aberto" tab, and a "open → resolved" disappear from it without reload.
-            const group = convQueryGroupRef.current;
-            const matchesGroup =
-              group === 'active'
-                ? (updConv.status === 'pending' || updConv.status === 'open')
-                : updConv.status === group;
-            if (!matchesGroup) {
-              setConversations(prev => prev.filter(c => c.id !== updConv.id));
-              return;
-            }
-            // Upsert: replace if present, otherwise insert at the top (sorted by updated_at desc).
+            // We keep ALL groups (active / resolved / closed) in memory at
+            // once, so realtime updates only need to upsert — never drop.
+            // The chat list filters by status itself for the active tab.
             setConversations(prev => {
               const idx = prev.findIndex(c => c.id === updConv.id);
               if (idx >= 0) {
@@ -2194,15 +2328,25 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     const prev = bootstrapKeyRef.current;
     bootstrapKeyRef.current = key;
     setHasMoreContacts(true);
-    setHasMoreConversations(false);
-    // Fire all 4 bootstrap requests in parallel — contacts, conversations, tags,
-    // and conversation-tag map. This cuts the sequential waterfall by ~60%.
+    // Bump epoch — kills any in-flight auto-load loop from the previous scope.
+    convLoadEpochRef.current += 1;
+    // Reset per-group metadata + start the eager loop for the active tab.
+    setConvGroupMeta({
+      active: initialConvGroupMeta(),
+      resolved: initialConvGroupMeta(),
+      closed: initialConvGroupMeta(),
+    });
+    hasLoadedConversationsOnceRef.current = false;
+    setHasLoadedConversationsOnce(false);
+    setConversations([]);
     Promise.all([
       loadContacts({ reset: true }),
-      loadConversations(),
       loadTags(),
       refreshConversationTags(),
     ]).catch(() => { /* individual errors are already logged inside each fn */ });
+    // Eager: load ALL pages of pending+open in 500-row chunks until done.
+    runConvAutoLoad('active', Number.POSITIVE_INFINITY)
+      .catch(err => console.error('[WhatsAppDataContext] active auto-load failed', err));
     // Only clear selection / message cache on a REAL scope change.
     // The very first effect run (prev === null) is the initial mount —
     // keep any pending selection (e.g. from sessionStorage deep-link).
@@ -2214,21 +2358,23 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentQueueId, clientId, activeQueueIds, periodFilter, sortOrder, queuesLoading]);
 
-  // Reload conversations when ONLY the query group (status tab) changes —
-  // without triggering the full bootstrap effect above.
-  const prevConvQueryGroupRef = useRef<string | null>(null);
+  // When the user activates the resolved / closed (or both) tab for the
+  // first time in this scope, kick off a capped auto-load (10 × 500 = 5_000
+  // rows max). Subsequent visits to the same tab are instant — no DB hit.
   useEffect(() => {
     if (!clientId || queuesLoading) return;
-    // Skip the very first run — the bootstrap effect above already called loadConversations.
-    if (prevConvQueryGroupRef.current === null) {
-      prevConvQueryGroupRef.current = convQueryGroup;
-      return;
+    const groupsToLoad: ConvLoadGroup[] = convQueryGroup === 'resolved' ? ['resolved']
+      : convQueryGroup === 'closed' ? ['closed']
+      : convQueryGroup === 'resolved_closed' ? ['resolved', 'closed']
+      : [];
+    for (const g of groupsToLoad) {
+      const meta = convGroupMetaRef.current[g];
+      if (meta && !meta.autoLoadDone && !meta.isAutoLoading) {
+        runConvAutoLoad(g, CONV_AUTOLOAD_MAX_PAGES_RESOLVED_CLOSED)
+          .catch(err => console.error('[WhatsAppDataContext]', g, 'auto-load failed', err));
+      }
     }
-    if (prevConvQueryGroupRef.current !== convQueryGroup) {
-      prevConvQueryGroupRef.current = convQueryGroup;
-      loadConversations();
-    }
-  }, [clientId, convQueryGroup, loadConversations, queuesLoading]);
+  }, [clientId, convQueryGroup, queuesLoading, runConvAutoLoad]);
 
   // ============================================
   // Visibility refetch — resilience for suspended tabs
@@ -2253,7 +2399,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       // Silent refresh — no setIsLoading(true) so the list does not flash.
       if (clientId) {
         loadContacts({ reset: true }).catch(() => { /* silent */ });
-        loadConversations().catch(() => { /* silent */ });
+        // Conversations are kept in sync via realtime; no full refetch on
+        // visibility change. Realtime will deliver any missed events on
+        // reconnect, and counts/lists update automatically.
       }
       const cid = selectedContactId;
       if (cid) {
@@ -2262,7 +2410,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [clientId, selectedContactId, loadContacts, loadConversations, loadMessages]);
+  }, [clientId, selectedContactId, loadContacts, loadMessages]);
 
   // ============================================
   // Context Value
