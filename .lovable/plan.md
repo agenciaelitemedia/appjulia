@@ -1,64 +1,73 @@
-## Objetivo
+## Por que conversas com Julia ativa caem no filtro "Humano" hoje
 
-No `ChatList.tsx`, melhorar a busca server-side em dois pontos:
+A classificação está em `src/components/chat/ChatList.tsx` (`getContactMode` / `getConversationMode`, linhas ~448–471). A regra atual é:
 
-1. **Respeitar as abas/filtros ativos** — hoje a busca substitui a lista por todos os contatos retornados, ignorando aba Individual/Grupos, status (Em Aberto / Em Atendimento / Resolvidas) e demais filtros (modo Julia/Humano, atendente, fila, etapa, período). Os badges de contagem também não refletem os totais reais da busca.
-2. **Paginar progressivamente** — hoje a query retorna no máximo 100 e exibe tudo de uma vez. Quando houver mais resultados, mostrar `Carregar mais (X de XXX)`. Quando todos forem carregados, mostrar `Fim da lista (XXX de XXX)`. Mesmo padrão visual já usado fora do modo busca (linhas ~1342–1365).
+```
+se a fila NÃO tem agente vinculado            -> humano
+se a sessão (phone + codAgent) NÃO está active=true -> humano  (inclui false, undefined e "não encontrada")
+caso contrário                                -> julia
+```
 
-Tudo acontece no `src/components/chat/ChatList.tsx`. Sem alteração de schema, RLS, contexto ou tipos.
+E os pares `(whatsappNumber, codAgent)` consultados em `sessionActiveMap` são montados em `sessionPairs` (linhas ~351–367) usando o `cod_agent` que vem do **vínculo da fila** (`queueAgentMap`), com o telefone do contato apenas com dígitos.
 
----
+Causas reais por que uma conversa "com Julia ativa" aparece como Humano:
 
-## 1) Busca segmentada por aba e filtros
+1. **Sessão não existe na tabela `agent_sessions` para aquele par `(phone, codAgent)`**. Nesse caso `sessionActiveMap.get(key)` retorna `undefined`, e a regra atual trata `undefined` como humano. Isso acontece sempre que:
+   - a sessão ainda não foi criada (lead novo, primeira mensagem ainda não processada);
+   - a sessão foi criada para um `cod_agent` diferente do que está vinculado hoje na fila (ex.: a fila foi reapontada para outro agente, mas a sessão antiga continua ativa no agente anterior);
+   - o telefone gravado em `agent_sessions.whatsapp_number` está com máscara diferente do `chat_contacts.phone` após remover não-dígitos (ex.: com/sem `55`, com/sem 9º dígito, sufixo de grupo).
 
-Comportamento novo quando `isSearching === true`:
+2. **A fila da conversa não tem agente vinculado** (`queueAgentMap` sem `hasAgent`). Toda conversa dessa fila vira humano por definição, mesmo que exista uma sessão Julia ativa em outra dimensão.
 
-- Aplicar aos resultados da busca os mesmos predicados já usados em `visibleContacts` / `baseForCounts`:
-  - Aba **Individual / Grupos** (`activeTab` via `matchesActiveTab`).
-  - Filtro de **status** da conversa (`conversationStatusFilter`: `pending` / `open` / `resolved_closed`) usando o mesmo cálculo de `effectiveStatus` (pending+assignee → open).
-  - Filtros de **modo** (Julia/Humano via `getConversationMode`), **atendente** (`ownerFilter`), **fila** (`selectedQueue`), **etapa** (`stageIds` + `stageByPhone`), **período** (`periodFilter`) e restrição de open por usuário não-privilegiado (`isVisibleByOpenScope`).
-  - Snooze (`snoozed_until > now`) continua escondendo o contato.
+3. **A conversa não tem `queue_id`** (campo nulo em `chat_conversations`). Sem fila, não há `codAgent` para consultar a sessão → cai em humano.
 
-Implementação:
+4. **`sessionActiveMap` ainda está carregando** (`undefined` porque a query batch não voltou). Durante esse intervalo todos os contatos parecem humano. Some quando a query volta.
 
-- Em `displayContacts`, ao invés de só ordenar `searchResults.contacts`, percorrer `searchResults.conversations` (que já vem do servidor), aplicar todos os predicados acima e retornar os contatos correspondentes (dedupe por `contact_id`). Para contatos sem conversa, manter o contato apenas quando o filtro de status atual for compatível com "todos" (na prática hoje sempre há uma aba ativa — se não houver conversa, só aparece em `resolved_closed` quando não houver match; vamos manter o comportamento atual de pular se `conversationStatusFilter` é pending/open).
-- Para `displayConvsByContact`, manter a montagem atual (já funciona), apenas restringindo às conversas que passaram pelo filtro.
+5. **Sessão paused (`active=false`)** — esse é o único caso que é correto classificar como humano (regra de Human Override já documentada).
 
-Contadores das abas durante a busca:
+Os itens 1 a 4 são ruído: a Julia *está* ativa, mas a UI não consegue confirmar e por isso assume humano.
 
-- Reaproveitar o loop existente de `pendingConvCount/openConvCount/closedConvCount`, mas quando `isSearching` for true, alimentá-lo a partir de `searchResults.conversations` (universo da busca) ao invés de `conversations`. Mantém todos os outros predicados. Resultado: os badges Em Aberto / Em Atendimento e o ícone de Resolvidas mostram o total da busca em cada aba.
+## O que mudar
 
-## 2) Paginação progressiva da busca
+Tudo no `src/components/chat/ChatList.tsx`. Sem mudanças de schema/backend.
 
-Trocar a query única por uma query paginada com count exato:
+1. **Distinguir 3 estados** em vez de 2 no resultado de `getContactMode`/`getConversationMode`:
+   - `julia` — fila com agente, sessão `active === true`.
+   - `human` — fila com agente, sessão `active === false` (override humano confirmado).
+   - `unknown` — qualquer outro caso (sem fila, sem vínculo, sem sessão, ainda carregando, mismatch de phone/cod_agent).
 
-- Estado local: `searchPage` (number, começa em 1) + tamanho de página `SEARCH_PAGE_SIZE = 50`.
-- `useQuery` com `queryKey: ['chat-list-search', clientId, trimmedSearch, searchPage]`:
-  - Primeiro `select(..., { count: 'exact' })` em `chat_contacts` filtrando por `client_id` + `or(name.ilike%/phone.ilike%)`, `range(0, page * SEARCH_PAGE_SIZE - 1)`, ordenado por `last_message_at desc nulls last`.
-  - Em seguida `chat_conversations.in('contact_id', ids)` igual hoje.
-  - Retornar `{ contacts, conversations, total }`.
-- Resetar `searchPage` para 1 sempre que `trimmedSearch` mudar (via `useEffect`).
-- `keepPreviousData: true` (placeholderData) para não “piscar” a lista ao paginar.
+2. **Filtro de modo passa a tratar `unknown` separadamente:**
+   - `modeFilter === 'julia'` → mantém só `julia`.
+   - `modeFilter === 'human'` → mantém só `human` (sessão paused). **Não inclui `unknown`** — é a correção do bug relatado.
+   - `modeFilter === 'all'` → mantém todos.
+   - Opcional (a confirmar com o usuário): adicionar um 4º botão "Sem definição" para visualizar `unknown`, ou ocultá-los das duas abas filtradas mas continuar exibindo em "Todos".
 
-UI no rodapé da lista (substitui o ramo `!isSearching` atual quando estiver buscando):
+3. **Tornar o lookup de sessão mais tolerante** para reduzir o universo `unknown`:
+   - Em `sessionPairs`, além do telefone "limpo", indexar variantes E.164 (com e sem `55`, com e sem 9º dígito) usando `phoneVariants` (já existe em `src/lib/phoneVariants.ts`).
+   - Em `useAgentSessionStatusesBatch`, normalizar a chave do `Map` por todas as variantes do `whatsapp_number` retornadas, para que `getSessionActive(phone, codAgent)` ache a sessão mesmo quando o número estiver gravado em outro formato.
 
-- Contagem visível filtrada após aplicar os predicados de aba: `displayContacts.length`. O total geral da busca: `searchResults.total`.
-- Se `displayContacts.length < total` e há mais páginas no servidor (`searchResults.contacts.length < total`):
-  - Botão `Carregar mais (X de XXX)` onde `X = searchResults.contacts.length` e `XXX = searchResults.total`. Click → `setSearchPage(p => p + 1)`. Spinner enquanto `isFetching`.
-- Quando `searchResults.contacts.length >= total`:
-  - Texto `Fim da lista (XXX de XXX)`.
-- Manter o mesmo comportamento já existente para o modo não-busca (load-more incremental dos contatos do contexto), apenas exibindo também `(X de XXX)` ali se o contexto fornecer um total — fora do escopo se o total não estiver disponível; nesse caso manter os textos atuais. (Decisão: mostrar o `(X de XXX)` apenas no modo busca, onde temos o `count` exato; no modo padrão manter "Carregar mais conversas" e "Fim da lista" como hoje, conforme o usuário pediu “mesmo padrão do chat”.)
+4. **Esperar o batch carregar antes de classificar.** Enquanto `sessionActiveMap === undefined` (primeira carga), retornar `unknown` e suprimir do filtro `human` — exatamente como acima. O efeito visual é que conversas só "viram" julia/humano depois do retorno da query, em vez de piscarem em humano.
 
 ## Detalhes técnicos
 
-- Arquivo: `src/components/chat/ChatList.tsx` (todas as mudanças).
-- Reaproveitar `getDateRange`, `applyClientFilters`, `getConversationMode`, `matchesActiveTab`, `isVisibleByOpenScope`, `stageByPhone`.
-- Nenhuma mudança em `WhatsAppDataContext`, hooks de dados ou Supabase.
-- Cuidado: ao filtrar `displayContacts` pelo `conversationStatusFilter`, o sentinel infinito (`bottomSentinelRef`) deve permanecer escondido durante a busca (já está sob `!isSearching`). Manter assim.
-- O sentinel `convSentinelRef` (carrega mais conversas para badges) também não deve disparar durante a busca; condicionar seu `IntersectionObserver` a `!isSearching`.
+- Locais a alterar:
+  - `getContactMode` e `getConversationMode` em `ChatList.tsx` — passam a retornar `'julia' | 'human' | 'unknown'`.
+  - Filtros que usam `modeFilter` (linhas ~512, 671–672, 783–784, 914–915) — comparar com igualdade estrita: `unknown` nunca casa com `julia` nem `human`.
+  - `sessionPairs` (linhas ~351–367) — gerar todas as variantes do telefone via `phoneVariants`.
+  - `useAgentSessionStatusesBatch` (`src/hooks/useAgentSessionStatusesBatch.ts`) — popular o `Map` com todas as variantes do número retornado pelo banco.
+
+- Risco controlado: a mudança não afeta o badge de status individual da conversa (Bot icon), apenas a contagem/filtro de modo na lista.
 
 ## Fora de escopo
 
-- Server-side filters por aba/status (continua sendo client-side sobre os 50/100 carregados; aceitável porque a busca limita o universo).
-- Mudança no padrão da lista padrão (não-busca).
-- Ajustes em hooks externos, schema, RLS ou edge functions.
+- Backfill/correção de `agent_sessions` históricas com `cod_agent` divergente da fila atual.
+- Mudança no comportamento de Human Override (`active=false` ao receber `fromMe`) — segue como está.
+- Servidor-side filter por modo na query da lista — continua client-side.
+
+## Pergunta para confirmar antes de implementar
+
+O comportamento desejado para conversas em estado `unknown` (Julia provavelmente ativa mas sem sessão confirmada) é:
+
+- (a) **Não aparecer** nem no filtro Julia nem no Humano — só em "Todos". (recomendado)
+- (b) Tratar como **Julia por padrão** (oposto do bug atual).
+- (c) Adicionar um **4º botão "Sem definição"** para inspecioná-las.
