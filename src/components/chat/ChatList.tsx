@@ -460,12 +460,12 @@ export function ChatList() {
   const getContactMode = React.useCallback(
     (contactId: string): ConvMode => {
       const meta = convMetaByContact.get(contactId);
-      if (queueAgentLoading && meta?.queueId && !(queueAgentMap && queueAgentMap.has(meta.queueId))) return 'unknown';
-      const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
+      const queueId = meta?.queueId;
+      const hasMapEntry = !!(queueAgentMap && queueId && queueAgentMap.has(queueId));
+      if (queueAgentLoading && queueId && !hasMapEntry) return 'unknown';
+      const queueLink = queueId ? queueAgentMap?.get(queueId) : undefined;
       if (!queueLink) {
-        // No queue or queue link not yet known. If queue exists but link
-        // hasn't been fetched yet, defer; otherwise it's confirmed human.
-        return meta?.queueId && queueAgentLoading ? 'unknown' : 'human';
+        return queueId && queueAgentLoading ? 'unknown' : 'human';
       }
       if (!queueLink.hasAgent) return 'human';
       const phone = contactPhoneById.get(contactId);
@@ -479,10 +479,12 @@ export function ChatList() {
 
   const getConversationMode = React.useCallback(
     (conv: typeof conversations[number]): ConvMode => {
-      if (queueAgentLoading && conv.queue_id && !(queueAgentMap && queueAgentMap.has(conv.queue_id))) return 'unknown';
-      const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
+      const cqid = conv.queue_id;
+      const hasMapEntry = !!(queueAgentMap && cqid && queueAgentMap.has(cqid));
+      if (queueAgentLoading && cqid && !hasMapEntry) return 'unknown';
+      const queueLink = cqid ? queueAgentMap?.get(cqid) : undefined;
       if (!queueLink) {
-        return conv.queue_id && queueAgentLoading ? 'unknown' : 'human';
+        return cqid && queueAgentLoading ? 'unknown' : 'human';
       }
       if (!queueLink.hasAgent) return 'human';
       const phone = contactPhoneById.get(conv.contact_id);
