@@ -619,6 +619,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     maxPages: number,
   ): Promise<void> => {
     const myEpoch = convLoadEpochRef.current;
+    // Reentrancy guard: bail out fully (not just the state updater) if a
+    // loop is already running for this group or it has already finished.
+    const currentMeta = convGroupMetaRef.current?.[group];
+    if (currentMeta && (currentMeta.isAutoLoading || currentMeta.autoLoadDone)) {
+      return;
+    }
     setConvGroupMeta(prev => {
       if (prev[group].isAutoLoading || prev[group].autoLoadDone) return prev;
       return { ...prev, [group]: { ...prev[group], isAutoLoading: true, error: null } };
@@ -2326,6 +2332,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       queues: [...activeQueueIds].sort(),
     });
     const prev = bootstrapKeyRef.current;
+    // Skip when nothing meaningful changed (e.g. activeQueueIds got a new
+    // reference but same contents). Without this gate, the auto-load loop
+    // would be killed and restarted from offset 0 on every queue re-fetch,
+    // never reaching completion on large histories.
+    if (prev !== null && prev === key) return;
     bootstrapKeyRef.current = key;
     setHasMoreContacts(true);
     // Bump epoch — kills any in-flight auto-load loop from the previous scope.
