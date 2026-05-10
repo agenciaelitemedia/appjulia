@@ -1062,10 +1062,14 @@ export function ChatList() {
 
       {/* Status tabs — Aguardando Atendimento / Em Atendimento */}
       <div className="flex border-b shrink-0">
+        <TooltipProvider delayDuration={200}>
         {([
-          { value: 'pending', label: 'Em Abertos', count: pendingConvCount },
-          { value: 'open',    label: 'Em Atendimento', count: openConvCount },
-        ] as const).map(tab => (
+          { value: 'pending' as const, label: 'Em Abertos', count: pendingConvCount, iconOnly: false, tooltip: 'Conversas aguardando atendimento' },
+          { value: 'open' as const,    label: 'Em Atendimento', count: openConvCount, iconOnly: false, tooltip: 'Conversas em atendimento ativo' },
+          { value: 'resolved_closed' as const, label: '', icon: <CheckCheck className="h-4 w-4" />, count: closedConvCount, iconOnly: true, tooltip: 'Resolvidas / Encerradas' },
+        ]).map(tab => (
+          <Tooltip key={tab.value}>
+            <TooltipTrigger asChild>
           <button
             key={tab.value}
             onClick={() => setConversationStatusFilter(tab.value)}
@@ -1076,7 +1080,7 @@ export function ChatList() {
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
-            {tab.label}
+            {tab.iconOnly ? tab.icon : tab.label}
             <span className={cn(
               'rounded-full min-w-[18px] h-4 flex items-center justify-center px-1 text-[9px] font-bold',
               conversationStatusFilter === tab.value
@@ -1086,7 +1090,11 @@ export function ChatList() {
               {tab.count >= 99 ? '99+' : tab.count}
             </span>
           </button>
+            </TooltipTrigger>
+            <TooltipContent>{tab.tooltip}</TooltipContent>
+          </Tooltip>
         ))}
+        </TooltipProvider>
       </div>
       {/* Invisible sentinel — triggers loadMoreConversations to keep counts accurate */}
       <div ref={convSentinelRef} className="h-0 w-full" />
