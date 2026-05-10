@@ -577,11 +577,6 @@ export function ChatList() {
         if (!info || !stageIds.includes(info.stageId)) continue;
       }
 
-      // SLA filter
-      if (slaFilter !== 'all') {
-        if (slaStatusByContact.get(conv.contact_id) !== slaFilter) continue;
-      }
-
       // Mode filter (Julia/humano)
       if (modeFilter !== 'all') {
         if (getConversationMode(conv) !== modeFilter) continue;
@@ -607,7 +602,7 @@ export function ChatList() {
     return { pendingConvCount: pending, openConvCount: open };
   }, [
     conversations, contacts, deferredSearch, periodFilter, ownerFilter, teamMembers,
-    user?.id, user?.name, stageIds, stageByPhone, slaFilter, slaStatusByContact,
+    user?.id, user?.name, stageIds, stageByPhone,
     modeFilter, getConversationMode, matchesActiveTab, isVisibleByOpenScope,
   ]);
 
@@ -693,11 +688,6 @@ export function ChatList() {
         if (!info || !stageIds.includes(info.stageId)) continue;
       }
 
-      // SLA
-      if (slaFilter !== 'all') {
-        if (slaStatusByContact.get(conv.contact_id) !== slaFilter) continue;
-      }
-
       // Mode (Julia / humano)
       if (modeFilter !== 'all') {
         if (getConversationMode(conv) !== modeFilter) continue;
@@ -722,7 +712,7 @@ export function ChatList() {
   }, [
     conversationStatusFilter, sortedConversations, contacts, deferredSearch,
     periodFilter, ownerFilter, teamMembers, user?.id, user?.name,
-    stageIds, stageByPhone, slaFilter, slaStatusByContact, modeFilter,
+    stageIds, stageByPhone, modeFilter,
     getConversationMode, matchesActiveTab, isVisibleByOpenScope,
     applyClientFilters, filteredContacts,
   ]);
