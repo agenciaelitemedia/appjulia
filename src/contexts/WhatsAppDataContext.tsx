@@ -310,6 +310,17 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
   // Period filter — defaults to last 7 days every time the chat is opened
   const [periodFilter, setPeriodFilter] = useState<ChatPeriodFilter>('all');
+
+  // Server-side filter state (see ExtendedContextValue for semantics)
+  const [assignedToFilter, setAssignedToFilter] = useState<string>('all');
+  const [phoneAllowlist, setPhoneAllowlist] = useState<string[] | null>(null);
+  // Snapshot refs so the loaders can read the latest value without
+  // becoming a new useCallback identity on every state change (which
+  // would thrash the bootstrap effect).
+  const assignedToFilterRef = useRef(assignedToFilter);
+  useEffect(() => { assignedToFilterRef.current = assignedToFilter; }, [assignedToFilter]);
+  const phoneAllowlistRef = useRef(phoneAllowlist);
+  useEffect(() => { phoneAllowlistRef.current = phoneAllowlist; }, [phoneAllowlist]);
   // Sort order for contacts list — persisted in localStorage so the user
   // preference is preserved across sessions.
   const [sortOrder, setSortOrderState] = useState<'newest' | 'oldest'>(() => {
