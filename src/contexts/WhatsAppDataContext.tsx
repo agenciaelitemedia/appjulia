@@ -517,6 +517,18 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         query = query.gte('last_message_at', cutoff);
       }
 
+      // Server-side phone allowlist (mode/stage filters resolved upstream).
+      // Empty list means "no matches" — short-circuit to avoid a useless DB call.
+      const allowlist = phoneAllowlistRef.current;
+      if (allowlist !== null) {
+        if (allowlist.length === 0) {
+          if (!append) setContacts([]);
+          setHasMoreContacts(false);
+          return;
+        }
+        query = query.in('phone', allowlist);
+      }
+
       const { data, error } = await query;
       if (error) throw error;
 
