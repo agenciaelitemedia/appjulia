@@ -460,7 +460,7 @@ export function ChatList() {
   const getContactMode = React.useCallback(
     (contactId: string): ConvMode => {
       const meta = convMetaByContact.get(contactId);
-      if (queueAgentLoading && meta?.queueId && !queueAgentMap?.has(meta.queueId)) return 'unknown';
+      if (queueAgentLoading && meta?.queueId && !(queueAgentMap && queueAgentMap.has(meta.queueId))) return 'unknown';
       const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
       if (!queueLink) {
         // No queue or queue link not yet known. If queue exists but link
@@ -479,7 +479,7 @@ export function ChatList() {
 
   const getConversationMode = React.useCallback(
     (conv: typeof conversations[number]): ConvMode => {
-      if (queueAgentLoading && conv.queue_id && !queueAgentMap?.has(conv.queue_id)) return 'unknown';
+      if (queueAgentLoading && conv.queue_id && !(queueAgentMap && queueAgentMap.has(conv.queue_id))) return 'unknown';
       const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
       if (!queueLink) {
         return conv.queue_id && queueAgentLoading ? 'unknown' : 'human';
