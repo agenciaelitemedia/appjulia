@@ -29,6 +29,7 @@ import { useChatSlaConfigs, evaluateSla, type SlaStatus } from '@/hooks/useChatS
 import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
 import { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
+import { useSessionPhonesByMode } from '@/hooks/useSessionPhonesByMode';
 import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
@@ -156,6 +157,43 @@ export function ChatList() {
   const trimmedSearch = (searchQuery || '').trim();
   const isSearching = trimmedSearch.length >= 2;
 
+  // Mode filter applied server-side when Julia/Humano is selected. We
+  // pre-fetch the universe of phones for that mode (from agent_sessions)
+  // and use it as a `phone IN (...)` filter on the contacts query so the
+  // totalizers and pagination cover the whole base, not just the
+  // already-loaded page.
+  const phoneFilterMode: 'julia' | 'human' | null =
+    modeFilter === 'julia' || modeFilter === 'human' ? modeFilter : null;
+
+  const { data: agentsForMode } = useMyAgents();
+  const clientCodAgentsForMode = React.useMemo(() => {
+    const set = new Set<string>();
+    [
+      ...(agentsForMode?.myAgents || []),
+      ...(agentsForMode?.monitoredAgents || []),
+    ].forEach((a: any) => {
+      if (a?.cod_agent) set.add(String(a.cod_agent));
+    });
+    return [...set];
+  }, [agentsForMode]);
+
+  const { data: modePhonesData, isFetching: isModePhonesFetching } =
+    useSessionPhonesByMode(phoneFilterMode ?? 'all', clientCodAgentsForMode);
+  // When the user has no agents linked we can't compute a phone universe,
+  // so treat the mode filter as "ready with empty result" to avoid hanging
+  // the query in a perpetual loading state.
+  const modePhones =
+    phoneFilterMode === null
+      ? null
+      : clientCodAgentsForMode.length === 0
+        ? []
+        : (modePhonesData?.phones ?? null);
+  const modePhonesReady = phoneFilterMode === null || modePhones !== null;
+
+  // Either a free-text search or a mode pre-filter triggers the remote
+  // query path. Both scenarios bypass the in-memory paginated list.
+  const isRemoteQuery = isSearching || phoneFilterMode !== null;
+
   // Key used to scope pagination per tab/status combo
   const searchPageKey = `${activeTab}|${conversationStatusFilter}`;
   const searchPage = searchPages[searchPageKey] ?? 1;
@@ -166,33 +204,53 @@ export function ChatList() {
     }));
   }, [searchPageKey]);
 
-  // Reset all per-tab pagination whenever the search term changes
+  // Reset all per-tab pagination whenever the search term or mode filter changes
   useEffect(() => {
     setSearchPages({});
-  }, [trimmedSearch]);
+  }, [trimmedSearch, phoneFilterMode]);
 
   const { data: searchResults, isFetching: isSearchFetching } = useQuery({
-    queryKey: ['chat-list-search', clientId, trimmedSearch, searchPageKey, searchPage],
-    enabled: isSearching && !!clientId,
+    queryKey: [
+      'chat-list-search',
+      clientId,
+      trimmedSearch,
+      phoneFilterMode,
+      modePhones?.length ?? 0,
+      searchPageKey,
+      searchPage,
+    ],
+    enabled: isRemoteQuery && !!clientId && modePhonesReady,
     staleTime: 30_000,
     placeholderData: (prev) => prev,
     queryFn: async () => {
       const term = trimmedSearch.replace(/[%,]/g, ' ').trim();
-      if (!term) return { contacts: [] as typeof contacts, conversations: [] as typeof conversations, total: 0 };
+      // Empty universe when mode filter has no matching phones
+      if (phoneFilterMode && (!modePhones || modePhones.length === 0)) {
+        return { contacts: [] as typeof contacts, conversations: [] as typeof conversations, total: 0 };
+      }
+      if (!term && !phoneFilterMode) {
+        return { contacts: [] as typeof contacts, conversations: [] as typeof conversations, total: 0 };
+      }
       const digits = term.replace(/\D/g, '');
-      const orParts: string[] = [`name.ilike.%${term}%`];
-      if (digits.length >= 3) orParts.push(`phone.ilike.%${digits}%`);
       const upper = searchPage * SEARCH_PAGE_SIZE - 1;
-      const { data: matched, error, count } = await supabase
+      let q = supabase
         .from('chat_contacts')
         .select(
           'id,client_id,cod_agent,channel_source,channel_type,remote_jid,phone,name,avatar,is_group,is_archived,is_muted,unread_count,last_message_at,last_message_text,created_at,updated_at',
           { count: 'exact' }
         )
         .eq('client_id', clientId)
-        .or(orParts.join(','))
         .order('last_message_at', { ascending: false, nullsFirst: false })
         .range(0, upper);
+      if (term) {
+        const orParts: string[] = [`name.ilike.%${term}%`];
+        if (digits.length >= 3) orParts.push(`phone.ilike.%${digits}%`);
+        q = q.or(orParts.join(','));
+      }
+      if (phoneFilterMode && modePhones && modePhones.length > 0) {
+        q = q.in('phone', modePhones);
+      }
+      const { data: matched, error, count } = await q;
       if (error) throw error;
       const matchedContacts = (matched || []) as unknown as typeof contacts;
       const ids = matchedContacts.map((c) => c.id);
@@ -237,7 +295,7 @@ export function ChatList() {
   useEffect(() => {
     const sentinel = convSentinelRef.current;
     if (!sentinel) return;
-    if (isSearching) return;
+    if (isRemoteQuery) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting && hasMoreConversations) {
@@ -248,7 +306,7 @@ export function ChatList() {
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMoreConversations, loadMoreConversations, isSearching]);
+  }, [hasMoreConversations, loadMoreConversations, isRemoteQuery]);
   const activeQueues = queues.filter(q => q.is_active && !q.is_deleted);
 
   // Default = "Todas as filas" (selectedQueue null). No auto-select.
@@ -836,7 +894,7 @@ export function ChatList() {
   // results split by tab, just like outside the search.
   // ─────────────────────────────────────────────────────────────────────
   const searchView = React.useMemo(() => {
-    if (!isSearching || !searchResults) {
+    if (!isRemoteQuery || !searchResults) {
       return null as null | {
         contacts: typeof contacts;
         convsByContact: Map<string, typeof sortedConversations>;
@@ -963,29 +1021,29 @@ export function ChatList() {
       closedCount: closed,
     };
   }, [
-    isSearching, searchResults, contacts, sortedConversations,
+    isRemoteQuery, searchResults, contacts, sortedConversations,
     matchesActiveTab, isVisibleByOpenScope, selectedQueue, periodFilter,
     ownerFilter, teamMembers, user?.id, user?.name, stageIds, stageByPhone,
     modeFilter, getConversationMode, conversationStatusFilter, sortOrder,
   ]);
 
-  const displayContacts = isSearching
+  const displayContacts = isRemoteQuery
     ? (searchView?.contacts ?? [])
     : finalVisibleContacts;
 
-  const displayConvsByContact = isSearching
+  const displayConvsByContact = isRemoteQuery
     ? (searchView?.convsByContact ?? new Map<string, typeof sortedConversations>())
     : convsByContact;
 
-  // Override badge counts when searching so the tabs reflect search totals
-  const effPendingConvCount = isSearching ? (searchView?.pendingCount ?? 0) : pendingConvCount;
-  const effOpenConvCount = isSearching ? (searchView?.openCount ?? 0) : openConvCount;
-  const effClosedConvCount = isSearching ? (searchView?.closedCount ?? 0) : closedConvCount;
+  // Override badge counts when in remote-query mode so the tabs reflect totals
+  const effPendingConvCount = isRemoteQuery ? (searchView?.pendingCount ?? 0) : pendingConvCount;
+  const effOpenConvCount = isRemoteQuery ? (searchView?.openCount ?? 0) : openConvCount;
+  const effClosedConvCount = isRemoteQuery ? (searchView?.closedCount ?? 0) : closedConvCount;
 
-  // Search pagination metadata for footer UI
+  // Remote-query pagination metadata for footer UI
   const searchTotal = searchResults?.total ?? 0;
   const searchLoaded = searchResults?.contacts?.length ?? 0;
-  const hasMoreSearch = isSearching && searchLoaded < searchTotal;
+  const hasMoreSearch = isRemoteQuery && searchLoaded < searchTotal;
 
   // Per-tab/status counters for footer (independent for each status tab)
   const activeTabTotal =
@@ -1437,13 +1495,13 @@ export function ChatList() {
       <div ref={listRef} className="flex-1 overflow-y-auto">
         {/* Silent-refetch banner — shown when reloading but the list is
             already populated, so the user doesn't lose the current view. */}
-        {(isLoading || (isSearching && isSearchFetching && (searchResults?.contacts?.length ?? 0) > 0)) && contacts.length > 0 && (
+        {(isLoading || (isRemoteQuery && (isSearchFetching || isModePhonesFetching) && (searchResults?.contacts?.length ?? 0) > 0)) && contacts.length > 0 && (
           <div className="flex items-center justify-center gap-2 py-1.5 text-[10px] text-muted-foreground bg-muted/30 border-b">
             <Loader2 className="h-3 w-3 animate-spin" />
-            {isSearching ? 'Buscando…' : 'Atualizando…'}
+            {isSearching ? 'Buscando…' : phoneFilterMode ? 'Filtrando…' : 'Atualizando…'}
           </div>
         )}
-        {(isLoading && contacts.length === 0) || (isSearching && isSearchFetching && !searchResults) ? (
+        {(isLoading && contacts.length === 0) || (isRemoteQuery && (isSearchFetching || isModePhonesFetching) && !searchResults) ? (
           <div className="py-1">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-3">
@@ -1519,15 +1577,15 @@ export function ChatList() {
         )}
 
         {/* Infinite scroll loader / sentinel */}
-        {!isSearching && isLoadingMoreContacts && contacts.length > 0 && (
+        {!isRemoteQuery && isLoadingMoreContacts && contacts.length > 0 && (
           <div className="flex justify-center py-3">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         )}
-        {!isSearching && displayContacts.length > 0 && (
+        {!isRemoteQuery && displayContacts.length > 0 && (
           <div ref={bottomSentinelRef} className="h-1" />
         )}
-        {!isSearching && hasMoreContacts && !isLoadingMoreContacts && displayContacts.length > 0 && (
+        {!isRemoteQuery && hasMoreContacts && !isLoadingMoreContacts && displayContacts.length > 0 && (
           <div className="flex justify-center py-3">
             <button
               type="button"
@@ -1538,21 +1596,21 @@ export function ChatList() {
             </button>
           </div>
         )}
-        {!isSearching && !isLoading && !hasMoreContacts && displayContacts.length > 0 && (
+        {!isRemoteQuery && !isLoading && !hasMoreContacts && displayContacts.length > 0 && (
           <div className="text-center text-[10px] text-muted-foreground py-3">
             Fim da lista ({activeTabTotal} de {activeTabTotal})
           </div>
         )}
 
-        {/* Search-mode pagination footer */}
-        {isSearching && searchLoaded > 0 && (
+        {/* Remote-query pagination footer (search or mode filter) */}
+        {isRemoteQuery && searchLoaded > 0 && (
           <>
-            {isSearchFetching && (
+            {(isSearchFetching || isModePhonesFetching) && (
               <div className="flex justify-center py-3">
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               </div>
             )}
-            {!isSearchFetching && hasMoreSearch && (
+            {!isSearchFetching && !isModePhonesFetching && hasMoreSearch && (
               <div className="flex justify-center py-3">
                 <button
                   type="button"
@@ -1563,7 +1621,7 @@ export function ChatList() {
                 </button>
               </div>
             )}
-            {!isSearchFetching && !hasMoreSearch && (
+            {!isSearchFetching && !isModePhonesFetching && !hasMoreSearch && (
               <div className="text-center text-[10px] text-muted-foreground py-3">
                 Fim da lista ({activeTabTotal} de {activeTabTotal})
               </div>
